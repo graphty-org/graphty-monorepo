@@ -109,7 +109,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 }
             >
                 <Rail />
-                <aside className="ws-left" aria-label="Left panel" hidden={!panels} inert={covered === "selector"}>
+                <aside className="ws-left" aria-label="Left panel" hidden={!panels} inert={covered !== null}>
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
                             {PLACES[place]}
@@ -187,7 +187,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with
                     the row that opened it (Figma's right panel). */}
                 <Popout.Anchor>
-                    <aside className="ws-right" aria-label="Inspector" hidden={!panels} inert={covered === "filter"}>
+                    <aside className="ws-right" aria-label="Inspector" hidden={!panels} inert={covered !== null}>
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">
                                 <Inspector />

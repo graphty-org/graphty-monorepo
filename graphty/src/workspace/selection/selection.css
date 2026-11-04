@@ -179,28 +179,29 @@
     flex: none;
 }
 
-/* The workspace (spec 3.0): one non-modal surface over the canvas column that edits a selection,
-   laid over the left panel and the canvas (a style layer's, whose inspector stays beside it) or
-   over the canvas and the inspector (a filter card's, whose Filters list stays beside it); the
-   editor measures where. No scrim: its center is transparent and lets clicks through to the
-   canvas, which it never re-frames. */
+/* The workspace: a modal over the whole app, a margin all round, a scrim behind it (the owner,
+   2026-11-04). Left, the colored group cards; right, the drawing over the matches table. The
+   drawing is graphty-element's own canvas, laid fixed over the preview cell. */
+.sel-ws-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 190;
+    background: rgb(0 0 0 / 45%);
+}
+
 .sel-ws {
     position: fixed;
-    z-index: 20;
+    inset: 28px;
+    z-index: 200;
     display: grid;
     grid-template-rows: 40px minmax(0, 1fr);
     min-width: 0;
     min-height: 0;
-    pointer-events: none;
-}
-
-.sel-ws-head,
-.sel-ws-outline,
-.sel-ws-props,
-.sel-ws-strip,
-.sel-ws-preview .ws-legend-card,
-.sel-ws-fit {
-    pointer-events: auto;
+    overflow: hidden;
+    background: var(--cm-bg);
+    border: 1px solid var(--cm-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 30%);
 }
 
 .sel-ws-head {
@@ -219,17 +220,15 @@
 
 .sel-ws-body {
     display: grid;
-    /* The outline as wide as its longest row, 200 to 280 px; the properties at 320 px. */
-    grid-template-columns: fit-content(280px) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(360px, 34%) minmax(0, 1fr);
     min-height: 0;
 }
 
-.sel-ws-outline {
-    min-width: max(200px, var(--sel-ws-cover-start, 0px));
-    max-width: max(280px, var(--sel-ws-cover-start, 0px));
+.sel-ws-cards {
+    min-height: 0;
     overflow: hidden auto;
-    padding: 4px;
-    background: var(--cm-bg);
+    padding: 12px;
+    background: var(--cm-bg-subtle, var(--mantine-color-default-hover));
     border-inline-end: 1px solid var(--cm-border);
 }
 
@@ -240,9 +239,9 @@
     min-height: 0;
 }
 
-/* The strip takes 30% of the workspace's height under the preview. */
+/* The table takes 40% of the workspace's height under the drawing. */
 .sel-ws-center[data-strip] {
-    grid-template-rows: minmax(0, 1fr) 30%;
+    grid-template-rows: minmax(0, 1fr) 40%;
 }
 
 .sel-ws-preview {
@@ -250,23 +249,109 @@
     min-height: 0;
 }
 
-.sel-ws-fit {
-    position: absolute;
-    inset-block-start: 8px;
-    inset-inline-end: 8px;
-}
-
-/* Fit sits on the canvas, which stays light in the dark theme: it takes the preview key's card
-   surface, so its words keep their contrast in both themes. */
-.sel-ws-fit.sel-ws-fit {
-    background: var(--cm-bg);
-    border: 1px solid var(--cm-border);
-    border-radius: var(--mantine-radius-sm);
+/* The drawing, fixed over the preview cell and above the modal, so it takes the pointer there. */
+.ws-canvas[data-sel-preview] .ws-canvas-surface {
+    position: fixed;
+    top: var(--sel-preview-top);
+    left: var(--sel-preview-left);
+    width: var(--sel-preview-width);
+    height: var(--sel-preview-height);
+    z-index: 201;
 }
 
 /* The header's Table toggle, pressed: the selected row's fill, as a subtle toggle draws it. */
 .sel-ws-toggle[data-pressed] {
     background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+/* The group cards: each group a card in its own color, its steps inside, its actions along its
+   bottom. */
+.sel-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sel-card {
+    --sel-card-color: var(--cm-border);
+
+    background: var(--cm-bg);
+    border: 1px solid var(--cm-border);
+    border-inline-start: 4px solid var(--sel-card-color);
+    border-radius: 6px;
+}
+
+.sel-card[data-off] {
+    opacity: 0.6;
+}
+
+.sel-card-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding-inline: 8px 4px;
+    background: color-mix(in srgb, var(--sel-card-color) 12%, var(--cm-bg));
+    border-start-end-radius: 5px;
+}
+
+.sel-card-head .sel-chit {
+    border-color: var(--sel-card-color);
+    background: var(--sel-card-color);
+}
+
+.sel-card-or {
+    padding-inline-start: 12px;
+}
+
+.sel-card-start {
+    padding: 6px 12px 0;
+}
+
+.sel-card-step {
+    padding: 8px 12px;
+    border-top: 1px solid var(--cm-border);
+}
+
+.sel-card-step:first-of-type {
+    border-top: 0;
+}
+
+.sel-card-step[data-state="off"] {
+    opacity: 0.6;
+}
+
+.sel-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    border-top: 1px solid var(--cm-border);
+}
+
+.sel-verb-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sel-verb-badge[data-op="add"],
+.sel-card-actions [data-verb="add"] {
+    color: var(--mantine-color-green-8);
+}
+
+.sel-verb-badge[data-op="keep"],
+.sel-card-actions [data-verb="keep"] {
+    color: var(--mantine-color-blue-7);
+}
+
+.sel-verb-badge[data-op="except"],
+.sel-card-actions [data-verb="except"] {
+    color: var(--mantine-color-red-7);
+}
+
+.sel-summary-row .sel-value {
+    flex: 1 1 auto;
 }
 
 /* The sidebar title row's Edit is drawn on hover or focus, over the row's end, so the name keeps
@@ -312,21 +397,8 @@
     min-height: 0;
 }
 
-.sel-ws-props.sel-pane-box {
-    border-top: 0;
-}
-
-.sel-ws-props {
-    width: max(320px, var(--sel-ws-cover-end, 0px));
-    overflow: hidden auto;
-    /* 16 px at the sides: a range brush's thumbs reach 8 px past its row, and keep 8 px of gutter. */
-    padding: 8px 16px;
-    background: var(--cm-bg);
-    border-inline-start: 1px solid var(--cm-border);
-}
-
 /* No canvas key over the preview from the workspace's first frame on, before the store names it:
    its outline says what the key would (ws-polish 3, finding 1). */
-.ws-body:has(> .sel-ws) .ws-canvas-overlays .ws-legend-card {
+.ws-body:has(> .sel-ws) .ws-canvas-overlays {
     display: none;
 }

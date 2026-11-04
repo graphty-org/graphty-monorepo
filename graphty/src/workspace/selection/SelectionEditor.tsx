@@ -13,11 +13,9 @@
 import "./selection.css";
 
 import {
-    CompactColorInput,
     FieldCaret,
     focusWithRing,
     InlineRename,
-    PopoutManager,
     SegmentedControl,
     TargetTooltip,
     ToggleIconButton,
@@ -30,19 +28,7 @@ import type {
     UnionBranch,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Collapse,
-    Group,
-    InputBase,
-    Menu,
-    Stack,
-    Text,
-    TextInput,
-    Tooltip,
-    UnstyledButton,
-} from "@mantine/core";
+import { ActionIcon, Button, Group, InputBase, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -70,9 +56,11 @@ import {
     removeBranch,
     removeStep,
     type Verb,
+    verbsAt,
+    verbsFor,
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
-import { CaptionedRow, StepPane } from "./StepPane";
+import { StepPane } from "./StepPane";
 import { useSteps } from "./useSteps";
 import {
     type Host,
@@ -91,6 +79,7 @@ import {
     reasonWords,
     rowTest,
     rowWords,
+    selectionWords,
     shortCount,
     stepWords,
     VERB_WORDS,
@@ -314,9 +303,6 @@ export function SelectionEditor({
     const [keepShape, setKeepShape] = useState(false);
     // Where the workspace lies over the frame, once measured (below).
     const [wsPlace, setPlace] = useState<React.CSSProperties | null>(null);
-    // The outline column's width, fixed once the workspace is drawn, until it closes: a row's
-    // words never widen it and move the preview (spec 3.0).
-    const [outlineWidth, setOutlineWidth] = useState<number | null>(null);
     const box = useRef<HTMLDivElement>(null);
     const wsBox = useRef<HTMLElement>(null);
     const outlineColumn = useRef<HTMLDivElement>(null);
@@ -539,7 +525,7 @@ export function SelectionEditor({
             if (switchedSide) {
                 // The side's segment was replaced with the editor: focus goes back to the side chosen.
                 // Only there: the sidebar's title row would take it before the workspace is drawn.
-                focusAfter.current = ".sel-ws-props input[type=radio]:checked";
+                focusAfter.current = ".sel-ws-cards input[type=radio]:checked";
             }
         }
     });
@@ -699,10 +685,6 @@ export function SelectionEditor({
         reading.branches.flatMap((branch) => branch.steps).find((step) => step.id === id);
     const branchReading = (id: string | undefined): StepsReading["branches"][number] | undefined =>
         reading.branches.find((branch) => branch.id === id);
-    const branchOfRow = (id: string | null): UnionBranch | undefined =>
-        id === null
-            ? undefined
-            : rule.branches.find((branch) => branch.id === id || branch.steps.some((step) => step.id === id));
 
     const focusPane = (): boolean => {
         const target = paneTarget(wsBox.current);
@@ -712,45 +694,6 @@ export function SelectionEditor({
         focusAfter.current = null;
         focusWithRing(target);
         return true;
-    };
-    /**
-     * The pane's add actions, first in its first row: "And..." (or "Add...") adds a step to the
-     * selected row's group, "Or..." adds a group. They act on the selection, never move a row.
-     * @param branch - the group "And..." adds to, or undefined for none.
-     * @returns the buttons.
-     */
-    const adds = (branch: UnionBranch | undefined): React.ReactNode => {
-        const full = reading.branchesLeft === 0;
-        return (
-            <>
-                {branch !== undefined && (
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        data-add={branch.id}
-                        onClick={() => {
-                            startAdding(branch, newVerb(branch));
-                        }}
-                    >
-                        {/* Said as what the step does to the group: narrows it (And), or widens a
-                            group that starts with nothing (Add), beside Or..., a new group. */}
-                        {newVerb(branch) === "keep" ? "And..." : "Add..."}
-                    </Button>
-                )}
-                <Tooltip label={`No more: ${String(rule.branches.length)} is the most`} disabled={!full}>
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        data-or=""
-                        aria-disabled={full}
-                        data-disabled={full ? true : undefined}
-                        onClick={addOr}
-                    >
-                        Or...
-                    </Button>
-                </Tooltip>
-            </>
-        );
     };
     // The workspace's Table: the matches strip under the preview, hidden or shown for the session.
     const toggleStrip = (): void => {
@@ -780,7 +723,10 @@ export function SelectionEditor({
         // answers), never the Except switch above it.
         select(made.id);
         if (hasTest(stepRule)) {
-            focusAfter.current = TEST_FOCUS;
+            // The new step's own test, never an earlier step's in the cards.
+            focusAfter.current = TEST_FOCUS.map((each) =>
+                each.replace(".sel-ws-cards", `[data-step-pane="${CSS.escape(made.id)}"]`),
+            );
         }
         if (!hasTest(stepRule)) {
             focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
@@ -1134,16 +1080,12 @@ export function SelectionEditor({
         ]),
     ];
     const tabbed = active !== null && rowIds.includes(active) ? active : TITLE;
-    const selectedBranch = rule.branches.find((branch) => branch.id === selected);
     const recipeRead = loneStep === undefined ? undefined : readingOf(loneStep.id);
     const recipeState =
         recipeTitle && loneStep !== undefined
             ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "")
             : "";
     const recipeOpen = recipeTitle && (selected === TITLE || selected === loneStep?.id);
-    const selectedStep = recipeOpen
-        ? loneStep
-        : branchOfRow(selected)?.steps.find((s) => selected !== null && s.id === selected);
 
     /**
      * The outline's rows: the sidebar's read-only copy at rest ("rest"), or the workspace's
@@ -1151,6 +1093,9 @@ export function SelectionEditor({
      * @param where - which outline.
      * @returns the tree.
      */
+    const restSummary = empty
+        ? `${rule.branches[0]?.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
+        : selectionWords(session, rule);
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
@@ -1265,7 +1210,17 @@ export function SelectionEditor({
                         </Button>
                     )}
                 </div>
-                {(editing ? [] : rule.branches).map((branch, at) => {
+                {!ws && !editing && !recipeTitle && (
+                    // At rest the sidebar says the selection in one calm line; Edit opens the modal.
+                    <Tooltip label={restSummary} openDelay={500}>
+                        <div {...rowProps("summary", TITLE, restSummary, null)} className="sel-row sel-summary-row">
+                            <Text size="sm" c="dimmed" className="sel-value">
+                                {restSummary}
+                            </Text>
+                        </div>
+                    </Tooltip>
+                )}
+                {(editing || !ws ? [] : rule.branches).map((branch, at) => {
                     const branchRead = branchReading(branch.id);
                     const color = branchRead?.color ?? branch.color ?? "currentColor";
                     const letter = branchName(branch);
@@ -1549,201 +1504,364 @@ export function SelectionEditor({
         );
     };
 
-    // The selected row's pane, at the properties column's full width (spec 3.2).
-    const addingBranch = adding === null ? undefined : rule.branches.find((branch) => branch.id === adding.branch);
-    const panes = (
-        <>
-            {/* A new filter card's Nodes | Edges stays drawn over its first step's picker (spec 3.3). */}
-            {adding !== null && addingBranch !== undefined && titleExtra}
-            {adding !== null && addingBranch !== undefined && (
-                <NewStepPane
-                    key={`${adding.branch}:${String(adding.open)}`}
-                    session={session}
-                    rule={rule}
-                    branch={addingBranch}
-                    open={adding.open}
-                    hostPicks={hostPicks}
-                    onPick={(stepRule) => {
-                        pick(addingBranch, adding.op, stepRule);
-                    }}
-                    onCancel={() => {
-                        stopAdding(addingBranch);
-                    }}
-                />
-            )}
-            {adding === null && (selected === TITLE || recipeOpen || (selected === null && open)) && (
-                <TitlePane
-                    name={name}
-                    extra={titleExtra}
-                    adds={adds(multi ? undefined : rule.branches[0])}
-                    menu={[
-                        ...(host === "selector"
-                            ? [
-                                  {
-                                      id: "select",
-                                      label: `Select ${formatNumber(reading.total.count)}`,
-                                      icon: "selection" as const,
-                                      group: "edit" as const,
-                                      reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
-                                      onRun: () => {
-                                          showMembers(reading.result, null);
-                                      },
-                                  },
-                              ]
-                            : []),
-                        ...(titleMenu ?? []),
-                    ]}
-                    done={null}
-                />
-            )}
-            {adding === null && selectedBranch !== undefined && (
-                <GroupPane
-                    branch={selectedBranch}
-                    reading={branchReading(selectedBranch.id)}
-                    name={branchName(selectedBranch)}
-                    side={side}
-                    host={host}
-                    of={of}
-                    multi={multi}
-                    done={null}
-                    adds={adds(selectedBranch)}
-                    first={rule.branches[0] === selectedBranch}
-                    last={rule.branches.at(-1) === selectedBranch}
-                    onStart={(start) => {
-                        onChange(editBranch(rule, selectedBranch.id ?? "", { start }));
-                    }}
-                    onRename={() => {
-                        setRenaming(selectedBranch.id ?? null);
-                    }}
-                    onName={(typed) => {
-                        const text = typed.trim();
-                        if (text !== branchName(selectedBranch)) {
-                            onChange(
-                                editBranch(rule, selectedBranch.id ?? "", {
-                                    name: text === "" ? undefined : text,
-                                }),
-                            );
-                        }
-                    }}
-                    onToggle={() => {
-                        toggle(selectedBranch);
-                    }}
-                    onShow={() => {
-                        showMembers(branchReading(selectedBranch.id)?.members, selectedBranch.id ?? null);
-                    }}
-                    onDuplicate={() => {
-                        duplicate(selectedBranch);
-                    }}
-                    color={branchReading(selectedBranch.id)?.color ?? selectedBranch.color}
-                    onColor={(color) => {
-                        onChange(editBranch(rule, selectedBranch.id ?? "", { color }));
-                    }}
-                    onSave={() => {
-                        const members = branchReading(selectedBranch.id)?.members;
-                        if (members === undefined) {
-                            return;
-                        }
-                        const setName = branchName(selectedBranch);
-                        void session.sets.createFrom(members, { name: setName }).then(() => {
-                            say(`Saved ${setName} as a set`);
-                        });
-                    }}
-                    onMove={(by) => {
-                        moveBranchBy(selectedBranch.id ?? "", by);
-                    }}
-                    onDelete={() => {
-                        removeBranchOf(selectedBranch);
-                    }}
-                />
-            )}
-            {adding === null &&
-                selectedStep !== undefined &&
-                (() => {
-                    const branch = branchOfRow(selectedStep.id ?? null) as UnionBranch;
-                    const id = selectedStep.id ?? "";
-                    const index = branch.steps.indexOf(selectedStep);
-                    return (
-                        <StepPane
-                            key={id}
-                            session={session}
-                            rule={rule}
-                            branch={branch}
-                            step={selectedStep}
-                            reading={readingOf(id)}
-                            host={host}
-                            of={of}
-                            first={index === 0}
-                            last={index === branch.steps.length - 1}
-                            total={reading.total.count}
-                            hostPicks={hostPicks}
-                            adds={adds(branch)}
-                            head={!recipeOpen}
-                            onStep={(patch) => {
-                                lastEdited.current = id;
-                                onChange(editStep(rule, branch.id ?? "", id, patch));
+    // The title's "..." items: a style layer's Select N, then the host's own (a filter card's).
+    const titleItems: readonly SelectionMenuItem[] = [
+        ...(host === "selector"
+            ? [
+                  {
+                      id: "select",
+                      label: `Select ${formatNumber(reading.total.count)}`,
+                      icon: "selection" as const,
+                      group: "edit" as const,
+                      reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
+                      onRun: () => {
+                          showMembers(reading.result, null);
+                      },
+                  },
+              ]
+            : []),
+        ...(titleMenu ?? []),
+    ];
+
+    /**
+     * The workspace's group cards: one colored card per group, its steps inside it, each step's
+     * controls in the step, and the card's actions along its bottom (Add, Keep, Except, Or).
+     * @returns the cards.
+     */
+    const cards = (): React.JSX.Element => (
+        <div
+            className="sel-cards"
+            onPointerLeave={() => {
+                setMarked(null);
+            }}
+        >
+            {titleExtra}
+            {rule.branches.map((branch, at) => {
+                const branchRead = branchReading(branch.id);
+                const color = branchRead?.color ?? branch.color ?? "var(--cm-border)";
+                const letter = branchName(branch);
+                const branchId = branch.id ?? "";
+                const on = branch.on !== false;
+                const count = groupCount(branch, branchRead);
+                const addingHere = adding !== null && adding.branch === branchId;
+                return (
+                    <React.Fragment key={branchId}>
+                        {at > 0 && (
+                            <Text size="sm" c="dimmed" className="sel-card-or" aria-hidden>
+                                or
+                            </Text>
+                        )}
+                        <section
+                            className="sel-card"
+                            data-branch={branchId}
+                            data-off={on ? undefined : ""}
+                            aria-label={[letter, count === "" ? "" : countWords(branchRead?.count ?? 0, of, side)]
+                                .filter((each) => each !== "")
+                                .join(", ")}
+                            style={{ "--sel-card-color": color } as React.CSSProperties}
+                            onPointerEnter={() => {
+                                if (multi) {
+                                    setMarked(branchId);
+                                }
                             }}
-                            onMove={(by) => {
-                                moveStepBy(branch, id, by);
-                            }}
-                            onToggle={() => {
-                                toggle(branch, id);
-                            }}
-                            onDuplicate={() => {
-                                duplicate(branch, id);
-                            }}
-                            onRemove={() => {
-                                removeStepAt(branch, id);
-                            }}
-                        />
-                    );
-                })()}
-        </>
+                        >
+                            <header className="sel-card-head">
+                                <span className="sel-chit" data-filled="" aria-hidden />
+                                {renaming === branchId ? (
+                                    <InlineRename
+                                        value={letter}
+                                        label={`Rename ${letter}`}
+                                        onCommit={(typed) => {
+                                            const text = typed.trim();
+                                            if (text !== letter) {
+                                                onChange(
+                                                    editBranch(rule, branchId, {
+                                                        name: text === "" ? undefined : text,
+                                                    }),
+                                                );
+                                            }
+                                            setRenaming(null);
+                                        }}
+                                        onCancel={() => {
+                                            setRenaming(null);
+                                        }}
+                                    />
+                                ) : (
+                                    <Text
+                                        size="sm"
+                                        fw={600}
+                                        className="sel-value"
+                                        onDoubleClick={() => {
+                                            setRenaming(branchId);
+                                        }}
+                                    >
+                                        {letter}
+                                    </Text>
+                                )}
+                                {(!on || startEmpties(branch, branchRead)) && (
+                                    <Text size="sm" c="dimmed" className="sel-state">
+                                        {on ? "Passes none" : "Off"}
+                                    </Text>
+                                )}
+                                <span className="sel-spacer" />
+                                {count !== "" && branchRead !== undefined && (
+                                    <CountChip
+                                        count={branchRead.count}
+                                        of={of}
+                                        side={side}
+                                        host={host}
+                                        onClick={() => {
+                                            showMembers(branchRead.members, branchId);
+                                        }}
+                                    />
+                                )}
+                                <ToggleIconButton
+                                    variant="swap"
+                                    label={`Use ${letter}`}
+                                    tooltip={`Use ${letter} (Space)`}
+                                    icon={<GLYPHS.hide size={12} aria-hidden />}
+                                    checkedIcon={<GLYPHS.show size={12} aria-hidden />}
+                                    checked={on}
+                                    onChange={() => {
+                                        toggle(branch);
+                                    }}
+                                />
+                                <PaneMenu
+                                    name={letter}
+                                    items={[
+                                        {
+                                            id: "rename",
+                                            label: "Rename",
+                                            icon: "rename",
+                                            group: "edit",
+                                            onRun: () => {
+                                                setRenaming(branchId);
+                                            },
+                                        },
+                                        {
+                                            id: "start",
+                                            label:
+                                                branch.start === "all"
+                                                    ? `Start with no ${NOUNS[side].many}`
+                                                    : `Start with all ${NOUNS[side].many}`,
+                                            icon: branch.start === "all" ? "empty" : "everything",
+                                            group: "edit",
+                                            onRun: () => {
+                                                onChange(
+                                                    editBranch(rule, branchId, {
+                                                        start: branch.start === "all" ? "none" : "all",
+                                                    }),
+                                                );
+                                            },
+                                        },
+                                        {
+                                            id: "duplicate",
+                                            label: "Duplicate",
+                                            icon: "duplicate",
+                                            group: "edit",
+                                            reason: reading.branchesLeft === 0 ? "No more groups" : null,
+                                            onRun: () => {
+                                                duplicate(branch);
+                                            },
+                                        },
+                                        {
+                                            id: "save",
+                                            label: "Save as set",
+                                            icon: "several",
+                                            group: "edit",
+                                            reason:
+                                                (branchRead?.count ?? 0) === 0 ? `No ${NOUNS[side].many} in it` : null,
+                                            onRun: () => {
+                                                const members = branchRead?.members;
+                                                if (members !== undefined) {
+                                                    void session.sets.createFrom(members, { name: letter }).then(() => {
+                                                        say(`Saved ${letter} as a set`);
+                                                    });
+                                                }
+                                            },
+                                        },
+                                        {
+                                            id: "up",
+                                            label: "Move up",
+                                            icon: "moveUp",
+                                            group: "edit",
+                                            reason: at === 0 ? "Already at the top" : null,
+                                            reasonDrawn: false,
+                                            onRun: () => {
+                                                moveBranchBy(branchId, -1);
+                                            },
+                                        },
+                                        {
+                                            id: "down",
+                                            label: "Move down",
+                                            icon: "moveDown",
+                                            group: "edit",
+                                            reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
+                                            reasonDrawn: false,
+                                            onRun: () => {
+                                                moveBranchBy(branchId, 1);
+                                            },
+                                        },
+                                        ...(multi
+                                            ? [
+                                                  {
+                                                      id: "delete",
+                                                      label: "Delete",
+                                                      icon: "delete" as const,
+                                                      group: "remove" as const,
+                                                      onRun: () => {
+                                                          removeBranchOf(branch);
+                                                      },
+                                                  },
+                                              ]
+                                            : []),
+                                    ]}
+                                />
+                            </header>
+                            {branch.start === "all" && (
+                                <Text size="sm" c="dimmed" className="sel-card-start">
+                                    {`All ${NOUNS[side].many}`}
+                                </Text>
+                            )}
+                            {branch.steps.map((step, index) => {
+                                const id = step.id ?? "";
+                                return (
+                                    <div
+                                        key={id}
+                                        className="sel-card-step"
+                                        data-row={id}
+                                        data-state={step.on === false ? "off" : readingOf(id)?.state}
+                                    >
+                                        <StepPane
+                                            session={session}
+                                            rule={rule}
+                                            branch={branch}
+                                            step={step}
+                                            reading={readingOf(id)}
+                                            host={host}
+                                            of={of}
+                                            first={index === 0}
+                                            last={index === branch.steps.length - 1}
+                                            total={reading.total.count}
+                                            hostPicks={hostPicks}
+                                            adds={
+                                                <VerbBadge
+                                                    op={step.op}
+                                                    verbs={verbsAt(branch, index)}
+                                                    onVerb={(op) => {
+                                                        onChange(editStep(rule, branchId, id, { op }));
+                                                    }}
+                                                />
+                                            }
+                                            verbSwitch={false}
+                                            done={
+                                                <TargetTooltip label="Remove">
+                                                    <ActionIcon
+                                                        variant="subtle"
+                                                        size="sm"
+                                                        aria-label={`Remove ${stepName(step)}`}
+                                                        onClick={() => {
+                                                            removeStepAt(branch, id);
+                                                        }}
+                                                    >
+                                                        <GLYPHS.close size={12} aria-hidden />
+                                                    </ActionIcon>
+                                                </TargetTooltip>
+                                            }
+                                            onStep={(patch) => {
+                                                lastEdited.current = id;
+                                                onChange(editStep(rule, branchId, id, patch));
+                                            }}
+                                            onMove={(by) => {
+                                                moveStepBy(branch, id, by);
+                                            }}
+                                            onToggle={() => {
+                                                toggle(branch, id);
+                                            }}
+                                            onDuplicate={() => {
+                                                duplicate(branch, id);
+                                            }}
+                                            onRemove={() => {
+                                                removeStepAt(branch, id);
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            })}
+                            {addingHere && (
+                                <div className="sel-card-step" data-new-step="">
+                                    <Group gap={4} wrap="nowrap" className="sel-pane-head">
+                                        <VerbBadge op={adding.op} />
+                                    </Group>
+                                    <NewStepPane
+                                        key={`${adding.branch}:${String(adding.open)}`}
+                                        session={session}
+                                        rule={rule}
+                                        branch={branch}
+                                        open={adding.open}
+                                        hostPicks={hostPicks}
+                                        onPick={(stepRule) => {
+                                            pick(branch, adding.op, stepRule);
+                                        }}
+                                        onCancel={() => {
+                                            stopAdding(branch);
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            <footer className="sel-card-actions">
+                                {verbsFor(branch).map((op) => (
+                                    <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
+                                        <Button
+                                            size="compact-xs"
+                                            variant="subtle"
+                                            data-verb={op}
+                                            data-add={op === newVerb(branch) ? branchId : undefined}
+                                            leftSection={<VerbGlyph op={op} />}
+                                            onClick={() => {
+                                                startAdding(branch, op);
+                                            }}
+                                        >
+                                            {VERB_WORDS[op].word}
+                                        </Button>
+                                    </Tooltip>
+                                ))}
+                                <span className="sel-spacer" />
+                                {at === rule.branches.length - 1 && (
+                                    <Tooltip
+                                        label={
+                                            reading.branchesLeft === 0
+                                                ? `No more: ${String(rule.branches.length)} is the most`
+                                                : "New group, in its own color"
+                                        }
+                                        openDelay={500}
+                                    >
+                                        <Button
+                                            size="compact-xs"
+                                            variant="default"
+                                            data-or=""
+                                            aria-disabled={reading.branchesLeft === 0}
+                                            data-disabled={reading.branchesLeft === 0 ? true : undefined}
+                                            leftSection={<GLYPHS.add size={12} aria-hidden />}
+                                            onClick={addOr}
+                                        >
+                                            Or
+                                        </Button>
+                                    </Tooltip>
+                                )}
+                            </footer>
+                        </section>
+                    </React.Fragment>
+                );
+            })}
+        </div>
     );
 
-    // Where the workspace lies (spec 3.0): over the canvas column and the side panel its host does
-    // not use -- a style layer's the left panel, a filter card's the inspector -- measured from the
-    // frame, so the panel beside it stays where it is.
+    // The workspace is a modal over the whole app, a margin all round (the owner, 2026-11-04).
     const frame = typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".ws-body");
     useLayoutEffect(() => {
-        if (!open || frame === null) {
-            return undefined;
-        }
-        const shown = (selector: string): DOMRect | null => {
-            const panel = frame.querySelector<HTMLElement>(selector);
-            return panel !== null && panel.getClientRects().length > 0 ? panel.getBoundingClientRect() : null;
-        };
-        const measure = (): void => {
-            const main = shown(".ws-main");
-            if (main === null) {
-                return;
-            }
-            const left = host === "selector" ? shown(".ws-left") : null;
-            const right = host === "filter" ? shown(".ws-right") : null;
-            const from = left ?? main;
-            const to = right ?? main;
-            // The opaque columns cover the panel underneath whole, so the preview shows only canvas.
-            setPlace({
-                left: from.left,
-                top: main.top,
-                width: to.right - from.left,
-                height: main.height,
-                "--sel-ws-cover-start": `${String(left?.width ?? 0)}px`,
-                "--sel-ws-cover-end": `${String(right?.width ?? 0)}px`,
-            } as React.CSSProperties);
-        };
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(frame);
-        for (const selector of [".ws-left", ".ws-main", ".ws-right"]) {
-            const panel = frame.querySelector(selector);
-            if (panel !== null) {
-                observer.observe(panel);
-            }
-        }
-        return () => {
-            observer.disconnect();
-        };
-    }, [open, host, frame]);
+        setPlace(open ? {} : null);
+    }, [open]);
 
     // The canvas is the frame (the owner's rule, 2026-10-24): while the workspace is open,
     // graphty-element's canvas takes the preview cell's box, beside the outline and the properties
@@ -1770,15 +1888,13 @@ export function SelectionEditor({
                 element.zoomToFit();
             }
         };
+        // The drawing lies fixed over the modal's preview cell, wherever the canvas column is.
         const placeCanvas = (): void => {
-            const outer = canvas.getBoundingClientRect();
             const inner = cell.getBoundingClientRect();
-            canvas.style.setProperty(
-                "--sel-preview-inset",
-                [inner.top - outer.top, outer.right - inner.right, outer.bottom - inner.bottom, inner.left - outer.left]
-                    .map((each) => `${String(Math.max(0, each))}px`)
-                    .join(" "),
-            );
+            canvas.style.setProperty("--sel-preview-top", `${String(inner.top)}px`);
+            canvas.style.setProperty("--sel-preview-left", `${String(inner.left)}px`);
+            canvas.style.setProperty("--sel-preview-width", `${String(inner.width)}px`);
+            canvas.style.setProperty("--sel-preview-height", `${String(inner.height)}px`);
         };
         placeCanvas();
         canvas.dataset.selPreview = "";
@@ -1797,7 +1913,9 @@ export function SelectionEditor({
             cancelAnimationFrame(frameId);
             observer.disconnect();
             delete canvas.dataset.selPreview;
-            canvas.style.removeProperty("--sel-preview-inset");
+            for (const each of ["top", "left", "width", "height"]) {
+                canvas.style.removeProperty(`--sel-preview-${each}`);
+            }
             if (camera !== undefined) {
                 void element?.setCameraState(camera);
             }
@@ -1821,16 +1939,6 @@ export function SelectionEditor({
         };
     }, [open, element, wsTitle]);
 
-    useLayoutEffect(() => {
-        if (!open || wsPlace === null) {
-            setOutlineWidth(null);
-            return;
-        }
-        if (outlineWidth === null && outlineColumn.current !== null) {
-            setOutlineWidth(outlineColumn.current.getBoundingClientRect().width);
-        }
-    }, [open, wsPlace, outlineWidth]);
-
     // Escape closes the innermost open thing per press and never discards work (spec 3.4): a list
     // or a menu closes itself; then Advanced; then focus goes from the pane to its outline row;
     // then the workspace closes as Done.
@@ -1849,7 +1957,7 @@ export function SelectionEditor({
         }
         event.preventDefault();
         event.stopPropagation();
-        const props = target.closest(".sel-ws-props");
+        const props = target.closest(".sel-ws-cards");
         if (props !== null) {
             const advanced = props.querySelector<HTMLElement>('.sel-advanced[aria-expanded="true"]');
             if (advanced !== null) {
@@ -1895,146 +2003,135 @@ export function SelectionEditor({
     const workspace =
         open && frame !== null
             ? createPortal(
-                  <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
-                      ref={wsBox}
-                      aria-labelledby={titleId}
-                      className="sel-ws sel-editor"
-                      data-host={host}
-                      style={wsPlace ?? { visibility: "hidden" }}
-                      onPointerDownCapture={() => {
-                          escaped.current = false;
-                      }}
-                      onKeyDownCapture={(event) => {
-                          escaped.current = event.key === "Escape";
-                          // Escape in a pane's box keeps its text (it is written as focus leaves the
-                          // box) and goes to the box's row, unless the box's own list is open: a box
-                          // must never take Escape as "discard what I typed" (spec 3.4).
-                          const target = event.target as HTMLElement;
-                          if (
-                              event.key === "Escape" &&
-                              target.matches("input, textarea") &&
-                              target.closest(".sel-ws-props") !== null &&
-                              target.closest("[data-portal]") === null &&
-                              target.getAttribute("aria-expanded") !== "true" &&
-                              !("expanded" in target.dataset)
-                          ) {
-                              event.preventDefault();
-                              event.stopPropagation();
+                  <>
+                      <div className="sel-ws-scrim" aria-hidden />
+                      <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
+                          ref={wsBox}
+                          aria-labelledby={titleId}
+                          className="sel-ws sel-editor"
+                          data-host={host}
+                          style={wsPlace ?? { visibility: "hidden" }}
+                          onPointerDownCapture={() => {
+                              escaped.current = false;
+                          }}
+                          onKeyDownCapture={(event) => {
+                              escaped.current = event.key === "Escape";
+                              // Escape in a pane's box keeps its text (it is written as focus leaves the
+                              // box) and goes to the box's row, unless the box's own list is open: a box
+                              // must never take Escape as "discard what I typed" (spec 3.4).
+                              const target = event.target as HTMLElement;
+                              if (
+                                  event.key === "Escape" &&
+                                  target.matches("input, textarea") &&
+                                  target.closest(".sel-ws-cards") !== null &&
+                                  target.closest("[data-portal]") === null &&
+                                  target.getAttribute("aria-expanded") !== "true" &&
+                                  !("expanded" in target.dataset)
+                              ) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  wsKeys(event);
+                              }
+                          }}
+                          onKeyDown={(event) => {
+                              tabToHead(event);
                               wsKeys(event);
-                          }
-                      }}
-                      onKeyDown={(event) => {
-                          tabToHead(event);
-                          wsKeys(event);
-                      }}
-                  >
-                      <header className="sel-ws-head">
-                          <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
-                              {wsTitle}
-                          </Text>
-                          <Text size="sm" className="sel-count">
-                              {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
-                          </Text>
-                          {(drawing || starting || closing || !warm) && (
-                              <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
-                                  Drawing
+                          }}
+                      >
+                          <header className="sel-ws-head">
+                              <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
+                                  {wsTitle}
                               </Text>
-                          )}
-                          <span className="sel-spacer" />
-                          <SegmentedControl
-                              label="Preview"
-                              value={colors ? "colors" : "styled"}
-                              data={[
-                                  { value: "colors", label: "Group colors" },
-                                  { value: "styled", label: "Styled" },
-                              ]}
-                              onChange={(value) => {
-                                  groupColors[host] = value === "colors";
-                                  setColors(value === "colors");
-                              }}
-                          />
-                          <Button
-                              size="compact-xs"
-                              variant="subtle"
-                              aria-label="Table of matches"
-                              aria-pressed={strip}
-                              data-pressed={strip ? "" : undefined}
-                              className="sel-ws-toggle"
-                              onClick={toggleStrip}
-                          >
-                              Table
-                          </Button>
-                          <Tooltip label="Start over (Undo brings it back)">
-                              <Button size="compact-xs" variant="subtle" data-ws-clear="" onClick={clear}>
-                                  Clear
-                              </Button>
-                          </Tooltip>
-                          <Button
-                              size="compact-xs"
-                              variant="subtle"
-                              onClick={() => {
-                                  closeAfterPaint("cancel");
-                              }}
-                          >
-                              Cancel
-                          </Button>
-                          <Tooltip label="Done (Escape)">
+                              <Text size="sm" className="sel-count">
+                                  {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
+                              </Text>
+                              {(drawing || starting || closing || !warm) && (
+                                  <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
+                                      Drawing
+                                  </Text>
+                              )}
+                              <span className="sel-spacer" />
+                              <SegmentedControl
+                                  label="Preview"
+                                  value={colors ? "colors" : "styled"}
+                                  data={[
+                                      { value: "colors", label: "Group colors" },
+                                      { value: "styled", label: "Styled" },
+                                  ]}
+                                  onChange={(value) => {
+                                      groupColors[host] = value === "colors";
+                                      setColors(value === "colors");
+                                  }}
+                              />
+                              <Tooltip label="Frame the matches">
+                                  <Button
+                                      size="compact-xs"
+                                      variant="subtle"
+                                      className="sel-ws-fit"
+                                      onClick={() => {
+                                          void element?.applyCameraView("fitToGraph", {
+                                              scope: reading.result,
+                                              params: { keepAngle: true },
+                                              animate: true,
+                                          });
+                                      }}
+                                  >
+                                      Fit
+                                  </Button>
+                              </Tooltip>
                               <Button
                                   size="compact-xs"
+                                  variant="subtle"
+                                  aria-label="Table of matches"
+                                  aria-pressed={strip}
+                                  data-pressed={strip ? "" : undefined}
+                                  className="sel-ws-toggle"
+                                  onClick={toggleStrip}
+                              >
+                                  Table
+                              </Button>
+                              <Tooltip label="Start over (Undo brings it back)">
+                                  <Button size="compact-xs" variant="subtle" data-ws-clear="" onClick={clear}>
+                                      Clear
+                                  </Button>
+                              </Tooltip>
+                              {titleItems.length > 0 && <PaneMenu name={wsTitle} items={titleItems} />}
+                              <Button
+                                  size="compact-xs"
+                                  variant="subtle"
                                   onClick={() => {
-                                      closeAfterPaint("done");
+                                      closeAfterPaint("cancel");
                                   }}
                               >
-                                  Done
+                                  Cancel
                               </Button>
-                          </Tooltip>
-                      </header>
-                      <div className="sel-ws-body">
-                          <div
-                              ref={outlineColumn}
-                              style={
-                                  outlineWidth === null
-                                      ? undefined
-                                      : { width: outlineWidth, minWidth: outlineWidth, maxWidth: outlineWidth }
-                              }
-                              className="sel-ws-outline"
-                              onPointerLeave={() => {
-                                  setKeepShape(false);
-                              }}
-                          >
-                              {outline("ws")}
-                          </div>
-                          <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
-                              <div className="sel-ws-preview">
-                                  <Tooltip label="Frame the matches">
-                                      <Button
-                                          size="compact-xs"
-                                          variant="default"
-                                          className="sel-ws-fit"
-                                          onClick={() => {
-                                              void element?.applyCameraView("fitToGraph", {
-                                                  scope: reading.result,
-                                                  params: { keepAngle: true },
-                                                  animate: true,
-                                              });
-                                          }}
-                                      >
-                                          Fit
-                                      </Button>
-                                  </Tooltip>
+                              <Tooltip label="Done (Escape)">
+                                  <Button
+                                      size="compact-xs"
+                                      onClick={() => {
+                                          closeAfterPaint("done");
+                                      }}
+                                  >
+                                      Done
+                                  </Button>
+                              </Tooltip>
+                          </header>
+                          <div className="sel-ws-body">
+                              <div className="sel-ws-cards">{cards()}</div>
+                              <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
+                                  <div className="sel-ws-preview" />
+                                  {strip && warm && (
+                                      <MatchesStrip
+                                          session={session}
+                                          rule={reading.rule}
+                                          title={name}
+                                          branch={stripBranch}
+                                      />
+                                  )}
                               </div>
-                              {strip && warm && (
-                                  <MatchesStrip
-                                      session={session}
-                                      rule={reading.rule}
-                                      title={name}
-                                      branch={stripBranch}
-                                  />
-                              )}
                           </div>
-                          <div className="sel-ws-props sel-pane-box">{panes}</div>
-                      </div>
-                  </section>,
+                      </section>
+                  </>,
                   frame,
               )
             : null;
@@ -2067,11 +2164,11 @@ function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
 
 /** Where focus goes once a value is picked: the test's first control, when it is drawn. */
 const TEST_FOCUS: readonly string[] = [
-    ".sel-ws-props .sel-test-box [data-first-focus]",
-    ".sel-ws-props .sel-test-box input:not([type=hidden], [readonly])",
-    ".sel-ws-props .sel-test-box button:not([data-cancel])",
+    ".sel-ws-cards .sel-test-box [data-first-focus]",
+    ".sel-ws-cards .sel-test-box input:not([type=hidden], [readonly])",
+    ".sel-ws-cards .sel-test-box button:not([data-cancel])",
     // A select's own box (Yes or No), which is read-only.
-    ".sel-ws-props .sel-test-box input:not([type=hidden])",
+    ".sel-ws-cards .sel-test-box input:not([type=hidden])",
 ];
 
 /** Where focus goes in a pane that was entered: its first box to type in, else its first control. */
@@ -2339,41 +2436,6 @@ function AddRow({
 }
 
 /**
- * The Start with segment: No nodes | All nodes.
- * @param props - Component props
- * @param props.side - nodes or edges
- * @param props.start - the group's start
- * @param props.onStart - takes the new start
- * @returns The segment
- */
-function StartWith({
-    side,
-    start,
-    onStart,
-}: Readonly<{
-    side: "node" | "edge";
-    start: UnionBranch["start"];
-    onStart: (start: UnionBranch["start"]) => void;
-}>): React.JSX.Element {
-    return (
-        <CaptionedRow>
-            <SegmentedControl
-                label="Start with"
-                fullWidth
-                data={[
-                    { value: "none", label: `No ${NOUNS[side].many}` },
-                    { value: "all", label: `All ${NOUNS[side].many}` },
-                ]}
-                value={start}
-                onChange={(next) => {
-                    onStart(next === "all" ? "all" : "none");
-                }}
-            />
-        </CaptionedRow>
-    );
-}
-
-/**
  * A "..." menu of a pane.
  * @param props - Component props
  * @param props.name - what it is for
@@ -2398,42 +2460,6 @@ function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly Sele
 }
 
 /**
- * The title's pane: the add actions and the "..." items (a style layer's Select N, a filter card's
- * Select N, Duplicate and Delete, then Table and Group colors), then the host's own control (a new
- * filter card's Nodes | Edges). Start with lives in a group's Advanced.
- * @param props - Component props
- * @param props.name - its title
- * @param props.extra - the host's own control
- * @param props.adds - the add actions
- * @param props.menu - the "..." items
- * @param props.done - the Done button
- * @returns The pane
- */
-function TitlePane({
-    name,
-    extra,
-    adds,
-    menu,
-    done,
-}: Readonly<{
-    name: string;
-    extra?: React.ReactNode;
-    adds: React.ReactNode;
-    menu: readonly SelectionMenuItem[];
-    done: React.ReactNode;
-}>): React.JSX.Element {
-    return (
-        <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
-            <PaneHead adds={adds}>
-                <PaneMenu name={name} items={menu} />
-                {done}
-            </PaneHead>
-            {extra}
-        </Stack>
-    );
-}
-
-/**
  * A pane's first row, the same in every pane: the add actions at the left, then the pane's icon
  * buttons, "..." and Done at the right.
  * @param props - Component props
@@ -2451,244 +2477,6 @@ export function PaneHead({
             <span className="sel-spacer" />
             {children}
         </Group>
-    );
-}
-
-/**
- * A group's pane: its name, count and "..." menu, and Start with.
- * @param props - Component props
- * @param props.branch - the group
- * @param props.reading - its reading
- * @param props.name - its name
- * @param props.side - nodes or edges
- * @param props.host - where the selection is edited
- * @param props.of - the base's size
- * @param props.multi - there are several groups
- * @param props.first - it is the first group
- * @param props.last - it is the last group
- * @param props.onStart - takes its new start
- * @param props.onRename - starts renaming it
- * @param props.onToggle - switches it on or off
- * @param props.onShow - selects its members, or shows them in the table
- * @param props.onDuplicate - copies it
- * @param props.color - its color
- * @param props.onColor - takes a new color
- * @param props.onSave - saves its members as a set
- * @param props.onMove - moves it up or down
- * @param props.onDelete - removes it
- * @param props.done - the Done button
- * @param props.onName - takes the name typed in its name box
- * @param props.adds - the add actions
- * @returns The pane
- */
-function GroupPane({
-    branch,
-    done,
-    onName,
-    reading,
-    name,
-    side,
-    host,
-    of,
-    multi,
-    first,
-    last,
-    onStart,
-    onRename,
-    onToggle,
-    onShow,
-    onDuplicate,
-    color,
-    onColor,
-    onSave,
-    onMove,
-    onDelete,
-    adds,
-}: Readonly<{
-    adds: React.ReactNode;
-    branch: UnionBranch;
-    reading: StepsReading["branches"][number] | undefined;
-    name: string;
-    side: "node" | "edge";
-    host: Host;
-    of: number;
-    multi: boolean;
-    first: boolean;
-    last: boolean;
-    onStart: (start: UnionBranch["start"]) => void;
-    onRename: () => void;
-    onToggle: () => void;
-    onShow: () => void;
-    onDuplicate: () => void;
-    color: string | undefined;
-    onColor: (color: string) => void;
-    onSave: () => void;
-    onMove: (by: -1 | 1) => void;
-    onDelete: () => void;
-    done: React.ReactNode;
-    onName: (name: string) => void;
-}>): React.JSX.Element {
-    const on = branch.on !== false;
-    const [advanced, setAdvanced] = useState(false);
-    return (
-        <Stack gap={6} className="sel-pane" role="group" aria-label={name}>
-            <PaneHead adds={adds}>
-                {multi && (
-                    <PaneMenu
-                        name={name}
-                        items={[
-                            {
-                                id: "rename",
-                                label: "Rename",
-                                icon: "rename",
-                                group: "edit",
-                                key: "F2",
-                                onRun: onRename,
-                            },
-                            {
-                                id: "hide",
-                                label: on ? "Turn off" : "Turn on",
-                                icon: on ? "hide" : "show",
-                                group: "edit",
-                                key: "Shift+Mod+H",
-                                onRun: onToggle,
-                            },
-                            {
-                                id: "duplicate",
-                                label: "Duplicate",
-                                icon: "duplicate",
-                                group: "edit",
-                                key: "Mod+D",
-                                onRun: onDuplicate,
-                            },
-                            {
-                                id: "save",
-                                label: "Save as set",
-                                icon: "several",
-                                group: "edit",
-                                reason: (reading?.count ?? 0) === 0 ? `No ${NOUNS[side].many} in it` : null,
-                                onRun: onSave,
-                            },
-                            {
-                                id: "up",
-                                label: "Move up",
-                                icon: "moveUp",
-                                group: "edit",
-                                key: "Mod+]",
-                                reason: first ? "Already at the top" : null,
-                                reasonDrawn: false,
-                                onRun: () => {
-                                    onMove(-1);
-                                },
-                            },
-                            {
-                                id: "down",
-                                label: "Move down",
-                                icon: "moveDown",
-                                group: "edit",
-                                key: "Mod+[",
-                                reason: last ? "Already at the bottom" : null,
-                                reasonDrawn: false,
-                                onRun: () => {
-                                    onMove(1);
-                                },
-                            },
-                            {
-                                id: "delete",
-                                label: "Delete",
-                                icon: "delete",
-                                group: "remove",
-                                key: "Delete",
-                                onRun: onDelete,
-                            },
-                        ]}
-                    />
-                )}
-                {done}
-            </PaneHead>
-            <Group gap={4} wrap="nowrap">
-                {multi ? (
-                    // The group's name, edited in place: Enter or leaving the box keeps it.
-                    <NameBox key={name} name={name} onName={onName} />
-                ) : (
-                    <Text size="sm">{`All ${NOUNS[side].many}`}</Text>
-                )}
-                <span style={{ marginLeft: "auto" }} />
-                {reading !== undefined && (
-                    <CountChip count={reading.count} of={of} side={side} host={host} onClick={onShow} />
-                )}
-            </Group>
-            {multi && color !== undefined && (
-                // Its own popout manager: a filter card's editor sits under none (the Data place).
-                <PopoutManager>
-                    <CompactColorInput
-                        variant="field"
-                        aria-label={`Color of ${name}`}
-                        valueText={colorName(color.slice(0, 7))}
-                        width="100%"
-                        color={color.slice(0, 7)}
-                        defaultColor={color.slice(0, 7)}
-                        showOpacity={false}
-                        showReset={false}
-                        onChangeEnd={(next) => {
-                            if (next !== undefined && next.toUpperCase() !== color.slice(0, 7).toUpperCase()) {
-                                onColor(next.toUpperCase());
-                            }
-                        }}
-                    />
-                </PopoutManager>
-            )}
-            <UnstyledButton
-                className="sel-advanced"
-                aria-expanded={advanced}
-                onClick={() => {
-                    setAdvanced(!advanced);
-                }}
-            >
-                <GLYPHS.expand size={12} aria-hidden style={{ transform: advanced ? undefined : "rotate(-90deg)" }} />
-                <Text size="sm" span>
-                    Advanced
-                </Text>
-                {branch.start === "all" && (
-                    <Text size="sm" c="dimmed" span ml="auto">
-                        {`All ${NOUNS[side].many}`}
-                    </Text>
-                )}
-            </UnstyledButton>
-            <Collapse in={advanced}>
-                <StartWith side={side} start={branch.start} onStart={onStart} />
-            </Collapse>
-        </Stack>
-    );
-}
-
-/**
- * A group's name box in its pane: the name as typed, kept on Enter or on leaving the box.
- * @param props - Component props
- * @param props.name - the group's name
- * @param props.onName - takes the name typed
- * @returns The box
- */
-function NameBox({ name, onName }: Readonly<{ name: string; onName: (name: string) => void }>): React.JSX.Element {
-    const [text, setText] = useState(name);
-    return (
-        <TextInput
-            size="xs"
-            aria-label="Name"
-            value={text}
-            style={{ flex: 1, minWidth: 0 }}
-            onChange={(event) => {
-                setText(event.currentTarget.value);
-            }}
-            onBlur={() => {
-                onName(text);
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    onName(text);
-                }
-            }}
-        />
     );
 }
 
@@ -2732,4 +2520,70 @@ function CountChip({
  */
 function colorWord(color: string): string {
     return /^#[0-9a-f]{6}/i.test(color) ? colorName(color.slice(0, 7)).toLowerCase() : "";
+}
+
+/** What each card action does, said in its tooltip. */
+const VERB_TIPS: Readonly<Record<Verb, string>> = {
+    add: "Add what matches to this group",
+    keep: "Keep only what matches",
+    except: "Take out what matches",
+};
+
+/**
+ * A verb's glyph: Figma's union, intersect and subtract.
+ * @param props - Component props
+ * @param props.op - the verb
+ * @returns The glyph
+ */
+function VerbGlyph({ op }: Readonly<{ op: Verb }>): React.JSX.Element {
+    const Glyph = GLYPHS[{ add: "union", keep: "intersect", except: "subtract" }[op] as "union"];
+    return <Glyph size={12} aria-hidden />;
+}
+
+/**
+ * A step's verb, its glyph and word in the verb's color; a menu of the verbs it can change to.
+ * @param props - Component props
+ * @param props.op - the verb
+ * @param props.verbs - the verbs it can change to
+ * @param props.onVerb - takes the new verb
+ * @returns The badge
+ */
+function VerbBadge({
+    op,
+    verbs = [],
+    onVerb,
+}: Readonly<{ op: Verb; verbs?: readonly Verb[]; onVerb?: (op: Verb) => void }>): React.JSX.Element {
+    const badge = (
+        <span className="sel-verb-badge" data-op={op}>
+            <VerbGlyph op={op} />
+            <Text size="sm" span fw={600}>
+                {VERB_WORDS[op].word}
+            </Text>
+        </span>
+    );
+    if (onVerb === undefined || verbs.length < 2) {
+        return badge;
+    }
+    return (
+        <Menu position="bottom-start" withinPortal>
+            <Menu.Target>
+                <Button size="compact-xs" variant="subtle" aria-label={`${VERB_WORDS[op].word}, change`}>
+                    {badge}
+                </Button>
+            </Menu.Target>
+            <Menu.Dropdown data-portal="">
+                {verbs.map((each) => (
+                    <Menu.Item
+                        key={each}
+                        leftSection={<VerbGlyph op={each} />}
+                        onClick={() => {
+                            onVerb(each);
+                        }}
+                    >
+                        {VERB_WORDS[each].word}
+                    </Menu.Item>
+                ))}
+            </Menu.Dropdown>
+        </Menu>
+    );
 }

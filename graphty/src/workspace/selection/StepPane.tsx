@@ -533,6 +533,8 @@ interface StepPaneProps extends StepActions {
     readonly adds?: React.ReactNode;
     /** Whether it draws its first row; false under a title pane that already has one. */
     readonly head?: boolean;
+    /** Whether it draws the Except switch; false where the step's verb is drawn already (a group card). */
+    readonly verbSwitch?: boolean;
 }
 
 /**
@@ -552,6 +554,7 @@ interface StepPaneProps extends StepActions {
  * @param props.done - the Done button
  * @param props.adds - the add actions
  * @param props.head - whether it draws its first row
+ * @param props.verbSwitch - whether it draws the Except switch
  * @param props.onStep - takes a change to the step
  * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
@@ -574,6 +577,7 @@ export function StepPane({
     done,
     adds,
     head = true,
+    verbSwitch = true,
     onStep,
     onToggle,
     onMove,
@@ -704,7 +708,8 @@ export function StepPane({
     const base = host === "filter" ? "Full graph" : "Filtered graph";
     const verbs = verbsAt(branch, branch.steps.indexOf(step));
     // Whether the Except switch (or the word Add) is drawn: as ExceptSwitch decides.
-    const switchShown = step.op === "add" ? verbs.length >= 2 : step.op === "except" || verbs.includes("except");
+    const switchShown =
+        verbSwitch && (step.op === "add" ? verbs.length >= 2 : step.op === "except" || verbs.includes("except"));
     const soFar =
         count !== undefined && count !== total ? (
             <Text size="sm" c="dimmed" className="sel-count" aria-hidden>

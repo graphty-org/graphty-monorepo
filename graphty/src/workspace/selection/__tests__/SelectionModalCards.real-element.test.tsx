@@ -208,6 +208,11 @@ describe("the selection modal with colored group cards", () => {
             const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
             assert.include(JSON.stringify(step?.rule), "Valjean", "the clicked node is the reference");
         });
+        // The pick leaves focus on the step's reference field, inside the modal.
+        await waitFor(() => {
+            const field = within(cards()[0]).getByRole("button", { name: /^Reference/ });
+            assert.strictEqual(document.activeElement, field, "focus is on the reference field");
+        });
     });
 });
 

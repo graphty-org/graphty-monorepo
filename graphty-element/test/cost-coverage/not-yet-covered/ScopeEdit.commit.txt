@@ -1,1 +1,0 @@
-No counted-work test yet (issue #1643): ScopeEdit.commit removes the runs one visit started, one algo.remove per run in a single transaction; its work is the runs removed and the layers and readers of each, which runs.remove already pays per run.

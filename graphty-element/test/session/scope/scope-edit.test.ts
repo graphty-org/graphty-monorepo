@@ -2,10 +2,13 @@
  * @file `session.scope.edit()` and the selections a run removal leaves waiting: a selection
  * editor's Done keeps the runs its final steps read and drops the rest, its Cancel drops every
  * run it started, and removing a run a selection reads names that selection and never re-runs it.
- * Counted work: every execution of the fake executor is counted.
+ * Counted work: every execution of the fake executor is counted, and Done and Cancel visit no more
+ * per run they remove as the graph grows.
  */
 
 import { assert, describe, it } from "vitest";
+
+import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
 
 import type { StepsReading } from "../../../session";
 import type { RuleTree, UnionLeaf } from "../../../src/catalog/types";
@@ -16,10 +19,13 @@ import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs"
 const IDS = ["a", "b", "c", "d", "e"];
 
 /**
- * A session over a path a-b-c-d-e whose executor gives every node the value 1, counting runs.
+ * A session over a path a-b-c-d-e (or of `size` nodes) whose executor gives every node the value 1,
+ * counting runs.
+ * @param size - How many nodes; the five named ones by default.
  * @returns The session and the executions so far, by algorithm.
  */
-async function pathSession(): Promise<{ session: GraphSession; executions: string[] }> {
+async function pathSession(size?: number): Promise<{ session: GraphSession; executions: string[] }> {
+    const ids = size === undefined ? IDS : Array.from({ length: size }, (_, at) => `n${String(at)}`);
     const executions: string[] = [];
     const execute = (context: RunExecutionContext): Promise<RunOutcome> => {
         executions.push(context.algorithm);
@@ -52,8 +58,8 @@ async function pathSession(): Promise<{ session: GraphSession; executions: strin
         });
     };
     const session = createGraphSession({ runs: { execute } });
-    await session.data.addNodes(IDS.map((id) => ({ id })));
-    await session.data.addEdges(IDS.slice(1).map((id, at) => ({ source: IDS[at], target: id })));
+    await session.data.addNodes(ids.map((id) => ({ id })));
+    await session.data.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));
     return { session, executions };
 }
 
@@ -182,5 +188,46 @@ describe("runs.readers and RunRemoval.selections", () => {
         watch.end();
         assert.deepEqual(executions, ["degree"]);
         assert.deepEqual(session.runs.list(), []);
+    });
+});
+
+describe("scope.edit counted work", () => {
+    it("Cancel visits about as much per removed run on a 4x larger graph as the run's own results", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const { session } = await pathSession(size);
+                const edit = session.scope.edit();
+                await readRun(session, measuring("degree"));
+                await readRun(session, measuring("pagerank"));
+                const visits = await visitsDuring(() => edit.discard());
+                assert.deepEqual(session.runs.list(), [], "both runs removed");
+                return visits;
+            },
+            { sizes: [200, 800], counter: "elements visited by discard()" },
+        );
+    });
+
+    it("Done visits no more than linearly in the graph to keep one run and drop another", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const { session } = await pathSession(size);
+                const edit = session.scope.edit();
+                await readRun(session, measuring("pagerank"));
+                const kept = await readRun(session, measuring("degree"));
+                await session.styles.add({
+                    name: "Layer 1",
+                    target: "node",
+                    selector: { match: "rule", where: measuring("degree") },
+                    set: { "node.color": "#d55e00" },
+                });
+                const visits = await visitsDuring(() => edit.commit());
+                assert.deepEqual(
+                    session.runs.list().map((run) => run.id),
+                    [kept],
+                );
+                return visits;
+            },
+            { sizes: [200, 800], counter: "elements visited by commit()" },
+        );
     });
 });

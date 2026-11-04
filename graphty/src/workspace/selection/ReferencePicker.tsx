@@ -9,6 +9,7 @@ import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-eleme
 import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, Text, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { PICK_NODE_EVENT } from "../table/RecordTable";
 import { PICK_ON_CANVAS, referenceSections } from "./references";
@@ -89,10 +90,16 @@ export function ReferencePicker({
     // Pick on canvas: armed, the next node clicked on the canvas is the reference; Escape disarms.
     const [arming, setArming] = useState(false);
     const field = useRef<HTMLButtonElement>(null);
-    // A pick on the canvas or a row leaves focus on the reference field, inside the editor.
+    // The full-screen workspace's pick (the `selection-workspace` experiment): the armed tooltip
+    // names Esc, and a pick on the canvas or a row leaves focus on the reference field, inside the
+    // editor. Off, both stay as before the experiment.
+    const modal = selectionWorkspaceOn(session);
     const take = useRef<(next: StepReference) => void>(() => undefined);
     take.current = (next) => {
         onReference(next);
+        if (!modal) {
+            return;
+        }
         requestAnimationFrame(() => {
             if (field.current !== null) {
                 focusWithRing(field.current);
@@ -174,7 +181,7 @@ export function ReferencePicker({
                         </span>
                     </InputBase>
                 </Combobox.Target>
-                <TargetTooltip label={arming ? "Pick a node (Esc)" : "Pick on canvas"}>
+                <TargetTooltip label={arming && modal ? "Pick a node (Esc)" : "Pick on canvas"}>
                     <ActionIcon
                         variant={arming ? "light" : "subtle"}
                         size="sm"

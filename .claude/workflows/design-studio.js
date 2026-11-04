@@ -58,6 +58,11 @@ const LAND = A.land !== false;
 // Land every fix pass on master (its own pull request): tier 3's 526 fix commits stayed on the studio branch,
 // so no CI, SonarQube or screenshot review ever saw them and no consumer got them.
 const LAND_EACH_PASS = A.landEachPass !== false;
+// One run per worktree: two would share a branch, a staging area, a server and a round folder.
+const LOCK = `${ST}/tmp/design-studio-run.lock`;
+// Designers answer each other between proposals and the Director's decision. Off by default until a
+// run's decisions-no-discussion.md shows it changes decisions for stated reasons.
+const DISCUSS = !!A.discuss;
 // The tier's binding decisions: every triage reads and cites it. Tier 3 flip-flopped three behaviors
 // across triages (a disabled "+" as a Tab stop, Escape in the inspector, an unfinished card's count).
 const DECIDED = `${T}/decided.md`;
@@ -72,7 +77,7 @@ const RULES = `
 RULES FOR EVERY AGENT:
 - Plain ASCII only (-- not em dashes, straight quotes). American spelling. Write for a stranger: no internal IDs or process narration in documents.
 - Work only in the studio worktree ${ST} (branch ${BRANCH}). Never run git stash (not even git stash list), checkout, switch, reset, restore or rebase anywhere: a subagent's permission prompt is never answered and the run hangs. Never touch the main checkout ${ROOT} except reading, and writing walk screenshots and step files under ${WALKS}; never force-push. If a command hangs for a minute, stop it and move on.
-- Commits: plain signed git commit that runs the real pre-commit and commit-msg hooks but not the interactive prepare-commit-msg: t=${ST}/tmp/<your task>/hooks; rm -rf "$t"; mkdir -p "$t"; cp -r ${ST}/.husky/. "$t"; rm -f "$t/prepare-commit-msg"; git -c core.hooksPath="$t/_" commit ... (never mktemp into /tmp: the newest /tmp/tmp.* is often another process's file) (husky's .husky/_/h runs the script one folder ABOVE its own, so copying only .husky/_ silently skips every hook); never --no-verify, HUSKY=0 or core.hooksPath=/dev/null; conventional message; no Co-Authored-By, Claude-Session or "Generated with" lines; stage only your own files (other agents commit in the same worktree).
+- Commits: plain signed git commit that runs the real pre-commit and commit-msg hooks but not the interactive prepare-commit-msg: t=${ST}/tmp/<your task>/hooks; rm -rf "$t"; mkdir -p "$t"; cp -r ${ST}/.husky/. "$t"; rm -f "$t/prepare-commit-msg"; git -c core.hooksPath="$t/_" commit ... (never mktemp into /tmp: the newest /tmp/tmp.* is often another process's file) (husky's .husky/_/h runs the script one folder ABOVE its own, so copying only .husky/_ silently skips every hook); never --no-verify, HUSKY=0 or core.hooksPath=/dev/null; conventional message; no Co-Authored-By, Claude-Session or "Generated with" lines; stage only your own files and commit them by path (git commit ... -- <your files>): the staging area is shared with the other agents in this worktree, and a plain commit takes whatever they staged.
 - Studies run ONLY on the frozen build named on the first line of ${T}/criteria.md (real.mjs serves it with REAL_DIST=<that dir>; see ${SD}/tool/README.md). Never change a frozen build. Browsers only through ${SD}/tool/with-browser.sh (${SLOTS} machine-wide); one browser per agent; always --end a session you started.
 - Architecture (${ROOT}/CLAUDE.md "Architectural Principles"): graphty-element owns all graph functionality and returns neutral facts ({ code, params }), never English; the app owns all words, grouping and order; shared UI is fixed in compact-mantine, never with a bespoke control. Never work around an element defect in the app. Node and edge appearance only through style layers. graphty-element offers choices with neutral defaults; consumers make them.
 - API changes: additive changes (a new export, method, property, event, error code, attribute, entry point, or a new optional parameter whose default keeps today's behavior) are the team's call -- choose the name and shape, record the reasoning in ${SD}/owner-decisions.md under "decided by the team" and keep going. Only a BREAKING change (removing or renaming anything public, changing what an existing API does or returns, changing a default) goes on ${SD}/owner-decisions.md under "for the owner"; when unsure, treat it as breaking; never block the study on it.
@@ -96,8 +101,13 @@ const TEAM = {
 };
 for (const r of A.teamRemove || []) if (!["director", "researcher", "redteam", "engineer"].includes(r)) delete TEAM[r];
 const ROLES = Object.keys(TEAM);
-const asRole = (r) =>
-    `You are the graphty design studio's ${TEAM[r]}. YOUR MEMORY: read your notes ${SD}/notes/${r}.md FIRST (create it in the studio's notes format if it does not exist yet: "Top of mind", priorities and values, design criteria, dated decisions with reasons, tried: worked / did not work, thinking, sources) and work from them. Before you return, UPDATE them with new decisions (reasons, evidence), what you tried and whether it worked, and new insights; refresh "Top of mind" (at most 15 bullets, most important first); summarize the file when it passes about 25 KB. Date every entry (YYYY-MM-DD).`;
+// readOnly: for agents that run beside another agent of the same role, or whose work may be reverted.
+// Two agents re-writing one notes file lose each other's update, and notes committed with a fix go
+// when the fix is reverted. They return lessons instead, and one agent writes them afterwards.
+const asRole = (r, readOnly) =>
+    readOnly
+        ? `You are the graphty design studio's ${TEAM[r]}. YOUR MEMORY: read your notes ${SD}/notes/${r}.md FIRST and work from them, but do NOT edit that file: another agent may be working from it beside you.`
+        : `You are the graphty design studio's ${TEAM[r]}. YOUR MEMORY: read your notes ${SD}/notes/${r}.md FIRST (create it in the studio's notes format if it does not exist yet: "Top of mind", priorities and values, design criteria, dated decisions with reasons, tried: worked / did not work, thinking, sources) and work from them. Before you return, UPDATE them with new decisions (reasons, evidence), what you tried and whether it worked, and new insights; refresh "Top of mind" (at most 15 bullets, most important first); summarize the file when it passes about 25 KB. Date every entry (YYYY-MM-DD).`;
 
 const EXPERTS =
     A.experts ||
@@ -169,6 +179,7 @@ const DONE = {
         commit: { type: "string" },
         summary: { type: "string" },
         problems: { type: "string" },
+        lessons: { type: "string" },
     },
     required: ["id", "done", "summary"],
 };
@@ -256,8 +267,27 @@ const CHECK = {
         ok: { type: "boolean" },
         problems: { type: "array", items: { type: "string" } },
         summary: { type: "string" },
+        lessons: { type: "string" },
     },
     required: ["ok", "problems"],
+};
+const CONFLICTS = {
+    type: "object",
+    properties: {
+        conflicts: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    a: { type: "string" },
+                    b: { type: "string" },
+                    question: { type: "string" },
+                },
+                required: ["a", "b", "question"],
+            },
+        },
+    },
+    required: ["conflicts"],
 };
 
 // ---------------- Helpers ----------------
@@ -587,13 +617,16 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
 
 // Fix one group of units in order, then re-walk what its commits touch and revert the group when
 // the re-walk finds a regression.
+// What this pass's engineers learned, written to the notes once by implement(). Kept out of the fix
+// commits so a rejected group's revert does not take its lesson with it.
+const fixLessons = [];
 async function fixGroup(g, tag, phaseName) {
     const r = [];
     for (const u of g.items)
         r.push(
             await slot(() =>
                 agent(
-                    `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem. If the unit names a shared component ("shared"), fix it there (compact-mantine or the shared app part) with a test in that component, never with a patch on one screen, and check every screen that uses it. Follow the binding decisions in ${DECIDED}. Add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
+                    `${RULES}\n${asRole("engineer", true)}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem. If the unit names a shared component ("shared"), fix it there (compact-mantine or the shared app part) with a test in that component, never with a patch on one screen, and check every screen that uses it. Follow the binding decisions in ${DECIDED}. Add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary, any problem, and lessons: what you decided and why, and what worked or did not, for your notes.`,
                     {
                         label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
                         phase: phaseName,
@@ -602,15 +635,17 @@ async function fixGroup(g, tag, phaseName) {
                 ),
             ),
         );
+    for (const d of r) if (d?.lessons) fixLessons.push(`${d.id}: ${d.lessons}`);
     const fixed = r.filter((d) => d && d.done && d.commit);
     if (!fixed.length) return r;
     const ids = g.items.map((u) => u.id).join(", ");
     const chk = await slot(() =>
         agent(
-            `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Where the latest pilot walked a route (a folder with route.jsonl under ${T}/rounds/*/pilot/), start it with \`node ${SD}/tool/real.mjs --replay <that walk folder> <your session folder>\`: it replays, with no model, every step whose screen still matches and stops, session open, at the first that differs (exit 5) -- that is where the fix shows; look there and carry on by hand. Batch steps you are sure of into one --step. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path. A route you could not finish (no browser slot, out of time) is NOT a failure: list it in problems as 'unwalked: <route>' and still return ok true unless a walk you did finish showed a regression or a failed acceptance, with its screenshot path.`,
+            `${RULES}\n${asRole("engineer", true)}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Where the latest pilot walked a route (a folder with route.jsonl under ${T}/rounds/*/pilot/), start it with \`node ${SD}/tool/real.mjs --replay <that walk folder> <your session folder>\`: it replays, with no model, every step whose screen still matches and stops, session open, at the first that differs (exit 5) -- that is where the fix shows; look there and carry on by hand. Batch steps you are sure of into one --step. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path. A route you could not finish (no browser slot, out of time) is NOT a failure: list it in problems as 'unwalked: <route>' and still return ok true unless a walk you did finish showed a regression or a failed acceptance, with its screenshot path. Also return lessons: what the walk taught you, for your notes.`,
             { label: `${tag}: re-walk ${ids}`.slice(0, 80), phase: phaseName, schema: CHECK },
         ),
     );
+    if (chk?.lessons) fixLessons.push(`re-walk of ${ids}: ${chk.lessons}`);
     // An unfinished re-walk is not a regression: revert only for a problem a finished walk showed.
     const shown = (chk?.problems || []).filter((p) => !/^unwalked:/i.test(String(p)));
     if (chk && !chk.ok && shown.length) {
@@ -663,6 +698,11 @@ async function implement(units, tag, phaseName) {
     const failed = out.filter((d) => !d.done);
     if (failed.length)
         log(`${tag}: ${failed.length} of ${units.length} fixes not done: ${failed.map((d) => d.id).join(", ")}`);
+    if (fixLessons.length)
+        await agent(
+            `${RULES}\n${asRole("engineer")}\nThe ${tag} fixes are finished and no other engineer is running. Add these lessons to your notes, keeping those from a fix the re-walk rejected and reverted (${REJECTED} says which). Commit only your notes file.\n\n${fixLessons.splice(0).join("\n\n")}`,
+            { label: `${tag}: engineer notes`, phase: phaseName, effort: "low" },
+        );
     return out;
 }
 
@@ -824,6 +864,60 @@ const commitDocs = (msg, label, phaseName) =>
         { label, phase: phaseName, effort: "low" },
     );
 
+// One bounded exchange between the proposals and the decision, never before them: participants,
+// graders, skeptics, walks and first drafts stay independent, because agents of one model that read
+// each other converge. Everyone speaks at most twice and a position moves only on new evidence.
+const ASK = /^ASK ([a-z0-9]+): (.+)$/gm;
+async function answerQuestions(proposals, P) {
+    const asked = {};
+    for (const p of proposals) for (const [, to, q] of p.matchAll(ASK)) if (TEAM[to]) (asked[to] ||= []).push(q);
+    const answers = await parallel(
+        Object.keys(asked).map(
+            (to) => () =>
+                agent(
+                    `${RULES}\n${asRole(to, true)}\nOther designers ask you these questions, because you own the facts. Answer each from the code, ${DECIDED} and ${ROOT}/design/ui/framework, citing file and line; say "not known" rather than guess. Under 300 words.\n\n${asked[to].map((q) => `- ${q}`).join("\n")}`,
+                    { label: `${P}: ${TEAM[to]} answers`, phase: "Round" },
+                ).then((t) => t && `### ${TEAM[to]} answers\n${t}`),
+        ),
+    );
+    return answers.filter(Boolean);
+}
+async function rebut(proposers, proposals, answers, challenge, P) {
+    const replies = await parallel(
+        proposers.map(
+            (x) => () =>
+                agent(
+                    `${RULES}\n${asRole(x, true)}\nThe Red Team attacked the proposals. For each attack on YOUR proposal: concede, change it, or defend it with evidence. Change a position only for new evidence and name that evidence; that others agree is not evidence. Skip what was not attacked. Under 300 words.\n\nPROPOSALS:\n${proposals.join("\n\n")}\n\nANSWERS:\n${answers.join("\n\n")}\n\nRED TEAM:\n${challenge || ""}`,
+                    { label: `${P}: ${TEAM[x]} replies`, phase: "Round" },
+                ).then((t) => t && `### ${TEAM[x]} replies\n${t}`),
+        ),
+    );
+    return replies.filter(Boolean);
+}
+async function settleConflicts(thread, P) {
+    const found = await agent(
+        `${RULES}\n${asRole("director", true)}\nFrom this discussion, name at most 3 places where two roles (${ROLES.join(", ")}) still disagree and what gets built depends on it. None is a fine answer.\n\n${thread}`,
+        { label: `${P}: find conflicts`, phase: "Round", schema: CONFLICTS, effort: "low" },
+    );
+    const pairs = (found?.conflicts || []).filter((c) => TEAM[c.a] && TEAM[c.b] && c.a !== c.b).slice(0, 3);
+    const answers = await parallel(
+        pairs.flatMap((c) =>
+            [
+                [c.a, c.b],
+                [c.b, c.a],
+            ].map(
+                ([me, other]) =>
+                    () =>
+                        agent(
+                            `${RULES}\n${asRole(me, true)}\nYou and the ${TEAM[other]} disagree: ${c.question}. Answer their position once, with evidence. Change yours only for new evidence and name it. Under 200 words.\n\n${thread}`,
+                            { label: `${P}: ${TEAM[me]} on a conflict`, phase: "Round" },
+                        ).then((t) => t && `### ${TEAM[me]} on: ${c.question}\n${t}`),
+            ),
+        ),
+    );
+    return answers.filter(Boolean);
+}
+
 // ---------------- Preflight ----------------
 phase("Preflight");
 const pre = await agent(
@@ -843,6 +937,23 @@ if (!pre || !pre.ok) {
     return { preflight: pre };
 }
 if (A.preflightOnly) return { preflight: pre };
+const lock = await agent(
+    `Run exactly this one command and change nothing else: mkdir -p ${ST}/tmp && mkdir ${LOCK} && echo "${NAME} from round ${START_ROUND}" > ${LOCK}/holder. If the last mkdir fails because ${LOCK} exists, another run holds this worktree: read ${LOCK}/holder and return ok false with its text as the problem. Otherwise return ok true.`,
+    { label: "take the worktree lock", phase: "Preflight", schema: CHECK, effort: "low" },
+);
+if (!lock?.ok) {
+    log(
+        `refused: another run holds ${ST} (${(lock?.problems || ["no answer"]).join("; ")}). If that run is dead, remove ${LOCK} and launch again.`,
+    );
+    return { preflight: pre, lock };
+}
+const unlock = () =>
+    agent(`Run exactly this one command and change nothing else: rm ${LOCK}/holder && rmdir ${LOCK}`, {
+        label: "release the worktree lock",
+        effort: "low",
+    });
+if (DISCUSS && SAFETY_ROUNDS <= START_ROUND)
+    log(`discuss has no effect: the studio stops at round ${SAFETY_ROUNDS}, before any proposals.`);
 
 // ---------------- Prepare ----------------
 if (!SKIP_PREPARE) {
@@ -872,6 +983,7 @@ if (!SKIP_PREPARE) {
     const dr = await dryRun(`r${START_ROUND}`, "Prepare", await pilotAll(`r${START_ROUND}`, "Prepare", prev), prev);
     if (dr.stop) {
         log(`${NAME} stops before round ${START_ROUND}'s sessions: ${dr.stop}`);
+        await unlock();
         return { preflight: pre, stop: dr.stop };
     }
 }
@@ -1059,23 +1171,51 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         break;
     }
 
+    const proposers = ROLES.filter((x) => x !== "director" && x !== "redteam");
+    const ask = DISCUSS
+        ? ` If a fact another role owns would change your proposal, end with at most two lines of the form "ASK <role>: <question>", where <role> is one of ${ROLES.join(", ")}.`
+        : "";
     const proposals = (
         await parallel(
-            ROLES.filter((x) => x !== "director" && x !== "redteam").map(
+            proposers.map(
                 (x) => () =>
                     agent(
-                        `${RULES}\n${asRole(x)}\n${NAME} studio critique after round ${r}: read ${RD}/insights.md, ${RD}/scores.md and ${RD}/expert/, look at the cited screenshots, and propose the smallest changes that fix the verified problems for every user (not just the persona or dataset that showed it), each with reason, evidence, risk, files; say what NOT to change; challenge anything in the insights you think is wrong. Under 800 words.`,
+                        `${RULES}\n${asRole(x)}\n${NAME} studio critique after round ${r}: read ${RD}/insights.md, ${RD}/scores.md and ${RD}/expert/, look at the cited screenshots, and propose the smallest changes that fix the verified problems for every user (not just the persona or dataset that showed it), each with reason, evidence, risk, files; say what NOT to change; challenge anything in the insights you think is wrong. Under 800 words.${ask}`,
                         { label: `${P}: ${TEAM[x]} proposes`, phase: "Round" },
                     ).then((t) => t && `### ${TEAM[x]}\n${t}`),
             ),
         )
     ).filter(Boolean);
+    const answers = DISCUSS ? await answerQuestions(proposals, P) : [];
     const challenge = await agent(
-        `${RULES}\n${asRole("redteam")}\nAttack these ${NAME} proposals: clutter, notices instead of fixes, app workarounds of element defects, divergence from Figma without need (or copying Figma where graphty's own model differs), persona- or domain-specific features, fixes that only echo a task's words, fixes that miss the verified problem. Sharper alternatives. Under 700 words.\n\n${proposals.join("\n\n")}`,
+        `${RULES}\n${asRole("redteam")}\nAttack these ${NAME} proposals: clutter, notices instead of fixes, app workarounds of element defects, divergence from Figma without need (or copying Figma where graphty's own model differs), persona- or domain-specific features, fixes that only echo a task's words, fixes that miss the verified problem. Sharper alternatives. Under 700 words.\n\n${[...proposals, ...answers].join("\n\n")}`,
         { label: `${P}: red team`, phase: "Round" },
     );
+    let discussion = "";
+    if (DISCUSS) {
+        const replies = await rebut(proposers, proposals, answers, challenge, P);
+        const thread = [...answers, ...replies].join("\n\n");
+        const conflicts = await settleConflicts(
+            `${proposals.join("\n\n")}\n\nRED TEAM:\n${challenge || ""}\n\n${thread}`,
+            P,
+        );
+        discussion = `\n\nDISCUSSION (answers, replies to the red team, and conflicts):\n${[thread, ...conflicts].join("\n\n")}`;
+        await parallel([
+            () =>
+                agent(
+                    `Write this text verbatim to ${RD}/discussion.md and change nothing else:\n\n# Proposals\n\n${proposals.join("\n\n")}\n\n# Red team\n\n${challenge || ""}${discussion}`,
+                    { label: `${P}: save the discussion`, phase: "Round", effort: "low" },
+                ),
+            // The same decision without the discussion, never acted on: the measure of what talking changed.
+            () =>
+                agent(
+                    `${RULES}\n${asRole("director", true)}\nDecide the changes for ${NAME} round ${r + 1} from ${RD}/insights.md, the proposals and the red team below; at most ${MAX_DECISIONS}, severity first, each with its reason; check each for generality; reject the rest with reasons. Write ONLY ${RD}/decisions-no-discussion.md: this is a comparison and nothing acts on it, so change nothing else, backlog.md included.\n\nPROPOSALS:\n${proposals.join("\n\n")}\n\nRED TEAM:\n${challenge || ""}`,
+                    { label: `${P}: decide without the discussion`, phase: "Round", effort: "high" },
+                ),
+        ]);
+    }
     const decided = await agent(
-        `${RULES}\n${asRole("director")}\nDecide the changes for ${NAME} round ${r + 1} from ${RD}/insights.md, the proposals and the red team below; at most ${MAX_DECISIONS}, severity first. Then read ${BACKLOG}, the friction, wording, cosmetic and keyboard or screen-reader defects the dry runs deferred (with ${RD}/expert/a11y.md where it confirms them): add up to ${MAX_DECISIONS} more units that fix them, grouped by the shared component that owns them, and mark each taken item in backlog.md with the round. Every unit is one coherent fix with its package, files, acceptance and the tasks it touches. Before taking a change, check it for generality: it must not add a concept the product's model lacks, serve one domain or persona, or be justified only by a re-test that reuses its own words; give a failing change its general form or drop it with the reason. Reject the rest with reasons. Answer-key or task-wording changes use package "tasks-or-answers" and must not change a bar. Write ${RD}/decisions.md. Also return "insights": two or three sentences for the owner on what this round decided and why.\n\nPROPOSALS:\n${proposals.join("\n\n")}\n\nRED TEAM:\n${challenge || ""}`,
+        `${RULES}\n${asRole("director")}\nDecide the changes for ${NAME} round ${r + 1} from ${RD}/insights.md, the proposals and the red team below; at most ${MAX_DECISIONS}, severity first. Then read ${BACKLOG}, the friction, wording, cosmetic and keyboard or screen-reader defects the dry runs deferred (with ${RD}/expert/a11y.md where it confirms them): add up to ${MAX_DECISIONS} more units that fix them, grouped by the shared component that owns them, and mark each taken item in backlog.md with the round. Every unit is one coherent fix with its package, files, acceptance and the tasks it touches. Before taking a change, check it for generality: it must not add a concept the product's model lacks, serve one domain or persona, or be justified only by a re-test that reuses its own words; give a failing change its general form or drop it with the reason. Reject the rest with reasons. Answer-key or task-wording changes use package "tasks-or-answers" and must not change a bar. Write ${RD}/decisions.md. Also return "insights": two or three sentences for the owner on what this round decided and why.\n\nPROPOSALS:\n${proposals.join("\n\n")}\n\nRED TEAM:\n${challenge || ""}${discussion}`,
         { label: `${P}: director decides`, phase: "Round", schema: UNITS, effort: "high" },
     );
     if (decided?.insights) log(`${NAME} round ${r} decisions: ${decided.insights}`);
@@ -1115,11 +1255,12 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
 // ---------------- Report and landing ----------------
 phase("Report");
 const report = await agent(
-    `${RULES}\n${asRole("director")}\nWrite the ${NAME} report at ${T}/report.md for the owner (a reader who did not watch): what was tested (builds and their commits, tasks, participants, rounds, sessions including void and sonnet ones, expert walkthroughs and audits; what a simulated participant can and cannot tell us); results per round against the frozen bars (a table per round); what was learned, most important first, with evidence; what was changed (by package) and whether the next round confirmed it; what was deferred and why; the decisions waiting on the owner (only BREAKING API changes and one-way doors, from ${SD}/owner-decisions.md); next steps. Under about 20 KB. Update your notes. Return the report's summary and next steps as markdown.`,
+    `${RULES}\n${asRole("director")}\nWrite the ${NAME} report at ${T}/report.md for the owner (a reader who did not watch): what was tested (builds and their commits, tasks, participants, rounds, sessions including void and sonnet ones, expert walkthroughs and audits; what a simulated participant can and cannot tell us); results per round against the frozen bars (a table per round); what was learned, most important first, with evidence; what was changed (by package) and whether the next round confirmed it; what was deferred and why; the decisions waiting on the owner (only BREAKING API changes and one-way doors, from ${SD}/owner-decisions.md); next steps.${DISCUSS ? " Where a round has decisions-no-discussion.md, say how it differs from decisions.md and whether each difference had a stated reason." : ""} Under about 20 KB. Update your notes. Return the report's summary and next steps as markdown.`,
     { label: `${NAME} report`, phase: "Report", effort: "high" },
 );
 await commitDocs(`docs(workspace): the ${NAME} report and studio notes`, "commit report", "Report");
 // The studio lands like every other change, through its own pull request: the workflow prepares
 // the branch and waits; the launching session opens the pull request with tools/pr-open.sh.
 if (LAND) await landPass(`the ${NAME} report`, "Report", true);
+await unlock();
 return { rounds, report };

@@ -102,6 +102,7 @@ import {
     type RunOptions,
     type RunPainting,
     type RunPhase,
+    type RunReader,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -190,6 +191,12 @@ interface RunLayerBindings {
      * @param layerIds - The layers to remove.
      */
     remove?(layerIds: readonly LayerId[]): void;
+    /**
+     * The selections that read a run's values in a step.
+     * @param runId - The run.
+     * @returns The readers.
+     */
+    readers?(runId: RunId): readonly RunReader[];
 }
 
 /** Everything the runs API is built from. */
@@ -2382,8 +2389,21 @@ class Runs implements SessionRunsApi {
      */
     private removalOf(id: RunId): RunRemoval {
         const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+        const gone = new Set<string>(layerIds);
+        const selections = Object.freeze(
+            this.readers(id).filter((reader) => reader.kind !== "layer" || !gone.has(reader.id)),
+        );
 
-        return Object.freeze({ removedLayers: layerIds.length, layerIds });
+        return Object.freeze({ removedLayers: layerIds.length, layerIds, selections });
+    }
+
+    /**
+     * The selections that read a run's values in a step.
+     * @param id - The run id.
+     * @returns The readers.
+     */
+    readers(id: RunId): readonly RunReader[] {
+        return Object.freeze([...(this.options.layers?.readers?.(id) ?? [])]);
     }
 
     // -- the queue ----------------------------------------------------------------------------

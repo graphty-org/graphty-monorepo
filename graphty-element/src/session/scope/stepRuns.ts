@@ -124,6 +124,27 @@ export interface StepRuns extends UnionStepSource {
      * @returns The result.
      */
     ownResult(step: UnionStep, within: "graph" | "visible", input?: Bytes): FilterRunResult | undefined;
+    /**
+     * Every session run a step started, oldest first: what an edit handle sorts into kept and
+     * dropped.
+     * @returns The run ids.
+     */
+    begun(): readonly RunId[];
+    /**
+     * Whether a step reads a session run: the run it was last bound to, or for a measure on its base
+     * with no references, the run with its algorithm, settings and scope.
+     * @param step - The step.
+     * @param within - Its base.
+     * @param run - The run.
+     * @returns True when it reads it.
+     */
+    reads(step: UnionStep, within: "graph" | "visible", run: Run): boolean;
+    /**
+     * Forget runs an edit handle removed, so a step that reads one again starts it rather than
+     * waiting as it does for a run the reader removed.
+     * @param ids - The runs.
+     */
+    forget(ids: ReadonlySet<RunId>): void;
 }
 
 /** A step's own computation. */
@@ -162,6 +183,8 @@ const LOCAL_LIMIT = 64;
  */
 export function createStepRuns(sources: StepRunsSources): StepRuns {
     const started = new Map<string, RunId>();
+    /** Every session run a step started, oldest first. */
+    const begunIds: RunId[] = [];
     const consent = new Set<string>();
     const local = new Map<string, LocalEntry>();
     /** The cache key of each step definition's own computation, so Cancel finds it. */
@@ -478,6 +501,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         queueMicrotask(() => {
             const begun = sources.runs.start(leaf.algorithm, params, options);
             started.set(key, begun.id);
+            begunIds.push(begun.id);
             consent.delete(key);
             Promise.resolve(begun).catch(() => undefined);
             sources.moved();
@@ -565,6 +589,31 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         runOf(step, within) {
             const known = started.get(definitionKey(step, within));
             return known === undefined || known === "" ? null : known;
+        },
+        begun: () => begunIds,
+        reads(step, within, run) {
+            const leaf = measureOf(step);
+            if (leaf === null || isLive(leaf, step)) {
+                return false;
+            }
+
+            if (started.get(definitionKey(step, within)) === run.id) {
+                return true;
+            }
+
+            return (
+                (leaf.bind === undefined || Object.keys(leaf.bind).length === 0) &&
+                canonicalize([leaf.algorithm, leaf.params ?? {}, leaf.scope ?? within]) ===
+                    canonicalize([run.algorithm, run.params, run.scope.spec])
+            );
+        },
+        forget(ids) {
+            for (const [key, id] of started) {
+                if (ids.has(id)) {
+                    started.delete(key);
+                    consent.delete(key);
+                }
+            }
         },
         ownResult(step, within, input) {
             const definition = definitionKey(step, within);

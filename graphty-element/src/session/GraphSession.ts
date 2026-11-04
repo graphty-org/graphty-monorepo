@@ -117,6 +117,7 @@ import {
     type RunExecutor,
     type RunOptions,
     type RunOutcome,
+    type RunReader,
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
@@ -127,6 +128,7 @@ import {
     edgeSpaceOf,
     type MaskIdSpace,
     type ScopeApi,
+    type ScopeEdit,
     type ScopeResolver,
 } from "./scope";
 import { createStepRuns, type StepRuns } from "./scope/stepRuns";
@@ -2886,6 +2888,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         focus: () => focusedNode(),
         // The runs a union step's measure reads: built once the runs and the estimate exist.
         stepRuns: () => stepRunsRef.current,
+        edit: () => openEdit(),
         subscribe: (watch) => notifier.subscribe(watch),
         runScopeOf: (run: RunId) => runs.get(run)?.record.scope.spec,
     });
@@ -3122,6 +3125,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 (stack?.list() ?? [])
                     .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
                     .map((layer) => layer.id),
+            // The selections whose steps read a run: what its removal leaves waiting.
+            readers: (runId) => runReaders(runId),
         },
         onChange: (change) => {
             // The token is minted when the work starts, but the result it stamps is published
@@ -3858,6 +3863,77 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             notifier.notify({ kind: "run", run: "graphty-steps" });
         },
     });
+
+    /**
+     * The selections whose steps read a run: style layers' selectors, then filter conditions.
+     * @param id - The run.
+     * @returns The readers.
+     */
+    function runReaders(id: RunId): RunReader[] {
+        const run = runs.get(id);
+        const stepRuns = stepRunsRef.current;
+        if (run === undefined || stepRuns === undefined) {
+            return [];
+        }
+
+        const reads = (rule: RuleTree): boolean => {
+            let found = false;
+            mapUnions(rule, (leaf) => {
+                found ||= leaf.branches.some((branch) =>
+                    branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)),
+                );
+                return leaf;
+            });
+            return found;
+        };
+        return [
+            ...(stack?.list() ?? []).flatMap((layer): RunReader[] =>
+                layer.selector.match === "rule" && reads(layer.selector.where) ? [{ kind: "layer", id: layer.id }] : [],
+            ),
+            ...visibility.conditions.flatMap((condition): RunReader[] =>
+                reads(condition.rule) ? [{ kind: "filter", id: condition.id }] : [],
+            ),
+        ];
+    }
+
+    /**
+     * Open a visit to a selection editor: the runs its steps start while it is open are its own.
+     * @returns The visit.
+     */
+    function openEdit(): ScopeEdit {
+        const from = stepRunsRef.current?.begun().length ?? 0;
+        const before = new Set(runs.list().map((run) => run.id));
+        let open = true;
+        const started = (): RunId[] =>
+            [...new Set((stepRunsRef.current?.begun() ?? []).slice(from))].filter(
+                (id) => !before.has(id) && runs.get(id) !== undefined,
+            );
+        const end = async (keep: (id: RunId) => boolean): Promise<void> => {
+            if (!open) {
+                return;
+            }
+
+            open = false;
+            const drop = started().filter((id) => !keep(id));
+            if (drop.length === 0) {
+                return;
+            }
+
+            await dispatcher.transaction("Remove runs", (tx) =>
+                Promise.all(drop.map((runId) => tx.dispatch({ op: "algo.remove", runId }))),
+            );
+            // Forgotten once gone, so a step that names one again later starts it rather than
+            // waiting as it does for a run the reader removed.
+            stepRunsRef.current?.forget(new Set(drop));
+        };
+        return {
+            get started() {
+                return Object.freeze(started());
+            },
+            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0),
+            discard: () => end(() => false),
+        };
+    }
 
     const shaders = createSessionShaders({
         dispatcher,

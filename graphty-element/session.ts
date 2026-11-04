@@ -324,6 +324,7 @@ export type {
     RunPhase,
     RunProgressReport,
     RunQueue,
+    RunReader,
     RunRecord,
     RunRemoval,
     RunsApi,
@@ -402,6 +403,7 @@ export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
 export type {
     BranchReading,
     BranchState,
+    ScopeEdit,
     ScopeStepOptions,
     StepCheckOptions,
     StepReading,

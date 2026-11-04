@@ -19,6 +19,7 @@ export {
     edgeSpaceOf,
     nodeSpaceOf,
     type SavedScope,
+    type ScopeEdit,
     type ScopeApi,
     type ScopeCount,
     type ScopeCountOptions,

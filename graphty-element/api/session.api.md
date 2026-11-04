@@ -389,6 +389,7 @@ export interface BindingStop {
 // @beta
 export interface BranchesView {
     readonly base?: "visible" | "full";
+    readonly edges?: boolean;
     readonly hold?: string;
     readonly mark?: string;
     readonly rest?: "faint" | "plain";
@@ -1022,7 +1023,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export interface FieldBand {
@@ -4793,6 +4794,15 @@ export interface RunQueue {
     settled(): Promise<void>;
 }
 
+// @beta
+export type RunReader = {
+    readonly kind: "layer";
+    readonly id: LayerId;
+} | {
+    readonly kind: "filter";
+    readonly id: string;
+};
+
 // @public
 export interface RunRecord {
     readonly algorithm: AlgorithmKey;
@@ -4823,6 +4833,8 @@ export type RunRef = Run | RunResult | RunId;
 export interface RunRemoval {
     readonly layerIds: readonly LayerId[];
     readonly removedLayers: number;
+    // @beta
+    readonly selections: readonly RunReader[];
 }
 
 // @public
@@ -4866,6 +4878,8 @@ export interface RunsApi {
     }): Promise<void>;
     painting(id: RunId): RunPainting | undefined;
     readonly queue: readonly QueueEntry[];
+    // @beta
+    readers(id: RunId): readonly RunReader[];
     remove(id: RunId): RunRemoval;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
 }
@@ -4968,6 +4982,8 @@ export interface ScopeApi {
     checkStep(step: UnionStep, options: StepCheckOptions): CodedFact | null;
     count(spec: ScopeInput, options?: ScopeCountOptions): Promise<ScopeCount>;
     // @beta
+    edit(): ScopeEdit;
+    // @beta
     histogram(path: Path, options?: ValueHistogramOptions): ValueHistogram;
     // @deprecated
     list(): readonly SavedScope[];
@@ -5001,6 +5017,13 @@ export interface ScopeCount {
 export interface ScopeCountOptions {
     readonly approximate?: boolean;
     readonly sample?: number;
+}
+
+// @beta
+export interface ScopeEdit {
+    commit(): Promise<void>;
+    discard(): Promise<void>;
+    readonly started: readonly RunId[];
 }
 
 // @public

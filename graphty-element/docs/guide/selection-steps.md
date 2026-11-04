@@ -122,9 +122,35 @@ Unset, every run a step needs starts when it is read. `scope.setOptions({ liveMs
 holds back a run estimated above `askAboveMs` until `scope.allowRun(rule, stepId)`, and a run that
 follows the pointer above `liveMs` while a node is hovered. `scope.cancelRun` cancels one.
 
+A run a step starts paints nothing: it adds the run's values, never a style layer. It is an
+ordinary run, listed in `session.runs.list()`, and a step with the same algorithm, settings and
+scope reads the same run, whoever started it.
+
+### Done and Cancel in an editor
+
+An editor that lets a reader try settings starts runs the reader may not keep. Open a visit when
+the editor opens and end it when it closes:
+
+```ts
+const visit = session.scope.edit();
+// ... the reader edits; the steps start whatever runs they need ...
+await visit.commit(); // Done: keeps the runs a selection reads now, drops the rest
+await visit.discard(); // Cancel: drops every run the visit started
+```
+
+Runs that existed before the visit are never removed. Call `commit()` or `discard()` after the
+editor's last write (on Cancel, after the rule is restored).
+
+### Removing a run a selection reads
+
+`session.runs.readers(id)` lists the style layers and filter conditions whose steps read a run,
+which a confirmation names before it removes the run; `runs.remove(id)` returns the same list as
+`selections`. A removed run is never re-run unasked: each step that read it waits with
+`run-needed` until `scope.allowRun(rule, stepId)`.
+
 ## Showing branches while picking
 
 `session.styles.showBranches({ rule, rest: "faint" })` suspends every layer (kept, listed, and not
-an undo step) and draws each branch's members in its color, the first branch winning (a node
-branch draws the edges between its members in its color too); `end()`
+an undo step) and draws each branch's members in its color, the first branch winning (with
+`edges: true`, a node branch draws the edges between its members in its color too); `end()`
 brings the stack's picture back.

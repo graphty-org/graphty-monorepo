@@ -552,7 +552,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

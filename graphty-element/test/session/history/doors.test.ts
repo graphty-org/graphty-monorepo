@@ -61,6 +61,30 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
         session.scope.save("door seed", "graph");
         return session.scope;
     },
+    // A visit whose one step has started the degree run over the graph.
+    ScopeEdit: async (session) => {
+        const edit = session.scope.edit();
+        const rule = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [{ op: "keep", rule: { kind: "measure", algorithm: "degree", field: "value" } }],
+                },
+            ],
+        } as const;
+        await new Promise<void>((resolve) => {
+            const watch = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0]?.steps[0]?.run !== null) {
+                    watch.end();
+                    resolve();
+                }
+            });
+        });
+        return edit;
+    },
     SetsApi: async (session) => {
         await selectOne(session);
         session.sets.create({ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door seed" });

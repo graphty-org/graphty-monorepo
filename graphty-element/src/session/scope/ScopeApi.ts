@@ -218,6 +218,12 @@ export interface ScopeSources {
     /** The runs a union step's `measure` leaf reads, once built. Absent refuses `measure`. */
     readonly stepRuns?: () => StepRuns | undefined;
     /**
+     * Open a visit to a selection editor. Absent, a visit keeps everything: it starts no runs it
+     * could tell apart.
+     * @returns The visit.
+     */
+    readonly edit?: () => ScopeEdit;
+    /**
      * Watch the session's inputs, for `watchSteps`. Absent: a watch never hears a change.
      * @param watch - The watch.
      * @returns Stops it.
@@ -297,8 +303,41 @@ export interface ScopeCountOptions {
     readonly sample?: number;
 }
 
+/**
+ * A visit to a selection editor, as the element tells which runs it started: open one with
+ * {@link ScopeApi.edit} when the editor opens, and end it with `commit()` on Done or `discard()`
+ * on Cancel. Runs a step started while it was open are the visit's; runs that existed before stay
+ * whatever happens.
+ * @beta
+ */
+export interface ScopeEdit {
+    /**
+     * Done: keep the visit's runs that a selection reads now (a style layer's selector or a
+     * filter condition) or a style layer paints from, as ordinary runs, and remove the rest (the
+     * runs a settings change left behind), as one undo step. Ends the visit.
+     * @returns Settles once they are removed.
+     */
+    commit(): Promise<void>;
+    /**
+     * Cancel: remove every run the visit started, as one undo step. Ends the visit.
+     * @returns Settles once they are removed.
+     */
+    discard(): Promise<void>;
+    /**
+     * The runs the visit has started so far, oldest first.
+     */
+    readonly started: readonly RunId[];
+}
+
 /** Resolving a scope, counting one, and keeping one under a name. */
 export interface ScopeApi {
+    /**
+     * Open a visit to a selection editor, so its Done and Cancel know which runs it started
+     * (see {@link ScopeEdit}). Opening one while another is open leaves the other open.
+     * @returns The visit.
+     * @beta
+     */
+    edit(): ScopeEdit;
     /**
      * The elements a specification covers.
      * @param spec - What to resolve.
@@ -1136,6 +1175,14 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 options,
             );
         },
+
+        edit: () =>
+            sources.edit?.() ??
+            Object.freeze({
+                commit: () => Promise.resolve(),
+                discard: () => Promise.resolve(),
+                started: Object.freeze([]),
+            }),
 
         allowRun: (rule, stepId) => {
             steps.allowRun(rule, stepId);

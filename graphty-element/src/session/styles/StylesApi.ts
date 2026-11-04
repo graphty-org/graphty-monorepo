@@ -469,6 +469,13 @@ export interface BranchesView {
      * @beta
      */
     readonly base?: "visible" | "full";
+    /**
+     * Whether a node branch also draws the edges between its members in its color (the edges a
+     * filter of those nodes would leave). Absent or false, edges keep the base look.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly edges?: boolean;
 }
 
 /**
@@ -2742,7 +2749,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
             // A node branch also draws the edges between its members in its color: the rule's
             // edge half is read `clipped`, the edges a filter of those nodes would leave.
-            if (target === "node") {
+            if (target === "node" && view.edges === true) {
                 specs.push({
                     name: branch.name ?? branch.id ?? "Branch",
                     target: "edge",

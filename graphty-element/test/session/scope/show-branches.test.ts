@@ -160,7 +160,7 @@ describe("styles.showBranches", () => {
         view.end();
     });
 
-    it("a node branch draws the edges between its members in its color, and no other edge", async () => {
+    it("with edges, a node branch draws the edges between its members in its color, and no other edge", async () => {
         const { session } = await painted();
         const edgeColor = (a: string, b: string): unknown => {
             const edge = session.data
@@ -173,7 +173,11 @@ describe("styles.showBranches", () => {
                 ? `#${[color.r, color.g, color.b].map((part) => part.toString(16).padStart(2, "0")).join("")}`.toUpperCase()
                 : color;
         };
-        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        const plain = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        assert.notStrictEqual(edgeColor("Valjean", "Myriel"), "#009E73", "without edges, edges keep the base look");
+        plain.end();
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint", edges: true });
         await session.styles.settled();
         assert.strictEqual(edgeColor("Valjean", "Myriel"), "#009E73", "both ends are members");
         assert.notStrictEqual(edgeColor("Myriel", "Napoleon"), "#009E73", "Napoleon is not a member");

@@ -2922,6 +2922,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
             bindings: READ,
+            readers: READ,
             painting: READ,
             layers: READ,
             queue: READ,
@@ -2968,6 +2969,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 "consent for one step's run, held in the session; the run it lets start dispatches algo.run as any run",
             ),
             cancelRun: exempt("cancels a computing step's run, which a run's own cancel does without a step"),
+            edit: exempt("opens a visit that only records which runs its steps start; nothing a project saves"),
+        },
+    },
+    {
+        name: "ScopeEdit",
+        file: "src/session/scope/ScopeApi.ts",
+        half: "session",
+        doors: {
+            // The doors test opens a visit whose one step started the degree run over the graph;
+            // nothing reads it, so Done and Cancel both remove it.
+            commit: calls([], [{ op: "algo.remove", runId: "degree" }]),
+            discard: calls([], [{ op: "algo.remove", runId: "degree" }]),
+            started: READ,
         },
     },
     {

@@ -251,6 +251,8 @@ export const GRID_EXTENT_FLOOR = 1e-6;
 export const GRID_BBOX_MARGIN = 1.01;
 /** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
 export const GRID_SORT_BITS = 24;
+/** The value of `ClusterOptions.communities` for a row in no community: the twin of layout's NO_CLUSTER. */
+export const NO_CLUSTER = 0xffffffff;
 /** Design 8.4 (P8 PD-7): traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
 export const MAX_LEVELS_PER_SUBMIT = 32;
 /** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */

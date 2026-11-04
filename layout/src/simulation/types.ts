@@ -1,4 +1,4 @@
-import type { F32, GraphSnapshot, NodeId, NodeMask } from "@graphty/graph-format";
+import type { F32, GraphSnapshot, NodeId, NodeMask, U32 } from "@graphty/graph-format";
 
 /** graph-format design 14.3 CommonLayoutOptions. */
 export interface CommonLayoutOptions {
@@ -96,6 +96,17 @@ export interface SpringElectricalOptions extends CommonLayoutOptions, Simulation
     readonly timeStep?: number | undefined;
 }
 
+/** What `LayoutSimulation.setClusters` pulls together. */
+export interface ClusterOptions {
+    /** One community number per row, each below the node count, or `NO_CLUSTER` for a row in none. */
+    readonly communities: U32;
+    /**
+     * How hard a node is pulled toward its community's centroid: 1 is the pull of one more edge, per unit of the node's
+     * mass, tying it there. Default 1.
+     */
+    readonly strength?: number | undefined;
+}
+
 /** graph-format design 14.3 LayoutSimulation, verbatim: steppable layouts over the owner's stride-3 scene-unit array. */
 export interface LayoutSimulation {
     /** positions: the owner's stride-3 scene-unit array, read AND written in place. */
@@ -114,6 +125,13 @@ export interface LayoutSimulation {
      * `@graphty/webgpu-graph-algorithms` implements it.
      */
     setInert?(mask: NodeMask): void;
+    /**
+     * Pulls each community toward its own mass-weighted centroid, on top of the forces, until called with null. Call it
+     * after load(); a same-size reload keeps it, a new node count clears it. Copied; never reheats. Optional, so an
+     * accelerator written before it still type-checks; every simulation in this package and in
+     * `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setClusters?(clusters: ClusterOptions | null): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
     dispose(): void;

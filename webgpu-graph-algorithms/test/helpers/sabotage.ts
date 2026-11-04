@@ -56,6 +56,7 @@ const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
+const CLUSTER_TEST = "test/layouts/clusters.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
@@ -695,6 +696,70 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let dst = offsets[d * P.groups] + rank[lid.x];",
             minFactor: 10,
             test: RADIX_TEST,
+        },
+    ]),
+    "cluster-centroid": Object.freeze([
+        {
+            // the last members of every community are left out of its centroid
+            name: "last-member-skipped",
+            find: "k < end;",
+            replace: "k + 1u < end;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // a centroid by count, not by mass
+            name: "mass-ignored",
+            find: "acc = acc + vec4f(p.xyz * p.w, p.w);",
+            replace: "acc = acc + vec4f(p.xyz, 1.0);",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // every community reads the first one's members
+            name: "first-community-only",
+            find: "start = clusterStart[c];",
+            replace: "start = clusterStart[0];",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+    ]),
+    "cluster-pull": Object.freeze([
+        {
+            name: "pull-sign-flipped",
+            find: "let d = total.xyz / total.w - p.xyz;",
+            replace: "let d = p.xyz - total.xyz / total.w;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // the pull replaces what K2 wrote instead of adding to it
+            name: "attraction-overwritten",
+            find: "force[3u * i + 1u] = force[3u * i + 1u] + pull * d.y;",
+            replace: "force[3u * i + 1u] = pull * d.y;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "unclustered-row-pulled",
+            find: "if (c == 0xffffffffu) { return; }",
+            replace: "if (c == 0xffffffffu) { force[3u * i] = force[3u * i] + 1.0; return; }",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "fr-law-linear",
+            find: "pull = P.clusterStrength * length(d) / P.frK;",
+            replace: "pull = P.clusterStrength;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "spring-coefficient-dropped",
+            find: "pull = pull * P.springCoefficient;",
+            replace: "pull = pull * 1.0;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
         },
     ]),
     "grid-cell-key": Object.freeze([

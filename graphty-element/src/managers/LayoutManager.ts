@@ -162,6 +162,8 @@ interface ParsedSimulationOptions {
     scale?: number;
     dim?: 2 | 3;
     seed?: number | null;
+    clusterBy?: string | null;
+    clusterStrength?: number;
 }
 
 /**
@@ -284,6 +286,8 @@ export function resolveSimulationOptions(
     return {
         model: simulationModel(type, declared),
         scalingFactor: publishedRadius(declared),
+        clusterBy: declared.clusterBy,
+        clusterStrength: declared.clusterStrength,
         iterationsPerStep: explicit ?? behavior.iterationsPerStep ?? null,
         maxInFlight: inFlight ?? behavior.maxInFlight,
         settleThreshold: typeof options.settleThreshold === "number" ? options.settleThreshold : undefined,
@@ -980,6 +984,21 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A run's results changed: a layout clustering by them reads them again, and moves when the communities did.
+     * @internal
+     */
+    clustersChanged(): void {
+        try {
+            if (this.layoutEngine?.wakeForClusters() === true) {
+                this.running = !this.restoring();
+            }
+        } catch (error) {
+            this.running = false;
+            this.reportSimulationFailure(error);
+        }
+    }
+
+    /**
      * Which engine draws the layout a consumer asked for, over a graph this size, right now.
      *
      * The element has one arrangement with two drivers -- see {@link FORCE_ACCELERATED_ENGINE} --
@@ -1488,6 +1507,11 @@ export class LayoutManager implements Manager {
 
         if (engine instanceof SnapshotLayoutEngine) {
             this.connectSnapshotEngine(type, engine);
+        }
+
+        if (engine) {
+            engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>
+                this.scopeSource?.nodeValues?.(graph, path) ?? null;
         }
 
         if (!engine) {

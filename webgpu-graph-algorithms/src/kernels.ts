@@ -47,6 +47,8 @@ import { bfsNextDegreeWgsl } from "./wgsl/bfs-next-degree.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
 import { closenessLevelWgsl } from "./wgsl/closeness-level.wgsl.js";
 import { closenessRowsumWgsl } from "./wgsl/closeness-rowsum.wgsl.js";
+import { clusterCentroidWgsl } from "./wgsl/cluster-centroid.wgsl.js";
+import { clusterPullWgsl } from "./wgsl/cluster-pull.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { cooEmitWgsl } from "./wgsl/coo-emit.wgsl.js";
 import { cooScatterWgsl } from "./wgsl/coo-scatter.wgsl.js";
@@ -125,6 +127,8 @@ export type KernelId =
     | "grid-downsample"
     | "grid-far-field"
     | "grid-near-field"
+    | "cluster-centroid"
+    | "cluster-pull"
     | "compact-scatter"
     | "dedupe-claim"
     | "dedupe-filter"
@@ -239,6 +243,8 @@ export const FA2_PARAMS: UniformBlock = UniformBlock.define("Fa2Params", [
     ["midEnd", "u32"],
     ["settleFloor", "f32"],
     ["live", "u32"],
+    ["clusterStrength", "f32"],
+    ["clusterCount", "u32"],
 ]);
 
 /** `Fa2State` (storage, padded to STATE_HEADER_BYTES = 256; spec 7.3): the device-resident controller state the finalize kernels write and the host reads back for stats -- `speed` @0, `speedEfficiency` @4, `swing` @8, `traction` @12, `centroid` @16, `rmsRadius` @32, `radius` @36, `meanDisplacement` @40, `iteration` @44, `min` @48, `max` @64, `gridMin` @80 (P4), `eps` @96 (P4), `settledCount` @100, `outsideGrid` @104 (P4), `maxCellOccupancy` @108 (P4), `temperature` @112 (FR, written by K1 under STATS_MODE 1), `kineticEnergy` @116 (the preset, K1 under STATS_MODE 2), `frEnergy` @120 / `frProgress` @124 (the FR adaptive cooling), `invCellSize` @128 (P4, PD-10: `1 / cellSize`, written by K1 beside `cellSize` in `gridMin.w`; G1 multiplies by it so every key is bitwise reproducible), `reserved0` @132 (f32), `reserved1` @136 (vec2f), `reserved2` .. `reserved8` @144 .. @240. */
@@ -1093,6 +1099,44 @@ const GRID_CELL_KEY: KernelEntry = {
     phase: "P4",
 };
 
+/** `cluster-centroid` (the cluster force, issue #3257): one workgroup per community, its mass-weighted position sum. */
+const CLUSTER_CENTROID: KernelEntry = {
+    id: "cluster-centroid",
+    body: clusterCentroidWgsl,
+    entryPoint: "cluster_centroid",
+    bindings: [
+        decl(1, 0, "pos", "storage-ro", "array<vec4f>"),
+        decl(1, 1, "members", "storage-ro", "array<u32>"),
+        decl(1, 2, "clusterStart", "storage-ro", "array<u32>"),
+        decl(1, 3, "centroids", "storage", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "Fa2Params"),
+    ],
+    overrideDecls: [],
+    uniforms: [FA2_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P4",
+};
+
+/** `cluster-pull` (the cluster force, issue #3257): adds each node's pull toward its community's centroid to `force`. */
+const CLUSTER_PULL: KernelEntry = {
+    id: "cluster-pull",
+    body: clusterPullWgsl,
+    entryPoint: "cluster_pull",
+    bindings: [
+        decl(1, 0, "pos", "storage-ro", "array<vec4f>"),
+        decl(1, 1, "force", "storage", "array<f32>"),
+        decl(1, 2, "clusterOf", "storage-ro", "array<u32>"),
+        decl(1, 3, "centroids", "storage-ro", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "Fa2Params"),
+    ],
+    overrideDecls: [{ name: "LAW", type: "u32", default: 0 }],
+    uniforms: [FA2_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P4",
+};
+
 /** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
@@ -1912,6 +1956,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "grid-downsample": GRID_DOWNSAMPLE,
     "grid-far-field": GRID_FAR_FIELD,
     "grid-near-field": GRID_NEAR_FIELD,
+    "cluster-centroid": CLUSTER_CENTROID,
+    "cluster-pull": CLUSTER_PULL,
     "compact-scatter": COMPACT_SCATTER,
     "dedupe-claim": DEDUPE_CLAIM,
     "dedupe-filter": DEDUPE_FILTER,

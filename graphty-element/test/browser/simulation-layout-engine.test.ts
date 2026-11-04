@@ -247,6 +247,25 @@ afterEach(() => {
 });
 
 describe("the simulation layout bridge", () => {
+    it("hands an accelerated simulation one community per row and the strength", async () => {
+        const graph = await pathGraph(5);
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        const rig = await bridge(graph, "spring-electrical", { clusterBy: "id", clusterStrength: 3 });
+        assert.isTrue(rig.engine.isAccelerated);
+
+        const { clusters } = rig.engine.simulation as FakeSimulation;
+        assert.strictEqual(clusters?.strength, 3);
+        assert.sameMembers([...(clusters?.communities ?? [])], [0, 1, 2, 3, 4]);
+    });
+
+    it("sets no communities without clusterBy", async () => {
+        const graph = await pathGraph(5);
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        const rig = await bridge(graph, "forceatlas2");
+
+        assert.isNull((rig.engine.simulation as FakeSimulation).clusters);
+    });
+
     it("the frame loop walks the graph's own nodes and edges, so the meshes follow the simulation", async () => {
         const graph = await pathGraph(5);
         const rig = await bridge(graph);

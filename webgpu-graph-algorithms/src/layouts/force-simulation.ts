@@ -15,6 +15,7 @@ import {
     FA2_FLAG_FIRST,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
+    NO_CLUSTER,
     PARTIAL_BYTES,
     STATE_HEADER_BYTES,
     UNIFORM_SLOT_BYTES,
@@ -41,7 +42,8 @@ import {
     type RunOptions,
 } from "../types/layout.js";
 import { type Binding } from "../types/memory.js";
-import { type CommonLayoutOptions, type SimulationOptions } from "../types/options.js";
+import { type ClusterOptions, type CommonLayoutOptions, type SimulationOptions } from "../types/options.js";
+import { ClusterStage } from "./clusters.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -121,6 +123,8 @@ export interface ModelInputs {
 export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     readonly kind: "forceatlas2" | "fruchtermanReingold" | "springElectrical";
     readonly stages: readonly string[];
+    /** Recorded after every attraction, in its pass, on either tier: the cluster force, or null. */
+    afterAttraction?: ((pass: GPUComputePassEncoder, offset: number) => void) | null;
     readonly params: UniformBlock;
     readonly state: UniformBlock;
     readonly trace: UniformBlock;
@@ -668,6 +672,9 @@ function assertModelInputs(inputs: ModelInputs, n: number): void {
     }
 }
 
+/** Each model's law of attraction, the `LAW` the cluster force compiles with. */
+const CLUSTER_LAW = { forceatlas2: 0, fruchtermanReingold: 1, springElectrical: 2 } as const;
+
 /**
  * The shared layout state machine (spec 7.19): buffers, in-flight batches, readback, settle window, fixed mask,
  * setPosition overrides, trace, batch driver; consumes a ForceModel by composition.
@@ -733,6 +740,10 @@ export class ForceSimulation<
     private massValues: F32 = new Float32Array(0);
     /** n less the inert rows: the `live` count K1 and K4 divide by. */
     private liveValue = 0;
+    /** What setClusters() set, the stage running it once compiled, and whether the upload is behind. */
+    private clusters: { readonly communities: Uint32Array<ArrayBuffer>; readonly strength: number } | null = null;
+    private clusterStage: ClusterStage | null = null;
+    private clustersDirty = false;
     private iterationsSubmitted = 0;
     private iterationsDoneValue = 0;
     private settledCountValue = 0;
@@ -1041,6 +1052,7 @@ export class ForceSimulation<
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
             this.inertWords = null;
+            this.clusters = null;
         }
         this.liveValue = n - this.inertCount();
         if (inputs?.fixed !== undefined && inputs.fixed !== null) {
@@ -1281,6 +1293,44 @@ export class ForceSimulation<
     }
 
     /**
+     * Pulls communities together (LayoutSimulation.setClusters): the communities are copied and uploaded before the
+     * next batch, which waits for the stage's compile the first time. Never reheats.
+     * @param clusters - the communities and the strength, or null to stop
+     */
+    setClusters(clusters: ClusterOptions | null): void {
+        this.assertLoaded();
+        if (clusters === null) {
+            this.clusters = null;
+            this.dropClusterStage();
+            return;
+        }
+        const { communities, strength = 1 } = clusters;
+        if (communities.length !== this.n) {
+            throw invalidArgument("communities", communities.length, this.n, "setClusters: one community per node");
+        }
+        if (!Number.isFinite(strength) || strength < 0) {
+            throw invalidArgument("strength", strength, "finite and >= 0", "setClusters: strength must be >= 0");
+        }
+        if (communities.some((community) => community !== NO_CLUSTER && community >= this.n)) {
+            throw invalidArgument(
+                "communities",
+                "a community too large",
+                `below ${this.n}, or NO_CLUSTER`,
+                "setClusters: every community must be below the node count",
+            );
+        }
+        this.clusters = { communities: new Uint32Array(communities), strength };
+        this.clustersDirty = true;
+        const { resources } = this;
+        if (this.clusterStage === null && resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindClusters(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
      * Writes a scene-unit position (spec 7.12): into the owner's array at once, into the device (layout units, z 0
      * in 2D, 12 bytes at 16 i, queue-ordered before the next submit), into the override list keyed by the last
      * submitted batch id, then reheat(). PLAN DECISION 18: non-finite coordinates are E_INVALID_ARGUMENT.
@@ -1476,6 +1526,7 @@ export class ForceSimulation<
             this.fixedDirty = false;
         }
         this.flushStateWrites(buffers.state);
+        this.flushClusters();
         const first = this.ring.reserve(k);
         for (let i = 0; i < k; i++) {
             const flags = i === 0 && this.firstPending ? FA2_FLAG_FIRST : 0;
@@ -1701,6 +1752,8 @@ export class ForceSimulation<
             scale: this.scale,
             center: [cx, cy, cz, 0],
             settleThreshold: this.settleThreshold(),
+            clusterStrength: this.clusters?.strength ?? 0,
+            clusterCount: this.clusterStage?.count ?? 0,
         };
         return { ...model, ...shared };
     }
@@ -1909,6 +1962,7 @@ export class ForceSimulation<
         }
         this.buffers = null;
         this.resources = null;
+        this.dropClusterStage();
         const doomed = [buffers.positions, buffers.scene, buffers.fixed, buffers.partials, buffers.state];
         for (const { buffer } of buffers.model.values()) {
             doomed.push(buffer);
@@ -2213,6 +2267,52 @@ export class ForceSimulation<
             return;
         }
         await this.model.bind(resources, overrides);
+        await this.bindClusters(resources, generation);
+    }
+
+    /**
+     * Compiles and attaches the cluster stage when communities are set and none runs; a load or a setClusters(null) that
+     * overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindClusters(resources: ModelResources, generation: number): Promise<void> {
+        if (this.clusters === null || this.clusterStage !== null) {
+            return;
+        }
+        const wanted = (): boolean =>
+            this.stateValue === "loaded" && generation === this.generationValue && this.clusters !== null;
+        const stage = await ClusterStage.create(resources, CLUSTER_LAW[this.model.kind]);
+        if (!wanted()) {
+            stage.dispose();
+            return;
+        }
+        this.clusterStage = stage;
+        this.clustersDirty = true;
+        this.model.afterAttraction = (pass, offset): void => {
+            stage.record(pass, offset);
+        };
+    }
+
+    /** Uploads changed communities before a batch records. */
+    private flushClusters(): void {
+        const { clusters, clusterStage } = this;
+        if (clusters !== null && clusterStage !== null && this.clustersDirty) {
+            clusterStage.update(clusters.communities);
+            this.clustersDirty = false;
+        }
+    }
+
+    /** Detaches the cluster stage; its buffers return to the pool once the batches reading them are done. */
+    private dropClusterStage(): void {
+        const stage = this.clusterStage;
+        if (stage !== null) {
+            this.clusterStage = null;
+            this.model.afterAttraction = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
     }
 
     // ---------------------------------------------------------------- private: inspect and debug runs

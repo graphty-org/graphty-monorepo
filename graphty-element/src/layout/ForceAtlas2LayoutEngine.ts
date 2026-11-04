@@ -12,12 +12,15 @@ import type { SimulationType } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { clusterByOption, clusterStrengthOption } from "./clusterForce";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
  * Zod-based options schema for ForceAtlas2 Layout
  */
 const forceAtlas2LayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {

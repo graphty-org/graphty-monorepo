@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
 import {
+    assertCommunitiesLumped,
     assertDistinctPicture,
     assertGraphLoaded,
     assertHeavyEdgesShorter,
@@ -367,6 +368,30 @@ export const Spring: Story = {
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Spring");
 
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * ForceAtlas2 pulling Louvain's communities into lumps with `clusterBy`: the layout names the run's field before the run
+ * exists, and moves when it lands.
+ */
+export const ClusterBy: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", algorithms: ["graphty:louvain"] }),
+        runAlgorithmsOnLoad: true,
+        layout: "forceatlas2",
+        layoutConfig: { dim: 2, seed: 12, clusterBy: "results.louvain.group", clusterStrength: 4 },
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.clusterStrength"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "ClusterBy");
+
+        await assertCommunitiesLumped(scene, "louvain", 0.3);
         await assertDistinctPicture(scene, "Layout/2D");
     },
 };

@@ -632,8 +632,14 @@ function bandCenter(points: readonly Pt[], by: number): Pt[] {
  * 71.07 px at 14 px against Liberation Sans's 61.47), the Serif specimen half a DejaVu Serif width
  * (cys-specimen-labels font-face-serif), and a `Dialog.bolditalic` label's background box is its DejaVu Sans Bold
  * Oblique width (cys-syn-mappings). Java draws a font named `Default`, which it does not have, in Dialog.
+ *
+ * yEd is a Java program too, and its SVG writer (ySVG) names the same logical fonts: `'Dialog'` on the root, which any
+ * text without a family of its own inherits, and `sans-serif`, `serif` and `monospace`. Measured on its drawings:
+ * "patm" at 12 px starts 15.68 px left of its node's middle (gml-yed-pmodel), half its DejaVu Sans width of 31.4, and a
+ * label `Agj` at 10 px starts half its DejaVu Sans Mono width (18.06) left of the middle of the fontFamily=Monospaced
+ * node and half its DejaVu Serif width (16.72) left of the fontFamily=Serif one (yed-graphml-specimen-labels).
  */
-const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
+const JAVA_FACES: Readonly<Record<string, string>> = {
     helvetica: "DejaVu Sans",
     dialog: "DejaVu Sans",
     sansserif: "DejaVu Sans",
@@ -650,11 +656,24 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",
     monospaced: "DejaVu Sans Mono",
+    monospace: "DejaVu Sans Mono",
     dialoginput: "DejaVu Sans Mono",
 };
 
 /**
- * Lays a text of a FreeHEP SVG out in the face Java drew it in, so its box is the one the program measured.
+ * Whether a Java SVG writer made this drawing: FreeHEP says so in its `desc`, ySVG in a comment at the root.
+ * @param svg - the drawing
+ * @returns true for FreeHEP's and ySVG's
+ */
+function writtenByJava(svg: SVGSVGElement | null): boolean {
+    return (
+        (svg?.querySelector(":scope > desc")?.textContent ?? "").includes("FreeHEP") ||
+        [...(svg?.childNodes ?? [])].some((n) => n.nodeType === Node.COMMENT_NODE && n.nodeValue?.includes("ySVG"))
+    );
+}
+
+/**
+ * Lays a text of a Java program's SVG out in the face Java drew it in, so its box is the one the program measured.
  * @param el - the text
  * @param first - the first family it declares, lowercased, with any Java style suffix (`dialog.bolditalic`)
  * @returns a call that puts the text's own font back
@@ -662,9 +681,8 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
 function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     const [name, javaStyle = ""] = first.split(".");
     // a PostScript name's style suffix (`Calibri-Bold`) after the family, where the whole name is not a face itself
-    const face = FREEHEP_JAVA_FACES[name] ?? FREEHEP_JAVA_FACES[name.split("-")[0]];
-    const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
-    if (face === undefined || !desc.includes("FreeHEP")) {
+    const face = JAVA_FACES[name] ?? JAVA_FACES[name.split("-")[0]];
+    if (face === undefined || !writtenByJava(el.ownerSVGElement)) {
         return () => undefined;
     }
     const { fontFamily, fontWeight, fontStyle } = el.style;

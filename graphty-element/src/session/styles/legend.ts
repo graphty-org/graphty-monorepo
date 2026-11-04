@@ -42,6 +42,7 @@
 import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { groupName, RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
+import { asColorValue } from "./channels";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -598,15 +599,6 @@ function fieldWords(path: Path, target: SelectorTarget, sources: LegendSources):
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Whether a painted value is a colour.
- * @param value - What the encoding painted.
- * @returns True when it carries a hex string, which every colour channel's value does.
- */
-function isColorValue(value: unknown): value is { hex: string } {
-    return typeof value === "object" && value !== null && "hex" in value && typeof value.hex === "string";
-}
-
-/**
  * Split a painted value into the fields a swatch carries it in.
  * @param painted - What the encoding painted, or undefined when it paints this value nothing.
  * @returns The colour, the size, or the finished value of a channel that carries neither.
@@ -616,8 +608,9 @@ function swatchPaint(painted: EncodedValue | undefined): Pick<LegendSwatch, "col
         return {};
     }
 
-    if (isColorValue(painted)) {
-        return { color: painted.hex };
+    const color = asColorValue(painted);
+    if (color !== null) {
+        return { color: color.hex };
     }
 
     if (typeof painted === "number") {
@@ -641,8 +634,9 @@ function paintKey(painted: EncodedValue | undefined): string | null {
         return null;
     }
 
-    if (isColorValue(painted)) {
-        return painted.hex;
+    const color = asColorValue(painted);
+    if (color !== null) {
+        return color.hex;
     }
 
     return typeof painted === "object" ? JSON.stringify(painted) : String(painted);

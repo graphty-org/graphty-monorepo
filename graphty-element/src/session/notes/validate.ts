@@ -9,6 +9,7 @@
 
 import type { EdgeId, EdgeMember, NodeId, ResultId, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { canonicalize } from "../runs/runId";
 import type { Note, NoteCite, NoteId, NoteTarget } from "./types";
 
@@ -71,20 +72,6 @@ export function refuseNote(
     details: Readonly<Record<string, unknown>> = {},
 ): GraphtyError {
     return new GraphtyError({ code, message, source: "data", details: { ...details, reason } });
-}
-
-/**
- * Whether a value is a plain object: `{...}` or one with a null prototype.
- * @param value - The value.
- * @returns True when it is.
- */
-export function isPlain(value: unknown): value is Readonly<Record<string, unknown>> {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return false;
-    }
-
-    const proto: unknown = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
 }
 
 /**
@@ -246,7 +233,7 @@ function plainJson(value: unknown, depth: number): unknown {
         return Object.freeze(Array.from(value, (entry: unknown) => plainJson(entry, depth + 1)));
     }
 
-    if (!isPlain(value)) {
+    if (!isPlainObject(value)) {
         throw bad(`a ${typeof value === "object" ? (value.constructor?.name ?? "object") : typeof value} is not`);
     }
 
@@ -269,7 +256,7 @@ function plainJson(value: unknown, depth: number): unknown {
  * @returns A frozen null-prototype copy.
  */
 export function checkExtensions(extensions: unknown): Readonly<Record<string, unknown>> {
-    if (!isPlain(extensions)) {
+    if (!isPlainObject(extensions)) {
         throw refuseNote(
             "E_BAD_COMMAND",
             "bad-extensions",
@@ -308,11 +295,11 @@ function isItemShape(item: unknown): item is Readonly<{
     key: Readonly<{ field: string; value: string | number | boolean }>;
 }> {
     return (
-        isPlain(item) &&
+        isPlainObject(item) &&
         hasKeys(item, ["result", "run", "key"], ["result", "key"]) &&
         isShortString(item.result) &&
         (!Object.hasOwn(item, "run") || isShortString(item.run)) &&
-        isPlain(item.key) &&
+        isPlainObject(item.key) &&
         hasKeys(item.key, ["field", "value"], ["field", "value"]) &&
         isShortString(item.key.field) &&
         (typeof item.key.value === "string" ||
@@ -338,7 +325,7 @@ function edgeTargetOf(edge: unknown, context: NoteContext, bad: (why: string) =>
         return Object.freeze({ edge: Object.freeze({ ...member }) });
     }
 
-    if (!isPlain(edge) || !hasKeys(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
+    if (!isPlainObject(edge) || !hasKeys(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
         throw bad("is an edge: its source and target, plus its id or its ordinal and among");
     }
 
@@ -461,7 +448,7 @@ function targetOf(raw: unknown, index: number, context: NoteContext): NoteTarget
                 index,
             },
         );
-    if (!isPlain(raw)) {
+    if (!isPlainObject(raw)) {
         throw bad("is not an object");
     }
 
@@ -577,7 +564,7 @@ function citesOf(raw: unknown, context: NoteContext, held: readonly NoteCite[] =
 
     const kept = new Map<string, NoteCite>();
     raw.forEach((each: unknown, index) => {
-        if (!isPlain(each) || !hasKeys(each, ["result"], ["result"]) || !isShortString(each.result)) {
+        if (!isPlainObject(each) || !hasKeys(each, ["result"], ["result"]) || !isShortString(each.result)) {
             throw refuseNote("E_BAD_COMMAND", "unknown-cite", `Cite ${String(index)} is not { result }.`, { index });
         }
 
@@ -704,7 +691,7 @@ export function buildNote(
     minted: { readonly id: NoteId; readonly time: string; readonly author: string | undefined },
     context: NoteContext,
 ): Note {
-    const given = isPlain(input) ? input : {};
+    const given = isPlainObject(input) ? input : {};
     checkFields(given, INPUT_FIELDS);
     const text = checkText(given.text);
     const targets = targetsOf(given.targets, context);
@@ -741,7 +728,7 @@ export function buildNote(
  *     patch changes nothing.
  */
 export function patchNote(held: Note, patch: unknown, edited: string, context: NoteContext): Note | null {
-    const given = isPlain(patch) ? patch : {};
+    const given = isPlainObject(patch) ? patch : {};
     checkFields(given, PATCH_FIELDS);
     if (given.done !== undefined && typeof given.done !== "boolean") {
         throw refuseNote("E_BAD_COMMAND", "bad-done", "A note's done is true or false.");

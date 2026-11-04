@@ -1,7 +1,7 @@
 /**
  * The fixed lexical grammar of design section 5.1 for untyped text sources (CSV cells, GML
- * values, DOT strings, Pajek tokens), reproduced from the core's reference implementation so the
- * two agree (invariant I15). Text importers parse each cell with parseTextCell() and push the JS
+ * values, DOT strings, Pajek tokens), classified by the core's own `inferTextDtype` so the two
+ * agree (invariant I15). Text importers parse each cell with parseTextCell() and push the JS
  * value; the sink's per-column inference then widens `bool -> i32 -> f64 -> string` and never per
  * cell, so a column that saw `1` and then `"01"` becomes string for all rows.
  *
@@ -13,15 +13,18 @@
  * - everything else is `string`.
  */
 
-import { type ColumnHandle, GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
+import {
+    type ColumnHandle,
+    GraphFormatError,
+    type GraphSink,
+    inferTextDtype as coreInferTextDtype,
+    INVALID_INDEX,
+} from "@graphty/graph-format";
 
 import { PRECISION_CODE } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 const I32_TEXT = /^-?(0|[1-9]\d*)$/;
-const F64_TEXT = /^[+-]?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
-const I32_MIN = -2147483648;
-const I32_MAX = 2147483647;
 
 /**
  * The dtype a text cell parses as under the fixed text grammar.
@@ -50,20 +53,7 @@ export function trimTrailingZeros(digits: string): string {
  * @category Plugin helpers
  */
 export function inferTextDtype(text: string): TextDtype {
-    if (text === "true" || text === "false") {
-        return "bool";
-    }
-    if (I32_TEXT.test(text)) {
-        const n = Number(text);
-        if (n >= I32_MIN && n <= I32_MAX) {
-            return "i32";
-        }
-        return Number.isFinite(n) ? "f64" : "string";
-    }
-    if (F64_TEXT.test(text) && Number.isFinite(Number(text))) {
-        return "f64";
-    }
-    return "string";
+    return coreInferTextDtype(text);
 }
 
 /**

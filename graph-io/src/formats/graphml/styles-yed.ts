@@ -318,9 +318,9 @@ const STADIUM = [
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
  * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn. Left out until a drawing by yEd itself shows them (ISSUES.md): the BPMN artifact, whose `type` property
- * picks among a data object, a data store, a message and others, and the SBGN nucleic acid feature and perturbing
- * agent, which draw.io, the stand-in, draws as plain boxes.
+ * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`artifactOutline`). Left
+ * out until a drawing by yEd itself shows them (ISSUES.md): the SBGN nucleic acid feature and perturbing agent, which
+ * draw.io, the stand-in, draws as plain boxes.
  */
 const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["flowchart.process", { shape: "rectangle" }],
@@ -412,6 +412,38 @@ export function configurationOutline(configuration: string): YedOutline | null {
         .replace(/^com\.yworks\./, "")
         .replace(/\.withshadow$/, "");
     return YED_CONFIGURATIONS.get(key) ?? null;
+}
+
+/**
+ * The BPMN artifact's outline, by its `com.yworks.bpmn.type` style property, as yEd draws it (yEd Live's drawing of
+ * `yed-live-graphml-specimen-node-shapes-p5`): a data object is a page with its top right corner folded, a data store
+ * a cylinder. The message, group and annotation artifacts are not drawn as their outlines yet.
+ */
+const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+    ["artifact_type_data_object", { shape: "polygon", points: "-1,-1 1,-1 1,0.4 0.2,1 -1,1" }],
+    ["artifact_type_data_store", { shape: "other:database" }],
+]);
+
+/**
+ * The shape a yEd GraphML GenericNode draws: its configuration's (`configurationOutline`), or a BPMN artifact's by
+ * its `com.yworks.bpmn.type` style property.
+ * @param r - the GenericNode realizer element
+ * @returns the shape, with its corners where it is a polygon, or null for a configuration not known here
+ */
+function genericOutline(r: unknown): YedOutline | null {
+    const conf = treeAttr(r, "configuration") ?? "";
+    const known = configurationOutline(conf);
+    if (known !== null || !/^com\.yworks\.bpmn\.artifact(\.withshadow)?$/i.test(conf)) {
+        return known;
+    }
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    const type = treeAttr(
+        props.find((p) => treeAttr(p, "name") === "com.yworks.bpmn.type"),
+        "value",
+    );
+    return type === undefined
+        ? null
+        : (BPMN_ARTIFACTS.get(type.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase()) ?? null);
 }
 
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
@@ -827,7 +859,7 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     }
     if (real.type === "GenericNode") {
         const conf = treeAttr(real.r, "configuration") ?? "";
-        const known = configurationOutline(conf);
+        const known = genericOutline(real.r);
         if (known !== null) {
             return known.shape;
         }
@@ -1031,8 +1063,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     put("width", canonNumber(treeAttr(geometry, "width"), at("width")));
     put("height", canonNumber(treeAttr(geometry, "height"), at("height")));
     put("shape", realizerShape(real, at));
-    const points =
-        real.type === "GenericNode" ? configurationOutline(treeAttr(r, "configuration") ?? "")?.points : undefined;
+    const points = real.type === "GenericNode" ? genericOutline(r)?.points : undefined;
     if (points !== undefined) {
         put("shapePoints", points);
     }

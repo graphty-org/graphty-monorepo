@@ -158,6 +158,7 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
         fonts [label=<<FONT COLOR="red"><TABLE><TR><TD>a<B>b</B>  </TD><TD></TD></TR></TABLE></FONT>>];
         nested [label=<<TABLE><TR><TD><TABLE ALIGN="RIGHT" VALIGN="BOTTOM" BORDER="0"><TR><TD>a</TD></TR></TABLE></TD></TR></TABLE>>];
         text [label=<a<BR/>b>];
+        invis [label=<<TABLE><TR><TD STYLE="invis">a</TD><TD STYLE="ROUNDED,INVISIBLE">b</TD><TD STYLE="rounded">c</TD></TR></TABLE>>];
     }`;
 
     /**
@@ -194,6 +195,15 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
                     { border: 2, padding: 5, rule: true, lines: [{ runs: [{ text: "b" }] }] },
                 ],
             },
+        ]);
+    });
+
+    it("hides a cell whose STYLE says invis or invisible, keeping its text for its room", async () => {
+        const t = (await tables()).get("invis") as { rows: { cells: unknown[] }[] };
+        expect(t.rows[0].cells).toEqual([
+            { hidden: true, lines: [{ runs: [{ text: "a" }] }] },
+            { hidden: true, lines: [{ runs: [{ text: "b" }] }] },
+            { lines: [{ runs: [{ text: "c" }] }] },
         ]);
     });
 

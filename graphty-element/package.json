@@ -170,7 +170,7 @@
         "build-storybook": "storybook build",
         "ready:commit": "npm run build && npm run lint && npm test",
         "merge:upstream": "git pull origin master --no-rebase",
-        "docs:api": "node scripts/build-api-docs.mjs && node scripts/sanitize-api-docs.js",
+        "docs:api": "node scripts/build-api-docs.mjs && node ../tools/sanitize-api-docs.js docs/api/generated",
         "docs:api:watch": "typedoc --watch",
         "docs:dev": "vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "docs:watch": "npm run docs:api && (npm run docs:api:watch & npm run docs:dev & wait)",

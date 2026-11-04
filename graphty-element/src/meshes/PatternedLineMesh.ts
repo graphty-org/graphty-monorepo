@@ -195,6 +195,62 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
     return offsets;
 }
 
+/**
+ * How many elements of a pattern whose shapes alternate in length (a dash-dot's dash and dot) a line holds: the
+ * spacing rule of {@link discreteMeshCount}, each element taken at its own length rather than all at the first
+ * shape's. Taken at the dash's, a dash-dot held one element too few and opened gaps three times its own (issue
+ * #5774: Cytoscape's DASH_DOT on cx-syn-mappings edge 426->429 drew a dash and a dot 32 px apart, where Cytoscape
+ * draws them 10 px apart). With one length for every element it is exactly `discreteMeshCount`.
+ * @param lineLength - Length of the line, already trimmed for the node surface and the arrowhead
+ * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
+ * @param gap - The least clear space between two elements
+ * @returns Element count, at least 1
+ */
+export function alternatingMeshCount(lineLength: number, sizes: readonly number[], gap: number): number {
+    if (!Number.isFinite(lineLength) || sizes.length === 0) {
+        return 1;
+    }
+    let count = 0;
+    let used = -gap;
+    while (count < MAX_PATTERN_PIECES) {
+        const next = used + gap + sizes[count % sizes.length];
+        if (!(next <= lineLength) || next <= used) {
+            break;
+        }
+        used = next;
+        count++;
+    }
+    return Math.max(1, count);
+}
+
+/**
+ * Where the elements of a pattern whose shapes alternate in length sit: the first touching the line's start, the last
+ * its end, and the same clear space between each two, each element taken at its own length. With one length for every
+ * element it is exactly {@link discreteMeshOffsets}.
+ * @param totalLength - Length of the line, already trimmed for the node surface and the arrowhead
+ * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
+ * @param count - Number of elements; below 2 places one
+ * @returns Centre offsets from the line start, in order, one per element
+ */
+export function alternatingMeshOffsets(totalLength: number, sizes: readonly number[], count: number): number[] {
+    const own = (i: number): number => sizes[i % sizes.length];
+    if (count < 2) {
+        return [Math.min(own(0) / 2, totalLength / 2)];
+    }
+    let drawn = 0;
+    for (let i = 0; i < count; i++) {
+        drawn += own(i);
+    }
+    const gap = (totalLength - drawn) / (count - 1);
+    const offsets: number[] = [];
+    let start = 0;
+    for (let i = 0; i < count; i++) {
+        offsets.push(start + own(i) / 2);
+        start += own(i) + gap;
+    }
+    return offsets;
+}
+
 /** How a patterned line looks: everything but its pattern, its endpoints and its scene. */
 export interface PatternedLineOptions {
     /** Line width. */
@@ -535,7 +591,18 @@ export class PatternedLineMesh {
             return this.elements.map((_unused, i) => i * step);
         }
 
-        return discreteMeshOffsets(totalLength, this.getRenderedMeshSize(), this.elements.length);
+        const sizes = this.shapeSizes();
+        return sizes.length > 1
+            ? alternatingMeshOffsets(totalLength, sizes, this.elements.length)
+            : discreteMeshOffsets(totalLength, this.getRenderedMeshSize(), this.elements.length);
+    }
+
+    /**
+     * Each of the pattern's shapes' rendered length along the line, in the order it cycles through them.
+     * @returns One length per shape
+     */
+    private shapeSizes(): number[] {
+        return PATTERN_DEFINITIONS[this.pattern].shapes.map((shape) => this.renderedSizeOf(shape));
     }
 
     /**
@@ -560,11 +627,17 @@ export class PatternedLineMesh {
      * @returns The rendered mesh size parallel to the line
      */
     private getRenderedMeshSize(): number {
-        const patternDef = PATTERN_DEFINITIONS[this.pattern];
+        // an alternating pattern is spaced by its first shape (a dash-dot by its dash); each element's own length
+        // places it (`shapeSizes`)
+        return this.renderedSizeOf(PATTERN_DEFINITIONS[this.pattern].shapes[0]);
+    }
 
-        // For alternating patterns, we need to handle both shapes
-        // For now, use the first shape as representative (this is for spacing calculations)
-        const shapeDef = patternDef.shapes[0];
+    /**
+     * One shape's rendered length along the line.
+     * @param shapeDef - The shape
+     * @returns Its length along the line
+     */
+    private renderedSizeOf(shapeDef: PatternDefinition["shapes"][number]): number {
         const aspectRatio = shapeDef.aspectRatio ?? 1;
 
         switch (shapeDef.type) {
@@ -609,6 +682,11 @@ export class PatternedLineMesh {
 
         // lineLength is ALREADY adjusted for node surface and arrow
         // (done by Edge.transformArrowCap()), so nothing is subtracted for those here.
+        const sizes = this.shapeSizes();
+        if (sizes.length > 1 && this.patternCount === undefined) {
+            const meshWidth = this.getRenderedMeshSize();
+            return alternatingMeshCount(lineLength, sizes, patternElementPeriod(meshWidth) - meshWidth);
+        }
         return discreteMeshCount(lineLength, this.getRenderedMeshSize(), this.patternCount);
     }
 

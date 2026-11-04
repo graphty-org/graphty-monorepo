@@ -26,7 +26,9 @@ CURVED_EDGES = ("ArcEdge", "BezierEdge", "QuadCurveEdge", "SplineEdge")
 GENERIC = {"process": "rect", "decision": "diamond", "terminator": "roundrect", "start1": "ellipse", "start2": "ellipse",
            "data": "parallelogram", "preparation": "hexagon", "manualOperation": "other", "BevelNode": "rect",
            "BevelNode2": "rect", "BevelNode3": "roundrect", "ShinyPlateNode": "rect", "ShinyPlateNode2": "rect",
-           "ShinyPlateNode3": "roundrect"}
+           "ShinyPlateNode3": "roundrect",
+           # the entity-relationship entities: a box (the big one with a header band over its attributes)
+           "big_entity": "rect", "small_entity": "rect"}
 
 
 def curve_points(kind, ctrl, straightness, steps=16):

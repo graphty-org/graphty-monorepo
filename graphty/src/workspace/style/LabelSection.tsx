@@ -602,6 +602,25 @@ function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<ty
         : (sourceName(session, words.binding) ?? words.binding.by);
 }
 
+/**
+ * A text entry's own "+" ("Add to node label"): its look, size and position while it sets none.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.kind - the kind of text
+ * @param props.onPart - adds one, by `<kind>:<part>`
+ * @returns The button, or nothing when the entry sets all three
+ */
+function EntryAdd({
+    ctx,
+    kind,
+    onPart,
+}: Readonly<{ ctx: RowContext; kind: TextKindSpec; onPart: (key: string) => void }>): React.JSX.Element | null {
+    const parts = partsOf(ctx, kind);
+    return parts.length === 0 ? null : (
+        <AddButton kind={ctx.side} title={kind.name} options={parts} inRow onAdd={onPart} />
+    );
+}
+
 /** Props for TextEntry. */
 interface TextEntryProps {
     ctx: RowContext;
@@ -661,7 +680,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
     const hidden = style.enabled === false;
-    const parts = partsOf(ctx, kind);
     const descriptors = channelsFor(target);
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
         descriptors.find((d) => d.channel === channel);
@@ -756,9 +774,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
-                    {locked || parts.length === 0 ? null : (
-                        <AddButton kind={target} title={kind.name} options={parts} inRow onAdd={onPart} />
-                    )}
+                    {locked ? null : <EntryAdd ctx={ctx} kind={kind} onPart={onPart} />}
                 </span>
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>

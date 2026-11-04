@@ -66,6 +66,14 @@ describe("Cytoscape gradient and image custom graphics", () => {
         expect(v.fillGradientRadius).toBe(1.41421);
     });
 
+    it("reads a negative cy_radius as no reach, a style number never being below 0", () => {
+        const v = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.RadialGradient:{"cy_gradientFractions":[0.0,1.0],"cy_radius":-1.0,"cy_gradientColors":["#FFFFFF","#D62728"]}',
+        });
+        expect(v.fillGradientRadius).toBe(0);
+    });
+
     it("reads a picture by URL, and leaves charts, empty slots and nonsense alone", () => {
         expect(read({ NODE_CUSTOMGRAPHICS_1: "https://example.org/logo.png" }).image).toBe(
             "https://example.org/logo.png",

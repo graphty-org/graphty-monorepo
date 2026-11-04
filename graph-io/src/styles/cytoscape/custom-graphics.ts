@@ -140,7 +140,7 @@ function centerOf(center: unknown): { x: number; y: number } {
  * @returns the reach
  */
 function radialReach(center: { x: number; y: number }, radius: number): number {
-    return 2 * Math.hypot(center.x - 0.5, center.y - 0.5) + radius * Math.SQRT2;
+    return 2 * Math.hypot(center.x - 0.5, center.y - 0.5) + Math.max(0, radius) * Math.SQRT2;
 }
 
 /**

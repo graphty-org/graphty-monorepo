@@ -993,8 +993,9 @@ export function visCenterOffset(snapshot: GraphSnapshot): (row: number) => reado
         if (shape?.(row) !== "circularImage" || !isJsonObject(own) || own.coordinateOrigin !== "top-left") {
             return null;
         }
-        // ponytail: the node's own keys only; a shape, origin or size from options.nodes or a group needs them passed
-        // through the import, since a positions hook sees only the snapshot
+        // ponytail: the node's own keys only; a shape, origin or size from options.nodes or a group, or a size from
+        // `value`, needs them passed through the import, since a positions hook sees only the snapshot. A picture that
+        // is not square, or drawn at useImageSize, moves vis-network's box by its own pixels, which no file holds
         const radius = size?.(row);
         return typeof radius === "number" && radius >= 0 ? [radius, radius] : [VIS_SIZE, VIS_SIZE];
     };

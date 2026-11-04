@@ -515,6 +515,24 @@ describe("GraphML styles: yEd", () => {
         ]);
     });
 
+    it("draws yEd's BPMN data object as a page with a folded corner and its data store as a cylinder, by their type", async () => {
+        const artifact = (id: string, type: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "other:database",
+            "other:com.yworks.bpmn.artifact.withshadow",
+        ]);
+        // the top right corner (y up) is cut
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
+            "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
+            null,
+            null,
+        ]);
+    });
+
     it("draws yEd's image and SVG nodes as their pictures from the graph's resources, stretched over the node", async () => {
         const head = YED_HEAD.replace(
             '<graph edgedefault="directed" id="G">',

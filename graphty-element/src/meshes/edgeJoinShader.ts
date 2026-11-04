@@ -131,7 +131,7 @@ varying vec4 vNbB;
 varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
-varying vec4 vFar;
+varying vec3 vFar;
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -325,13 +325,16 @@ void main() {
     bool miterPrev = miterA && li2 > EPS && miterAt(i2, o2, li2, lo2, hwPrevFar, tip2);
     cornerAt(sB, sNext, sNext2, i2, o2, t2, li2, lo2);
     bool miterNext = miterB && lo2 > EPS && miterAt(i2, o2, li2, lo2, hwNextFar, tip2);
-    // The far ends of the pieces two away, then each corner: 0 the clipped join, 1 a shared miter
-    // line, 2 a shared miter line past a neighbour whose other corner is one too.
-    vFar = vec4(
+    // Each corner: 0 the clipped join, 1 a shared miter line, 2 a shared miter line past a
+    // neighbour whose other corner is one too.
+    float cornerA = miterPrev ? 2.0 : miterA ? 1.0 : 0.0;
+    float cornerB = miterNext ? 2.0 : miterB ? 1.0 : 0.0;
+    // Both corners in one float (cornerA + 3 cornerB), so the widened batch stays within the 15
+    // varying rows WebGL2 guarantees.
+    vFar = vec3(
         drawnHalfWidthAt(pPrev2, backPrev2 * perTotal),
         drawnHalfWidthAt(pNext2, aheadNext2 * perTotal),
-        miterPrev ? 2.0 : miterA ? 1.0 : 0.0,
-        miterNext ? 2.0 : miterB ? 1.0 : 0.0
+        cornerA + 3.0 * cornerB
     );
 
     vec4 cP = atB ? cB : cA;
@@ -341,10 +344,10 @@ void main() {
     bool joined = atB ? joinedB : joinedA;
 
     vec2 off = side * n * hw;
-    bool shared = atB ? miterB : miterA;
+    bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
         off = vec2(0.0);
-    } else if (shared && !joinVertex && side != 0.0) {
+    } else if (onMiterLine && !joinVertex && side != 0.0) {
         // A side vertex on the corner's shared miter line. The two pieces at the corner must put
         // it at exactly the same clip position, or pixel centres on the line fall to neither (or
         // both), so it is computed on one path for either end from the three points around the
@@ -374,7 +377,7 @@ void main() {
         cP = cq;
         sP = k;
         off = meet;
-    } else if (shared) {
+    } else if (onMiterLine) {
         // The join's triangles fold away to the centre.
         off = vec2(0.0);
     } else if (joinVertex && joined) {
@@ -461,7 +464,7 @@ varying vec4 vNbB;
 varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
-varying vec4 vFar;
+varying vec3 vFar;
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -570,18 +573,21 @@ void main() {
     bool inPrev = false;
     bool inNext = false;
     bool inNext2 = false;
-    // Past a corner the two pieces end at its shared miter line (vFar.z, vFar.w), they do not
+    // Past a corner the two pieces end at its shared miter line (vFar.z), they do not
     // overlap, and the rasterizer splits the pixels on that line by sample: neither tests the
     // other, nor the piece beyond it, for ownership, so neither discards a pixel the other cannot
     // fully draw. A curve's corners all are, so a solid curve discards nothing (issue #5799). A
     // dash still reads the neighbours: each piece draws its side of the miter line where either
     // piece's dash covers it, so the two halves of the inside overlap make the union they did.
-    bool sharedA = vFar.z > 0.5;
-    bool sharedB = vFar.w > 0.5;
+    float corners = floor(vFar.z + 0.5);
+    float cornerB = floor((corners + 0.5) / 3.0);
+    float cornerA = corners - 3.0 * cornerB;
+    bool sharedA = cornerA > 0.5;
+    bool sharedB = cornerB > 0.5;
     // The piece two away can still overlap this one unless the neighbour between is shared at
     // both its corners (a U whose middle is short, say).
-    bool clearPrev2 = vFar.z > 1.5;
-    bool clearNext2 = vFar.w > 1.5;
+    bool clearPrev2 = cornerA > 1.5;
+    bool clearNext2 = cornerB > 1.5;
     for (int pass = 0; pass < 2; pass++) {
         float mm = pass == 0 ? m : 0.0;
         bool joinPrev = inJoin(u2, -back2, -vNbA.xy, vPrev2.w, vNbA.z, vEndB.z, mm);

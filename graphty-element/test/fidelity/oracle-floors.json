@@ -30446,13 +30446,13 @@
         },
         "pajek-synth-vertices": {
             "node.present": 1,
-            "node.extra": 0.987,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.87,
+            "node.shape": 0.873,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -30470,7 +30470,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.972,
+            "label.anchor": 0.973,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -30499,13 +30499,13 @@
         },
         "pajek-synth-vertices@matched": {
             "node.present": 1,
-            "node.extra": 0.987,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.87,
+            "node.shape": 0.873,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -30523,7 +30523,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.972,
+            "label.anchor": 0.973,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -32440,7 +32440,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -32491,7 +32491,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -53143,6 +53143,12 @@
                 "to": 0,
                 "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.route": {
+                "floor": 0.917,
+                "to": 0.907,
+                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
+                "date": "2026-11-04"
             }
         },
         "dot-synth-nodes@matched": {
@@ -53157,6 +53163,12 @@
                 "to": 0,
                 "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
                 "date": "2026-11-01"
+            },
+            "edge.route": {
+                "floor": 0.917,
+                "to": 0.907,
+                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
+                "date": "2026-11-04"
             }
         },
         "gexf-hsk-chars": {
@@ -53365,6 +53377,20 @@
                 "to": 0.4,
                 "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
+            },
+            "edge.route": {
+                "floor": 0.917,
+                "to": 0.875,
+                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
+                "date": "2026-11-04"
+            }
+        },
+        "graphml-synthetic-nodes@matched": {
+            "edge.route": {
+                "floor": 0.917,
+                "to": 0.875,
+                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
+                "date": "2026-11-04"
             }
         },
         "json-cyjs-perf": {
@@ -53483,34 +53509,6 @@
                 "to": 0.985,
                 "reason": "On these 33 px lines the comparator reads Pajek's part-way head, its middle on the source half, as an inverted head at the source, while graphty's head, its tip now where Pajek's is, is read at the target; graphty also draws that head about 2.6 times Pajek's length beside the line (#4514)",
                 "date": "2026-11-01"
-            }
-        },
-        "pajek-synth-vertices": {
-            "node.present": {
-                "floor": 1,
-                "to": 0.987,
-                "reason": "comparator: man 32 (phi 15) is now drawn turned, as Pajek draws him (both boxes 132-135 x 194 px), over empty 22's 1 px label and over most of house 31; graphty's side counts a node under a figure hidden when its box lies in the ellipse of the figure's box, the oracle's side only when its box lies in the figure's box and never for a vertex Pajek draws no shape for (22), so at matched places 31 (its box 3 px past man 32's arm in Pajek's drawing) and unmatched 22 read hidden on one side only, and @matched node.shape judges one node fewer. Nothing visible differs. #5531",
-                "date": "2026-11-04"
-            }
-        },
-        "pajek-synth-vertices@matched": {
-            "node.present": {
-                "floor": 1,
-                "to": 0.974,
-                "reason": "comparator: man 32 (phi 15) is now drawn turned, as Pajek draws him (both boxes 132-135 x 194 px), over empty 22's 1 px label and over most of house 31; graphty's side counts a node under a figure hidden when its box lies in the ellipse of the figure's box, the oracle's side only when its box lies in the figure's box and never for a vertex Pajek draws no shape for (22), so at matched places 31 (its box 3 px past man 32's arm in Pajek's drawing) and unmatched 22 read hidden on one side only, and @matched node.shape judges one node fewer. Nothing visible differs. #5531",
-                "date": "2026-11-04"
-            },
-            "node.shape": {
-                "floor": 0.87,
-                "to": 0.868,
-                "reason": "comparator: man 32 (phi 15) is now drawn turned, as Pajek draws him (both boxes 132-135 x 194 px), over empty 22's 1 px label and over most of house 31; graphty's side counts a node under a figure hidden when its box lies in the ellipse of the figure's box, the oracle's side only when its box lies in the figure's box and never for a vertex Pajek draws no shape for (22), so at matched places 31 (its box 3 px past man 32's arm in Pajek's drawing) and unmatched 22 read hidden on one side only, and @matched node.shape judges one node fewer. Nothing visible differs. #5531",
-                "date": "2026-11-04"
-            },
-            "label.anchor": {
-                "floor": 0.972,
-                "to": 0.971,
-                "reason": "comparator: at matched places the turned man 32 covers house 31, which graphty's side counts hidden and the oracle's does not (see node.present), so label.anchor judges one label fewer; the same two labels (29, 49) fail. #5531",
-                "date": "2026-11-04"
             }
         },
         "vis-network-specimen-images-charts": {

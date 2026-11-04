@@ -60,7 +60,7 @@ import {
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { isNumericText, itemAt, jsonText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import type { ImporterPositions } from "../../positions/types.js";
 import {
@@ -1043,7 +1043,8 @@ class PajekParser {
         this.createNodes();
         if (this.idOfPos !== null) {
             for (let pos = 0; pos < n; pos++) {
-                if (this.idOfPos[pos] === undefined) {
+                // a position with no vertex line yet is a hole of the sparse array
+                if (itemAt(this.idOfPos, pos) === undefined) {
                     this.numberedNode(this.idOfPos, pos);
                 }
             }
@@ -1218,12 +1219,12 @@ class PajekParser {
         if (idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
             return this.deferredNode(idOfPos, pos, k, label, line, "label");
         }
-        if (idOfPos !== null && idOfPos[pos] === undefined) {
+        if (idOfPos !== null && itemAt(idOfPos, pos) === undefined) {
             // restore mode: the earlier positions without a line yet get their numbers first, so the
             // index order is the vertex number order whatever the line order (the identity id map
             // of an ordered file); then this vertex with its original id, or its number
             for (let p = this.filledBelow; p < pos; p++) {
-                if (idOfPos[p] === undefined) {
+                if (itemAt(idOfPos, p) === undefined) {
                     this.numberedNode(idOfPos, p);
                 }
             }
@@ -1956,7 +1957,7 @@ function firstVertexOption(value: unknown): 0 | 1 | "auto" {
     }
     throw new GraphFormatError(
         "E_UNSUPPORTED",
-        `option firstVertex: ${JSON.stringify(value) ?? typeof value} is not 0, 1 or "auto"`,
+        `option firstVertex: ${jsonText(value) ?? typeof value} is not 0, 1 or "auto"`,
         {
             option: "firstVertex",
             found: value,

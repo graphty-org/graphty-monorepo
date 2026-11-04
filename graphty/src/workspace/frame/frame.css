@@ -31,9 +31,14 @@
     border-bottom: 1px solid var(--cm-border);
 }
 
+/* The logo is drawn on a layer of its own (will-change), so it is rasterized once, whole. On the page's
+   layer, an open main menu's blurred shadow reaches over the logo's lower half, and Chromium then
+   repaints only the shadow's rectangle, cutting through the logo: the cut part's anti-aliasing came out
+   slightly different from render to render, depending on which repaint came last (#5701). */
 .ws-header-mark {
     flex: none;
     padding: 0 4px;
+    will-change: transform;
 }
 
 .ws-header-button {

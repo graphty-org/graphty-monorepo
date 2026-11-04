@@ -129,7 +129,7 @@ const NEO4J_SCALARS: Readonly<Record<string, ScalarEntry>> = {
     duration: DURATION,
 };
 
-const TABLES: Readonly<Record<DeclaringFormat, Readonly<Record<string, ScalarEntry>>>> = {
+const TABLES: Readonly<Record<DeclaringFormat, Readonly<Partial<Record<string, ScalarEntry>>>>> = {
     gexf: GEXF_SCALARS,
     graphml: GRAPHML_SCALARS,
     gml: GML_SCALARS,

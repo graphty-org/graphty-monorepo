@@ -111,7 +111,7 @@ export function median(values: number[]): number | null {
  * either converts the neutral form itself (JSON, XGMML, CX, CX2, Cytoscape sessions, yEd graphics
  * in a styled GraphML) or writes a y-up format (GEXF, DOT).
  */
-const WRITTEN_SPELLING: Readonly<Record<string, PositionColumnExtra>> = {
+const WRITTEN_SPELLING: Readonly<Partial<Record<string, PositionColumnExtra>>> = {
     gml: { yAxis: "down" },
     pajek: { yAxis: "down", zOrigin: 0.5 },
 };

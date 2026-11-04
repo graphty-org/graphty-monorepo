@@ -5,6 +5,7 @@
  * so it works from a page on https.
  */
 
+import { itemAt } from "../../../common/text.js";
 import { originOf } from "../../credentials.js";
 import { failOn } from "../../fail.js";
 import { type QueryResult } from "../flatten.js";
@@ -92,7 +93,7 @@ export function queryApiTransport(input: TransportInput): Transport {
                 "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition",
                 {},
             );
-            const kernel = res.rows.find((r) => r[0] === "Neo4j Kernel") ?? res.rows[0];
+            const kernel = res.rows.find((r) => r[0] === "Neo4j Kernel") ?? itemAt(res.rows, 0);
             const versions = kernel?.[1];
             const version = Array.isArray(versions) && typeof versions[0] === "string" ? versions[0] : null;
             return neo4jProfile(version);

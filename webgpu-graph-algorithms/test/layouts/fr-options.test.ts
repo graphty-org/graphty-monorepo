@@ -60,7 +60,8 @@ function asSim(sim: GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanR
     if (!(sim instanceof ForceSimulation)) {
         throw new Error("createFruchtermanReingold must return a ForceSimulation");
     }
-    return sim;
+    // instanceof drops the type arguments; the factory builds exactly this one
+    return sim as FrSim;
 }
 
 const DEFAULT_RESOLVED = { ...FR_DEFAULTS, center: [0, 0, 0], seed: null };

@@ -1085,10 +1085,12 @@ export class GraphSnapshot implements GraphSnapshotContract {
     validate(options: ValidateOptions = {}): void {
         this.assertAttached();
         const level = assertOneOf("level", options.level, ["structure", "full"] as const) ?? "full";
-        if (typeof options.checksum !== "boolean" && options.checksum !== undefined) {
+        // unknown, not the option type: a JavaScript caller may pass any value
+        const checksumOption: unknown = options.checksum;
+        if (typeof checksumOption !== "boolean" && checksumOption !== undefined) {
             throw new GraphFormatError("E_UNSUPPORTED", "validate option checksum must be a boolean", {
                 field: "checksum",
-                found: options.checksum,
+                found: checksumOption,
                 reason: "unsupported option",
             });
         }

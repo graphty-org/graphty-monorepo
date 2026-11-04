@@ -221,7 +221,9 @@ export function isShortPredicate(where: Predicate): boolean {
  */
 function atomTerms(p: Predicate): number {
     if ("all" in p) {
-        return p.all ? 1 : 0;
+        // the rule is the caller's, so `all` can be any value
+        const { all }: { all: unknown } = p;
+        return all ? 1 : 0;
     }
     if ("has" in p) {
         return 1;
@@ -402,7 +404,9 @@ export function discreteLookup(table: readonly (readonly [Scalar, StyleValue])[]
     const byNum = new Map<number, number>();
     const byBool = new Map<string, number>();
     table.forEach(([k], j) => {
-        if (k === null || typeof k === "object") {
+        // the table is the caller's, so a key can be any value
+        const given: unknown = k;
+        if (given === null || typeof given === "object") {
             return;
         }
         const ks = String(k);

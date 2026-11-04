@@ -218,13 +218,17 @@ export default tseslint.config(
     // switch type information off (stories, scripts, configs), so those files stay exempt.
     ...Object.entries({
         "graph-format": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
@@ -246,16 +250,35 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "cytoscape-extensions": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        algorithms: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         layout: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "remote-logger": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "compact-mantine": {
@@ -266,6 +289,13 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
     }).map(([pkg, rules]) => ({ files: [`${pkg}/**/*.ts`, `${pkg}/**/*.tsx`], rules })),
+    // graph-format's type tests are written for, and type-checked under, tsconfig.strict-consumer.json
+    // (noUncheckedIndexedAccess), where their undefined checks are needed. ESLint reads them through
+    // tsconfig.json, which lacks that flag, so it would call every such check unnecessary.
+    {
+        files: ["graph-format/test/types/**/*.test-d.ts"],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "off" },
+    },
 
     // ============================================
     // ACCESSIBILITY RULES FOR compact-mantine JSX

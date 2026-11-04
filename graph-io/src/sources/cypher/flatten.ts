@@ -10,6 +10,7 @@ import { type ColumnDecl, type GraphSink, INVALID_INDEX, type NodeId } from "@gr
 
 import { throwIfAborted } from "../../common/input.js";
 import { type ImportReportBuilder } from "../../common/report.js";
+import { jsonText } from "../../common/text.js";
 import { failOn } from "../fail.js";
 import { SOURCE_DEGREE_ATTR } from "../ids.js";
 import { GraphNode, GraphRel } from "./types-map.js";
@@ -289,7 +290,7 @@ function canonical(value: unknown): string {
         const members = entries.map(([k, v]) => member(k, v));
         return `{${members.join(",")}}`;
     }
-    return JSON.stringify(value) ?? "null";
+    return jsonText(value) ?? "null";
 }
 
 /**

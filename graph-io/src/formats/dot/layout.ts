@@ -49,7 +49,7 @@ const LAYOUT_SETTINGS = [
 ] as const;
 
 /** Each `rankdir` and the way its ranks run. */
-const DIRECTIONS: Readonly<Record<string, NonNullable<FileLayout["direction"]>>> = {
+const DIRECTIONS: Readonly<Partial<Record<string, NonNullable<FileLayout["direction"]>>>> = {
     TB: "down",
     BT: "up",
     LR: "right",
@@ -80,7 +80,8 @@ export function dotFileLayout(attributes: Readonly<Record<string, unknown>>): Fi
     }
 
     const program = typeof attributes.layout === "string" && attributes.layout !== "" ? attributes.layout : "dot";
-    const direction = DIRECTIONS[settings.rankdir?.toUpperCase() ?? ""];
+    const given: Partial<Record<string, string>> = settings;
+    const direction = DIRECTIONS[given.rankdir?.toUpperCase() ?? ""];
     const nodeSpacing = points(settings.nodesep);
     const rankSpacing = points(settings.ranksep);
     return Object.freeze({

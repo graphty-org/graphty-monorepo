@@ -8,9 +8,9 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";

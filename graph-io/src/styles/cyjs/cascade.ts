@@ -22,6 +22,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { StyleBudget } from "../budget.js";
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -1525,9 +1526,9 @@ function drawnValues(
     rendered: CyjsStyleInput["rendered"],
     notes: StyleNotes,
     spend: (ops: number) => void,
-): Record<string, (StyleValue | null)[]> {
+): Partial<Record<string, (StyleValue | null)[]>> {
     const out = order.length;
-    const values: Record<string, (StyleValue | null)[]> = {};
+    const values: Partial<Record<string, (StyleValue | null)[]>> = {};
     const words = new Map<string, (string | null)[]>();
     const drawnOf: DrawnRead = { kind, els, cells, order, rendered, notes };
     for (const [name, spec] of cyjsProperties(kind)) {
@@ -1543,8 +1544,7 @@ function drawnValues(
             );
             continue;
         }
-        values[spec.property] ??= new Array<StyleValue | null>(out).fill(null);
-        const target = values[spec.property];
+        const target = (values[spec.property] ??= new Array<StyleValue | null>(out).fill(null));
         col.forEach((v, k) => {
             if (v !== null && v !== undefined) {
                 target[k] = v;
@@ -1555,9 +1555,9 @@ function drawnValues(
     if (kind === "node") {
         cyjsPolygonShapes(values);
     }
-    const drawn: Record<string, (StyleValue | null)[]> = {};
+    const drawn: Partial<Record<string, (StyleValue | null)[]>> = {};
     for (const [p, col] of Object.entries(values)) {
-        if (col.some((v) => v !== null)) {
+        if (col?.some((v) => v !== null) === true) {
             drawn[p] = col;
         }
     }
@@ -1925,7 +1925,7 @@ function combineParts(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     // the element's own opacity, before an edge's line opacity is multiplied in: its label is drawn at it
@@ -1982,7 +1982,7 @@ function combineParts(
 function combineLabelOpacity(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const text = words.get("_textOpacity");
     const whole = values.opacity;
@@ -2011,7 +2011,7 @@ function combineLabelOpacity(
 function combineNodeOpacity(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const whole = values.opacity;
     for (const [part, p] of [
@@ -2046,7 +2046,7 @@ function combineDashes(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     // the line or border, and a node's outline, which is always dashed 4 2 with butt ends (`drawOutline`)
     const lines: [string, string, number, string, boolean][] =
@@ -2124,7 +2124,11 @@ function dashedLook(
  * @param n - the element count
  * @returns its values
  */
-function columnOf(values: Record<string, (StyleValue | null)[]>, property: string, n: number): (StyleValue | null)[] {
+function columnOf(
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+    property: string,
+    n: number,
+): (StyleValue | null)[] {
     let column = values[property];
     if (column === undefined) {
         column = new Array<StyleValue | null>(n).fill(null);
@@ -2146,7 +2150,7 @@ function combineVisibility(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const vis = words.get("_visibility");
     const disp = words.get("_display");
@@ -2186,7 +2190,7 @@ function combineLabelText(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     transformLabels(n, words.get("_transform"), values.label);
     // cytoscape.js 3.34.3 `labelJustification`: auto lines the lines up against the node, a label beside it on the
@@ -2260,7 +2264,7 @@ function combineEdgeJustification(
     n: number,
     justification: readonly (string | null)[],
     wrap: readonly (string | null)[] | undefined,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const SHIFT: Readonly<Record<string, number>> = { left: -0.5, right: 0.5 };
     for (let i = 0; i < n; i++) {
@@ -2288,7 +2292,7 @@ function combineLabelDress(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
     whole: readonly (StyleValue | null)[],
 ): void {
@@ -2423,7 +2427,7 @@ function cyjsAngleDegrees(text: string): number | null {
         return null;
     }
     const x = Number(m[1]);
-    const deg = m[2]?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
+    const deg = itemAt(m, 2)?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
     // the neutral rotation runs from 0 up to 360
     return Math.round((((deg % 360) + 360) % 360) * 1e6) / 1e6 + 0;
 }
@@ -2438,7 +2442,7 @@ function cyjsAngleDegrees(text: string): number | null {
 function combineLineOpacity(
     n: number,
     line: readonly (string | null)[] | undefined,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     if (line === undefined) {
         return;
@@ -2483,7 +2487,7 @@ const GRADIENT_ANGLES: ReadonlyMap<string, number> = new Map([
 function combineBackgroundGradient(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     const fill = words.get("_backgroundFill");
@@ -2558,7 +2562,7 @@ function edgeRoutes(
     read: DrawnRead,
     curves: readonly (StyleValue | null | undefined)[],
     nodes: CyjsTargetStyles,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const words = new Map(ROUTE_PARTS.map(([key, name, spec]) => [key, drawnColumn(read, name, spec)] as const));
     const nodeAt = new Map<CyjsElement, number>();
@@ -2667,7 +2671,7 @@ function edgeNodes(
  * @param degrees - the line's turn
  */
 function autorotateLabels(
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     turned: readonly (readonly [string, (StyleValue | null | undefined)[]])[],
     k: number,
     n: number,
@@ -2810,7 +2814,7 @@ const TEXT_PART: CyjsPropertySpec = { property: "_text", type: "text" };
  * @param read - the nodes' cells
  * @param values - the nodes' values; changed in place
  */
-function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Partial<Record<string, (StyleValue | null)[]>>): void {
     const padding = drawnColumn(read, "padding", TEXT_PART);
     const toLabel = (["width", "height"] as const).map((p) => drawnColumn(read, p, SIZE_PART));
     const n = read.order.length;
@@ -2898,7 +2902,7 @@ function biasShare(
  * @param read - the nodes' cells
  * @param values - the nodes' values; changed in place
  */
-function groupBoxes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+function groupBoxes(graph: CyjsGraph, read: DrawnRead, values: Partial<Record<string, (StyleValue | null)[]>>): void {
     const word = (name: string, spec: CyjsPropertySpec = TEXT_PART): (StyleValue | null | undefined)[] =>
         drawnColumn(read, name, spec);
     const padding = word("padding");
@@ -3023,7 +3027,11 @@ function pinnedAxis(align: string, half: number, pad: number): { offset: number;
  * @param read - the nodes' cells
  * @param values - the nodes' values, sizes already drawn (`nodeSizes`); changed in place
  */
-function mixedLabelPlaces(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+function mixedLabelPlaces(
+    graph: CyjsGraph,
+    read: DrawnRead,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
     const va = drawnColumn(read, "text-valign", VALIGN_PART);
     const ha = drawnColumn(read, "text-halign", HALIGN_PART);
     const padding = drawnColumn(read, "padding", TEXT_PART);
@@ -3092,7 +3100,7 @@ const CURVE_PART: CyjsPropertySpec = { property: "_curve", type: "enum", enums: 
  */
 function noArrowsOnHaystacks(
     curves: readonly (StyleValue | null | undefined)[],
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const n = curves.length;
     for (const p of ["targetArrow", "sourceArrow"]) {
@@ -3151,7 +3159,7 @@ function hollowArrowsOfRule(set: Record<string, StyleValue>, all: readonly Entry
 function combineArrowFills(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
@@ -3229,7 +3237,7 @@ function buildRules(
     applied: readonly { entry: Entry; list: readonly number[]; props: EntryProperty[] }[],
     core: { readonly els: readonly CyjsElement[]; readonly order: Int32Array; readonly coreToOut: Int32Array },
     input: CyjsStyleInput,
-    truth: Readonly<Record<string, readonly (StyleValue | null)[]>>,
+    truth: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
     env: { readonly matcher: Matcher; readonly notes: StyleNotes; readonly spend: (ops: number) => void },
 ): { rules: StyleRule[]; columns: Map<string, StyleColumn>; rawColumns: string[] } {
     const { els, order, coreToOut } = core;
@@ -3273,7 +3281,7 @@ interface RuleContext {
     readonly out: number;
     readonly snapshot: GraphSnapshot | undefined;
     /** What a live core drew, when given: the values a function-valued property is copied from. */
-    readonly truth: Readonly<Record<string, readonly (StyleValue | null)[]>> | null;
+    readonly truth: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>> | null;
     readonly matcher: Matcher;
     readonly notes: StyleNotes;
     readonly spend: (ops: number) => void;

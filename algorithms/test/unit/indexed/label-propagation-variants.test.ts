@@ -1,4 +1,4 @@
-import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +9,7 @@ import {
 } from "../../../src/indexed/label-propagation.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { LabelPropagationResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 
@@ -81,7 +82,7 @@ function cliquePair(size: number, bridged: boolean): GraphSnapshot {
     return snapshotOf(edges);
 }
 
-function freeSeeds(n: number): Uint32Array {
+function freeSeeds(n: number): U32 {
     return new Uint32Array(n).fill(INVALID_INDEX);
 }
 

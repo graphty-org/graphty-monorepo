@@ -71,7 +71,7 @@ export const SLOW_RANGES: SlowRange[] = ["7d", "28d"];
 type CategoryPage = (typeof CATEGORY)[string];
 /** The pages built from members and their sections at 1 h, 6 h and 24 h (not Costs, not Issues). */
 type JudgedPage = Exclude<PageId, "overview" | "costs" | "issues">;
-export const ISSUE_RANGES: IssueRange[] = ["28d", "all"];
+export const ISSUE_RANGES: IssueRange[] = ["28d", "1h", "6h", "1d", "7d", "all"];
 
 /** The members of Runners (section 2.6): the runner rows of CI. */
 /**

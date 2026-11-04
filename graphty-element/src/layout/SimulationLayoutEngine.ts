@@ -353,7 +353,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Every simulation accepts a scope: a held row is OR-ed into the fixed-node mask, so the
      * simulation stops integrating it as well as publishing it. See `LayoutEngineStatics.scoped`.
      */
-    static override scoped = true;
+    static override readonly scoped: boolean = true;
 
     /** Which simulation this bridge drives. */
     readonly simulationType: SimulationType;

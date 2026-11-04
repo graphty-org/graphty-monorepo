@@ -60,7 +60,8 @@ function asSim(sim: GpuLayoutSimulation<SpringElectricalOptions, SpringElectrica
     if (!(sim instanceof ForceSimulation)) {
         throw new Error("createSpringElectrical must return a ForceSimulation");
     }
-    return sim;
+    // instanceof drops the type arguments; the factory builds exactly this one
+    return sim as SeSim;
 }
 
 function nanPositions(n: number): F32 {

@@ -31,6 +31,10 @@
  * piece knows how far along the edge it is. A batch without either define is the plain line,
  * reading exactly the attributes it always read.
  *
+ * FADING LONG EDGES (`EDGE_FADE`, line.fade). A widened batch knows the whole edge's length, so the
+ * vertex shader folds a fade by its length on screen into the coverage every fragment already
+ * multiplies its alpha by. `EDGE_OPAQUE` (line.blending false) writes every fragment at alpha 1.
+ *
  * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
  * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
  * shader runtime after this text (`src/shaders/runtime/edgePrograms.ts`), which fills `EdgeInput`
@@ -141,6 +145,12 @@ varying vec4 vEdgeParams;
 varying vec4 vEdgeMeta;
 varying vec4 vEdgeTimes;
 varying float vEdgeTotal;
+#endif
+
+#ifdef EDGE_FADE
+// In CSS pixels on screen: where the fade starts and ends, then what it multiplies the opacity by
+// at its end.
+uniform vec3 edgeFade;
 #endif
 
 const float EPS = 1e-4;
@@ -329,6 +339,13 @@ void main() {
     // The coverage is under 1 for a hairline; the last is the own centre line's offset, which the
     // pieces two away compute the same way.
     vWidth = vec4(hwA, hwB, raw > 0.0 && raw < 0.5 ? raw * 2.0 : 1.0, lineOf(sA, sB).z);
+#ifdef EDGE_FADE
+    // The whole edge on screen: its length at this piece's pixels per world unit, which is the
+    // exact length of a straight edge.
+    float edgePx = worldOwn > EPS ? total * lenOwn / worldOwn : lenOwn;
+    float faded = clamp((edgePx - edgeFade.x) / max(edgeFade.y - edgeFade.x, EPS), 0.0, 1.0);
+    vWidth.z *= mix(1.0, edgeFade.z, faded);
+#endif
 }
 `;
 
@@ -541,6 +558,9 @@ void main() {
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
+#endif
+#ifdef EDGE_OPAQUE
+    gl_FragColor.a = 1.0;
 #endif
 }
 `;

@@ -252,7 +252,8 @@ type NoteFn = (code: string, message: string, column?: string | null, count?: nu
  * @returns the version to write
  */
 function resolveVersion(options: (GexfExportOptions & CommonExportOptions) | undefined): GexfVersion {
-    const version = options?.version;
+    // a JavaScript caller can pass any value
+    const version: unknown = options?.version;
     if (version === undefined) {
         return "1.3";
     }

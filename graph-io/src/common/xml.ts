@@ -33,6 +33,7 @@ import { type LossNote } from "../types.js";
 import { XML_ILLEGAL_CHAR_CODE } from "./codes.js";
 import { isNameChar } from "./export.js";
 import { agree, plural } from "./plural.js";
+import { itemAt } from "./text.js";
 
 /**
  * The events of the tokenizer; every callback is synchronous.
@@ -161,7 +162,7 @@ const CHAR_REFERENCE = /^&#(?:[xX]([0-9a-fA-F]{1,6})|(\d{1,7}));/;
 /** A numeric character reference at the end of a text. */
 const TRAILING_CHAR_REFERENCE = /&#(?:[xX]([0-9a-fA-F]{1,6})|(\d{1,7}));$/;
 
-const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+const NAMED_ENTITIES: Readonly<Partial<Record<string, string>>> = {
     lt: "<",
     gt: ">",
     amp: "&",
@@ -568,7 +569,8 @@ function lowSurrogateAfter(
     if (match === null) {
         return null;
     }
-    const unit = match[1] === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(match[1], 16);
+    const hex = itemAt(match, 1);
+    const unit = hex === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(hex, 16);
     return unit >= 0xdc00 && unit <= 0xdfff ? { unit, end: at + match[0].length } : null;
 }
 
@@ -1648,7 +1650,8 @@ export class XmlTokenizer {
         if (match === null) {
             return end;
         }
-        const unit = match[1] === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(match[1], 16);
+        const hex = itemAt(match, 1);
+        const unit = hex === undefined ? Number.parseInt(match[2], 10) : Number.parseInt(hex, 16);
         return unit >= 0xd800 && unit <= 0xdbff ? end - match[0].length : end;
     }
 

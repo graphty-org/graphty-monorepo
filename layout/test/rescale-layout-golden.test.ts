@@ -6,7 +6,8 @@ import { rescaleLayout } from "../src/utils/rescale.js";
 // zero spread, NaN and Infinity components, rows of different lengths, centers shorter or longer than the rows).
 // Non-finite numbers are written as strings so the expected values survive JSON.
 
-type Input = number[][] | Record<string, (number | string)[]>;
+type Row = (number | string)[];
+type Input = Row[] | Record<string, Row>;
 
 interface Case {
     name: string;

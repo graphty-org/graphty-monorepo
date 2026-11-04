@@ -501,15 +501,16 @@ function resolveOptions(dtype: Dtype, declared: unknown): readonly unknown[] {
     if (!Array.isArray(declared)) {
         throw typeError("options", "options must be an array");
     }
-    assertJsonValue(declared, "options");
+    const list: readonly unknown[] = declared;
+    assertJsonValue(list, "options");
     if (dtype === "dict") {
-        for (const option of declared) {
+        for (const option of list) {
             if (typeof option !== "string") {
                 throw typeError("options", "options of a dict column must be strings", { found: typeof option });
             }
         }
     }
-    return Object.freeze(cloneJson([...declared]));
+    return Object.freeze(cloneJson([...list]));
 }
 
 /**

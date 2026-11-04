@@ -8,9 +8,8 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { openBy, openSampleFromStart } from "../../../test/open";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -152,7 +151,7 @@ describe("Notes, on the real element", () => {
         await waitFor(() => {
             assert.isNull(element.elementAt({ x: spot.x + box.left - host.left, y: spot.y + box.top - host.top }));
         });
-        await realInput.click(canvas, { position: spot });
+        await userEvent.click(canvas, { position: spot });
         await waitFor(() => {
             assert.isNull(store.get().inspected);
         });

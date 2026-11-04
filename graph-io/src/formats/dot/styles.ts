@@ -29,7 +29,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { isWritableDotText } from "../../common/escape.js";
-import { inferTextDtype } from "../../common/text.js";
+import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
@@ -1374,8 +1374,9 @@ function colorBands(
     site: CanonSite,
 ): { color: string; size: number }[] {
     const parts = list.split(":").map((part) => {
-        const [color, fraction] = part.split(";");
-        const c = canonColor(color.trim(), "graphviz", site, { scheme, use });
+        const pieces = part.split(";");
+        const fraction = itemAt(pieces, 1);
+        const c = canonColor(pieces[0].trim(), "graphviz", site, { scheme, use });
         const f = fraction === undefined ? Number.NaN : Number(fraction);
         return { color: c?.color ?? null, fraction: Number.isFinite(f) && f >= 0 ? f : null };
     });
@@ -2352,7 +2353,9 @@ function graphvizArrowValue(
     const valueOf = (name: string | undefined): string | null =>
         (name === undefined ? undefined : GRAPHVIZ_OTHER_ARROWS.get(name)) ??
         canonEnum("arrow", name ?? raw, "graphviz", site);
-    const [first, ...rest] = shapes ?? [];
+    const all = shapes ?? [];
+    const first = itemAt(all, 0);
+    const rest = all.slice(1);
     const parts = rest.flatMap((part) => {
         const value = valueOf(part.name);
         return value === null ? [] : [part.side === null ? value : `${value}:${part.side}`];
@@ -3112,7 +3115,7 @@ function writeGlyph(get: Get, glyph: NonNullable<ReturnType<typeof glyphOf>>, ou
 function approximateShapeLines(get: Get, approximate: Approximate): void {
     for (const property of ["shapeParts", "shapeLines", "shapeLineWidth"]) {
         const v = get(property);
-        if (v !== null && v !== undefined) {
+        if (v !== null) {
             approximate(property, v);
         }
     }

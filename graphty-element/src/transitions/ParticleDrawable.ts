@@ -14,6 +14,7 @@
  */
 
 import { Buffer, Constants, Mesh, type Scene, ShaderMaterial, ShaderStore, VertexData } from "@babylonjs/core";
+import { mulberry32 } from "@graphty/algorithms";
 
 import type { Vec3 } from "../camera/types";
 import type { RenderQuality } from "../session/shaders";
@@ -152,22 +153,6 @@ export function particlesPerNode(nodes: number, asked: number | undefined, level
     return Math.min(wanted, Math.floor(PARTICLE_CAPS[level] / Math.max(1, nodes)));
 }
 
-/**
- * A small seeded generator, so a node's cloud is the same on every run.
- * @param seed - The seed.
- * @returns Numbers in 0..1.
- */
-function random(seed: number): () => number {
-    let a = seed >>> 0;
-    return () => {
-        a = (a + 0x6d2b79f5) >>> 0;
-        let t = a;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
 /** The particle cloud of one running transition. */
 export class ParticleDrawable {
     /** The mesh that draws every particle, or null when there are none. */
@@ -202,7 +187,7 @@ export class ParticleDrawable {
 
         const info = new Float32Array(count * 8);
         movers.forEach(([node], i) => {
-            const next = random(i + 1);
+            const next = mulberry32(i + 1);
             const seed = next();
             const color = node.paintedColor ?? { r: 255, g: 255, b: 255, a: 1 };
             // Taken once: the runner shrinks the node while its cloud is out.

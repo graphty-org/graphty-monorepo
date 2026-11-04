@@ -113,7 +113,7 @@ async function connection(input: TransportInput, neo4j: DriverModule): Promise<{
     const { credential, allowInsecure } = transportOptions(ctx);
     const origin = originOf(url);
     const bound = credential !== undefined && (credential.origins.length === 0 || credential.origins.includes(origin));
-    if (!bound || credential === undefined) {
+    if (!bound) {
         return { url, auth: undefined };
     }
     if (url.protocol === "bolt+ssc:") {

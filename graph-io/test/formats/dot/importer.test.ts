@@ -266,7 +266,7 @@ describe("dot importer: the corpus", () => {
 
 describe("dot importer: malformed corpus", () => {
     /** Files Graphviz itself accepts (verified with `dot -Tcanon`): they must import, not fail. */
-    const VALID_FOR_GRAPHVIZ: Record<string, { nodes: number; edges: number }> = {
+    const VALID_FOR_GRAPHVIZ: Partial<Record<string, { nodes: number; edges: number }>> = {
         "invalid-keyword.gv": { nodes: 3, edges: 1 },
         "missing-arrow.gv": { nodes: 4, edges: 0 },
     };

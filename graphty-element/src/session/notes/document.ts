@@ -11,6 +11,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isPlainObject } from "../../utils/isPlainObject";
 import type { NoteEntry } from "../project/state";
 import { canonicalize } from "../runs/runId";
 import type { Note, NoteId, NoteMergeOptions, NotesDocument, Problem } from "./types";
@@ -19,7 +20,6 @@ import {
     checkMediaType,
     checkText,
     codePoints,
-    isPlain,
     NOTE_LIMITS,
     recordOf,
     unknownFields,
@@ -78,7 +78,7 @@ function pointerSegment(key: string): string {
  * @returns The copy, frozen.
  */
 function memberCopy(value: unknown, depth: number, seen: Set<object>): unknown {
-    if (typeof value !== "object" || value === null || (!Array.isArray(value) && !isPlain(value))) {
+    if (typeof value !== "object" || value === null || (!Array.isArray(value) && !isPlainObject(value))) {
         return value;
     }
 
@@ -134,7 +134,7 @@ function frozenCopy(value: unknown): unknown {
         return Object.freeze(value.map(frozenCopy));
     }
 
-    if (!isPlain(value)) {
+    if (!isPlainObject(value)) {
         throw new Error("not plain JSON");
     }
 
@@ -184,7 +184,7 @@ function keysAre(value: object, allowed: readonly string[], required: readonly s
  * @returns True when it is.
  */
 function isEdgeForm(edge: unknown): boolean {
-    if (!isPlain(edge) || !keysAre(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
+    if (!isPlainObject(edge) || !keysAre(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
         return false;
     }
 
@@ -237,13 +237,13 @@ function isTargetForm(target: object): boolean {
         return isString(t.result, 256);
     }
 
-    if (keysAre(t, ["item"]) && isPlain(t.item) && keysAre(t.item, ["result", "run", "key"])) {
+    if (keysAre(t, ["item"]) && isPlainObject(t.item) && keysAre(t.item, ["result", "run", "key"])) {
         const { item } = t as { item: Record<string, unknown> };
         const { key } = item;
         return (
             isString(item.result, 256) &&
             isString(item.run, 256) &&
-            isPlain(key) &&
+            isPlainObject(key) &&
             keysAre(key, ["field", "value"]) &&
             isString(key.field, 256) &&
             (typeof key.value === "string" || typeof key.value === "boolean" || isId(key.value))
@@ -357,7 +357,7 @@ function objectsOf(value: unknown, what: string): readonly object[] {
 
     return Object.freeze(
         value.map((entry: unknown) => {
-            if (!isPlain(entry) || Object.keys(entry).length === 0 || Object.keys(entry).length > 64) {
+            if (!isPlainObject(entry) || Object.keys(entry).length === 0 || Object.keys(entry).length > 64) {
                 throw new Error(`one of its ${what} is not an object of 1 to 64 members`);
             }
 
@@ -441,7 +441,7 @@ function pushFutureTimes(
  * @throws With the reason the note is skipped.
  */
 function readNote(raw: unknown, at: string, now: number, notices: Problem[]): Note {
-    if (!isPlain(raw)) {
+    if (!isPlainObject(raw)) {
         throw new Error("it is not an object");
     }
 
@@ -459,7 +459,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
     const targets = objectsOf(raw.targets, "targets");
     for (const target of targets) {
         const { edge } = target as { edge?: unknown };
-        if (isPlain(edge) && isSessionEdgeId(edge.id)) {
+        if (isPlainObject(edge) && isSessionEdgeId(edge.id)) {
             sessionEdgesFromFiles.add(target);
         }
     }
@@ -567,9 +567,9 @@ function unknownMemberNotices(document: Readonly<Record<string, unknown>>): Prob
 export function readMember(input: unknown, now: number): ReadMember {
     // Everything below reads this copy, never the caller's object.
     const document = memberCopy(input, 1, new Set());
-    if (!isPlain(document) || document.kind !== "graphty-notes") {
+    if (!isPlainObject(document) || document.kind !== "graphty-notes") {
         throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
-            kind: isPlain(document) ? document.kind : undefined,
+            kind: isPlainObject(document) ? document.kind : undefined,
         });
     }
 

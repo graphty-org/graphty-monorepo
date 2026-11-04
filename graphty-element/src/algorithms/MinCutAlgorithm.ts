@@ -93,19 +93,19 @@ interface MinCutOptions extends Record<string, unknown> {
  * or the global minimum cut of the graph using Stoer-Wagner or Karger's algorithm.
  */
 export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
-    static namespace = "graphty";
-    static type = "min-cut";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "min-cut";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Cuts the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = minCutOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = minCutOptionsSchema;
 
     /**
      * Options schema for Min Cut algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

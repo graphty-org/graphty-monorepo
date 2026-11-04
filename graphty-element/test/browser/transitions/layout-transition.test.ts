@@ -280,6 +280,14 @@ describe("layout transitions", () => {
             now.mockRestore();
         });
         const cloud = (): boolean => scene.meshes.some((mesh) => mesh.name === "graphtyTransitionParticles");
+        // Every drawn frame of the move is checked, not the frames a wait happens to sample: node a
+        // must be drawn shrunk on some frame that also draws its cloud.
+        const a = nodeOf(element, "a");
+        let gaveWay = false;
+        const watch = scene.onAfterRenderObservable.add(() => {
+            gaveWay ||= cloud() && a.mesh.scaling.x < 0.5;
+        });
+        cleanups.push(() => scene.onAfterRenderObservable.remove(watch));
         await element.session.config.set({
             layoutTransition: { transition: "e7/particles", seconds: 0.4, params: { particles: 4 } },
         });
@@ -287,9 +295,8 @@ describe("layout transitions", () => {
         await until(element, "the cloud is drawn while the nodes move", cloud);
         const mesh = scene.meshes.find((each) => each.name === "graphtyTransitionParticles");
         assert.strictEqual((mesh as { forcedInstanceCount?: number }).forcedInstanceCount, 8, "4 per node");
-        const a = nodeOf(element, "a");
-        await until(element, "node a gives way to its cloud on its way", () => a.mesh.scaling.x < 0.5);
         await until(element, "the cloud is gone once they land", () => !cloud());
+        assert.isTrue(gaveWay, "node a gives way to its cloud on its way");
         assert.strictEqual(a.mesh.scaling.x, 1, "node a is whole once it lands");
     });
 

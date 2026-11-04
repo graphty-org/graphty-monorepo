@@ -184,7 +184,8 @@ export async function importForStyles(
     options: ImportGraphOptions = {},
 ): Promise<LoadedGraph> {
     const real = registry.importer(format);
-    let report: ImportReport | null = null;
+    // set by the watched importer, which TypeScript does not see change it
+    let report = null as ImportReport | null;
     const watched: GraphImporter = Object.create(real, {
         import: {
             value: async (...args: Parameters<GraphImporter["import"]>): Promise<ImportReport> => {
@@ -953,7 +954,8 @@ export async function checkHostileBlocks(
  * @returns the styles, with the block's rules
  */
 function rulesWritten(writer: StyleWriter, written: Uint8Array, ex: ExtractedStyles): ExtractedStyles {
-    let rules: StyleRule[] | null = null;
+    // set by the block callback, which TypeScript does not see change it
+    let rules = null as StyleRule[] | null;
     writer.replaceBlock?.(written, (block) => {
         try {
             ({ rules } = JSON.parse(block) as { rules: StyleRule[] });
@@ -1104,7 +1106,7 @@ const HOSTILE_VALUES: readonly string[] = [
 ];
 
 /** Per text format, the attributes whose values a mutant replaces: the start of the value and how it is quoted. */
-const STYLE_SLOTS: Readonly<Record<string, RegExp>> = {
+const STYLE_SLOTS: Readonly<Partial<Record<string, RegExp>>> = {
     gexf: /(<viz:(?:color|size|shape|thickness)\b[^>]*?\b(?:r|g|b|a|hex|value)=)"[^"]*"/g,
     graphml: /(<y:[A-Za-z.]+\b[^>]*?\b(?:color|width|height|type|fontSize|textColor|hasColor|lineType)=)"[^"]*"/g,
     xgmml: /(<graphics\b[^>]*?\b(?:fill|outline|w|h|type|width)=)"[^"]*"/g,

@@ -79,7 +79,8 @@ function createSim(ctx: GpuContext, options: FruchtermanReingoldOptions): FrSim 
     if (!(sim instanceof ForceSimulation)) {
         throw new Error("createFruchtermanReingold did not return a ForceSimulation");
     }
-    return sim;
+    // instanceof drops the type arguments; the factory builds exactly this one
+    return sim as FrSim;
 }
 
 async function withSim<T>(

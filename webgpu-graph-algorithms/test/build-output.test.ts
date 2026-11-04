@@ -392,10 +392,7 @@ function bundleClosure(entry: string): string[] {
         seen.push(file);
         const code = readFileSync(resolve(file), "utf-8");
         for (const match of code.matchAll(/\bfrom\s*(["'])(\.\.?\/[^"']+)\1/g)) {
-            const target = match[2];
-            if (target !== undefined) {
-                pending.push(`${file.slice(0, file.lastIndexOf("/") + 1)}${target}`);
-            }
+            pending.push(`${file.slice(0, file.lastIndexOf("/") + 1)}${match[2]}`);
         }
     }
     return seen;

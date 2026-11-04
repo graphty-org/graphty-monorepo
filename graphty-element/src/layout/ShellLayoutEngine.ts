@@ -59,9 +59,9 @@ type ShellLayoutOpts = Partial<ShellLayoutConfigType>;
  * Shell layout engine that arranges nodes in concentric shells
  */
 export class ShellLayout extends SnapshotLayoutEngine {
-    static type = "shell";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = shellLayoutOptionsSchema;
+    static readonly type: string = "shell";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = shellLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: ShellLayoutConfigType;
 

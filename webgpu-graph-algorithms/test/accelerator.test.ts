@@ -159,10 +159,10 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         }
         expect("harmonicCentrality" in acc).toBe(false);
         expect("eccentricity" in acc).toBe(false);
-        const route = acc.kCoreDecomposition !== undefined ? "gpu" : "cpu";
+        const route = typeof acc.kCoreDecomposition === "function" ? "gpu" : "cpu";
         expect(route).toBe("cpu");
         expect(typeof acc.betweennessCentrality).toBe("function");
-        const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
+        const p7Route = typeof acc.pageRank === "function" ? "gpu" : "cpu";
         expect(p7Route).toBe("gpu");
         // one per call (spec 3.3): two accelerators over one context are distinct objects
         const second = createAccelerator(ctx);

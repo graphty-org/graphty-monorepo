@@ -45,6 +45,11 @@ const RESTRICTED_IMPORT_PATTERNS = [
         regex: String.raw`^\.{1,2}/(.*/)?graphty-element(/|$)`,
         message: `${RULE} Import @graphty/graphty-element by package name, never by a relative path.`,
     },
+    {
+        regex: "^@testing-library/user-event$",
+        message:
+            "It builds its events in JavaScript. Use userEvent from vitest/browser, which drives the browser's real input (tools/README.md, Testing).",
+    },
 ];
 
 // The app's own bans, beside compact-mantine's list. Not in that shared list, because

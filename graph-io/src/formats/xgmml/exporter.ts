@@ -23,6 +23,7 @@ import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatF32, formatF64, idText } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
@@ -853,7 +854,7 @@ function valueText(value: unknown, dtype: string | null, escapes: boolean): stri
     } else if (ArrayBuffer.isView(value)) {
         text = JSON.stringify(Array.from(value as unknown as ArrayLike<number>));
     } else {
-        text = JSON.stringify(value) ?? "";
+        text = jsonText(value) ?? "";
     }
     return escapeXmlAttribute(text);
 }
@@ -874,7 +875,7 @@ function scalarText(value: unknown): string {
     if (typeof value === "boolean") {
         return value ? "true" : "false";
     }
-    return JSON.stringify(value) ?? "";
+    return jsonText(value) ?? "";
 }
 
 /**
@@ -1150,7 +1151,9 @@ function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [st
     if (xyz === null) {
         return [];
     }
-    const [x, y, z] = Array.from(xyz as ArrayLike<number>);
+    const coords = Array.from(xyz as ArrayLike<number>);
+    const [x, y] = coords;
+    const z = itemAt(coords, 2);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         return [];
     }
@@ -1258,7 +1261,7 @@ function* write(snapshot: GraphSnapshot, options: XgmmlWriteOptions | undefined)
         snapshot.edges.byRole("directed") === null;
     let directed = snapshot.directed ? "1" : "0";
     if (keep) {
-        directed = meta?.directed as string;
+        directed = meta.directed as string;
     }
     const name = snapshot.meta.name === null ? "" : ` label="${escapeXmlAttribute(snapshot.meta.name)}"`;
     yield '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';

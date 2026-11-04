@@ -136,9 +136,9 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
  * under `force`.
  */
 export class ForceAtlas2Layout extends SimulationLayoutEngine {
-    static type = "forceatlas2";
-    static simulationType: SimulationType = "forceatlas2";
-    static maxDimensions = 3;
+    static readonly type: string = "forceatlas2";
+    static readonly simulationType: SimulationType = "forceatlas2";
+    static readonly maxDimensions: number = 3;
 
     /**
      * A WEIGHT IS AN ATTRACTION STRENGTH HERE. A strength (or a weight whose meaning nobody
@@ -148,8 +148,8 @@ export class ForceAtlas2Layout extends SimulationLayoutEngine {
      * the CPU and the accelerator alike. Kamada-Kawai reads a distance and inverts a strength; the
      * two engines disagree about the arithmetic so that they agree about the meaning.
      */
-    static override honoursWeights = true;
-    static zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
+    static override readonly honoursWeights: boolean = true;
+    static readonly zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
 
     /**
      * Get dimension-specific options for ForceAtlas2 layout.

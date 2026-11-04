@@ -79,7 +79,7 @@ import {
 } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { inferTextDtype, itemAt, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import {
     type CommonImportOptions,
@@ -1958,8 +1958,9 @@ class DotParser {
         }
         const x = Number(match[1]);
         const y = Number(match[2]);
-        const z = match[3] === undefined ? 0 : Number(match[3]);
-        const dims = match[3] === undefined ? 2 : 3;
+        const zText = itemAt(match, 3);
+        const z = zText === undefined ? 0 : Number(zText);
+        const dims = zText === undefined ? 2 : 3;
         const point = [x, y, z];
         if (point.some((v) => !Number.isFinite(v))) {
             // a half-infinite point would be a half-valid position

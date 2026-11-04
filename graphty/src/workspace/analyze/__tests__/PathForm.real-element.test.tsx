@@ -8,9 +8,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -272,17 +271,7 @@ describe("the Path popover, on the real element", () => {
             at = element.nodeScreenPosition("Lee");
             assert.isTrue(at?.visible);
         });
-        const rect = element.getBoundingClientRect();
-        const init = {
-            clientX: rect.left + (at?.x ?? 0),
-            clientY: rect.top + (at?.y ?? 0),
-            bubbles: true,
-            composed: true,
-        };
-        for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
-            element.dispatchEvent(new PointerEvent(type, init));
-        }
-        element.dispatchEvent(new MouseEvent("click", init));
+        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
 
         await waitFor(() => {
             assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To node" }).value, "Lee");

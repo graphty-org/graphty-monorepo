@@ -27,7 +27,7 @@ interface AttType {
 }
 
 /** Cytoscape's `cy:type` names (3.3+), lower-cased. */
-const CY_TYPES: Readonly<Record<string, DeclaredKind>> = {
+const CY_TYPES: Readonly<Partial<Record<string, DeclaredKind>>> = {
     string: "string",
     double: "real",
     integer: "int",
@@ -37,7 +37,7 @@ const CY_TYPES: Readonly<Record<string, DeclaredKind>> = {
 };
 
 /** The XGMML draft's types, Cytoscape's `boolean` and the 2.x `map`, lower-cased. */
-const XGMML_TYPES: Readonly<Record<string, DeclaredKind>> = {
+const XGMML_TYPES: Readonly<Partial<Record<string, DeclaredKind>>> = {
     string: "string",
     real: "real",
     integer: "int",

@@ -65,6 +65,7 @@ const DECLARED = [
     "node.labelOffsetY",
     "node.labelShiftX",
     "node.labelShiftY",
+    "node.labelShiftOf",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -207,6 +208,10 @@ const DECLARED = [
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -350,6 +355,7 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "edge.labelShiftOf",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
@@ -390,9 +396,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-five node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 185);
-        assert.strictEqual(channelsFor("edge").length, 151);
+    it("splits into one hundred and eighty-six node channels and one hundred and fifty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 186);
+        assert.strictEqual(channelsFor("edge").length, 156);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -613,6 +619,7 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -802,6 +809,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
+        "node.labelShiftOf",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -829,6 +837,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
+        "edge.labelShiftOf",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

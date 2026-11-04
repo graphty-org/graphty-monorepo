@@ -5,7 +5,12 @@ import { teraHAC } from "../../../src/indexed/terahac.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId, TeraHACClusterNode as ClusterNode, TeraHACConfig } from "../../helpers/legacy-types.js";
+import type {
+    NodeId,
+    TeraHACClusterNode as ClusterNode,
+    TeraHACConfig,
+    TeraHACResult,
+} from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";

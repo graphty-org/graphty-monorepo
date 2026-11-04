@@ -228,7 +228,7 @@ const VERTEX_FILL = "#ffd9bc";
 const SIZE_OF_VERTICES = 8;
 
 /** Per-element values by property, as the style reader builds them. */
-type Values = Record<string, (StyleValue | null)[]>;
+type Values = Partial<Record<string, (StyleValue | null)[]>>;
 
 /**
  * The node column a project file's n-th object of a kind went to (`meta.extra.pajek.objects`).
@@ -294,7 +294,7 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
     }
     markVertices(draw, node, n);
     for (const property of ["width", "height"]) {
-        if (node[property].every((v) => v === null)) {
+        if (column(node, property, n).every((v) => v === null)) {
             Reflect.deleteProperty(node, property);
         }
     }
@@ -463,7 +463,7 @@ export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values
     if (flag(draw, "Form10.ColorGradientLines")) {
         // each line runs from its source vertex's fill to its target's, and an arrowhead is its own end vertex's fill
         // (`pajek-specimen-edges-lines-p5`)
-        const fill = node.fill as (StyleValue | null)[] | undefined;
+        const { fill } = node;
         const fillOf = (i: number): string => (typeof fill?.[i] === "string" ? fill[i] : VERTEX_FILL);
         const colors = column(edge, "gradientColors", m);
         const kind = column(edge, "gradientKind", m);

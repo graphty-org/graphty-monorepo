@@ -10,6 +10,7 @@ import { readBytes, textChunks } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { tokenizeXml, xmlDeclaredEncoding, XmlSyntaxError } from "../../common/xml.js";
 import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../common/zip.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
@@ -383,7 +384,7 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
     const view = VIEW_FILE.exec(path);
     const table = TABLE_FILE.exec(path);
     if (network !== null) {
-        layout.networks.push({ ...entry, suid: network[1], title: urlDecode(network[2] ?? "") });
+        layout.networks.push({ ...entry, suid: network[1], title: urlDecode(itemAt(network, 2) ?? "") });
     } else if (view !== null) {
         layout.views.push({ ...entry, network: view[1], view: view[2] });
     } else if (path === "tables/cytables.xml") {
@@ -542,8 +543,7 @@ export async function parseXmlTree(
             });
         }
     }
-    const [root] = stack[0].children;
-    return root ?? "the document is empty";
+    return itemAt(stack[0].children, 0) ?? "the document is empty";
 }
 
 /**

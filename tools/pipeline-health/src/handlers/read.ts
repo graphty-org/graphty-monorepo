@@ -27,7 +27,7 @@ const PAGES = new Set<string>([
     "issues",
 ]);
 /** Each page's ranges, when not RANGES; the first is its default. */
-const PAGE_RANGES: Record<string, string[]> = { costs: ["7d", "28d"], issues: ["28d", "all"] };
+const PAGE_RANGES: Record<string, string[]> = { costs: ["7d", "28d"], issues: ["28d", "1h", "6h", "1d", "7d", "all"] };
 /** The slow sections, their ranges and run kinds (the first is the default). */
 const SECTIONS: Record<string, { ranges: string[]; kinds?: string[] }> = {
     "ci/shards": { ranges: ["7d", "28d"], kinds: ["full", "pr-bins"] },

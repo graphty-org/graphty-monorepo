@@ -251,8 +251,8 @@ class LostInputs {
     /** The style columns, the copies added. */
     readonly columns: { readonly node: Map<string, StyleColumn>; readonly edge: Map<string, StyleColumn> };
 
-    /** Whether the rule being carried read a lost input. */
-    private touched = false;
+    /** How many lost inputs the rules carried so far read: a rule that adds none reads none. */
+    private touched = 0;
 
     /**
      * A carrier for one export.
@@ -278,11 +278,11 @@ class LostInputs {
      * @returns the rule read from copies, or the rule itself when it reads no lost input
      */
     carry(rule: StyleRule): StyleRule {
-        this.touched = false;
+        const before = this.touched;
         const { ext, ...given } = rule;
         const map = this.carryMap(rule);
         const where = this.walk(rule, given.where);
-        if (!this.touched) {
+        if (this.touched === before) {
             return rule;
         }
         const { map: _given, ...unmapped } = given;
@@ -314,9 +314,9 @@ class LostInputs {
             const lostColumn = typeof name === "string" && this.lost.has(name) && table.has(name);
             const values = lostColumn ? this.cells(rule.target, name, canonicalFor(rule.target, property)) : null;
             if (values !== null && !values.some((v) => v !== null)) {
-                this.touched = true;
+                this.touched++;
             } else if (values !== null && this.isLost(rule.target, name)) {
-                this.touched = true;
+                this.touched++;
                 map[property] = { ...mapping, by: this.copy(rule.target, `${property}.data.${name}`, () => values) };
             } else {
                 map[property] = mapping;
@@ -348,14 +348,14 @@ class LostInputs {
         const ref = v as { data?: unknown; computed?: unknown };
         if (this.isLost(rule.target, ref.data)) {
             const name = ref.data;
-            this.touched = true;
+            this.touched++;
             return this.copy(rule.target, `data.${name}`, () =>
                 this.cells(rule.target, name, (raw) => (isStyleScalar(raw) ? raw : null)),
             );
         }
         const which = ref.computed;
         if ((which === "indegree" || which === "outdegree") && this.direction && rule.target === "node") {
-            this.touched = true;
+            this.touched++;
             return this.copy(rule.target, `computed.${which}`, () => degreeValues(this.snapshot, which));
         }
         return v;

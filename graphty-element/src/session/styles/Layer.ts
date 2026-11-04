@@ -79,6 +79,7 @@ import type {
 import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
@@ -1423,21 +1424,6 @@ function checkChannels(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Whether a value is a map a layer may write: a plain object, or one with no prototype.
- * @param value - Anything.
- * @returns True for a plain map.
- */
-function isPlainMap(value: unknown): value is Record<string, unknown> {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return false;
-    }
-
-    const prototype = Object.getPrototypeOf(value) as unknown;
-
-    return prototype === Object.prototype || prototype === null;
-}
-
-/**
  * Check one shader id against the catalog: it must be listed, drawn on the list's target (a node
  * list also takes group outlines), and allowed at the place the use asks for.
  * @param id - The id.
@@ -1619,7 +1605,7 @@ function paramValueFits(param: ShaderDescriptor["params"][number], value: unknow
  * @param log - Where problems are collected.
  */
 function checkParamSet(shader: ShaderDescriptor | null, params: unknown, path: string, log: ProblemLog): void {
-    if (!isPlainMap(params)) {
+    if (!isPlainObject(params)) {
         report(log, { code: "E_BAD_LAYER", message: "A shader's parameters are a map, such as { speed: 2 }.", path });
 
         return;
@@ -1643,7 +1629,7 @@ const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "gro
  * @param log - Where problems and paths are collected.
  */
 function checkShaderUse(use: unknown, target: "node" | "edge", path: string, catalog: boolean, log: ProblemLog): void {
-    if (!isPlainMap(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
+    if (!isPlainObject(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
         report(log, {
             code: "E_BAD_LAYER",
             message: 'A shader use is { shader: "<id>", place?, params?, groupBy?, off? }.',

@@ -1419,7 +1419,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
 function places(snapshot: GraphSnapshot): (i: number) => Place | null {
     const col = snapshot.nodes.byRole("position");
     return (i) => {
-        const v: unknown = col === null || col === undefined ? null : col.value(i);
+        const v: unknown = col === null ? null : col.value(i);
         if (v === null || typeof v !== "object" || !("length" in v)) {
             return null;
         }

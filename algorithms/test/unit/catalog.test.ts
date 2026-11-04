@@ -125,6 +125,7 @@ const NOT_ALGORITHMS = new Set([
     "groupsById",
     "pathIds",
     "scoresById",
+    "mulberry32",
 ]);
 
 describe("ALGORITHMS", () => {
@@ -150,7 +151,8 @@ describe("ALGORITHMS", () => {
 
     it("names every accelerator method", () => {
         // A compile-time list: adding a method to AlgorithmAccelerator fails the type check until it is listed.
-        const all: Record<AcceleratorMethod, true> = {
+        // harmonicCloseness is a capability flag on AlgorithmAccelerator, not a method, so no entry names it.
+        const all: Record<Exclude<AcceleratorMethod, "harmonicCloseness">, true> = {
             pageRank: true,
             personalizedPageRank: true,
             hits: true,

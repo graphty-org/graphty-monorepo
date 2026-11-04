@@ -261,17 +261,25 @@ export default tseslint.config(
             "no-restricted-globals": "off",
         },
     },
-    // ---- strict type rules this package has no violation of, back on so none creeps in (#2345). The
+    // ---- the six strict type rules, back on so none creeps in (#2345). The
     // root lists them per package for packages without their own config; its globs are relative to
     // the repo root and do not reach this config, so this package lists its own. Benchmarks and
     // configs have no type information and are not under src/ or test/.
     {
         files: ["src/**/*.ts", "test/**/*.ts"],
         rules: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
+    },
+    // the type tests are written for, and type-checked under, tsconfig.strict-consumer.json (noUncheckedIndexedAccess),
+    // where their undefined checks are needed; ESLint reads them through tsconfig.json, which lacks that flag
+    {
+        files: ["test/types/**/*.test-d.ts"],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "off" },
     },
 );

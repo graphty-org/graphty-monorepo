@@ -192,7 +192,12 @@ describe("static layouts", () => {
             cy
                 .layout({ name: "graphty-kamada-kawai", maxNodes: n - 1, boundingBox: BOX } as unknown as LayoutOptions)
                 .run(),
-        ).toThrow(expect.objectContaining({ code: "E_TOO_LARGE", params: expect.objectContaining({ nodeCount: n }) }));
+        ).toThrow(
+            expect.objectContaining({
+                code: "E_TOO_LARGE",
+                params: expect.objectContaining({ nodeCount: n }) as unknown,
+            }),
+        );
     });
 
     it("lay out only the collection they are called on", async () => {

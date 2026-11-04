@@ -84,8 +84,8 @@ function rowOf(pos: PositionMap | number[][], key: number | string): number[] {
  * @returns The mean position
  */
 function meanPosition(posValues: number[][], dim: number): number[] {
-    const posCenter: number[] = new Array(dim).fill(0);
-    const counts: number[] = new Array(dim).fill(0);
+    const posCenter: number[] = new Array<number>(dim).fill(0);
+    const counts: number[] = new Array<number>(dim).fill(0);
     for (const p of posValues) {
         for (let i = 0; i < dim; i++) {
             // a position shorter than the first has no coordinate i: skip it like a NaN one
@@ -110,7 +110,7 @@ function meanPosition(posValues: number[][], dim: number): number[] {
  * @returns The centered row
  */
 function centerRow(p: number[], posCenter: number[], targetDim: number): number[] {
-    const centered = new Array(targetDim).fill(0);
+    const centered = new Array<number>(targetDim).fill(0);
     for (let i = 0; i < targetDim; i++) {
         centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
     }
@@ -168,7 +168,7 @@ function scaleRow(p: number[], origLength: number, scaleFactor: number, center: 
  * @returns The row at the center
  */
 function collapseRow(p: number[], center: number[], targetDim: number): number[] {
-    const result = new Array(targetDim);
+    const result = new Array<number>(targetDim);
     for (let i = 0; i < targetDim; i++) {
         result[i] = i < p.length && Number.isNaN(p[i]) ? Number.NaN : center[i];
     }
@@ -225,7 +225,7 @@ export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): Position
     } else {
         // All points at the center
         for (const node of Object.keys(centeredPos)) {
-            scaledPos[node] = new Array(centeredPos[node].length).fill(0);
+            scaledPos[node] = new Array<number>(centeredPos[node].length).fill(0);
         }
     }
 

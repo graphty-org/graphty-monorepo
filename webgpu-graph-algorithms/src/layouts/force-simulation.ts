@@ -797,7 +797,8 @@ export class ForceSimulation<
                 `maxInFlight must be an integer >= 1, got ${maxInFlight}`,
             );
         }
-        const dim = options.dim ?? FA2_DEFAULTS.dim;
+        // checked as a number: a JavaScript caller can pass anything
+        const dim: number = options.dim ?? FA2_DEFAULTS.dim;
         if (dim !== 2 && dim !== 3) {
             throw invalidArgument("dim", dim, "2 or 3", `dim must be 2 or 3, got ${String(dim)}`);
         }
@@ -2118,7 +2119,7 @@ export class ForceSimulation<
             previous.column === resolved.column &&
             previous.version === resolved.column.version &&
             previous.data.length === resolved.data.length;
-        const data = reusable && previous !== null ? previous.data : resolved.data;
+        const data = reusable ? previous.data : resolved.data;
         const upload = this.ctx.residency.array(data, "weights", snapshot);
         this.weightsUpload = {
             serial: snapshot.serial,

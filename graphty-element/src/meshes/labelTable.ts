@@ -47,6 +47,8 @@ export interface LabelTableCell {
     readonly border?: number;
     readonly padding?: number;
     readonly rule?: boolean;
+    /** Kept its room but drawn with nothing: no fill, border, text, picture or table (Graphviz's `STYLE="invis"`). */
+    readonly hidden?: boolean;
 }
 
 /** One row of a table. */
@@ -485,6 +487,9 @@ function placeTable(s: Sized, box: TableBox, out: Collected, outline: boolean): 
  */
 function placeCell(table: LabelTable, p: Placed, box: TableBox, out: Collected): void {
     const { cell } = p;
+    if (cell.hidden === true) {
+        return;
+    }
     let b = box;
     if (isFixed(cell)) {
         b = {

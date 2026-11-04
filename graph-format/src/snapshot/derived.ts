@@ -723,7 +723,7 @@ function reduceColumn(column: Column, grouping: EdgeGrouping, reducer: ColumnRed
 function reduceEdgeTable(
     source: GraphSnapshot,
     grouping: EdgeGrouping,
-    reducers: Readonly<Record<string, ColumnReducer>> | undefined,
+    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
     nodeRemap: U32 | null,
 ): AttributeTable {
     const refs = { node: nodeRemap, edge: grouping.remap };
@@ -1350,7 +1350,7 @@ function contractNodeTable(
     blocks: U32,
     blockCount: number,
     blockOrigin: U32,
-    reducers: Readonly<Record<string, ColumnReducer>> | undefined,
+    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
 ): AttributeTable {
     const columns: Column[] = [];
     if (reducers !== undefined) {
@@ -1486,7 +1486,7 @@ function keptPairs(first: U32): U32 {
 function contractEdgeColumns(
     source: GraphSnapshot,
     grouping: EdgeGrouping,
-    reducers: Readonly<Record<string, ColumnReducer>> | undefined,
+    reducers: Readonly<Partial<Record<string, ColumnReducer>>> | undefined,
 ): Column[] {
     const edgeColumns: Column[] = [];
     if (reducers === undefined) {

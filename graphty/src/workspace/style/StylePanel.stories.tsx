@@ -27,6 +27,25 @@ const KEY_PEOPLE = ["Valjean", "Javert", "Cosette", "Marius"];
 const page = (): ReturnType<typeof within> => within(document.body);
 
 /**
+ * Waits until what the page shows now has been drawn and every open pop-out placed for it: one
+ * frame after the change, then until no pop-out has a move queued (`data-cm-repositioning`).
+ *
+ * A pop-out measures its content when a frame is drawn, and keeps the place it took while its row
+ * stays put. A play function's clicks can run with no frame between them, so a list that opens
+ * inside a pop-out and is picked from at once was never measured: the pop-out keeps the place it
+ * had before the list, where a reader -- who sees the list before picking -- gets the place it
+ * moved to so the list fits in the window.
+ */
+async function panelsPlaced(): Promise<void> {
+    const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    // The first frame draws the change and queues each pop-out's move; the frames after run them.
+    await frame();
+    do {
+        await frame();
+    } while (document.querySelector("[data-cm-repositioning]") !== null);
+}
+
+/**
  * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
  * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
  * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
@@ -343,6 +362,8 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const byLayer = await page().findByRole("dialog", { name: "Color from each layer" });
     await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
     const options = await page().findAllByRole("option", { name: /^Leiden/ });
+    // The list is drawn, and the pop-out moved to show it, before the reader picks from it.
+    await panelsPlaced();
     await userEvent.click(options[0]);
     const popover = await page().findByRole("dialog", { name: /^Color by / });
     await within(popover).findByRole("grid", { name: / groups$/ });

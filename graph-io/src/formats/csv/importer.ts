@@ -505,7 +505,9 @@ function checkDialectOptions(o: CsvImportOptions): void {
             found: o.delimiter,
         });
     }
-    if (o.decimal !== undefined && o.decimal !== "." && o.decimal !== ",") {
+    // a JavaScript caller can pass any value
+    const { decimal }: { decimal?: unknown } = o;
+    if (decimal !== undefined && decimal !== "." && decimal !== ",") {
         throw new GraphFormatError("E_UNSUPPORTED", 'option decimal: expected "." or ","', {
             option: "decimal",
             found: o.decimal,

@@ -151,11 +151,11 @@ function pairOf(link: NGraphLink): PairData {
  * NGraph force-directed layout engine using ngraph.forcelayout
  */
 export class NGraphEngine extends LayoutEngine {
-    static type = "ngraph";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
+    static readonly type: string = "ngraph";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
     /** Accepts a scope: a held node is a pinned body in ngraph's own simulation. */
-    static override scoped = true;
+    static override readonly scoped: boolean = true;
     ngraph: NGraph;
     ngraphLayout: NGraphLayout<NGraph>;
 

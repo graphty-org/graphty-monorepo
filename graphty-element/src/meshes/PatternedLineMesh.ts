@@ -214,7 +214,7 @@ export function alternatingMeshCount(lineLength: number, sizes: readonly number[
     let used = -gap;
     while (count < MAX_PATTERN_PIECES) {
         const next = used + gap + sizes[count % sizes.length];
-        if (!(next <= lineLength) || next <= used) {
+        if (Number.isNaN(next) || next > lineLength || next <= used) {
             break;
         }
         used = next;

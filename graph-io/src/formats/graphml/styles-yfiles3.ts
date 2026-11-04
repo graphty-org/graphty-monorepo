@@ -387,6 +387,20 @@ const SHAPES_26: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
 /** ShapeNodeStyle's ROUND_RECTANGLE corner size (ShapeNodeShape API docs: "The corner size is 10"). */
 const ROUND_RECTANGLE_CORNER = 10;
 
+/**
+ * yEd Live's BPMN node styles (`bpmn:` namespace), which name their fill `background` and their outline `outline` (a
+ * 1-pixel line); left unset, yFiles draws them white with a black outline, the tool defaults.
+ */
+const BPMN_NODE_STYLES: ReadonlySet<string> = new Set([
+    "ActivityNodeStyle",
+    "EventNodeStyle",
+    "GatewayNodeStyle",
+    "ConversationNodeStyle",
+    "ChoreographyNodeStyle",
+    "DataObjectNodeStyle",
+    "DataStoreNodeStyle",
+]);
+
 /** A node's size from its NodeGeometry, where it has one. */
 interface Size {
     readonly width: number;
@@ -510,8 +524,9 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     if (readStyle26(refs, style, put, at)) {
         return;
     }
+    const bpmn = BPMN_NODE_STYLES.has(style.tag);
     putPaint(
-        paintOf(refs, prop(style, "fill"), () => {
+        paintOf(refs, prop(style, bpmn ? "background" : "fill"), () => {
             noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
         }),
         "fill",
@@ -519,7 +534,7 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put,
         at,
     );
-    putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
+    putStroke(strokeOf(refs, prop(style, bpmn ? "outline" : "stroke")), put, at);
     put("shape", nodeShapeOf(style, at));
     const points = SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
     if (points !== undefined) {

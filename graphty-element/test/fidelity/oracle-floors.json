@@ -3581,7 +3581,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.951,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -3649,7 +3649,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.951,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -6884,7 +6884,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.951,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -6952,7 +6952,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.951,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -7014,8 +7014,8 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 0.948,
-            "node.strokeWidth": 0.952,
-            "node.strokeDash": 0.879,
+            "node.strokeWidth": 0.975,
+            "node.strokeDash": 0.956,
             "label.present": 1,
             "label.text": 1,
             "label.size": 1,
@@ -7080,8 +7080,8 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 0.948,
-            "node.strokeWidth": 0.952,
-            "node.strokeDash": 0.879,
+            "node.strokeWidth": 0.975,
+            "node.strokeDash": 0.956,
             "label.present": 1,
             "label.text": 1,
             "label.size": 1,
@@ -11046,7 +11046,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.966,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -11114,7 +11114,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.966,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -35520,7 +35520,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.966,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -35588,7 +35588,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 1,
             "node.stroke": 1,
-            "node.strokeWidth": 0.966,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -43382,7 +43382,7 @@
             "background": 1,
             "raster.canvas": 0.98,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.87
+            "raster.nodeOutline": 0.88
         },
         "yed-live-graphml-specimen-node-shapes-p4@matched": {
             "node.present": 1,
@@ -43428,7 +43428,7 @@
             "background": 1,
             "raster.canvas": 0.98,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.81
+            "raster.nodeOutline": 0.83
         },
         "yed-live-graphml-specimen-node-shapes-p5@matched": {
             "node.present": 1,
@@ -43475,7 +43475,7 @@
             "background": 1,
             "raster.canvas": 0.96,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.86
+            "raster.nodeOutline": 0.88
         },
         "yed-live-graphml-specimen-node-shapes-p6@matched": {
             "node.present": 1,
@@ -53659,12 +53659,70 @@
                 "date": "2026-11-01"
             }
         },
+        "yed-live-graphml-specimen-node-shapes-p4": {
+            "node.fill": {
+                "floor": 1,
+                "to": 0.091,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes-p4@matched": {
+            "node.fill": {
+                "floor": 1,
+                "to": 0.091,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes-p5": {
+            "node.fill": {
+                "floor": 1,
+                "to": 0.136,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            },
+            "node.stroke": {
+                "floor": 0.814,
+                "to": 0.136,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes-p5@matched": {
+            "node.fill": {
+                "floor": 1,
+                "to": 0.136,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            },
+            "node.stroke": {
+                "floor": 0.814,
+                "to": 0.136,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            }
+        },
         "yed-live-graphml-specimen-node-shapes-p6": {
             "node.position": {
                 "floor": 0.569,
                 "to": 0.556,
                 "reason": "comparator (#5384): the frame refit no longer drops the sheet's corner anchors, so the frame is pinned exactly; three choreography nodes whose oracle bodies are one 20.6 px band of the node miss their centers in it",
                 "date": "2026-11-01"
+            },
+            "node.fill": {
+                "floor": 0.611,
+                "to": 0.481,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes-p6@matched": {
+            "node.fill": {
+                "floor": 0.611,
+                "to": 0.481,
+                "reason": "stand-in, not the drawing: graph-io now reads yEd Live's bpmn: node styles' background and outline (#4456), and graphty draws their colors; the draw.io stand-in that drew these oracles ignores bpmn: colors and draws every one white with a black outline, so the colors yEd Live sets read as misses here. The colors are proven against the files' own values by graph-io test/formats/graphml/styles-yfiles3.test.ts",
+                "date": "2026-11-04"
             }
         }
     }

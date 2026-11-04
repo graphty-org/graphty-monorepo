@@ -243,11 +243,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.95,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -357,12 +357,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.86,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.9,
+            "raster.nodeBody": 0.94,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "cx-ndex-90f78bcd@matched": {
@@ -667,8 +667,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
-            "raster.label": 0.96,
+            "raster.edge": 0.97,
+            "raster.label": 0.97,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
@@ -844,9 +844,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -891,7 +891,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -1023,8 +1023,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -1074,9 +1074,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -1208,7 +1208,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "cx-specimen-edges-lines@matched": {
@@ -1311,9 +1311,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cx-specimen-images-charts-p2": {
             "node.present": 1,
@@ -1338,7 +1339,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-images-charts-p2@matched": {
@@ -1437,7 +1438,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx-specimen-images-charts-p4@matched": {
             "node.present": 1,
@@ -1500,7 +1501,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-images-charts-p5@matched": {
@@ -1563,7 +1564,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-images-charts-p6@matched": {
@@ -1627,7 +1628,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.99,
-            "raster.nodeBody": 0.87,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-images-charts-p7@matched": {
@@ -1768,7 +1769,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.93,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -2052,9 +2053,9 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.93,
+            "raster.edge": 0.94,
             "raster.label": 0.95,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -2092,7 +2093,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "cx-specimen-mappings-bypass-p10@matched": {
@@ -2166,9 +2167,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -2253,7 +2254,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -2345,8 +2346,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -2421,9 +2422,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cx-specimen-mappings-bypass-p14@matched": {
             "node.present": 1,
@@ -2471,7 +2473,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-mappings-bypass-p15@matched": {
@@ -2591,9 +2593,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -2681,7 +2683,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx-specimen-mappings-bypass-p18@matched": {
@@ -2864,7 +2866,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx-specimen-mappings-bypass-p20@matched": {
             "node.present": 1,
@@ -2954,7 +2956,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "cx-specimen-mappings-bypass-p4@matched": {
             "node.present": 1,
@@ -3498,7 +3500,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "cx-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
@@ -3626,11 +3628,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.88,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.97,
-            "raster.edge": 0.92,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
+            "raster.edge": 0.93,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.87,
             "edge.wiggle": 1
         },
@@ -3754,7 +3756,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.9,
+            "raster.arrowhead": 0.91,
             "raster.canvas": 0.95,
             "raster.edge": 0.84,
             "raster.label": 0.91,
@@ -3876,12 +3878,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.86,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.9,
+            "raster.nodeBody": 0.94,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "cx2-ndex-90f78bcd@matched": {
@@ -4120,7 +4122,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.arrowhead": 0.92,
-            "raster.canvas": 0.96,
+            "raster.canvas": 0.97,
             "raster.edge": 0.89,
             "raster.label": 0.89,
             "raster.nodeBody": 0.92,
@@ -4230,9 +4232,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -4277,7 +4279,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -4409,8 +4411,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -4460,9 +4462,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -4594,7 +4596,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "cx2-specimen-edges-lines@matched": {
@@ -4697,9 +4699,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cx2-specimen-images-charts-p2": {
             "node.present": 1,
@@ -4724,7 +4727,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-images-charts-p2@matched": {
@@ -4823,7 +4826,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx2-specimen-images-charts-p4@matched": {
             "node.present": 1,
@@ -4886,7 +4889,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-images-charts-p5@matched": {
@@ -4949,7 +4952,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-images-charts-p6@matched": {
@@ -5013,7 +5016,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.99,
-            "raster.nodeBody": 0.87,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-images-charts-p7@matched": {
@@ -5154,7 +5157,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.93,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx2-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -5438,9 +5441,9 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.93,
+            "raster.edge": 0.95,
             "raster.label": 0.95,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -5543,7 +5546,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -5611,7 +5614,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -5693,8 +5696,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
-            "raster.label": 0.93,
+            "raster.edge": 0.92,
+            "raster.label": 0.94,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -5767,9 +5770,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cx2-specimen-mappings-bypass-p14@matched": {
             "node.present": 1,
@@ -5817,7 +5821,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-mappings-bypass-p15@matched": {
@@ -5937,9 +5941,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -6027,7 +6031,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cx2-specimen-mappings-bypass-p18@matched": {
@@ -6255,7 +6259,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "cx2-specimen-mappings-bypass-p4@matched": {
             "node.present": 1,
@@ -6438,7 +6442,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.93,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cx2-specimen-mappings-bypass-p7@matched": {
             "node.present": 1,
@@ -6927,12 +6931,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.88,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.97,
             "raster.edge": 0.92,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.86,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.96,
+            "raster.nodeOutline": 0.87,
             "edge.wiggle": 1
         },
         "cx2-syn-bypass@matched": {
@@ -7038,7 +7042,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.988,
             "edge.arrowShape": 0.977,
@@ -7055,7 +7059,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.88,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.95,
             "raster.edge": 0.84,
             "raster.label": 0.9,
@@ -7104,7 +7108,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 0.993,
-            "edge.dashPeriod": 0.957,
+            "edge.dashPeriod": 0.979,
             "edge.gradient": 1,
             "edge.arrow": 0.988,
             "edge.arrowShape": 0.977,
@@ -7275,7 +7279,7 @@
             "raster.arrowhead": 0.93,
             "raster.canvas": 0.99,
             "raster.edge": 0.93,
-            "raster.label": 0.76,
+            "raster.label": 0.77,
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
@@ -7455,7 +7459,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.97,
+            "label.anchor": 0.976,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -7526,7 +7530,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.97,
+            "label.anchor": 0.976,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -7784,10 +7788,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.91,
+            "raster.edge": 0.92,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.92,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "cys-affinity-purification@matched": {
@@ -7885,7 +7889,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
@@ -7986,7 +7990,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
@@ -8071,7 +8075,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.988,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -8125,7 +8129,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.988,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -8187,8 +8191,8 @@
             "background": 1,
             "raster.canvas": 0.98,
             "raster.edge": 0.94,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.94,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.89,
             "edge.wiggle": 1
         },
@@ -8276,9 +8280,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -8323,7 +8327,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -8455,8 +8459,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -8506,9 +8510,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -8640,7 +8644,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "cys-specimen-edges-lines@matched": {
@@ -8772,9 +8776,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cys-specimen-images-charts-p2": {
             "node.present": 1,
@@ -8799,7 +8804,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-images-charts-p2@matched": {
@@ -8898,7 +8903,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cys-specimen-images-charts-p4@matched": {
             "node.present": 1,
@@ -8961,7 +8966,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-images-charts-p5@matched": {
@@ -9024,7 +9029,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-images-charts-p6@matched": {
@@ -9088,7 +9093,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.99,
-            "raster.nodeBody": 0.87,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-images-charts-p7@matched": {
@@ -9513,9 +9518,9 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.93,
+            "raster.edge": 0.94,
             "raster.label": 0.95,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -9553,7 +9558,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
         },
         "cys-specimen-mappings-bypass-p10@matched": {
@@ -9627,9 +9632,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -9714,7 +9719,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -9806,8 +9811,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -9882,9 +9887,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "cys-specimen-mappings-bypass-p14@matched": {
             "node.present": 1,
@@ -9932,7 +9938,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-mappings-bypass-p15@matched": {
@@ -10052,9 +10058,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -10142,7 +10148,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "cys-specimen-mappings-bypass-p18@matched": {
@@ -10325,7 +10331,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "cys-specimen-mappings-bypass-p20@matched": {
             "node.present": 1,
@@ -10415,7 +10421,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "cys-specimen-mappings-bypass-p4@matched": {
             "node.present": 1,
@@ -10959,7 +10965,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "cys-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
@@ -11087,11 +11093,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.97,
-            "raster.edge": 0.92,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
+            "raster.edge": 0.93,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.87,
             "edge.wiggle": 1
         },
@@ -11215,11 +11221,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.91,
             "raster.canvas": 0.95,
             "raster.edge": 0.84,
-            "raster.label": 0.9,
-            "raster.nodeBody": 0.9,
+            "raster.label": 0.91,
+            "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
@@ -11754,11 +11760,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.93,
-            "raster.label": 0.82,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.94,
+            "raster.label": 0.83,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "cytoscapejs-specimen-groups@matched": {
@@ -12078,7 +12084,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.98,
-            "raster.edge": 0.92,
+            "raster.edge": 0.94,
             "raster.label": 0.93,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
@@ -13155,7 +13161,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.996,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13214,7 +13220,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.996,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16180,7 +16186,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.933,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16200,7 +16206,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.91,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95
         },
@@ -16219,7 +16225,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.933,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16636,7 +16642,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.97,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "dot-specimen-node-shapes-p2@matched": {
             "node.present": 1,
@@ -17335,7 +17341,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.99,
-            "edge.route": 0.93,
+            "edge.route": 0.94,
             "edge.curve": 0.97,
             "edge.color": 0.99,
             "edge.width": 1,
@@ -17373,7 +17379,7 @@
         "dot-synth-nodes": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.981,
+            "node.position": 0.99,
             "node.width": 1,
             "node.height": 0.99,
             "node.sizeToSpacing": 1,
@@ -17426,9 +17432,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.82,
+            "raster.arrowhead": 0.84,
             "raster.canvas": 0.97,
-            "raster.edge": 0.89,
+            "raster.edge": 0.9,
             "raster.label": 0.88,
             "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.87,
@@ -17959,10 +17965,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.86,
+            "raster.edge": 0.91,
             "raster.label": 0.92,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.93,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "gexf-miserables@matched": {
@@ -18063,12 +18069,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.85,
+            "raster.arrowhead": 0.87,
             "raster.canvas": 0.98,
-            "raster.edge": 0.75,
+            "raster.edge": 0.79,
             "raster.label": 0.95,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "gexf-qvge-mine-airing@matched": {
@@ -18329,7 +18335,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.91,
             "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.96,
@@ -18649,7 +18655,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
@@ -18990,7 +18996,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -19087,9 +19093,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.89,
+            "raster.edge": 0.9,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
@@ -19378,7 +19384,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.95,
             "raster.label": 0.95,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -19475,7 +19481,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.9,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -19572,7 +19578,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.92,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -19863,7 +19869,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.9,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -19960,7 +19966,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -20154,7 +20160,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.9,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -20493,7 +20499,7 @@
             "raster.edge": 0.98,
             "raster.label": 0.91,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
         },
         "gexf-specimen-edges-lines-p13@matched": {
@@ -20904,7 +20910,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -20973,7 +20979,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -21042,7 +21048,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.98,
+            "raster.edge": 0.99,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.97,
@@ -21111,7 +21117,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.97,
             "raster.label": 0.91,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.96,
@@ -23190,7 +23196,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "gexf-specimen-node-fills-borders-p2": {
@@ -23303,7 +23309,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "gexf-specimen-node-fills-borders-p4@matched": {
@@ -23349,7 +23355,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.97
         },
         "gexf-specimen-node-fills-borders-p5@matched": {
@@ -23395,7 +23401,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98
         },
         "gexf-specimen-node-fills-borders-p6@matched": {
@@ -23487,7 +23493,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.97
         },
         "gexf-specimen-node-fills-borders-p8@matched": {
@@ -23533,7 +23539,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.89,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.97
         },
         "gexf-specimen-node-fills-borders-p9@matched": {
@@ -23718,7 +23724,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.91,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "gexf-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -24136,12 +24142,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.canvas": 0.99,
             "raster.edge": 0.94,
             "raster.label": 0.93,
-            "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.97,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "gexf-synth-nx-viz@matched": {
@@ -24442,11 +24448,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.92,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -24528,11 +24534,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.92,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.92,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -24878,8 +24884,8 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.98,
-            "raster.label": 0.93,
-            "raster.nodeBody": 0.92,
+            "raster.label": 0.94,
+            "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -25040,7 +25046,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.89,
             "raster.label": 0.9,
-            "raster.nodeBody": 0.88,
+            "raster.nodeBody": 0.89,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
         },
@@ -25188,7 +25194,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.95,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -25548,7 +25554,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.9,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "gml-specimen-labels-p6@matched": {
             "node.present": 1,
@@ -25622,7 +25628,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.98
         },
         "gml-specimen-labels-p7@matched": {
@@ -25698,7 +25704,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.98
         },
         "gml-specimen-labels-p8@matched": {
@@ -25855,7 +25861,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.89,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.97
         },
         "gml-specimen-node-fills-borders-p5@matched": {
             "node.present": 1,
@@ -26011,8 +26017,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.91,
-            "raster.nodeBody": 0.93,
+            "raster.label": 0.92,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.97
         },
         "gml-specimen-node-shapes-p5@matched": {
@@ -26295,7 +26301,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.9,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "gml-specimen-node-sizes-opacity-p5@matched": {
             "node.present": 1,
@@ -26354,7 +26360,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98
         },
         "gml-specimen-node-sizes-opacity-p6@matched": {
@@ -26812,7 +26818,7 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.89,
+            "raster.edge": 0.91,
             "raster.label": 0.89,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96,
@@ -26885,7 +26891,7 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.9,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96,
@@ -30703,9 +30709,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.89,
+            "raster.edge": 0.93,
             "raster.label": 0.93,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -30756,7 +30762,7 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.86,
+            "raster.nodeBody": 0.87,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -31023,7 +31029,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.92,
             "raster.label": 0.87,
             "raster.nodeBody": 0.83,
             "raster.nodeOutline": 0.98,
@@ -31364,7 +31370,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.98
         },
         "vis-network-specimen-labels-p2": {
@@ -31405,7 +31411,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.98
         },
         "vis-network-specimen-labels-p2@matched": {
@@ -31481,7 +31487,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.9,
+            "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.98
         },
         "vis-network-specimen-labels-p3@matched": {
@@ -31612,12 +31618,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.88,
             "raster.label": 0.91,
             "raster.nodeBody": 0.9,
-            "raster.nodeOutline": 0.97,
+            "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
         "vis-network-specimen-mappings-bypass@matched": {
@@ -31714,7 +31720,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.9,
-            "raster.nodeBody": 0.91,
+            "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.97
         },
         "vis-network-specimen-node-fills-borders@matched": {
@@ -31791,7 +31797,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.91,
             "raster.nodeBody": 0.9,
-            "raster.nodeOutline": 0.97
+            "raster.nodeOutline": 0.98
         },
         "vis-network-specimen-node-shapes@matched": {
             "node.present": 1,
@@ -32150,8 +32156,8 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.88,
-            "raster.label": 0.96,
+            "raster.edge": 0.9,
+            "raster.label": 0.97,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -32254,8 +32260,8 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.95,
-            "raster.label": 0.95,
-            "raster.nodeBody": 0.96,
+            "raster.label": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.98,
             "edge.wiggle": 1
         },
@@ -32450,7 +32456,7 @@
             "raster.edge": 0.96,
             "raster.label": 0.95,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "xgmml-networkportal-nsoxphos@matched": {
@@ -32748,9 +32754,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -32795,7 +32801,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -32927,7 +32933,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
+            "raster.edge": 0.93,
             "raster.label": 0.94,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
@@ -32978,9 +32984,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -33244,9 +33250,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "xgmml-specimen-images-charts-p2": {
             "node.present": 1,
@@ -33271,7 +33278,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-images-charts-p2@matched": {
@@ -33370,7 +33377,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-images-charts-p4@matched": {
             "node.present": 1,
@@ -33433,7 +33440,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-images-charts-p5@matched": {
@@ -33496,7 +33503,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-images-charts-p6@matched": {
@@ -33560,7 +33567,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.99,
-            "raster.nodeBody": 0.87,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-images-charts-p7@matched": {
@@ -33701,7 +33708,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.93,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -33983,12 +33990,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.89,
-            "raster.label": 0.92,
+            "raster.edge": 0.93,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "xgmml-specimen-mappings-bypass-p10": {
@@ -34099,9 +34106,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.96,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -34186,7 +34193,7 @@
             "background": 1,
             "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -34278,7 +34285,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
+            "raster.edge": 0.93,
             "raster.label": 0.94,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
@@ -34354,9 +34361,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.96
+            "raster.canvas": 0.99,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
+            "raster.label": 0.96
         },
         "xgmml-specimen-mappings-bypass-p14@matched": {
             "node.present": 1,
@@ -34404,7 +34412,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-mappings-bypass-p15@matched": {
@@ -34524,9 +34532,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.label": 0.91,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.93,
             "edge.wiggle": 1
         },
@@ -34614,7 +34622,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-mappings-bypass-p18@matched": {
@@ -34797,7 +34805,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-mappings-bypass-p20@matched": {
             "node.present": 1,
@@ -34992,8 +35000,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
+            "raster.label": 0.95,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-mappings-bypass-p6@matched": {
@@ -35067,7 +35075,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
+            "raster.canvas": 0.99,
             "raster.label": 0.92,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95
@@ -35455,7 +35463,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "xgmml-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -35559,11 +35567,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.9,
             "raster.canvas": 0.97,
-            "raster.edge": 0.92,
-            "raster.label": 0.92,
-            "raster.nodeBody": 0.94,
+            "raster.edge": 0.93,
+            "raster.label": 0.93,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.87,
             "edge.wiggle": 1
         },
@@ -35687,11 +35695,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.89,
+            "raster.arrowhead": 0.91,
             "raster.canvas": 0.95,
-            "raster.edge": 0.83,
-            "raster.label": 0.89,
-            "raster.nodeBody": 0.9,
+            "raster.edge": 0.84,
+            "raster.label": 0.91,
+            "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
@@ -35924,10 +35932,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
-            "raster.label": 0.86,
+            "raster.edge": 0.97,
+            "raster.label": 0.9,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "gephi-json-specimen-edge-labels@matched": {
@@ -35989,10 +35997,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
-            "raster.label": 0.84,
+            "raster.edge": 0.96,
+            "raster.label": 0.86,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.97,
+            "raster.nodeOutline": 0.99,
             "edge.wiggle": 1
         },
         "gephi-json-specimen-edges-lines@matched": {
@@ -36045,9 +36053,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.86,
+            "raster.label": 0.9,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.97
+            "raster.nodeOutline": 0.99
         },
         "gephi-json-specimen-labels@matched": {
             "node.present": 1,
@@ -36088,9 +36096,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.85,
+            "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "gephi-json-specimen-node-fills-borders@matched": {
             "node.present": 1,
@@ -36130,9 +36138,9 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.87,
+            "raster.label": 0.89,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "gephi-json-specimen-node-sizes-opacity@matched": {
             "node.present": 1,
@@ -36399,7 +36407,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.92,
-            "raster.edge": 0.76,
+            "raster.edge": 0.78,
             "raster.label": 0.57,
             "raster.nodeBody": 0.61,
             "raster.nodeOutline": 0.56,
@@ -36491,11 +36499,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.97,
-            "raster.edge": 0.87,
+            "raster.canvas": 0.98,
+            "raster.edge": 0.89,
             "raster.label": 0.79,
-            "raster.nodeBody": 0.72,
-            "raster.nodeOutline": 0.82,
+            "raster.nodeBody": 0.74,
+            "raster.nodeOutline": 0.84,
             "edge.wiggle": 1
         },
         "gml-need4stacks261@matched": {
@@ -36580,7 +36588,7 @@
             "background": 1,
             "raster.arrowhead": 0.78,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.nodeBody": 0.79,
             "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
@@ -36661,7 +36669,7 @@
             "background": 1,
             "raster.arrowhead": 0.8,
             "raster.canvas": 0.99,
-            "raster.edge": 0.91,
+            "raster.edge": 0.92,
             "raster.nodeBody": 0.79,
             "raster.nodeOutline": 0.89,
             "edge.wiggle": 1
@@ -36876,10 +36884,10 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.89,
+            "raster.edge": 0.9,
             "raster.label": 0.85,
             "raster.nodeBody": 0.77,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
         "gml-specimen-edge-labels-p2@matched": {
@@ -36971,7 +36979,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.83,
+            "raster.edge": 0.84,
             "raster.nodeBody": 0.77,
             "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
@@ -37053,7 +37061,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
-            "raster.label": 0.94,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -37180,7 +37188,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.edge": 0.69,
+            "raster.edge": 0.74,
             "raster.label": 0.86,
             "raster.nodeBody": 0.89,
             "raster.nodeOutline": 0.87,
@@ -37424,8 +37432,8 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.92,
-            "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.97
+            "raster.nodeBody": 0.94,
+            "raster.nodeOutline": 0.98
         },
         "gml-specimen-labels-p4@matched": {
             "node.present": 1,
@@ -37554,7 +37562,7 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.95,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.96
         },
         "gml-specimen-node-fills-borders-p3@matched": {
@@ -37637,7 +37645,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.9,
+            "raster.nodeBody": 0.91,
             "raster.nodeOutline": 0.89
         },
         "gml-specimen-node-shapes-p2@matched": {
@@ -37678,7 +37686,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.88
         },
         "gml-specimen-node-shapes-p3@matched": {
@@ -38085,12 +38093,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.65,
-            "raster.canvas": 0.96,
-            "raster.edge": 0.74,
+            "raster.arrowhead": 0.68,
+            "raster.canvas": 0.97,
+            "raster.edge": 0.81,
             "raster.label": 0.51,
             "raster.nodeBody": 0.51,
-            "raster.nodeOutline": 0.61,
+            "raster.nodeOutline": 0.64,
             "edge.wiggle": 1
         },
         "gml-visualgraph-tree30@matched": {
@@ -38281,7 +38289,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 0.753,
-            "label.anchor": 0.44,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -38312,7 +38320,7 @@
             "raster.arrowhead": 0.92,
             "raster.canvas": 0.99,
             "raster.edge": 0.97,
-            "raster.label": 0.92,
+            "raster.label": 0.93,
             "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -38343,7 +38351,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 0.753,
-            "label.anchor": 0.44,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -38808,7 +38816,7 @@
             "background": 1,
             "raster.arrowhead": 0.86,
             "raster.canvas": 0.97,
-            "raster.edge": 0.88,
+            "raster.edge": 0.89,
             "raster.label": 0.9,
             "raster.nodeBody": 0.92,
             "raster.nodeOutline": 0.91,
@@ -39015,7 +39023,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 0.86,
-            "label.anchor": 0.86,
+            "label.anchor": 0.897,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -39054,7 +39062,7 @@
             "background": 1,
             "raster.arrowhead": 0.89,
             "raster.canvas": 0.98,
-            "raster.edge": 0.9,
+            "raster.edge": 0.91,
             "raster.label": 0.85,
             "raster.nodeBody": 0.88,
             "raster.nodeOutline": 0.92,
@@ -39086,7 +39094,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 0.86,
-            "label.anchor": 0.86,
+            "label.anchor": 0.897,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -39427,12 +39435,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.92,
-            "raster.canvas": 0.95,
+            "raster.arrowhead": 0.94,
+            "raster.canvas": 0.96,
             "raster.edge": 0.82,
             "raster.label": 0.87,
             "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.91,
             "edge.wiggle": 1
         },
         "graphml-yed-voctomix@matched": {
@@ -39513,7 +39521,7 @@
             "label.present": 0,
             "edge.present": 1,
             "edge.extra": 0.995,
-            "edge.route": 0.599,
+            "edge.route": 0.615,
             "edge.curve": 0.995,
             "edge.color": 1,
             "edge.width": 1,
@@ -39548,7 +39556,7 @@
             "raster.edge": 0.97,
             "raster.label": 0.85,
             "raster.nodeBody": 0.86,
-            "raster.nodeOutline": 0.89,
+            "raster.nodeOutline": 0.9,
             "edge.wiggle": 1
         },
         "graphml-yfiles-html-ss13-tree@matched": {
@@ -39569,7 +39577,7 @@
             "label.present": 0,
             "edge.present": 1,
             "edge.extra": 0.995,
-            "edge.route": 0.599,
+            "edge.route": 0.615,
             "edge.curve": 0.995,
             "edge.color": 1,
             "edge.width": 1,
@@ -39639,12 +39647,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.85,
+            "raster.arrowhead": 0.88,
             "raster.canvas": 0.97,
-            "raster.edge": 0.8,
+            "raster.edge": 0.87,
             "raster.label": 0.83,
-            "raster.nodeBody": 0.84,
-            "raster.nodeOutline": 0.91,
+            "raster.nodeBody": 0.85,
+            "raster.nodeOutline": 0.92,
             "edge.wiggle": 1
         },
         "graphml-yfiles-html-stag-flowchart@matched": {
@@ -40673,8 +40681,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.93,
-            "raster.label": 0.85,
+            "raster.edge": 0.94,
+            "raster.label": 0.88,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "edge.wiggle": 1
@@ -40885,9 +40893,9 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.87,
+            "raster.arrowhead": 0.88,
             "raster.canvas": 0.98,
-            "raster.edge": 0.82,
+            "raster.edge": 0.83,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
@@ -40986,12 +40994,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.98,
-            "raster.edge": 0.77,
-            "raster.label": 0.82,
+            "raster.edge": 0.82,
+            "raster.label": 0.83,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "yed-graphml-specimen-edge-labels@matched": {
@@ -41089,11 +41097,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.98,
-            "raster.edge": 0.79,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.edge": 0.8,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "yed-graphml-specimen-edges-lines@matched": {
@@ -41369,7 +41377,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.88,
-            "raster.nodeOutline": 0.9
+            "raster.nodeOutline": 0.91
         },
         "yed-graphml-specimen-images-charts@matched": {
             "node.present": 1,
@@ -41582,7 +41590,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.94,
+            "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.93
         },
         "yed-graphml-specimen-node-fills-borders@matched": {
@@ -42049,7 +42057,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.92,
             "raster.canvas": 0.99,
             "raster.edge": 0.89,
             "raster.nodeBody": 0.97,
@@ -42176,11 +42184,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.98,
             "raster.edge": 0.85,
             "raster.label": 0.84,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
@@ -42223,11 +42231,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.93,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
             "raster.edge": 0.85,
             "raster.label": 0.84,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
@@ -42354,9 +42362,9 @@
             "background": 1,
             "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.83,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95,
+            "raster.edge": 0.84,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
         "yed-live-graphml-specimen-edges-lines-p2": {
@@ -42397,10 +42405,10 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.92,
+            "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.83,
-            "raster.nodeBody": 0.97,
+            "raster.edge": 0.85,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
         },
@@ -42763,7 +42771,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.nodeBody": 0.98,
+            "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.93
         },
         "yed-live-graphml-specimen-groups-p4@matched": {
@@ -42896,7 +42904,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.9,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "yed-live-graphml-specimen-labels-p2": {
             "node.present": 1,
@@ -43143,7 +43151,7 @@
             "background": 1,
             "raster.arrowhead": 0.91,
             "raster.canvas": 0.99,
-            "raster.edge": 0.84,
+            "raster.edge": 0.86,
             "raster.label": 0.92,
             "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.91,
@@ -43512,7 +43520,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.nodeBody": 0.78,
+            "raster.nodeBody": 0.79,
             "raster.nodeOutline": 0.89
         },
         "yed-live-graphml-specimen-node-shapes-p7@matched": {
@@ -53071,20 +53079,6 @@
                 "to": 0.683,
                 "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
                 "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.976,
-                "to": 0.878,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
-            }
-        },
-        "dot-real-crazy@matched": {
-            "label.anchor": {
-                "floor": 0.976,
-                "to": 0.878,
-                "reason": "floors read on the DOT oracles #5254 corrected (Helvetica-Outline and Verdana measured in Liberation Serif) and on a state #5246 itself moved on from: graphty-element sizes these labels with Graphviz's width tables, the oracle's Graphviz with pango's hinted widths, 3 to 7 percent apart per label, and dot's layout flips on that (#5253). No later merge moved them. Kept as accepted drops until the owner decides whether to re-baseline the floors (#5319)",
-                "date": "2026-11-01"
             }
         },
         "dot-real-linux-kernel": {
@@ -53169,12 +53163,6 @@
             "label.present": {
                 "floor": 0.956,
                 "to": 0.949,
-                "reason": "floors recorded before the first master floors file (10-17 and 10-18, on the golden branch) and never measured on master: 0.949 and 0.977 on the golden cut merge (#3246, 77154dddc3), the round 4 merge (#4096) and every merge bisected since (#5332); the six labels and nineteen anchors are the CJK single-character labels already failing there",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.977,
                 "reason": "floors recorded before the first master floors file (10-17 and 10-18, on the golden branch) and never measured on master: 0.949 and 0.977 on the golden cut merge (#3246, 77154dddc3), the round 4 merge (#4096) and every merge bisected since (#5332); the six labels and nineteen anchors are the CJK single-character labels already failing there",
                 "date": "2026-11-01"
             }
@@ -53395,20 +53383,6 @@
                 "date": "2026-11-01"
             }
         },
-        "json-cyjs-tokyo@matched": {
-            "node.extra": {
-                "floor": 0.994,
-                "to": 0.99,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            },
-            "edge.color": {
-                "floor": 1,
-                "to": 0.998,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            }
-        },
         "json-graphology-synth": {
             "stray.extra": {
                 "floor": 0.667,
@@ -53511,24 +53485,10 @@
                 "date": "2026-11-01"
             }
         },
-        "pajek-synth-vertices": {
-            "label.anchor": {
-                "floor": 0.889,
-                "to": 0.875,
-                "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
         "pajek-synth-vertices@matched": {
             "node.present": {
                 "floor": 1,
                 "to": 0.987,
-                "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "label.anchor": {
-                "floor": 0.889,
-                "to": 0.873,
                 "reason": "#5229 (d0ec0581c7) placed Pajek's empty vertices and their labels as Pajek does and changed how the comparator places a node drawn as nothing; its own known failures name what is left: vertex 39 and 63's labels turned by la 60 (drawn centered where Pajek starts them) and empty vertex 22's 1 px label alone (bisected in #5332)",
                 "date": "2026-11-01"
             }

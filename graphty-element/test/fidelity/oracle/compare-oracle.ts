@@ -3235,7 +3235,7 @@ type LabelPlace =
 /** Which side of a box, along one axis, a label sits at: before it, inside at its start, centered, at its end, after it. */
 type Side = "before" | "start" | "center" | "end" | "after";
 
-function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Side {
+function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number, mid = tol): Side {
     if (l1 <= b0 + tol) {
         return "before";
     }
@@ -3245,7 +3245,7 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Si
     const [dl, dr] = [l0 - b0, b1 - l1];
     // a label wider than its box on both sides sits across it, whatever its measured box's half a letter of drift: how
     // far its middle is off the box's is the offset's to judge
-    if (Math.abs(dl - dr) <= 2 * tol || (dl < -tol && dr < -tol)) {
+    if (Math.abs(dl - dr) <= 2 * mid || (dl < -tol && dr < -tol)) {
         return "center";
     }
     return dl < dr ? "start" : "end";
@@ -3260,16 +3260,30 @@ const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
  * @param ob - the oracle's box
  * @param g - graphty's label
  * @param gb - graphty's box
+ * @param pixel - the least the tolerance for a label's middle allows, as for every distance (`ORACLE_TOLERANCES.pixel`):
+ * a label a pixel off its node's middle is centered on screen whatever its font size (graphml-cla-checker-graph's 2 px labels
+ * 0.6 px left of their middles, gexf-hsk-chars' 1 px characters)
+ * @param pixel.oracle - in oracle pixels
+ * @param pixel.graphty - in graphty's
  * @returns whether they are in the same place
  */
-export function sameAnchor(o: PText, ob: PBox, g: PText, gb: PBox): boolean {
+export function sameAnchor(
+    o: PText,
+    ob: PBox,
+    g: PText,
+    gb: PBox,
+    pixel: { oracle: number; graphty: number } = { oracle: 0.5, graphty: 0.5 },
+): boolean {
     const otol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * o.sizePx, 0.5);
     const gtol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * g.sizePx, 0.5);
+    // only the middle takes the pixel: a box's edges stay a quarter of the font size wide, or on a node smaller than
+    // the floor (graphml-stm32-func's 3.6 px boxes) a label half across its edge read as outside it on one side only
+    const [omid, gmid] = [Math.max(otol, pixel.oracle), Math.max(gtol, pixel.graphty)];
     const slack = ORACLE_TOLERANCES.labelAnchorSlackOfSize * g.sizePx;
     const axis = (o0: number, o1: number, b0: number, b1: number, g0: number, g1: number, c0: number, c1: number) => {
-        const want = SIDES.indexOf(sideOn(o0, o1, b0, b1, otol));
-        const lo = SIDES.indexOf(sideOn(g0 - slack, g1 - slack, c0, c1, gtol));
-        const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol));
+        const want = SIDES.indexOf(sideOn(o0, o1, b0, b1, otol, omid));
+        const lo = SIDES.indexOf(sideOn(g0 - slack, g1 - slack, c0, c1, gtol, gmid));
+        const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol, gmid));
         return want >= lo && want <= hi;
     };
     return (
@@ -3542,7 +3556,8 @@ function judgeLabel(
         const near = Math.max(T.labelOffsetOfSize * o.sizePx, place.pixel);
         j.add("label.offset", kind, id, Math.max(0, d / near - 1), oc, gc);
         const [oa, ga] = [labelAnchor(o, place.o), labelAnchor(g, place.g)];
-        j.add("label.anchor", kind, id, sameAnchor(o, place.o, g, place.g) ? 0 : 1, oa, ga);
+        const pixel = { oracle: place.pixel, graphty: place.pixel / scale };
+        j.add("label.anchor", kind, id, sameAnchor(o, place.o, g, place.g, pixel) ? 0 : 1, oa, ga);
     } else if (place?.kind === "line" && place.o.length >= 2 && place.g.length >= 2) {
         // the label's middle, not its anchor point (an SVG text's start or baseline)
         const op = placeOnLine(place.o, [(o.box.x0 + o.box.x1) / 2, (o.box.y0 + o.box.y1) / 2]);

@@ -29,6 +29,8 @@
 // session's graph view by attribute name and draws its seed once per engine, and the snapshot
 // input carries neither.
 
+import { mulberry32 } from "@graphty/algorithms";
+
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
@@ -104,22 +106,6 @@ type DefinedEngine = new (opts: object) => LayoutEngine;
 
 /** A computed layout, keyed as the engine's `positions` record is, in scene units. */
 type Positions = Record<string, number[]>;
-
-/**
- * Seeded random numbers in [0, 1) (mulberry32).
- * @param seed - The seed.
- * @returns The generator.
- */
-function seededRandom(seed: number): () => number {
-    let state = seed >>> 0;
-    return () => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
 
 /**
  * Let the page draw a frame.
@@ -445,7 +431,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                 options: this.#values,
                 dimensions: twoD ? 2 : 3,
                 fixed: (nodeId) => this.#fixed(byId.get(nodeId), twoD),
-                random: seededRandom(plan.random ? (this.#values.seed as number) : FIXED_SEED),
+                random: mulberry32(plan.random ? (this.#values.seed as number) : FIXED_SEED),
                 signal: run.signal,
                 progress: async () => {
                     longest = Math.max(longest, performance.now() - resumed);

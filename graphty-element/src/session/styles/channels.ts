@@ -518,6 +518,10 @@ export interface ChannelValues {
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
+    "edge.fadeStart": number;
+    "edge.fadeEnd": number;
+    "edge.fadeOpacity": number;
+    "edge.blending": boolean;
     "edge.opacity": number;
     "edge.bandColor": ColorValue;
     "edge.bandWidth": number;
@@ -3622,7 +3626,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
             "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
-            "`padding`, `rule` (a line on its left) and a `table` of its own in place of `lines`; a line `align`. " +
+            "`padding`, `rule` (a line on its left), `hidden` (keeps its room, draws nothing) and a `table` of its own in place " +
+            "of `lines`; a line `align`. " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
@@ -3941,6 +3946,65 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         max: 1,
         stylePath: "line.opacity",
         renderable: true,
+    },
+    "edge.fadeEnd": {
+        channel: "edge.fadeEnd",
+        target: "edge",
+        plainName: "Edge Fade End",
+        shortName: "Fade end",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fade.end",
+        renderable: true,
+        caveat:
+            "Fades the line with its length on screen, as cosmos.gl's `linkVisibilityDistanceRange` does: a " +
+            "line this many CSS pixels long or longer draws at `edge.fadeOpacity` times its opacity. Unset, " +
+            "no line fades. A faded line does not animate. The line alone fades, not its arrowheads or bands, " +
+            "and a line drawn as separate pattern elements (a straight dash, dot, star, diamond, box, " +
+            "dash-dot, zigzag or sinewave) or as a gradient does not fade.",
+    },
+    "edge.fadeStart": {
+        channel: "edge.fadeStart",
+        target: "edge",
+        plainName: "Edge Fade Start",
+        default: 0,
+        shortName: "Fade start",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fade.start",
+        renderable: true,
+        caveat: "A line this many CSS pixels long or shorter does not fade. Needs `edge.fadeEnd`.",
+    },
+    "edge.fadeOpacity": {
+        channel: "edge.fadeOpacity",
+        target: "edge",
+        plainName: "Edge Fade Opacity",
+        default: 0.25,
+        shortName: "Fade opacity",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "line.fade.opacity",
+        renderable: true,
+        caveat: "What the longest lines' opacity is multiplied by: 0 fades them out. Needs `edge.fadeEnd`.",
+    },
+    "edge.blending": {
+        channel: "edge.blending",
+        target: "edge",
+        plainName: "Edge Blending",
+        default: true,
+        shortName: "Blending",
+        group: "line",
+        accepts: "boolean",
+        stylePath: "line.blending",
+        renderable: true,
+        caveat:
+            "False draws the line without alpha blending, as cosmos.gl's `linkBlending` does: cheaper on a " +
+            "dense graph, and overlapping lines do not muddy. Every pixel the line covers is its color at " +
+            "full strength, so `edge.opacity` and the fade channels have no effect on it.",
     },
     "edge.bandColor": {
         channel: "edge.bandColor",
@@ -4684,6 +4748,8 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["edge.bandWidth", "edge.bandColor"],
     ["edge.bandOpacity", "edge.bandColor"],
     ["edge.patternCount", "edge.style"],
+    ["edge.fadeStart", "edge.fadeEnd"],
+    ["edge.fadeOpacity", "edge.fadeEnd"],
     ...(["Head", "Tail"] as const).flatMap((end) => [
         ...["Size", "Color", "Opacity"].map((suffix): [string, Channel] => [
             `edge.arrow${end}${suffix}`,

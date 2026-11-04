@@ -871,6 +871,10 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
         ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
+    // a bar drawn as a stroke across the line (yEd's dash and t_shape) is solid, as long as its stroke is wide
+    if (arrow.shape === "tee" && p.stroke !== null && arrow.length < p.stroke.width) {
+        return { ...arrow, length: p.stroke.width, filled: true, color: p.stroke.color };
+    }
     // half an arrow drawn as a thin strip is one open stroked barb (Cytoscape desktop's HALF_TOP), not a filled wedge
     return arrow.shape === "half" && arrow.filled && strokedBarb(p.points) ? { ...arrow, filled: false } : arrow;
 }
@@ -3167,6 +3171,16 @@ export function associate(
         e.label = mergeTexts(picked);
     }
 
+    // ---- labels drawn as glyph outlines: rows of lettering inside a node's box with no label of its own are its label,
+    // inside the smallest node that holds them (yEd's HTML labels, graphml-libcitygml-mapping)
+    for (const n of [...nodeList].sort((a, b) => a.w * a.h - b.w * b.h)) {
+        const rows = free().filter((p) => p.lettering === true && within(p.box, nodeBox(n)));
+        if (n.label === null && rows.length > 0) {
+            rows.forEach(take);
+            n.label = glyphLabel(rows);
+        }
+    }
+
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
     // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
     // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
@@ -3183,6 +3197,7 @@ export function associate(
             take(p);
             twin.fill ??= p.fill;
             twin.stroke ??= p.stroke;
+            twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
@@ -3204,6 +3219,7 @@ export function associate(
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,
+                ...(p.panel === undefined ? {} : { panel: p.panel }),
                 label: null,
                 members: members.map((n) => n.id),
             });
@@ -3336,6 +3352,42 @@ function boxIoU(a: PBox, b: PBox): number {
     const inter = w > 0 && h > 0 ? w * h : 0;
     const union = area(a) + area(b) - inter;
     return union > 0 ? inter / union : 0;
+}
+
+/**
+ * A label from rows of lettering: where it was drawn and in what color, with no words. A row drawn twice (a halo under
+ * its letters) is one line.
+ * @param rows - the rows
+ * @returns the label
+ */
+function glyphLabel(rows: readonly Prim[]): PText {
+    const lines = rows
+        .filter((p, i) => rows.findIndex((q) => sameBox(q.box, p.box)) === i)
+        .map((p) => p.box)
+        .sort((a, b) => a.y0 - b.y0);
+    const box = boxOfPoints(
+        lines.flatMap((b): Pt[] => [
+            [b.x0, b.y0],
+            [b.x1, b.y1],
+        ]),
+    );
+    const fill = rows.find((p) => p.fill !== null)?.fill ?? null;
+    return {
+        content: "",
+        x: cx(box),
+        y: cy(box),
+        box,
+        sizePx: lines.reduce((s, b) => s + bh(b), 0) / lines.length,
+        family: "",
+        weight: 400,
+        style: "normal",
+        anchor: "middle",
+        rotation: 0,
+        color: fill?.color ?? "#000000",
+        opacity: fill?.opacity ?? 1,
+        lines,
+        glyphs: true,
+    };
 }
 
 /**
@@ -3626,12 +3678,17 @@ function endWordsAt(guide: PScene, node: string): Set<string> {
     );
 }
 
+/** The most lines {@link stackedTexts} stacks into one text. */
+const MAX_STACKED_LINES = 16;
+
 /** The lines each stacked run of {@link stackedTexts} is made of. */
 const runParts = new WeakMap<Prim, Prim[]>();
 
 /**
- * The texts, and each run of two to four lines stacked one under another as one text: a program that wraps a long
- * label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is one line.
+ * The texts, and each run of two to {@link MAX_STACKED_LINES} lines stacked one under another as one text: a program
+ * that wraps a long label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is
+ * one line, or lines broken at other words (cx2-ndex-90f78bcd 304542: Cytoscape desktop's six lines, read as their
+ * first two alone while runs stopped at four, put the label above its node where both programs center it).
  * @param texts - the text primitives
  * @returns the texts, then the stacked runs (each the first line's primitive with the run's words and box)
  */
@@ -3659,7 +3716,7 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];
-        for (let next = below(first); next !== undefined && run.length < 4; next = below(next)) {
+        for (let next = below(first); next !== undefined && run.length < MAX_STACKED_LINES; next = below(next)) {
             run = [...run, next];
             const stacked: Prim = {
                 ...first,

@@ -1791,6 +1791,30 @@ function withGroups(box: PBox, groups: readonly PGroup[], ids: ReadonlySet<strin
     return out;
 }
 
+/**
+ * A box grown to hold the lines of the edges a side draws between nodes both sides draw: a line that bends or curves
+ * out past every node and group (Graphviz's splines round a tall cluster, dot-real-depcruise) is part of the drawing
+ * either program frames, so the share of its canvas a drawing fills is measured over it too (issue #5756).
+ * @param box - the box round the nodes and groups
+ * @param edges - the side's edges
+ * @param nodes - the ids of the side's nodes the other side draws too
+ * @returns the grown box
+ */
+function withEdges(box: PBox, edges: readonly PEdge[], nodes: ReadonlySet<string>): PBox {
+    const out = { ...box };
+    for (const e of edges) {
+        if (nodes.has(e.source) && nodes.has(e.target)) {
+            for (const [x, y] of e.points) {
+                out.x0 = Math.min(out.x0, x);
+                out.y0 = Math.min(out.y0, y);
+                out.x1 = Math.max(out.x1, x);
+                out.y1 = Math.max(out.y1, y);
+            }
+        }
+    }
+    return out;
+}
+
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
     Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
@@ -1858,8 +1882,24 @@ export function compareOracle(
     );
     const groupIds = (scene: PScene): Set<string> => new Set(scene.groups.map((g) => g.id));
     const filled = {
-        oracle: fillOf(withGroups(extentO, oracle.groups, groupIds(graphty)), oracle.width, oracle.height),
-        graphty: fillOf(withGroups(extentG, graphty.groups, groupIds(oracle)), graphty.width, graphty.height),
+        oracle: fillOf(
+            withEdges(
+                withGroups(extentO, oracle.groups, groupIds(graphty)),
+                oracle.edges,
+                new Set(pairs.map(([o]) => o.id)),
+            ),
+            oracle.width,
+            oracle.height,
+        ),
+        graphty: fillOf(
+            withEdges(
+                withGroups(extentG, graphty.groups, groupIds(oracle)),
+                graphty.edges,
+                new Set(pairs.map(([, g]) => g.id)),
+            ),
+            graphty.width,
+            graphty.height,
+        ),
     };
     if (fit !== null) {
         const sse = pairs.reduce((sum, [o, g]) => {
@@ -2828,14 +2868,16 @@ export function compareOracle(
             [R(oBox.x0), R(oBox.y0), R(oBox.x1), R(oBox.y1)],
             [R(gBox.x0), R(gBox.y0), R(gBox.x1), R(gBox.y1), R(v)],
         );
-        judgeFill(j, "group.fill", "group", o.id, o.fill, g.fill);
-        if (o.fill !== null && g.fill !== null) {
+        // what shows behind the members; a yFiles group's band round its panel is judged as a stray of its own
+        const oFill = o.panel ?? o.fill;
+        judgeFill(j, "group.fill", "group", o.id, oFill, g.fill);
+        if (oFill !== null && g.fill !== null) {
             j.add(
                 "group.fillOpacity",
                 "group",
                 o.id,
-                opacityMiss(o.fill.opacity, g.fill.opacity),
-                o.fill.opacity,
+                opacityMiss(oFill.opacity, g.fill.opacity),
+                oFill.opacity,
                 g.fill.opacity,
             );
         }
@@ -2891,15 +2933,15 @@ export function compareOracle(
                 );
             }
         }
-        if (o.label !== null || g.label !== null) {
-            j.add(
-                "group.label",
-                "group",
-                o.id,
-                norm(o.label?.content ?? "") === norm(g.label?.content ?? "") ? 0 : 1,
-                o.label?.content ?? null,
-                g.label?.content ?? null,
-            );
+        // a label under one render pixel is no label to a reader, as judgeLabel counts a node's: graphty drops its own
+        // (extract-scene.ts), so an oracle's that small is left out too (dot-real-depcruise's 9 pt cluster names at
+        // about 1 px, issue #5756)
+        const legible = (t: PText | null, scale: number): string | null =>
+            t !== null && (t.sizePx === 0 || t.sizePx / scale >= T.legibleFontPx) ? t.content : null;
+        const oWords = legible(o.label, lengthScale);
+        const gWords = legible(g.label, 1);
+        if (oWords !== null || gWords !== null) {
+            j.add("group.label", "group", o.id, norm(oWords ?? "") === norm(gWords ?? "") ? 0 : 1, oWords, gWords);
             // how it is drawn and where against its box
             judgeLabel(
                 j,
@@ -2973,6 +3015,12 @@ export function compareOracle(
         // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth).
         ...oracle.nodes.flatMap((n) =>
             (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
+        ),
+        // the band of a yFiles group's frame round its panel: drawn, and not the group's fill
+        ...oracle.groups.flatMap((g) =>
+            g.panel === undefined || g.panel.color === g.fill?.color
+                ? []
+                : [{ tag: "tab", box: g.box, fill: g.fill?.color ?? null, stroke: null, text: null }],
         ),
     ]
         .filter((s) => onCanvas(s.box))
@@ -3195,7 +3243,7 @@ type LabelPlace =
 /** Which side of a box, along one axis, a label sits at: before it, inside at its start, centered, at its end, after it. */
 type Side = "before" | "start" | "center" | "end" | "after";
 
-function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Side {
+function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number, mid = tol): Side {
     if (l1 <= b0 + tol) {
         return "before";
     }
@@ -3205,7 +3253,7 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Si
     const [dl, dr] = [l0 - b0, b1 - l1];
     // a label wider than its box on both sides sits across it, whatever its measured box's half a letter of drift: how
     // far its middle is off the box's is the offset's to judge
-    if (Math.abs(dl - dr) <= 2 * tol || (dl < -tol && dr < -tol)) {
+    if (Math.abs(dl - dr) <= 2 * mid || (dl < -tol && dr < -tol)) {
         return "center";
     }
     return dl < dr ? "start" : "end";
@@ -3220,16 +3268,30 @@ const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
  * @param ob - the oracle's box
  * @param g - graphty's label
  * @param gb - graphty's box
+ * @param pixel - the least the tolerance for a label's middle allows, as for every distance (`ORACLE_TOLERANCES.pixel`):
+ * a label a pixel off its node's middle is centered on screen whatever its font size (graphml-cla-checker-graph's 2 px labels
+ * 0.6 px left of their middles, gexf-hsk-chars' 1 px characters)
+ * @param pixel.oracle - in oracle pixels
+ * @param pixel.graphty - in graphty's
  * @returns whether they are in the same place
  */
-export function sameAnchor(o: PText, ob: PBox, g: PText, gb: PBox): boolean {
+export function sameAnchor(
+    o: PText,
+    ob: PBox,
+    g: PText,
+    gb: PBox,
+    pixel: { oracle: number; graphty: number } = { oracle: 0.5, graphty: 0.5 },
+): boolean {
     const otol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * o.sizePx, 0.5);
     const gtol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * g.sizePx, 0.5);
+    // only the middle takes the pixel: a box's edges stay a quarter of the font size wide, or on a node smaller than
+    // the floor (graphml-stm32-func's 3.6 px boxes) a label half across its edge read as outside it on one side only
+    const [omid, gmid] = [Math.max(otol, pixel.oracle), Math.max(gtol, pixel.graphty)];
     const slack = ORACLE_TOLERANCES.labelAnchorSlackOfSize * g.sizePx;
     const axis = (o0: number, o1: number, b0: number, b1: number, g0: number, g1: number, c0: number, c1: number) => {
-        const want = SIDES.indexOf(sideOn(o0, o1, b0, b1, otol));
-        const lo = SIDES.indexOf(sideOn(g0 - slack, g1 - slack, c0, c1, gtol));
-        const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol));
+        const want = SIDES.indexOf(sideOn(o0, o1, b0, b1, otol, omid));
+        const lo = SIDES.indexOf(sideOn(g0 - slack, g1 - slack, c0, c1, gtol, gmid));
+        const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol, gmid));
         return want >= lo && want <= hi;
     };
     return (
@@ -3426,39 +3488,14 @@ function judgeLabel(
     if (o === null || g === null) {
         return;
     }
-    if (words) {
+    if (words && o.glyphs !== true) {
         j.add("label.text", kind, id, norm(o.content) === norm(g.content) ? 0 : 1, o.content, g.content);
     }
     if (!geometry) {
         return;
     }
-    j.add(
-        "label.size",
-        kind,
-        id,
-        ratioMiss((g.sizePx * scale) / Math.max(o.sizePx, 1e-9), T.fontSizeRatio),
-        o.sizePx,
-        g.sizePx * scale,
-    );
-    j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
-    j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
-    // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
-    // one class); any other family by its class
-    const oFace = programFace(o.family);
-    const oFamily = programFontClass(o.family);
-    if (oFace !== null) {
-        const gFace = browserFace(g.family);
-        j.add("label.family", kind, id, oFace === gFace ? 0 : 1, `${o.family} (${oFace})`, `${g.family} (${gFace})`);
-    } else if (oFamily !== null) {
-        const gFamily = browserFontClass(g.family);
-        j.add(
-            "label.family",
-            kind,
-            id,
-            oFamily === gFamily ? 0 : 1,
-            `${o.family} (${oFamily})`,
-            `${g.family} (${gFamily})`,
-        );
+    if (o.glyphs !== true) {
+        judgeLabelFont(j, kind, id, o, g, scale);
     }
     j.add("label.color", kind, id, Math.max(0, deltaE(o.color, g.color) - T.colorDeltaE), o.color, g.color);
     j.add("label.opacity", kind, id, opacityMiss(o.opacity, g.opacity), o.opacity, g.opacity);
@@ -3502,7 +3539,8 @@ function judgeLabel(
         const near = Math.max(T.labelOffsetOfSize * o.sizePx, place.pixel);
         j.add("label.offset", kind, id, Math.max(0, d / near - 1), oc, gc);
         const [oa, ga] = [labelAnchor(o, place.o), labelAnchor(g, place.g)];
-        j.add("label.anchor", kind, id, sameAnchor(o, place.o, g, place.g) ? 0 : 1, oa, ga);
+        const pixel = { oracle: place.pixel, graphty: place.pixel / scale };
+        j.add("label.anchor", kind, id, sameAnchor(o, place.o, g, place.g, pixel) ? 0 : 1, oa, ga);
     } else if (place?.kind === "line" && place.o.length >= 2 && place.g.length >= 2) {
         // the label's middle, not its anchor point (an SVG text's start or baseline)
         const op = placeOnLine(place.o, [(o.box.x0 + o.box.x1) / 2, (o.box.y0 + o.box.y1) / 2]);
@@ -3514,6 +3552,47 @@ function judgeLabel(
         const off = Math.max(T.labelOffLineOfSize * o.sizePx, place.pixel);
         const gd = gp.d * place.scale;
         j.add("label.offLine", kind, id, Math.max(0, Math.abs(op.d - gd) / off - 1), R(op.d), R(gd));
+    }
+}
+
+/**
+ * Judges a label's font: its size, weight, style and family.
+ * @param j - the judge
+ * @param kind - what the label belongs to
+ * @param id - its element
+ * @param o - the oracle's label
+ * @param g - graphty's
+ * @param scale - graphty's pixels to the oracle's
+ */
+function judgeLabelFont(j: Judge, kind: string, id: string, o: PText, g: PText, scale: number): void {
+    const T = ORACLE_TOLERANCES;
+    j.add(
+        "label.size",
+        kind,
+        id,
+        ratioMiss((g.sizePx * scale) / Math.max(o.sizePx, 1e-9), T.fontSizeRatio),
+        o.sizePx,
+        g.sizePx * scale,
+    );
+    j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
+    j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
+    // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
+    // one class); any other family by its class
+    const oFace = programFace(o.family);
+    const oFamily = programFontClass(o.family);
+    if (oFace !== null) {
+        const gFace = browserFace(g.family);
+        j.add("label.family", kind, id, oFace === gFace ? 0 : 1, `${o.family} (${oFace})`, `${g.family} (${gFace})`);
+    } else if (oFamily !== null) {
+        const gFamily = browserFontClass(g.family);
+        j.add(
+            "label.family",
+            kind,
+            id,
+            oFamily === gFamily ? 0 : 1,
+            `${o.family} (${oFamily})`,
+            `${g.family} (${gFamily})`,
+        );
     }
 }
 

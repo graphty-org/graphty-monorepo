@@ -289,6 +289,26 @@ describe("label checks", () => {
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
     });
 
+    it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
+        // graphml-cla-checker-graph: draw.io draws 2 px labels 0.6 px left of their nodes' middles, graphty centers
+        // them; at a quarter of a 2 px font the side's tolerance was half a pixel, and the program's label read as
+        // "inside at the start"
+        const tiny = (x: number): PText => text("A", x, 100, {}, 9, 2);
+        const pair = (o: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: tiny(o) }), scene("graphty", {}, { a: tiny(100) }));
+        assert.deepEqual(pair(99.4)["label.anchor"], undefined);
+        // the defect planted: the program's label 6 px left, at the start of its 40 px node
+        assert.deepEqual(pair(94)["label.anchor"], ["a"]);
+        // graphml-stm32-func: a 4 px label hanging half out of the bottom of a 4 px node, on both sides; with the pixel
+        // on the box's edges too the program's read as after the node and graphty's as inside at its end
+        const low = (y: number): PText => text("A", 100, y, {}, 9, 4);
+        const small = (side: PScene["side"], y: number): PScene =>
+            scene(side, {
+                nodes: GRID.map(([id, x, cy]) => node(id, x, cy, { w: 4, h: 4, label: id === "a" ? low(y) : null })),
+            });
+        assert.deepEqual(failures(small("oracle", 102.8), small("graphty", 102.2))["label.anchor"], undefined);
+    });
+
     it("places other words by their start, middle or end, and the same words by their middle", () => {
         // pajek-iliad 204: the program's words are a character longer and start where graphty's start
         const pair = (o: PText, g: PText): Record<string, string[]> =>
@@ -496,6 +516,17 @@ describe("group checks", () => {
             "group.strokeDash": ["g1"],
         });
         assert.deepEqual(pair(group(BOX), group(BOX, { fill: fill("#eeeeee", 0.3) })), { "group.fillOpacity": ["g1"] });
+    });
+
+    it("judges a yFiles group's fill by its panel, and the band of its frame as drawn by itself", () => {
+        const framed = group(BOX, { fill: fill("#c8c8c8"), panel: fill("#ffffff") });
+        const white = group(BOX, { fill: fill("#ffffff") });
+        // the band is drawn only by the program
+        assert.deepEqual(Object.keys(pair(framed, white)), ["stray.present"]);
+        // painting the whole group in the band's color matches nothing: the panel behind the members is white
+        assert.includeMembers(Object.keys(pair(framed, group(BOX, { fill: fill("#c8c8c8") }))), ["group.fill"]);
+        // a band the color of its panel shows nothing
+        assert.deepEqual(pair(group(BOX, { fill: fill("#ffffff"), panel: fill("#ffffff") }), white), {});
     });
 
     it("fails a group outline drawn see-through where the program's is opaque", () => {
@@ -709,6 +740,40 @@ describe("what the association reads as a label's own and a node's own", () => {
             associate(ab, 600, 400, stacked).scene.nodes.find((n) => n.id === "a")?.label?.content,
             "A\nab",
         );
+    });
+
+    it("reads a label the program wraps into more than four lines at other words as one, and judges its place", () => {
+        // cx2-ndex-90f78bcd 304542: Cytoscape desktop wraps a long label into six lines centered on its node, at other
+        // words than graphty's six; read as its first two lines alone, the label sat above the node
+        const lines = ["Various", "neuronal", "effects", "induced by", "elavl3, sox10,", "and mbp"];
+        const prims = drawing((id) =>
+            id === "a"
+                ? lines.map((w, i) => {
+                      const t = text(w, 100, 75 + 10 * i, {}, 6 * w.length, 8);
+                      return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+                  })
+                : [],
+        );
+        const graphtyLines = ["Various", "neuronal", "effects induced", "by elavl3,", "sox10, and", "mbp"];
+        const at = (dy: number): PScene => {
+            const label = mergeTexts(graphtyLines.map((w, i) => text(w, 100, 75 + dy + 10 * i, {}, 6 * w.length, 8)));
+            return scene(
+                "graphty",
+                {},
+                {
+                    ...Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
+                    a: label ?? undefined,
+                },
+            );
+        };
+        const centered = at(0);
+        const { scene: o } = associate(prims, 600, 400, centered);
+        assert.lengthOf(o.nodes.find((n) => n.id === "a")?.label?.lines ?? [], 6);
+        assert.notInclude(compareOracle("t", o, centered).failures["label.anchor"] ?? [], "a");
+        // the same label drawn wholly above its node is still out of place
+        const above = at(-60);
+        const moved = associate(prims, 600, 400, above).scene;
+        assert.include(compareOracle("t", moved, above).failures["label.anchor"] ?? [], "a");
     });
 
     it("reads a box drawn tight behind a label's words as its background, not a stray", () => {

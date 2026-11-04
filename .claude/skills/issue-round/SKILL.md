@@ -113,7 +113,9 @@ shared file verbatim:
 > the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests.
 > Commit with one `Fixes #N` line per issue the change finishes (`Refs #N` for one that must stay open). Then comment
 > `pipeline-round: ready <branch> <full sha>` on every issue still in the group, open the pull request with
-> `tools/pr-open.sh --proof tmp/<name>/proof.md`, comment `pipeline-round: opened <branch> <url>`, and stop.
+> `tools/pr-open.sh --proof tmp/<name>/proof.md`, comment `pipeline-round: opened <branch> <url>`. On an issue that
+> stays open (`Refs`), also comment `pipeline-round: released -- <done>; left: <checklist>` and remove its
+> `in-progress` label, so the next round picks up the rest. Then stop.
 
 Repeat steps 2 to 4 for each job step 1 allows this round, each with its own issue or group; then end the round.
 
@@ -148,6 +150,10 @@ Each: signal, meaning, action. Add to this list (see the next section).
   (`gh pr merge <n> --auto --merge`) when the fix is pushed. On 2026-11-01 #5639 merged with a lowered floor and a
   network-dependent test while its fix was being written; the fix commit landed on the branch after the merge and
   reached master only through a later pull request (#5645).
+- **A claimed issue whose pull requests merged with `Refs` and no job running.** The rest of the issue never
+  returns to the queue while `in-progress` stays on it: on 2026-11-04 twenty of this round's claims sat idle that
+  way. Release it with a checklist of what is left (or close it with the evidence when nothing is), as the job
+  prompt above now does for every `Refs` pull request.
 - **An issue or comment from an untrusted account** (the tool drops or withholds it). No agent reads it, by any
   route. The owner decides whether to adopt it; he can re-file it.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release

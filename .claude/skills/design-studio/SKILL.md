@@ -89,26 +89,34 @@ Workflow({ name: "design-studio", args: { tier: 3, focus: "<one sentence on what
 Read the preflight's problems, fix them, then launch for real with the same args minus
 `preflightOnly`. Arguments (all optional except where a default would be wrong for the tier):
 
-| Arg                         | Default                                                            | Meaning                                                                                       |
-| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `tier`                      | `2`                                                                | Tier number; names folders, builds and the servherd server                                    |
-| `focus`                     | the criteria file                                                  | One sentence on what the tier studies, given to the criteria reviewers                        |
-| `users`                     | `"returning"`                                                      | `"returning"` or `"first-time"`: how participants are framed                                  |
-| `worktree`, `branch`        | the studio worktree and branch                                     | Where the study runs                                                                          |
-| `studioDir`, `studyDir`     | `<worktree>/design/ui/studio`, `<studioDir>/tier<N>`               | Studio and tier folders                                                                       |
-| `reading`                   | `[<studioDir>/report.md]`                                          | Earlier reports and designs the criteria reviewers read                                       |
-| `safetyRounds`              | `6`                                                                | Hard cap on rounds                                                                            |
-| `startRound`, `skipPrepare` | `1`, `false`                                                       | Continue at a later round in a fresh run (see below)                                          |
-| `maxSessions`               | `56`                                                               | Sessions per round                                                                            |
-| `browserSlots`              | `8`                                                                | Browser-driving agents alive at once; values above 16 are cut to 16                           |
-| `dryRunPasses`              | `2`                                                                | Most fix-and-re-pilot passes before each round; still not session-ready after them, it stops  |
-| `maxDecisions`              | `15`                                                               | Changes the director may decide per round                                                     |
-| `team`, `teamRemove`        | the eleven roles                                                   | Add or rename roles (`{ steward: "Ontology Steward" }`) or drop optional ones                 |
-| `experts`                   | Figma, visual, accessibility walkthroughs and the screenshot audit | `[[role, what]]` pairs, one expert agent each per round                                       |
-| `dryRunExtra`               | none                                                               | Extra instruction for the first dry-run triage (e.g. "also read these discarded transcripts") |
-| `serverName`                | `design-studio-tier<N>`                                            | servherd name of the served build                                                             |
-| `land`                      | `true`                                                             | Whether to make the branch ready to land at the end (see "Landing" below)                     |
-| `landEachPass`              | `true`                                                             | Whether every fix pass is made ready to land, and the studio waits for it to land             |
+| Arg                         | Default                                                            | Meaning                                                                                                                                                                                          |
+| --------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tier`                      | `2`                                                                | Tier number; names folders, builds and the servherd server                                                                                                                                       |
+| `focus`                     | the criteria file                                                  | One sentence on what the tier studies, given to the criteria reviewers                                                                                                                           |
+| `users`                     | `"returning"`                                                      | `"returning"` or `"first-time"`: how participants are framed                                                                                                                                     |
+| `worktree`, `branch`        | the studio worktree and branch                                     | Where the study runs                                                                                                                                                                             |
+| `studioDir`, `studyDir`     | `<worktree>/design/ui/studio`, `<studioDir>/tier<N>`               | Studio and tier folders                                                                                                                                                                          |
+| `reading`                   | `[<studioDir>/report.md]`                                          | Earlier reports and designs the criteria reviewers read                                                                                                                                          |
+| `safetyRounds`              | `6`                                                                | Hard cap on rounds                                                                                                                                                                               |
+| `startRound`, `skipPrepare` | `1`, `false`                                                       | Continue at a later round in a fresh run (see below)                                                                                                                                             |
+| `maxSessions`               | `56`                                                               | Sessions per round                                                                                                                                                                               |
+| `browserSlots`              | `8`                                                                | Browser-driving agents alive at once; values above 16 are cut to 16                                                                                                                              |
+| `dryRunPasses`              | `2`                                                                | Most fix-and-re-pilot passes before each round; still not session-ready after them, it stops                                                                                                     |
+| `maxDecisions`              | `15`                                                               | Changes the director may decide per round                                                                                                                                                        |
+| `team`, `teamRemove`        | the eleven roles                                                   | Add or rename roles (`{ steward: "Ontology Steward" }`) or drop optional ones                                                                                                                    |
+| `experts`                   | Figma, visual, accessibility walkthroughs and the screenshot audit | `[[role, what]]` pairs, one expert agent each per round                                                                                                                                          |
+| `dryRunExtra`               | none                                                               | Extra instruction for the first dry-run triage (e.g. "also read these discarded transcripts")                                                                                                    |
+| `serverName`                | `design-studio-tier<N>`                                            | servherd name of the served build                                                                                                                                                                |
+| `land`                      | `true`                                                             | Whether to make the branch ready to land at the end (see "Landing" below)                                                                                                                        |
+| `landEachPass`              | `true`                                                             | Whether every fix pass is made ready to land, and the studio waits for it to land                                                                                                                |
+| `discuss`                   | `false`                                                            | Designers answer each other between the proposals and the Director's decision (see "The bounded discussion"); needs a run that reaches proposals, so `safetyRounds` above the round it starts at |
+
+**Two studies at once.** Give each its own tier and worktree, and launch both with `browserSlots: 4`: the
+machine has 8 slots in all, while each run assumes it may use its whole `browserSlots`, and a session that
+queues for a browser can go void. Each run takes `<worktree>/tmp/design-studio-run.lock` after the preflight
+and frees it when it ends, so a second run on one worktree is refused. A run that was killed leaves the lock:
+check that it really is dead, delete the folder, and launch again. Neither study sees the other's notes until
+they land; `.gitattributes` merges the notes files with `merge=union`, which keeps both sides' lines.
 
 To **continue** a stopped tier, launch a fresh run with `startRound: <next round>, skipPrepare:
 true` rather than resuming the old one (see the lessons below).
@@ -149,6 +157,21 @@ true` rather than resuming the old one (see the lessons below).
    fixes land, origin/master is merged in, a new build is frozen and served, the dry run runs again,
    every designer updates their notes, and the documents are committed.
 4. **Report** -- the director writes `tier<N>/report.md`; the branch is made ready to land.
+
+## The bounded discussion
+
+With `discuss: true`, each round's designers talk, between the proposals and the Director's decision and
+nowhere else. Participants, graders, skeptics, walks and first drafts stay independent, because agents of one
+model that read each other converge, and their independence is what makes them evidence.
+
+1. A proposal may end with up to two `ASK <role>: <question>` lines; the role that owns the fact answers once.
+2. After the Red Team's attack, each proposer concedes, changes or defends, once.
+3. The Director names up to three conflicts that decide what gets built; each side answers the other once.
+
+A position moves only on named new evidence. `rounds/round-<r>/discussion.md` keeps the proposals and the
+thread. The Director also decides without the discussion, into `decisions-no-discussion.md`, which nothing acts
+on; the report says how the two differ. Make it the default only once those differences have stated reasons
+and later rounds uphold them.
 
 ## Landing
 
@@ -327,6 +350,12 @@ Each rule below exists because breaking it cost a run.
   it live. Adding a retry to tier 1's script re-ran round 1's plan with new session ids, discarding
   sessions that had already finished. Change the script at a natural pause, then launch a fresh
   run from the next round.
+- **One writer per notes file at a time.** Fix groups run in parallel in one worktree, and each engineer was
+  told to update `notes/engineer.md`, so a re-write could lose another's update. Fix and re-walk agents now
+  read their notes and return lessons, and one agent writes them when the fixes finish. That also keeps
+  lessons out of the fix commits: reverting a rejected fix on 2026-11-02 took 33 lines of its notes with it.
+- **Commit by path.** The staging area is shared by every agent in a worktree: a commit named for the Figma
+  designer's notes also took a 324-line rewrite of the Information Architect's (454fa8a845).
 - **Never SendMessage a workflow's agent.** It does not reach the running agent: it resumes a second
   copy from its transcript, and both edit the same worktree. To change a running agent's
   instructions, stop the workflow, edit the script, and launch again.

@@ -450,6 +450,9 @@ export interface ChannelValues {
     "node.gradientColors": string;
     "node.gradientStops": string;
     "node.gradientKind": NodeGradientKindValue;
+    "node.gradientCenterX": number;
+    "node.gradientCenterY": number;
+    "node.gradientRadius": number;
     "node.image": string;
     "node.imageFallback": string;
     "node.imageFit": NodeImageFitValue;
@@ -1000,6 +1003,13 @@ const NODE_GRADIENT_CAVEAT =
     "`node.gradientStops`, fractions from 0 to 1 (unset, or not one per color: evenly spaced). " +
     '`node.gradientKind` "linear" runs it the way `node.gradientDirection` says; "radial" runs it out ' +
     "from the node's middle to its edge. Each distinct gradient is its own source mesh and ramp texture.";
+
+const NODE_GRADIENT_CIRCLE_CAVEAT =
+    'Places a radial gradient fill (`node.gradientKind` "radial"): `node.gradientCenterX` and ' +
+    "`node.gradientCenterY` are where its middle is, fractions of the node's box from its left side " +
+    "and its top (unset: 0.5, the node's middle), and `node.gradientRadius` how far its last stop " +
+    "reaches from there, in halves of the node's side (unset: 1, its edge); past it the last color " +
+    "goes on. A linear gradient or a flat fill ignores them.";
 
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
@@ -3791,6 +3801,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.color.colorType",
         renderable: true,
         caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientCenterX": {
+        channel: "node.gradientCenterX",
+        target: "node",
+        plainName: "Node Gradient Center X",
+        shortName: "Gradient center x",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerX",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientCenterY": {
+        channel: "node.gradientCenterY",
+        target: "node",
+        plainName: "Node Gradient Center Y",
+        shortName: "Gradient center y",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerY",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientRadius": {
+        channel: "node.gradientRadius",
+        target: "node",
+        plainName: "Node Gradient Radius",
+        shortName: "Gradient radius",
+        group: "color",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "texture.color.radius",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
     },
     "node.model": {
         channel: "node.model",

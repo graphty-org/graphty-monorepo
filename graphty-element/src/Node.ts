@@ -56,7 +56,7 @@ import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from ".
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
-import { TextureCache } from "./models/TextureCache";
+import { publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -938,6 +938,9 @@ export class Node implements ModelUser {
             this.size,
             this.mesh,
             this.context.getScene(),
+            (ref, failed) => {
+                publishImageFailure(this.context.getSession?.(), ref, failed);
+            },
         );
         this.decorations = [pieces, image, glyph].filter((m): m is InstancedMesh => m !== null);
         for (const mesh of this.decorations) {

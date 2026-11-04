@@ -28,7 +28,7 @@ import type {
     UnionBranch,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, InputBase, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, InputBase, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -153,9 +153,6 @@ const NO_TEST_KINDS = new Set<RuleTree["kind"]>(["isolated", "self-loop", "repea
 const hasTest = (stepRule: RuleTree): boolean =>
     !NO_TEST_KINDS.has(stepRule.kind) && !(stepRule.kind === "member" && stepRule.of === "largest-component");
 
-/** The share of the drawn nodes the preview cell must hold on open, else the graph is framed. */
-const FRAMED_SHARE = 0.75;
-
 /** A row the arrow keys walk. */
 const ROW = "[data-row]";
 
@@ -259,7 +256,7 @@ export function SelectionEditor({
     };
     const side = sideOf(rule);
     const name = title ?? `Which ${NOUNS[side].many}`;
-    const wsTitle = ownerName === undefined ? name : `${name} -- ${ownerName}`;
+    const wsTitle = ownerName === undefined ? name : `${ownerName} / ${name}`;
     const owner = useId();
     const titleId = useId();
     // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
@@ -296,8 +293,6 @@ export function SelectionEditor({
     const [renaming, setRenaming] = useState<string | null>(null);
     const [colors, setColors] = useState(groupColors[host]);
     const [strip, setStrip] = useState(stripShown[host]);
-    // The group the pointer or focus is on: graphty-element marks its members while picking.
-    const [marked, setMarked] = useState<string | null>(null);
     // A group deleted under the pointer leaves its last sibling's group row until the pointer
     // leaves the outline, so the row under it never changes (spec 3.1).
     const [keepShape, setKeepShape] = useState(false);
@@ -327,10 +322,8 @@ export function SelectionEditor({
         store.set({ announcement: words });
     };
     const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side).value;
-    // A lone unnamed group goes by the selection's title, as the key and the table say it: a group
-    // left alone by a delete never takes another group's letter (spec 3.1).
-    const branchName = (branch: UnionBranch): string =>
-        branch.name ?? (rule.branches.length === 1 ? name : letterOf(rule.branches.indexOf(branch)));
+    // Every group goes by its letter from the start, so a name never changes when Or adds a group.
+    const branchName = (branch: UnionBranch): string => branch.name ?? letterOf(rule.branches.indexOf(branch));
     // A group whose every member an earlier group already draws is drawn "under" those groups: its
     // row's tooltip says so, as the canvas key did (ws-polish 3).
     const underOf = (at: number): string[] => {
@@ -580,9 +573,6 @@ export function SelectionEditor({
         };
     }, [open]);
     const previewing = open && warm && colors && !ending;
-    // The group pointed at, else the group whose row is selected, is marked: its members on top in
-    // its color, the other groups faint (spec 9).
-    const markedNow = marked ?? (multi && rule.branches.some((branch) => branch.id === selected) ? selected : null);
     useEffect(() => {
         if (previewing) {
             view.current = session.styles.showBranches({
@@ -592,13 +582,12 @@ export function SelectionEditor({
                 // removals are lifted, and drawn faint, while it is edited.
                 ...(host === "filter" ? { base: "full" as const } : {}),
                 ...(hold === undefined ? {} : { hold }),
-                ...(markedNow === null ? {} : { mark: markedNow }),
             });
         } else {
             view.current?.end();
             view.current = null;
         }
-    }, [previewing, viewKey, session, hold, markedNow, host]);
+    }, [previewing, viewKey, session, hold, host]);
     useEffect(
         () => () => {
             view.current?.end();
@@ -624,7 +613,7 @@ export function SelectionEditor({
         return () => {
             live = false;
         };
-    }, [open, element, viewKey, previewing, markedNow]);
+    }, [open, element, viewKey, previewing]);
 
     // The table's Group column and Matches only, and the key's title, read the open selection
     // (spec 8). One slot, two hosts: an editor that is open claims it, one at rest keeps it only
@@ -1260,16 +1249,6 @@ export function SelectionEditor({
                                         )}
                                         {...(ws ? dragProps(branch, branchId, false) : {})}
                                         className="sel-row sel-group-row"
-                                        onPointerEnter={() => {
-                                            if (ws) {
-                                                setMarked(branchId);
-                                            }
-                                        }}
-                                        onPointerLeave={() => {
-                                            if (ws) {
-                                                setMarked(null);
-                                            }
-                                        }}
                                         onDoubleClick={() => {
                                             if (ws) {
                                                 setRenaming(branchId);
@@ -1521,6 +1500,13 @@ export function SelectionEditor({
               ]
             : []),
         ...(titleMenu ?? []),
+        {
+            id: "clear",
+            label: "Clear",
+            icon: "delete",
+            group: "remove",
+            onRun: clear,
+        },
     ];
 
     /**
@@ -1529,12 +1515,7 @@ export function SelectionEditor({
      * @returns the cards.
      */
     const cards = (): React.JSX.Element => (
-        <div
-            className="sel-cards"
-            onPointerLeave={() => {
-                setMarked(null);
-            }}
-        >
+        <div className="sel-cards">
             {titleExtra}
             {rule.branches.map((branch, at) => {
                 const branchRead = branchReading(branch.id);
@@ -1542,7 +1523,6 @@ export function SelectionEditor({
                 const letter = branchName(branch);
                 const branchId = branch.id ?? "";
                 const on = branch.on !== false;
-                const count = groupCount(branch, branchRead);
                 const addingHere = adding !== null && adding.branch === branchId;
                 return (
                     <React.Fragment key={branchId}>
@@ -1555,15 +1535,8 @@ export function SelectionEditor({
                             className="sel-card"
                             data-branch={branchId}
                             data-off={on ? undefined : ""}
-                            aria-label={[letter, count === "" ? "" : countWords(branchRead?.count ?? 0, of, side)]
-                                .filter((each) => each !== "")
-                                .join(", ")}
+                            aria-label={`${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`}
                             style={{ "--sel-card-color": color } as React.CSSProperties}
-                            onPointerEnter={() => {
-                                if (multi) {
-                                    setMarked(branchId);
-                                }
-                            }}
                         >
                             <header className="sel-card-head">
                                 <span className="sel-chit" data-filled="" aria-hidden />
@@ -1587,16 +1560,19 @@ export function SelectionEditor({
                                         }}
                                     />
                                 ) : (
-                                    <Text
-                                        size="sm"
-                                        fw={600}
-                                        className="sel-value"
-                                        onDoubleClick={() => {
-                                            setRenaming(branchId);
-                                        }}
-                                    >
-                                        {letter}
-                                    </Text>
+                                    <Tooltip label="Rename" openDelay={500}>
+                                        <UnstyledButton
+                                            className="sel-card-name"
+                                            aria-label={`Rename ${letter}`}
+                                            onClick={() => {
+                                                setRenaming(branchId);
+                                            }}
+                                        >
+                                            <Text size="sm" fw={600} span truncate>
+                                                {letter}
+                                            </Text>
+                                        </UnstyledButton>
+                                    </Tooltip>
                                 )}
                                 {(!on || startEmpties(branch, branchRead)) && (
                                     <Text size="sm" c="dimmed" className="sel-state">
@@ -1604,14 +1580,18 @@ export function SelectionEditor({
                                     </Text>
                                 )}
                                 <span className="sel-spacer" />
-                                {count !== "" && branchRead !== undefined && (
+                                {branchRead?.state === "pending" ? (
+                                    <Text size="sm" c="dimmed" className="sel-state">
+                                        Waits
+                                    </Text>
+                                ) : (
                                     <CountChip
-                                        count={branchRead.count}
+                                        count={branchRead?.count ?? 0}
                                         of={of}
                                         side={side}
                                         host={host}
                                         onClick={() => {
-                                            showMembers(branchRead.members, branchId);
+                                            showMembers(branchRead?.members, branchId);
                                         }}
                                     />
                                 )}
@@ -1718,13 +1698,31 @@ export function SelectionEditor({
                                     ]}
                                 />
                             </header>
-                            {branch.start === "all" && (
-                                <Text size="sm" c="dimmed" className="sel-card-start">
-                                    {`All ${NOUNS[side].many}`}
-                                </Text>
-                            )}
+                            <div className="sel-card-start">
+                                <Tooltip
+                                    label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
+                                    openDelay={500}
+                                >
+                                    <Button
+                                        size="compact-xs"
+                                        variant="default"
+                                        data-start={branch.start}
+                                        onClick={() => {
+                                            onChange(
+                                                editBranch(rule, branchId, {
+                                                    start: branch.start === "all" ? "none" : "all",
+                                                }),
+                                            );
+                                        }}
+                                    >
+                                        {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
+                                    </Button>
+                                </Tooltip>
+                            </div>
                             {branch.steps.map((step, index) => {
                                 const id = step.id ?? "";
+                                const previous = readingOf(branch.steps[index - 1]?.id);
+                                const before = index === 0 ? startCount(branch, of) : previous?.count;
                                 return (
                                     <div
                                         key={id}
@@ -1743,6 +1741,7 @@ export function SelectionEditor({
                                             first={index === 0}
                                             last={index === branch.steps.length - 1}
                                             total={reading.total.count}
+                                            before={previous?.waiting === true ? undefined : before}
                                             hostPicks={hostPicks}
                                             adds={
                                                 <VerbBadge
@@ -1826,34 +1825,33 @@ export function SelectionEditor({
                                         </Button>
                                     </Tooltip>
                                 ))}
-                                <span className="sel-spacer" />
-                                {at === rule.branches.length - 1 && (
-                                    <Tooltip
-                                        label={
-                                            reading.branchesLeft === 0
-                                                ? `No more: ${String(rule.branches.length)} is the most`
-                                                : "New group, in its own color"
-                                        }
-                                        openDelay={500}
-                                    >
-                                        <Button
-                                            size="compact-xs"
-                                            variant="default"
-                                            data-or=""
-                                            aria-disabled={reading.branchesLeft === 0}
-                                            data-disabled={reading.branchesLeft === 0 ? true : undefined}
-                                            leftSection={<GLYPHS.add size={12} aria-hidden />}
-                                            onClick={addOr}
-                                        >
-                                            Or
-                                        </Button>
-                                    </Tooltip>
-                                )}
                             </footer>
                         </section>
                     </React.Fragment>
                 );
             })}
+            <div className="sel-card-new">
+                <Tooltip
+                    label={
+                        reading.branchesLeft === 0
+                            ? `No more: ${String(rule.branches.length)} is the most`
+                            : "Or: a new group, in its own color"
+                    }
+                    openDelay={500}
+                >
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        data-or=""
+                        aria-disabled={reading.branchesLeft === 0}
+                        data-disabled={reading.branchesLeft === 0 ? true : undefined}
+                        leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        onClick={addOr}
+                    >
+                        Group
+                    </Button>
+                </Tooltip>
+            </div>
         </div>
     );
 
@@ -1875,18 +1873,11 @@ export function SelectionEditor({
             return undefined;
         }
         const camera = element?.getCameraState();
-        // What the whole canvas drew before it took the cell's box.
-        const whole = (box: HTMLElement): number =>
-            element?.nodesInRect({ x: 0, y: 0, width: box.clientWidth, height: box.clientHeight }).length ?? 0;
-        const drawn = whole(canvas);
+        // The graph is framed in the preview cell once the element has taken the cell's size.
         const fit = (): void => {
-            if (element === null || element === undefined) {
-                return;
-            }
-            const inside = whole(cell);
-            if (drawn > 0 && inside < drawn * FRAMED_SHARE) {
+            void element?.waitForPainted().then(() => {
                 element.zoomToFit();
-            }
+            });
         };
         // The drawing lies fixed over the modal's preview cell, wherever the canvas column is.
         const placeCanvas = (): void => {
@@ -1984,19 +1975,20 @@ export function SelectionEditor({
 
     // Tab past the workspace's last control goes to its header (Done, Cancel, Clear), never on to
     // the status bar: the workspace is drawn last in the page, so the header is otherwise far back.
+    // The modal keeps Tab inside it both ways: past its last control to its first, and back.
     const tabToHead = (event: React.KeyboardEvent<HTMLElement>): void => {
-        if (event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+        if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) {
             return;
         }
         const root = wsBox.current;
-        const head = root?.querySelector<HTMLElement>(".sel-ws-head");
-        if (root === null || head === null || head === undefined || tabStops(root).at(-1) !== event.target) {
+        if (root === null) {
             return;
         }
-        const first = tabStops(head).at(0);
-        if (first !== undefined) {
+        const stops = tabStops(root);
+        const [from, to] = event.shiftKey ? [stops.at(0), stops.at(-1)] : [stops.at(-1), stops.at(0)];
+        if (from === event.target && to !== undefined) {
             event.preventDefault();
-            first.focus();
+            to.focus();
         }
     };
 
@@ -2007,6 +1999,8 @@ export function SelectionEditor({
                       <div className="sel-ws-scrim" aria-hidden />
                       <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
                           ref={wsBox}
+                          role="dialog"
+                          aria-modal="true"
                           aria-labelledby={titleId}
                           className="sel-ws sel-editor"
                           data-host={host}
@@ -2079,23 +2073,15 @@ export function SelectionEditor({
                                       Fit
                                   </Button>
                               </Tooltip>
-                              <Button
-                                  size="compact-xs"
-                                  variant="subtle"
-                                  aria-label="Table of matches"
-                                  aria-pressed={strip}
-                                  data-pressed={strip ? "" : undefined}
-                                  className="sel-ws-toggle"
-                                  onClick={toggleStrip}
-                              >
-                                  Table
-                              </Button>
-                              <Tooltip label="Start over (Undo brings it back)">
-                                  <Button size="compact-xs" variant="subtle" data-ws-clear="" onClick={clear}>
-                                      Clear
-                                  </Button>
-                              </Tooltip>
-                              {titleItems.length > 0 && <PaneMenu name={wsTitle} items={titleItems} />}
+                              <ToggleIconButton
+                                  label="Table of matches"
+                                  tooltip="Table"
+                                  icon={<GLYPHS.table size={14} aria-hidden />}
+                                  checked={strip}
+                                  onChange={toggleStrip}
+                              />
+                              <PaneMenu name={wsTitle} items={titleItems} />
+                              <span className="sel-ws-gap" />
                               <Button
                                   size="compact-xs"
                                   variant="subtle"
@@ -2586,4 +2572,14 @@ function VerbBadge({
             </Menu.Dropdown>
         </Menu>
     );
+}
+
+/**
+ * How many a group holds before its first step: the base when it starts with all, else none.
+ * @param branch - the group.
+ * @param of - the base's size.
+ * @returns the count.
+ */
+function startCount(branch: UnionBranch, of: number): number {
+    return branch.start === "all" ? of : 0;
 }

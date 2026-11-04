@@ -275,10 +275,49 @@
 .sel-card {
     --sel-card-color: var(--cm-border);
 
-    background: var(--cm-bg);
-    border: 1px solid var(--cm-border);
+    /* The whole card is tinted in its group's color, its border mixed in too (mock I). */
+    background: color-mix(in srgb, var(--sel-card-color) 7%, var(--cm-bg));
+    border: 1px solid color-mix(in srgb, var(--sel-card-color) 45%, var(--cm-bg));
     border-inline-start: 4px solid var(--sel-card-color);
     border-radius: 6px;
+}
+
+/* A card's controls take its color: the brush, the in-range bars and the focused boxes. */
+.sel-card .cm-slider-bar {
+    background-color: var(--sel-card-color);
+}
+
+.sel-card [data-testid="histogram-chart"] [data-highlighted="true"] {
+    background: var(--sel-card-color) !important;
+}
+
+.sel-card .mantine-Input-input:focus,
+.sel-card .mantine-Input-input:focus-within {
+    border-color: var(--sel-card-color);
+}
+
+.sel-card-color {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 3px;
+}
+
+.sel-card-name {
+    min-width: 0;
+    padding-inline: 2px;
+    border-radius: 3px;
+}
+
+.sel-card-name:hover {
+    background: var(--cm-bg-hover, var(--mantine-color-default-hover));
+}
+
+.sel-card-new {
+    padding-top: 4px;
+}
+
+.sel-ws-gap {
+    flex: 0 0 12px;
 }
 
 .sel-card[data-off] {
@@ -290,8 +329,8 @@
     align-items: center;
     gap: 6px;
     height: 36px;
-    padding-inline: 8px 4px;
-    background: color-mix(in srgb, var(--sel-card-color) 12%, var(--cm-bg));
+    padding-inline: 6px 4px;
+    background: color-mix(in srgb, var(--sel-card-color) 14%, var(--cm-bg));
     border-start-end-radius: 5px;
 }
 
@@ -310,7 +349,12 @@
 
 .sel-card-step {
     padding: 8px 12px;
-    border-top: 1px solid var(--cm-border);
+    border-top: 1px solid color-mix(in srgb, var(--sel-card-color) 30%, var(--cm-bg));
+}
+
+/* A step's change in its head: what it added or took out of its group. */
+.sel-step-change {
+    color: var(--mantine-color-dimmed);
 }
 
 .sel-card-step:first-of-type {
@@ -326,7 +370,17 @@
     align-items: center;
     gap: 2px;
     padding: 4px 6px;
-    border-top: 1px solid var(--cm-border);
+    border-top: 1px solid color-mix(in srgb, var(--sel-card-color) 30%, var(--cm-bg));
+}
+
+/* Its buttons are plain subtle buttons; only the verb's glyph carries the verb's color, and the
+   focus ring is drawn for the keyboard only. */
+.sel-card-actions .mantine-Button-root {
+    color: var(--mantine-color-text);
+}
+
+.sel-card-actions .mantine-Button-root:focus:not(:focus-visible) {
+    outline: none;
 }
 
 .sel-verb-badge {
@@ -336,18 +390,44 @@
 }
 
 .sel-verb-badge[data-op="add"],
-.sel-card-actions [data-verb="add"] {
+.sel-card-actions [data-verb="add"] svg {
     color: var(--mantine-color-green-8);
 }
 
 .sel-verb-badge[data-op="keep"],
-.sel-card-actions [data-verb="keep"] {
+.sel-card-actions [data-verb="keep"] svg {
     color: var(--mantine-color-blue-7);
 }
 
 .sel-verb-badge[data-op="except"],
-.sel-card-actions [data-verb="except"] {
+.sel-card-actions [data-verb="except"] svg {
     color: var(--mantine-color-red-7);
+}
+
+/* Picking a reference: the preview takes a crosshair and an accent outline, and says so. */
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface {
+    outline: 2px solid var(--cm-border-selected);
+    outline-offset: -2px;
+}
+
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface,
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface * {
+    cursor: crosshair !important;
+}
+
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
+    content: "Pick a node (Esc)";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--mantine-color-dark-6, #333);
+    color: #fff;
+    font-size: 11px;
+    line-height: 16px;
+    pointer-events: none;
 }
 
 .sel-summary-row .sel-value {
@@ -401,4 +481,15 @@
    its outline says what the key would (ws-polish 3, finding 1). */
 .ws-body:has(> .sel-ws) .ws-canvas-overlays {
     display: none;
+}
+
+/* A step's from and to boxes share the card's width, "to" between them. */
+.sel-card .ws-range-boxes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+}
+
+.sel-card .mantine-Input-input {
+    --input-bd-focus: var(--sel-card-color);
 }

@@ -1799,8 +1799,10 @@ function ValueBrush({
                     // Skewed counts are drawn at log heights and a bin holding anything is never flat,
                     // so a long tail of small bins still shows; the label keeps the count.
                     count: heights[at] ?? 0,
-                    from: bin.from,
-                    to: bin.to,
+                    // A bin of one value (an integer's) spans half a step either side, so it is drawn
+                    // as a bar, never a hairline.
+                    from: bin.to > bin.from ? bin.from : Math.max(low, bin.from - step / 2),
+                    to: bin.to > bin.from ? bin.to : Math.min(high, bin.to + step / 2),
                     highlighted: (moving !== null || !untouched) && bin.to > shown[0] && bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
@@ -2669,7 +2671,7 @@ function NumberCard({
                             }}
                         />
                     )}
-                    <Group gap={4} wrap="nowrap">
+                    <Group gap={4} wrap="nowrap" className={variant === "step" ? "ws-range-boxes" : undefined}>
                         {box("min", `${name} from, number`, low)}
                         <Text size={variant === "step" ? "sm" : "xs"}>to</Text>
                         {box("max", `${name} to, number`, high)}

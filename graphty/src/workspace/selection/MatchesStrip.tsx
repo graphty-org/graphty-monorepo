@@ -51,7 +51,26 @@ export function MatchesStrip({
                       ? null
                       : { name: branch.name ?? single ?? letterOf(at), color: branch.color ?? "" };
               };
-    const columns = columnChoices(session, kind).filter((choice) => choice.hidden !== true);
+    // The keys, the name, and one column per value the groups test: a run's column only when a
+    // step reads that run, so runs outside this selection draw no column.
+    const tested = new Set(
+        (reading?.rule.branches ?? []).flatMap((each) =>
+            each.steps.flatMap((step) => {
+                const read = step.rule as { attribute?: string; reads?: string };
+                const path = read.attribute ?? read.reads;
+                return path === undefined ? [] : [path];
+            }),
+        ),
+    );
+    const runs = new Set((reading?.branches ?? []).flatMap((each) => each.steps.flatMap((step) => step.run ?? [])));
+    const columns = columnChoices(session, kind).filter(
+        (choice) =>
+            choice.hidden !== true &&
+            (choice.group === "key" ||
+                choice.role === "label" ||
+                (choice.attribute !== undefined && tested.has(choice.attribute)) ||
+                (choice.run !== undefined && runs.has(choice.run))),
+    );
     return (
         <section className="sel-ws-strip" aria-label="Matches">
             <SearchInput
@@ -74,6 +93,7 @@ export function MatchesStrip({
                         onSortChange={setSort}
                         height={height}
                         matching={typed === "" ? undefined : typed}
+                        localSelection
                     />
                 )}
             </div>

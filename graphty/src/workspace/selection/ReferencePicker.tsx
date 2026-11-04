@@ -4,7 +4,7 @@
  * (`references.ts`).
  */
 
-import { FieldCaret, LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, focusWithRing, LISTBOX_CLASS_NAMES, TargetTooltip } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, StepReference } from "@graphty/graphty-element/session";
 import { ActionIcon, Combobox, Group, Input, InputBase, ScrollArea, Text, useCombobox } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
@@ -88,8 +88,17 @@ export function ReferencePicker({
     });
     // Pick on canvas: armed, the next node clicked on the canvas is the reference; Escape disarms.
     const [arming, setArming] = useState(false);
-    const take = useRef(onReference);
-    take.current = onReference;
+    const field = useRef<HTMLButtonElement>(null);
+    // A pick on the canvas or a row leaves focus on the reference field, inside the editor.
+    const take = useRef<(next: StepReference) => void>(() => undefined);
+    take.current = (next) => {
+        onReference(next);
+        requestAnimationFrame(() => {
+            if (field.current !== null) {
+                focusWithRing(field.current);
+            }
+        });
+    };
     useEffect(() => {
         if (!arming) {
             return undefined;
@@ -143,6 +152,7 @@ export function ReferencePicker({
             <Group gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                 <Combobox.Target withAriaAttributes={false}>
                     <InputBase
+                        ref={field}
                         component="button"
                         size="sm"
                         variant="outlined"
@@ -164,7 +174,7 @@ export function ReferencePicker({
                         </span>
                     </InputBase>
                 </Combobox.Target>
-                <TargetTooltip label="Pick on canvas">
+                <TargetTooltip label={arming ? "Pick a node (Esc)" : "Pick on canvas"}>
                     <ActionIcon
                         variant={arming ? "light" : "subtle"}
                         size="sm"

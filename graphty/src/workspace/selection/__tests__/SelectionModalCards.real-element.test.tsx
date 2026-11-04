@@ -143,7 +143,7 @@ describe("the selection modal with colored group cards", () => {
             );
         });
 
-        await userEvent.click(within(modal).getByRole("button", { name: /^Or$/ }));
+        await userEvent.click(within(modal).getByRole("button", { name: /^Group$/ }));
         await pickValue("Degree");
         await waitFor(() => {
             assert.lengthOf(cards(), 2, "a second card");

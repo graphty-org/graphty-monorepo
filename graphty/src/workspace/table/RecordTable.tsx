@@ -83,6 +83,8 @@ interface RecordTableProps {
     groupOf?: (id: NodeId | EdgeId) => { name: string; color: string } | null;
     /** Only the records that match this text, as graphty-element's `matching` finds them. */
     matching?: string;
+    /** A click marks the row in this table only and leaves the graph's selection alone (an editor's preview). */
+    localSelection?: boolean;
 }
 
 /**
@@ -173,6 +175,7 @@ function groupCell(group: { name: string; color: string } | null, filled: boolea
  * @param props.header - A column's header parts
  * @param props.groupOf - The group a record is in, while a selection is edited
  * @param props.matching - Only the records that match this text
+ * @param props.localSelection - A click marks the row here only, never the graph's selection
  * @returns The table
  */
 export function RecordTable({
@@ -189,8 +192,10 @@ export function RecordTable({
     header,
     groupOf,
     matching,
+    localSelection = false,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
+    const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
     const numberFormats = useNumberFormats();
     // The Group column's chits are filled only while the canvas draws the group colors.
     const filled = useShowingBranches(session);
@@ -279,7 +284,8 @@ export function RecordTable({
     }
 
     // One selection, the element's: the rows draw it and a click on a row changes it.
-    const selected = kind === "node" ? session.selection.nodes : session.selection.edges;
+    const graphSelection = kind === "node" ? session.selection.nodes : session.selection.edges;
+    const selected = localSelection ? marked : graphSelection;
     const known = new Map<string, NodeId>();
     for (const id of selected) {
         known.set(String(id), id);
@@ -327,6 +333,10 @@ export function RecordTable({
                 const clicked = picked.find((id) => !selected.some((each) => String(each) === String(id)));
                 if (document.body.dataset.pickingNode !== undefined && kind === "node" && clicked !== undefined) {
                     globalThis.dispatchEvent(new CustomEvent(PICK_NODE_EVENT, { detail: clicked }));
+                    return;
+                }
+                if (localSelection) {
+                    setMarked(picked);
                     return;
                 }
                 // The ids come from the page just read, so the element has no reason to refuse them;

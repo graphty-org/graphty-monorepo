@@ -526,6 +526,8 @@ interface StepPaneProps extends StepActions {
     readonly last: boolean;
     /** The selection's result count: "N so far" is said only where it differs. */
     readonly total?: number;
+    /** How many the group held before this step: its head draws the change ("+24", "-20"). */
+    readonly before?: number;
     readonly hostPicks: readonly PickSection[];
     /** The Done button, drawn last in the first row. */
     readonly done?: React.ReactNode;
@@ -550,6 +552,7 @@ interface StepPaneProps extends StepActions {
  * @param props.first - it is its group's first step
  * @param props.last - it is its group's last step
  * @param props.total - the selection's result count
+ * @param props.before - how many the group held before this step
  * @param props.hostPicks - the host's own value picker entries
  * @param props.done - the Done button
  * @param props.adds - the add actions
@@ -573,6 +576,7 @@ export function StepPane({
     first,
     last,
     total,
+    before,
     hostPicks,
     done,
     adds,
@@ -710,12 +714,19 @@ export function StepPane({
     // Whether the Except switch (or the word Add) is drawn: as ExceptSwitch decides.
     const switchShown =
         verbSwitch && (step.op === "add" ? verbs.length >= 2 : step.op === "except" || verbs.includes("except"));
+    // With the group's count before it, the step's head draws what it changed; else what it holds.
+    const soFarWords = count === undefined ? "" : `${formatNumber(count)} of ${formatNumber(of)} so far`;
+    const change = count === undefined || before === undefined ? undefined : count - before;
     const soFar =
-        count !== undefined && count !== total ? (
-            <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
-                {`${formatNumber(count)} so far`}
-            </Text>
-        ) : null;
+        count === undefined ? null : (
+            <Tooltip label={soFarWords} openDelay={300}>
+                <Text size="sm" className="sel-count sel-step-change" data-change={change ?? ""} aria-hidden>
+                    {change === undefined ? formatNumber(count) : changeWords(change)}
+                </Text>
+            </Tooltip>
+        );
+    // Under a title pane with no head, "so far" is said only where it differs from the result.
+    const soFarBelow = !head && count !== total ? soFar : null;
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
@@ -751,6 +762,7 @@ export function StepPane({
                     <Group gap={4} wrap="nowrap" className="sel-pane-head">
                         {adds}
                         <span className="sel-spacer" />
+                        {soFar}
                         <StepMenu
                             name={value}
                             verb={step.op}
@@ -771,15 +783,17 @@ export function StepPane({
                 )}
                 {switchShown || stateShown !== "" ? (
                     <Group gap={6} wrap="nowrap">
-                        <ExceptSwitch
-                            verb={step.op}
-                            verbs={verbs}
-                            onVerb={(op) => {
-                                onStep({ op });
-                            }}
-                        />
+                        {switchShown && (
+                            <ExceptSwitch
+                                verb={step.op}
+                                verbs={verbs}
+                                onVerb={(op) => {
+                                    onStep({ op });
+                                }}
+                            />
+                        )}
                         <span className="sel-spacer" />
-                        {soFar}
+                        {soFarBelow}
                         {stateShown !== "" && (
                             <Text size="sm" c="dimmed" className="sel-state">
                                 {stateShown}
@@ -804,7 +818,7 @@ export function StepPane({
                             }}
                         />
                     </div>
-                    {!(switchShown || stateShown !== "") && soFar}
+                    {!(switchShown || stateShown !== "") && soFarBelow}
                 </Group>
                 <div ref={testBox} className="sel-test-box">
                     {isRelative(step.rule) ? (
@@ -1088,4 +1102,16 @@ function StepMenu({
             </Menu.Dropdown>
         </Menu>
     );
+}
+
+/**
+ * A step's change to its group, signed: "+24", "-20", "0".
+ * @param change - the change.
+ * @returns the words.
+ */
+function changeWords(change: number): string {
+    if (change === 0) {
+        return "0";
+    }
+    return `${change > 0 ? "+" : "-"}${formatNumber(Math.abs(change))}`;
 }

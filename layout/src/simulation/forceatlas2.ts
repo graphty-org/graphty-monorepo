@@ -1232,11 +1232,12 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         pos[3 * i] = px;
         pos[3 * i + 1] = py;
         pos[3 * i + 2] = pz;
-        if (this.swingMode === 0) {
-            // a fixed node's is 0, as after load: its first free tick then has the full swing damping (7.11, #3255)
-            oldForce[3 * i] = fixed ? 0 : Fx;
-            oldForce[3 * i + 1] = fixed ? 0 : Fy;
-            oldForce[3 * i + 2] = fixed ? 0 : Fz;
+        if (fixed) {
+            oldForce.fill(0, 3 * i, 3 * i + 3); // as after load: its first free tick has the full swing damping (7.11, #3255)
+        } else if (this.swingMode === 0) {
+            oldForce[3 * i] = Fx;
+            oldForce[3 * i + 1] = Fy;
+            oldForce[3 * i + 2] = Fz;
         }
         const qx = px - cx;
         const qy = py - cy;

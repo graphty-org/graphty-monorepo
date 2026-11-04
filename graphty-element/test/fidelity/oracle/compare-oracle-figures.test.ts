@@ -2,7 +2,8 @@
  * The oracle comparison at a figure with a dent (Pajek's man, woman and cross, a star): a line is cut, and a node judged
  * hidden, at the figure's own outline on both sides, not at the ellipse its box holds nor at its box. The comparator
  * before this cut every line at that ellipse and hid a node in an empty corner of the figure's box (#5761:
- * pajek-synth-vertices `node.present` 22 and 31). A line that stops short of the figure is still judged short.
+ * pajek-synth-vertices `node.present` 22 and 31). A line that stops short of the figure is still judged short. A program
+ * that stops its line at the figure itself cut it already, so only a line run under the figure is cut at its outline.
  */
 import { assert, describe, it } from "vitest";
 
@@ -122,6 +123,56 @@ describe("a figure's own outline", () => {
             ],
         );
         assert.deepEqual(routeFails(oracle, short), ["p->q"]);
+    });
+
+    it("does not cut again a line the program stops at the figure itself", () => {
+        // draw.io stops at a star's box, where graphty runs on to its notch: 53 px and 35 px out along the plus's diagonal
+        const q = node("q", 450, 350);
+        const stopped = edge([
+            [337.5, 237.5],
+            [450, 350],
+        ]);
+        const reaches = edge([
+            [325, 225],
+            [450, 350],
+        ]);
+        assert.deepEqual(
+            routeFails(scene("oracle", [plus(), q], [stopped]), scene("graphty", [plus(), q], [reaches])),
+            [],
+        );
+    });
+
+    describe("whose box is not centered where its lines meet", () => {
+        // the oracle's plus is read from its box, 4 px above where its line meets it, as Pajek's woman is; graphty's
+        // sits where its line meets it
+        const small = { w: 40, h: 40 };
+        const q = plus({ id: "q", cx: 400, cy: 200, ...small });
+        const oracle = scene(
+            "oracle",
+            [plus({ cy: 196, ...small }), q],
+            [
+                edge([
+                    [300, 200],
+                    [400, 200],
+                ]),
+            ],
+        );
+
+        it("judges the line's end against where the oracle's line meets the figure, not its box's center", () => {
+            const line = edge([
+                [300, 200],
+                [400, 200],
+            ]);
+            assert.deepEqual(routeFails(oracle, scene("graphty", [plus(small), q], [line])), []);
+        });
+
+        it("still fails a line that misses the figure's middle", () => {
+            const line = edge([
+                [300, 208],
+                [400, 200],
+            ]);
+            assert.deepEqual(routeFails(oracle, scene("graphty", [plus(small), q], [line])), ["p->q"]);
+        });
     });
 
     it("hides a node under the figure, not one in an empty corner of its box", () => {

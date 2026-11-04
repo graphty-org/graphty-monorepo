@@ -775,6 +775,15 @@ const ARROW_ALONG_SHARE = 0.05;
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
 
+/** How near a figure's box center a line must end, as a share of its smaller side, to have run to its middle. */
+const FIGURE_MIDDLE = 1 / 8;
+
+/** Whether a line's end runs under a figure to its middle (Pajek's center to center), not stopped at its outline. */
+const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
+    n.figure !== undefined &&
+    end !== undefined &&
+    Math.hypot(end[0] - n.cx, end[1] - n.cy) < FIGURE_MIDDLE * Math.min(n.w, n.h);
+
 /**
  * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
  * rounding on a head a few pixels long moves by more than the ratio allows.
@@ -2234,15 +2243,20 @@ export function compareOracle(
         (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
     /**
      * An end's outline on each side, or none on either where one side draws none there. A figure (`PNode.figure`) cuts
-     * where both sides draw one; where only one side does (Pajek draws its cross as an ellipse, graphty as a plus, a
-     * shape judged apart as node.shape) both are cut at the ellipse their boxes hold, so the route is not judged on
-     * its node's shape.
+     * a line both sides draw it on and the oracle runs under it to its middle. Elsewhere both are cut at the ellipse
+     * their boxes hold: where only one side draws a figure (Pajek draws its cross as an ellipse, graphty as a plus, a
+     * shape judged apart as node.shape) the route is not judged on its node's shape, and a line the program stops at
+     * the figure itself is not cut again (draw.io stops at a star's box, where graphty reaches its notch).
      */
-    const cutAt = (on: PNode | undefined, at: PNode | undefined): [PNode | undefined, PNode | undefined] => {
+    const cutAt = (
+        on: PNode | undefined,
+        at: PNode | undefined,
+        end: Pt | undefined,
+    ): [PNode | undefined, PNode | undefined] => {
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
-        return (on.figure === undefined) === (at.figure === undefined)
+        return at.figure !== undefined && runsToMiddle(on, end)
             ? [on, at]
             : [
                   { ...on, figure: undefined },
@@ -2257,8 +2271,8 @@ export function compareOracle(
     /** Each route's part between its own nodes, or null where none of it shows (`shownPart`). */
     const shownParts = (o: PEdge, g: PEdge): [Pt[] | null, Pt[] | null] => {
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs));
-        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt));
+        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs), o.points[0]);
+        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt), o.points.at(-1));
         return [shownPart(o.points, os, ot), shownPart(routeOf(o, g), gsAt, gtAt)];
     };
     /** How far graphty's route's shape is from the oracle's (`routeShape`), and the least gap that fails. */
@@ -2270,9 +2284,16 @@ export function compareOracle(
             return { gap: 0, near: T.edgePathOfLength };
         }
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        const shiftOf = (gId: string, oId: string): Pt => {
+        // a figure's box is not centered where its lines meet (pajek-synth-vertices woman 25: 1.2 px above them; turned
+        // house 23: 3.5 px beside them, on both sides): a line run to its middle says where the figure sits
+        const sitsAt = (n: PNode, end: Pt | undefined): Pt => (runsToMiddle(n, end) ? end : [n.cx, n.cy]);
+        const shiftOf = (gId: string, oId: string, gEnd: Pt | undefined, oEnd: Pt | undefined): Pt => {
             const [at, on] = [gOuter(gId), oById.get(oId)];
-            return at === undefined || on === undefined ? [0, 0] : [at.cx - on.cx, at.cy - on.cy];
+            if (at === undefined || on === undefined) {
+                return [0, 0];
+            }
+            const [[gx, gy], [ox, oy]] = [sitsAt(at, gEnd), sitsAt(on, oEnd)];
+            return [gx - ox, gy - oy];
         };
         const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
@@ -2283,8 +2304,11 @@ export function compareOracle(
         // where it sits on its node) is judged by its whole route (pajek-synth-vertices 41 -> 42: both lines run
         // center to center within 0.3 px between figures 55 px apart, and the sliver read 9.65 of its chord). A route
         // one side ends elsewhere (an arc to its arrowhead's back, pajek-synth-lines) keeps its sliver.
-        const shifts = [shiftOf(gs, o.source), shiftOf(gt, o.target)];
         const whole = routeOf(o, g);
+        const shifts = [
+            shiftOf(gs, o.source, whole[0], o.points[0]),
+            shiftOf(gt, o.target, whole.at(-1), o.points.at(-1)),
+        ];
         // as drawn, or where each sits on its node: a figure's box is not centered where its lines meet (pajek-synth-
         // vertices 17, 1.6 px above them)
         const meet = (p: Pt | undefined, q: Pt | undefined, [sx, sy]: Pt): boolean =>

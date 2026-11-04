@@ -385,27 +385,22 @@ function HeroPlaceholder({
 }: Readonly<{ state: "loading" | "drawn" | "failed"; onRetry: () => void }>): React.JSX.Element {
     if (state === "failed") {
         return (
-            <div className="ws-land-loading" role="status">
+            <output className="ws-land-loading">
                 <span className="ws-land-loading-text">The graph could not load.</span>
                 <Button variant="default" size="xs" onClick={onRetry}>
                     Retry
                 </Button>
-            </div>
+            </output>
         );
     }
     return (
-        <div
-            className="ws-land-loading"
-            role="status"
-            aria-label="Loading graph"
-            data-done={state === "drawn" ? "" : undefined}
-        >
+        <output className="ws-land-loading" aria-label="Loading graph" data-done={state === "drawn" ? "" : undefined}>
             <span className="ws-land-loading-dots" aria-hidden>
                 <span />
                 <span />
                 <span />
             </span>
-        </div>
+        </output>
     );
 }
 

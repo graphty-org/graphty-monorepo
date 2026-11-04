@@ -85,7 +85,7 @@ describe("the start page's graph, starting still", () => {
         );
         try {
             const placeholder = await waitFor(() => {
-                const found = document.querySelector<HTMLElement>(".ws-land-live [role=status]");
+                const found = document.querySelector<HTMLElement>(".ws-land-live output.ws-land-loading");
                 assert.isNotNull(found);
                 return found;
             });

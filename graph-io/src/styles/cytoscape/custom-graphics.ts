@@ -6,13 +6,11 @@
  *
  * As Cytoscape 3.10.5 draws them (measured from the pictures its SVG export embeds for specimen-images-charts): a
  * linear gradient runs across the whole node, `cy_angle` degrees counter-clockwise from left to right; a radial one
- * runs out from the node's middle to `cy_radius` times half the node's diagonal, and `cy_center` (fractions of the
- * node's box) moves its focus.
+ * runs out from `cy_center` (fractions of the node's box, the middle by default) to that center's distance from the
+ * node's middle plus `cy_radius` times half the node's diagonal.
  */
 
 import { num6 } from "../canon/number.js";
-import { STYLE_ISSUE } from "../codes.js";
-import type { StyleNotes } from "../notes.js";
 import type { StyleColumn, StyleValue } from "../types.js";
 
 /** The custom graphics slots, in the order Cytoscape stacks them. */
@@ -111,49 +109,6 @@ function rampOf(options: GradientOptions): Ramp | null {
 }
 
 /**
- * The color a ramp has at a place, mixed between its stops.
- * @param ramp - the ramp
- * @param at - the place
- * @returns `#rrggbb`
- */
-function colorAt(ramp: Ramp, at: number): string {
-    const k = ramp.stops.findIndex((s) => s >= at);
-    if (k <= 0) {
-        return ramp.colors[k < 0 ? ramp.colors.length - 1 : 0];
-    }
-    const [s0, s1] = [ramp.stops[k - 1], ramp.stops[k]];
-    const t = s1 === s0 ? 1 : (at - s0) / (s1 - s0);
-    const [a, b] = [ramp.colors[k - 1], ramp.colors[k]];
-    const channel = (i: number): string =>
-        Math.round(Number.parseInt(a.slice(i, i + 2), 16) * (1 - t) + Number.parseInt(b.slice(i, i + 2), 16) * t)
-            .toString(16)
-            .padStart(2, "0");
-    return `#${channel(1)}${channel(3)}${channel(5)}`;
-}
-
-/**
- * A radial ramp of Cytoscape's, which reaches `radius` times half the node's diagonal, on graphty's radial fill, which
- * reaches half the node's side: each stop moved by `radius` times the square root of 2 (exact for a square node), and
- * a ramp reaching past the side cut at the side, its color there mixed.
- * @param ramp - the ramp as written
- * @param radius - `cy_radius`
- * @returns the ramp graphty draws
- */
-function radialRamp(ramp: Ramp, radius: number): Ramp {
-    const scale = radius * Math.SQRT2;
-    const moved: Ramp = { colors: ramp.colors, stops: ramp.stops.map((s) => s * scale) };
-    const inside = moved.stops.findIndex((s) => s > 1);
-    if (inside < 0) {
-        return moved;
-    }
-    const edge = colorAt(moved, 1);
-    return {
-        colors: [...moved.colors.slice(0, inside), edge],
-        stops: [...moved.stops.slice(0, inside), 1],
-    };
-}
-
-/**
  * A number as written, or a default where it is none.
  * @param v - the value
  * @param fallback - the default
@@ -165,26 +120,36 @@ const numberOr = (v: unknown, fallback: number): number => {
 };
 
 /**
- * Whether a radial gradient's focus is off the node's middle.
- * @param center - `cy_center`, fractions of the node's box
- * @returns whether it is
+ * Where a radial gradient's middle is, fractions of the node's box.
+ * @param center - `cy_center`
+ * @returns the middle
  */
-function offMiddle(center: unknown): boolean {
-    if (typeof center !== "object" || center === null) {
-        return false;
-    }
-    const c = center as { x?: unknown; y?: unknown };
-    return numberOr(c.x, 0.5) !== 0.5 || numberOr(c.y, 0.5) !== 0.5;
+function centerOf(center: unknown): { x: number; y: number } {
+    const c = typeof center === "object" && center !== null ? (center as { x?: unknown; y?: unknown }) : {};
+    return { x: numberOr(c.x, 0.5), y: numberOr(c.y, 0.5) };
+}
+
+/**
+ * How far a radial gradient of Cytoscape's reaches, in halves of the node's side: Cytoscape 3.10.5
+ * (`RadialGradientLayer.getPaint`) runs it from its center to the center's distance from the node's middle plus
+ * `cy_radius` times half the node's diagonal (taken on a square node).
+ * @param center - its middle, fractions of the node's box
+ * @param center.x - across
+ * @param center.y - down
+ * @param radius - `cy_radius`
+ * @returns the reach
+ */
+function radialReach(center: { x: number; y: number }, radius: number): number {
+    return 2 * Math.hypot(center.x - 0.5, center.y - 0.5) + radius * Math.SQRT2;
 }
 
 /**
  * One node's fill gradient properties from its gradient custom graphic.
  * @param gradient - the gradient
- * @param written - its ramp as written
- * @returns the properties and whether its focus is off the node's middle
+ * @param ramp - its ramp as written
+ * @returns the properties
  */
-function gradientProperties(gradient: Gradient, written: Ramp): { values: Record<string, StyleValue>; off: boolean } {
-    const ramp = gradient.radial ? radialRamp(written, numberOr(gradient.options.cy_radius, 0.5)) : written;
+function gradientProperties(gradient: Gradient, ramp: Ramp): Record<string, StyleValue> {
     const values: Record<string, StyleValue> = {
         fill: ramp.colors[0],
         fillGradient: ramp.colors.at(-1) ?? ramp.colors[0],
@@ -194,12 +159,18 @@ function gradientProperties(gradient: Gradient, written: Ramp): { values: Record
         values.fillGradientColors = ramp.colors.join(" ");
     }
     if (gradient.radial) {
+        const center = centerOf(gradient.options.cy_center);
         values.fillGradientKind = "radial";
+        values.fillGradientRadius = num6(radialReach(center, numberOr(gradient.options.cy_radius, 0.5)));
+        if (center.x !== 0.5 || center.y !== 0.5) {
+            values.fillGradientCenterX = num6(center.x);
+            values.fillGradientCenterY = num6(center.y);
+        }
     } else {
         // counter-clockwise from left to right; the neutral angle turns clockwise on the screen
         values.fillGradientAngle = num6(((-numberOr(gradient.options.cy_angle, 0) % 360) + 360) % 360);
     }
-    return { values, off: gradient.radial && offMiddle(gradient.options.cy_center) };
+    return values;
 }
 
 /**
@@ -208,13 +179,11 @@ function gradientProperties(gradient: Gradient, written: Ramp): { values: Record
  * @param out - the node values per property, changed in place
  * @param n - the node count
  * @param graphicOf - a node's resolved value of a custom graphics slot
- * @param notes - where a gradient drawn differently is noted
  */
 export function readCytoscapeGradientsAndImages(
     out: Partial<Record<string, StyleColumn>>,
     n: number,
     graphicOf: (slot: string, i: number) => unknown,
-    notes: StyleNotes,
 ): void {
     const put = (property: string, i: number, v: StyleValue): void => {
         out[property] ??= new Array<StyleValue | null>(n).fill(null);
@@ -231,16 +200,8 @@ export function readCytoscapeGradientsAndImages(
         if (gradient === undefined || written === null) {
             continue;
         }
-        const { values: properties, off } = gradientProperties(gradient, written);
-        for (const [property, v] of Object.entries(properties)) {
+        for (const [property, v] of Object.entries(gradientProperties(gradient, written))) {
             put(property, i, v);
-        }
-        if (off) {
-            // ponytail: graphty's radial fill runs from the node's middle; a focus off it is drawn centered
-            notes.add(STYLE_ISSUE.APPROXIMATED, "node", "fillGradientKind", {
-                sample: JSON.stringify(gradient.options.cy_center),
-                element: i,
-            });
         }
     }
 }

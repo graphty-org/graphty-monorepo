@@ -3,20 +3,17 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { STYLE_ISSUE } from "../../src/styles/codes.js";
 import { readCytoscapeGradientsAndImages } from "../../src/styles/cytoscape/custom-graphics.js";
-import { StyleNotes } from "../../src/styles/notes.js";
 import type { StyleColumn } from "../../src/styles/types.js";
 
 /**
  * One node's values.
  * @param graphics - the node's custom graphics by visual property
- * @param notes - where notes go
  * @returns the values
  */
-function read(graphics: Record<string, unknown>, notes = new StyleNotes()): Record<string, unknown> {
+function read(graphics: Record<string, unknown>): Record<string, unknown> {
     const out: Partial<Record<string, StyleColumn>> = { fill: ["#888888"] };
-    readCytoscapeGradientsAndImages(out, 1, (vp) => graphics[vp] ?? null, notes);
+    readCytoscapeGradientsAndImages(out, 1, (vp) => graphics[vp] ?? null);
     return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v?.[0]]));
 }
 
@@ -52,22 +49,21 @@ describe("Cytoscape gradient and image custom graphics", () => {
         expect(v.fill).toBe("#ffffff");
         expect(v.fillGradient).toBe("#d62728");
         // 0.5 of half the diagonal of a 60 px node is 21.2 px, 0.707 of graphty's 30 px radius
-        expect(v.fillGradientStops).toBe("0 0.707107");
+        expect(v.fillGradientStops).toBe("0 1");
+        expect(v.fillGradientRadius).toBe(0.707107);
+        expect(v.fillGradientCenterX).toBeUndefined();
     });
 
-    it("cuts a radial ramp reaching past the node's side, and notes a focus off the middle", () => {
-        const notes = new StyleNotes();
-        const v = read(
-            {
-                NODE_CUSTOMGRAPHICS_1:
-                    'org.cytoscape.RadialGradient:{"cy_gradientFractions":[0.0,1.0],"cy_radius":1.0,"cy_gradientColors":["#000000","#FFFFFF"],"cy_center":{"x":0.25,"y":0.25}}',
-            },
-            notes,
-        );
+    it("centers a radial ramp on cy_center, reaching that far further (RadialGradientLayer.getPaint)", () => {
+        const v = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.RadialGradient:{"cy_gradientFractions":[0.0,1.0],"cy_radius":0.5,"cy_gradientColors":["#FFFFFF","#D62728"],"cy_center":{"x":0.25,"y":0.25}}',
+        });
         expect(v.fillGradientStops).toBe("0 1");
-        // white reached at 1.414 of the side's half: at the side, 0.707 of the way
-        expect(v.fillGradient).toBe("#b4b4b4");
-        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "fillGradientKind", 0)).toBe(true);
+        expect(v.fillGradientCenterX).toBe(0.25);
+        expect(v.fillGradientCenterY).toBe(0.25);
+        // 21.2 px off the middle plus 21.2 px: 42.4 px of a 60 px node, 1.414 of its half side
+        expect(v.fillGradientRadius).toBe(1.41421);
     });
 
     it("reads a picture by URL, and leaves charts, empty slots and nonsense alone", () => {

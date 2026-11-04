@@ -171,6 +171,17 @@ export interface NodeStyleValues {
     readonly fillGradientStops: string;
     /** How a gradient fill runs: `linear` across the node (`fillGradientAngle`), or `radial` out from its middle. */
     readonly fillGradientKind: string;
+    /**
+     * Where a radial gradient fill's middle is across the node's box: 0 at its left side, 1 at its right. Unset, 0.5.
+     */
+    readonly fillGradientCenterX: number;
+    /** Where a radial gradient fill's middle is down the node's box: 0 at its top, 1 at its bottom. Unset, 0.5. */
+    readonly fillGradientCenterY: number;
+    /**
+     * How far a radial gradient fill's last stop reaches from its middle, in halves of the node's side; past it the
+     * last color goes on. Unset, 1 (the node's edge).
+     */
+    readonly fillGradientRadius: number;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */

@@ -693,6 +693,10 @@ export type GraphtyErrorCode =
      * for an unnamed asset), so it was not added. `params.id`.
      */
     | "E_MODEL_DIGEST_MISMATCH"
+    /**
+     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+     */
+    | "E_IMAGE_LOAD"
     | "E_INTERNAL";
 
 /**
@@ -1039,6 +1043,7 @@ const CODE_TABLE = {
     E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
     E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
+    E_IMAGE_LOAD: "E_IMAGE_LOAD",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

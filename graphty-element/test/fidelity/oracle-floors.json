@@ -53533,14 +53533,6 @@
                 "date": "2026-11-01"
             }
         },
-        "vis-network-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.938,
-                "reason": "comparator, not the drawing: these floors were read before comparator round 6 (#4448, 761d2bdf73) judged a picture a program draws as part of a node; that merge lowered every one (bisected in #5332: at the floor on 761d2bdf73^1, below it on 761d2bdf73 and on every merge since). The pictures it newly sees (Cytoscape desktop's custom-graphics gradients and images, two vis-network image nodes) were recorded as known failures that day and graphty does not draw them yet: #4515",
-                "date": "2026-11-01"
-            }
-        },
         "xgmml-specimen-images-charts": {
             "node.fill": {
                 "floor": 1,

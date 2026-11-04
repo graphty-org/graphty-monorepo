@@ -332,6 +332,23 @@ describe("StylePainter channels", () => {
             stops: [0, 0.2, 1],
         });
 
+        // a radial gradient's middle and reach (issue #4515)
+        await held.styles.add({
+            name: "radial circle",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientCenterX": 0.25, "node.gradientCenterY": 0.75, "node.gradientRadius": 1.5 },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+            stops: [0, 0.2, 1],
+            centerX: 0.25,
+            centerY: 0.75,
+            radius: 1.5,
+        });
+
         // stops that are not one per colour are left out, so the colours are evenly spaced
         await held.styles.add({
             name: "linear two stops",

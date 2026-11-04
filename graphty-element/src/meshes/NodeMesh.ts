@@ -207,6 +207,9 @@ interface ColorObject {
     colors?: string[];
     stops?: number[];
     direction?: number;
+    centerX?: number;
+    centerY?: number;
+    radius?: number;
     opacity?: number;
 }
 
@@ -223,6 +226,8 @@ interface GradientColor {
     /** Where each color sits, one per color; undefined, evenly spaced. */
     stops: number[] | undefined;
     direction: number;
+    /** A radial gradient's middle, as fractions of the node's box (0.5, 0.5 is its middle), and its reach in halves of the node's side. */
+    circle: { x: number; y: number; r: number };
 }
 
 /**
@@ -1232,6 +1237,10 @@ export class NodeMesh {
             // The radial form has no direction in the schema. Pin it to 0 so two radial gradients
             // that are equal in every meaningful way share one cache entry.
             direction: isRadial ? 0 : (colorObj.direction ?? 0),
+            // likewise a linear gradient has no circle
+            circle: isRadial
+                ? { x: colorObj.centerX ?? 0.5, y: colorObj.centerY ?? 0.5, r: colorObj.radius ?? 1 }
+                : { x: 0.5, y: 0.5, r: 1 },
         };
     }
 
@@ -1275,7 +1284,7 @@ export class NodeMesh {
             return undefined;
         }
 
-        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}|${gradient.stops?.join(",") ?? ""}`;
+        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}|${gradient.stops?.join(",") ?? ""}|${gradient.circle.x},${gradient.circle.y},${gradient.circle.r}`;
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
@@ -1338,8 +1347,9 @@ export class NodeMesh {
             texture = new DynamicTexture(`node-gradient-${key}`, { width: size, height: size }, scene, false);
             const ctx = texture.getContext();
 
+            const { x, y, r } = gradient.circle;
             const ramp = gradient.radial
-                ? ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+                ? ctx.createRadialGradient(x * size, y * size, 0, x * size, y * size, (r * size) / 2)
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
             const { colors, stops } = gradient;

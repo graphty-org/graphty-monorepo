@@ -110,14 +110,14 @@ const PUBLISHED_HALF: Readonly<Record<HITSOptions["mode"], (hub: number, authori
  * are the reason to run HITS rather than PageRank.
  */
 export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
-    static namespace = "graphty";
-    static type = "hits";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "hits";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = hitsOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = hitsOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxIterations: {
             type: "integer",
             default: 100,

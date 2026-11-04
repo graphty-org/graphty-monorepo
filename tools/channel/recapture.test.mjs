@@ -197,6 +197,7 @@ describe("acceptedBy", () => {
     it("calls a story unchanged only when its captured PNG is the approved baseline byte for byte", () => {
         const [a, b, c] = [png(10), png(20), png(30)];
         const results = {
+            commit: "H",
             items: [
                 shot("approved", "changed", a, sha(png(1))),
                 shot("other", "changed", b, sha(png(2))),
@@ -208,7 +209,7 @@ describe("acceptedBy", () => {
         };
         const approved = { "approved.png": sha(a), "other.png": sha(png(99)), "added.png": sha(c), "kept.png": "x" };
         assert.equal(
-            acceptedBy(results, (f) => approved[f] ?? null),
+            acceptedBy(results, (f) => approved[f] ?? null, "H"),
             3,
         );
         assert.deepEqual(
@@ -222,6 +223,16 @@ describe("acceptedBy", () => {
             ],
         );
         assert.equal(results.items[0].baseline, sha(a));
+    });
+
+    it("leaves a capture rendered from another commit than the candidate as it is", () => {
+        const a = png(10);
+        const results = { commit: "C", items: [shot("approved", "changed", a, sha(png(1)))] };
+        assert.equal(
+            acceptedBy(results, () => sha(a), "H"),
+            0,
+        );
+        assert.equal(results.items[0].status, "changed");
     });
 
     it("reads the approval's Git LFS pointers, and the gate then passes the approved stories", async () => {
@@ -241,6 +252,7 @@ describe("acceptedBy", () => {
         const results = {
             version: 1,
             project: "app",
+            commit: head,
             complete: true,
             expected: 2,
             items: [shot("a", "changed", shotA, sha(png(2))), shot("b", "changed", shotB, sha(png(3)))],
@@ -255,6 +267,8 @@ describe("acceptedBy", () => {
                 "--captures",
                 join(root, "captures"),
                 "--head",
+                head,
+                "--tested",
                 head,
             ],
             { cwd: root, stdio: "ignore" },

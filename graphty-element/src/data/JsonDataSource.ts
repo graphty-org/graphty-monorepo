@@ -297,13 +297,13 @@ async function placeRecords(records: readonly Record<string, unknown>[]): Promis
  * Supports JMESPath queries for extracting nodes and edges from complex JSON structures.
  */
 export class JsonDataSource extends DataSource {
-    static type = "json";
+    static readonly type: string = "json";
     /**
      * The graphs of a JGF or OBO Graphs `graphs` array; any other document holds one graph.
      * @param input - the document's text or bytes
      * @returns one listing per graph
      */
-    static listGraphs = (input: SourceInput): ReturnType<NonNullable<typeof jsonImporter.listGraphs>> =>
+    static readonly listGraphs = (input: SourceInput): ReturnType<NonNullable<typeof jsonImporter.listGraphs>> =>
         (jsonImporter.listGraphs as NonNullable<typeof jsonImporter.listGraphs>)(input);
     opts: JsonDataSourceConfigType;
 

@@ -76,17 +76,17 @@ interface DFSOptions extends Record<string, unknown> {
  * finish time, and predecessor relationships for each reachable node.
  */
 export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
-    static namespace = "graphty";
-    static type = "dfs";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "dfs";
     /** Walks the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = dfsOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = dfsOptionsSchema;
 
     /**
      * Options schema for DFS algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

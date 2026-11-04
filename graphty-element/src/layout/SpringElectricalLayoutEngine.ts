@@ -103,10 +103,10 @@ const springElectricalLayoutOptionsSchema = defineOptions({
  * under `force` beside ngraph, d3, ForceAtlas2, Spring and Kamada-Kawai.
  */
 export class SpringElectricalLayout extends SimulationLayoutEngine {
-    static type = "spring-electrical";
-    static simulationType: SimulationType = "spring-electrical";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = springElectricalLayoutOptionsSchema;
+    static readonly type: string = "spring-electrical";
+    static readonly simulationType: SimulationType = "spring-electrical";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = springElectricalLayoutOptionsSchema;
 
     /**
      * Get dimension-specific options for the spring-electrical layout.

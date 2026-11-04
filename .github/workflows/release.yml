@@ -332,6 +332,7 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
                   FIX_PR: ${{ inputs.fix_pr }}
+                  MODE: ${{ inputs.mode }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -363,6 +364,8 @@ jobs:
             good: ${{ steps.candidate.outputs.good }}
             # why the slot tests that commit, or nothing (the missed-slot alarm's "no new candidate")
             why: ${{ steps.candidate.outputs.why }}
+            # "true" when nightly already holds everything the slot could test (#5671): the slot job files nothing
+            current: ${{ steps.candidate.outputs.current }}
             # none when the handoff step tests this run's own commit instead (its master build may still be running)
             build_run: ${{ steps.handoff.outputs.sha == '' && steps.candidate.outputs.build_run || '' }}
             # the held candidate's head (tools/full-run.mjs pick): "" none, "unknown" when the store did not answer
@@ -1724,7 +1727,7 @@ jobs:
     # accept-only pull request's head) of a green-images head H (tools/channel/resume.mjs). The captures of the run
     # that judged H (its visual-final-*, kept 30 days) are first read against P's baselines: a story whose captured PNG
     # is P's baseline byte for byte (the accept commit copies it) is unchanged, as a capture of P would find it
-    # (tools/channel/recapture.mjs accepted). The unchanged screenshot gate then judges them with P's signed approval;
+    # (tools/channel/recapture.mjs accepted), only in captures rendered from H itself, never a carried one. The unchanged screenshot gate then judges them with P's signed approval;
     # then the version, land, publish and site jobs promote P. A gate refusal promotes nothing and records `rejected` on H
     # with a comment on the hold issue, so no later slot tries the same approval again; an open publish hold only
     # waits (a full slot catches up once it closes).
@@ -1781,7 +1784,7 @@ jobs:
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
-                  node tools/channel/recapture.mjs accepted --captures "$CAPTURES" --head "$HEAD_SHA"
+                  node tools/channel/recapture.mjs accepted --captures "$CAPTURES" --head "$HEAD_SHA" --tested "$SHA"
                   tools/channel/screenshot-gate.sh
 
             - name: Decide the nightly promotion
@@ -2341,6 +2344,7 @@ jobs:
                   PICK_RESULT: ${{ needs.pick.result }}
                   RELEASE: ${{ needs.pick.outputs.release }}
                   PICK_WHY: ${{ needs.pick.outputs.why }}
+                  CURRENT: ${{ needs.pick.outputs.current }}
                   RESUME: ${{ needs.pick.outputs.resume }}
                   SHA: ${{ needs.pick.outputs.sha }}
                   STATE: ${{ needs.verdict.outputs.state }}

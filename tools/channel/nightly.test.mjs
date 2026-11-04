@@ -313,6 +313,13 @@ describe("the missed-slot alarm (#5052)", () => {
             /failed before it landed/,
         );
     });
+    it("is quiet when nightly already holds everything the slot could test, unless the store names a blocker (#5671)", () => {
+        // 2026-11-02: nightly moved at 05:56; the 06:00 slot's newest built commit was older than nightly
+        const current = ran({ release: "false", current: "true", pickWhy: "62928db lacks channel/nightly" });
+        assert.equal(missedSlot(current, STARTED), null);
+        const red = { blocking: "red", red: { sha: SHA, lane: "T4 GPU", issue: 4600 } };
+        assert.match(missedSlot(current, STARTED, red).cause, /^red lane on aaaaaaa: T4 GPU/);
+    });
 });
 
 describe("the missed-slot alarm replays 2026-10-30 (#5135)", () => {

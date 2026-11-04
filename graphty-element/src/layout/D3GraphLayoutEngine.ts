@@ -138,11 +138,11 @@ function fixAt(d3node: D3Node): void {
  * D3 force-directed layout engine using d3-force-3d simulation
  */
 export class D3GraphEngine extends LayoutEngine {
-    static type = "d3";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = d3LayoutOptionsSchema;
+    static readonly type: string = "d3";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = d3LayoutOptionsSchema;
     /** Accepts a scope: a held node is fixed through d3's own `fx`/`fy`/`fz`. */
-    static override scoped = true;
+    static override readonly scoped: boolean = true;
 
     /**
      * Get dimension-specific options for the D3 layout

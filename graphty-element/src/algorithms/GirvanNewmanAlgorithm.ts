@@ -60,16 +60,16 @@ interface GirvanNewmanOptions extends Record<string, unknown> {
  *
  */
 export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions> {
-    static namespace = "graphty";
-    static type = "girvan-newman";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "girvan-newman";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = girvanNewmanOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = girvanNewmanOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxCommunities: {
             type: "integer",
             default: 0,

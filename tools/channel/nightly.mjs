@@ -26,8 +26,8 @@
 //   node tools/channel/nightly.mjs slot          the slot job at the end of every full, restart and candidate run: the
 //       missed-slot alarm (#5052). Nightly did not move: file or update one priority:critical "Nightly missed slot
 //       <date hh:mm> UTC: <cause>" issue; nightly moved: close it
-//       env MODE, PUSHED (the land job pushed channel/nightly), PICK_RESULT, RELEASE, PICK_WHY, RESUME, SHA, STATE,
-//       DEFERRED, HOLD, HELD, HELD_STATE, WHAT, ISSUE, PROMOTE, WHY, RUN_ID, RUN_URL, RESULTS_URL, GH_TOKEN,
+//       env MODE, PUSHED (the land job pushed channel/nightly), PICK_RESULT, RELEASE, PICK_WHY, CURRENT, RESUME, SHA,
+//       STATE, DEFERRED, HOLD, HELD, HELD_STATE, WHAT, ISSUE, PROMOTE, WHY, RUN_ID, RUN_URL, RESULTS_URL, GH_TOKEN,
 //       GITHUB_REPOSITORY
 //   node tools/channel/nightly.mjs failed        the site job, when it failed: one priority:critical issue
 //       env SHA, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY; prints the issue's number
@@ -329,11 +329,15 @@ const s7 = (sha) => (sha ?? "").slice(0, 7);
  * @param f the run's facts, as the slot job hands them (see the head of the file); moved: nightly moved in the run
  * @param started when the run started, ms: its slot is that time rounded down to 00, 06, 12 or 18 UTC
  * @param [state] GET /v1/release-state's answer: what still blocks nightly when the run tested nothing new (#5135)
- * @returns null when nightly moved or the run decides nothing yet (an attempt 1 waiting for its re-run), else
+ * @returns null when nightly moved, already holds everything the slot could test (the pick's current), or the run
+ *   decides nothing yet (an attempt 1 waiting for its re-run), else
  *   `{ title, cause, detail }`
  */
 export function missedSlot(f, started, state = null) {
     if (f.moved || f.deferred === "true") return null;
+    // nightly already holds everything the slot could test (#5671: a promotion minutes before the slot), and nothing
+    // else blocks it: there was nothing to promote, so no slot was missed
+    if (f.current === "true" && f.release !== "true" && !stateCause(state)) return null;
     const { cause, detail = "" } = pickCause(f, state) ?? verdictCause(f);
     const slot = new Date(Math.floor(started / SLOT) * SLOT).toISOString().slice(0, 16).replace("T", " ");
     const short = cause.length > 90 ? cause.slice(0, 87) + "..." : cause;
@@ -595,11 +599,14 @@ async function slotMain(env, now = Date.now()) {
         issue: env.ISSUE,
         promote: env.PROMOTE,
         why: env.WHY,
+        current: env.CURRENT,
     };
     const alarm = missedSlot(facts, started, state);
     const open = openIssue(MISSED_TITLE, repo);
     if (!alarm) {
-        console.log(moved ? "nightly moved in this slot" : "attempt 1 waits for its re-run: the re-run reports");
+        let why = "attempt 1 waits for its re-run: the re-run reports";
+        if (facts.current === "true") why = "nightly already holds everything this slot could test";
+        console.log(moved ? "nightly moved in this slot" : why);
         if (moved && open)
             gh("issue", "close", String(open.number), "-R", repo, "--comment", `Nightly moved: ${env.RUN_URL ?? ""}`);
         return;

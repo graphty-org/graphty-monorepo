@@ -107,12 +107,12 @@ function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, n
  * range to make one with.
  */
 export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
-    static namespace = "graphty";
-    static type = "pagerank";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "pagerank";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Ranks over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -121,13 +121,13 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      * - PageRankAlgorithm.zodOptionsSchema (the schema)
      * - pageRankOptionsSchema (exported from module)
      */
-    static zodOptionsSchema = pageRankOptionsSchema;
+    static readonly zodOptionsSchema = pageRankOptionsSchema;
 
     /**
      * LEGACY: Old-style options schema for backward compatibility
      * @deprecated Use zodOptionsSchema instead. This will be removed in a future version.
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         dampingFactor: {
             type: "number",
             default: 0.85,

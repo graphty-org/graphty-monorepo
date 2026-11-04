@@ -217,6 +217,8 @@
         "Styles/Edge::Default",
         "Styles/Edge::LineOpacity",
         "Styles/Edge::PatternedLineOpacity",
+        "Styles/Edge::FadeLongEdges",
+        "Styles/Edge::BlendingOff",
         "Styles/Edge::ThreeDAllArrows",
         "Styles/Edge::ThreeDAllLines",
         "Styles/Edge::ThreeDBends",

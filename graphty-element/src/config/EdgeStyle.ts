@@ -200,6 +200,28 @@ const LineStyle = z.strictObject({
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
+     * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
+     * `linkVisibilityDistanceRange`): a line of `start` pixels or fewer draws at its `opacity`, one of
+     * `end` or more at that times `fade.opacity`, and one between at a value between. No `end` draws
+     * no fade; `start` defaults to 0 and `opacity` to 0.25. A faded line does not animate. The line
+     * alone fades, not its arrowheads or bands, and a line drawn as separate pattern elements or as
+     * a gradient does not fade.
+     */
+    fade: z
+        .strictObject({
+            start: z.number().nonnegative().optional(),
+            end: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * `false` draws the line without alpha blending (cosmos.gl's `linkBlending`), which costs less
+     * on a dense graph and keeps overlapping lines from muddying: every pixel it covers is its
+     * color at full strength, so `opacity` and `fade` have no effect and a line under a pixel wide is
+     * drawn at full strength. Unset or `true`, the line blends.
+     */
+    blending: z.boolean().optional(),
+    /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the
      * line's own width units (half of it each side), `color` and `opacity` its paint, `type` its

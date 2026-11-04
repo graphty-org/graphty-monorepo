@@ -87,7 +87,7 @@ export function addClusterPull(
             const dx = sums[4 * c] / total - positions[3 * i];
             const dy = sums[4 * c + 1] / total - positions[3 * i + 1];
             const dz = sums[4 * c + 2] / total - positions[3 * i + 2];
-            const pull = strength * (k === undefined ? m : Math.sqrt(dx * dx + dy * dy + dz * dz) / k);
+            const pull = strength * (k === undefined ? m : Math.hypot(dx, dy, dz) / k);
             force[3 * i] += pull * dx;
             force[3 * i + 1] += pull * dy;
             force[3 * i + 2] += pull * dz;

@@ -302,10 +302,6 @@ export class D3GraphEngine extends LayoutEngine {
             this.reheat = false;
             this.clustersStale = true;
         }
-
-        if (this.clustersStale && this.clusterBy !== null) {
-            this.readClusters();
-        }
     }
 
     /**
@@ -368,6 +364,10 @@ export class D3GraphEngine extends LayoutEngine {
      */
     step(): void {
         this.refresh();
+        if (this.clustersStale && this.clusterBy !== null) {
+            this.readClusters();
+        }
+
         this.d3ForceLayout.tick();
         this.publishPositions();
     }

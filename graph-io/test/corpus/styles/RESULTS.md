@@ -397,7 +397,7 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 2030 | 0 |  |
 | pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6828 | 0 |  |
 | pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 261 | 64% | 54% | 0 | 720 | 0 |  |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 281 | 100% | 0% | 0 | 1320 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 283 | 100% | 0% | 0 | 1320 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 4 | 29 | 55% | 14% | 0 | 250 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 4 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
 | pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 8 | 292 | 82% | 25% | 0 | 1250 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |

@@ -459,6 +459,11 @@ export function SelectionEditor({
             return;
         }
         say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
+        // A control the reader moved to while the workspace was closing keeps focus and its keys.
+        const at = document.activeElement;
+        if (at !== null && at !== document.body && at.isConnected && at.closest(".sel-ws") === null) {
+            return;
+        }
         const from = opener.current;
         focusAfter.current = [
             ...(from === EDIT ? ["[data-edit]"] : []),

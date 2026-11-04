@@ -203,8 +203,20 @@ async function framesUntilClosed(input: () => Promise<void>): Promise<Closing> {
     }
     let quiet = 0;
     let open = 0;
+    // Counted from the frame the input lands in (its click or key), not from when the driver was
+    // asked to send it: the frames before the input arrives are not the editor's to fill.
+    let armed = false;
+    const arm = (): void => {
+        armed = true;
+    };
+    window.addEventListener("click", arm, { capture: true });
+    window.addEventListener("keydown", arm, { capture: true });
     const closed = new Promise<boolean>((resolve) => {
         const look = (): void => {
+            if (!armed) {
+                requestAnimationFrame(look);
+                return;
+            }
             if (document.querySelector(".sel-ws") === null) {
                 let painted = false;
                 void element.waitForPainted().then(() => {
@@ -224,7 +236,10 @@ async function framesUntilClosed(input: () => Promise<void>): Promise<Closing> {
         requestAnimationFrame(look);
     });
     await input();
-    return { quiet, open, paintedAtClose: await closed };
+    const paintedAtClose = await closed;
+    window.removeEventListener("click", arm, { capture: true });
+    window.removeEventListener("keydown", arm, { capture: true });
+    return { quiet, open, paintedAtClose };
 }
 
 describe("the selection editor on 50,000 nodes", () => {

@@ -55,6 +55,7 @@
                 height: 64px;
             }
             #boot .bar {
+                display: block;
                 width: 96px;
                 height: 3px;
                 border-radius: 2px;
@@ -123,7 +124,7 @@
     </head>
     <body>
         <div id="root">
-            <div id="boot" role="status" aria-label="Loading graphty">
+            <output id="boot" aria-label="Loading graphty">
                 <!-- The mark from public/favicon.svg -->
                 <svg viewBox="0 0 64 64" aria-hidden="true">
                     <g stroke="currentColor" fill="none">
@@ -134,12 +135,12 @@
                     </g>
                     <circle cx="54.25" cy="12.9" r="6" fill="var(--boot-accent)" />
                 </svg>
-                <div class="bar"></div>
-                <div class="failed">
+                <span class="bar"></span>
+                <span class="failed">
                     Could not load graphty
                     <button type="button" onclick="location.reload()">Reload</button>
-                </div>
-            </div>
+                </span>
+            </output>
         </div>
         <script type="module" src="/src/main.tsx"></script>
     </body>

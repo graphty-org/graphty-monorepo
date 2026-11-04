@@ -1238,8 +1238,9 @@ export class NodeMesh {
             // that are equal in every meaningful way share one cache entry.
             direction: isRadial ? 0 : (colorObj.direction ?? 0),
             // likewise a linear gradient has no circle
+            // (a canvas paints nothing for a circle of radius 0, so 0 is drawn as a point: all the last color)
             circle: isRadial
-                ? { x: colorObj.centerX ?? 0.5, y: colorObj.centerY ?? 0.5, r: colorObj.radius ?? 1 }
+                ? { x: colorObj.centerX ?? 0.5, y: colorObj.centerY ?? 0.5, r: Math.max(colorObj.radius ?? 1, 1e-6) }
                 : { x: 0.5, y: 0.5, r: 1 },
         };
     }

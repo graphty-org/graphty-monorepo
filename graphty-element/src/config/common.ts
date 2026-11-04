@@ -53,8 +53,8 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         centerX: z.number().optional(),
         /** Where the gradient's middle is down the node's box, 0 at its top to 1 at its bottom; left out, 0.5. */
         centerY: z.number().optional(),
-        /** How far the gradient reaches from its middle, in halves of the node's side; left out, 1 (to its edge). */
-        radius: z.number().positive().optional(),
+        /** How far the gradient reaches from its middle, in halves of the node's side; left out, 1 (to its edge); 0, all the last color. */
+        radius: z.number().min(0).optional(),
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);

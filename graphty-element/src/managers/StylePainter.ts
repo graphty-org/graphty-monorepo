@@ -511,7 +511,7 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
         fill.centerY = typeof value === "number" ? value : undefined;
     },
     "node.gradientRadius": (fill, value) => {
-        fill.radius = typeof value === "number" && value > 0 ? value : undefined;
+        fill.radius = typeof value === "number" ? value : undefined;
     },
 };
 

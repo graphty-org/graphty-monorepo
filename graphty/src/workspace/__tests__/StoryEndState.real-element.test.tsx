@@ -15,9 +15,13 @@ import { composeStories } from "@storybook/react";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { withFeatures } from "../../test/features";
 import { AllProviders } from "../../test/test-providers";
 import * as graphPlaceStories from "../graph-place/GraphPlace.stories";
 import * as stylePanelStories from "../style/StylePanel.stories";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /** The app's providers, as the Storybook preview's decorator gives them. */
 const annotations = {

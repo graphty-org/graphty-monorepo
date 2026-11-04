@@ -55,6 +55,7 @@ import {
     Hash,
     Highlighter,
     History,
+    Hourglass,
     KeyRound,
     Layers,
     LayoutGrid,
@@ -274,6 +275,8 @@ export const GLYPHS = {
     // The start page's turning graph.
     play: Play,
     pause: Pause,
+    // A selection whose step waits for the reader's Run (its run was removed).
+    waiting: Hourglass,
     stop: Square,
     key: KeyRound,
     // The Data place's Fields entries a column glyph does not name.

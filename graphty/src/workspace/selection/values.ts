@@ -22,6 +22,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { ranOverWords } from "../runWords";
 import {
@@ -205,11 +206,13 @@ function runFieldOf(
  * untouched range is inert (`test-unset`), which an Add step reads as "adds nothing": a new
  * Degree group held 0 until its brush moved.
  * @param field - the field.
+ * @param whole - start a number or date over its whole range (the `selection-workspace`
+ *     experiment); false leaves it untested, as before the experiment.
  * @returns the leaf.
  */
-function freshLeaf(field: CardField): RuleTree {
+function freshLeaf(field: CardField, whole = true): RuleTree {
     const leaf = untested(field);
-    return leaf.kind === "range" && field.range !== undefined ? { ...leaf, ...field.range } : leaf;
+    return whole && leaf.kind === "range" && field.range !== undefined ? { ...leaf, ...field.range } : leaf;
 }
 
 /**
@@ -219,16 +222,23 @@ function freshLeaf(field: CardField): RuleTree {
  * @param session - the element's session.
  * @param field - the picked field.
  * @param within - the selection's base: a run over another scope is named in the rule.
+ * @param whole - a number starts over its whole range; by default while the `selection-workspace`
+ *     experiment is on.
  * @returns the step's rule.
  */
-export function ruleOfField(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): RuleTree {
+export function ruleOfField(
+    session: GraphSession,
+    field: CardField,
+    within?: UnionLeaf["within"],
+    whole = selectionWorkspaceOn(session),
+): RuleTree {
     if (field.group !== "Results") {
-        return freshLeaf(field);
+        return freshLeaf(field, whole);
     }
     const run = runFieldOf(session, field.path);
-    const range = field.kind === "number" ? field.range : undefined;
+    const range = whole && field.kind === "number" ? field.range : undefined;
     return run === undefined
-        ? freshLeaf(field)
+        ? freshLeaf(field, whole)
         : {
               kind: "measure",
               algorithm: run.algorithm,
@@ -307,7 +317,7 @@ export function pickSections(
             glyph: GLYPHS[other],
             ...(field.fact === undefined ? {} : { fact: field.fact }),
             onPick: () => {
-                onPick(freshLeaf(field));
+                onPick(freshLeaf(field, selectionWorkspaceOn(session)));
             },
         }));
     const item = (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree): ExtraItem => ({

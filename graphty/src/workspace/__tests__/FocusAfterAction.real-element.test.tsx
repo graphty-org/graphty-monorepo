@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../test/features";
 import { openBy } from "../../test/open";
 import { pickSample } from "../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../test/test-utils";
@@ -26,6 +27,9 @@ import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /**
  * Starts a new step, its value picker open: an empty None selection's Condition row; else, with

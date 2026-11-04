@@ -14,11 +14,15 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 describe("the data table beside a selection editor", () => {
     beforeAll(async () => {

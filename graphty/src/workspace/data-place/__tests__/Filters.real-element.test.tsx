@@ -14,11 +14,15 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /**
  * Renders the workspace on the Data place, waits for the session and loads the small graph file

@@ -85,6 +85,12 @@ interface RecordTableProps {
     matching?: string;
     /** A click marks the row in this table only and leaves the graph's selection alone (an editor's preview). */
     localSelection?: boolean;
+    /**
+     * With `groupOf`, a Group column drawn first (a chit and the group's name) in place of the row
+     * tint: the outline-and-pane selection editor's table, while the `selection-workspace`
+     * experiment is off.
+     */
+    groupColumn?: boolean;
 }
 
 /**
@@ -140,6 +146,24 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
 }
 
 /**
+ * A row's Group cell: its group's chit and name, or nothing.
+ * @param group - the row's group, or null.
+ * @param filled - whether the chit is filled with the group's color.
+ * @returns the cell.
+ */
+function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
+    return group === null ? null : (
+        <span className="ws-table-group">
+            <span
+                className="sel-chit"
+                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
+            />
+            {group.name}
+        </span>
+    );
+}
+
+/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -158,6 +182,7 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.groupOf - The group a record is in, while a selection is edited
  * @param props.matching - Only the records that match this text
  * @param props.localSelection - A click marks the row here only, never the graph's selection
+ * @param props.groupColumn - A Group column first in place of the row tint
  * @returns The table
  */
 export function RecordTable({
@@ -175,6 +200,7 @@ export function RecordTable({
     groupOf,
     matching,
     localSelection = false,
+    groupColumn = false,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
@@ -253,6 +279,18 @@ export function RecordTable({
         };
     });
 
+    if (groupOf !== undefined && groupColumn) {
+        // A chit and the group's name, never a row tint: lime means selected (spec 8).
+        tableColumns.unshift({
+            id: "sel:group",
+            header: "Group",
+            sortable: false,
+            hideable: false,
+            value: (row) => groupOf(row.record.id)?.name,
+            cell: (row) => groupCell(groupOf(row.record.id), filled),
+        });
+    }
+
     // One selection, the element's: the rows draw it and a click on a row changes it.
     const graphSelection = kind === "node" ? session.selection.nodes : session.selection.edges;
     const selected = localSelection ? marked : graphSelection;
@@ -284,7 +322,7 @@ export function RecordTable({
             // Each row is tinted in its group's color while the canvas draws the group colors (the
             // owner, 2026-11-04: no Group column).
             rowColor={
-                groupOf === undefined || !filled
+                groupOf === undefined || !filled || groupColumn
                     ? undefined
                     : (row) => {
                           const color = groupOf(row.record.id)?.color;

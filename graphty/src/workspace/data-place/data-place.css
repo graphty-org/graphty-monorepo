@@ -223,3 +223,20 @@
 .dp-source-issues {
     flex: none;
 }
+
+/* The Runs section (the selection-workspace experiment): one row per run, its name and remove
+   button, then chips for the selections that read it and its style layers, or Show. */
+.dp-runs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dp-run-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.dp-run-facts {
+    padding-inline-start: 20px;
+}

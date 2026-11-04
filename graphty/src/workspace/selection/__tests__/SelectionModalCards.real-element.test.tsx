@@ -19,11 +19,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The full-screen selection workspace is the `selection-workspace` experiment.
+withFeatures(["selection-workspace"]);
 
 /**
  * Les Miserables in the workspace, with a reader's layer selected in the style tree.

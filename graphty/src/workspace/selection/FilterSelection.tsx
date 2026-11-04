@@ -12,8 +12,10 @@ import type { FilterCondition, GraphSession, UnionLeaf } from "@graphty/graphty-
 import React, { useRef, useState } from "react";
 
 import { keepChange, writeCondition } from "../data-place/filterCards";
+import { selectionWorkspaceOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
 import { SelectionEditor } from "./SelectionEditor";
+import { SelectionEditorInline } from "./SelectionEditorInline";
 import type { SelectionMenuItem } from "./SelectionMenu";
 import type { PickSection } from "./values";
 
@@ -89,8 +91,10 @@ export function FilterSelection({
         effect === undefined
             ? writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule: next }))
             : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
+    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
+    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
-        <SelectionEditor
+        <Editor
             session={session}
             rule={local ?? rule}
             host="filter"

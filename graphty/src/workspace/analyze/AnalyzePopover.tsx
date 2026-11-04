@@ -4,6 +4,7 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { tabStops } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
@@ -30,6 +31,11 @@ interface RunPlan {
     readonly restoreLayer: boolean;
     /** Running it would change nothing: the element holds this answer and its layers show. */
     readonly current: boolean;
+    /**
+     * The kept run was started by a selection's card and paints nothing (the `selection-workspace`
+     * experiment): Run reuses it and adds its suggested layers.
+     */
+    readonly paint?: boolean;
 }
 
 /**
@@ -68,12 +74,20 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
     }
     const layers = session.runs.layers(latest.id);
     const gone = layers?.present.length === 0 && layers.missing.length > 0;
+    // A card's run paints nothing; Analyze's Run with the same settings reuses it and adds its layers.
+    const unpainted =
+        selectionWorkspaceOn(session) &&
+        session.runs.painting(latest.id)?.state === "opted-out" &&
+        (layers?.present.length ?? 0) === 0;
     // A run that made a folder of layers (one per group) names them in the plural. Once the folder
     // is deleted the element lists it as the one suggestion that makes it, so a run with groups
     // is plural whatever the count.
     const grouped = latest.result?.summary().groups !== undefined;
     const noun =
         grouped || (layers !== undefined && layers.present.length + layers.missing.length > 1) ? "layers" : "layer";
+    if (unpainted) {
+        return { label: `Add ${name} ${noun}`, restoreLayer: false, current: false, paint: true };
+    }
     return gone
         ? { label: `Add ${name} ${noun}`, restoreLayer: true, current: false }
         : {
@@ -81,6 +95,26 @@ function runPlan(session: GraphSession, key: string, name: string, params?: Reco
               restoreLayer: false,
               current: params !== undefined && session.runs.answered(key, params) !== undefined,
           };
+}
+
+/**
+ * The start options Analyze's Run adds for its plan: put back deleted layers, or paint a card's
+ * run that the same settings reuse.
+ * @param session - The element's session
+ * @param key - The algorithm
+ * @param name - The algorithm's name in words
+ * @param params - The settings it runs with
+ * @returns The options
+ */
+function planOptions(
+    session: GraphSession,
+    key: string,
+    name: string,
+    params: Record<string, unknown>,
+): { restoreLayer: boolean; applySuggestedStyles?: true } {
+    const plan = runPlan(session, key, name);
+    const reused = plan.paint === true && session.runs.answered(key, params) !== undefined;
+    return { restoreLayer: plan.restoreLayer, ...(reused ? { applySuggestedStyles: true as const } : {}) };
 }
 
 /**
@@ -264,7 +298,7 @@ export function AnalyzePopover({
                     // Each From and To is its own run, so its own row.
                     const run = session.runs.start(picked.key, params, {
                         style: { name: wordsFor(picked).name },
-                        restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
+                        ...planOptions(session, picked.key, wordsFor(picked).name, params),
                     });
                     run.then(undefined, () => undefined);
                     onStarted(wordsFor(picked).name);
@@ -292,14 +326,15 @@ export function AnalyzePopover({
                     // new group takes the next number no layer in the folder has. More groups than
                     // eight take the first group palette with a color for each, never an eight-color
                     // palette continued into near-identical oranges.
-                    const run = session.runs.start(picked.key, paramsFor(session, picked, values), {
+                    const runParams = paramsFor(session, picked, values);
+                    const run = session.runs.start(picked.key, runParams, {
                         style: {
                             name: wordsFor(picked).name,
                             groups: "layers",
                             groupName: groupLayerName,
                             groupPalettes: groupPalettes(session).map((palette) => palette.id),
                         },
-                        restoreLayer: runPlan(session, picked.key, wordsFor(picked).name).restoreLayer,
+                        ...planOptions(session, picked.key, wordsFor(picked).name, runParams),
                     });
                     // A failed run is reported on its row and in the inspector, from the run itself.
                     run.then(undefined, () => undefined);

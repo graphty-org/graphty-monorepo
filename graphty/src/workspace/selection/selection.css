@@ -189,7 +189,7 @@
     background: rgb(0 0 0 / 45%);
 }
 
-.sel-ws {
+.sel-ws.sel-modal {
     position: fixed;
     inset: 28px;
     z-index: 200;
@@ -218,7 +218,7 @@
     min-width: 0;
 }
 
-.sel-ws-body {
+.sel-modal .sel-ws-body {
     display: grid;
     grid-template-columns: minmax(360px, 34%) minmax(0, 1fr);
     min-height: 0;
@@ -240,7 +240,7 @@
 }
 
 /* The table takes 40% of the workspace's height under the drawing. */
-.sel-ws-center[data-strip] {
+.sel-modal .sel-ws-center[data-strip] {
     grid-template-rows: minmax(0, 1fr) 40%;
 }
 
@@ -502,7 +502,7 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
 
 /* No canvas key over the preview from the workspace's first frame on, before the store names it:
    its outline says what the key would (ws-polish 3, finding 1). */
-.ws-body:has(> .sel-ws) .ws-canvas-overlays {
+.ws-body:has(> .sel-modal) .ws-canvas-overlays {
     display: none;
 }
 

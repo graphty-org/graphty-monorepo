@@ -23,6 +23,9 @@ import { letterOf } from "./words";
  * @param props.rule - the selection being edited
  * @param props.title - the selection's title, which a lone group goes by
  * @param props.branch - the group a count chip narrowed it to, or null for every match
+ * @param props.modal - drawn in the full-screen workspace (the `selection-workspace` experiment): rows
+ *     tinted by group, only the columns the steps test, a click marking the row here only. Off, a
+ *     Group column, every column, and a click selecting in the graph.
  * @returns The strip
  */
 export function MatchesStrip({
@@ -30,7 +33,14 @@ export function MatchesStrip({
     rule,
     title,
     branch = null,
-}: Readonly<{ session: GraphSession; rule: UnionLeaf; title: string; branch?: string | null }>): React.JSX.Element {
+    modal = false,
+}: Readonly<{
+    session: GraphSession;
+    rule: UnionLeaf;
+    title: string;
+    branch?: string | null;
+    modal?: boolean;
+}>): React.JSX.Element {
     const reading = useEditedSelection(session, rule);
     const { ref, height } = useElementSize();
     const [sort, setSort] = useState<DataTableSort | null>(null);
@@ -66,7 +76,8 @@ export function MatchesStrip({
     const columns = columnChoices(session, kind).filter(
         (choice) =>
             choice.hidden !== true &&
-            (choice.group === "key" ||
+            (!modal ||
+                choice.group === "key" ||
                 choice.role === "label" ||
                 (choice.attribute !== undefined && tested.has(choice.attribute)) ||
                 (choice.run !== undefined && runs.has(choice.run))),
@@ -93,7 +104,8 @@ export function MatchesStrip({
                         onSortChange={setSort}
                         height={height}
                         matching={typed === "" ? undefined : typed}
-                        localSelection
+                        localSelection={modal}
+                        groupColumn={!modal}
                     />
                 )}
             </div>

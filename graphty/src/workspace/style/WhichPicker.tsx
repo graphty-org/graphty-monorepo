@@ -29,6 +29,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
@@ -1785,6 +1786,8 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
+    // One-value bins drawn as bars belong to the full-screen workspace (the `selection-workspace` experiment).
+    const wide = selectionWorkspaceOn(session);
     const heights = barHeights(
         spread.bins.map((bin) => bin.count),
         spread.suggestedScale === "log",
@@ -1801,8 +1804,8 @@ function ValueBrush({
                     count: heights[at] ?? 0,
                     // A bin of one value (an integer's) spans half a step either side, so it is drawn
                     // as a bar, never a hairline.
-                    from: bin.to > bin.from ? bin.from : Math.max(low, bin.from - step / 2),
-                    to: bin.to > bin.from ? bin.to : Math.min(high, bin.to + step / 2),
+                    from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
+                    to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
                     highlighted: (moving !== null || !untouched) && bin.to > shown[0] && bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}

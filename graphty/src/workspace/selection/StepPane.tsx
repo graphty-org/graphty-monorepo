@@ -537,6 +537,12 @@ interface StepPaneProps extends StepActions {
     readonly head?: boolean;
     /** Whether it draws the Except switch; false where the step's verb is drawn already (a group card). */
     readonly verbSwitch?: boolean;
+    /**
+     * Drawn in a group card of the full-screen workspace (the `selection-workspace` experiment): its
+     * head says its change to the group, and a new number step starts over its whole range. Off,
+     * "N so far" is said only where it differs from the result, and a new step starts untested.
+     */
+    readonly cards?: boolean;
 }
 
 /**
@@ -558,6 +564,7 @@ interface StepPaneProps extends StepActions {
  * @param props.adds - the add actions
  * @param props.head - whether it draws its first row
  * @param props.verbSwitch - whether it draws the Except switch
+ * @param props.cards - drawn in a group card of the full-screen workspace
  * @param props.onStep - takes a change to the step
  * @param props.onToggle - switches the step on or off
  * @param props.onMove - moves it up or down its group
@@ -582,6 +589,7 @@ export function StepPane({
     adds,
     head = true,
     verbSwitch = true,
+    cards = false,
     onStep,
     onToggle,
     onMove,
@@ -717,7 +725,7 @@ export function StepPane({
     // With the group's count before it, the step's head draws what it changed; else what it holds.
     const soFarWords = count === undefined ? "" : `${formatNumber(count)} of ${formatNumber(of)} so far`;
     const change = count === undefined || before === undefined ? undefined : count - before;
-    const soFar =
+    const changeChip =
         count === undefined ? null : (
             <Tooltip label={soFarWords} openDelay={300}>
                 <Text size="sm" className="sel-count sel-step-change" data-change={change ?? ""} aria-hidden>
@@ -725,8 +733,16 @@ export function StepPane({
                 </Text>
             </Tooltip>
         );
-    // Under a title pane with no head, "so far" is said only where it differs from the result.
-    const soFarBelow = !head && count !== total ? soFar : null;
+    const soFarText =
+        count !== undefined && count !== total ? (
+            <Text size="sm" c="dimmed" className="sel-count" aria-hidden>
+                {`${formatNumber(count)} so far`}
+            </Text>
+        ) : null;
+    // In a card the head says the change; elsewhere "so far" is said below, only where it differs.
+    const soFar = cards ? changeChip : null;
+    const cardBelow = !head && count !== total ? changeChip : null;
+    const soFarBelow = cards ? cardBelow : soFarText;
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"

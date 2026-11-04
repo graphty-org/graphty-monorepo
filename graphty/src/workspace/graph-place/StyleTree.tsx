@@ -1,14 +1,17 @@
 import { TargetTooltip, ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
-import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
+import type { GraphSession, StaleNote, StyleRow, UnionLeaf } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
 import { staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
 import { errorWords } from "../project/words";
+import { useSteps } from "../selection/useSteps";
+import { reasonWords } from "../selection/words";
 import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -148,6 +151,58 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
             </span>
         </Tooltip>
     );
+}
+
+/**
+ * The wait mark of a layer whose Which nodes reads a run that was removed (the
+ * `selection-workspace` experiment): the step waits for the reader's Run, which the layer's Which
+ * nodes offers beside Edit. Read live from graphty-element (`scope.watchSteps`).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rule - the layer's selection
+ * @param props.children - the row's count, drawn after the mark
+ * @returns the mark and the count
+ */
+function WaitMark({
+    session,
+    rule,
+    children,
+}: Readonly<{ session: GraphSession; rule: UnionLeaf; children: React.ReactNode }>): React.JSX.Element {
+    const reading = useSteps(session, rule);
+    const waits = reading.branches.some((branch) => branch.steps.some((step) => step.reason?.code === "run-needed"));
+    const words = reasonWords({ code: "run-needed", params: {} }).long;
+    return (
+        <>
+            {waits && (
+                <Tooltip label={words}>
+                    <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                        role="img"
+                        aria-label={words}
+                        className="ws-row-over"
+                        data-waiting=""
+                    >
+                        <GLYPHS.waiting size={12} aria-hidden />
+                    </span>
+                </Tooltip>
+            )}
+            {children}
+        </>
+    );
+}
+
+/**
+ * The selection a layer reads when one of its steps measures a run, or null.
+ * @param session - the element's session.
+ * @param id - the layer.
+ * @returns the selection.
+ */
+function measuredSelection(session: GraphSession, id: string): UnionLeaf | null {
+    const selector = session.styles.get(id)?.selector;
+    const where = selector?.match === "rule" ? selector.where : undefined;
+    return where?.kind === "union" &&
+        where.branches.some((branch) => branch.steps.some((step) => step.rule.kind === "measure"))
+        ? where
+        : null;
 }
 
 /**
@@ -415,11 +470,20 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         ];
         const name = rowName(session, row.id);
         const plainCount = group?.count ?? <RowCount paints={paints} />;
-        const counted =
+        const marked =
             stale === null ? (
                 plainCount
             ) : (
                 <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
+            );
+        const measured = selectionWorkspaceOn(session) ? measuredSelection(session, row.id) : null;
+        const counted =
+            measured === null ? (
+                marked
+            ) : (
+                <WaitMark session={session} rule={measured}>
+                    {marked}
+                </WaitMark>
             );
         return {
             id: row.id,

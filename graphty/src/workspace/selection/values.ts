@@ -200,9 +200,22 @@ function runFieldOf(
 }
 
 /**
- * The rule a picked field writes: a data column's untested leaf, or for a run's value an
- * untested `measure` of that algorithm, settings and field (spec 6: every algorithm step saves as
- * algorithm, settings, field and test).
+ * A new step's leaf on a field: a number or date over its whole range, so the step passes every
+ * measured value and counts at once (the owner, 2026-11-04); any other kind untested. An
+ * untouched range is inert (`test-unset`), which an Add step reads as "adds nothing": a new
+ * Degree group held 0 until its brush moved.
+ * @param field - the field.
+ * @returns the leaf.
+ */
+function freshLeaf(field: CardField): RuleTree {
+    const leaf = untested(field);
+    return leaf.kind === "range" && field.range !== undefined ? { ...leaf, ...field.range } : leaf;
+}
+
+/**
+ * The rule a picked field writes: a data column's new leaf, or for a run's value a `measure` of
+ * that algorithm, settings and field (spec 6: every algorithm step saves as algorithm, settings,
+ * field and test), a number over its whole range.
  * @param session - the element's session.
  * @param field - the picked field.
  * @param within - the selection's base: a run over another scope is named in the rule.
@@ -210,16 +223,18 @@ function runFieldOf(
  */
 export function ruleOfField(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): RuleTree {
     if (field.group !== "Results") {
-        return untested(field);
+        return freshLeaf(field);
     }
     const run = runFieldOf(session, field.path);
+    const range = field.kind === "number" ? field.range : undefined;
     return run === undefined
-        ? untested(field)
+        ? freshLeaf(field)
         : {
               kind: "measure",
               algorithm: run.algorithm,
               ...(Object.keys(run.params).length === 0 ? {} : { params: run.params }),
               field: run.field,
+              ...(range === undefined ? {} : { test: { kind: "range", ...range } }),
               // Picked from a run over another part of the graph: the step reads that run.
               ...(sameScope(run.scope, baseOf(within)) ? {} : { scope: run.scope }),
           };
@@ -292,7 +307,7 @@ export function pickSections(
             glyph: GLYPHS[other],
             ...(field.fact === undefined ? {} : { fact: field.fact }),
             onPick: () => {
-                onPick(untested(field));
+                onPick(freshLeaf(field));
             },
         }));
     const item = (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree): ExtraItem => ({

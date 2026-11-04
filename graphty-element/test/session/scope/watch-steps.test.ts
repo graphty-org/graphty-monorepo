@@ -169,6 +169,33 @@ describe("watchSteps", () => {
         assert.isNotNull(current.branchOf("Valjean"));
     });
 
+    it("selecting a node branch's members selects the edges between them, and no other edge", async () => {
+        const session = await lesMis();
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                { start: "none", steps: [{ op: "add", rule: { kind: "hops", of: { nodes: ["Valjean"] }, max: 1 } }] },
+            ],
+        };
+        const { current } = session.scope.watchSteps(rule, () => undefined);
+        await session.selection.apply({ scope: current.branches[0].members });
+        const ends = (id: unknown): string[] => {
+            const edge = session.data.edges().find((each) => each.id === id);
+            return [String(edge?.source), String(edge?.target)];
+        };
+        const members = new Set(session.selection.nodes.map(String));
+        assert.strictEqual(members.size, current.branches[0].count);
+        assert.isNotEmpty(session.selection.edges, "the edges between the members are selected");
+        for (const id of session.selection.edges) {
+            assert.isTrue(
+                ends(id).every((end) => members.has(end)),
+                "both ends of a selected edge are members",
+            );
+        }
+    });
+
     it("an untouched step reads inert with test-unset and changes no count", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {

@@ -160,6 +160,26 @@ describe("styles.showBranches", () => {
         view.end();
     });
 
+    it("a node branch draws the edges between its members in its color, and no other edge", async () => {
+        const { session } = await painted();
+        const edgeColor = (a: string, b: string): unknown => {
+            const edge = session.data
+                .edges()
+                .find((each) => [a, b].includes(String(each.source)) && [a, b].includes(String(each.target)));
+            assert.isDefined(edge, `an edge ${a} - ${b}`);
+            const merged = session.styles.explain({ edge: edge?.id ?? "" }).merged as Record<string, unknown>;
+            const color = merged["edge.color"] as { r: number; g: number; b: number } | string | undefined;
+            return typeof color === "object"
+                ? `#${[color.r, color.g, color.b].map((part) => part.toString(16).padStart(2, "0")).join("")}`.toUpperCase()
+                : color;
+        };
+        const view = session.styles.showBranches({ rule: NEAR_VALJEAN, rest: "faint" });
+        await session.styles.settled();
+        assert.strictEqual(edgeColor("Valjean", "Myriel"), "#009E73", "both ends are members");
+        assert.notStrictEqual(edgeColor("Myriel", "Napoleon"), "#009E73", "Napoleon is not a member");
+        view.end();
+    });
+
     it("one view at a time: a second view replaces the first, whose end does nothing", async () => {
         const { session, red } = await painted();
         const first = session.styles.showBranches({ rule: NEAR_VALJEAN });

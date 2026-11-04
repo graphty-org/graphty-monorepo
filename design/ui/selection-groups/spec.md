@@ -464,7 +464,9 @@ derives a kind.
 - **Not measured** (absent, NaN, infinite), in Advanced: "Not measured: K" with an include toggle (default
   excluded), worded by the field's `missing` fact ("Unreached: 3"). It replaces "Has a value / Has no
   value".
-- An untouched range is not a test: the step is inert, boxes outlined.
+- A new number or date step starts over its whole range, min to max of the data, so it passes every
+  measured value and counts at once (the owner, 2026-11-04: a new Degree group held nothing until
+  its brush moved). A range with neither end is not a test: the step is inert.
 - Brush ends land on data; ties keep together, by "#" and "%"; switching the test and back restores
   its values. The histogram is a view: boxes and thumbs are the keyboard input.
 - A checked group of an unstable result is saved as "the group of X" (X the member the element names),
@@ -533,10 +535,13 @@ the Hovered layer stay.
   palette no other group holds (clear of the ring and hover hues, 3:1 on both themes), written into
   the group, so deleting or reordering never recolors another; the palette never wraps and is an
   element option. The chit's name carries the color word ("A, teal, 24 of 77 nodes").
-- **Graph**: in the preview members draw in their group's color; the first group wins.
-- **Table**: the workspace's matches strip (3.0), and the main table when it is open, show a Group column first (a 12 px chit plus the name, never a
-  row tint: lime means selected), read from the element, and a new **Matches only** toggle, on (the
-  glossary rejects "Show only"). Opening it never takes focus.
+- **Graph**: in the preview members draw in their group's color; the first group wins. A node
+  group's color also draws the edges between its members (both ends in the group), as a filter of
+  those nodes keeps exactly those edges.
+- **Table**: the workspace's matches strip (3.0) tints each row in its group's color, a bar of that
+  color at the row's start, with no Group column (the owner, 2026-11-04, replacing the Group
+  column); a selected row keeps the selected fill. A new **Matches only** toggle, on (the glossary
+  rejects "Show only"). Opening it never takes focus.
 - **Count chips**: section 2. Hovering one marks its members. The title row's count is the
   style host's only (a filter card's own header counts the card); a group row's chip is its Enter.
 - **No match** in the outline counts what no group holds, so the group rows' drawn counts

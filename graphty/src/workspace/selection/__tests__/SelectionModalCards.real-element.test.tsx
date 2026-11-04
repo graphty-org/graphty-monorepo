@@ -4,7 +4,11 @@
  * scrim, colored group cards on the left (each step's controls inside its card, the card's
  * actions along its bottom) and the drawing over the matches table on the right; Keep adds a step
  * to its card; Or starts a new colored card; a node clicked on the drawing is a step's reference;
- * Done keeps every edit and Cancel restores the selection as it was.
+ * Done keeps every edit and Cancel restores the selection as it was. The owner's review of
+ * 2026-11-04: cards fold to their header (a new card folds the others), reorder by their grip or
+ * the arrow keys, no "or" between them; a new number step passes its whole range at once; the
+ * matches table tints each row in its group's color, with no Group column; and the preview draws
+ * the edges between a group's members in its color.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -15,6 +19,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { dragTo } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -198,6 +203,144 @@ describe("the selection modal with colored group cards", () => {
         await waitFor(() => {
             const step = unionOf(session, layer.id)?.branches[0]?.steps[0];
             assert.include(JSON.stringify(step?.rule), "Valjean", "the clicked node is the reference");
+        });
+    });
+});
+
+/**
+ * Two cards: A holds degree 10 and up; B adds Degree, as the owner built it (with Louvain first).
+ * @returns the session, the layer and the modal.
+ */
+async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal: HTMLElement }> {
+    const { session, layer } = await openLayer();
+    const modal = await openModal();
+    await pickValue("Degree");
+    const min = await within(cards()[0]).findByRole("textbox", { name: "Degree from, number" });
+    await userEvent.clear(min);
+    await userEvent.type(min, "10{Enter}");
+    await waitFor(() => {
+        assert.strictEqual(
+            (unionOf(session, layer.id)?.branches[0]?.steps[0]?.rule as { min?: number } | undefined)?.min,
+            10,
+        );
+    });
+    await userEvent.click(within(modal).getByRole("button", { name: /^Group$/ }));
+    await pickValue("Degree");
+    await waitFor(() => {
+        assert.lengthOf(unionOf(session, layer.id)?.branches[1]?.steps ?? [], 1);
+    });
+    return { session, layer, modal };
+}
+
+/**
+ * The color an edge between two nodes is drawn with now.
+ * @param session - the session.
+ * @param a - one end.
+ * @param b - the other.
+ * @returns the color, as the element merged it.
+ */
+function edgeColor(session: GraphSession, a: string, b: string): string {
+    const edge = session.data
+        .edges()
+        .find((each) => [a, b].includes(String(each.source)) && [a, b].includes(String(each.target)));
+    assert.isDefined(edge, `an edge ${a} - ${b}`);
+    return JSON.stringify(
+        (session.styles.explain({ edge: edge?.id ?? "" }).merged as Record<string, unknown>)["edge.color"],
+    );
+}
+
+describe("the owner's review of the cards (2026-11-04)", () => {
+    it("a new Degree card counts at once, the cards before it fold, and no or is drawn between them", async () => {
+        const { session, layer } = await twoCards();
+        const degree = unionOf(session, layer.id)?.branches[1]?.steps[0]?.rule as { min?: number; max?: number };
+        assert.isDefined(degree.min, "a new number step starts over its whole range");
+        assert.isDefined(degree.max);
+        await waitFor(() => {
+            assert.match(cards()[1].getAttribute("aria-label") ?? "", /^B, 77 of 77/, "B passes every node at once");
+        });
+        assert.isTrue(cards()[0].hasAttribute("data-folded"), "adding B folded A");
+        assert.lengthOf(cards()[0].querySelectorAll(".sel-card-step"), 0, "a folded card shows only its header");
+        assert.include(
+            cards()[0].querySelector(".sel-card-summary")?.textContent ?? "",
+            "Degree",
+            "its one-line summary",
+        );
+        assert.notMatch(document.querySelector(".sel-cards")?.textContent ?? "", /\bor\b/u, "no or between the cards");
+        // The chevron unfolds it again.
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Expand A" }));
+        await waitFor(() => {
+            assert.lengthOf(cards()[0].querySelectorAll(".sel-card-step"), 1);
+        });
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Collapse A" }));
+        await waitFor(() => {
+            assert.isTrue(cards()[0].hasAttribute("data-folded"));
+        });
+    });
+
+    it("a card dragged by its grip, or moved with the arrow keys, takes its new place", async () => {
+        const { session, layer } = await twoCards();
+        const idsNow = (): string[] => (unionOf(session, layer.id)?.branches ?? []).map((each) => each.id ?? "");
+        const [first, second] = idsNow();
+        const grip = within(cards()[1]).getByRole("button", { name: "Move B" });
+        const top = cards()[0].getBoundingClientRect();
+        await dragTo(grip, { x: top.left + 20, y: top.top + 2 });
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [second, first], "dragged above A");
+        });
+        // The keyboard: Down on the first card's grip moves it back down.
+        const moved = within(cards()[0]).getByRole("button", { name: /^Move / });
+        moved.focus();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.deepEqual(idsNow(), [first, second], "moved down by its key");
+        });
+    });
+
+    it("the matches table tints each row in its group's color, with no Group column", async () => {
+        const { modal } = await twoCards();
+        const table = within(modal).getByRole("region", { name: "Matches" });
+        await waitFor(() => {
+            const rows = table.querySelectorAll<HTMLElement>("[data-testid='data-table-row'][data-row-color]");
+            assert.isAbove(rows.length, 0, "rows carry their group's color");
+            assert.notStrictEqual(rows[0]?.style.getPropertyValue("--cm-dt-row-color"), "");
+        });
+        assert.isNull(within(table).queryByRole("columnheader", { name: /^Group/ }), "no Group column");
+    });
+
+    it("the preview draws the edges between a group's members in its color", async () => {
+        const { session } = await openLayer();
+        await openModal();
+        await pickValue("Within hops of");
+        const reference = await within(cards()[0]).findByRole("button", { name: /^Reference/ });
+        await userEvent.click(reference);
+        await userEvent.click(await screen.findByRole("option", { name: /Pick on canvas/ }));
+        const element = document.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("no element");
+        }
+        await element.waitForStableFrame();
+        let at = element.nodeScreenPosition("Valjean");
+        await waitFor(() => {
+            at = element.nodeScreenPosition("Valjean");
+            assert.isTrue(at?.visible);
+        });
+        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        const nodeColor = (id: unknown): string =>
+            JSON.stringify(
+                (session.styles.explain({ node: String(id) }).merged as Record<string, unknown>)["node.color"],
+            );
+        await waitFor(() => {
+            const group = nodeColor("Valjean");
+            assert.strictEqual(edgeColor(session, "Valjean", "Myriel"), group, "an edge between members");
+            // Every edge is in the group's color exactly when both its ends are members.
+            const wrong = session.data
+                .edges()
+                .filter(
+                    (edge) =>
+                        (edgeColor(session, String(edge.source), String(edge.target)) === group) !==
+                        (nodeColor(edge.source) === group && nodeColor(edge.target) === group),
+                );
+            assert.lengthOf(wrong, 0, "only the edges between members");
         });
     });
 });

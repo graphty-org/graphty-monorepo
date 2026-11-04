@@ -291,6 +291,19 @@ export function SelectionEditor({
     addingNow.current = adding;
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
+    // The cards folded to their header line; a new group folds every card before it.
+    const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+    const fold = (id: string, to: boolean): void => {
+        setFolded((was) => {
+            const next = new Set(was);
+            if (to) {
+                next.add(id);
+            } else {
+                next.delete(id);
+            }
+            return next;
+        });
+    };
     const [colors, setColors] = useState(groupColors[host]);
     const [strip, setStrip] = useState(stripShown[host]);
     // A group deleted under the pointer leaves its last sibling's group row until the pointer
@@ -727,12 +740,14 @@ export function SelectionEditor({
         }
         const made = addBranch(rule);
         onChange(made.rule);
+        setFolded(new Set(rule.branches.map((branch) => branch.id ?? "")));
         setAdding({ branch: made.id, op: "add", fresh: true, open: true, back: selected });
         setSelected(null);
     };
     // Only the step being added is lit while it is added: the row selected before is selected
     // again if nothing is picked.
     const startAdding = (branch: UnionBranch, op: Verb): void => {
+        fold(branch.id ?? "", false);
         setAdding({ branch: branch.id ?? "", op, open: true, back: selected });
         setSelected(null);
     };
@@ -1509,6 +1524,54 @@ export function SelectionEditor({
         },
     ];
 
+    // A card dragged by its grip: it takes the place the pointer is at as the pointer moves, so the
+    // order's effect (the first group wins) shows on the preview while dragging.
+    const [draggingCard, setDraggingCard] = useState<string | null>(null);
+    const dragCardTo = useRef<(id: string, y: number) => void>(() => undefined);
+    dragCardTo.current = (id, y) => {
+        const at = rule.branches.findIndex((branch) => branch.id === id);
+        const others = [...(wsBox.current?.querySelectorAll<HTMLElement>(".sel-card") ?? [])].filter(
+            (card) => card.dataset.branch !== id,
+        );
+        const to = others.filter((card) => {
+            const box = card.getBoundingClientRect();
+            return box.top + box.height / 2 < y;
+        }).length;
+        if (at >= 0 && to !== at) {
+            onChange(moveBranch(rule, id, to));
+        }
+    };
+    const grabCard = (event: React.PointerEvent<HTMLElement>, id: string): void => {
+        if (event.button !== 0) {
+            return;
+        }
+        event.preventDefault();
+        setDraggingCard(id);
+        // Followed on the window: the card moves in the page under the pointer as it is dragged.
+        const move = (moved: PointerEvent): void => {
+            dragCardTo.current(id, moved.clientY);
+        };
+        const drop = (): void => {
+            globalThis.removeEventListener("pointermove", move);
+            globalThis.removeEventListener("pointerup", drop);
+            globalThis.removeEventListener("pointercancel", drop);
+            setDraggingCard(null);
+        };
+        globalThis.addEventListener("pointermove", move);
+        globalThis.addEventListener("pointerup", drop);
+        globalThis.addEventListener("pointercancel", drop);
+    };
+    const moveCardKeys = (event: React.KeyboardEvent<HTMLElement>, id: string): void => {
+        const by = { ArrowUp: -1, ArrowDown: 1 }[event.key] as -1 | 1 | undefined;
+        if (by === undefined) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        moveBranchBy(id, by);
+        focusAfter.current = `[data-grip="${CSS.escape(id)}"]`;
+    };
+
     /**
      * The workspace's group cards: one colored card per group, its steps inside it, each step's
      * controls in the step, and the card's actions along its bottom (Add, Keep, Except, Or).
@@ -1524,21 +1587,47 @@ export function SelectionEditor({
                 const branchId = branch.id ?? "";
                 const on = branch.on !== false;
                 const addingHere = adding !== null && adding.branch === branchId;
+                const isFolded = folded.has(branchId) && !addingHere;
                 return (
                     <React.Fragment key={branchId}>
-                        {at > 0 && (
-                            <Text size="sm" c="dimmed" className="sel-card-or" aria-hidden>
-                                or
-                            </Text>
-                        )}
                         <section
                             className="sel-card"
                             data-branch={branchId}
                             data-off={on ? undefined : ""}
+                            data-folded={isFolded ? "" : undefined}
+                            data-dragging={draggingCard === branchId ? "" : undefined}
                             aria-label={`${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`}
                             style={{ "--sel-card-color": color } as React.CSSProperties}
                         >
                             <header className="sel-card-head">
+                                <TargetTooltip label="Drag, or Up and Down arrows, to reorder">
+                                    <ActionIcon
+                                        variant="subtle"
+                                        size="sm"
+                                        className="sel-card-grip"
+                                        data-grip={branchId}
+                                        aria-label={`Move ${letter}`}
+                                        onPointerDown={(event) => {
+                                            grabCard(event, branchId);
+                                        }}
+                                        onKeyDown={(event) => {
+                                            moveCardKeys(event, branchId);
+                                        }}
+                                    >
+                                        <GLYPHS.drag size={12} aria-hidden />
+                                    </ActionIcon>
+                                </TargetTooltip>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    className="sel-card-fold"
+                                    aria-label={`${isFolded ? "Expand" : "Collapse"} ${letter}`}
+                                    onClick={() => {
+                                        fold(branchId, !isFolded);
+                                    }}
+                                >
+                                    <GLYPHS.expand size={12} aria-hidden />
+                                </ActionIcon>
                                 <span className="sel-chit" data-filled="" aria-hidden />
                                 {renaming === branchId ? (
                                     <InlineRename
@@ -1579,7 +1668,25 @@ export function SelectionEditor({
                                         {on ? "Passes none" : "Off"}
                                     </Text>
                                 )}
-                                <span className="sel-spacer" />
+                                {isFolded ? (
+                                    <Text size="sm" c="dimmed" truncate className="sel-card-summary">
+                                        {branch.steps.length === 0
+                                            ? `${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
+                                            : branch.steps
+                                                  .map((step, index) => {
+                                                      const words = outlineWords.get(step.id ?? "");
+                                                      const said = [words?.value ?? "", words ? rowTest(words) : ""]
+                                                          .filter((each) => each !== "")
+                                                          .join(" ");
+                                                      return index === 0 && step.op === newVerb(branch)
+                                                          ? said
+                                                          : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
+                                                  })
+                                                  .join(", ")}
+                                    </Text>
+                                ) : (
+                                    <span className="sel-spacer" />
+                                )}
                                 {branchRead?.state === "pending" ? (
                                     <Text size="sm" c="dimmed" className="sel-state">
                                         Waits
@@ -1698,28 +1805,30 @@ export function SelectionEditor({
                                     ]}
                                 />
                             </header>
-                            <div className="sel-card-start">
-                                <Tooltip
-                                    label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
-                                    openDelay={500}
-                                >
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        data-start={branch.start}
-                                        onClick={() => {
-                                            onChange(
-                                                editBranch(rule, branchId, {
-                                                    start: branch.start === "all" ? "none" : "all",
-                                                }),
-                                            );
-                                        }}
+                            {!isFolded && (
+                                <div className="sel-card-start">
+                                    <Tooltip
+                                        label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
+                                        openDelay={500}
                                     >
-                                        {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
-                                    </Button>
-                                </Tooltip>
-                            </div>
-                            {branch.steps.map((step, index) => {
+                                        <Button
+                                            size="compact-xs"
+                                            variant="default"
+                                            data-start={branch.start}
+                                            onClick={() => {
+                                                onChange(
+                                                    editBranch(rule, branchId, {
+                                                        start: branch.start === "all" ? "none" : "all",
+                                                    }),
+                                                );
+                                            }}
+                                        >
+                                            {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
+                                        </Button>
+                                    </Tooltip>
+                                </div>
+                            )}
+                            {(isFolded ? [] : branch.steps).map((step, index) => {
                                 const id = step.id ?? "";
                                 const previous = readingOf(branch.steps[index - 1]?.id);
                                 const before = index === 0 ? startCount(branch, of) : previous?.count;
@@ -1808,24 +1917,26 @@ export function SelectionEditor({
                                     />
                                 </div>
                             )}
-                            <footer className="sel-card-actions">
-                                {verbsFor(branch).map((op) => (
-                                    <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
-                                        <Button
-                                            size="compact-xs"
-                                            variant="subtle"
-                                            data-verb={op}
-                                            data-add={op === newVerb(branch) ? branchId : undefined}
-                                            leftSection={<VerbGlyph op={op} />}
-                                            onClick={() => {
-                                                startAdding(branch, op);
-                                            }}
-                                        >
-                                            {VERB_WORDS[op].word}
-                                        </Button>
-                                    </Tooltip>
-                                ))}
-                            </footer>
+                            {!isFolded && (
+                                <footer className="sel-card-actions">
+                                    {verbsFor(branch).map((op) => (
+                                        <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
+                                            <Button
+                                                size="compact-xs"
+                                                variant="subtle"
+                                                data-verb={op}
+                                                data-add={op === newVerb(branch) ? branchId : undefined}
+                                                leftSection={<VerbGlyph op={op} />}
+                                                onClick={() => {
+                                                    startAdding(branch, op);
+                                                }}
+                                            >
+                                                {VERB_WORDS[op].word}
+                                            </Button>
+                                        </Tooltip>
+                                    ))}
+                                </footer>
+                            )}
                         </section>
                     </React.Fragment>
                 );

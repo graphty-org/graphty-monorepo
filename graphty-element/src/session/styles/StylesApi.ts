@@ -2730,15 +2730,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // the same picture with no repaint.
             const { name: _name, color: _color, ...held } = branch;
             const steps = branch.steps.filter((step) => step.on !== false && inertReason(step.rule) === null);
+            const selector = { match: "rule" as const, where: { ...rule, branches: [{ ...held, steps }] } };
             specs.push({
                 name: branch.name ?? branch.id ?? "Branch",
                 target,
-                selector: { match: "rule", where: { ...rule, branches: [{ ...held, steps }] } },
+                selector,
                 set: {
                     [`${target}.color`]: branch.color,
                     [`${target}.opacity`]: faint ? faintOpacity : 1,
                 },
             });
+            // A node branch also draws the edges between its members in its color: the rule's
+            // edge half is read `clipped`, the edges a filter of those nodes would leave.
+            if (target === "node") {
+                specs.push({
+                    name: branch.name ?? branch.id ?? "Branch",
+                    target: "edge",
+                    selector,
+                    set: { "edge.color": branch.color, "edge.opacity": faint ? 0.15 : 1 },
+                });
+            }
         }
 
         // A ghost (what a held condition would remove, or what lies outside the time window) is

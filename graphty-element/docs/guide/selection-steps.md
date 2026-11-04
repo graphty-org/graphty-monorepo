@@ -125,5 +125,6 @@ follows the pointer above `liveMs` while a node is hovered. `scope.cancelRun` ca
 ## Showing branches while picking
 
 `session.styles.showBranches({ rule, rest: "faint" })` suspends every layer (kept, listed, and not
-an undo step) and draws each branch's members in its color, the first branch winning; `end()`
+an undo step) and draws each branch's members in its color, the first branch winning (a node
+branch draws the edges between its members in its color too); `end()`
 brings the stack's picture back.

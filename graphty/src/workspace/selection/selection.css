@@ -339,8 +339,31 @@
     background: var(--sel-card-color);
 }
 
-.sel-card-or {
-    padding-inline-start: 12px;
+/* A card's grip drags it to another place; its chevron folds it to its header line. */
+.sel-card-grip {
+    cursor: grab;
+    touch-action: none;
+}
+
+.sel-card[data-dragging] {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
+
+.sel-card[data-dragging] .sel-card-grip {
+    cursor: grabbing;
+}
+
+.sel-card[data-folded] .sel-card-fold svg {
+    transform: rotate(-90deg);
+}
+
+.sel-card-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sel-card[data-folded] .sel-card-head {
+    border-end-end-radius: 5px;
 }
 
 .sel-card-start {

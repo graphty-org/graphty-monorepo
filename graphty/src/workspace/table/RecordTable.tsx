@@ -79,7 +79,7 @@ interface RecordTableProps {
     onMoveColumn?: (id: string, by: -1 | 1) => void;
     /** A column's header parts: its icons, summary, warning and menu. */
     header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
-    /** While a selection is edited: the group a record is in, for a Group column drawn first. */
+    /** While a selection is edited: the group a record is in, whose color tints its row. */
     groupOf?: (id: NodeId | EdgeId) => { name: string; color: string } | null;
     /** Only the records that match this text, as graphty-element's `matching` finds them. */
     matching?: string;
@@ -140,24 +140,6 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
 }
 
 /**
- * A row's Group cell: its group's chit and name, or nothing.
- * @param group - the row's group, or null.
- * @param filled - whether the chit is filled with the group's color.
- * @returns the cell.
- */
-function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
-    return group === null ? null : (
-        <span className="ws-table-group">
-            <span
-                className="sel-chit"
-                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
-            />
-            {group.name}
-        </span>
-    );
-}
-
-/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -197,7 +179,7 @@ export function RecordTable({
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
     const numberFormats = useNumberFormats();
-    // The Group column's chits are filled only while the canvas draws the group colors.
+    // Rows take their group's color only while the canvas draws the group colors.
     const filled = useShowingBranches(session);
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
     const sorted = columns.find((column) => column.id === sort?.id);
@@ -271,18 +253,6 @@ export function RecordTable({
         };
     });
 
-    if (groupOf !== undefined) {
-        // A chit and the group's name, never a row tint: lime means selected (spec 8).
-        tableColumns.unshift({
-            id: "sel:group",
-            header: "Group",
-            sortable: false,
-            hideable: false,
-            value: (row) => groupOf(row.record.id)?.name,
-            cell: (row) => groupCell(groupOf(row.record.id), filled),
-        });
-    }
-
     // One selection, the element's: the rows draw it and a click on a row changes it.
     const graphSelection = kind === "node" ? session.selection.nodes : session.selection.edges;
     const selected = localSelection ? marked : graphSelection;
@@ -311,6 +281,16 @@ export function RecordTable({
             }}
             columns={tableColumns}
             getRowId={(row) => String(row.record.id)}
+            // Each row is tinted in its group's color while the canvas draws the group colors (the
+            // owner, 2026-11-04: no Group column).
+            rowColor={
+                groupOf === undefined || !filled
+                    ? undefined
+                    : (row) => {
+                          const color = groupOf(row.record.id)?.color;
+                          return color === "" ? undefined : color;
+                      }
+            }
             height={height}
             // A short column (an id, a number) is drawn whole; a long one takes what it needs.
             columnSizing="content"

@@ -1,6 +1,6 @@
 /**
  * The workspace's matches strip (design/ui/selection-groups/spec.md, sections 3.0 and 8): the
- * selection's matches only, a Group column first, columns sized to their content, virtualized. It
+ * selection's matches only, each row tinted in its group's color, columns sized to their content, virtualized. It
  * reads the members graphty-element counts (`scope.watchSteps`); a row clicked while Pick on canvas
  * is armed fills the reference instead of selecting. Its search comes first ("Large graphs", spec
  * 4.3): past the rows it draws, typing finds the rest (graphty-element's `matching`).
@@ -38,7 +38,7 @@ export function MatchesStrip({
     // The table reads its page as the search allows: a keystroke is drawn at once.
     const typed = useDeferredValue(text.trim());
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
-    // The Group column is drawn only when there are two groups to tell apart.
+    // Rows are tinted by group only when there are two groups to tell apart.
     const groupOf =
         reading === null || reading.rule.branches.length < 2
             ? undefined

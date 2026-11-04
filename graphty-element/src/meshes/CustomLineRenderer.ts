@@ -73,6 +73,22 @@ export interface JoinedLineOptions {
     blend?: "combine" | "premultiplied" | "add";
 }
 
+/**
+ * The defines the join shader is compiled with for one look.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The defines.
+ */
+function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string[] {
+    return [
+        ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
+        ...(widened ? ["#define EDGE_WIDENED"] : []),
+        ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
+        ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
+        ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+    ];
+}
+
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
     directions: number[]; // Tangent directions
@@ -410,13 +426,7 @@ void main(void) {
         const { program, fade } = options;
         const opaque = options.opaque === true;
         const widened = options.widened === true || program !== undefined || fade !== undefined;
-        const defines = [
-            ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
-            ...(widened ? ["#define EDGE_WIDENED"] : []),
-            ...(program === undefined ? [] : ["#define EDGE_SHADED"]),
-            ...(fade === undefined ? [] : ["#define EDGE_FADE"]),
-            ...(opaque ? ["#define EDGE_OPAQUE"] : []),
-        ];
+        const defines = joinedLineDefines(options, widened);
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,

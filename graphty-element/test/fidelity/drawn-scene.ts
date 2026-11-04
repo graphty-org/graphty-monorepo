@@ -707,7 +707,14 @@ export interface DrawnNode {
      * The ramp the texture is painted with, as the node's style asked its renderer for it (NodeMesh paints its stops
      * evenly, a linear one along `direction` degrees on the upright texture, clockwise from +x on screen), or null.
      */
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null;
+    ramp: {
+        kind: "linear" | "radial";
+        colors: string[];
+        direction: number | null;
+        stops?: number[];
+        /** A radial ramp's middle, in fractions of the node's box, when its style moves it. */
+        center?: [number, number];
+    } | null;
     instanceColor: boolean;
     visible: boolean;
     /**
@@ -1193,7 +1200,15 @@ function readInset(node: Node, p: Projector): number {
  */
 function rampOf(node: Node): DrawnNode["ramp"] {
     const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
-        | { colorType?: string; colors?: unknown[]; direction?: unknown; stops?: unknown[]; radius?: unknown }
+        | {
+              colorType?: string;
+              colors?: unknown[];
+              direction?: unknown;
+              stops?: unknown[];
+              radius?: unknown;
+              centerX?: unknown;
+              centerY?: unknown;
+          }
         | undefined;
     if (color?.colorType !== "gradient" && color?.colorType !== "radial-gradient") {
         return null;
@@ -1202,7 +1217,7 @@ function rampOf(node: Node): DrawnNode["ramp"] {
     const written =
         color.stops?.length === colors.length && color.stops.every((t) => typeof t === "number") ? color.stops : null;
     // a radial gradient reaching `radius` halves of the node's side: its stops, in halves of the side as the oracle's
-    // picture is read (its middle is not judged: a picture is read out from the node's middle)
+    // picture is read
     const radius = color.colorType === "radial-gradient" && typeof color.radius === "number" ? color.radius : 1;
     const last = Math.max(colors.length - 1, 1);
     const stops = radius === 1 ? written : (written ?? colors.map((_, i) => i / last)).map((t) => t * radius);
@@ -1213,6 +1228,9 @@ function rampOf(node: Node): DrawnNode["ramp"] {
               colors,
               direction: color.colorType === "gradient" && typeof color.direction === "number" ? color.direction : null,
               ...(stops === null ? {} : { stops }),
+              ...(typeof color.centerX === "number" || typeof color.centerY === "number"
+                  ? { center: [Number(color.centerX ?? 0.5), Number(color.centerY ?? 0.5)] as [number, number] }
+                  : {}),
           };
 }
 

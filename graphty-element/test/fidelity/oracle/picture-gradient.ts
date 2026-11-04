@@ -1,8 +1,8 @@
 /**
  * Reads the gradient a program painted as a picture (Cytoscape desktop exports its gradient custom graphics as PNGs
  * embedded in its SVG): the picture's pixels as a linear ramp, their color a function of the place along one
- * direction, or a radial one, a function of the distance from the picture's middle -- whichever fits the pixels, and
- * only when it fits them closely. A picture of anything else (a logo) is no gradient.
+ * direction, or a radial one, a function of the distance from the picture's middle or from a point off it -- whichever
+ * fits the pixels, and only when it fits them closely. A picture of anything else (a logo) is no gradient.
  *
  * Test code only; nothing here is graphty-element API.
  */
@@ -25,6 +25,8 @@ const BINS = 50;
 const FIT = 8;
 /** The RGB distance between a ramp's ends under which it is one flat color, no gradient. */
 const FLAT = 12;
+/** Steps across each side of the picture a radial ramp's off-middle center is looked for at. */
+const CENTER_STEPS = 20;
 
 /** One opaque pixel: where it is, from the picture's middle, and its color. */
 interface Px {
@@ -90,9 +92,10 @@ function binned(px: readonly Px[], t: readonly number[]): { error: number; place
  * A ramp's stops from its places, carried on along the ramp to its ends at 0 and 1 (a pixel's middle lies inside the
  * ramp's end, and a round picture leaves the corners its box's ramp reaches unpainted).
  * @param places - the places, in order, at least two
+ * @param end - the place the last stop is carried to
  * @returns the stops
  */
-function stopsOf(places: readonly Place[]): PStop[] {
+function stopsOf(places: readonly Place[], end = 1): PStop[] {
     const hex = (m: readonly number[]): string =>
         `#${m
             .map((v) =>
@@ -112,8 +115,42 @@ function stopsOf(places: readonly Place[]): PStop[] {
         };
         return [to, at(1), at(2), at(3)];
     };
-    const all = [carry(places.slice(0, END_PLACES), 0), ...places, carry(places.slice(-END_PLACES), 1)];
+    const all = [carry(places.slice(0, END_PLACES), 0), ...places, carry(places.slice(-END_PLACES), end)];
     return all.map((m) => ({ offset: Math.round(m[0] * 1000) / 1000, color: hex(m.slice(1)), opacity: 1 }));
+}
+
+/** A ramp the pixels fit: how closely, and its places. */
+type Fit = ReturnType<typeof binned>;
+
+/**
+ * The radial ramp centered anywhere in a picture that fits its pixels best (Cytoscape desktop's `cy_center`): its places
+ * in halves of the picture's shorter side from that center, as a radial fill's stops are.
+ * @param p - the picture
+ * @param px - its pixels
+ * @returns the fit, its center in fractions of the picture from its top left corner, and its farthest place
+ */
+function offMiddleRadial(p: Pixels, px: readonly Px[]): Fit & { center: [number, number]; reach: number } {
+    const half = Math.min(p.width, p.height) / 2;
+    let best: (Fit & { center: [number, number]; reach: number }) | null = null;
+    // ponytail: 441 passes over the pixels, only for a picture no other ramp fits; coarse-to-fine if pictures grow large
+    for (let i = 0; i <= CENTER_STEPS * CENTER_STEPS + 2 * CENTER_STEPS; i++) {
+        const center: [number, number] = [
+            (i % (CENTER_STEPS + 1)) / CENTER_STEPS,
+            Math.floor(i / (CENTER_STEPS + 1)) / CENTER_STEPS,
+        ];
+        const [ox, oy] = [(center[0] - 0.5) * p.width, (center[1] - 0.5) * p.height];
+        const from = px.map((q) => Math.hypot(q.x - ox, q.y - oy) / half);
+        const reach = from.reduce((a, d) => Math.max(a, d), 0);
+        const fit = binned(
+            px,
+            from.map((d) => d / reach),
+        );
+        if (best === null || fit.error < best.error) {
+            best = { ...fit, center, reach };
+        }
+    }
+    const { error, places, center, reach } = best as NonNullable<typeof best>;
+    return { error, center, reach, places: places.map((m) => [m[0] * reach, m[1], m[2], m[3]]) };
 }
 
 /**
@@ -152,6 +189,10 @@ export function pictureGradient(p: Pixels): PGradient | null {
             best = { ...fit, kind: "linear", angle: deg };
         }
     }
+    const off = best.error > FIT ? offMiddleRadial(p, px) : null;
+    if (off !== null && off.error < best.error) {
+        best = { ...off, kind: "radial", angle: null };
+    }
     if (best.error > FIT || best.places.length < 2) {
         return null;
     }
@@ -159,6 +200,9 @@ export function pictureGradient(p: Pixels): PGradient | null {
     const spread = Math.max(...best.places.map((m) => Math.hypot(m[1] - first[1], m[2] - first[2], m[3] - first[3])));
     if (spread < FLAT) {
         return null;
+    }
+    if (off !== null && best.kind === "radial") {
+        return { kind: "radial", stops: stopsOf(best.places, off.reach), angle: null, center: off.center };
     }
     const gradient: PGradient = { kind: best.kind, stops: stopsOf(best.places), angle: best.angle };
     return best.kind === "linear" ? { ...gradient, halfTurn: true } : gradient;

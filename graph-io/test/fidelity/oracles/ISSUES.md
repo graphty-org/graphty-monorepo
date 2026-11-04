@@ -1758,17 +1758,18 @@ node-sizes-opacity 3 -> 2. Still open, and why:
   background; `node-shapes`, `images-charts`) failed `stray.extra` (`graphty:annotation-image`): the oracle side
   folds the program's `<image>` into the node, so nothing was left for graphty's picture to match. Comparator, fixed in
   fix round 3: the oracle node keeps the boxes of the pictures it is drawn with (`pictures`), and graphty's picture
-  matches one of them as it would a stray. `annotation-image#5` on `images-charts` still fails: graphty places the
-  `coordinate-origin-circular` node 23 px off (`node.position`, shared with `unpositioned-layout-scale`).
+  matches one of them as it would a stray. `annotation-image#5` on `images-charts` failed while graphty placed the
+  `coordinate-origin-circular` node 23 px off; graph-io now puts its center half its square from `x` and `y` (#4515).
 - `json-vis-siblings` (200 nodes / 284 edges drawn, 83 / 104 associated): not an import gap. The file has no hidden or
   duplicate record and vis-network draws all of them (`observed` 200 / 284 in the oracle's metadata); it stores no
   positions, so graphty lays it out itself and the geometric association pairs 83 of its nodes by chance. Shared
   with the other vis-network documents without positions (`unpositioned-layout-scale`).
 - `json-vis-synth` `curve`, `inv_curve` and `image` arrows (5->6, 6->7, 11->12) read as no arrow on the oracle: the
   arc sits against the target dot where the next edge starts at the same center, and the comparator gives it to
-  neither; the image arrow is read as a stray picture.
+  neither. The image arrow (11->12) was read as a stray picture until the comparator gave a picture a tip (its box) and
+  measured it by its turned corners (#4515).
 - Unchanged from round 1: `database` (no stroke on the oracle, sized from its label's width), `border-radius-12`
-  (shape class), `coordinate-origin-circular` and `image-background` (images-charts), `self-reference-front`.
+  (shape class), `image-background` (images-charts), `self-reference-front`.
 
 Checked again on a clean copy of the commits (2026-10-20), every vis-network sheet run against the committed floors
 and known failures:

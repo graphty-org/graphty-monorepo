@@ -368,9 +368,11 @@ Arrowheads
 - Fixed for most programs (graph-io states each program's arrowhead proportions, graphty-element
   draws them): every arrowhead passes on cx-ndex-90f78bcd, every DOT sample but two, the Gephi
   samples and the yEd stand-ins that failed at 2x to 7x.
-- Still open: Cytoscape arrow size and shape mappings on the syn-mappings family (length 20/48,
-  4.1x on the mapped sizes; width 0.41x; 22 of 74 ends where one side draws an arrow and the other
-  does not); the syn-bypass family 1.75x on 11 of 64; dot-synth-edges-clusters 3.25x on 16 of 101;
+- Fixed in the comparator (#3113): the syn-mappings family's arrow shape and length, graphty having drawn them right
+  all along: heads were lost to a neighbor's line where a line's end cap or a big head over a small node stopped the
+  walk over what was drawn after the line. Its one edge drawn only as two meeting heads (189->192, no line in the SVG)
+  still has no edge to go to.
+- Still open: the syn-bypass family 1.75x on 11 of 64; dot-synth-edges-clusters 3.25x on 16 of 101;
   dot-real-depcruise 1.67x on 94 of 652; vis-network arrow type 73/98 (vis-unix) and width 0.59x
   (vis-world 43/48).
 

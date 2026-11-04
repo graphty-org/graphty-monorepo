@@ -289,6 +289,26 @@ describe("label checks", () => {
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
     });
 
+    it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
+        // graphml-cla-checker-graph: draw.io draws 2 px labels 0.6 px left of their nodes' middles, graphty centers
+        // them; at a quarter of a 2 px font the side's tolerance was half a pixel, and the program's label read as
+        // "inside at the start"
+        const tiny = (x: number): PText => text("A", x, 100, {}, 9, 2);
+        const pair = (o: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: tiny(o) }), scene("graphty", {}, { a: tiny(100) }));
+        assert.deepEqual(pair(99.4)["label.anchor"], undefined);
+        // the defect planted: the program's label 6 px left, at the start of its 40 px node
+        assert.deepEqual(pair(94)["label.anchor"], ["a"]);
+        // graphml-stm32-func: a 4 px label hanging half out of the bottom of a 4 px node, on both sides; with the pixel
+        // on the box's edges too the program's read as after the node and graphty's as inside at its end
+        const low = (y: number): PText => text("A", 100, y, {}, 9, 4);
+        const small = (side: PScene["side"], y: number): PScene =>
+            scene(side, {
+                nodes: GRID.map(([id, x, cy]) => node(id, x, cy, { w: 4, h: 4, label: id === "a" ? low(y) : null })),
+            });
+        assert.deepEqual(failures(small("oracle", 102.8), small("graphty", 102.2))["label.anchor"], undefined);
+    });
+
     it("places other words by their start, middle or end, and the same words by their middle", () => {
         // pajek-iliad 204: the program's words are a character longer and start where graphty's start
         const pair = (o: PText, g: PText): Record<string, string[]> =>

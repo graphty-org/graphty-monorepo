@@ -53175,12 +53175,6 @@
                 "to": 0,
                 "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.917,
-                "to": 0.907,
-                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
-                "date": "2026-11-04"
             }
         },
         "dot-synth-nodes@matched": {
@@ -53195,12 +53189,6 @@
                 "to": 0,
                 "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.917,
-                "to": 0.907,
-                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
-                "date": "2026-11-04"
             }
         },
         "gexf-hsk-chars": {
@@ -53409,20 +53397,6 @@
                 "to": 0.4,
                 "reason": "issue #5347: the oracle now reads a yEd table drawn as stacked rows as one node body, so the header boxes it used to leave as strays are the tables' own; graphty still draws its table rows as separate annotation shapes, which no longer pair with an oracle stray",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.917,
-                "to": 0.875,
-                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
-                "date": "2026-11-04"
-            }
-        },
-        "graphml-synthetic-nodes@matched": {
-            "edge.route": {
-                "floor": 0.917,
-                "to": 0.875,
-                "reason": "comparator (#5761): a route is now cut at a star's own outline, not the ellipse its box holds; graphty's line runs on into the empty notch between the star's points, short of its outline, where the program's reaches its outline, a gap the ellipse cut hid",
-                "date": "2026-11-04"
             }
         },
         "json-cyjs-perf": {

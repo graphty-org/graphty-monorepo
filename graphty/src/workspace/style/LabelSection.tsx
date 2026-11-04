@@ -607,15 +607,22 @@ function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<ty
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.kind - the kind of text
+ * @param props.locked - the entry's layer is locked, so nothing is added
  * @param props.onPart - adds one, by `<kind>:<part>`
- * @returns The button, or nothing when the entry sets all three
+ * @returns The button, or nothing when the entry sets all three or is locked
  */
 function EntryAdd({
     ctx,
     kind,
+    locked,
     onPart,
-}: Readonly<{ ctx: RowContext; kind: TextKindSpec; onPart: (key: string) => void }>): React.JSX.Element | null {
-    const parts = partsOf(ctx, kind);
+}: Readonly<{
+    ctx: RowContext;
+    kind: TextKindSpec;
+    locked: boolean;
+    onPart: (key: string) => void;
+}>): React.JSX.Element | null {
+    const parts = locked ? [] : partsOf(ctx, kind);
     return parts.length === 0 ? null : (
         <AddButton kind={ctx.side} title={kind.name} options={parts} inRow onAdd={onPart} />
     );
@@ -774,7 +781,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
-                    {locked ? null : <EntryAdd ctx={ctx} kind={kind} onPart={onPart} />}
+                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>

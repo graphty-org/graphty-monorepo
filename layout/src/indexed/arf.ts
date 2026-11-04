@@ -1,6 +1,7 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { kickDir } from "../simulation/forceatlas2.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import { refusal } from "./common.js";
@@ -41,7 +42,7 @@ interface ArfState {
     readonly neighbour: Int32Array;
     readonly rowPtr: ArrayLike<number>;
     readonly colIdx: ArrayLike<number>;
-    readonly dim: number;
+    readonly dim: 2 | 3;
     readonly n: number;
     /** The repulsion, scaling * sqrt(n). */
     readonly rho: number;
@@ -62,7 +63,15 @@ function arfPair(st: ArfState, i: number, j: number): void {
         diff[k] = p[dim * i + k] - p[dim * j + k];
         squares += diff[k] * diff[k];
     }
-    const dist = Math.sqrt(squares) || 0.01;
+    if (squares === 0) {
+        // one point: delta / d is the zero vector, so the repulsion takes the antisymmetric kick of the simulations
+        const kick = kickDir(i, j, st.dim);
+        for (let k = 0; k < dim; k++) {
+            change[dim * i + k] += st.rho * kick[k];
+        }
+        return;
+    }
+    const dist = Math.sqrt(squares);
     const spring = st.neighbour[j] === i + 1 ? st.a : 1;
     for (let k = 0; k < dim; k++) {
         // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
@@ -97,14 +106,21 @@ function arfChange(st: ArfState): void {
  */
 function arfMove(st: ArfState, dt: number): number {
     const { p, change, dim, n } = st;
+    // the forces settle at radius rho; a tick only goes past twice that once the summed spring stiffness passes
+    // 2 / dt, where the Euler step overshoots and, unclamped, grows every tick until it is Infinity
+    const maxMove = 2 * Math.max(st.rho, 1);
     let error = 0;
     for (let i = 0; i < n; i++) {
         let squares = 0;
         for (let k = 0; k < dim; k++) {
-            p[dim * i + k] += change[dim * i + k] * dt;
             squares += change[dim * i + k] * change[dim * i + k];
         }
-        error += Math.sqrt(squares);
+        const force = Math.sqrt(squares);
+        const step = force * dt > maxMove ? maxMove / force : dt;
+        for (let k = 0; k < dim; k++) {
+            p[dim * i + k] += change[dim * i + k] * step;
+        }
+        error += force;
     }
     return error;
 }
@@ -112,7 +128,9 @@ function arfMove(st: ArfState, dt: number): number {
 /**
  * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
  * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
- * from `center`.
+ * from `center`. Two departures from networkx, both only where it has no answer: nodes on one exact point are kicked
+ * apart (its 0 / 0 leaves them together), and a tick moves a node at most twice the settled radius (its Euler step
+ * diverges once the summed spring stiffness passes about 2000).
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node

@@ -1791,6 +1791,30 @@ function withGroups(box: PBox, groups: readonly PGroup[], ids: ReadonlySet<strin
     return out;
 }
 
+/**
+ * A box grown to hold the lines of the edges a side draws between nodes both sides draw: a line that bends or curves
+ * out past every node and group (Graphviz's splines round a tall cluster, dot-real-depcruise) is part of the drawing
+ * either program frames, so the share of its canvas a drawing fills is measured over it too (issue #5756).
+ * @param box - the box round the nodes and groups
+ * @param edges - the side's edges
+ * @param nodes - the ids of the side's nodes the other side draws too
+ * @returns the grown box
+ */
+function withEdges(box: PBox, edges: readonly PEdge[], nodes: ReadonlySet<string>): PBox {
+    const out = { ...box };
+    for (const e of edges) {
+        if (nodes.has(e.source) && nodes.has(e.target)) {
+            for (const [x, y] of e.points) {
+                out.x0 = Math.min(out.x0, x);
+                out.y0 = Math.min(out.y0, y);
+                out.x1 = Math.max(out.x1, x);
+                out.y1 = Math.max(out.y1, y);
+            }
+        }
+    }
+    return out;
+}
+
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
     Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
@@ -1858,8 +1882,24 @@ export function compareOracle(
     );
     const groupIds = (scene: PScene): Set<string> => new Set(scene.groups.map((g) => g.id));
     const filled = {
-        oracle: fillOf(withGroups(extentO, oracle.groups, groupIds(graphty)), oracle.width, oracle.height),
-        graphty: fillOf(withGroups(extentG, graphty.groups, groupIds(oracle)), graphty.width, graphty.height),
+        oracle: fillOf(
+            withEdges(
+                withGroups(extentO, oracle.groups, groupIds(graphty)),
+                oracle.edges,
+                new Set(pairs.map(([o]) => o.id)),
+            ),
+            oracle.width,
+            oracle.height,
+        ),
+        graphty: fillOf(
+            withEdges(
+                withGroups(extentG, graphty.groups, groupIds(oracle)),
+                graphty.edges,
+                new Set(pairs.map(([, g]) => g.id)),
+            ),
+            graphty.width,
+            graphty.height,
+        ),
     };
     if (fit !== null) {
         const sse = pairs.reduce((sum, [o, g]) => {
@@ -2891,15 +2931,15 @@ export function compareOracle(
                 );
             }
         }
-        if (o.label !== null || g.label !== null) {
-            j.add(
-                "group.label",
-                "group",
-                o.id,
-                norm(o.label?.content ?? "") === norm(g.label?.content ?? "") ? 0 : 1,
-                o.label?.content ?? null,
-                g.label?.content ?? null,
-            );
+        // a label under one render pixel is no label to a reader, as judgeLabel counts a node's: graphty drops its own
+        // (extract-scene.ts), so an oracle's that small is left out too (dot-real-depcruise's 9 pt cluster names at
+        // about 1 px, issue #5756)
+        const legible = (t: PText | null, scale: number): string | null =>
+            t !== null && (t.sizePx === 0 || t.sizePx / scale >= T.legibleFontPx) ? t.content : null;
+        const oWords = legible(o.label, lengthScale);
+        const gWords = legible(g.label, 1);
+        if (oWords !== null || gWords !== null) {
+            j.add("group.label", "group", o.id, norm(oWords ?? "") === norm(gWords ?? "") ? 0 : 1, oWords, gWords);
             // how it is drawn and where against its box
             judgeLabel(
                 j,

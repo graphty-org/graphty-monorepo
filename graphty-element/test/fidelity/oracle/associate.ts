@@ -2031,9 +2031,76 @@ function placeUndrawnBodies(nodes: Map<string, PNode>, edges: readonly PEdge[]):
     }
 }
 
+/** A filled, unstroked shape: what Java's `fill3DRect` draws a body and each strip of its border as. */
+const flatFill = (p: Prim): boolean => p.kind === "shape" && p.fill !== null && p.stroke === null;
+
+/**
+ * The frame four shapes make, when they are a raised border: Java's `fill3DRect`, which yEd draws a UML class node and a
+ * 3D rectangle with, draws four strips of one thickness all round a body, a light one left and top and a dark one
+ * bottom and right (`graphml-libcitygml-mapping` CityObject: 1 px strips round a 154 x 26 body, 156 x 28 together, the
+ * size the file gives). One strip lies along each side of their box; a strip's own box is read from its sampled
+ * outline, which may fall a few percent short of its corners (a 208 px top strip reads 204.55).
+ * @param strips - the four shapes
+ * @returns the frame's outer box and its thickness, or null when they are none
+ */
+function raisedFrame(strips: readonly Prim[]): { box: PBox; thickness: number } | null {
+    if (strips.length !== 4 || !strips.every(flatFill)) {
+        return null;
+    }
+    const thin = (p: Prim): number => Math.min(bw(p.box), bh(p.box));
+    const thickness = thin(strips[0]);
+    const box = union(strips.map((p) => p.box));
+    const round = 0.01;
+    const near = (a: number, b: number): boolean => Math.abs(a - b) <= round;
+    const side = ({ box: b }: Prim): string | null => {
+        const tall = bh(b) > bw(b);
+        const spans = tall ? bh(b) >= 0.9 * bh(box) : bw(b) >= 0.9 * bw(box);
+        const [low, high] = tall ? [near(b.x0, box.x0), near(b.x1, box.x1)] : [near(b.y0, box.y0), near(b.y1, box.y1)];
+        return spans && low !== high ? `${tall ? "x" : "y"}${low ? "0" : "1"}` : null;
+    };
+    const sides = new Set(strips.map(side));
+    return thickness > 0 && !sides.has(null) && sides.size === 4 && strips.every((p) => near(thin(p), thickness))
+        ? { box, thickness }
+        : null;
+}
+
+/**
+ * The drawing with each raised border folded into its body, so a strip is read as neither an arrowhead at a line
+ * stopping on it nor a stray, and the body has its whole size. The body is inside the frame, drawn just before it, or
+ * under it at the frame's own size, drawn before the node's label (yEd's 3D rectangle in GML, gml-synthetic-coverage
+ * v10: an 80 x 40 body, the label, then the strips along the body's edge). Strips round no body are left as they are.
+ * @param prims - the oracle's primitives
+ * @returns the primitives, each raised body at its whole size and its strips gone
+ */
+export function foldRaisedBorders(prims: readonly Prim[]): Prim[] {
+    const out: Prim[] = [];
+    const same = (a: PBox, b: PBox, by: number): boolean =>
+        [a.x0 + by - b.x0, a.y0 + by - b.y0, b.x1 - a.x1 + by, b.y1 - a.y1 + by].every((d) => Math.abs(d) <= 0.01);
+    for (let i = 0; i < prims.length; i++) {
+        const frame = raisedFrame(prims.slice(i, i + 4));
+        const at =
+            frame === null
+                ? -1
+                : out.findIndex(
+                      (p) => flatFill(p) && (same(frame.box, p.box, 0) || same(frame.box, p.box, frame.thickness)),
+                  );
+        if (frame === null || at < 0) {
+            out.push(prims[i]);
+            continue;
+        }
+        const body = out[at];
+        const [sx, sy] = [bw(frame.box) / bw(body.box), bh(frame.box) / bh(body.box)];
+        const [mx, my] = [cx(frame.box), cy(frame.box)];
+        const points = body.points.map(([x, y]): Pt => [mx + (x - mx) * sx, my + (y - my) * sy]);
+        out[at] = { ...body, box: frame.box, points };
+        i += 3;
+    }
+    return out;
+}
+
 /**
  * Associates an oracle's primitives with graph elements.
- * @param prims - the oracle's primitives (`readSvgPrimitives`)
+ * @param primitives - the oracle's primitives (`readSvgPrimitives`)
  * @param width - the oracle's rendered width
  * @param height - the oracle's rendered height
  * @param guide - graphty's drawing of the same file, in graphty pixels
@@ -2043,12 +2110,13 @@ function placeUndrawnBodies(nodes: Map<string, PNode>, edges: readonly PEdge[]):
  * @returns the oracle scene
  */
 export function associate(
-    prims: readonly Prim[],
+    primitives: readonly Prim[],
     width: number,
     height: number,
     guide: PScene,
     options: { ownLayout?: boolean } = {},
 ): Association {
+    const prims = foldRaisedBorders(primitives);
     const used = new Set<number>();
     const take = (p: Prim): Prim => {
         used.add(p.index);

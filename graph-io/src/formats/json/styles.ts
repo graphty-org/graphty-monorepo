@@ -916,7 +916,8 @@ function visSharedBrokenImage(layer: VisLayer, shape: string, brokenOf: Map<stri
  * `shapeProperties.useBorderWithImage`; a `circularImage` is cut to a circle and ringed by its border. Its
  * `imagePadding` keeps the picture that far inside the node's box on each side, stretched to what is left
  * (`_drawImageAtPosition`); the node's `opacity` fades the picture too; with `shapeProperties.coordinateOrigin`
- * "top-left" an `image` node with no box of its own draws its picture with its top left corner at the node's position.
+ * "top-left" an `image` node with no box of its own draws its picture with its top left corner at the node's position
+ * (a `circularImage` moves whole: visCenterOffset).
  * @param layer - the node's merged layer
  * @param shape - its vis-network shape
  * @param box - the node's width and height, in the file's units
@@ -975,6 +976,28 @@ function visImagePlace(row: Row, layer: VisLayer, box: { width: number; height: 
         row.imageOffsetX = box.width / 2 + (typeof row.imageOffsetX === "number" ? row.imageOffsetX : 0);
         row.imageOffsetY = box.height / 2 + (typeof row.imageOffsetY === "number" ? row.imageOffsetY : 0);
     }
+}
+
+/**
+ * How far a vis-network node's middle is from its `x` and `y`: a `circularImage` with
+ * `shapeProperties.coordinateOrigin` "top-left" draws its circle, picture and label with their box's top left corner
+ * there (vis-network 9.1.9 `CircularImage.draw`), half its `2 * size` square down and right of where any other node is
+ * drawn. An edge still runs to `x` and `y` in vis-network; here it follows the node.
+ * @param snapshot - the graph
+ * @returns each node's offset, null for none
+ */
+export function visCenterOffset(snapshot: GraphSnapshot): (row: number) => readonly [number, number] | null {
+    const [shape, properties, size] = ["shape", "shapeProperties", "size"].map((name) => cells(snapshot, "node", name));
+    return (row) => {
+        const own = properties?.(row);
+        if (shape?.(row) !== "circularImage" || !isJsonObject(own) || own.coordinateOrigin !== "top-left") {
+            return null;
+        }
+        // ponytail: the node's own keys only; a shape, origin or size from options.nodes or a group needs them passed
+        // through the import, since a positions hook sees only the snapshot
+        const radius = size?.(row);
+        return typeof radius === "number" && radius >= 0 ? [radius, radius] : [VIS_SIZE, VIS_SIZE];
+    };
 }
 
 /**

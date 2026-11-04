@@ -870,12 +870,17 @@ const commitDocs = (msg, label, phaseName) =>
 const ASK = /^ASK ([a-z0-9]+): (.+)$/gm;
 async function answerQuestions(proposals, P) {
     const asked = {};
-    for (const p of proposals) for (const [, to, q] of p.matchAll(ASK)) if (TEAM[to]) (asked[to] ||= []).push(q);
+    for (const p of proposals)
+        for (const [, to, q] of p.matchAll(ASK)) {
+            if (!TEAM[to]) continue;
+            asked[to] = asked[to] || [];
+            asked[to].push(`- ${q}`);
+        }
     const answers = await parallel(
         Object.keys(asked).map(
             (to) => () =>
                 agent(
-                    `${RULES}\n${asRole(to, true)}\nOther designers ask you these questions, because you own the facts. Answer each from the code, ${DECIDED} and ${ROOT}/design/ui/framework, citing file and line; say "not known" rather than guess. Under 300 words.\n\n${asked[to].map((q) => `- ${q}`).join("\n")}`,
+                    `${RULES}\n${asRole(to, true)}\nOther designers ask you these questions, because you own the facts. Answer each from the code, ${DECIDED} and ${ROOT}/design/ui/framework, citing file and line; say "not known" rather than guess. Under 300 words.\n\n${asked[to].join("\n")}`,
                     { label: `${P}: ${TEAM[to]} answers`, phase: "Round" },
                 ).then((t) => t && `### ${TEAM[to]} answers\n${t}`),
         ),
@@ -900,20 +905,13 @@ async function settleConflicts(thread, P) {
         { label: `${P}: find conflicts`, phase: "Round", schema: CONFLICTS, effort: "low" },
     );
     const pairs = (found?.conflicts || []).filter((c) => TEAM[c.a] && TEAM[c.b] && c.a !== c.b).slice(0, 3);
+    const reply = (me, other, question) =>
+        agent(
+            `${RULES}\n${asRole(me, true)}\nYou and the ${TEAM[other]} disagree: ${question}. Answer their position once, with evidence. Change yours only for new evidence and name it. Under 200 words.\n\n${thread}`,
+            { label: `${P}: ${TEAM[me]} on a conflict`, phase: "Round" },
+        ).then((t) => t && `### ${TEAM[me]} on: ${question}\n${t}`);
     const answers = await parallel(
-        pairs.flatMap((c) =>
-            [
-                [c.a, c.b],
-                [c.b, c.a],
-            ].map(
-                ([me, other]) =>
-                    () =>
-                        agent(
-                            `${RULES}\n${asRole(me, true)}\nYou and the ${TEAM[other]} disagree: ${c.question}. Answer their position once, with evidence. Change yours only for new evidence and name it. Under 200 words.\n\n${thread}`,
-                            { label: `${P}: ${TEAM[me]} on a conflict`, phase: "Round" },
-                        ).then((t) => t && `### ${TEAM[me]} on: ${c.question}\n${t}`),
-            ),
-        ),
+        pairs.flatMap((c) => [() => reply(c.a, c.b, c.question), () => reply(c.b, c.a, c.question)]),
     );
     return answers.filter(Boolean);
 }

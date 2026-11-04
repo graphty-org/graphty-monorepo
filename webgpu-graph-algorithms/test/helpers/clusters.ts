@@ -121,7 +121,7 @@ export async function runClusters(ctx: GpuContext, scene: ClusterScene): Promise
  * @param scene - the scene
  * @returns the force
  */
-export function expectedForce(scene: ClusterScene): Float64Array {
+function expectedForce(scene: ClusterScene): Float64Array {
     const { positions, communities, law } = scene;
     const out = Float64Array.from(scene.force);
     const sums = new Map<number, [number, number, number, number]>();

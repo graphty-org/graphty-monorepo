@@ -42,6 +42,7 @@ import {
 } from "@graphty/graph-format";
 
 import { BarnesHutTree } from "./barnes-hut.js";
+import { assertCollision, collide, settleCollisions } from "./collision.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -51,7 +52,7 @@ import {
 } from "./constants.js";
 import { resolveNodeVector, resolveWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
-import type { ForceAtlas2Options, LayoutSimulation } from "./types.js";
+import type { CollisionOptions, ForceAtlas2Options, LayoutSimulation } from "./types.js";
 
 /** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
 export type ForceAtlas2SimulationOptions = ForceAtlas2Options & {
@@ -528,6 +529,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private fixed: NodeMask | null = null;
     /** The rows taken out of the forces (setInert), or null for none. */
     private inert: NodeMask | null = null;
+    /** What setCollision() set, or null. */
+    private collision: CollisionOptions | null = null;
     /** n less the inert rows: what every statistic divides by. */
     private liveRows = 0;
     private scratch: Scratch = allocateScratch(0);
@@ -621,6 +624,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         if (n !== this.n) {
             this.fixed = null;
             this.inert = null;
+            this.collision = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
@@ -678,6 +682,17 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         }
         // settled on entry: nothing ran, so nothing to write back
         if (k > 0) {
+            if (this.settled && this.collision !== null) {
+                settleCollisions(
+                    this.positions,
+                    this.n,
+                    this.dim,
+                    this.collision,
+                    this.options.scale,
+                    this.fixed,
+                    this.inert,
+                );
+            }
             this.writeBack();
         }
     }
@@ -727,6 +742,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             // the first iteration reads load()'s centroid: count the live rows only, as every later fold does
             this.writeInitialStatistics();
         }
+    }
+
+    /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision). Copied; never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision !== null) {
+            assertCollision(collision, this.n);
+        }
+        this.collision = collision === null ? null : { ...collision, radii: collision.radii.slice() };
     }
 
     /**
@@ -781,6 +808,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.mass = new Float64Array(0);
         this.liveMass = new Float64Array(0);
         this.inert = null;
+        this.collision = null;
         this.weights = null;
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
@@ -992,6 +1020,9 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             disp: groupTotals(disp, n),
             free: groupTotals(free, n),
         };
+        if (this.collision !== null) {
+            collide(this.positions, n, this.dim, this.collision, this.options.scale, this.fixed, this.inert);
+        }
     }
 
     /**

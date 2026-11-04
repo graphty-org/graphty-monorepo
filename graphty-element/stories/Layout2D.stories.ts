@@ -371,6 +371,32 @@ export const Spring: Story = {
     },
 };
 
+/**
+ * Spring with `nodeGap`: nodes drawn large, kept apart by their drawn size, so none covers another. Beside the Spring
+ * story, whose nodes stay points to the layout. `preSteps` matches Spring's, for the same reason.
+ */
+export const NodeGap: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
+        layout: "spring",
+        layoutConfig: { dim: 2, nodeGap: 2 },
+        springK: null,
+        springIterations: 50,
+        springScale: 1,
+        springSeed: 12,
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.nodeGap"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "NodeGap");
+
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
 /** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
 const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
 

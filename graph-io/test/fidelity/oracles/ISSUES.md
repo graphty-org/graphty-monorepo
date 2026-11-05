@@ -5016,3 +5016,24 @@ Open:
   through its center. Pajek draws the man unevenly about his vertex (64.7 up, 62.2 down at this size) and graphty
   centers the figure, so the box the label is judged against sits 1.24 px lower in Pajek's drawing. Needs a figure
   drawn off its node's center (graphty-element-render).
+
+Measured by source file against yEd's own drawings (#4247, `fix/4247-label-anchor-causes`):
+
+- A yEd label as tall as its node (`autoSizePolicy` `node_size`, `node_height`), GML and GraphML. Fixed: yEd centers the
+  label's box, which then fills the node, and writes the words at the box's top (about 2 px down, on every such label in
+  the real and specimen drawings), so graph-io reads it as `inside-top`. `gml-yed-pmodel` label.anchor 0/36 ->
+  36/36.
+- A `CroppingLabel` breaks its words at its node's width. Fixed: `labelWrapWidth` from the node's width, less the
+  label's padding. `graphml-libcitygml-mapping` label.lines passes on all six such labels; n2, n4, n14, n48, n49 and n50
+  still fail label.anchor, because yEd draws these words smaller (font 6 to 7 px against graphty's 7.5) and graphty's
+  lines overflow the node.
+- A yEd GML label inside against the left or right side is 4 in from it (the internal model's inset), which GML stores
+  no box to read. Fixed for labels that fit (`gml-synthetic-coverage` 9, 17, 35, 69, 77).
+
+Open:
+
+- A label wider than its node, inside against a side: yEd keeps it against that side, graphty-element centers it
+  (`inward` in `RichTextLabel.ts`, documented behavior). `gml-synthetic-coverage` 43, 49, 61, 67 and
+  `graphml-synthetic-nodes` shape-parallelogram, -parallelogram2, -hexagon, -hexagon2, -fatarrow2. Needs an additive
+  label option, and with it the top and bottom inset GML leaves out today (`gml-synthetic-coverage` 33, 34, 58): an
+  offset from the center carries a label too tall for its node past the middle.

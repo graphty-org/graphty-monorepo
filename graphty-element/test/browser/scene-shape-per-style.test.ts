@@ -19,7 +19,7 @@
  */
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Mesh, Vector3 } from "@babylonjs/core";
+import { type Buffer, Mesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
@@ -353,7 +353,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isNotNull(capBatch);
         const uploads: string[] = [];
         for (const kind of ["arrowColor", "arrowSize"]) {
-            const buffer = capBatch.getVertexBuffer(kind)?.getWrapperBuffer();
+            const buffer: Buffer | undefined = capBatch.getVertexBuffer(kind)?.getWrapperBuffer();
             assert.isDefined(buffer, `${kind} is a buffer of the batch`);
             const upload = buffer.updateDirectly.bind(buffer);
             buffer.updateDirectly = (...args): void => {

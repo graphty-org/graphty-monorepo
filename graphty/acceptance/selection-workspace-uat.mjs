@@ -354,12 +354,16 @@ class Visit {
             )
             .catch(() => null);
         if (handle === null) {
-            const seen = await this.ws.evaluate((box) =>
-                [...box.querySelectorAll("[data-testid=data-table-row]")]
-                    .slice(0, 6)
-                    .map(
-                        (r) => `${r.innerText.replaceAll("\n", "|")} ${r.style.getPropertyValue("--cm-dt-row-color")}`,
-                    ),
+            const seen = await this.ws.evaluate(
+                (box, w) =>
+                    [...box.querySelectorAll("[data-testid=data-table-row]")]
+                        .map((row) => ({
+                            id: row.querySelector("[role=gridcell],[role=rowheader]")?.textContent ?? "",
+                            color: row.style.getPropertyValue("--cm-dt-row-color").toUpperCase(),
+                        }))
+                        .filter((row) => w[row.id] !== row.color)
+                        .map((row) => `${row.id} is ${row.color} and should be ${String(w[row.id])}`),
+                want,
             );
             fail(`${when}: a table row is not in the selection or has the wrong tint: ${seen.join("; ")}`);
         }

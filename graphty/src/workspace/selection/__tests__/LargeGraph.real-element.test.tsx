@@ -56,6 +56,9 @@ async function openGenerated(): Promise<GraphSession> {
     });
     await session.data.setType({ kind: "node", name: "community" }, "category");
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
+    // A drawing that settles: the force layout on 50,000 nodes runs for minutes at seconds a frame
+    // on software rendering, which starves every input, and "Drawing" ends only once painted.
+    await session.layout.set("random");
     return session;
 }
 
@@ -405,9 +408,6 @@ describe("the selection editor on 50,000 nodes", () => {
     });
     it("an edit says Drawing in the frame of its input, before the work starts (opening, a tick, Done)", async () => {
         const session = await openGenerated();
-        // A drawing that settles (the force layout on 50,000 nodes runs for minutes), so "Drawing"
-        // ends once the element has painted, as on a study's graph.
-        await session.layout.set("random");
         await openLayer(
             session,
             "Busy",
@@ -464,7 +464,6 @@ describe("the selection editor on 50,000 nodes", () => {
 
     it("Done and Cancel keep the workspace open, saying Drawing, until the result is painted", async () => {
         const session = await openGenerated();
-        await session.layout.set("random");
         await openLayer(
             session,
             "Closing",
@@ -509,7 +508,6 @@ describe("the selection editor on 50,000 nodes", () => {
 
     it("a control the reader moves to while Done waits for the paint keeps focus and every key typed there", async () => {
         const session = await openGenerated();
-        await session.layout.set("random");
         const layer = await openLayer(
             session,
             "Moved on",
@@ -574,7 +572,6 @@ describe("the selection editor on 50,000 nodes", () => {
 
     it("opening Which nodes right after adding a layer walks no style agreement before its first frame", async () => {
         const session = await openGenerated();
-        await session.layout.set("random");
         // Every answer graphty-element gives; one it has not given before is a walk over 50,000 nodes.
         const given = new Set<unknown>();
         let walks = 0;

@@ -69,6 +69,11 @@ const meta: Meta = {
             table: { category: "Spring Layout" },
             name: "layoutConfig.seed",
         },
+        springNodeGap: {
+            control: { type: "number" },
+            table: { category: "Spring Layout" },
+            name: "layoutConfig.nodeGap",
+        },
 
         // Circular layout controls
         circularScale: {
@@ -379,15 +384,23 @@ export const NodeGap: Story = {
     args: {
         setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
         layout: "spring",
-        layoutConfig: { dim: 2, nodeGap: 2 },
+        layoutConfig: { dim: 2 },
         springK: null,
         springIterations: 50,
         springScale: 1,
         springSeed: 12,
+        springNodeGap: 2,
     },
     parameters: {
         controls: {
-            include: ["layoutConfig.nodeGap"],
+            // A control left out here does not reach the layout, so `layoutConfig.seed` has to stay.
+            include: [
+                "layoutConfig.k",
+                "layoutConfig.iterations",
+                "layoutConfig.scale",
+                "layoutConfig.seed",
+                "layoutConfig.nodeGap",
+            ],
         },
     },
     play: async ({ canvasElement }) => {

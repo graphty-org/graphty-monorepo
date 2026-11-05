@@ -57,6 +57,16 @@ describe("Pajek outlines (diamond q, phi)", () => {
         expect(get("node", "shapeRotation")).toEqual([null, null, null, -30]);
     });
 
+    it("turns a cross, a man and a woman whole by phi", async () => {
+        // pajek-synth-vertices v5 `cross x_fact 1 y_fact 1.5 phi 60` is drawn 27.8 x 22.9; woman 41 `phi 60` on her side
+        const { get } = await load(
+            "*Vertices 4\n1 a 0.1 0.1 0.5 cross phi 60\n2 b 0.2 0.2 0.5 man phi 15\n" +
+                "3 c 0.3 0.3 0.5 woman phi 60\n4 d 0.4 0.4 0.5 man\n",
+        );
+        expect(get("node", "shapeRotation")).toEqual([-60, -15, -60, null]);
+        expect(get("node", "shapePoints")).toEqual([null, null, null, null]);
+    });
+
     it("writes Pajek's diamond back as the diamond keyword with its q", async () => {
         const { result } = await load("*Vertices 2\n1 a 0.1 0.1 0.5 diamond\n2 b 0.2 0.2 0.5 diamond q 0.5\n");
         const out = await registry.exportGraphToString(result.snapshot, "pajek", {

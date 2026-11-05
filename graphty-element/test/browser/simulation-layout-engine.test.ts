@@ -247,6 +247,38 @@ afterEach(() => {
 });
 
 describe("the simulation layout bridge", () => {
+    it("hands an accelerated simulation every node's drawn radius and the gap, in the simulation's units", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "spring-electrical", { nodeGap: 4, nodeGapFront: true });
+        assert.isTrue(rig.engine.isAccelerated);
+
+        rig.engine.publishPositions();
+
+        const simulation = rig.engine.simulation as FakeSimulation;
+        const { collision } = simulation;
+        assert.isNotNull(collision);
+        assert.isTrue(collision?.flat);
+        const node = graph.getDataManager().getNode("n2");
+        assert.isDefined(node);
+        assert.closeTo(collision?.radii[node.index] ?? 0, node.layoutRadius + 2, 1e-5);
+        const widest = Math.max(...[0, 1, 2, 3, 4].map((row) => Math.abs(rig.x(row))));
+        assert.isAbove(widest, 0, "the arrangement was published");
+        assert.isAbove(collision?.scale ?? 0, 0, "a scene unit in the simulation's units");
+    });
+
+    it("sets no collision without nodeGap", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "forceatlas2");
+
+        rig.engine.publishPositions();
+
+        assert.isNull((rig.engine.simulation as FakeSimulation).collision);
+    });
+
     it("the frame loop walks the graph's own nodes and edges, so the meshes follow the simulation", async () => {
         const graph = await pathGraph(5);
         const rig = await bridge(graph);

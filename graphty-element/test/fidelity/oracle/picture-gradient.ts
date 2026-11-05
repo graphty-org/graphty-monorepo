@@ -27,6 +27,13 @@ const FIT = 8;
 const FLAT = 12;
 /** Steps across each side of the picture a radial ramp's off-middle center is looked for at. */
 const CENTER_STEPS = 20;
+/**
+ * The largest share of a ramp's color spread one step between neighboring places may take. A ramp changes color a
+ * little at a time; a picture whose neighboring places jump from one color to another is stripes or a checkerboard read
+ * along a line that happens to put each color in places of its own (a 4 by 4 checkerboard has a pixel to a place at
+ * most angles, and every place then fits its one pixel exactly: cytoscapejs-specimen-images-charts's checker.png).
+ */
+const MAX_STEP = 0.5;
 
 /** One opaque pixel: where it is, from the picture's middle, and its color. */
 interface Px {
@@ -153,6 +160,22 @@ function offMiddleRadial(p: Pixels, px: readonly Px[]): Fit & { center: [number,
     return { error, center, reach, places: places.map((m) => [m[0] * reach, m[1], m[2], m[3]]) };
 }
 
+/** The RGB distance between two places' colors. */
+const distance = (a: Place, b: Place): number => Math.hypot(a[1] - b[1], a[2] - b[2], a[3] - b[3]);
+
+/** How far a ramp's colors reach from its first. */
+const spreadOf = (places: readonly Place[]): number => Math.max(...places.map((m) => distance(m, places[0])));
+
+/**
+ * Whether a ramp's colors change a step at a time, no step between neighboring places past `MAX_STEP` of its spread.
+ * @param places - the ramp's places, in order
+ * @returns whether it is a ramp rather than stripes
+ */
+function stepwise(places: readonly Place[]): boolean {
+    const limit = MAX_STEP * spreadOf(places);
+    return places.every((m, i) => i === 0 || distance(m, places[i - 1]) <= limit);
+}
+
 /**
  * The gradient a picture is, or null when it is none (too few pixels, one flat color, or not a ramp).
  * @param p - the picture
@@ -185,7 +208,7 @@ export function pictureGradient(p: Pixels): PGradient | null {
             px,
             px.map((q) => (q.x * c + q.y * s + reach) / (2 * reach)),
         );
-        if (fit.error < best.error) {
+        if (fit.error < best.error && stepwise(fit.places)) {
             best = { ...fit, kind: "linear", angle: deg };
         }
     }
@@ -193,12 +216,7 @@ export function pictureGradient(p: Pixels): PGradient | null {
     if (off !== null && off.error < best.error) {
         best = { ...off, kind: "radial", angle: null };
     }
-    if (best.error > FIT || best.places.length < 2) {
-        return null;
-    }
-    const first = best.places[0];
-    const spread = Math.max(...best.places.map((m) => Math.hypot(m[1] - first[1], m[2] - first[2], m[3] - first[3])));
-    if (spread < FLAT) {
+    if (best.error > FIT || best.places.length < 2 || !stepwise(best.places) || spreadOf(best.places) < FLAT) {
         return null;
     }
     if (off !== null && best.kind === "radial") {

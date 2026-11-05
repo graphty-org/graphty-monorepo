@@ -359,8 +359,18 @@ describe("the Style tab's sections", () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Add to edge line" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern count" }));
+        // A dashed line: the count is the pattern's own setting, so its row's "+" adds it.
+        const everything = session.styles
+            .list()
+            .find((layer) => layer.name === "Everything" && layer.target === "edge");
+        if (everything === undefined) {
+            throw new Error("no Everything edge layer");
+        }
+        await session.styles.update(everything.id, { set: { ...everything.set, "edge.style": "dash" } });
+        // The count is the only setting the pattern has: its row's "+" adds it at once.
+        await userEvent.click(
+            await within(section("edge", "line")).findByRole("button", { name: "Add to edge pattern" }),
+        );
         await waitFor(() => {
             const box = section("edge", "line").querySelector<HTMLInputElement>(
                 '[data-line="edge.patternCount"] input',
@@ -368,6 +378,65 @@ describe("the Style tab's sections", () => {
             assert.strictEqual(box?.value, "10");
         });
         assert.isUndefined(written(session, "Everything", "edge.patternCount"), "nothing written before a value");
+    });
+
+    it("lists styles, not their settings, in '+': Halo's and Glow's settings are added from their own rows", async () => {
+        const { session } = await openScene();
+        await openStyle("Key people");
+        const shape = (): HTMLElement => section("node", "shape");
+        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
+        const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+        assert.includeMembers(items, ["Glow", "Halo"], "one entry per style");
+        for (const setting of ["Glow strength", "Halo size", "Halo opacity"]) {
+            assert.notInclude(items, setting, `${setting} is a setting of its style, not a menu entry`);
+        }
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Halo" }));
+        // Halo's row has its own "+", which lists its settings by their own names.
+        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
+        assert.deepEqual(
+            (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
+            ["Size", "Opacity"],
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await waitFor(() => {
+            const rows = [...shape().querySelectorAll<HTMLElement>(".ws-row")];
+            assert.deepEqual(
+                rows.map((row) => row.dataset.line),
+                ["node.haloColor", "node.haloScale"],
+                "the size sits under its halo",
+            );
+            assert.equal(rows[1]?.querySelector(".ws-field-name")?.textContent, "Size");
+            assert.isDefined(rows[1]?.dataset.setting, "drawn as the halo's setting");
+        });
+
+        // Removing the halo takes its settings with it, in one step.
+        const people = session.styles.list().find((layer) => layer.name === "Key people");
+        if (people === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(people.id, {
+            set: { ...people.set, "node.haloColor": "#FF0000", "node.haloScale": 2, "node.glow": "#00B4FF" },
+        });
+        const halo = await waitFor(() => {
+            const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.haloColor"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        if (halo === null) {
+            throw new Error("no halo row");
+        }
+        await userEvent.click(within(halo).getByRole("button", { name: "Remove node halo" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "Key people", "node.haloColor"));
+            assert.isUndefined(written(session, "Key people", "node.haloScale"), "the size goes with its halo");
+        });
+        assert.isDefined(written(session, "Key people", "node.glow"), "another style stays");
+        // Glow's strength is added from the Glow row, the only setting it has.
+        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node glow" }));
+        await waitFor(() => {
+            const strength = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glowStrength"]');
+            assert.equal(strength?.querySelector(".ws-field-name")?.textContent, "Strength");
+        });
     });
 
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {

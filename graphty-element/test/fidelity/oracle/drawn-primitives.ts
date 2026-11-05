@@ -578,6 +578,10 @@ export function drawnPrimitives(
         const borderWidth = split ? (own?.widthPx ?? 0) : (table?.widthPx ?? n.border.width);
         // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
         const waved = split ? null : (d?.border?.lineWidthPx ?? null);
+        // a figure's outline in halves of its fill from its center, as the oracle's side reads its own (`figureOf`)
+        const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
+        const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
+        const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -623,6 +627,7 @@ export function drawnPrimitives(
             inset: inset > 0,
             ...(faceless === undefined ? {} : { faceless }),
             ...(d?.picture === undefined ? {} : { pictures: [d.picture] }),
+            ...(figure === undefined ? {} : { figure }),
         });
     }
     const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));

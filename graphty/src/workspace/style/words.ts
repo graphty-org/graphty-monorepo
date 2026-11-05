@@ -646,6 +646,23 @@ export function channelWord(channel: Channel): string {
 }
 
 /**
+ * A style's setting named on its own line under the style's row, where the style is already said:
+ * "Size" under Halo for "Halo size", "Count" under Pattern for "Pattern count".
+ * @param style - the style's channel (graphty-element's `modifies`).
+ * @param setting - the setting's channel.
+ * @returns the words.
+ */
+export function settingWord(style: Channel, setting: Channel): string {
+    const prefix = `${channelWord(style)} `;
+    const word = channelWord(setting);
+    if (!word.startsWith(prefix)) {
+        return word;
+    }
+    const rest = word.slice(prefix.length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
  * A property named with its kind, for words that stand away from its line (the history, a
  * notice): "node color", "edge width", so an edge color is never read as a node's.
  * @param channel - the element's channel id.

@@ -152,6 +152,12 @@ Worked:
 - One background script chaining lint, tsc, tests and build, then a second walking after it.
   A short hand walk beats replaying an old detour route full of unrelated steps.
 - Reading dist for a minified gate when nx reports a local-cache hit.
+- A `--replay` stays open after a divergence so a route can be finished by hand; pass
+  `--end-on-diverge` when that is not wanted.
+- A surprising "No matches.": ask the model to quote its rules, then compare the pilot's same step.
+  One such read traced to a message bound to a stray one-edge selection, not to an edge-half
+  regression, and the query engine was fine.
+- Foreground checks: `timeout 25` stays under the 30 s refusal.
 
 Did not work, or traps:
 

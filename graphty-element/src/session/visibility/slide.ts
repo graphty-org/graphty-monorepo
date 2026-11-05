@@ -555,8 +555,7 @@ function rewriteNodes(state: SlideState, bytes: U8, count: number): ChangedRows 
  * @param nodeBytes - The node mask's bytes, already written.
  * @param bytes - The edge mask's bytes.
  * @param perm - The rows in the stretch's order, or null when the stretch is of rows themselves.
- * @param start - The stretch's first position.
- * @param end - One past its last.
+ * @param stretch - The stretch's first position, and one past its last.
  * @param diff - Takes the edges that came and went.
  */
 function rewriteEdges(
@@ -565,10 +564,10 @@ function rewriteEdges(
     nodeBytes: U8,
     bytes: U8,
     perm: Uint32Array | null,
-    start: number,
-    end: number,
+    stretch: readonly number[],
     diff: RowDiff,
 ): void {
+    const [start, end] = stretch;
     const { src, dst } = graph.edgeList();
     const { filterEdges } = state;
     const inside = state.edge?.inside ?? null;
@@ -751,8 +750,8 @@ export class WindowSlider {
             const moved = rewriteNodes(state, nodeBytes, graph.nodeCount);
             e = edges.rewrite((edgeBytes) => {
                 const diff = new RowDiff(perm === null ? graph.edgeCount : room);
-                for (const [start, end] of perm === null ? [[0, graph.edgeCount]] : [was, now]) {
-                    rewriteEdges(state, graph, nodeBytes, edgeBytes, perm, start, end, diff);
+                for (const stretch of perm === null ? [[0, graph.edgeCount]] : [was, now]) {
+                    rewriteEdges(state, graph, nodeBytes, edgeBytes, perm, stretch, diff);
                 }
 
                 return diff.rows();

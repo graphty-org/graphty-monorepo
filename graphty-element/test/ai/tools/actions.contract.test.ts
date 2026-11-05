@@ -151,8 +151,8 @@ const withSample = (): void => {
                     params: [],
                     samples: [{ id: "contract-sample", plainName: "Contract sample", params: {} }],
                 },
-                // eslint-disable-next-line @typescript-eslint/require-await -- a source's records are async
                 async *records() {
+                    await Promise.resolve();
                     yield { nodes: [{ id: "sampled" }], next: null };
                 },
             }),

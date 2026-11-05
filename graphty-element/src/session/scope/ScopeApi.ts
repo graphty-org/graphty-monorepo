@@ -1088,15 +1088,18 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         ...(sources.subscribe === undefined ? {} : { subscribe: sources.subscribe }),
         ...(sources.stepRuns === undefined ? {} : { stepRuns: sources.stepRuns }),
         ...(sources.runScopeOf === undefined ? {} : { runScopeOf: sources.runScopeOf }),
-        histogramOf: (side, read, within) => {
+        histogramOf: (side, read, within, as) => {
             const graph = sources.snapshot();
-            return valueHistogram({
-                count: side === "nodes" ? graph.nodeCount : graph.edgeCount,
-                read,
-                within,
-                unstable: false,
-                bin: (column, binning) => buildHistogram(column, binning),
-            });
+            return valueHistogram(
+                {
+                    count: side === "nodes" ? graph.nodeCount : graph.edgeCount,
+                    read,
+                    within,
+                    unstable: false,
+                    bin: (column, binning) => buildHistogram(column, binning),
+                },
+                as === undefined ? {} : { as },
+            );
         },
     });
 

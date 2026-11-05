@@ -800,9 +800,15 @@ export interface ScopeStepsSources {
      * @param side - The half.
      * @param read - One element's value, by its dense index.
      * @param within - The elements counted.
+     * @param as - Counted by value, when the field's numbers are names (a community's).
      * @returns The histogram.
      */
-    readonly histogramOf?: (side: UnionLeaf["side"], read: (index: number) => unknown, within: Bytes) => ValueHistogram;
+    readonly histogramOf?: (
+        side: UnionLeaf["side"],
+        read: (index: number) => unknown,
+        within: Bytes,
+        as?: "categorical",
+    ) => ValueHistogram;
 }
 
 /** The part of the step runs the surface reaches. */
@@ -943,7 +949,14 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
                         leaf.side === "nodes"
                             ? (index: number): unknown => result.nodeValue(index, measure.field)
                             : (index: number): unknown => result.edgeValue(index, measure.field);
-                    return sources.histogramOf(leaf.side, read, input);
+                    const field = result.fields.find((each) => each.name === measure.field) as
+                        { readonly measurement?: string } | undefined;
+                    return sources.histogramOf(
+                        leaf.side,
+                        read,
+                        input,
+                        field?.measurement === "categorical" ? "categorical" : undefined,
+                    );
                 },
             },
             options.branchPalette ?? DEFAULT_BRANCH_PALETTE,

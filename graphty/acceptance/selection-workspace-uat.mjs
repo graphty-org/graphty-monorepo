@@ -406,6 +406,7 @@ class Visit {
     // Leaves with Done and checks what was saved.
     async done() {
         const { total } = await this.expected();
+        const inert = this.cards.every((card) => card.steps.every((step) => step.params.groups?.length === 0));
         await this.ws.getByRole("button", { name: "Done", exact: true }).click();
         await this.ws.waitFor({ state: "detached" });
         if (this.host === "filter") {
@@ -416,7 +417,7 @@ class Visit {
                         return (side === "node" ? v.nodes.size : v.edges.size) === n;
                     },
                     // A filter with nothing picked yet filters nothing (graphty-element's inert condition).
-                    [this.side, total.size === 0 ? this.all.size : total.size],
+                    [this.side, inert ? this.all.size : total.size],
                     { timeout: SETTLE },
                 )
                 .catch(async () => {
@@ -1283,6 +1284,36 @@ const quickOpen = (how) => async (page) => {
     }
 };
 
+// The edge condition sits on the card, not in its settings, and the card keeps its checklist.
+const edgesOnCard = async (page) => {
+    const v = await visit(page, "lesmis", "style-nodes");
+    await v.firstStep(KINDS.louvain, { pick: [1] });
+    const box = v.step(0, 0);
+    await box.getByRole("button", { name: /^Settings for / }).click();
+    await v.page.locator("label", { hasText: "Edges where" }).first().click();
+    const field = box.getByRole("button", { name: /^Edge value/ });
+    await field.waitFor();
+    if ((await v.page.locator("[data-popout-id]").count()) > 0) {
+        fail("the settings stayed open over the edge condition");
+    }
+    await field.click();
+    await v.page
+        .getByRole("option", { name: /^shared_chapters/ })
+        .first()
+        .click();
+    await box.getByRole("textbox", { name: "shared_chapters from, number" }).waitFor();
+    await v.page.waitForFunction(
+        () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]").length > 1,
+        null,
+        { timeout: SETTLE },
+    );
+    const lone = await box.getByRole("checkbox", { name: /^\(no value\)/ }).count();
+    if (lone > 0) {
+        fail("the card's groups became a lone (no value) row");
+    }
+    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+};
+
 // Every key a card's menu shows does what it says on the card's grip.
 const cardKeys = async (page) => {
     const v = await visit(page, "karate", "style-nodes");
@@ -1677,6 +1708,7 @@ const SCENARIOS = [
     ["camera: a quick visit, Cancel", quickOpen("cancel")],
     ["camera: a quick visit, Done", quickOpen("done")],
     ["keys: a card's menu keys work on its grip", cardKeys],
+    ["settings: the edge condition sits on the card, which keeps its groups", edgesOnCard],
     ["popovers: the Export backdrop closes the settings first", exportBackdrop],
     ["analyze: chosen row, its settings, Run", analyzeList],
     ["popovers: outside clicks, style layer", outsideClick("style-nodes")],

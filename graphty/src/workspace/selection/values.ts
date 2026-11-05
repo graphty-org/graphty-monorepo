@@ -655,10 +655,24 @@ function ownCard(
     side: Side,
 ): StepCardRead {
     const values = reading?.values ?? null;
+    const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
+    if (values?.kind === "categorical") {
+        // Names a step computed for itself (a community on some edges only): the card lists them.
+        const listed: CardField = {
+            path: `${SO_FAR_PATH}${step.id ?? ""}`,
+            on: side,
+            kind: "category",
+            name: descriptor === undefined ? rule.algorithm : wordsFor(descriptor).name,
+            group: "Results",
+            listed: values,
+        };
+        const leaf = rule.test === undefined ? untested(listed) : testLeaf(rule.test, listed.path);
+        const card = cardOf(session, leaf, [listed], 0);
+        return { card: card.type === "fixed" ? null : card, field: listed };
+    }
     if (values?.kind !== "numeric") {
         return { card: null };
     }
-    const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
     const field: CardField = {
         path: `${SO_FAR_PATH}${step.id ?? ""}`,
         on: side,

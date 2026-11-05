@@ -61,6 +61,8 @@ export interface CardField {
      * So far or over its Links): its bars are drawn from this instead of a column.
      */
     readonly spread?: ValueHistogram;
+    /** The values and counts of a selection step's own computation, when no path names them. */
+    readonly listed?: Extract<ValueHistogram, { kind: "categorical" }>;
     /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
     readonly links?: RuleTree;
     /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */

@@ -3153,7 +3153,7 @@ function CategoryCard({
     onChange: OnCard;
     variant?: CardVariant;
 }>): React.JSX.Element {
-    const { name, path, within, counted } = card.field;
+    const { name, path, within, counted, listed } = card.field;
     // A run re-run under the same id (Analyze tuning it, the data moving) keeps this path but not
     // its values, so the groups and counts are read again when a run or the data changes (never on
     // a style change: the card's own edits are style changes, and its values do not move with them).
@@ -3170,8 +3170,8 @@ function CategoryCard({
         };
     }, [session]);
     const counts = useMemo(
-        () => categoryCounts(session, path, side, counted ?? within, version),
-        [session, path, side, within, counted, version],
+        () => listed ?? categoryCounts(session, path, side, counted ?? within, version),
+        [session, path, side, within, counted, version, listed],
     );
     const [search, setSearch] = useState("");
     const typed = search.trim().toLowerCase();

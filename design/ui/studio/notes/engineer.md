@@ -26,6 +26,12 @@ ships; the file is not on master yet). `style.encode`'s layer needs its palette 
 `styles.encode`: a raw layer with `by` painted nothing, so a bound message encodes first and
 then narrows the selector. An effect cleanup that clears store state must check the state
 really left: `main.tsx` is StrictMode, and its dev double effect runs cleanups on mount.
+Under heavy machine load (six runs queued for the test slots) browser shards died with no failed
+assertion: "error when mocking a module", then "Browser connection was closed" or "rpc is
+closed, cannot call resolveManualMock". `test/setup.ts` mocks `@babylonjs/core` with a factory in
+every browser project, so a module request that lands as a test file's page goes runs that
+factory on a dead connection, and vitest's route handler rejects unhandled, which ends the run.
+Not proven by a repro; each candidate file passed alone.
 
 0. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars
    (`tier3/rounds/round-1/insights.md`). What it taught me, most important first:

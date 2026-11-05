@@ -5,8 +5,12 @@
  *
  * Three seeded graphs, each under a node filter that hides a tenth of the nodes: uniform edge
  * instants, node-timed, and Zipf (bursty times on hub-heavy degrees, nodes and edges both timed).
- * Each measurement is the median of seven rounds after one warm-up. The window is 30 days wide,
- * moves a day per step and jumps between quantiles of the data, so a move lands where the rows are.
+ * Each measurement is the median of seven rounds after one warm-up. The window is 30 days wide.
+ * A jump goes between quantiles of the data. `stepBy` and `slide` move it a day, the first through
+ * a recorded window and the second as a smooth play frame does, from a place where that day takes
+ * in a quantile instant or, in the last round, the best connected node's instant: every round must
+ * cross rows, and the rows crossed print beside the timings. `binsVisible` is the first read after
+ * a filter change.
  *
  * THE BUDGETS ARE PRINTED, NOT ASSERTED: a stopwatch on a busy machine measures the machine. Each
  * measurement prints as a `[time-pipeline]` line with its pass or fail, and each graph appends a row
@@ -23,7 +27,7 @@ import { mulberry32 } from "@graphty/algorithms";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { setDefaultFeatures } from "../../../src/features/resolve";
-import type { TimeField } from "../../../src/session/time/TimeApi";
+import type { TimeField, TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
 // Timings are taken with strict state off, as a published build runs.
@@ -44,7 +48,7 @@ const BURST_SPAN = 3 * DAY;
 const JUMP_ORDER = [3, 0, 5, 1, 6, 2, 4];
 
 /** Design 5.2's budgets, in milliseconds. */
-const BUDGET_MS = { build: 150, jump: 10, step: 2, bins: 1, binsVisible: 5 };
+const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5 };
 type Measure = keyof typeof BUDGET_MS;
 
 /** Design 5.2's memory: 24 bytes per timed element, and 1 per element for the cached filter mask. */
@@ -91,7 +95,7 @@ function graphOf(
     const next = mulberry32(seed);
     const nodes = Array.from({ length: NODES }, (_, at) => ({
         id: `n${String(at)}`,
-        kind: at % 10 === 9 ? "hidden" : "shown",
+        kind: `k${String(at % 10)}`,
         ...(field.nodes === undefined ? {} : { t: instant(next) }),
     }));
     const edges = Array.from({ length: EDGES }, () => ({
@@ -161,14 +165,44 @@ async function timed(
 }
 
 /**
- * Where a window centered on each quantile of the graph's instants starts, in {@link JUMP_ORDER}.
+ * The quantiles of the graph's instants, in {@link JUMP_ORDER}.
  * @param graph - The graph.
  * @returns The seven instants.
  */
-function stopsOf(graph: Graph): number[] {
+function quantilesOf(graph: Graph): number[] {
     const rows: readonly (NodeRow | EdgeRow)[] = graph.field.edges === undefined ? graph.nodes : graph.edges;
     const instants = Float64Array.from(rows, (row) => row.t as number).sort();
-    return JUMP_ORDER.map((at) => instants[Math.floor(((at + 0.5) / ROUNDS) * instants.length)] - WIDTH / 2);
+    return JUMP_ORDER.map((at) => instants[Math.floor(((at + 0.5) / ROUNDS) * instants.length)]);
+}
+
+/**
+ * The instant of the node with the most edges, whose crossing re-tests all of them.
+ * @param graph - The graph.
+ * @returns The instant, or undefined when nodes are not timed.
+ */
+function hubInstant(graph: Graph): number | undefined {
+    if (graph.field.nodes === undefined) {
+        return undefined;
+    }
+
+    const degree = new Map<unknown, number>();
+    for (const { src, dst } of graph.edges) {
+        degree.set(src, (degree.get(src) ?? 0) + 1);
+        degree.set(dst, (degree.get(dst) ?? 0) + 1);
+    }
+
+    const degreeOf = (node: NodeRow): number => degree.get(node.id) ?? 0;
+    const hub = graph.nodes.reduce((best, node) => (degreeOf(node) > degreeOf(best) ? node : best));
+    return hub.t as number;
+}
+
+/**
+ * How many rows a move took in and out of view.
+ * @param event - The move.
+ * @returns Nodes and edges together.
+ */
+function rowsCrossed({ entered, left }: TimeStepEvent): number {
+    return entered.nodes + entered.edges + left.nodes + left.edges;
 }
 
 setFlagsFromString("--expose-gc");
@@ -198,27 +232,34 @@ function report(name: string, measure: Measure, timing: Timing): void {
 }
 
 /**
- * The bytes a designated field, a window and both histograms add, per timed element.
+ * The bytes a designated field, a window, a slide and a histogram add, per timed element.
  * @param harness - The session, nothing designated yet.
  * @param graph - The graph.
  * @param timedRows - How many elements carry a time.
- * @returns The bytes and the budget.
+ * @returns The bytes, how many of them the undo history holds, and the budget.
  */
 async function bytesAdded(
     harness: Harness,
     graph: Graph,
     timedRows: number,
-): Promise<{ perTimed: number; budget: number }> {
-    const { time } = harness.session;
+): Promise<{ perTimed: number; historyPerTimed: number; budget: number }> {
+    const { history, time } = harness.session;
+    const historyBefore = history.bytes;
     const before = bytesHeld();
     await time.setField(graph.field);
     const from = START + SPAN / 2;
     await time.window({ from, to: from + WIDTH, step: DAY });
     await time.stepBy(1);
+    await time.ready;
+    // A slide holds what a play or a drag holds, and it stays held after the commit.
+    await time.seek(from + 2 * DAY, { commit: false });
+    await time.commit();
     time.bins({ count: BINS, scope: "visible" });
 
     return {
         perTimed: (bytesHeld() - before) / timedRows,
+        // The mask copies steps keep for undo, the first thing the history drops.
+        historyPerTimed: (history.bytes - historyBefore) / timedRows,
         budget: BYTES_PER_TIMED + (BYTES_PER_ELEMENT * (NODES + EDGES)) / timedRows,
     };
 }
@@ -244,22 +285,60 @@ describe("the timeline at 1,000,000 edges", () => {
             harness.add(graph.nodes, graph.edges);
             const { session } = harness;
             assert.strictEqual(session.snapshot().edgeCount, EDGES);
-            await session.visibility.setSteps([
-                { id: "shown", on: true, rule: { kind: "categories", attribute: "data.kind", values: ["shown"] } },
-            ]);
+            const { time, visibility } = session;
+            const hideTenth = (tenth: number): PromiseLike<unknown> =>
+                visibility.setSteps([
+                    {
+                        id: "shown",
+                        on: true,
+                        rule: {
+                            kind: "categories",
+                            attribute: "data.kind",
+                            values: Array.from({ length: 10 }, (_, at) => `k${String(at)}`).filter(
+                                (kind) => kind !== `k${String(tenth)}`,
+                            ),
+                        },
+                    },
+                ]);
+            await hideTenth(9);
 
             const timedRows =
                 (graph.field.nodes === undefined ? 0 : NODES) + (graph.field.edges === undefined ? 0 : EDGES);
             const bytes = await bytesAdded(harness, graph, timedRows);
-            const stops = stopsOf(graph);
-            const { time, visibility } = session;
-            const seek = (round: number): Promise<unknown> => time.seek(stops[round]);
+            const quantiles = quantilesOf(graph);
+            const seek = (round: number): Promise<unknown> => time.seek(quantiles[round] - WIDTH / 2);
+            // Where a day's move takes in the instant: it sits half a day past the window's end.
+            const stops = [...quantiles.slice(0, -1), hubInstant(graph) ?? quantiles[ROUNDS - 1]].map(
+                (at) => at - WIDTH - DAY / 2,
+            );
+            const crossed = { stepBy: Array<number>(ROUNDS), slide: Array<number>(ROUNDS) };
+            let hidden = 9;
 
             const timings: Record<Measure, Timing> = {
                 jump: await timed(seek),
-                step: await timed(() => time.stepBy(1), seek),
+                stepBy: await timed(
+                    async (round) => {
+                        crossed.stepBy[round] = rowsCrossed(await time.stepBy(1));
+                    },
+                    (round) => time.seek(stops[round]),
+                ),
+                // Uncommitted on both sides, as frames of a play are: a recorded window between
+                // them would make the slide start over with a full pass.
+                slide: await timed(
+                    async (round) => {
+                        crossed.slide[round] = rowsCrossed(await time.seek(stops[round] + DAY, { commit: false }));
+                    },
+                    (round) => time.seek(stops[round], { commit: false }),
+                ),
                 bins: await timed(() => time.bins({ count: BINS })),
-                binsVisible: await timed(() => time.bins({ count: BINS, scope: "visible" })),
+                // Ends where it began: the warm-up and the seven rounds are eight changes.
+                binsVisible: await timed(
+                    () => time.bins({ count: BINS, scope: "visible" }),
+                    () => {
+                        hidden = hidden === 9 ? 8 : 9;
+                        return hideTenth(hidden);
+                    },
+                ),
                 // A new data token drops the index; the snapshot is rebuilt before the clock starts. The
                 // `extent()` asks for the build, and `ready` holds until it is done.
                 build: await timed(
@@ -274,7 +353,8 @@ describe("the timeline at 1,000,000 edges", () => {
                 ),
             };
 
-            // An accidentally empty window cannot look fast.
+            // A move that crossed no rows, or an accidentally empty window, cannot look fast.
+            assert.isAbove(Math.min(...crossed.stepBy, ...crossed.slide), 0);
             await seek(0);
             const visibleEdges = visibility.edgeMask().reduce((sum, shown) => sum + shown, 0);
             assert.isAbove(visibleEdges, 0);
@@ -287,12 +367,13 @@ describe("the timeline at 1,000,000 edges", () => {
                 }
             }
 
+            console.log(`[time-pipeline] ${name} rows crossed per round: ${crossed.stepBy.join(", ")}`);
             console.log(
-                `[time-pipeline] ${name} bytes added per timed element: ${bytes.perTimed.toFixed(1)}, budget ${bytes.budget.toFixed(1)}: ${bytes.perTimed <= bytes.budget ? "pass" : "fail"}`,
+                `[time-pipeline] ${name} bytes added per timed element: ${bytes.perTimed.toFixed(1)} (${bytes.historyPerTimed.toFixed(1)} held by the undo history), budget ${bytes.budget.toFixed(1)}: ${bytes.perTimed <= bytes.budget ? "pass" : "fail"}`,
             );
             appendFileSync(
                 new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
-                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, timings, bytes })}\n`,
+                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, timings, crossed, bytes })}\n`,
             );
         });
     }

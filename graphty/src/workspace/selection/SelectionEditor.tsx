@@ -2560,7 +2560,9 @@ function TitleName({
     return (
         <Group gap={4} wrap="nowrap" className="sel-ws-title" id={id}>
             {owner !== undefined && (
-                <Text size="sm" fw={600} span style={{ flexShrink: 0 }}>
+                // A short layer name keeps its width; a long one stops at 40% and is cut short, so
+                // neither name pushes the header.
+                <Text size="sm" fw={600} truncate style={{ flexShrink: 0, maxWidth: "40%" }}>
                     {`${owner} /`}
                 </Text>
             )}

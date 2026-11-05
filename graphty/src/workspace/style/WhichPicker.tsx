@@ -2232,18 +2232,16 @@ function readTyped(text: string, parse: (text: string) => number): number | unde
 const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd})/u, "$1");
 
 /**
- * A number as a box shows it at rest: three significant digits after the point at most, every
- * digit before it; text that is not a number is shown as it is.
+ * A number as a box shows it at rest: a fraction as the histogram's scale labels write it, so the
+ * box at the scale's end reads what the label there reads (231.1, not 231) and a tiny value is never
+ * "1e-9"; a whole number, and text that is not a number, as it is.
  * @param text - the text.
  * @returns the shorter text.
  */
 function shortNumber(text: string): string {
     const value = Number(text);
-    if (text.trim() === "" || !Number.isFinite(value) || Number.isInteger(value)) {
-        return text;
-    }
-    const before = Math.floor(Math.log10(Math.abs(value))) + 1;
-    return String(Number(value.toFixed(Math.min(20, Math.max(0, 3 - before)))));
+    // A whole number reads as typed: 1000 stays 1000.
+    return text.trim() === "" || !Number.isFinite(value) || Number.isInteger(value) ? text : formatNumber(value);
 }
 
 /**
@@ -2534,7 +2532,9 @@ function NumberCard({
     const messageId = useId();
     const low = range?.min ?? 0;
     const high = range?.max ?? 1;
-    const step = Number.isInteger(low) && Number.isInteger(high) ? 1 : (high - low) / 100 || 1;
+    // Whole numbers step by 1 when graphty-element types the values so; whole ends alone do not
+    // make a column whole (a betweenness of 0 to 10 holds 0.5).
+    const step = card.field.integer === true ? 1 : (high - low) / 100 || 1;
     // A bound's example is a value from the column's range; a count's, a count there is room for.
     const example =
         card.match === "top"

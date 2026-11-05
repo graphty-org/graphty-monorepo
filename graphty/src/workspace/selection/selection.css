@@ -194,6 +194,8 @@
     inset: 28px;
     z-index: 200;
     display: grid;
+    /* One column the modal's width: a long title truncates instead of widening the modal. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 40px minmax(0, 1fr);
     min-width: 0;
     min-height: 0;
@@ -216,6 +218,24 @@
 
 .sel-ws-title {
     min-width: 0;
+}
+
+/* Only the title gives way: the count, the preview switch, Cancel and Done keep their room. */
+.sel-ws-head {
+    min-width: 0;
+}
+
+.sel-ws-head > * {
+    flex-shrink: 0;
+}
+
+.sel-ws-head > .sel-ws-title {
+    flex: 0 1 auto;
+    overflow: hidden;
+}
+
+.sel-ws-head > .sel-spacer {
+    flex: 1 1 0;
 }
 
 .sel-modal .sel-ws-body {
@@ -293,8 +313,14 @@
 /* The workspace title's rename button. */
 .sel-card-name {
     min-width: 0;
+    overflow: hidden;
     padding-inline: 2px;
     border-radius: 3px;
+}
+
+/* Mantine's truncate needs a block box: inline, its ellipsis never applies and the text paints on. */
+.sel-card-name > .mantine-Text-root {
+    display: block;
 }
 
 .sel-card-name:hover {

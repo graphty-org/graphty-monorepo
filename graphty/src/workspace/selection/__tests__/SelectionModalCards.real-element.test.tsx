@@ -18,6 +18,7 @@ import type { GraphSession, Layer, UnionLeaf } from "@graphty/graphty-element/se
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import karate from "../../../../public/samples/karate.gml?raw";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
@@ -29,11 +30,26 @@ import { Workspace } from "../../Workspace";
 // The full-screen selection workspace is the `selection-workspace` experiment.
 withFeatures(["selection-workspace"]);
 
+/** A graph to load: Les Miserables unless a test names another. */
+interface Sample {
+    type: "gml" | "json";
+    name: string;
+    data: string;
+}
+
+const LES_MISERABLES: Sample = { type: "gml", name: "les-miserables.gml", data: lesMiserables };
+
 /**
- * Les Miserables in the workspace, with a reader's layer selected in the style tree.
+ * A graph in the workspace (Les Miserables unless told), with a reader's layer selected in the
+ * style tree.
+ * @param graph - the graph to load.
+ * @param layerName - the layer's name.
  * @returns the session and the layer.
  */
-async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
+async function openLayer(
+    graph: Sample = LES_MISERABLES,
+    layerName = "Calm",
+): Promise<{ session: GraphSession; layer: Layer }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
@@ -45,17 +61,17 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
     if (session === undefined) {
         throw new Error("the element never came up");
     }
-    await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+    await session.data.import({ type: graph.type, name: graph.name, config: { data: graph.data } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     const layer = await session.styles.add({
-        name: "Calm",
+        name: layerName,
         target: "node",
         selector: { match: "everything" },
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layerName}, `) }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -426,5 +442,91 @@ describe("a card's settings pop-out closes like Figma's (the owner, 2026-11-04)"
             assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "Escape closes it");
         });
         assert.isNotNull(document.querySelector(".sel-ws"), "and only it");
+    });
+});
+
+describe("a number card's slider reaches both ends of its values (the owner, 2026-11-04)", () => {
+    it("Zachary's karate club's Betweenness keeps its highest node: the end dragged back keeps 34, the start at the end keeps 1", async () => {
+        await openLayer({ type: "gml", name: "karate.gml", data: karate });
+        await openModal();
+        await pickValue("Betweenness");
+        await waitFor(() => {
+            assert.match(cards()[0].getAttribute("aria-label") ?? "", /^A, 34 of 34/);
+        });
+        const thumb = (which: "start" | "end"): HTMLElement =>
+            within(cards()[0]).getByRole("slider", { name: new RegExp(`range ${which}$`) });
+        // The end thumb dragged left, then back past the scale's right end.
+        const right = thumb("end").getBoundingClientRect();
+        await dragTo(thumb("end"), { x: right.left - 150, y: right.top + right.height / 2 });
+        await waitFor(() => {
+            assert.notMatch(cards()[0].getAttribute("aria-label") ?? "", /^A, 34 of 34/, "the drag took some away");
+        });
+        await dragTo(thumb("end"), { x: right.right + 300, y: right.top + right.height / 2 });
+        await waitFor(() => {
+            assert.match(
+                cards()[0].getAttribute("aria-label") ?? "",
+                /^A, 34 of 34/,
+                "back at the end keeps every node",
+            );
+        });
+        // The start thumb dragged past the right end holds the highest node alone.
+        await dragTo(thumb("start"), { x: right.right + 300, y: right.top + right.height / 2 });
+        await waitFor(() => {
+            assert.match(cards()[0].getAttribute("aria-label") ?? "", /^A, 1 of 34/);
+        });
+    });
+
+    it("a column of halves from 0 to 10 steps by less than 1", async () => {
+        const nodes = Array.from({ length: 21 }, (_, i) => ({ id: `n${String(i)}`, half: i / 2, count: i }));
+        const edges = nodes.slice(1).map((node, i) => ({ source: `n${String(i)}`, target: node.id }));
+        await openLayer({ type: "json", name: "halves.json", data: JSON.stringify({ nodes, edges }) });
+        await openModal();
+        await pickValue("half");
+        const start = await within(cards()[0]).findByRole("slider", { name: /range start$/ });
+        start.focus();
+        await userEvent.keyboard("{ArrowRight}");
+        await waitFor(() => {
+            const at = Number(start.getAttribute("aria-valuenow"));
+            assert.isAbove(at, 0, "the key moved it");
+            assert.isBelow(at, 1, "by less than a whole: halves can be picked");
+        });
+    });
+});
+
+describe("long names in the selection modal (the owner, 2026-11-04)", () => {
+    it("a long layer name truncates in the title and Cancel and Done stay inside the modal", async () => {
+        await openLayer(LES_MISERABLES, "Members of the organisation with long names and a longer layer name still");
+        const modal = await openModal();
+        const box = modal.getBoundingClientRect();
+        for (const name of ["Cancel", "Done"]) {
+            const button = within(modal)
+                .getByRole("button", { name: new RegExp(`^${name}`) })
+                .getBoundingClientRect();
+            assert.isAtMost(button.right, box.right, `${name} lies inside the modal`);
+            assert.isAbove(button.width, 20, `${name} keeps its width`);
+        }
+        const preview = modal.querySelector(".sel-ws-body")?.getBoundingClientRect();
+        assert.isAtMost(preview?.right ?? Infinity, box.right + 1, "the body ends at the modal's edge");
+    });
+
+    it("a card renamed to a long name truncates before its start chip", async () => {
+        await openLayer();
+        await openModal();
+        await pickValue("Degree");
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: /^Rename A/ }));
+        await userEvent.keyboard("Members of the organisation with long names{Enter}");
+        const name = await waitFor(() => {
+            const found = cards()[0].querySelector<HTMLElement>(".cm-card-name");
+            assert.include(found?.textContent ?? "", "Members of the organisation");
+            return found;
+        });
+        const after = name?.nextElementSibling?.getBoundingClientRect();
+        assert.isAtMost(
+            name?.getBoundingClientRect().right ?? Infinity,
+            after?.left ?? -1,
+            "the name ends before the chip",
+        );
+        const text = name?.querySelector<HTMLElement>(".cm-card-title") ?? name;
+        assert.isAbove(text?.scrollWidth ?? 0, text?.clientWidth ?? 0, "the name is cut with an ellipsis");
     });
 });

@@ -43,6 +43,8 @@ export interface CardField {
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
+    /** graphty-element says it holds whole numbers only (a count, a rank), so a slider steps by 1. */
+    readonly integer?: boolean;
     /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
     readonly fact?: string;
     /** The elements a card counts over (a selection's base); absent, the whole graph. */
@@ -214,8 +216,25 @@ function fieldOf(session: GraphSession, value: ReadableValue, time = false): Car
         // A result is found by its field's name too ("Label propagation: community").
         ...(value.from === "run" ? { aliases: [value.path.split(".").at(-1) ?? ""] } : {}),
         ...(value.range === undefined ? {} : { range: value.range }),
+        ...(value.kind === "number" && wholeNumbers(session, value.path) ? { integer: true } : {}),
         ...withFact(span ?? valueFact(value)),
     };
+}
+
+/**
+ * Whether what a path reads holds whole numbers only (a count, a rank), as graphty-element types it:
+ * an integer column or an integer run field.
+ * @param session - the element's session
+ * @param path - what is read
+ * @returns true for an integer column or run result
+ */
+export function wholeNumbers(session: GraphSession, path: string): boolean {
+    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
+        return true;
+    }
+    return session.runs
+        .list()
+        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
 }
 
 /**

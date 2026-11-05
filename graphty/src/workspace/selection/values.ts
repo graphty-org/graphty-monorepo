@@ -119,6 +119,8 @@ function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["withi
             kind: "number",
             name: value.plainName,
             group: "Structure",
+            // A structure value is a count of links.
+            integer: true,
             ...range,
             ...(words === undefined ? {} : { tip: words, aliases: LINK_ALIASES }),
         };
@@ -660,6 +662,7 @@ function ownCard(
         group: "Results",
         missing: values.missing,
         spread: values,
+        ...(descriptor?.fields.find((each) => each.name === rule.field)?.type === "integer" ? { integer: true } : {}),
         ...(values.min === undefined || values.max === undefined
             ? {}
             : { range: { min: values.min, max: values.max } }),

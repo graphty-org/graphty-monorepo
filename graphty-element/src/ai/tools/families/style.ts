@@ -641,7 +641,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
     const actions: ActionSpec[] = [
         {
             name: "add",
-            summary: "a new layer",
+            summary: "",
             fields: { ...targetFields, values, name, position, relativeTo: relativeTo },
             effect: "write",
             reaches: [
@@ -693,7 +693,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "get",
-            summary: "one layer",
+            summary: "",
             fields: { layer: layer.unwrap().describe("Layer id or name.") },
             effect: "read",
             reaches: [{ door: "StylesApi.get" }, { door: "StylesApi.counts" }],

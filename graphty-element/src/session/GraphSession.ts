@@ -351,6 +351,7 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "time",
     "views",
     "positions",
     "config",

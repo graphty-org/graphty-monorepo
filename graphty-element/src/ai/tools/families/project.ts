@@ -25,6 +25,12 @@ export const SETTING_GROUPS = Object.freeze({
     data: "How records are read: the id, label, endpoint and weight columns, direction.",
     author: "The project's author.",
     name: "The project's name.",
+    framing: "How the camera frames the graph.",
+    layoutTransition: "How nodes move to a new layout.",
+    pinnedStyle: "How pinned nodes are drawn.",
+    runPlacement: "Where a run's style layers go in the stack.",
+    startingRows: "The style rows a new project starts with.",
+    viewRotation: "How the view turns.",
 } as const);
 
 /** One setting group. */
@@ -53,16 +59,17 @@ function objectOf(tree: LeafTree): z.ZodObject {
 
 /**
  * One setting group's schema, generated from the project settings the session declares
- * (`config.set`'s keys): a group with one setting takes its value, any other an object of its
+ * (`config.set`'s keys): a group named for a setting takes its value, any other an object of its
  * settings by path.
  * @param group - The group.
  * @returns Its schema.
  */
 export function settingSchema(group: SettingGroup): z.ZodType {
     const leaves = [...CONFIG_KEYS].filter(([, key]) => key.group === group);
-    if (leaves.length === 1 && leaves[0][0] === group) {
+    const own = leaves.find(([path]) => path === group);
+    if (own !== undefined) {
         // Without its default, so validating a patch never fills in a key the call did not name.
-        return unwrap(leaves[0][1].schema);
+        return unwrap(own[1].schema);
     }
 
     const tree: LeafTree = {};
@@ -159,16 +166,20 @@ export const projectTool: ToolDefinition = {
             fields: {},
             effect: "read",
             reaches: [
+                { door: "ProjectApi.id" },
                 { door: "ProjectApi.name" },
                 { door: "ProjectApi.dirty" },
+                { door: "SessionConfig.editableBase" },
                 ...Object.keys(SETTING_GROUPS).map((group) => ({ door: `SessionConfig.${group}` })),
             ],
             run: ({ tx, session }) =>
                 Promise.resolve(
                     ok({
+                        id: tx.project.id,
                         name: tx.project.name,
                         dirty: tx.project.dirty,
                         undoable: session.history.position,
+                        editableBase: tx.config.editableBase,
                         // Every setting group, as it reads now.
                         settings: Object.fromEntries(
                             Object.keys(SETTING_GROUPS).map((group) => [

@@ -15,6 +15,7 @@ import { compactSchema, toolJsonSchema } from "../engine/jsonSchema";
 import type { JsonSchema } from "../engine/types";
 import { resultsTool, runAlgorithmTool } from "./families/algorithms";
 import { catalogTool } from "./families/catalog";
+import { columnsTool, issuesTool, sourcesTool } from "./families/columns";
 import { asRefusal } from "./families/common";
 import { editDataTool, exportGraphTool, importDataTool } from "./families/data";
 import { filterTool } from "./families/filter";
@@ -23,7 +24,9 @@ import { captureTool, immersiveTool, projectTool, SETTING_GROUPS } from "./famil
 import { queryTool } from "./families/query";
 import { selectTool } from "./families/select";
 import { notesTool, setsTool } from "./families/sets";
+import { shadersTool } from "./families/shaders";
 import { styleTool } from "./families/style";
+import { conditionsTool, timeTool } from "./families/timeline";
 import { undoTool } from "./families/undo";
 import { viewTool } from "./families/view";
 import { text } from "./fields";
@@ -620,6 +623,12 @@ export function buildToolset(session: Pick<GraphSession, "catalog">, consumer: r
         projectTool,
         captureTool,
         immersiveTool,
+        timeTool,
+        conditionsTool,
+        columnsTool,
+        sourcesTool,
+        issuesTool,
+        shadersTool,
     );
     for (const definition of definitions) {
         if (!definition.core) {

@@ -19,7 +19,7 @@ const on = z.enum(["node", "edge"]).optional().describe("Whether where reads nod
  * @param kind - Whether a selector reads nodes or edges.
  * @returns The rule.
  */
-function ruleOf(target: Target, kind: "node" | "edge"): RuleTree {
+export function ruleOf(target: Target, kind: "node" | "edge"): RuleTree {
     if (target.kind === "all") {
         return { kind: "expression", where: "true" };
     }

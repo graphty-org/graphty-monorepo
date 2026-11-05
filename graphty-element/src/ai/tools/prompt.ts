@@ -23,6 +23,12 @@ const ON_DEMAND = [
     "project: settings, name, what a column measures",
     "capture: a picture or a video for the reader",
     "immersive: VR and AR",
+    "time: move a window along a time column, play it",
+    "conditions: filters that switch on and off",
+    "columns: rename, retype, hide columns; name values",
+    "sources: the data's loads; generate a graph",
+    "issues: problems in the data, and their fixes",
+    "shaders: the project's shaders",
 ];
 
 /**

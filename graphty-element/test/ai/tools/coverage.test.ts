@@ -575,6 +575,9 @@ describe("registration paths reach the assistant", () => {
             registerLogSink: "logging: a log destination is not a graph operation",
             registerAccelerator: "a machine preference: acceleration is not the assistant's to choose",
             defineOptionsSchema: "a helper that builds an options schema, registering nothing",
+            defineShader: "the same verb as registerShader, for a shader written as a function",
+            registerShader: "a renderer extension; the shaders tool works on the project's own shaders",
+            registerTransition: "an animation a layer of code supplies; project settings name it by id",
             "DeclaredAlgorithm.register": "the same verb as Algorithm.register, inherited",
             "SimpleLayoutEngine.register": "the same verb as LayoutEngine.register, inherited",
         };

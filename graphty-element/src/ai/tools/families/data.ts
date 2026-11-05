@@ -360,6 +360,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                     url: z.string().max(MAX_STRING).optional().describe("A URL the reader gave in this message."),
                     mode: z.enum(["merge", "replace"]).optional().describe("Default merge."),
                     name: z.string().max(200).optional().describe("What to call the source."),
+                    styles: z.enum(["file"]).optional().describe("file also draws the file's own styles."),
                     options: z
                         .record(z.string(), z.unknown())
                         .optional()
@@ -368,6 +369,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                 effect: "write",
                 reaches: [
                     { op: "data.import" },
+                    { op: "data.setFileStyles" },
                     { door: "SessionDataApi.import" },
                     { options: "formats" },
                     ...formats.map((id) => ({ catalog: `formats/${id}` })),
@@ -399,7 +401,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                                 },
                                 ...(typeof args.name === "string" ? { name: args.name } : {}),
                             },
-                            { mode },
+                            { mode, ...(args.styles === "file" ? { styles: "file" as const } : {}) },
                         ),
                     );
                     return {

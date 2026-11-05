@@ -6,6 +6,7 @@
  * when an action has no row, so a new action is contract-tested the day it is generated.
  */
 
+import { defineSource, registerSource, registry } from "@graphty/graph-io";
 import { afterAll, assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
@@ -13,6 +14,7 @@ import { buildToolset, isAssistantTool } from "../../../src/ai/tools/toolset";
 import type { Reach } from "../../../src/ai/tools/types";
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { clearRegisteredAlgorithmsForTesting } from "../../../src/catalog/registry";
+import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 import { ReachRecorder } from "./reach-recorder";
 
@@ -95,6 +97,12 @@ function keep(recorder: ReachRecorder): void {
     }
 }
 
+/** A session holding a node a network source loaded. */
+const seededSession = async (): Promise<GraphSession> => {
+    const session = await assistantSession();
+    await loadRecordedSeed(session);
+    return session;
+};
 /** A run of degree, for the actions that read one. */
 const withRun = async (session: GraphSession): Promise<unknown> => session.runs.start("degree");
 /** A set, for the sets actions. */
@@ -103,6 +111,54 @@ const withSet = (session: GraphSession): Promise<unknown> =>
 /** A note, for the notes actions. */
 const withNote = (session: GraphSession): Promise<unknown> =>
     Promise.resolve(session.notes.add({ text: "first", targets: [{ node: "a" }] }));
+
+/** A shader for the shaders actions. */
+const TINT = `/* graphty-shader 1
+{ "id": "user/tint", "name": "Tint", "place": "paint", "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }] }
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb * amount, n.color.a);
+}
+`;
+/** That shader, in the project. */
+const withShader = (session: GraphSession): Promise<unknown> => session.shaders.add(TINT);
+/** A designated time field and a window on it, for the time actions. */
+const withTime = async (session: GraphSession): Promise<void> => {
+    await session.data.updateNodes(["a", "b", "c", "d"].map((id, at) => ({ id, values: { year: 2000 + at } })));
+    await session.time.setField({ nodes: { start: "year" } });
+    await session.time.ready;
+    await session.time.window({ step: "year" });
+};
+/** A condition to change. */
+const withCondition = (session: GraphSession): Promise<unknown> =>
+    Promise.resolve(
+        session.visibility.addCondition({ id: "c1", effect: "keep", rule: { kind: "expression", where: "true" } }),
+    );
+/** A column with padded values, which the session lists as an issue. */
+const withIssue = (session: GraphSession): Promise<unknown> =>
+    session.data.updateNodes([{ id: "a", values: { padded: " x " } }]);
+/** A load of its own, for the sources actions. */
+const withLoad = (session: GraphSession): Promise<unknown> =>
+    session.data.import({ type: "csv", config: { data: "source,target\nx,y" } }, { mode: "merge" });
+/** A network source of one sample, read with no request. */
+const withSample = (): void => {
+    if (!registry.hasSource("contract-source")) {
+        registerSource(
+            defineSource({
+                id: "contract-source",
+                descriptor: {
+                    plainName: "Contract source",
+                    params: [],
+                    samples: [{ id: "contract-sample", plainName: "Contract sample", params: {} }],
+                },
+                // eslint-disable-next-line @typescript-eslint/require-await -- a source's records are async
+                async *records() {
+                    yield { nodes: [{ id: "sampled" }], next: null };
+                },
+            }),
+        );
+    }
+};
 
 /** A reference call for every action, by `tool.action`. */
 const ROWS: Record<string, Row> = {
@@ -136,6 +192,19 @@ const ROWS: Record<string, Row> = {
     "results.rerun": { args: { action: "rerun", run: "degree" }, setup: withRun },
     "results.cancel": { args: { action: "cancel", run: "degree" }, setup: withRun, code: "AI_CONFIRM_REQUIRED" },
     "results.remove": { args: { action: "remove", run: "degree" }, setup: withRun },
+    "results.move": {
+        args: { action: "move", run: "moved" },
+        setup: async (s) => {
+            await s.runs.start("degree", {}, { as: "moved" });
+            await s.styles.encode({ run: "moved", field: "value", channel: "node.size" });
+            await s.styles.add({
+                name: "top",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#000000" },
+            });
+        },
+    },
     "style.add": {
         args: { action: "add", where: "data.team == 'red'", values: { "node.color": "red" } },
         code: "style.add-layer",
@@ -305,6 +374,71 @@ const ROWS: Record<string, Row> = {
     "notes.list": { args: { action: "list" }, setup: withNote },
     "notes.get": { args: { action: "get", note: "NOTE" }, setup: withNote },
     "import_data.import": { args: { action: "import", format: "csv", text: "source,target\nx,y" } },
+    "time.status": { args: { action: "status" }, setup: withTime },
+    "time.set_field": { args: { action: "set_field", column: "load" } },
+    "time.settings": { args: { action: "settings", mode: "cumulative" }, setup: withTime },
+    "time.window": { args: { action: "window", from: "2001-01-01", to: "2003-01-01" }, setup: withTime },
+    "time.step": { args: { action: "step", count: 1 }, setup: withTime },
+    "time.seek": { args: { action: "seek", instant: "end" }, setup: withTime },
+    "time.play": { args: { action: "play", interval: 3_600_000 }, setup: withTime },
+    "time.pause": {
+        args: { action: "pause" },
+        setup: async (s) => {
+            await withTime(s);
+            s.time.play({ interval: 3_600_000 });
+        },
+    },
+    "conditions.list": { args: { action: "list" }, setup: withCondition },
+    "conditions.add": { args: { action: "add", where: "data.load > `0.5`", effect: "exclude" } },
+    "conditions.update": { args: { action: "update", id: "c1", enabled: false }, setup: withCondition },
+    "conditions.remove": { args: { action: "remove", id: "c1" }, setup: withCondition },
+    "conditions.clear": { args: { action: "clear" }, setup: withCondition },
+    "conditions.set_steps": { args: { action: "set_steps", steps: [{ id: "s1", where: "data.load > `0.5`" }] } },
+    "columns.list": { args: { action: "list" } },
+    "columns.values": { args: { action: "values", column: "team" } },
+    "columns.preview_type": { args: { action: "preview_type", column: "load", type: "text" } },
+    "columns.rename": { args: { action: "rename", column: "team", name: "squad" } },
+    "columns.set_type": { args: { action: "set_type", column: "load", type: "text" } },
+    "columns.set_role": { args: { action: "set_role", column: "team", role: "label" } },
+    "columns.hide": { args: { action: "hide", columns: ["team"] } },
+    "columns.label_value": { args: { action: "label_value", column: "team", value: "red", label: "Reds" } },
+    "sources.list": { args: { action: "list" }, setup: withLoad },
+    "sources.of": { args: { action: "of", node: "a" } },
+    "sources.remove": {
+        args: (s) => ({ action: "remove", key: s.data.sources().at(-1)?.key ?? "none" }),
+        setup: withLoad,
+        gate: false,
+    },
+    "sources.generate": { args: { action: "generate", name: "path", params: { n: 3 } } },
+    "sources.load_sample": {
+        args: { action: "load_sample", id: "contract-sample" },
+        setup: withSample,
+        code: "AI_CONFIRM_REQUIRED",
+    },
+    "sources.expand": {
+        args: { action: "expand", ids: ["a"] },
+        code: "AI_CONFIRM_REQUIRED",
+    },
+    "sources.collapse": {
+        args: { action: "collapse", node: "valjean" },
+        session: seededSession,
+        setup: (s) => s.data.expand(["valjean"]),
+    },
+    "issues.list": { args: { action: "list" }, setup: withIssue },
+    "issues.fix": {
+        args: (s) => ({ action: "fix", id: s.data.issues()[0]?.id ?? "none", fix: "trim" }),
+        setup: withIssue,
+    },
+    "issues.ignore": { args: (s) => ({ action: "ignore", ids: [s.data.issues()[0]?.id ?? "none"] }), setup: withIssue },
+    "shaders.list": { args: { action: "list" }, setup: withShader },
+    "shaders.get": { args: { action: "get", id: "user/tint" }, setup: withShader },
+    "shaders.check": { args: { action: "check", text: TINT } },
+    "shaders.add": { args: { action: "add", text: TINT } },
+    "shaders.replace": {
+        args: { action: "replace", id: "user/tint", text: TINT.replace("* amount", "* amount * 0.5") },
+        setup: withShader,
+    },
+    "shaders.remove": { args: { action: "remove", id: "user/tint" }, setup: withShader },
     "import_data.rename_source": {
         args: { action: "rename_source", name: "Servers" },
         setup: (s) => s.data.import({ type: "csv", config: { data: "source,target\np,q" } }),
@@ -358,7 +492,7 @@ describe("every generated action", () => {
         }
 
         it(`${key}: ${effect === "write" ? "one undo step that one undo takes back" : "no step, nothing saved changes"}`, async () => {
-            const session = await assistantSession();
+            const session = await (row.session ?? assistantSession)();
             await row.setup?.(session);
             await session.styles.settled();
             const [tool] = key.split(".");
@@ -595,6 +729,18 @@ describe("every generated action", () => {
 
 /** More calls for an action whose reference call stops short of something it reaches: a held change, a refusal. */
 const MORE: Record<string, Row[]> = {
+    "sources.load_sample": [{ args: { action: "load_sample", id: "contract-sample" }, setup: withSample, gate: false }],
+    "sources.expand": [{ args: { action: "expand", ids: ["valjean"] }, session: seededSession, gate: false }],
+    "import_data.import": [
+        {
+            args: {
+                action: "import",
+                format: "gml",
+                styles: "file",
+                text: 'graph [ node [ id 1 graphics [ fill "#ff0000" ] ] node [ id 2 ] edge [ source 1 target 2 ] ]',
+            },
+        },
+    ],
     "results.cancel": [{ args: { action: "cancel", run: "degree" }, setup: withRun, gate: false }],
     "edit_data.delete_all": [{ args: { action: "delete_all" }, gate: false }],
     "undo.undo": [

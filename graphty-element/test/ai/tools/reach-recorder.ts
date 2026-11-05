@@ -29,6 +29,8 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     config: "SessionConfig",
     history: "SessionHistory",
     project: "ProjectApi",
+    time: "TimeApi",
+    shaders: "SessionShaders",
 };
 
 /** The root a call's result is, by the root and member called. */

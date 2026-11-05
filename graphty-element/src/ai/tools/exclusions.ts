@@ -6,7 +6,7 @@
  * a decision is reversed.
  */
 
-import type { DoorRoot } from "../../session/commands/doors";
+import { DOOR_ROOTS, type DoorRoot, RENDER } from "../../session/commands/doors";
 
 /** Why the assistant does not reach something. */
 export type ExclusionReason =
@@ -42,7 +42,11 @@ export type ExclusionReason =
     /** The same capability through another action, named in `by`. */
     | "covered-by"
     /** An option whose descriptor has no type a schema can offer (a union of shapes). */
-    | "unoffered-type";
+    | "unoffered-type"
+    /** What a settings panel reads or arranges (folders, pins, hover): it paints nothing a reader asks about. */
+    | "panel-state"
+    /** The reader's own trust, which the assistant must never decide for them. */
+    | "reader-trust";
 
 /** One thing the assistant does not reach, and why. Names exactly one of root, door, op, catalog or option. */
 export interface Exclusion {
@@ -159,6 +163,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
 
+    // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
+    ...DOOR_ROOTS.flatMap((root): Exclusion[] =>
+        root.whole === RENDER
+            ? [{ root: root.name, reason: "internal-handle", kind: BY_DESIGN }]
+            : Object.entries(root.doors ?? {})
+                  .filter(([, door]) => door === RENDER)
+                  .map(([member]) => ({ door: `${root.name}.${member}`, reason: "internal-handle", kind: BY_DESIGN })),
+    ),
+
     // Catalog options no schema can offer.
     {
         option: "engines/force@forceatlas2/nodeMass",
@@ -167,6 +180,217 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         owner: "WAIVER_OWNER_UNASSIGNED",
         expires: "2027-01-11",
     },
+
+    // The surface added beside the tools: each member is reached, or left out here for its reason.
+    ...[
+        "location-map/map",
+        "location-map/gazetteer",
+        "fixed/graphvizAttributes",
+        ...["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"].map(
+            (engine) => `graphviz-${engine}/attributes`,
+        ),
+    ].map((option): Exclusion => ({ option: `layouts/${option}`, reason: "unoffered-type", kind: BY_DESIGN })),
+    ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
+        { root, members: ["assets", "network", "time", "shaders", "features"], reason: "namespace", kind: BY_DESIGN },
+        { root, members: ["recipe"], reason: "whole-document", kind: BY_DESIGN },
+        { root, members: ["recommendLayout"], reason: "raw-data", kind: BY_DESIGN },
+    ]),
+    {
+        root: "ElementSession",
+        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick"],
+        reason: "lifecycle",
+        kind: BY_DESIGN,
+    },
+    ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
+        { root, members: ["nodeThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+    ]),
+    {
+        root: "Graph",
+        members: [
+            "setAttributionOffset",
+            "setCameraTransitionDuration",
+            "setPixelRatio",
+            "setZoomToPointer",
+            "setLighting",
+            "setGlobeLook",
+            "setViewInsets",
+        ],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
+    {
+        root: "Graphty",
+        members: [
+            "lighting",
+            "autoRotate",
+            "fitInsets",
+            "pixelRatio",
+            "attributionOffset",
+            "globeLook",
+            "cameraTransitionDuration",
+            "zoomToPointer",
+            "viewInsets",
+            "autosave",
+            "autosaveRestore",
+            "autosaveOptions",
+            "features",
+        ],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
+    { root: "Graphty", members: ["attributeChangedCallback"], reason: "lifecycle", kind: BY_DESIGN },
+    {
+        root: "Graphty",
+        members: ["edgeTimePath", "nodeTimePath", "edgeTimeUnit", "nodeTimeUnit"],
+        reason: "covered-by",
+        by: "time.set_field",
+        kind: BY_DESIGN,
+    },
+    { root: "Graphty", members: ["shaderSettings"], reason: "reader-trust", kind: BY_DESIGN },
+    { root: "Graphty", members: ["downloadGraph"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "Graphty", members: ["loadFromSource"], reason: "network", kind: BY_DESIGN },
+    { root: "LayoutManager", members: ["placeGroups"], reason: "in-flight", kind: BY_DESIGN },
+    { root: "CredentialStore", reason: "assistant-config", kind: BY_DESIGN },
+    { root: "AssetsApi", reason: "needs-host", kind: BY_DESIGN },
+    { root: "NetworkApi", reason: "reader-trust", kind: BY_DESIGN },
+    {
+        root: "AutosaveApi",
+        members: ["flush", "remove", "removeAll", "stash", "requestPersistence", "restore", "discard"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
+    {
+        root: "NodeDragHandler",
+        members: ["onPointerDown", "onPointerMove", "onPointerUp", "onHover"],
+        reason: "internal-handle",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
+    {
+        root: "SessionDataApi",
+        members: ["editJoin", "editJoinReport", "matchesSource", "replaceSource", "reloadSource"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
+    {
+        root: "SessionDataApi",
+        members: [
+            "testSource",
+            "listSource",
+            "previewSource",
+            "checkSource",
+            "refresh",
+            "more",
+            "runPendingSourceLoad",
+            "loadDataset",
+        ],
+        reason: "network",
+        kind: BY_DESIGN,
+    },
+    { root: "LoadDraft", members: ["graphtyDocument", "styles"], reason: "whole-document", kind: BY_DESIGN },
+    { root: "LoadDraft", members: ["suggestJoin", "joinReport"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "RunsApi", members: ["answered", "layers"], reason: "covered-by", by: "results.list", kind: BY_DESIGN },
+    {
+        root: "SessionLayout",
+        members: ["arrangedDimension", "optionInEffect", "locationColumns"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
+    {
+        root: "SessionConfig",
+        members: ["backgroundColor"],
+        reason: "covered-by",
+        by: "project.status",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionConfig", members: ["inEffect"], reason: "panel-state", kind: BY_DESIGN },
+    ...(["SelectionApi", "SelectionOwner"] as const).flatMap((root): Exclusion[] => [
+        { root, members: ["count"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        {
+            root,
+            members: ["originPaths", "layerSelector", "checkRule", "hovered", "hover", "hoverPreview", "previewHover"],
+            reason: "panel-state",
+            kind: BY_DESIGN,
+        },
+    ]),
+    { root: "SelectionOwner", members: ["edgeRemovalChangesNothing"], reason: "panel-state", kind: BY_DESIGN },
+    ...(["VisibilityApi", "SessionVisibilityApi"] as const).map((root): Exclusion => ({
+        root,
+        members: ["summaryOf"],
+        reason: "covered-by",
+        by: "query.overview",
+        kind: BY_DESIGN,
+    })),
+    { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
+    {
+        root: "SessionVisibilityApi",
+        members: ["drawnMasks", "ghosted", "ghosts"],
+        reason: "raw-data",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionVisibilityApi", members: ["rule"], reason: "covered-by", by: "conditions.list", kind: BY_DESIGN },
+    { root: "SessionVisibilityApi", members: ["previewSteps"], reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionVisibilityApi", members: ["ghosting"], reason: "covered-by", by: "time.status", kind: BY_DESIGN },
+    {
+        root: "SessionVisibilityApi",
+        members: ["commitWindow"],
+        reason: "covered-by",
+        by: "time.window",
+        kind: BY_DESIGN,
+    },
+    { root: "SessionVisibilityApi", members: ["slideWindow"], reason: "in-flight", kind: BY_DESIGN },
+    { root: "TimeApi", members: ["commit"], reason: "in-flight", kind: BY_DESIGN },
+    { root: "TimeApi", members: ["parse"], reason: "mechanism", kind: BY_DESIGN },
+    { root: "SessionShaders", members: ["approve"], reason: "reader-trust", kind: BY_DESIGN },
+    { root: "SessionShaders", members: ["thumbnail"], reason: "raw-data", kind: BY_DESIGN },
+    {
+        root: "BasemapManager",
+        members: ["attributionOffset", "globeLook"],
+        reason: "machine-preference",
+        kind: BY_DESIGN,
+    },
+    { root: "BasemapManager", members: ["dispose"], reason: "lifecycle", kind: BY_DESIGN },
+    ...(["StylesApi", "SessionStylesApi"] as const).flatMap((root): Exclusion[] => [
+        ...coveredBy(root, {
+            "style.add": ["addRow"],
+            "style.update": [
+                "writeRow",
+                "updateMany",
+                "replaceColor",
+                "setValueEntry",
+                "setValueEntries",
+                "setFoldBelow",
+                "renameRow",
+                "hideRow",
+            ],
+            "style.remove": ["deleteRow"],
+            "style.move": ["moveRow"],
+            "style.highlight": ["mark"],
+            "style.get": ["parts", "valueAt"],
+            "style.list": ["tree"],
+            "style.legend": ["colors", "categories", "groups"],
+        }),
+        {
+            root,
+            members: [
+                "addFolder",
+                "pinRow",
+                "lockRow",
+                "restoreStartingRows",
+                "layersUnder",
+                "layerGroups",
+                "highlightStyle",
+                "preview",
+                "sequence",
+                "defaultValue",
+            ],
+            reason: "panel-state",
+            kind: BY_DESIGN,
+        },
+        { root, members: ["toFile"], reason: "whole-document", kind: BY_DESIGN },
+        { root, members: ["setHighlightColor"], reason: "app-default", kind: BY_DESIGN },
+    ]),
+    { root: "SessionStylesApi", members: ["modelUrlFromCode"], reason: "reader-trust", kind: BY_DESIGN },
 
     // The session.
     {

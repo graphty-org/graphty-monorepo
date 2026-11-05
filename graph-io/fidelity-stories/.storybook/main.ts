@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 
 import type { StorybookConfig } from "@storybook/web-components-vite";
 
+import { stubAnthropicNodeToolset } from "../../../vite.anthropic-sdk-stub.mjs";
+
 /** graphty-element's Storybook settings, which the stories' copy of the element needs too. */
 const element = (path: string): string => fileURLToPath(new URL(`../../../graphty-element/${path}`, import.meta.url));
 
@@ -26,6 +28,7 @@ const config: StorybookConfig = {
         const { mergeConfig } = await import("vite");
         // Host, port and HTTPS come from the `storybook` npm script's CLI flags, which servherd fills in.
         return mergeConfig(config, {
+            plugins: [stubAnthropicNodeToolset()],
             server: {
                 allowedHosts: true,
                 // graphty-element's source and graph-io's samples sit outside this package

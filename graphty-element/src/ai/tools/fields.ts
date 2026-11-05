@@ -27,7 +27,7 @@ export const SELECTOR_HELP = "Selector: data.type == 'server', data.weight > `0.
  * A selector field's description, sent with every tool that takes one: short, since the
  * instructions say how a selector is written ("all" included) and every tool turn pays for it.
  */
-export const WHERE_HELP = "Selector, e.g. data.weight > `0.5`";
+export const WHERE_HELP = "Selector.";
 
 /** A selector. */
 export const whereField = z.string().max(MAX_SELECTOR).describe(WHERE_HELP);

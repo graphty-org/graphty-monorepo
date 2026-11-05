@@ -725,7 +725,7 @@ const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
 const TRANSPORT = exempt(
     "In-flight layout computation; where the layout comes to rest is recorded with the step that moved it.",
 );
-const RENDER = exempt(
+export const RENDER = exempt(
     "A render object or render bookkeeping, derived from project state and rewritten by the derivation pass.",
 );
 const HISTORY = exempt("Moves through the history or groups commands into a step; it is not a step itself.");

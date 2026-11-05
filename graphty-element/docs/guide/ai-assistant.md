@@ -415,7 +415,7 @@ A role (`AiAgentRole`, from `@graphty/graphty-element/ai`) is
   (`MAX_AGENT_PURPOSE_LENGTH`): every main turn carries every helper's purpose.
 - **`commands`**: the assistant's own tools the helper may call, by name: `catalog`, `query`,
   `select`, `run_algorithm`, `results`, `style`, `filter`, `layout`, `view`, `edit_data`, `undo`,
-  `sets`, `notes`, `import_data`, `export_graph`, `project`, `capture`, `immersive` (the
+  `sets`, `notes`, `import_data`, `export_graph`, `project`, `capture`, `immersive`, `time`, `conditions`, `columns`, `sources`, `issues`, `shaders` (the
   `ASSISTANT_TOOLS` of `@graphty/graphty-element/catalog` with a non-empty `profiles`). It gets no
   others: no tool of yours, and neither `delegate` nor `ask_reader`.
 - **`provider`** and **`model`**: a helper runs on the assistant's own provider and model unless

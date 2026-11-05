@@ -292,7 +292,7 @@ export const queryTool: ToolDefinition = {
         },
         {
             name: "histogram",
-            summary: "one attribute's distribution",
+            summary: "of an attribute",
             fields: { column: z.string().max(200).describe("Attribute name, e.g. type or data.weight.") },
             effect: "read",
             reaches: [{ door: "SessionDataApi.histogram" }],
@@ -339,7 +339,7 @@ export const queryTool: ToolDefinition = {
         },
         {
             name: "count",
-            summary: "a target's matches",
+            summary: "",
             fields: targetFields,
             effect: "read",
             reaches: [{ door: "ScopeApi.count" }],

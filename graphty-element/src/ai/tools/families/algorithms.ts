@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 import { algorithmByLegacyKey } from "../../../catalog/algorithms";
-import type { AlgorithmDescriptor } from "../../../catalog/types";
+import type { AlgorithmDescriptor, LayerId } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { TransactionScope } from "../../../session/types";
 import { resolveRun, text, WHERE_HELP, whereField } from "../fields";
@@ -331,11 +331,7 @@ const RUN_FACTS = [
     "error",
 ] as const;
 
-const runField = z
-    .string()
-    .max(200)
-    .optional()
-    .describe('Run id, algorithm name (its newest run) or "latest" (default).');
+const runField = z.string().max(200).optional().describe('Run id, algorithm name or "latest" (default).');
 const fieldField = z.string().max(200).optional().describe("Result field; default the run's first.");
 
 /** The `results` tool. */
@@ -407,7 +403,7 @@ export const resultsTool: ToolDefinition = {
         },
         {
             name: "histogram",
-            summary: "a field's distribution",
+            summary: "",
             fields: { run: runField, field: fieldField },
             effect: "read",
             reaches: [{ door: "RunsApi.get" }],
@@ -419,7 +415,7 @@ export const resultsTool: ToolDefinition = {
         },
         {
             name: "page",
-            summary: "values, paged",
+            summary: "",
             fields: {
                 run: runField,
                 field: fieldField,
@@ -494,6 +490,21 @@ export const resultsTool: ToolDefinition = {
                 const removal = await coded(() => tx.runs.remove(run.id));
                 const params: JsonObject = { run: run.id, removedLayers: removal.removedLayers };
                 return ok(undefined, params);
+            },
+        },
+        {
+            name: "move",
+            summary: "reorder its layers",
+            fields: {
+                run: runField,
+                before: z.string().max(200).optional().describe("Layer to sit below; default the top."),
+            },
+            effect: "write",
+            reaches: [{ door: "RunsApi.move" }, { op: "algo.move" }],
+            run: async ({ tx }, args) => {
+                const run = runOf(tx, args);
+                await coded(() => tx.runs.move(run.id, (args.before ?? null) as LayerId | null));
+                return ok(undefined, { run: run.id });
             },
         },
     ] satisfies ActionSpec[],

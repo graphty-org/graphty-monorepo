@@ -16,9 +16,10 @@
  * **Sources are inline.** Each program's text goes straight to the engine, so nothing is fetched
  * lazily at draw time (iPad Safari reports a failed module import as a material that never becomes
  * ready), and two graphs on one page with the same id and different text never share a program:
- * the engine files an effect by its text. Babylon's shader store is not used: this module loads
- * lazily, and on a page where that gave it a second copy of Babylon, its store is not the one the
- * engine reads, so the engine would fetch the program and get a 404 (issue #5894).
+ * the engine files an effect by its text and a define naming the shader's hash. Babylon's shader
+ * store is not used: this module loads lazily, and on a page where that gave it a second copy of
+ * Babylon, its store is not the one the engine reads, so the engine would fetch the program and get
+ * a 404 (issue #5894).
  *
  * **The test frame is advisory.** It catches a runaway shader the static bound missed; it does not
  * bound cost. It draws on a 4 x 4 square, then 64 x 64, then 256 x 256 of a render target, at the
@@ -300,7 +301,11 @@ export class ShaderRuntime {
                     uniformsNames: [...program.uniforms],
                     uniformBuffersNames: [...program.uniformBuffers],
                     samplers: [],
-                    defines: "",
+                    // One effect per shader. The engine files an effect by its text and defines,
+                    // and two shaders can share a text (a parameter's default is not in it); for an
+                    // effect it already holds it never calls this `onCompiled`, which would leave
+                    // the second shader, and the queue behind it, waiting for ever.
+                    defines: `#define GRAPHTY_SHADER ${name}`,
                     fallbacks: null,
                     onCompiled: (effect) => {
                         this.effects.set(shader.hash, effect);

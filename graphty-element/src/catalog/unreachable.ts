@@ -207,6 +207,21 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerX":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerY":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.radius":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",

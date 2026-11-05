@@ -200,6 +200,8 @@ interface SharedResolved {
 
 /** The ForceModel members the three force models share; the model class supplies the rest (see the file header). */
 export abstract class ForceModelBase<E extends ExactStage> {
+    /** See ForceModel.afterIntegrate. */
+    afterIntegrate: ((pass: GPUComputePassEncoder) => void) | null = null;
     /** The stage names in dispatch order (the `upTo` vocabulary of recordIteration and debugRunStages). */
     readonly stages: typeof FORCE_STAGES = FORCE_STAGES;
     /** Fa2Params: the per-iteration uniform block (the simulation writes the shared fields into it). */
@@ -443,6 +445,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
             return;
         }
         bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
+        this.afterIntegrate?.(pass);
         if (stop < STAGE_TO_SCENE) {
             return;
         }
@@ -483,6 +486,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
             return;
         }
         bound.k5.dispatch(pass, bound.k5Bound, bound.plan, [offset]);
+        this.afterIntegrate?.(pass);
         if (stop < STAGE_TO_SCENE) {
             return;
         }

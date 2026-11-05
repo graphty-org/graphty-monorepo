@@ -162,7 +162,15 @@ interface ParsedSimulationOptions {
     scale?: number;
     dim?: 2 | 3;
     seed?: number | null;
+    nodeGap?: number | null;
+    nodeGapFront?: boolean;
 }
+
+/**
+ * The iteration cap of a spring-electrical layout with `nodeGap` and no `maxIter` of its own: a spring pulling against a
+ * collision never stops moving, so without one that run would never end. The ngraph engine's cap for the same reason.
+ */
+const NODE_GAP_MAX_ITERATIONS = 1000;
 
 /**
  * Turn the options a reader set into the options the chosen simulation takes.
@@ -218,7 +226,7 @@ function simulationModel(
             return {
                 ...common,
                 scale: options.scale,
-                maxIter: options.maxIter,
+                maxIter: options.maxIter ?? ((options.nodeGap ?? null) === null ? null : NODE_GAP_MAX_ITERATIONS),
                 springLength: options.springLength,
                 springCoefficient: options.springCoefficient,
                 gravity: options.gravity,
@@ -284,6 +292,8 @@ export function resolveSimulationOptions(
     return {
         model: simulationModel(type, declared),
         scalingFactor: publishedRadius(declared),
+        nodeGap: declared.nodeGap ?? null,
+        nodeGapFront: declared.nodeGapFront === true,
         iterationsPerStep: explicit ?? behavior.iterationsPerStep ?? null,
         maxInFlight: inFlight ?? behavior.maxInFlight,
         settleThreshold: typeof options.settleThreshold === "number" ? options.settleThreshold : undefined,

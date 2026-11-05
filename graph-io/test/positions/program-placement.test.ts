@@ -22,6 +22,34 @@ async function positionsOf(doc: string, format: string): Promise<ReturnType<type
     return extractPositions(registry.importer(format), snapshot, report);
 }
 
+describe("a program that draws a node from another point than its coordinate", () => {
+    it("puts a vis-network top-left circularImage's center half its square from x and y; the file's x stays", async () => {
+        const doc = JSON.stringify({
+            nodes: [
+                { id: 1, x: 0, y: 0 },
+                {
+                    id: 2,
+                    x: 100,
+                    y: 50,
+                    shape: "circularImage",
+                    size: 18,
+                    shapeProperties: { coordinateOrigin: "top-left" },
+                },
+                { id: 3, x: 200, y: 50, shape: "circularImage", shapeProperties: { coordinateOrigin: "top-left" } },
+                { id: 4, x: 300, y: 50, shape: "circularImage", size: 18 },
+            ],
+            edges: [{ from: 1, to: 2 }],
+        });
+        const { snapshot, report } = await registry.importGraph(doc, { format: "json" });
+        const p = extractPositions(registry.importer("json"), snapshot, report);
+        // y down in the file, y up here
+        expect([...(p?.coords.subarray(3, 5) ?? [])]).toEqual([118, -68]);
+        expect([...(p?.coords.subarray(6, 8) ?? [])]).toEqual([225, -75]);
+        expect([...(p?.coords.subarray(9, 11) ?? [])]).toEqual([300, -50]);
+        expect(snapshot.nodes.get("x")?.value(1)).toBe(100);
+    });
+});
+
 describe("a program's own place for nodes the file leaves unplaced", () => {
     it("puts a GEXF node with no viz:position at the origin when others are placed, as Gephi does", async () => {
         const doc = `<?xml version="1.0" encoding="UTF-8"?>

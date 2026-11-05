@@ -420,8 +420,12 @@ const OWN_ENTRY_POINTS = {
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
  * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
  * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
- * ANGLE switches alone left `requestAdapter()` null on one host, and `metal` and `warp` are the
- * macOS and Windows legs of the host-matrix workflow.
+ * ANGLE switches alone left `requestAdapter()` null on one host, the three Vulkan switches on it
+ * because Chromium has no way to back a WebGPU canvas without its own Vulkan context: a real scene
+ * crashes the GPU process and every later `requestAdapter()` comes back null. `--use-vulkan=swiftshader`
+ * gives it that context from the driver Chromium ships, because a CI runner has no system Vulkan
+ * driver for `--enable-features=Vulkan` alone to find. `metal` and `warp` are the macOS and Windows
+ * legs of the host-matrix workflow.
  *
  * This table must know EVERY value any workflow puts in GRAPHTY_BROWSER_GPU, whether or not that
  * job runs the element's tests. `.github/workflows/hosts.yml` sets the variable for the whole job
@@ -434,7 +438,8 @@ const OWN_ENTRY_POINTS = {
  *
  * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
- * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
+ * accelerator. `test/browser/webgpu-layout.test.ts` asks for a real card, and the
+ * `graphty-element-webgpu` shard runs `test/browser/webgpu-renderer.test.ts` on SwiftShader.
  */
 const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
     nvidia: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
@@ -443,6 +448,9 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--use-angle=swiftshader",
         "--enable-unsafe-swiftshader",
         "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--disable-vulkan-surface",
     ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.
@@ -1071,14 +1079,19 @@ const config = defineConfig({
                 // fidelity sample with its file styles and writes what was drawn to
                 // test/fidelity/out/. It fails a sample only for an element failing that the known
                 // failures do not list (test/fidelity/oracle/floors.ts); a sample's layout can take
-                // longer than the browser project's budget to settle, and so it is in no CI shard and
-                // not in the pre-push gate. Run with: npm run test:fidelity, and on this workstation
-                // with GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
-                // annotation session draws about one frame a second and does not settle.
-                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report> judges that run's
-                // drawings again with this comparator; npm run fidelity:ratchet applies a run.
+                // longer than the browser project's budget to settle, and so it is in no pull request's
+                // CI and not in the pre-push gate; the 6-hour full run runs oracle-report.test.ts in
+                // slices (below). Run with: npm run test:fidelity, or with GRAPHTY_BROWSER_GPU=nvidia (and
+                // GRAPHTY_EGL_LIB_DIR) on this workstation. Without a GPU (SwiftShader) every sample settles:
+                // all 563 in 807 s here, and 285 to 355 s a quarter on a CI runner (issue #4270), with the
+                // same gate elements as on the GPU path; only the raster regions differ.
+                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report, copied under this package:
+                // the browser cannot read outside the workspace> judges that run's drawings again with this
+                // comparator; npm run fidelity:ratchet applies a run.
+                // GRAPHTY_ORACLE_SLICE=<n>/<count> runs one slice of oracle-report.test.ts: CI's full run
+                // runs it as the graphty-element-fidelity-<n> shards (tools/ci-test-matrix.mjs).
                 define: { ...define },
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE", "GRAPHTY_ORACLE_SLICE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },

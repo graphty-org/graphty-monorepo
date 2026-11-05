@@ -69,6 +69,11 @@ const meta: Meta = {
             table: { category: "Spring Layout" },
             name: "layoutConfig.seed",
         },
+        springNodeGap: {
+            control: { type: "number" },
+            table: { category: "Spring Layout" },
+            name: "layoutConfig.nodeGap",
+        },
 
         // Circular layout controls
         circularScale: {
@@ -366,6 +371,40 @@ export const Spring: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Spring");
+
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * Spring with `nodeGap`: nodes drawn large, kept apart by their drawn size, so none covers another. Beside the Spring
+ * story, whose nodes stay points to the layout. `preSteps` matches Spring's, for the same reason.
+ */
+export const NodeGap: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
+        layout: "spring",
+        layoutConfig: { dim: 2 },
+        springK: null,
+        springIterations: 50,
+        springScale: 1,
+        springSeed: 12,
+        springNodeGap: 2,
+    },
+    parameters: {
+        controls: {
+            // A control left out here does not reach the layout, so `layoutConfig.seed` has to stay.
+            include: [
+                "layoutConfig.k",
+                "layoutConfig.iterations",
+                "layoutConfig.scale",
+                "layoutConfig.seed",
+                "layoutConfig.nodeGap",
+            ],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "NodeGap");
 
         await assertDistinctPicture(scene, "Layout/2D");
     },

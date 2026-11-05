@@ -24,8 +24,13 @@
  *   resolve the package and Vite 8 failed on a named import from its placeholder module (issue
  *   #3278). Each optional peer is reached only as the literal target of an `await import()`
  *   inside `try`, which every one of these bundlers builds when the package is absent.
+ *
+ * A build that succeeds can still throw on import, so the Vite build is also loaded. That caught
+ * shader thumbnails that had lost `?no-inline` in `dist/`: Vite inlined them past the 4096
+ * characters a descriptor's thumbnail may hold, and registering the presets threw (issue #5815).
  */
 
+import { execFileSync } from "node:child_process";
 import {
     cpSync,
     mkdirSync,
@@ -39,7 +44,7 @@ import {
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
@@ -47,6 +52,17 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import webpack from "webpack";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+
+/** Import a built file where a page's globals exist, in a process of its own: no setup of this run stands in. */
+const LOAD_IN_A_PAGE = `
+import { Window } from "happy-dom";
+const page = new Window();
+for (const name of Object.getOwnPropertyNames(page)) {
+    if (!(name in globalThis)) globalThis[name] = page[name];
+}
+globalThis.window = globalThis;
+await import(process.argv[1]);
+`;
 
 interface Manifest {
     dependencies: Record<string, string>;
@@ -134,7 +150,7 @@ async function buildWithVite(): Promise<string[]> {
             build: {
                 outDir: join(app, "out-vite"),
                 minify: false,
-                rollupOptions: { input: entry },
+                rollupOptions: { input: entry, output: { entryFileNames: "main.js" } },
             },
         });
         return [];
@@ -190,8 +206,13 @@ describe("a consumer app with only graphty-element and its required peers instal
         assert.deepEqual(await buildWithWebpack(), []);
     });
 
-    it("builds the root entry with Vite", async () => {
+    it("builds the root entry with Vite, and what it built loads", async () => {
         assert.deepEqual(await buildWithVite(), []);
+        execFileSync(
+            process.execPath,
+            ["--input-type=module", "--eval", LOAD_IN_A_PAGE, pathToFileURL(join(app, "out-vite/main.js")).href],
+            { cwd: PACKAGE_ROOT, stdio: "pipe" },
+        );
     });
 
     it("builds the root entry with esbuild", async () => {

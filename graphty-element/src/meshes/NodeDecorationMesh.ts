@@ -118,6 +118,8 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
  * @param size - The node's size, when its shape gives none.
  * @param fill - The node's own mesh.
  * @param scene - The scene.
+ * @param onImageFailed - Told once per built picture when neither it nor its fallback loads, with the
+ * URL the style named and the one that failed last.
  * @returns The three instances.
  */
 export function createNodeDecorations(
@@ -127,6 +129,7 @@ export function createNodeDecorations(
     size: number,
     fill: AbstractMesh,
     scene: Scene,
+    onImageFailed?: (ref: string, failed: string) => void,
 ): { pieces: InstancedMesh | null; image: InstancedMesh | null; glyph: InstancedMesh | null } {
     if (!hasDecoration(o)) {
         return { pieces: null, image: null, glyph: null };
@@ -144,7 +147,9 @@ export function createNodeDecorations(
     const image =
         picture === undefined || (picture.src ?? "") === ""
             ? null
-            : cache.get(`node-image-${key}`, () => buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene));
+            : cache.get(`node-image-${key}`, () =>
+                  buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene, onImageFailed),
+              );
     const glyph =
         (o.glyph?.text ?? "") === ""
             ? null
@@ -479,6 +484,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
  * @param scale - World units per unit of the style's lengths.
  * @param z - The z it is drawn at.
  * @param scene - The scene.
+ * @param onFailed - Told when neither the picture nor its fallback loads.
  * @returns The mesh.
  */
 function buildImage(
@@ -487,6 +493,7 @@ function buildImage(
     scale: number,
     z: number,
     scene: Scene,
+    onFailed?: (ref: string, failed: string) => void,
 ): Mesh {
     const mesh = new Mesh("node-image", scene);
     const mat = flatMaterial("node-image", scene);
@@ -537,12 +544,16 @@ function buildImage(
      * Load a picture as the material's texture: its own size shapes the mesh once it arrives; one that cannot be
      * loaded gives way to the next in line, and with none left draws nothing and holds no frame back.
      * @param sources - The URLs still to try, in order.
+     * @param failed - The URL that failed last, if one did.
      */
-    const load = (sources: readonly string[]): void => {
+    const load = (sources: readonly string[], failed?: string): void => {
         const [src, ...rest] = sources;
         if (src === undefined) {
             mat.diffuseTexture = null;
             shape(null);
+            if (failed !== undefined) {
+                onFailed?.(image.src ?? failed, failed);
+            }
             return;
         }
         const texture: Texture = new Texture(
@@ -557,7 +568,7 @@ function buildImage(
             },
             () => {
                 texture.dispose();
-                load(rest);
+                load(rest, src);
             },
             // Babylon.js reads a `data:` URL itself only in base64; any other (an SVG written out as text) it loads
             // as an image only when handed the URL as the picture's buffer

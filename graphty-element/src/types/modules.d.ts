@@ -33,6 +33,13 @@ declare module "d3-force-3d" {
     /** In d3 every force is a function the simulation calls with the current alpha on each tick. */
     export type Force = (alpha: number) => void;
 
+    /** d3's collision force: a radius per node, read when set and when the nodes change. */
+    export interface ForceCollide extends Force {
+        radius(radius: (node: Partial<Node>) => number): this;
+    }
+
+    export function forceCollide(): ForceCollide;
+
     export interface ForceSimulation {
         tick(iterations?: number): this;
         nodes(): Node[];

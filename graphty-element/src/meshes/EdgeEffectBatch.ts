@@ -7,7 +7,7 @@ import { edgeShaderProgram } from "../shaders/runtime/edgePrograms";
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { SCENE_BLOCK } from "../shaders/runtime/wrap";
 import { noteBloomMesh } from "./BloomPass";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type JoinedLineOptions } from "./CustomLineRenderer";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import type { NodeShaderData } from "./NodeShaderDrawing";
 import { ViewWatch } from "./viewWatch";
@@ -37,6 +37,10 @@ export interface ShadedLineOptions {
     readonly opacity: number;
     /** Whether `width` is in world units (the 2D view). */
     readonly worldWidth: boolean;
+    /** The line's fade by its length on screen, if it has one. */
+    readonly fade?: JoinedLineOptions["fade"];
+    /** Whether the line is drawn without alpha blending. */
+    readonly opaque?: boolean;
 }
 
 /** Scratch for the on-screen test, so the per-frame walk allocates nothing. */
@@ -81,6 +85,8 @@ export function shadedLineMesh(
             worldWidth: line.worldWidth,
             program: { ...program, fragment: name },
             blend,
+            fade: line.fade,
+            opaque: line.opaque,
         },
         scene,
     );

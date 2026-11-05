@@ -21,6 +21,7 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { Node } from "../../src/Node";
@@ -705,6 +706,49 @@ describe("a repaint of every node", () => {
             assert.deepStrictEqual(perFrame, [128, 128, 128, 16], "every node once, one batch of 128 a frame");
             assert.isFalse(painter.hasPending, "and nothing is left to paint");
         } finally {
+            element.remove();
+        }
+    });
+
+    // A load paints every element, over as many frames as the graph needs, and draws nothing until
+    // the last one. Visiting every edge on each of those frames cost a 100,000-node, 1,000,000-edge
+    // load about a thousand walks of a million edges: 190-436 s, where the paint itself took 30 s.
+    it("visits each edge a fixed number of times, however many frames it is spread over", async () => {
+        const size = 400;
+        const edges = size - 1;
+        const minimumWork = minimumWorkPerFrame();
+        setMinimumWorkPerFrame(true);
+        const element = await mount(size);
+        const visits = countCalls(Edge.prototype, "update");
+        try {
+            const { graph } = element;
+            const { styles } = graph.getSession();
+            await styles.add({ name: "Boxes", selector: { match: "everything" }, set: { "node.shape": "box" } });
+            await styles.add({
+                name: "No arrows",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "none" },
+            });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            const manager = updateManagerOf(graph);
+            visits.count.calls = 0;
+
+            let frames = 0;
+            while (painter.hasPending && frames < size) {
+                manager.update(16);
+                frames++;
+            }
+            manager.update(16);
+
+            assert.isFalse(painter.hasPending, "the whole repaint was applied");
+            assert.isAtLeast(frames, 100, "and spread over a frame for each small batch of nodes");
+            assert.isAtLeast(visits.count.calls, edges, "every edge was visited");
+            assert.isAtMost(visits.count.calls, 8 * edges, "a fixed number of visits per edge, not one a frame");
+        } finally {
+            visits.restore();
+            setMinimumWorkPerFrame(minimumWork);
             element.remove();
         }
     });

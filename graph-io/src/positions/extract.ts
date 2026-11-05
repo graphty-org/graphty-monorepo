@@ -184,8 +184,9 @@ function plainSpelling(snapshot: GraphSnapshot, hook: ImporterPositions): Spelli
         if (!x.isSet(row) || !y.isSet(row)) {
             return false;
         }
-        out[0] = Number(x.value(row));
-        out[1] = Number(y.value(row));
+        const offset = hook.centerOffset?.(row) ?? [0, 0];
+        out[0] = Number(x.value(row)) + offset[0];
+        out[1] = Number(y.value(row)) + offset[1];
         out[2] = z?.isSet(row) === true ? Number(z.value(row)) : 0;
         return true;
     };

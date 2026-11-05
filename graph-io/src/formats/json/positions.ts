@@ -13,6 +13,7 @@ import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
 import type { ImporterPositions, ViewerFit } from "../../positions/types.js";
 import { jsonShapeOf } from "./dialect.js";
+import { visCenterOffset } from "./styles.js";
 
 /**
  * How sigma.js fits a graphology graph into its canvas: the bounding box of the positions, 30 px in
@@ -53,6 +54,7 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
         yAxis: down ? "down" : "up",
         units: down ? "px" : "file",
         ...(dialect === "graphology" ? { viewerFit: SIGMA_FIT } : {}),
+        ...(dialect === "vis" ? { centerOffset: visCenterOffset(snapshot) } : {}),
     };
 }
 

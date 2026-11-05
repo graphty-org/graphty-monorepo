@@ -1081,6 +1081,7 @@ export class DataManager implements Manager {
 
         if (element instanceof Node) {
             placeNodeRow(element, row);
+            this.nodeVersion++;
         } else {
             placeEdgeRow(element, row);
             if (row !== INVALID_INDEX) {
@@ -1455,6 +1456,8 @@ export class DataManager implements Manager {
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
             placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
         }
+
+        this.nodeVersion++;
     }
 
     /**

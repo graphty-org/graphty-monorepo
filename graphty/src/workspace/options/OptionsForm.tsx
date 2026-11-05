@@ -23,6 +23,7 @@ import {
     Tooltip,
 } from "@mantine/core";
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
@@ -60,6 +61,11 @@ interface OptionsFormProps {
     algorithm?: string;
     /** The Advanced pop-out's name, when two folds can be on screen at once (the right panel's and a popover's). */
     advancedLabel?: string;
+    /**
+     * Where the Advanced button goes when not after the fields: a form's header, whose element is
+     * null until it has mounted. The pop-out then opens to the right of the form, not over it.
+     */
+    advancedTarget?: HTMLElement | null;
     /**
      * Insets the fields (and the Advanced pop-out's fields) from the section's content edge, while
      * the fold's own toggle stays on that edge, so its chevron hangs in the section's gutter in
@@ -673,6 +679,7 @@ function OptionControl({
  * @param props.algorithm - The algorithm the form sets up
  * @param props.advanced - More controls at the end of the Advanced pop-out
  * @param props.advancedLabel - The Advanced pop-out's name
+ * @param props.advancedTarget - Where the Advanced button goes, when not after the fields
  * @param props.fieldInset - Insets the fields, not the fold's toggle
  * @param props.trailing - Controls after an option's field, on its line
  * @param props.rows - Options drawn side by side, each group in one row
@@ -683,6 +690,7 @@ export function OptionsForm({
     values,
     advanced: more,
     advancedLabel = "Advanced",
+    advancedTarget,
     fieldInset,
     trailing,
     rows = [],
@@ -723,6 +731,15 @@ export function OptionsForm({
         });
     const advanced = drawn.filter((o) => o.advanced === true);
     const basic = drawn.filter((o) => o.advanced !== true);
+    const place = (fold: React.JSX.Element): React.ReactNode => {
+        if (advanced.length === 0 && more === undefined) {
+            return null;
+        }
+        if (advancedTarget === undefined) {
+            return fold;
+        }
+        return advancedTarget === null ? null : createPortal(fold, advancedTarget);
+    };
     return (
         <>
             {fieldInset === undefined && placed(basic)}
@@ -731,7 +748,7 @@ export function OptionsForm({
                     {placed(basic)}
                 </Stack>
             )}
-            {advanced.length > 0 || more !== undefined ? (
+            {place(
                 // The rare settings behind an Advanced button that opens a pop-out (compact-mantine
                 // draws no folds inside a panel). The form brings its own floating layer, whose
                 // panels render in place: inside a Mantine popover (Analyze, Layout) a panel in the
@@ -763,7 +780,7 @@ export function OptionsForm({
                             </Popout.Trigger>
                             <Popout.Panel
                                 width={264}
-                                placement="left"
+                                placement={advancedTarget === undefined ? "left" : "right"}
                                 alignment="start"
                                 header={{ variant: "title", title: advancedLabel }}
                                 closeLabel={`Close ${advancedLabel}`}
@@ -777,8 +794,8 @@ export function OptionsForm({
                             </Popout.Panel>
                         </Popout>
                     </PopoutManager>
-                </div>
-            ) : null}
+                </div>,
+            )}
         </>
     );
 }

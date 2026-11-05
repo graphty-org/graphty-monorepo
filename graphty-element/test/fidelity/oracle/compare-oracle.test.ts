@@ -1547,6 +1547,33 @@ describe("an outline a program drew as a filled path", () => {
     });
 });
 
+describe("a wave round a small node", () => {
+    it("sizes the node by its body and half the wave's line, not by how far the wave swings", () => {
+        index = 0;
+        const hint: Prim["hint"] = { role: "node", id: "a", key: "a" };
+        const box = (w: number, h: number): Pt[] => [
+            [100 - w / 2, 100 - h / 2],
+            [100 + w / 2, 100 - h / 2],
+            [100 + w / 2, 100 + h / 2],
+            [100 - w / 2, 100 + h / 2],
+            [100 - w / 2, 100 - h / 2],
+        ];
+        const prims = [
+            prim({ tag: "path", corners: 4, points: box(48, 18), fill: fill("#ff0000"), hint }),
+            // as tall as twice the body, no wider than the rest of it: cx2-syn-mappings 195's wave
+            prim({
+                tag: PAINTED_OUTLINE,
+                points: box(52, 38),
+                stroke: { ...stroke("#000000", 2), dashClass: "zigzag" },
+                hint,
+            }),
+        ];
+        const node = associate(prims, 400, 300, { ...graphtyScene(), nodes: [] }).scene.nodes[0];
+        assert.closeTo(node.w, 50, 0.01);
+        assert.closeTo(node.h, 20, 0.01);
+    });
+});
+
 describe("bodies found by geometry", () => {
     it("gives a node drawn on the middle of a taller box its own shape, not the box's", () => {
         index = 0;

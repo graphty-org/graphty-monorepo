@@ -112,11 +112,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 27 jobs", () => {
+    it("runs every shard exactly once on a full run, in 34 jobs (the four fidelity slices among them)", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 27);
+        assert.equal(include.length, 34);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -140,8 +140,12 @@ describe("the test matrix", () => {
     it("leaves out the groups and shards of unaffected packages", () => {
         assert.deepEqual(plan([]), []);
         assert.deepEqual(
-            plan(["graphty-element"]).map((e) => e.shard),
-            SHARDS.filter((s) => s.package === "graphty-element").map((s) => s.shard),
+            plan(["graphty-element"])
+                .flatMap((e) => e.members ?? [e.shard])
+                .sort(),
+            SHARDS.filter((s) => s.package === "graphty-element")
+                .map((s) => s.shard)
+                .sort(),
         );
     });
 
@@ -234,6 +238,11 @@ describe("the push tools", () => {
 
     describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
         const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+        const realDate = spawnSync("bash", ["-c", "command -v date"], { encoding: "utf8" }).stdout.trim();
+        const realTimeout = spawnSync("bash", ["-c", "command -v timeout"], { encoding: "utf8" }).stdout.trim();
+        // With STUB_CLOCK (a file holding the epoch second), date +%s reads that file and timeout runs its
+        // command with no limit, except a capture under STUB_HANG: that one spends its whole limit on the
+        // clock and exits 124, as a stuck capture does. So a limit is stepped, never waited out (#5832).
         // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
         // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
         // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
@@ -251,7 +260,6 @@ esac
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
-    [ -n "$STUB_HANG" ] && exec sleep 300
     [ -n "$STUB_CAPTURES" ] && echo x >> "$STUB_CAPTURES"
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
@@ -259,6 +267,19 @@ if [ "$2" = capture ]; then
     exit 0
 fi
 exec ${process.execPath} "$@"
+`,
+            date: `#!/bin/bash
+[ -n "$STUB_CLOCK" ] && [ "$*" = "+%s" ] && exec cat "$STUB_CLOCK"
+exec ${realDate} "$@"
+`,
+            timeout: `#!/bin/bash
+[ -n "$STUB_CLOCK" ] || exec ${realTimeout} "$@"
+[ "\${1#--kill-after=}" != "$1" ] && shift
+limit="\${1%s}"; shift
+if [ -n "$STUB_HANG" ] && [ "$3" = capture ]; then
+    echo $(( $(cat "$STUB_CLOCK") + limit )) > "$STUB_CLOCK"; exit 124
+fi
+exec "$@"
 `,
             git: `#!/bin/bash
 case " $* " in
@@ -402,15 +423,21 @@ exec ${realGit} "$@"
 
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
             return sandbox(({ run, head, main, local }) => {
-                // The browser cap, held by someone else for longer than the whole limit (#1820).
+                // The browser cap, held by someone else for longer than the whole limit (#1820). The limit
+                // runs on a stepped clock, so a slow machine spends none of it (#5832).
                 mkdirSync(join(main, "tmp"), { recursive: true });
+                const clock = join(main, "tmp/clock");
+                writeFileSync(clock, "1000000000\n");
                 const wrapper = join(main, "tmp/with-browser.sh");
-                writeFileSync(wrapper, '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
-                    mode: 0o755,
-                });
+                writeFileSync(
+                    wrapper,
+                    '#!/bin/sh\necho $(( $(cat "$STUB_CLOCK") + STUB_SLOT_WAIT )) > "$STUB_CLOCK"\nexec "$@"\n',
+                    { mode: 0o755 },
+                );
                 const waited = run(
                     {
                         STUB_STATUS: "changed",
+                        STUB_CLOCK: clock,
                         VISUAL_PREVIEW_TIMEOUT: "10s",
                         STUB_SLOT_WAIT: "11",
                         WITH_BROWSER: wrapper,
@@ -420,17 +447,24 @@ exec ${realGit} "$@"
                 );
                 assert.equal(waited.status, 0, waited.stdout + waited.stderr);
                 assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
-                assert.match(waited.stdout, /p: capturing \(\d+s left\)/);
+                assert.match(waited.stdout, /p: capturing \(10s left\)/);
 
                 // A capture that holds its slot and never finishes still fails, once its limit is spent
                 // (the finished capture of the same head is discarded first, or it would be reused).
                 assert.equal(run({}, "--discard", head).status, 0);
                 const stuck = run(
-                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
+                    {
+                        STUB_HANG: "1",
+                        STUB_CLOCK: clock,
+                        VISUAL_PREVIEW_TIMEOUT: "2s",
+                        STUB_SLOT_WAIT: "0",
+                        WITH_BROWSER: wrapper,
+                    },
                     "--head",
                     head,
                 );
                 assert.equal(stuck.status, 1, stuck.stdout + stuck.stderr);
+                assert.match(stuck.stdout, /p: capturing \(2s left\)/);
                 assert.match(stuck.stdout, /p: timed out: the capture ran past what was left of 2s/);
                 assert.match(stuck.stderr, /capture failed: p/);
                 const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
@@ -1195,7 +1229,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 27, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 34, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1313,7 +1347,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "27");
+        assert.equal(called.out["test-count"], "34");
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");
@@ -7445,14 +7479,14 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default"],
+            none: ["graphty-element-default", "graphty-element-webgpu"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");
         assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
         assert.equal(bin.coverage, undefined, "a bin writes no coverage");
         assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
-        assert.ok(!include.some((e) => /^graphty-element-browser-[2-5]$/.test(e.shard)), "the bin replaces its shards");
+        assert.ok(!include.some((e) => /^graphty-element-browser-[2-9]$/.test(e.shard)), "the bin replaces its shards");
         assert.ok(
             !include.some((e) => e.shard === "graphty-element-default"),
             "a shard with nothing selected runs nowhere",

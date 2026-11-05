@@ -994,7 +994,7 @@ describe("where Graphviz put each edge label read back", () => {
         const edges = structure.edges ?? [];
         assert.deepEqual(edges[0].attributes, {
             xlabel: "outside",
-            headlabel: "H",
+            headlabel: "<<b>H</b>>",
             taillabel: "T",
             labelfontsize: "14",
         });
@@ -1008,6 +1008,33 @@ describe("where Graphviz put each edge label read back", () => {
         assert.closeTo(xAlong, 0.5, 0.25, "the external label about halfway along");
         assert.isAbove(headAlong, 0.5, "the head label near the target");
         assert.isBelow(tailAlong, 0.5, "the tail label near the source");
+    });
+
+    it("hands an HTML table edge label to Graphviz as HTML, which places it by the table's size (issue #5253)", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const table = '<<TABLE BGCOLOR="#ffd700"><TR><TD>t</TD></TR></TABLE>>';
+        const structure = (label: string): ReturnType<typeof graphvizStructure> =>
+            graphvizStructure(
+                (id) => ["a", "b"].indexOf(String(id)),
+                [{ srcId: "a", dstId: "b", data: { label } }],
+                new Map(),
+                [],
+            );
+        const asHtml = toDot(snapshot, {}, undefined, undefined, new Map(), structure(table));
+        const asText = toDot(snapshot, {}, undefined, undefined, new Map(), structure("t"));
+        assert.include(asHtml, `label=${table}`, "written unquoted, for Graphviz to read as HTML");
+
+        const height = async (dot: string): Promise<number> => {
+            const reply = await layout(dot, "dot");
+            assert.isTrue(reply.ok);
+            const { bb } = JSON.parse(reply.ok ? reply.json : "{}") as { bb: string };
+            return Number(bb.split(",")[3]);
+        };
+        assert.isAbove(
+            await height(asHtml),
+            await height(asText),
+            "the table takes more room between the ranks than its words",
+        );
     });
 
     it("reads where Graphviz puts a node's external label, from the node's center, right and down", () => {

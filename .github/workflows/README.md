@@ -113,7 +113,8 @@ from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candi
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
+gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
@@ -162,9 +163,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 The shards, their commands, groups and measured durations are in `tools/ci-test-matrix.mjs`
 (`./tools/run-tests.sh --list`). A pull request runs only the shards of affected packages, and within a shard
 only the selected test files where `test-select-rules.json` allows file-level selection; the full run runs all
-of them (27 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
+of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
-resolved dependencies changed. `graphty-element-lifecycle` runs only in the full run.
+resolved dependencies changed. `graphty-element-lifecycle` and `graphty-element-fidelity-1` to `-4` (the style
+fidelity gate over every oracle, in four slices) run only in the full run.
 
 ## Visual review
 

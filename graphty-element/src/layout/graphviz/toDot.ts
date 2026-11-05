@@ -98,6 +98,20 @@ export function isHtmlLabel(label: string): boolean {
     return depth === 0;
 }
 
+/** The attributes that hold a label's words. */
+const LABEL_NAMES = new Set(["label", "xlabel", "headlabel", "taillabel"]);
+
+/**
+ * An attribute's DOT value: quoted, except an HTML-like label, handed over as HTML (`<...>`) so Graphviz lays out its
+ * table and markup, which take room its words alone do not.
+ * @param name - the attribute
+ * @param value - its value
+ * @returns the DOT value
+ */
+function attributeValue(name: string, value: string): string {
+    return LABEL_NAMES.has(name) && isHtmlLabel(value) ? value : quote(value);
+}
+
 /**
  * A label as Graphviz reads it: an HTML-like label (`<...>`) as it is, any other quoted with its escapes (`\n`,
  * `\l`) kept, so Graphviz lays it out in lines as the file wrote it.
@@ -186,7 +200,7 @@ function nodeExtras(row: number, structure: DotStructure): string {
     const y = structure.positions?.[2 * row + 1];
     const pinned = x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y);
     const all = pinned ? [...own, ["pos", `${x},${y}!`]] : own;
-    return all.map(([name, value]) => `, ${name}=${quote(value)}`).join("");
+    return all.map(([name, value]) => `, ${name}=${attributeValue(name, value)}`).join("");
 }
 
 /**
@@ -293,7 +307,7 @@ function edgesOf(stored: GraphSnapshot): DotEdge[] {
 function attributeList(attributes: Readonly<Record<string, string>> | undefined): string {
     const written = Object.entries(attributes ?? {})
         .filter(([name]) => isPlainName(name))
-        .map(([name, value]) => `${name}=${quote(value)}`);
+        .map(([name, value]) => `${name}=${attributeValue(name, value)}`);
     return written.length > 0 ? ` [${written.join(", ")}]` : "";
 }
 

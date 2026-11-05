@@ -16,7 +16,8 @@
 //           green-images: its visual-final-* captures and its kept builds) and why to GITHUB_OUTPUT
 //   node tools/channel/resume.mjs record    the unhold job (approved) or the resume job (rejected)
 //       env STATE (approved | rejected), TESTED, ACCEPT, WHY, RUN_URL, RESULTS_URL and the job's OIDC token,
-//           GH_TOKEN, GITHUB_REPOSITORY; a rejection is also commented on the hold issue
+//           GH_TOKEN, GITHUB_REPOSITORY; a rejection is also commented on the hold issue (the open "Nightly held on"
+//           issue, or a new one, when the store records none) and then fails, so the run ends red
 //
 // A promotion happens exactly once, and an older candidate never after a newer one: the resume refuses an approval
 // already in channel/nightly (done), one whose history lacks channel/nightly (older than nightly; the land job's
@@ -30,6 +31,7 @@ import { pathToFileURL } from "node:url";
 
 import { diffCommits } from "../release-diff.mjs";
 import { call, config } from "../results/client.mjs";
+import { HOLD_TITLE } from "./hold.mjs";
 
 /** The accept commit's subject (visual-review/trusted/lib/accept.mjs masterSubject), whatever the prefix. */
 export const ACCEPT_SUBJECT = /^.+: approve visual baselines at ([0-9a-f]{12})$/;
@@ -257,11 +259,18 @@ async function record(env) {
     if (env.STATE !== "rejected") return;
     const h = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
     const issue = h.ok ? h.data.hold?.issue : null;
-    if (issue)
-        commentOn(
-            issue,
-            `The approval ${env.ACCEPT} of ${env.TESTED} did not promote: ${env.WHY}. ${env.RUN_URL ?? ""}`.trim(),
-        );
+    const text = `The approval ${env.ACCEPT} of ${env.TESTED} did not promote: ${env.WHY}. ${env.RUN_URL ?? ""}`.trim();
+    if (issue) commentOn(issue, text);
+    else {
+        // a hold with no issue recorded (#5835): comment on the open "Nightly held on" issue, or open one
+        const file = join(tmpdir(), `resume-${process.pid}.md`);
+        writeFileSync(file, text);
+        execFileSync("tools/release-held.sh", ["open", `${HOLD_TITLE} ${short(env.TESTED)}`, file, HOLD_TITLE], {
+            stdio: ["ignore", "inherit", "inherit"],
+        });
+    }
+    // a refused approval fails the run, so it never ends green with nightly unmoved (#5835)
+    throw new Error(text);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

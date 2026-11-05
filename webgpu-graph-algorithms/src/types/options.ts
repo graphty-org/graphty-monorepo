@@ -11,6 +11,7 @@ import type { F32, NodeId, NodeMask } from "@graphty/graph-format";
 // The five layout-owned option records are @graphty/layout's declarations, re-exported so src/index.ts's barrel
 // and the option type tests keep resolving them from here (W1b, Task M5b-T2).
 export type {
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

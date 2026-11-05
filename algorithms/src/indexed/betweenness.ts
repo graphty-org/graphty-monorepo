@@ -6,6 +6,7 @@ import {
     type NodeResolvable,
     type NodeSet,
     resolveNodeSet,
+    type U32,
 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
@@ -173,13 +174,14 @@ function accumulate(
         delta: new Float64Array(n),
         order: new Uint32Array(n),
     };
+    const { order, delta } = scratch;
     for (const source of sources) {
         const tail = countPaths(s, alive, scratch, source);
         for (let i = tail - 1; i >= 0; i--) {
-            const v = scratch.order[i];
+            const v = order[i];
             pullDependencies(s, alive, scratch, v, edge);
             if (node !== null && v !== source) {
-                node[v] += endpoints ? scratch.delta[v] + 1 : scratch.delta[v];
+                node[v] += endpoints ? delta[v] + 1 : delta[v];
             }
         }
         if (node !== null && endpoints) {
@@ -203,14 +205,17 @@ interface BrandesScratch {
 
 /**
  * Whether arc `a` is skipped: a repeat of the neighbour before it in the row (a parallel edge), or a dead edge.
- * @param s - The snapshot
+ * Takes the arrays, not the snapshot, so the arc loops never read `colIdx` or the `arcToEdge` getter
+ * off the snapshot per arc.
+ * @param colIdx - The snapshot's arc targets
+ * @param arcToEdge - The snapshot's arc -> edge map
  * @param alive - Kept edges, or null for all
  * @param a - The arc
  * @param prev - The neighbour of the last arc kept in this row, or -1
  * @returns True when the arc takes no part
  */
-function skipArc(s: GraphSnapshot, alive: EdgeMask | null, a: number, prev: number): boolean {
-    return s.colIdx[a] === prev || (alive !== null && !maskTest(alive, s.arcToEdge[a]));
+function skipArc(colIdx: U32, arcToEdge: U32, alive: EdgeMask | null, a: number, prev: number): boolean {
+    return colIdx[a] === prev || (alive !== null && !maskTest(alive, arcToEdge[a]));
 }
 
 /**
@@ -250,12 +255,12 @@ function visitNeighbours(
     v: number,
     tail: number,
 ): number {
-    const { rowPtr, colIdx } = s;
+    const { rowPtr, colIdx, arcToEdge } = s;
     const { depth, sigma, order } = scratch;
     const next = depth[v] + 1;
     let prev = -1;
     for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-        if (skipArc(s, alive, a, prev)) {
+        if (skipArc(colIdx, arcToEdge, alive, a, prev)) {
             continue;
         }
         const w = colIdx[a];
@@ -291,7 +296,7 @@ function pullDependencies(
     const next = depth[v] + 1;
     let prev = -1;
     for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-        if (skipArc(s, alive, a, prev)) {
+        if (skipArc(colIdx, arcToEdge, alive, a, prev)) {
             continue;
         }
         const w = colIdx[a];

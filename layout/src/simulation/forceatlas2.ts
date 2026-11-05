@@ -42,6 +42,7 @@ import {
 } from "@graphty/graph-format";
 
 import { BarnesHutTree } from "./barnes-hut.js";
+import { assertCollision, collide, settleCollisions } from "./collision.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -51,7 +52,7 @@ import {
 } from "./constants.js";
 import { resolveNodeVector, resolveWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
-import type { ForceAtlas2Options, LayoutSimulation } from "./types.js";
+import type { CollisionOptions, ForceAtlas2Options, LayoutSimulation } from "./types.js";
 
 /** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
 export type ForceAtlas2SimulationOptions = ForceAtlas2Options & {
@@ -528,6 +529,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private fixed: NodeMask | null = null;
     /** The rows taken out of the forces (setInert), or null for none. */
     private inert: NodeMask | null = null;
+    /** What setCollision() set, or null. */
+    private collision: CollisionOptions | null = null;
     /** n less the inert rows: what every statistic divides by. */
     private liveRows = 0;
     private scratch: Scratch = allocateScratch(0);
@@ -621,6 +624,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         if (n !== this.n) {
             this.fixed = null;
             this.inert = null;
+            this.collision = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
@@ -678,6 +682,17 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         }
         // settled on entry: nothing ran, so nothing to write back
         if (k > 0) {
+            if (this.settled && this.collision !== null) {
+                settleCollisions(
+                    this.positions,
+                    this.n,
+                    this.dim,
+                    this.collision,
+                    this.options.scale,
+                    this.fixed,
+                    this.inert,
+                );
+            }
             this.writeBack();
         }
     }
@@ -727,6 +742,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             // the first iteration reads load()'s centroid: count the live rows only, as every later fold does
             this.writeInitialStatistics();
         }
+    }
+
+    /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision). Copied; never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision !== null) {
+            assertCollision(collision, this.n);
+        }
+        this.collision = collision === null ? null : { ...collision, radii: collision.radii.slice() };
     }
 
     /**
@@ -781,6 +808,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.mass = new Float64Array(0);
         this.liveMass = new Float64Array(0);
         this.inert = null;
+        this.collision = null;
         this.weights = null;
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
@@ -992,6 +1020,9 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             disp: groupTotals(disp, n),
             free: groupTotals(free, n),
         };
+        if (this.collision !== null) {
+            collide(this.positions, n, this.dim, this.collision, this.options.scale, this.fixed, this.inert);
+        }
     }
 
     /**
@@ -1070,11 +1101,14 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const ox = oldForce[3 * i];
         const oy = oldForce[3 * i + 1];
         const oz = oldForce[3 * i + 2];
+        if (this.isFixed(i)) {
+            return; // a pinned node says nothing about the speed; with every node pinned K4 holds it
+        }
         if (this.swingMode === 1) {
-            // NetworkX: positions and forces mixed, every node (layout.py 1479-1480)
+            // NetworkX: positions and forces mixed, every free node (layout.py 1479-1480; NetworkX has no pins)
             swing[i] = mi * len3(px - Fx, py - Fy, pz - Fz);
             traction[i] = 0.5 * mi * len3(px + Fx, py + Fy, pz + Fz);
-        } else if (!this.isFixed(i)) {
+        } else {
             // paper: m |F(t) - F(t-1)|, 0.5 m |F(t) + F(t-1)| over FREE nodes (Gephi ForceAtlas2.java 283-293)
             swing[i] = mi * len3(Fx - ox, Fy - oy, Fz - oz);
             traction[i] = 0.5 * mi * len3(Fx + ox, Fy + oy, Fz + oz);
@@ -1179,16 +1213,19 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             globalSwing = this.swingValue + freshSwing; // NetworkX accumulates across iterations from 1
             globalTraction = this.tractionValue + freshTraction;
         }
-        const est = estimateFactor(
-            Math.max(this.liveRows, 1),
-            globalSwing,
-            globalTraction,
-            this.speedValue,
-            this.speedEfficiencyValue,
-            this.options.jitterTolerance,
-        );
-        this.speedValue = est.speed;
-        this.speedEfficiencyValue = est.speedEfficiency;
+        // nothing free to measure: the controller holds; raising the speed here threw nodes away on the next unpin (#3255)
+        if (freshSwing !== 0 || freshTraction !== 0) {
+            const est = estimateFactor(
+                Math.max(this.liveRows, 1),
+                globalSwing,
+                globalTraction,
+                this.speedValue,
+                this.speedEfficiencyValue,
+                this.options.jitterTolerance,
+            );
+            this.speedValue = est.speed;
+            this.speedEfficiencyValue = est.speedEfficiency;
+        }
         this.swingValue = globalSwing;
         this.tractionValue = globalTraction;
     }
@@ -1226,8 +1263,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         pos[3 * i] = px;
         pos[3 * i + 1] = py;
         pos[3 * i + 2] = pz;
-        if (this.swingMode === 0) {
-            oldForce[3 * i] = Fx; // fixed nodes too, so a later unpin sees no stale swing (7.11)
+        if (fixed) {
+            oldForce.fill(0, 3 * i, 3 * i + 3); // as after load: its first free tick has the full swing damping (7.11, #3255)
+        } else if (this.swingMode === 0) {
+            oldForce[3 * i] = Fx;
             oldForce[3 * i + 1] = Fy;
             oldForce[3 * i + 2] = Fz;
         }

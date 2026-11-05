@@ -2,12 +2,12 @@ tools/acceptance.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/cache-hygiene.test.mjs
 tools/channel/baselines-tree.test.mjs
 tools/channel/candidate-fix.test.mjs
 tools/channel/candidates.test.mjs
 tools/channel/hold.test.mjs
 tools/channel/nightly.test.mjs
-tools/cache-hygiene.test.mjs
 tools/channel/promote.test.mjs
 tools/channel/recapture.test.mjs
 tools/channel/rehearse.test.mjs
@@ -33,8 +33,9 @@ tools/claude-md-size.test.mjs
 tools/claude-no-foreground-wait.test.mjs
 tools/claude-owner-credential-guard.test.mjs
 tools/dataset-overlay.test.mjs
-tools/features-on.test.mjs
 tools/dependency-refresh.test.mjs
+tools/design-studio-workflow.test.mjs
+tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
 tools/health-owner-sweep.test.mjs
@@ -55,8 +56,8 @@ tools/publish-hold.test.mjs
 tools/push-queue.test.mjs
 tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
-tools/release-due.test.mjs
 tools/release-dry-run.test.mjs
+tools/release-due.test.mjs
 tools/release-rerun.test.mjs
 tools/release-scheduler/test/index.test.mjs
 tools/release-status.test.mjs

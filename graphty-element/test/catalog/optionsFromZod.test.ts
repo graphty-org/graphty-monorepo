@@ -173,7 +173,7 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["scalingFactor", "k", "iterations", "scale", "dim", "seed"],
+                ["scalingFactor", "k", "iterations", "scale", "dim", "nodeGap", "nodeGapFront", "seed"],
             );
             assert.deepEqual(
                 options.filter((o) => o.type === "unknown"),

@@ -14,7 +14,7 @@ import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
-import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec, TWO_WORDS } from "./words";
+import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec, settingWord, TWO_WORDS } from "./words";
 
 /**
  * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Outline,
@@ -98,7 +98,8 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
  * One section of the Style tab (the owner's design, 2026-10-13, after Figma's sections): its title
  * and a "+" at the header's right end. A section the layer does not write is only its dimmed title
  * and "+". One it writes lists only the properties the layer sets, each with its value and a
- * minus. "+" opens a menu of the section's properties not set yet (with one left, it adds it);
+ * minus. "+" opens a menu of the section's styles not set yet (with one left, it adds it); a
+ * style's settings (Halo's size and opacity) are added from the style's own row and drawn under it;
  * picking one adds its line waiting for a value, showing what the row's elements draw now (else
  * graphty-element's starting value), says so, and puts focus in it. Nothing is written, so the
  * drawing and the key change only once the reader picks a value.
@@ -140,10 +141,18 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     // value is written too: drawn in the section's order, it would jump above them under the
     // reader's eyes.
     const added = waiting.flatMap((channel) => descriptors.find((d) => d.channel === channel) ?? []);
-    const lines = [
+    const flat = [
         ...set.filter((d) => !added.includes(d)),
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
     ].filter((d) => !folded.has(d.channel));
+    // A style's settings (graphty-element's `modifies`: Halo's size and opacity, Glow's strength)
+    // are added from the style's own row and drawn under it, never listed by the section's "+".
+    const isSetting = (d: ChannelDescriptor): boolean =>
+        d.modifies !== undefined && descriptors.some((style) => style.channel === d.modifies);
+    const under = (d: ChannelDescriptor): boolean => isSetting(d) && flat.some((style) => style.channel === d.modifies);
+    const lines = flat
+        .filter((d) => !under(d))
+        .flatMap((d) => [d, ...flat.filter((each) => each.modifies === d.channel && under(each))]);
     const fail = (verb: string) => (error: unknown) => {
         focusLineNext(ctx.session, null);
         startingAdds.delete(ctx.session);
@@ -201,6 +210,26 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             optionAdds.delete(listener);
         };
     }, []);
+    // A style's own "+": the settings it does not set yet, named under it ("Size" under Halo).
+    const settingsAdd = (style: ChannelDescriptor): React.ReactNode => {
+        const options = unset.flatMap((d) =>
+            d.modifies === style.channel ? [{ key: d.channel, label: settingWord(style.channel, d.channel) }] : [],
+        );
+        return options.length === 0 ? undefined : (
+            <AddButton
+                kind={ctx.side}
+                title={channelWord(style.channel)}
+                options={options}
+                inRow
+                onAdd={(key) => {
+                    const descriptor = unset.find((d) => d.channel === key);
+                    if (descriptor !== undefined) {
+                        add(descriptor);
+                    }
+                }}
+            />
+        );
+    };
     if (descriptors.length === 0) {
         return null;
     }
@@ -217,7 +246,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                     <AddButton
                         kind={ctx.side}
                         title={spec.title}
-                        options={unset.flatMap(optionsFor)}
+                        options={unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
                         disabledReason={notAvailable(ctx, spec) ?? undefined}
                         onAdd={(key) => {
                             const [channel, pick] = key.split("=");
@@ -237,6 +266,9 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                             key={d.channel}
                             ctx={ctx}
                             descriptor={d}
+                            word={under(d) && d.modifies !== undefined ? settingWord(d.modifies, d.channel) : undefined}
+                            setting={under(d)}
+                            settings={settingsAdd(d)}
                             pending={pending.includes(d)}
                             onCancel={() => {
                                 setWaiting((now) => now.filter((channel) => channel !== d.channel));
@@ -503,6 +535,7 @@ export interface AddOption {
  * @param props.onAdd - adds one, by its key
  * @param props.disabledReason - why it adds nothing on this graph, which disables it as a full one is
  * @param props.expanded - whether the pop-out its one item opens is open (a shader gallery)
+ * @param props.inRow - a style's own "+" on its row ("Add to node halo"), which adds its settings
  * @returns The button and its menu
  */
 export function AddButton({
@@ -512,6 +545,7 @@ export function AddButton({
     onAdd,
     disabledReason,
     expanded,
+    inRow = false,
 }: Readonly<{
     kind: "node" | "edge";
     title: string;
@@ -519,6 +553,8 @@ export function AddButton({
     onAdd: (key: string) => void;
     disabledReason?: string;
     expanded?: boolean;
+    /** A style's own "+" on its row, adding the style's settings: never its section's "+". */
+    inRow?: boolean;
 }>): React.JSX.Element {
     const name = `Add to ${kind} ${title.toLowerCase()}`;
     const full = options.length === 0 || disabledReason !== undefined;
@@ -527,13 +563,13 @@ export function AddButton({
         <ActionIcon
             variant="subtle"
             size="sm"
-            className="cm-section-add"
+            className={inRow ? "ws-row-add" : "cm-section-add"}
             aria-label={name}
             aria-disabled={full ? true : undefined}
             data-disabled={full ? true : undefined}
             aria-description={full ? reason : undefined}
             tabIndex={full ? -1 : undefined}
-            data-plus
+            data-plus={inRow ? undefined : ""}
         >
             <GLYPHS.add size={14} aria-hidden />
         </ActionIcon>

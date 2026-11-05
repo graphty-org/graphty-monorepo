@@ -1765,7 +1765,7 @@ export class UpdateManager implements Manager {
      * @param following - The selection the camera was following before the change.
      */
     holdSelectionFollow(following: readonly Node[] = []): void {
-        if (following.length > 0 && selectionKey(following) !== this.heldSelection) {
+        if (following.length > 0 && !isHeld(following, this.heldSelection)) {
             this.finishGlideTo(following);
         }
 
@@ -3127,6 +3127,17 @@ function selectionCenter(nodes: readonly Node[]): Vector3 {
     }
 
     return center.scaleInPlace(1 / nodes.length);
+}
+
+/**
+ * Whether a selection, in any order, is the one held.
+ * @param nodes - The selection.
+ * @param held - The held selection's `selectionKey`, or null.
+ * @returns True when they hold the same nodes.
+ */
+function isHeld(nodes: readonly Node[], held: string | null): boolean {
+    const ids = new Set(held?.split("\u0000"));
+    return ids.size === nodes.length && nodes.every((node) => ids.has(String(node.id)));
 }
 
 /**

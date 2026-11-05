@@ -428,7 +428,7 @@ describe("server sources on the real element", () => {
         const busy = vi
             .spyOn(globalThis, "fetch")
             .mockImplementation((input, init) =>
-                String(input instanceof Request ? input.url : input).startsWith(BUSY_ENDPOINT)
+                new URL(input instanceof Request ? input.url : input, location.href).origin === BUSY_ENDPOINT
                     ? Promise.resolve(new Response("", { status: 429, headers: { "retry-after": "0" } }))
                     : realFetch(input, init),
             );

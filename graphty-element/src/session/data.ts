@@ -3642,6 +3642,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What {@link loadedWeight} answers from, as a key: it moves when the weight runs read does, and
+     * reads no record to say so, so comparing it around a run costs nothing on a large graph.
+     * @returns the key
+     */
+    weightKey(): string {
+        const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        return JSON.stringify([edgeWeightPath, edgeWeightMeaning, this.lastImport()?.weights.attribute ?? null]);
+    }
+
+    /**
      * Every attribute the graph's records carry.
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.

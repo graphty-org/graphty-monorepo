@@ -358,8 +358,8 @@ describe("the timeline on the real element", () => {
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
         // The window's two icon controls say their names on hover, whatever the window's state.
-        const apply = dataPlace().getByRole("checkbox", { name: "Apply the time window" });
-        assert.equal(await tooltipOf(apply), "Apply the time window");
+        const apply = dataPlace().getByRole("checkbox", { name: "Apply Time window" });
+        assert.equal(await tooltipOf(apply), "Apply Time window");
         const clear = screen.getByRole("button", { name: "Clear the time window" });
         assert.equal(await tooltipOf(clear), "Clear the time window");
         await userEvent.click(clear);

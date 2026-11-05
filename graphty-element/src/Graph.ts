@@ -1541,16 +1541,21 @@ export class Graph implements GraphContext {
         // Select, an undo) keeps the camera where the selections before it put it, as a pan of the
         // reader's does: a glide still on its way to the last pivoting selection is finished first,
         // so where the camera stops does not depend on how many frames ran in between (#5097).
-        let following: Node[] = [];
-        this.session.on("selection:changed", ({ cause }) => {
+        // What was selected is worked out from the change only when a change holds the camera: a
+        // walk of the selection on every change is quadratic in a removal of many selected nodes.
+        let pivoted = false;
+        this.session.on("selection:changed", ({ cause, added, removed }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
-            if (causes !== undefined && !causes.includes(cause)) {
-                this.updateManager.holdSelectionFollow(following);
-                following = [];
+            if (causes === undefined || causes.includes(cause)) {
+                pivoted = true;
                 return;
             }
 
-            following = this.selectionManager.getSelectedNodes();
+            const joined = new Set(added);
+            const stayed = this.selectionManager.getSelectedNodes().filter((node) => !joined.has(node.id));
+            const left = removed.flatMap((id) => this.dataManager.getNode(id) ?? []);
+            this.updateManager.holdSelectionFollow(pivoted ? [...stayed, ...left] : []);
+            pivoted = false;
         });
         // The pointer left the graph: no node is under it, whatever node it last crossed.
         this.element.addEventListener(

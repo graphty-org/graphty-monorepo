@@ -68,7 +68,12 @@ async function newCardOn(name: string): Promise<void> {
  */
 async function filterTo(): Promise<void> {
     const place = within(screen.getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("radio", { name: /^Filter to:/ }));
+    const radio = await place.findByRole<HTMLInputElement>("radio", { name: /^Filter to:/ });
+    // The segment's label is what a reader presses: the radio itself is hidden, and a real click
+    // on it waits forever for it to show.
+    const label = radio.labels?.[0];
+    assert.isDefined(label);
+    await userEvent.click(label);
 }
 
 /**
@@ -199,6 +204,6 @@ describe("picking nodes by a condition card from the Data place", () => {
         // The four routes among a to d stay; only d to e, whose end is left out, goes.
         const shownEdges = session.data.edges().filter((edge) => session.visibility.isVisible(edge.id));
         assert.lengthOf(shownEdges, 4);
-        await screen.findByRole("button", { name: "Filter: 4 of 5 nodes, 4 of 5 edges" });
+        await screen.findByRole("button", { name: /^Filter: 4 of 5 nodes, 4 of 5 edges, filtered by / });
     });
 });

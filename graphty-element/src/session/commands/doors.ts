@@ -1889,6 +1889,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnWorldRadius: READ,
             drawnWorldScaling: READ,
             drawnScale: RENDER,
+            drawShrunk: RENDER,
+            drawnBoundingRadius: RENDER,
             drawnScene: RENDER,
             isDrawn: READ,
             drawnGeneration: READ,

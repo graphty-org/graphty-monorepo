@@ -91,6 +91,13 @@ unplaced, between while a particle transition shrinks it. It is the _drawn_ posi
 (x, y, z each), border reach, flags. A still graph uploads nothing. Tables follow `snapshot-replaced` and join `batchUploadFrames`, so
 context restore re-uploads.
 
+As built (stage 4): the tables exist only once `Graph.openRowTable` is called, so a graph on `"objects"` pays one null check a move; stage 8
+opens them under `"batched"`. Every drawn case except the repack reaches a row through the `setMeshPosition` funnel, which compares the place
+with the lane: a row drawn off its lane is _held_, and the repack skips it until the funnel lands it on the lane again, so a drag, a transition
+and a group set-back need no signal of their own. A particle shrink is the one extra write, `Node.drawShrunk`. Uploads go in whole texture
+lines (16 KB), not single texels. `rowExtent`'s texels are scale, round radius, border reach, flags; half extents and bounding radius;
+outline half extents and a spare. A freeze remaps rows from the report, then measures any node whose row is new.
+
 `rowBounds` is a CPU `Float32Array` of 16 bytes a row (16 MB at a million), the table picking walks: x, y, z and bounding radius times w, so
 radius 0 means hidden. The same writers keep it current. Reading radius from `rowExtent` instead walks 64 MB a scan and misses the bar.
 

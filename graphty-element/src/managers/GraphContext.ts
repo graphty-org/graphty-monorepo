@@ -3,6 +3,7 @@ import type { Observable, Scene } from "@babylonjs/core";
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
@@ -67,6 +68,13 @@ export interface GraphContext {
      * Get the MeshCache for mesh creation and caching
      */
     getMeshCache(): MeshCache;
+
+    /**
+     * Get the row tables, when something has opened them. Optional because a context with no
+     * scene of its own has none.
+     * @returns The tables, or null.
+     */
+    getRowTable?(): RowTable | null;
 
     /**
      * Get the Babylon.js Scene

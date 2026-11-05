@@ -1,0 +1,456 @@
+/**
+ * @file The drawn place and size of every row of one graph, as float textures a shader can read
+ * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).
+ *
+ * A row is the node's index in the snapshot. Nothing draws from these tables yet: they follow
+ * the meshes in shadow, built only when something opens them (`Graph.openRowTable`), so a graph
+ * that never does pays one null check per move.
+ */
+
+import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine } from "@babylonjs/core";
+import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
+
+import type { ElementPositions } from "../data/positions";
+import { batchUploadFrames } from "../meshes/FrameRoster";
+import type { Node } from "../Node";
+
+/** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
+export const ROW_TEXTURE_WIDTH = 1024;
+
+const FLOATS_PER_TEXEL = 4;
+/** `rowPosition` and `rowBounds`: x, y, z and w; x, y, z and radius times w. */
+const POSITION_FLOATS = 4;
+/**
+ * `rowExtent`, three texels a row: scale, round radius, border reach, flags; half extents and
+ * bounding radius; outline half extents and one spare float.
+ */
+const EXTENT_FLOATS = 12;
+const EXTENT_BOUNDING_RADIUS = 7;
+
+/** The `rowExtent` flag of a row whose surface is the same distance from its center every way. */
+export const ROW_EXTENT_ROUND = 1;
+
+/** Drawn somewhere other than its lane row (a drag, a transition, a group), so a repack leaves it. */
+const HELD = 1;
+/** Filtered out, hidden by a style or removed: w stays 0. */
+const HIDDEN = 2;
+/** Shrunk by a particle transition: a repack keeps its w, and paint measures it once it is whole. */
+const SHRUNK = 4;
+/** Measured at least once since it took this row. */
+const KNOWN = 8;
+
+/** One float texture and the CPU copy it is uploaded from. */
+class RowTexture {
+    data: Float32Array<ArrayBuffer>;
+    texture: RawTexture;
+    /** First and last dirty rows; `first > last` when nothing waits to go up. */
+    private first = Number.POSITIVE_INFINITY;
+    private last = -1;
+
+    constructor(
+        private readonly scene: Scene,
+        private readonly floatsPerRow: number,
+        capacity: number,
+    ) {
+        this.data = new Float32Array(this.lineFloats(capacity));
+        this.texture = this.build();
+    }
+
+    /**
+     * The floats of a whole number of texture lines.
+     * @param rows - The rows they must hold.
+     * @returns The floats.
+     */
+    private lineFloats(rows: number): number {
+        const line = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
+        return Math.max(1, Math.ceil((rows * this.floatsPerRow) / line)) * line;
+    }
+
+    private build(): RawTexture {
+        return RawTexture.CreateRGBATexture(
+            this.data,
+            ROW_TEXTURE_WIDTH,
+            this.data.length / FLOATS_PER_TEXEL / ROW_TEXTURE_WIDTH,
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_FLOAT,
+        );
+    }
+
+    /**
+     * Take the rows to their new places and make room for `capacity`, in a new texture when the
+     * old one is too small.
+     * @param remap - Old row to new row, or null when no row moved.
+     * @param capacity - The rows to hold.
+     */
+    follow(remap: U32 | null, capacity: number): void {
+        const length = this.lineFloats(capacity);
+        const grown = length > this.data.length;
+        if (remap !== null || grown) {
+            const next = new Float32Array(Math.max(length, this.data.length));
+            moveRows(this.data, next, this.floatsPerRow, remap);
+            this.data = next;
+        }
+
+        if (grown) {
+            this.texture.dispose();
+            this.texture = this.build();
+        }
+    }
+
+    touch(first: number, last = first): void {
+        this.first = Math.min(this.first, first);
+        this.last = Math.max(this.last, last);
+    }
+
+    /**
+     * Send what changed, in whole texture lines.
+     * @param whole - Send everything: the texture came back empty.
+     * @returns The bytes sent.
+     */
+    upload(whole: boolean): number {
+        const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
+        const firstLine = whole ? 0 : Math.floor((this.first * this.floatsPerRow) / lineFloats);
+        const endLine = whole
+            ? this.data.length / lineFloats
+            : Math.floor(((this.last + 1) * this.floatsPerRow - 1) / lineFloats) + 1;
+        const internal = this.texture.getInternalTexture();
+        const dirty = whole || this.first <= this.last;
+        this.first = Number.POSITIVE_INFINITY;
+        this.last = -1;
+        if (!dirty || internal === null) {
+            return 0;
+        }
+
+        const bytes = this.data.subarray(firstLine * lineFloats, endLine * lineFloats);
+        // Both engines have it; AbstractEngine does not declare it.
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        engine.updateTextureData(internal, bytes, 0, firstLine, ROW_TEXTURE_WIDTH, endLine - firstLine);
+        return bytes.byteLength;
+    }
+}
+
+/**
+ * Copy rows to their new places.
+ * @param from - The rows.
+ * @param to - Where they go, zeroed.
+ * @param perRow - Values a row.
+ * @param remap - Old row to new row or INVALID_INDEX, or null to keep every row where it is.
+ */
+function moveRows(
+    from: Float32Array | Uint8Array,
+    to: Float32Array | Uint8Array,
+    perRow: number,
+    remap: U32 | null,
+): void {
+    if (remap === null) {
+        to.set(from);
+        return;
+    }
+
+    const rows = Math.min(remap.length, from.length / perRow);
+    for (let row = 0; row < rows; row++) {
+        const moved = remap[row] ?? INVALID_INDEX;
+        if (moved !== INVALID_INDEX) {
+            for (let i = 0; i < perRow; i++) {
+                to[moved * perRow + i] = from[row * perRow + i] ?? 0;
+            }
+        }
+    }
+}
+
+/**
+ * The row tables of one graph. `rowPosition` holds what is drawn, which is usually the lane row
+ * (z = 0 in 2D) and is otherwise whatever the mesh funnel last said: every other drawn place (a
+ * drag, a transition, a group's set-back) reaches a row through {@link RowTable.place}, which
+ * keeps it out of the repack until the mesh and the lane agree again.
+ */
+export class RowTable {
+    /** The `rowBounds` table: x, y, z and bounding radius times w, so radius 0 means hidden. */
+    rowBounds: Float32Array<ArrayBuffer>;
+    /** Rows in the tables: the lane's count at the last freeze. */
+    rows = 0;
+    /** Calls that sent a texture to the card. */
+    uploads = 0;
+    /** Bytes those calls sent. */
+    uploadedBytes = 0;
+
+    private readonly positions: RowTexture;
+    private readonly extents: RowTexture;
+    private flags: Uint8Array<ArrayBuffer>;
+    private laneChanges = -1;
+    private twoD = false;
+    private readonly laneRow = { x: 0, y: 0, z: 0 };
+    private readonly stopFlush: () => void;
+
+    /**
+     * Start with no rows: {@link RowTable.replaced} brings them in.
+     * @param scene - The scene whose frames upload the tables.
+     * @param lane - The coordinate lane, asked each time: a cleared graph has a new one.
+     */
+    constructor(
+        private readonly scene: Scene,
+        private readonly lane: () => ElementPositions,
+    ) {
+        const { capacity } = lane();
+        this.positions = new RowTexture(scene, POSITION_FLOATS, capacity);
+        this.extents = new RowTexture(scene, EXTENT_FLOATS, capacity);
+        this.rowBounds = new Float32Array(this.positions.data.length);
+        this.flags = new Uint8Array(this.positions.data.length / POSITION_FLOATS);
+        this.stopFlush = batchUploadFrames.join(scene, () => {
+            this.flush();
+        });
+    }
+
+    /**
+     * The CPU copy of `rowPosition`: x, y, z and w, a multiplier on the row's size.
+     * @returns The array.
+     */
+    get rowPosition(): Float32Array<ArrayBuffer> {
+        return this.positions.data;
+    }
+
+    /**
+     * The CPU copy of `rowExtent`.
+     * @returns The array.
+     */
+    get rowExtent(): Float32Array<ArrayBuffer> {
+        return this.extents.data;
+    }
+
+    /**
+     * The `rowPosition` texture, replaced when it grows.
+     * @returns The texture.
+     */
+    get positionTexture(): RawTexture {
+        return this.positions.texture;
+    }
+
+    /**
+     * The `rowExtent` texture, replaced when it grows.
+     * @returns The texture.
+     */
+    get extentTexture(): RawTexture {
+        return this.extents.texture;
+    }
+
+    /**
+     * Say a node's mesh was put at a point: the mesh funnel's write.
+     * @param row - The node's row.
+     * @param x - Drawn x.
+     * @param y - Drawn y.
+     * @param z - Drawn z.
+     */
+    place(row: number, x: number, y: number, z: number): void {
+        if (row >= this.rows) {
+            return;
+        }
+
+        const lane = this.laneRow;
+        this.lane().read(row, lane);
+        const atLane =
+            Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
+        const flags = this.flags[row] ?? 0;
+        this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
+        const base = row * POSITION_FLOATS;
+        const { data } = this.positions;
+        const bounds = this.rowBounds;
+        data[base] = bounds[base] = x;
+        data[base + 1] = bounds[base + 1] = y;
+        data[base + 2] = bounds[base + 2] = z;
+        if ((flags & (HIDDEN | SHRUNK)) === 0) {
+            this.writeW(row, 1);
+        }
+
+        this.positions.touch(row);
+    }
+
+    /**
+     * Say how much of its size a row is drawn at while a particle transition carries it.
+     * @param row - The row.
+     * @param w - Between 0 and 1; 1 when it is whole again.
+     */
+    shrink(row: number, w: number): void {
+        if (row >= this.rows) {
+            return;
+        }
+
+        const flags = this.flags[row] ?? 0;
+        this.flags[row] = w === 1 ? flags & ~SHRUNK : flags | SHRUNK;
+        if ((flags & HIDDEN) === 0) {
+            this.writeW(row, w);
+        }
+    }
+
+    /**
+     * Say whether a row is drawn at all.
+     * @param row - The row.
+     * @param hidden - True when it is filtered out or hidden by a style.
+     */
+    hide(row: number, hidden: boolean): void {
+        if (row >= this.rows) {
+            return;
+        }
+
+        const flags = this.flags[row] ?? 0;
+        this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
+        this.writeW(row, !hidden && ((flags & HELD) !== 0 || this.lane().isPlaced(row)) ? 1 : 0);
+    }
+
+    /**
+     * Forget a row's node: it stays hidden until the next freeze hands the row to another.
+     * @param row - The row.
+     */
+    drop(row: number): void {
+        if (row < this.rows) {
+            this.flags[row] = HIDDEN;
+            this.writeW(row, 0);
+        }
+    }
+
+    /**
+     * Write a node's `rowExtent` row and its bounding radius. Paint calls it, never a move.
+     * @param node - The node.
+     */
+    measure(node: Node): void {
+        const row = node.index;
+        const flags = this.flags[row] ?? SHRUNK;
+        if (row >= this.rows || (flags & SHRUNK) !== 0) {
+            return;
+        }
+
+        const half = node.drawnHalfExtents;
+        const outline = node.outlineHalfExtents;
+        const round = node.roundRadius;
+        const base = row * EXTENT_FLOATS;
+        this.extents.data.set(
+            [
+                node.drawnScale,
+                round ?? 0,
+                node.borderReach,
+                round === null ? 0 : ROW_EXTENT_ROUND,
+                half.x,
+                half.y,
+                half.z,
+                node.drawnBoundingRadius,
+                outline.x,
+                outline.y,
+                outline.z,
+                0,
+            ],
+            base,
+        );
+        this.flags[row] = flags | KNOWN;
+        this.extents.touch(row);
+        this.writeW(row, this.positions.data[row * POSITION_FLOATS + 3] ?? 0);
+    }
+
+    /**
+     * Follow a freeze: rows renumbered, the lane grown or truncated, new nodes on new rows.
+     * @param remap - The freeze report's nodeRemap, or null when no row moved.
+     * @param nodes - The graph's nodes.
+     */
+    replaced(remap: U32 | null, nodes: Iterable<Node>): void {
+        const lane = this.lane();
+        this.positions.follow(remap, lane.capacity);
+        this.extents.follow(remap, lane.capacity);
+        const { length } = this.positions.data;
+        if (remap !== null || length > this.rowBounds.length) {
+            const bounds = new Float32Array(length);
+            moveRows(this.rowBounds, bounds, POSITION_FLOATS, remap);
+            this.rowBounds = bounds;
+            const flags = new Uint8Array(length / POSITION_FLOATS);
+            moveRows(this.flags, flags, 1, remap);
+            this.flags = flags;
+        }
+
+        this.rows = lane.count;
+        this.laneChanges = -1;
+        for (const node of nodes) {
+            const row = node.index;
+            if (row < this.rows && ((this.flags[row] ?? 0) & KNOWN) === 0) {
+                this.flags[row] = 0;
+                this.measure(node);
+                this.hide(row, node.getRenderState() !== "visible");
+                if (lane.isPlaced(row)) {
+                    const { x, y, z } = node.drawnPosition;
+                    this.place(row, x, y, z);
+                }
+            }
+        }
+    }
+
+    /** Forget every row: the dataset was cleared. */
+    cleared(): void {
+        this.flags.fill(0);
+        this.rows = 0;
+        this.laneChanges = -1;
+    }
+
+    /** Bring the tables up to the lane and send what changed. Runs before every frame. */
+    flush(): void {
+        const lane = this.lane();
+        const twoD = this.scene.metadata?.twoD === true;
+        if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
+            this.twoD = twoD;
+            this.laneChanges = lane.changes;
+            this.repack(lane.view(Math.min(this.rows, lane.count)));
+        }
+
+        // Babylon gives a texture back as it was made after a lost context, so every row goes
+        // up again; the same rule as the batches on this roster.
+        const whole = batchUploadFrames.isRestoring(this.scene);
+        for (const table of [this.positions, this.extents]) {
+            const bytes = table.upload(whole);
+            if (bytes > 0) {
+                this.uploads++;
+                this.uploadedBytes += bytes;
+            }
+        }
+    }
+
+    /** Stop following the frames and free the textures. */
+    dispose(): void {
+        this.stopFlush();
+        this.positions.texture.dispose();
+        this.extents.texture.dispose();
+    }
+
+    /**
+     * One typed pass from the lane over every row nothing else holds.
+     * @param lane - The lane's live rows.
+     */
+    private repack(lane: Float32Array): void {
+        const { data } = this.positions;
+        const bounds = this.rowBounds;
+        const radii = this.extents.data;
+        const { flags, twoD } = this;
+        const rows = lane.length / 3;
+        for (let row = 0, from = 0, to = 0; row < rows; row++, from += 3, to += POSITION_FLOATS) {
+            const rowFlags = flags[row] ?? 0;
+            if ((rowFlags & (HELD | SHRUNK)) === 0) {
+                const x = lane[from] ?? Number.NaN;
+                const placed = Number.isFinite(x);
+                const w = placed && (rowFlags & HIDDEN) === 0 ? 1 : 0;
+                data[to] = bounds[to] = placed ? x : 0;
+                data[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
+                data[to + 2] = bounds[to + 2] = placed && !twoD ? (lane[from + 2] ?? 0) : 0;
+                data[to + 3] = w;
+                bounds[to + 3] = (radii[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+            }
+        }
+
+        if (rows > 0) {
+            this.positions.touch(0, rows - 1);
+        }
+    }
+
+    private writeW(row: number, w: number): void {
+        const base = row * POSITION_FLOATS;
+        this.positions.data[base + 3] = w;
+        this.rowBounds[base + 3] = (this.extents.data[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        this.positions.touch(row);
+    }
+}

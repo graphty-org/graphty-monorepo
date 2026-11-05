@@ -18,7 +18,6 @@ history.
   `settleTarget`. One cause behind seven rows. Binding ends when the selection empties, for good within the message.
 - (2026-11-05) `last-read` is a prompt line and may only lower the odds of a 5 or 9 chip. If it does not hold, the key's
   `Build decided` line stays and the report gives both numbers. Do not reach for a second chip.
-- (2026-11-05) Pass 1 total: 24 fix now of 232, ten units. Pass 1's fixes all held, with no regression.
 - (2026-11-05) Two selector faults in graphty-element lie behind the 63, 361 and 24 chips the pilots filed as
   separate panel defects: a lone `false` read as a column, and a negative rule true on every edge that lacks the
   column. Reproduced in a script. Pilots reported symptoms in four tasks; the cause was two lines of predicate logic.

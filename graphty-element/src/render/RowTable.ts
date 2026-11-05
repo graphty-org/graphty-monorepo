@@ -423,28 +423,37 @@ export class RowTable {
      * @param lane - The lane's live rows.
      */
     private repack(lane: Float32Array): void {
-        const { data } = this.positions;
-        const bounds = this.rowBounds;
-        const radii = this.extents.data;
-        const { flags, twoD } = this;
+        const { flags } = this;
         const rows = lane.length / 3;
-        for (let row = 0, from = 0, to = 0; row < rows; row++, from += 3, to += POSITION_FLOATS) {
-            const rowFlags = flags[row] ?? 0;
-            if ((rowFlags & (HELD | SHRUNK)) === 0) {
-                const x = lane[from] ?? Number.NaN;
-                const placed = Number.isFinite(x);
-                const w = placed && (rowFlags & HIDDEN) === 0 ? 1 : 0;
-                data[to] = bounds[to] = placed ? x : 0;
-                data[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
-                data[to + 2] = bounds[to + 2] = placed && !twoD ? (lane[from + 2] ?? 0) : 0;
-                data[to + 3] = w;
-                bounds[to + 3] = (radii[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        for (let row = 0; row < rows; row++) {
+            if (((flags[row] ?? 0) & (HELD | SHRUNK)) === 0) {
+                this.repackRow(row, lane);
             }
         }
 
         if (rows > 0) {
             this.positions.touch(0, rows - 1);
         }
+    }
+
+    /**
+     * Copy one row from the lane: flat in 2D, and collapsed when it is unplaced or hidden.
+     * @param row - The row.
+     * @param lane - The lane's live rows.
+     */
+    private repackRow(row: number, lane: Float32Array): void {
+        const from = row * 3;
+        const to = row * POSITION_FLOATS;
+        const { data } = this.positions;
+        const bounds = this.rowBounds;
+        const x = lane[from] ?? Number.NaN;
+        const placed = Number.isFinite(x);
+        const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
+        data[to] = bounds[to] = placed ? x : 0;
+        data[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
+        data[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        data[to + 3] = w;
+        bounds[to + 3] = (this.extents.data[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
     }
 
     private writeW(row: number, w: number): void {

@@ -334,6 +334,25 @@ async function cosmosAdapter({ dpr }) {
 }
 
 // ---------------------------------------------------------------- graphty-element
+// One repack of every row and its upload, finished on the card, with the frame loop stopped.
+// Opened only here so that no earlier stage pays for tables nothing draws from yet.
+async function measureRepack(graph, eng) {
+    const table = graph.openRowTable();
+    const gl = graph.engine?._gl;
+    table.flush();
+    const repack = [];
+    const sent = table.uploadedBytes;
+    for (let i = 0; i < 10; i++) {
+        await eng.stepAsync(1);
+        eng.publishPositions();
+        const t = now();
+        table.flush();
+        gl?.finish();
+        repack.push(now() - t);
+    }
+    return { ...stats(repack), rows: table.rows, bytes: (table.uploadedBytes - sent) / 10 };
+}
+
 async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -573,24 +592,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                     undrawn.push(now() - t);
                 }
                 out.stepUndrawn = stats(undrawn);
-                // One repack of every row and its upload, finished on the card. Opened here so that
-                // no earlier stage pays for tables nothing draws from yet.
-                if (graph.openRowTable) {
-                    const table = graph.openRowTable();
-                    const gl = graph.engine?._gl;
-                    table.flush();
-                    const repack = [];
-                    const sent = table.uploadedBytes;
-                    for (let i = 0; i < 10; i++) {
-                        await eng.stepAsync(1);
-                        eng.publishPositions();
-                        const t = now();
-                        table.flush();
-                        gl?.finish();
-                        repack.push(now() - t);
-                    }
-                    out.repackUpload = { ...stats(repack), rows: table.rows, bytes: (table.uploadedBytes - sent) / 10 };
-                }
+                if (graph.openRowTable) out.repackUpload = await measureRepack(graph, eng);
             } else {
                 const single = [];
                 const budget = now() + 20000;

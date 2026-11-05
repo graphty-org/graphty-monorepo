@@ -1409,7 +1409,8 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
                 tags.push(["size", share(r.size)]);
             }
             if (typeof r.shift === "number" && r.shift !== 0 && typeof size === "number" && size > 0) {
-                tags.push(["shift", share(r.shift)]);
+                // a program moves the run and leaves its line where it was (Graphviz's SUB and SUP, vis-network's vadjust)
+                tags.push(["nudge", share(r.shift)]);
             }
             const open = tags.map(([tag, v]) => (v === "" ? `<${tag}>` : `<${tag}='${v}'>`)).join("");
             const close = tags

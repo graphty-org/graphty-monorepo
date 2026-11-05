@@ -706,6 +706,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "labelPaddingX")).toEqual([5, 3, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelPaddingY")).toEqual([5, 2, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelFitSquare")).toEqual([null, null, true, true, null, null, null]);
+        // a database's label hangs from its top by its margin, which the label's padding already holds
+        expect(values(r, "node", "labelPosition")[3]).toBe("inside-top");
+        expect(values(r, "node", "labelOffsetY")[3]).toBeNull();
         // widthConstraint.minimum is the label's least width, inside the margin
         expect(values(r, "node", "width")).toEqual([0, 0, 0, 0, 0, 50, 50]);
     });

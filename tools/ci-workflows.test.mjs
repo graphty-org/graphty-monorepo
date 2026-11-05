@@ -2882,7 +2882,10 @@ describe("actions/cache in the workflows", () => {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
+            assert.match(
+                target.options.command,
+                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
+            );
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
@@ -7482,7 +7485,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default", "graphty-element-webgpu"],
+            none: ["graphty-element-default", "graphty-element-webgpu", "graphty-element-gpu-loss"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");

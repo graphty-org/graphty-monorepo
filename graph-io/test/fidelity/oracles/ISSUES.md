@@ -2663,9 +2663,9 @@ Rows still open, each with what stops it:
   `cytoscapejs-specimen-arrows-p2` judges every arrow fill as passing. Its remaining rows are the route and curve of
   segments, taxi, loop and unbundled-bezier edges (`edge-curve-styles`, another batch), the haystack arrow and the
   mid-arrow compound shapes.
-- `cytoscapejs-specimen-node-shapes`: Cytoscape.js's `bottom-round-rectangle` (rounded bottom corners only),
-  `concave-hexagon` (sides bent in), the fatter `star` and `cut-rectangle` with a set `corner-radius` are still drawn
-  as the nearest neutral shape (round-rectangle, hexagon, star, octagon). The comparator passes them (same class),
+- `cytoscapejs-specimen-node-shapes`: Cytoscape.js's `concave-hexagon` (sides bent in), the fatter `star` and
+  `cut-rectangle` with a set `corner-radius` are still drawn as the nearest neutral shape (hexagon, star, octagon;
+  `bottom-round-rectangle` has its own shape now). The comparator passes them (same class),
   the drawings differ. graph-io work: polygons with `shapePoints` as for the other Cytoscape.js polygons. The
   reader classes graphty's `polygon` as `other` whatever its corners, so `shape-polygon` (Cytoscape.js's default
   square) fails `node.shape` against the oracle's `rect`: comparator work.

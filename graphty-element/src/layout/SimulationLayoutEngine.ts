@@ -1154,31 +1154,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const scale = this.#envelopeScale;
         const centre = this.#simCentre;
+        const target = this.#targetCentre;
+        const { rows, coords } = this.publishScratch(snapshot.nodeCount);
+        let count = 0;
+        let first: Node | undefined;
+        // ponytail: still walks the Node map for row membership (a removed node's row lives until the
+        // next freeze); a row table replaces the walk once rows stop having a Node each.
         for (const node of this.nodes) {
             const row = node.index;
-            if (!this.#hasRow(row)) {
+            if (!this.#hasRow(row) || (this.#fixedRows.has(row) && store.isPlaced(row))) {
                 continue;
             }
 
-            // A ROW WITH NO COORDINATE HAS NO PLACEMENT TO PROTECT. A node can be pinned before
-            // anything has placed it: the pin is a byte in a lane, written from a pointer
-            // gesture, and it does not wait for a layout. Skipped here and refused by the pin
-            // guard below, such a row would never receive a coordinate at all and would render
-            // at the origin for the rest of its life. So its FIRST coordinate lands as a
-            // placement, and every one after that is the reader's to keep.
-            const placed = store.isPlaced(row);
-            if (placed && this.#fixedRows.has(row)) {
-                continue;
-            }
-
-            this.writeNodePosition(
-                node,
-                (simPositions[3 * row] - centre[0]) * scale + this.#targetCentre[0],
-                (simPositions[3 * row + 1] - centre[1]) * scale + this.#targetCentre[1],
-                (simPositions[3 * row + 2] - centre[2]) * scale + this.#targetCentre[2],
-                placed ? "layout" : "placement",
-            );
+            first ??= node;
+            rows[count] = row;
+            coords[3 * count] = (simPositions[3 * row] - centre[0]) * scale + target[0];
+            coords[3 * count + 1] = (simPositions[3 * row + 1] - centre[1]) * scale + target[1];
+            coords[3 * count + 2] = (simPositions[3 * row + 2] - centre[2]) * scale + target[2];
+            count++;
         }
+
+        // A ROW WITH NO COORDINATE HAS NO PLACEMENT TO PROTECT. A node can be pinned before anything
+        // has placed it: the pin is a byte in a lane, written from a pointer gesture, and it does
+        // not wait for a layout. Refused by the pin guard, such a row would never receive a
+        // coordinate at all and would render at the origin for the rest of its life. So its FIRST
+        // coordinate lands as a placement, and every one after that is the reader's to keep.
+        this.publishColumn(first, rows, coords, count, true);
     }
 
     /**

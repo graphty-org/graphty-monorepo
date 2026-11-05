@@ -16,7 +16,6 @@ import {
     EasingFunction,
     type Effect,
     Engine,
-    type InstancedMesh,
     type Nullable,
     NullEngine,
     Observable,
@@ -98,9 +97,7 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  * @returns The points, in order along the line.
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
-    return (
-        drawnCurveInWorld(edge) ?? [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()]
-    );
+    return drawnCurveInWorld(edge) ?? [edge.srcNode.drawnWorldPosition, edge.dstNode.drawnWorldPosition];
 }
 
 /**
@@ -2088,6 +2085,9 @@ export class Graph implements GraphContext {
 
         this.watchShaderModules(opened);
         this.watchShaderCompiles(opened);
+        opened.onRestoreFailed = (error) => {
+            this.reportEngineGone(error);
+        };
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
@@ -2149,14 +2149,18 @@ export class Graph implements GraphContext {
         const create = device.createShaderModule.bind(device);
         device.createShaderModule = (descriptor) => {
             const module = create(descriptor);
-            void module.getCompilationInfo().then(({ messages }) => {
-                const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
-                if (errors.length > 0) {
-                    this.reportRefusedShader("device", errors);
-                } else if (!hasEntryPoint(descriptor.code)) {
-                    this.reportRefusedShader("translator", []);
-                }
-            });
+            void module.getCompilationInfo().then(
+                ({ messages }) => {
+                    const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
+                    if (errors.length > 0) {
+                        this.reportRefusedShader("device", errors);
+                    } else if (!hasEntryPoint(descriptor.code)) {
+                        this.reportRefusedShader("translator", []);
+                    }
+                },
+                // The GPU process died before answering: the engine's restore compiles it again.
+                () => undefined,
+            );
             return module;
         };
     }
@@ -2209,6 +2213,25 @@ export class Graph implements GraphContext {
             source: "view",
             recoverable: false,
             details: { stage, messages },
+        });
+        this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Stops claiming to draw and says why: the device was lost and no new one could be had.
+     * @param cause - What opening the new device said.
+     */
+    private reportEngineGone(cause: unknown): void {
+        if (this.#rendererStatus !== null) {
+            this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
+        }
+
+        const error = new GraphtyError({
+            code: "E_DEVICE_LOST",
+            message: `the WebGPU device was lost and no new one could be opened: ${String(cause)}`,
+            source: "view",
+            recoverable: false,
+            cause,
         });
         this.eventManager.emitGraphError(this, error, "other");
     }
@@ -5050,8 +5073,7 @@ export class Graph implements GraphContext {
         this.#nodeMeshes.clear();
         if (mapped) {
             for (const node of this.dataManager.nodes.values()) {
-                const { mesh } = node;
-                this.#nodeMeshes.add("sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh);
+                this.#nodeMeshes.add(node.drawnSourceMesh);
             }
         }
 
@@ -5495,7 +5517,7 @@ export class Graph implements GraphContext {
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
             for (const node of this.getNodes()) {
-                const { x, y } = node.mesh.position;
+                const { x, y } = node.drawnPosition;
                 node.setMeshPosition(x, y, 0);
             }
         } else {
@@ -5788,9 +5810,8 @@ export class Graph implements GraphContext {
         }
 
         // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
-        const { mesh } = node;
-        mesh.computeWorldMatrix(true);
-        const centre = mesh.getAbsolutePosition();
+        node.drawnWorldMatrix(true);
+        const centre = node.drawnWorldPosition;
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
@@ -5805,8 +5826,9 @@ export class Graph implements GraphContext {
 
         // The node's largest half-extent in the world, projected: the projection's y scale over
         // the clip w (the depth in perspective, 1 in orthographic), in pixels.
-        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        const scale = mesh.absoluteScaling;
+        const box = node.drawnBoundingBox;
+        const extent = box.extendSize;
+        const scale = node.drawnWorldScaling;
         const worldRadius =
             Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
         const projection = this.scene.getProjectionMatrix().m;
@@ -5814,7 +5836,7 @@ export class Graph implements GraphContext {
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
         const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
-        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        for (const corner of box.vectorsWorld) {
             const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
             if (ahead < camera.minZ) {
                 continue;

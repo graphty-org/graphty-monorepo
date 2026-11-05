@@ -213,6 +213,8 @@ export const EdgeArrowTypes: z.ZodEnum<{
     kite: "kite";
     deltoid: "deltoid";
     "open-vee": "open-vee";
+    slash: "slash";
+    stem: "stem";
 }>;
 
 // @public
@@ -301,6 +303,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -568,6 +572,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -835,6 +841,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -883,6 +891,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1845,6 +1855,8 @@ export const NodeShapes: z.ZodEnum<{
     polygon: "polygon";
     "round-polygon": "round-polygon";
     "round-rectangle": "round-rectangle";
+    "top-round-rectangle": "top-round-rectangle";
+    "bottom-round-rectangle": "bottom-round-rectangle";
     barrel: "barrel";
     database: "database";
     cylinder: "cylinder";
@@ -1912,6 +1924,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";
@@ -2112,6 +2126,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";
@@ -2171,6 +2187,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";

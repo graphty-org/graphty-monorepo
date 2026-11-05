@@ -53,6 +53,10 @@ WGSL or the Vulkan GLSL compiler reserves, such as `pass`, `target`, `fn` or `im
 renames it for you. One thing still differs: a `const` at the top of a shader may not call `acosh`,
 `asinh` or `atanh` under WebGPU, so move it into the function that uses it.
 
+If the WebGPU device is lost, by a driver reset or a GPU process crash, the element opens a new one,
+rebuilds and draws the same graph, with nothing for you to do. If no new device can be had,
+`rendererStatus.drawing` turns false and a `graph-error` event carries `E_DEVICE_LOST`.
+
 ## What differs under WebGPU
 
 | Feature                               | Under WebGPU                                           |

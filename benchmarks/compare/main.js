@@ -13,6 +13,7 @@ function stats(xs) {
         n: s.length,
         median: +q(0.5).toFixed(2),
         p95: +q(0.95).toFixed(2),
+        p99: +q(0.99).toFixed(2),
         min: +s[0].toFixed(2),
         max: +s[s.length - 1].toFixed(2),
     };
@@ -555,6 +556,23 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 }
                 out.stepPlusReadback = stats(single);
                 out.perStepBatched16 = stats(b16);
+                const publish = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    eng.publishPositions();
+                    publish.push(now() - t);
+                }
+                out.publish = stats(publish);
+                // Nothing runs after this stage, so the frame loop can stop for good: what is left of
+                // the step is the simulation and its readback, without the frames sharing the card.
+                graph.scene.getEngine().stopRenderLoop();
+                const undrawn = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    await eng.stepAsync(1);
+                    undrawn.push(now() - t);
+                }
+                out.stepUndrawn = stats(undrawn);
             } else {
                 const single = [];
                 const budget = now() + 20000;

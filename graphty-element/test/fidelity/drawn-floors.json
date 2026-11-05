@@ -590,7 +590,8 @@
             "arrows": 0.6625,
             "edgePath": 1,
             "edgeLabel": 1,
-            "groups": 1
+            "groups": 1,
+            "annotations": 0
         },
         "cx-ddram": {
             "position": 1,
@@ -1191,6 +1192,12 @@
             "to": null,
             "reason": "no longer judged: the scorer reads a group only off a drawn node the file nests others in (#3108), as the reference does; neither the reference nor the drawing has a group box",
             "date": "2026-11-01"
+        },
+        "gml-synthetic-coverage/annotations": {
+            "from": null,
+            "to": 0,
+            "reason": "newly judged (#5839): the four strips of a 3D rectangle's raised border are read as extra shapes; the reference scene is the file's stored geometry and lists none, and yEd's own drawing has them (oracle scorecard, stray.present)",
+            "date": "2026-11-05"
         }
     }
 }

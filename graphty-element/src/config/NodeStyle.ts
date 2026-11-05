@@ -437,6 +437,18 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     /**
+     * Strips `width` wide along the inside of the node's edge, in the units of the border's width: `lightColor` on its
+     * left and top and `darkColor` on its bottom and right, so the node looks raised (yEd's 3D rectangle). They are cut
+     * to the node's outline. No width draws none.
+     */
+    raisedBorder: z
+        .strictObject({
+            width: z.number().nonnegative().optional(),
+            lightColor: ColorStyle.optional(),
+            darkColor: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
      * A filled shape drawn behind the node (Cytoscape.js `underlay-*`): `padding` beyond the node's
      * box on every side, in the units of `shape.size`, in `color` at `opacity`, as `shape` (unset,
      * the node's own) with `cornerRadius` for a rounded one. No opacity, or 0, draws none.

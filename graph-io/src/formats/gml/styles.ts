@@ -939,12 +939,7 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
     if (yedLabel) {
-        // and its `outline` the one-pixel line round that box
-        readColor(lg.fill, "labelBackground", null, writer, put, at);
-        if (lg.outline !== undefined) {
-            readColor(lg.outline, "labelBorderColor", null, writer, put, at);
-            put("labelBorderWidth", 1);
-        }
+        readYedLabelBox(lg, writer, put, at);
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
@@ -955,6 +950,21 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
         put("labelPosition", known ?? null);
+    }
+}
+
+/**
+ * Reads the box yEd draws behind a label's words: its `fill`, and its `outline`, a one-pixel line round the box.
+ * @param lg - the label record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYedLabelBox(lg: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(lg.fill, "labelBackground", null, writer, put, at);
+    if (lg.outline !== undefined) {
+        readColor(lg.outline, "labelBorderColor", null, writer, put, at);
+        put("labelBorderWidth", 1);
     }
 }
 

@@ -31,7 +31,7 @@ const issue = (number, h, prs = [], comments = []) => ({
     number,
     state: "OPEN",
     createdAt: at(h),
-    comments: { nodes: comments.map((body) => ({ body })) },
+    comments: { nodes: comments.map((body) => ({ body, createdAt: at(2) })) },
     closedByPullRequestsReferences: { nodes: prs },
 });
 // an open pull request whose last commit is h hours old with checks in the given state
@@ -135,8 +135,16 @@ describe("liveness (#5857: only real work counts)", () => {
         const alive = (s) => s === "s-1";
         assert.equal(liveness(issue(1, 40, [], [STATUS]), NOW, { alive }).live, true);
         assert.equal(liveness(issue(1, 40, [], [STATUS]), NOW, { alive: () => false }).live, false);
-        assert.equal(takenSession(issue(1, 1, [], [STATUS, "pipeline-round: released -- stale"])), null);
-        assert.equal(takenSession(issue(1, 1, [], ["pipeline-round: released -- x", STATUS, "status"])), "s-1");
+        assert.equal(takenSession(issue(1, 1, [], [STATUS, "pipeline-round: released -- stale"]), NOW), null);
+        assert.equal(takenSession(issue(1, 1, [], ["pipeline-round: released -- x", STATUS, "status"]), NOW), "s-1");
+        // a finished job whose loop session still runs: the later marker ends the claim
+        assert.equal(
+            takenSession(issue(1, 1, [], [STATUS, "pipeline-round: no pull request -- nothing wrong"]), NOW),
+            null,
+        );
+        const old = issue(1, 40, [], [STATUS]);
+        old.comments.nodes[0].createdAt = at(30);
+        assert.equal(liveness(old, NOW, { alive }).live, false, "a claim older than a day is not work");
     });
     it("closed or missing is no owner", () => {
         assert.equal(liveness({ ...issue(1, 1), state: "CLOSED" }, NOW).live, false);

@@ -84,7 +84,7 @@ export function tableRows(pages) {
 const PR_FIELDS =
     "number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }";
 const FIELDS =
-    "__typename ... on Issue { number state createdAt comments(last: 20) { nodes { body } } " +
+    "__typename ... on Issue { number state createdAt comments(last: 20) { nodes { body createdAt } } " +
     `closedByPullRequestsReferences(first: 5, includeClosedPrs: false) { nodes { ${PR_FIELDS} } } } ` +
     `... on PullRequest { ${PR_FIELDS} }`;
 
@@ -136,16 +136,20 @@ export function issueNumbers(gql) {
     return [...new Set(nodes.filter((n) => n?.__typename === "Issue").map((n) => n.number))];
 }
 
-const TAKEN = /^pipeline-round: (?:taken by session (\S+?),|released\b)/m;
+const MARKER = /^pipeline-round: (?:taken by session (\S+?),)?/m;
 /**
- * The session of an issue's newest `taken` marker.
+ * The session of an issue's open claim: its newest pipeline-round marker is a `taken` marker written in the last 24
+ * hours. Any later marker (no pull request, ready, opened, released, ...) ends the job, and a claim older than a day
+ * is not work: the marked session is often a long-running /loop whose subagent finished long ago.
  * @param issue GraphQL's issue, with its last comments
- * @returns the session id, or null when there is none or a `released` came after it
+ * @param now ms
+ * @returns the session id, or null
  */
-export function takenSession(issue) {
+export function takenSession(issue, now) {
     for (const c of [...(issue.comments?.nodes ?? [])].reverse()) {
-        const m = TAKEN.exec(c.body ?? "");
-        if (m) return m[1] ?? null;
+        const m = MARKER.exec(c.body ?? "");
+        if (!m) continue;
+        return m[1] && now - Date.parse(c.createdAt) <= LIVE_MS ? m[1] : null;
     }
     return null;
 }
@@ -194,7 +198,7 @@ export function liveness(node, now, o = {}) {
         .map((b) => ({ name: b.name, at: Date.parse(b.target?.committedDate) }));
     const fresh = commits.find((b) => now - b.at <= LIVE_MS);
     if (fresh) return { live: true, why: `open, commit ${Math.floor((now - fresh.at) / HOUR)} h ago on ${fresh.name}` };
-    const session = takenSession(node);
+    const session = takenSession(node, now);
     if (session && alive(session)) return { live: true, why: `open, taken by live session ${session}` };
     return idle([...works.map((x) => x.w.at), ...commits.map((b) => b.at), Date.parse(node.createdAt)]);
 }

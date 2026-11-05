@@ -358,11 +358,12 @@ export interface NodeStyleValues {
      * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
      * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
-     * "balign"?, "border"?, "padding"?, "fill"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * "balign"?, "border"?, "padding"?, "fill"?, "rule"?, "hidden"? }`: its text as lines `{ "runs", "align"? }` (runs as in
      * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
      * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
      * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
-     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left. The
+     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left, `hidden`
+     * keeps the cell's room and draws nothing in it (Graphviz's `STYLE="invis"`). The
      * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
      * fit it. `label` holds its words.
      */

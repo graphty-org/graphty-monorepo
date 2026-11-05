@@ -200,6 +200,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelOffsetY",
                         "node.labelShiftX",
                         "node.labelShiftY",
+                        "node.labelShiftOf",
                         "node.labelDeclutter",
                         "node.labelMinNodeScreenSize",
                         "node.labelTextAlign",
@@ -395,6 +396,7 @@ describe("label field channels take a rule", () => {
                 "node.labelOffsetY": -2,
                 "node.labelShiftX": -0.5,
                 "node.labelShiftY": 0.5,
+                "node.labelShiftOf": "words",
             },
         });
         await held.paintAll();
@@ -407,5 +409,6 @@ describe("label field channels take a rule", () => {
         assert.strictEqual(drawn.offsetY, -2);
         assert.strictEqual(drawn.shiftX, -0.5);
         assert.strictEqual(drawn.shiftY, 0.5);
+        assert.strictEqual(drawn.shiftOf, "words");
     });
 });

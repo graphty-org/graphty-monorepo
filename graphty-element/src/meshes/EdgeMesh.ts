@@ -23,12 +23,11 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
-import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
@@ -377,7 +376,7 @@ void main() {
             {
                 width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
                 color: options.color,
-                opacity: style.line?.opacity ?? 1,
+                opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
                 patternCount: style.line?.patternCount, // undefined means follow the spacing rule
                 wave: this.waveOf(style),
@@ -424,6 +423,38 @@ void main() {
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
+     * The fade a style asks its line to be drawn with. A line that does not blend has none.
+     * @param style - The style.
+     * @returns The fade, or undefined for none.
+     */
+    static fadeOf(style: EdgeStyleConfig | null): EdgeFade | undefined {
+        const { fade, blending } = style?.line ?? {};
+        if (fade?.end === undefined || blending === false) {
+            return undefined;
+        }
+
+        return { start: fade.start ?? 0, end: fade.end, opacity: fade.opacity ?? 0.25 };
+    }
+
+    /**
+     * The opacity a style's line is drawn at: its own, or full strength when it does not blend.
+     * @param style - The style.
+     * @returns The opacity.
+     */
+    static opacityOf(style: EdgeStyleConfig): number {
+        return this.drawsOpaque(style) ? 1 : (style.line?.opacity ?? 1);
+    }
+
+    /**
+     * Whether a style's line is drawn without alpha blending.
+     * @param style - The style.
+     * @returns True for `line.blending` false.
+     */
+    static drawsOpaque(style: EdgeStyleConfig): boolean {
+        return style.line?.blending === false;
     }
 
     /**
@@ -474,6 +505,10 @@ void main() {
         const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
+        // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
+        // which is not one, does not fade.
+        const fade = widened ? this.fadeOf(style) : undefined;
+        const opaque = this.drawsOpaque(style);
 
         if (this.drawsAsPattern(style, loop)) {
             return null;
@@ -494,10 +529,12 @@ void main() {
                         {
                             width,
                             color: options.color,
-                            opacity: style.line?.opacity ?? 1,
+                            opacity: this.opacityOf(style),
                             worldWidth: true,
                             widened,
                             minScreenWidth: style.line?.minScreenWidth,
+                            fade,
+                            opaque,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -522,10 +559,11 @@ void main() {
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
-                        style.line?.opacity ?? 1,
+                        this.opacityOf(style),
                         scene,
                         widened,
                         style.line?.minScreenWidth,
+                        { fade, opaque },
                     ),
                 scene,
             );
@@ -613,9 +651,11 @@ void main() {
             "tee",
             "half-open",
             "crow",
+            "open-normal",
+            "open-diamond",
+            "open-dot",
             "sphere-dot",
             ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
-            ...Object.keys(FilledArrowRenderer.OPEN_OUTLINES),
         ];
 
         // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
@@ -632,36 +672,18 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        // AN OPEN CAP'S FRAME IS AS THICK AS ITS LINE (#4253), as Graphviz and Cytoscape.js stroke one with the edge's
-        // own pen: the line's width in scene units (`width / 40`, see createPatternedLine) over the cap's length, which
-        // a batch's one geometry holds, so it is part of the key. The outline is widened before it is framed, so the
-        // frame stays as thick on every side.
-        const stroke =
-            arrowType in FilledArrowRenderer.OPEN_OUTLINES
-                ? Math.round((options.width / 40 / length) * 1000) / 1000
-                : undefined;
-        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
-        const open = (): Mesh | null =>
-            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
-
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
-                `2d|${arrowType}|${options.color}|${String(opacity)}${openKey}`,
+                `2d|${arrowType}|${options.color}|${String(opacity)}${widthKey}`,
                 () => {
-                    const outline = open();
-                    if (outline !== null) {
-                        outline.name = `arrow-2d-${arrowType}`;
-                        MaterialHelper.apply2DMaterial(outline, options.color, opacity, scene);
-                    }
                     const source = sided(
-                        outline ??
-                            widened(
-                                FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
-                                breadth,
-                            ),
+                        widened(
+                            FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                            breadth,
+                        ),
                         side,
                     );
                     source.visibility = opacity;
@@ -677,8 +699,8 @@ void main() {
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
         return FilledArrowRenderer.createArrowCap(
-            `${arrowType}${openKey}`,
-            () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
+            `${arrowType}${widthKey}`,
+            () => sided(widened(this.createArrowShape(arrowType, scene), breadth), side),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
@@ -800,6 +822,12 @@ void main() {
                 return FilledArrowRenderer.createHalfOpen(scene);
             case "crow":
                 return FilledArrowRenderer.createCrow(scene);
+            case "open-normal":
+                return FilledArrowRenderer.createOpenNormal(scene);
+            case "open-diamond":
+                return FilledArrowRenderer.createOpenDiamond(scene);
+            case "open-dot":
+                return FilledArrowRenderer.createOpenCircle(scene);
             default:
                 if (type in FilledArrowRenderer.POLYGON_ARROWS) {
                     return FilledArrowRenderer.createPolygonArrow(type, scene);
@@ -825,9 +853,11 @@ void main() {
                 {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
-                    opacity: style.line?.opacity,
+                    opacity: this.opacityOf(style),
                     widened,
                     minScreenWidth: style.line?.minScreenWidth,
+                    fade: widened ? this.fadeOf(style) : undefined,
+                    opaque: this.drawsOpaque(style),
                 },
                 scene,
             );

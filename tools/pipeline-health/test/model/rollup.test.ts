@@ -131,6 +131,27 @@ describe("rollups", () => {
         expect(w.total).toMatchObject({ last: 12, max: 30 });
     });
 
+    it("counts slice cost readings only from saturated cycles, also ones stored before the rule (#5681)", async () => {
+        const store = new MemoryStore();
+        const quiet = T0 - 9 * MIN;
+        const full = T0 - 4 * MIN;
+        await putRaw(
+            store,
+            [
+                obs("ci.saturated_ms", 0, quiet),
+                obs("slices.queue_wait_min", 9, quiet),
+                obs("slices.contended_min", 5, quiet),
+                obs("ci.saturated_ms", 5 * MIN, full),
+                obs("slices.queue_wait_min", 3, full),
+                obs("slices.contended_min", 2, full),
+            ],
+            T0,
+        );
+        await recompute(store, T0);
+        expect((await windowValue(store, "slices.queue_wait_min", "1h", T0)).total).toMatchObject({ sum: 3 });
+        expect((await windowValue(store, "slices.contended_min", "1h", T0)).total).toMatchObject({ sum: 2 });
+    });
+
     it("reads windows as twelve 5m, twenty-four 15m and twenty-four 1h buckets", async () => {
         const store = new MemoryStore();
         await putRaw(store, [obs("ci.saturated_ms", 1, T0 - 2 * HOUR)], T0);

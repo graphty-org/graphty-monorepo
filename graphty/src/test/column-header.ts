@@ -4,7 +4,7 @@
  * "Options for <name>" menu in its header.
  */
 
-import userEvent from "@testing-library/user-event";
+import { userEvent } from "vitest/browser";
 
 import { screen, within } from "./test-utils";
 

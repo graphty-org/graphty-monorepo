@@ -56,10 +56,9 @@ export function widenDtype(current: InferredDtype | null, observed: InferredDtyp
 }
 
 /**
- * Classify one text cell by the fixed lexical grammar. Exported as the reference implementation of
- * the text grammar of design section 5.1, which the text importers of graph-io must reproduce
- * exactly (invariant I15); the core itself only infers from JS values, so nothing in src/ calls it.
- * @public
+ * Classify one text cell by the fixed lexical grammar of design section 5.1: the one implementation
+ * of it, which graph-io's text importers call, so the core and the importers agree (invariant I15).
+ * The core itself only infers from JS values, so nothing in src/ calls it.
  * @param text - the cell text, exactly as read (no trimming)
  * @returns bool, i32, f64 or string
  */

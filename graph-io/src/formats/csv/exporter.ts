@@ -40,7 +40,7 @@ import { canonicalId } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
-import { inferTextDtype, type TextDtype } from "../../common/text.js";
+import { inferTextDtype, jsonText, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -251,18 +251,15 @@ function resolveCsvExportOptions(
     options: (CsvExportOptions & CommonExportOptions) | undefined,
 ): ResolvedCsvExportOptions {
     const o: CsvExportOptions = options ?? {};
-    if (
-        o.dialect !== undefined &&
-        o.dialect !== "gephi" &&
-        o.dialect !== "generic" &&
-        !otherFormatDialect("csv", o.dialect)
-    ) {
+    // a JavaScript caller can pass any value, so the checks read them as unknown
+    const { dialect, table, newline }: { dialect?: unknown; table?: unknown; newline?: unknown } = o;
+    if (dialect !== undefined && dialect !== "gephi" && dialect !== "generic" && !otherFormatDialect("csv", dialect)) {
         throw new GraphFormatError("E_UNSUPPORTED", 'option dialect: expected "gephi" or "generic"', {
             option: "dialect",
             found: o.dialect,
         });
     }
-    if (o.table !== undefined && o.table !== "edges" && o.table !== "nodes" && o.table !== "adjacency") {
+    if (table !== undefined && table !== "edges" && table !== "nodes" && table !== "adjacency") {
         throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges", "nodes" or "adjacency"', {
             option: "table",
             found: o.table,
@@ -282,7 +279,7 @@ function resolveCsvExportOptions(
             { option: "delimiter", found: o.delimiter },
         );
     }
-    if (o.newline !== undefined && o.newline !== "\n" && o.newline !== "\r\n") {
+    if (newline !== undefined && newline !== "\n" && newline !== "\r\n") {
         throw new GraphFormatError("E_UNSUPPORTED", "option newline: expected LF or CRLF", {
             option: "newline",
             found: o.newline,
@@ -331,7 +328,7 @@ function scalarText(dtype: string, value: unknown): string {
         case "dict":
             return typeof value === "string" ? value : String(value);
         case "json":
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         default:
             return String(value);
     }
@@ -358,7 +355,7 @@ function cellText(column: Column, row: number): string | null {
             );
         }
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         case "bool":
         case "string":
         case "dict":
@@ -1117,11 +1114,9 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
         // `next` they need nothing more
         const fresh: number[] = [];
         let highest = -1;
-        let inOrder = true;
         const mark = (v: number): void => {
             if (seen[v] === 0) {
                 seen[v] = 1;
-                inOrder &&= v === next + fresh.length;
                 fresh.push(v);
                 highest = Math.max(highest, v);
             }
@@ -1130,7 +1125,7 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
         for (let k = r; k < end; k++) {
             mark(list.dst[edgeRows[k]]);
         }
-        if (!inOrder) {
+        if (!fresh.every((v, j) => v === next + j)) {
             for (const v of fresh) {
                 seen[v] = 0;
             }

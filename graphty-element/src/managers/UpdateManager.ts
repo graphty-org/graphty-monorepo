@@ -7,6 +7,7 @@ import {
     type Mesh,
     type Nullable,
     type Observer,
+    type Plane,
     Quaternion,
     type Scene,
     type TransformNode,
@@ -2445,14 +2446,7 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const view = camera.getViewMatrix().m;
-        let moved = scaled;
-        for (let i = 0; i < 16; i++) {
-            if (this.lastView[i] !== Math.fround(view[i])) {
-                moved = true;
-                this.lastView[i] = view[i];
-            }
-        }
+        const moved = this.recordView(camera.getViewMatrix().m) || scaled;
 
         // A wheel's notches come a few frames apart: the view counts as still only after it held
         // for STILL_PASSES passes, so a zoom by notches is not cut exactly between each two.
@@ -2460,12 +2454,7 @@ export class UpdateManager implements Manager {
         const moving = this.stillPasses < UpdateManager.STILL_PASSES;
 
         const planes = Frustum.GetPlanes(camera.getViewMatrix().multiply(camera.getProjectionMatrix()));
-        const onScreen = new Set<Node>();
-        for (const node of this.layoutManager.nodes) {
-            if (node.mesh.isInFrustum(planes)) {
-                onScreen.add(node);
-            }
-        }
+        const onScreen = this.nodesInFrustum(planes);
 
         const tolerance = moving ? UpdateManager.RETRIM_BAND : 0;
         let cut = 0;
@@ -2493,6 +2482,55 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.updateEdges();
         }
+    }
+
+    /**
+     * Keep the view matrix the last re-trim saw, and say whether it moved since.
+     * @param view - The camera's view matrix, as its 16 numbers.
+     * @returns Whether any of them changed.
+     */
+    private recordView(view: ArrayLike<number>): boolean {
+        let moved = false;
+        for (let i = 0; i < 16; i++) {
+            if (this.lastView[i] !== Math.fround(view[i])) {
+                moved = true;
+                this.lastView[i] = view[i];
+            }
+        }
+
+        return moved;
+    }
+
+    /**
+     * The nodes whose meshes are inside a view's frustum.
+     * @param planes - The frustum's planes.
+     * @returns The nodes on screen.
+     */
+    private nodesInFrustum(planes: Plane[]): Set<Node> {
+        const onScreen = new Set<Node>();
+        for (const node of this.layoutManager.nodes) {
+            if (node.mesh.isInFrustum(planes)) {
+                onScreen.add(node);
+            }
+        }
+
+        return onScreen;
+    }
+
+    /**
+     * Put every node mesh back to scale 1.
+     * @returns Whether any node's scale changed.
+     */
+    private resetNodeScales(): boolean {
+        let changed = false;
+        for (const node of this.layoutManager.nodes) {
+            if (node.mesh.scaling.x !== 1) {
+                node.mesh.scaling.setAll(1);
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
     /** The map frame the camera last turned to face, so a new map is faced once. */
@@ -2572,14 +2610,8 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        let changed = false;
         if (!on) {
-            for (const node of this.layoutManager.nodes) {
-                if (node.mesh.scaling.x !== 1) {
-                    node.mesh.scaling.setAll(1);
-                    changed = true;
-                }
-            }
+            const changed = this.resetNodeScales();
             this.depthScaled = false;
 
             return changed;
@@ -2593,6 +2625,24 @@ export class UpdateManager implements Manager {
             return false;
         }
 
+        return this.scaleNodesByDepth(screen, pivot, depthOf, reference);
+    }
+
+    /**
+     * Scale every node mesh by its view depth over the pivot's, times the screen scale.
+     * @param screen - The location map's screen scale, or null.
+     * @param pivot - The orbit's pivot, or null when sizes do not follow depth.
+     * @param depthOf - A point's depth in the view.
+     * @param reference - The pivot's depth (1 without a pivot).
+     * @returns Whether any node's scale changed.
+     */
+    private scaleNodesByDepth(
+        screen: number | null,
+        pivot: TransformNode | null,
+        depthOf: (p: Vector3) => number,
+        reference: number,
+    ): boolean {
+        let changed = false;
         for (const node of this.layoutManager.nodes) {
             const { mesh } = node;
             let scale = screen ?? 1;

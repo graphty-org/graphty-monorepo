@@ -214,7 +214,7 @@ describe("graphmlImporter corpus", () => {
 });
 
 describe("graphmlImporter malformed corpus", () => {
-    const fatal: Record<string, string> = {
+    const fatal: Partial<Record<string, string>> = {
         // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
         "empty-file.graphml": GRAPHML_ISSUE.EMPTY_INPUT,
         "invalid-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
@@ -233,14 +233,16 @@ describe("graphmlImporter malformed corpus", () => {
         "missing-node-id.graphml": { code: GRAPHML_ISSUE.MISSING_ID, nodes: 2, edges: 1 },
     };
 
+    // a malformed file need not be listed in either table
+    const recoverableByName: Partial<typeof recoverable> = recoverable;
     for (const name of malformedFiles("graphml")) {
         it(`${name}: ImportError with a report under errorLimit 0`, async () => {
             const bytes = readMalformedBytes("graphml", name);
-            const err = await importError(bytes, { errorLimit: 0, ...recoverable[name]?.options });
+            const err = await importError(bytes, { errorLimit: 0, ...recoverableByName[name]?.options });
             expect(err.code).toBe("E_IMPORT");
             expect(err.report.format).toBe("graphml");
             expect(err.report.errorCount).toBeGreaterThan(0);
-            const expected = fatal[name] ?? recoverable[name]?.code;
+            const expected = fatal[name] ?? recoverableByName[name]?.code;
             expect(expected, `no expectation for ${name}`).toBeDefined();
             expect(codes(err.report)).toContain(expected);
             if (name in fatal) {

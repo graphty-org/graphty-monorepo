@@ -6,6 +6,7 @@
  * calls one function instead of holding its own copy. Layout zone.
  */
 
+import { MAX_ITERATIONS_PER_STEP } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
@@ -137,7 +138,7 @@ const U32_MODULUS = 4294967296;
  * @param value - the value
  * @returns the rendering
  */
-export function describeValue(value: unknown): string {
+function describeValue(value: unknown): string {
     if (value === null) {
         return "null";
     }
@@ -213,7 +214,7 @@ export function pickBoolean(name: string, given: boolean | undefined, fallback: 
  * @param fallback - the previous record's value or the default
  * @returns 2 or 3
  */
-export function pickDim(given: 2 | 3 | undefined, fallback: 2 | 3): 2 | 3 {
+function pickDim(given: 2 | 3 | undefined, fallback: 2 | 3): 2 | 3 {
     const value: unknown = given === undefined ? fallback : given;
     if (value !== 2 && value !== 3) {
         throw invalid("dim", value, "2 or 3");
@@ -227,7 +228,7 @@ export function pickDim(given: 2 | 3 | undefined, fallback: 2 | 3): 2 | 3 {
  * @param fallback - the previous record's value or the default
  * @returns the three components
  */
-export function pickCenter(
+function pickCenter(
     given: ArrayLike<number> | undefined,
     fallback: readonly [number, number, number],
 ): readonly [number, number, number] {
@@ -265,7 +266,7 @@ export function pickCenter(
  * @param fallback - the previous record's value or the default
  * @returns the seed or null
  */
-export function pickSeed(given: number | null | undefined, fallback: number | null): number | null {
+function pickSeed(given: number | null | undefined, fallback: number | null): number | null {
     if (given === undefined) {
         return fallback;
     }
@@ -283,6 +284,82 @@ export function pickSeed(given: number | null | undefined, fallback: number | nu
  */
 export function isPositiveInteger(value: number): boolean {
     return Number.isInteger(value) && value >= 1;
+}
+
+/** The options every force model takes, as given (undefined = absent). */
+interface SharedForceOptions {
+    readonly dim?: 2 | 3;
+    readonly scale?: number;
+    readonly center?: ArrayLike<number>;
+    readonly seed?: number | null;
+    readonly settleThreshold?: number;
+    readonly settleWindow?: number;
+    readonly iterationsPerStep?: number;
+    readonly maxInFlight?: number;
+}
+
+/** The options every force model takes, resolved. */
+interface ResolvedSharedForceOptions {
+    readonly dim: 2 | 3;
+    readonly scale: number;
+    readonly center: readonly [number, number, number];
+    readonly seed: number | null;
+    readonly settleThreshold: number;
+    readonly settleWindow: number;
+    readonly iterationsPerStep: number;
+    readonly maxInFlight: number;
+}
+
+/**
+ * Refuses a patch that changes `maxInFlight` (the uniform ring is sized by it at construction).
+ * @param given - the caller's options (or a setParams patch)
+ * @param previous - the current resolved record when resolving a patch
+ */
+export function assertMaxInFlightUnchanged(
+    given: SharedForceOptions,
+    previous: ResolvedSharedForceOptions | undefined,
+): void {
+    if (previous !== undefined && given.maxInFlight !== undefined && given.maxInFlight !== previous.maxInFlight) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `maxInFlight cannot change after creation (the uniform ring is sized by it): got ${describeValue(given.maxInFlight)}, current ${previous.maxInFlight}`,
+            { argument: "maxInFlight", value: given.maxInFlight, expected: previous.maxInFlight },
+        );
+    }
+}
+
+/**
+ * Resolves and validates the options every force model takes, in the order each resolver lists them last.
+ * @param o - the caller's options (or a setParams patch)
+ * @param base - the previous record or the model's defaults
+ * @returns the resolved shared fields
+ */
+export function pickSharedForceOptions(
+    o: SharedForceOptions,
+    base: ResolvedSharedForceOptions,
+): ResolvedSharedForceOptions {
+    return {
+        dim: pickDim(o.dim, base.dim),
+        scale: pickNumber("scale", o.scale, base.scale, (v) => v > 0, "> 0"),
+        center: pickCenter(o.center, base.center),
+        seed: pickSeed(o.seed, base.seed),
+        settleThreshold: pickNumber("settleThreshold", o.settleThreshold, base.settleThreshold, (v) => v >= 0, ">= 0"),
+        settleWindow: pickNumber(
+            "settleWindow",
+            o.settleWindow,
+            base.settleWindow,
+            isPositiveInteger,
+            "an integer >= 1",
+        ),
+        iterationsPerStep: pickNumber(
+            "iterationsPerStep",
+            o.iterationsPerStep,
+            base.iterationsPerStep,
+            (v) => isPositiveInteger(v) && v <= MAX_ITERATIONS_PER_STEP,
+            `an integer in [1, ${MAX_ITERATIONS_PER_STEP}]`,
+        ),
+        maxInFlight: pickNumber("maxInFlight", o.maxInFlight, base.maxInFlight, isPositiveInteger, "an integer >= 1"),
+    };
 }
 
 /**

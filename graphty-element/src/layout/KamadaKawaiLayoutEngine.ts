@@ -155,10 +155,10 @@ type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
  * Kamada-Kawai layout engine using spring-embedder energy minimization
  */
 export class KamadaKawaiLayout extends SnapshotLayoutEngine {
-    static type = "kamada-kawai";
-    static maxDimensions = 3;
-    static override honoursWeights = true;
-    static zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
+    static readonly type: string = "kamada-kawai";
+    static readonly maxDimensions: number = 3;
+    static override readonly honoursWeights: boolean = true;
+    static readonly zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;
 

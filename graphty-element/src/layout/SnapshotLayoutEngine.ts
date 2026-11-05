@@ -549,11 +549,11 @@ export function registerSnapshotLayout(registration: SnapshotLayoutRegistration)
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
-        static override type = descriptor.id;
-        static maxDimensions = descriptor.maxDimensions;
-        static override honoursWeights = honoursWeights;
-        static override scoped = scoped;
-        static override descriptor: AuthoredLayoutDescriptor = descriptor;
+        static override readonly type = descriptor.id;
+        static readonly maxDimensions = descriptor.maxDimensions;
+        static override readonly honoursWeights = honoursWeights;
+        static override readonly scoped = scoped;
+        static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 
         protected readonly dimensions: 2 | 3;
         protected readonly options: Readonly<Record<string, unknown>>;

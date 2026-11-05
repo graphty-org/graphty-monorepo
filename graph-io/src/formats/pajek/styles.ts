@@ -397,6 +397,9 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 /** A diamond's `q` where the line sets none (Pajek's shipped SHAPES.CFG). */
 const PAJEK_DIAMOND_Q = 0.001;
 
+/** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
  * cut `q` of its half width wide (`pajek-specimen-node-shapes`: `q 0.001` by default, `q 0.5` a hexagon, `q 1` a
@@ -405,10 +408,9 @@ const PAJEK_DIAMOND_Q = 0.001;
  * it). ponytail: the corners are fractions of the size the line gives (`x_fact`, `y_fact`); a turned shape whose width
  * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. An ellipse keeps
  * its shape and is turned whole (`shapeRotation`, clockwise): `pajek-specimen-node-shapes` `phi-30-ellipse-wide` is
- * drawn 30 x 20 turned 30 degrees. ponytail: a turned cross, man or woman is drawn unturned. Pajek's SVG export draws
- * a cross as an ellipse where graphty draws a plus, so a turned plus's box is not Pajek's and the label beside it
- * lands across a band edge (`pajek-synth-vertices` v5); a turned man's box covers its neighbors in the scorecard's
- * box test (v22, v31 beside man 32). Turn them once those read as Pajek draws them.
+ * drawn 30 x 20 turned 30 degrees. So are a cross, a man and a woman (`TURNED_WHOLE`): `pajek-synth-vertices` v5, a
+ * cross 20 x 30 at `phi 60`, is drawn 27.8 x 22.9, and woman 41 at `phi 60` lies on her side, as do
+ * `pajek-specimen-node-shapes` `phi-30-man` and `phi-90-man`.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param shape - its shape
@@ -426,7 +428,7 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
     ];
     const corners = shape === "diamond" ? diamond : PAJEK_OUTLINES.get(String(shape));
     if (corners === undefined) {
-        if (phi % 360 !== 0 && shape === "ellipse") {
+        if (phi % 360 !== 0 && TURNED_WHOLE.has(String(shape))) {
             put("shapeRotation", -phi);
         }
         return;
@@ -1419,7 +1421,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
 function places(snapshot: GraphSnapshot): (i: number) => Place | null {
     const col = snapshot.nodes.byRole("position");
     return (i) => {
-        const v: unknown = col === null || col === undefined ? null : col.value(i);
+        const v: unknown = col === null ? null : col.value(i);
         if (v === null || typeof v !== "object" || !("length" in v)) {
             return null;
         }

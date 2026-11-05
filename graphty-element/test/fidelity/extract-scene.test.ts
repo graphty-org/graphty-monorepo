@@ -152,6 +152,45 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         );
     });
 
+    it("hides a node only under a figure's own outline, not beside its arm inside the ellipse its box holds", () => {
+        // #5761 (pajek-synth-vertices 31 beside man 32's arm): a plus 150 px across, its arms 50 px wide
+        const ring: [number, number][] = [
+            [50, 0],
+            [100, 0],
+            [100, 50],
+            [150, 50],
+            [150, 100],
+            [100, 100],
+            [100, 150],
+            [50, 150],
+            [50, 100],
+            [0, 100],
+            [0, 50],
+            [50, 50],
+        ];
+        const figure = {
+            ...drawn(0, 0, 150, 150, 24),
+            meshName: "cross",
+            shapeType: "cross",
+            figure: ring.map((q, i): [[number, number], [number, number]] => [q, ring[(i + 1) % ring.length]]),
+        };
+        // inside the ellipse the plus's box holds, outside the plus
+        const beside = drawn(105, 105, 120, 120, 35);
+        const middle = drawn(65, 65, 85, 85, 35);
+        assert.deepEqual(
+            [
+                ...occluders(
+                    new Map([
+                        ["figure", figure],
+                        ["beside", beside],
+                        ["middle", middle],
+                    ]),
+                ),
+            ],
+            [["middle", "figure"]],
+        );
+    });
+
     it("hides a disc drawn just inside a bigger disc, though its box's corners poke out", () => {
         // json-graphology-synth: n1 (r 28) touches n11 (r 121) from inside; n66 sits in n77's box corner and shows
         const disc = (cx: number, cy: number, r: number, near: number): DrawnNode => ({

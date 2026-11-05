@@ -5,6 +5,7 @@
  * the cells are laid out is left to whoever draws the label, which measures the text.
  */
 
+import { itemAt } from "../../common/text.js";
 import { htmlLabelSpans } from "../../styles/canon/text.js";
 import type { StyleValue } from "../../styles/types.js";
 
@@ -39,6 +40,11 @@ interface TableCell {
     padding?: number;
     /** A `<VR/>` before it: a rule between it and the cell on its left. */
     rule?: true;
+    /**
+     * `STYLE="invis"` (or `"invisible"`): the cell keeps its room but draws nothing, neither its fill, its border nor
+     * its content (Graphviz lib/common/htmltable.c `emit_html_cell` draws a cell only without `INVISIBLE`).
+     */
+    hidden?: true;
 }
 
 /** One row (`<TR>`). */
@@ -340,6 +346,7 @@ function readCell(
         ...(border === null ? {} : { border }),
         ...(padding === null ? {} : { padding }),
         ...fillField(r, attrs),
+        ...(invisible(attrs) ? { hidden: true as const } : {}),
     };
     // a table inside the cell, perhaps inside font tags
     const inner = openingTable(content);
@@ -361,6 +368,16 @@ function readCell(
         cell.lines = lines;
     }
     return cell;
+}
+
+/**
+ * Whether a cell's `STYLE` hides it: one of its comma-separated words is `invis` or `invisible` (Graphviz htmllex.c
+ * `stylefn`, case-insensitive).
+ * @param attrs - the cell tag's attributes
+ * @returns whether the cell is drawn invisible
+ */
+function invisible(attrs: ReadonlyMap<string, string>): boolean {
+    return (attrs.get("style") ?? "").split(/[\s,]+/).some((w) => /^invis(?:ible)?$/i.test(w));
 }
 
 /**
@@ -442,7 +459,7 @@ function cellLines(content: string, fonts: readonly string[], runFont: RunFont):
  * @param line - the line, changed in place
  */
 function trimLine(line: TableLine): void {
-    const first = line.runs[0];
+    const first = itemAt(line.runs, 0);
     if (first !== undefined) {
         first.text = String(first.text).trimStart();
     }

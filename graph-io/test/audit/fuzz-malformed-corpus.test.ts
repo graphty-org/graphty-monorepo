@@ -32,7 +32,7 @@ const CATEGORIES: ReadonlySet<IssueCategory> = new Set<IssueCategory>([
 ]);
 
 /** Malformed-corpus files that are well-formed for their format, with the reason they import. */
-const ACCEPTED: Readonly<Record<string, string>> = {
+const ACCEPTED: Readonly<Partial<Record<string, string>>> = {
     "csv/header-only.csv": "a header row and no records is an empty edge table (W_CSV_NO_DATA_ROWS)",
     "csv/wrong-delimiter.csv": "a `;`-delimited edge list; the delimiter sniff reads it",
     "cx2/duplicate-node-ids.cx2":

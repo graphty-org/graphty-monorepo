@@ -21,7 +21,7 @@
  * | `/v1/page/overview?range=1h\|6h\|24h`                   | {@link OverviewResponse}   |
  * | `/v1/page/<category page>?range=1h\|6h\|24h`            | {@link PageResponse}       |
  * | `/v1/page/costs?range=7d\|28d`                          | {@link PageResponse}       |
- * | `/v1/page/issues?range=28d\|all`                        | {@link PageResponse}       |
+ * | `/v1/page/issues?range=1h\|6h\|1d\|7d\|28d\|all`        | {@link PageResponse}       |
  * | `/v1/page/<page>/<section>?range=7d\|28d[&kind=...]`    | {@link SectionResponse}    |
  * | `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`    | {@link TestHistoryResponse}|
  * | `/v1/run/<run id>`                                      | {@link RunResponse}        |
@@ -36,8 +36,24 @@ export type Range = "1h" | "6h" | "24h";
 /** The slow measures' own choice (section 8): Costs, shard times and flake hotspots. */
 export type SlowRange = "7d" | "28d";
 
-/** The Issues page's history: the last 28 days by day, or every issue's history by week. */
-export type IssueRange = "28d" | "all";
+/**
+ * The Issues page's history: the last hour by 5 minutes, 6 hours by 15 minutes, day by hour, 7 days by 6 hours,
+ * 28 days by day, or every issue's history by week.
+ */
+export type IssueRange = "1h" | "6h" | "1d" | "7d" | "28d" | "all";
+
+/** A series chart's bucket size (Issues). */
+export type SeriesStep = "5m" | "15m" | "1h" | "6h" | "1d" | "1w";
+
+/** Each series step in milliseconds. */
+export const SERIES_STEP_MS: Record<SeriesStep, number> = {
+    "5m": 5 * 60_000,
+    "15m": 15 * 60_000,
+    "1h": 3_600_000,
+    "6h": 6 * 3_600_000,
+    "1d": 86_400_000,
+    "1w": 7 * 86_400_000,
+};
 
 /** The seven categories, in pipeline order (section 2.2). */
 export const CATEGORY_IDS = ["master", "pull-requests", "ci", "flaky", "releases", "costs", "data-sources"] as const;
@@ -69,10 +85,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string;
+export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string;
+export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];
@@ -579,13 +595,13 @@ export interface TreeNode {
 /**
  * Counts per time bucket (Issues): a stock as lines (`lines`) or as bands stacked up from zero (`area`), counts per
  * bucket stacked by kind (`stacked`), or a flow (`flow`): opened above a zero line, closed below it, and their
- * difference as a line. Buckets are UTC days (`1d`) or weeks from Monday (`1w`) from `start`; the last one is partial
+ * difference as a line. Buckets are `step` long (UTC-aligned; weeks from Monday) from `start`; the last one is partial
  * and ends at `generated`.
  */
 export interface SeriesSection extends SectionBase {
     kind: "series";
     chart: "lines" | "area" | "stacked" | "flow";
-    step: "1d" | "1w";
+    step: SeriesStep;
     /** The first bucket's start. */
     start: Iso;
     /**

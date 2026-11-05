@@ -8,6 +8,7 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { itemAt } from "../../src/common/text.js";
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
 import { readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
 
@@ -59,7 +60,7 @@ describe("DOT corpus facts: root.gv (1054 node statements, 1083 edge statements)
     ].map((m) => ({
         source: unquote(m[1]),
         target: unquote(m[2]),
-        attrs: attrsOf(m[3] ?? ""),
+        attrs: attrsOf(itemAt(m, 3) ?? ""),
     }));
 
     it("the raw file: a digraph named G_component_0 with 1054 distinct nodes and 1083 edges, no undeclared endpoint", () => {

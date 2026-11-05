@@ -57,9 +57,9 @@ type BfsLayoutOpts = Partial<BfsLayoutConfigType>;
  * BFS (Breadth-First Search) layout engine for tree-like graph visualization
  */
 export class BfsLayout extends SnapshotLayoutEngine {
-    static type = "bfs";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
+    static readonly type: string = "bfs";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: BfsLayoutConfigType;
 

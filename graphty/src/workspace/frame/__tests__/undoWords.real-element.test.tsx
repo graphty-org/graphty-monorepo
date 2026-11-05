@@ -8,9 +8,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
@@ -97,8 +96,10 @@ describe("Undo, Redo and Clear selection words", () => {
             assert.isAbove(session.selection.edges.length, 0);
         });
         const edges = session.selection.edges.length;
-        // A pick moves focus to the values; a click outside every control leaves it nowhere.
-        await userEvent.click(document.body);
+        // Focus leaves the find box for no control, as a click on bare page does. A real click
+        // here has no bare page to land on: the middle of the page is the drawing, where a click
+        // clears the selection itself and leaves no Selection cleared notice to read.
+        find.blur();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.equal(session.selection.size, 0);

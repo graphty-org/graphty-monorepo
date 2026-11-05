@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../common/text.js";
 import type { StyleArrowShape, StyleColor, StyleNodeShape } from "./types.js";
 
 /**
@@ -635,7 +636,8 @@ function arrowShape(raw: string | undefined): StyleArrowShape {
  * @returns the point, or null
  */
 function point(raw: string | undefined): AnnotationPoint | null {
-    const [x, y] = (raw ?? "").split(",").map((s) => num(s));
+    const xy = (raw ?? "").split(",").map((s) => num(s));
+    const [x, y] = [itemAt(xy, 0), itemAt(xy, 1)];
     return x === null || x === undefined || y === null || y === undefined ? null : { x, y };
 }
 

@@ -5,7 +5,8 @@
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
 //       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
 //       OIDC token; PICK_RULE "rolling" lets the ordering-only rule choose (early-capture.md 4e; otherwise it is only
-//       logged); writes run, sha, why, good, held, forward, today, rolling_sha and rolling_why to GITHUB_OUTPUT
+//       logged); writes run, sha, why, good, held, forward, current, today, rolling_sha and rolling_why to
+//       GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
@@ -116,7 +117,8 @@ export const LANES = {
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
  * @param o.rolling the ordering-only rule's inputs for a full slot (`{ on, tree, captures }`, see rollingPick), or
  *     null; with `on` false the rule's choice is only returned, never tested
- * @returns `{ run, sha, why, good, inherit, held, forward, today, rolling }`; inherit is the verdict the commit takes
+ * @returns `{ run, sha, why, good, inherit, held, forward, current, today, rolling }`; current is true when nightly
+ *   already holds everything the slot could test; inherit is the verdict the commit takes
  *   over, when it does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not
  *   answer); forward is the held commit when the tested head is past it; today is what today's rule chose and
  *   rolling the ordering rule's `{ sha, why }`
@@ -232,7 +234,17 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
     // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
     const p = preferred?.run ? preferred : slotOn(today, on);
     const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
-    return { ...p, why, today, rolling: rule };
+    return { ...pastNightly({ ...p, why }, head, on), today, rolling: rule };
+}
+
+// A promotion just before the slot (#5671): nightly's version merge is master's head, but its site is not recorded
+// yet, so the newest built commit is older than nightly. The slot tests master's head instead; when the head has
+// nothing past nightly to test either, nightly is current (output current) and the slot is no missed slot.
+function pastNightly(p, head, on) {
+    if (p.run || on.hasNightly(p.sha)) return p;
+    if (head === p.sha || !on.hasNightly(head)) return { ...p, current: true };
+    const tip = slotOn(head, on);
+    return { ...tip, why: `${p.why}; master's head ${short(head)} holds it: ${tip.why}`, current: !tip.run };
 }
 
 function slotOn(sha, { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
@@ -762,6 +774,8 @@ async function pickMain(env) {
         why: p.why,
         held: p.held ?? "",
         forward: p.forward ?? "",
+        // nightly already holds everything the slot could test (#5671): no missed slot
+        current: String(p.current === true),
         // the trial's comparison (early-capture.md 4e): what today's rule and the ordering rule chose
         today: p.today ?? "",
         rolling_sha: p.rolling?.sha ?? "",
@@ -777,6 +791,9 @@ async function rollingInputs(cfg, env) {
     return { on: env.PICK_RULE === "rolling", tree, captures: answer?.captures ?? null };
 }
 
+// The listing's `since` query parameter, or nothing.
+const sinceParam = (since) => (since ? `&since=${since}` : "");
+
 /**
  * The "Full run red" issues, newest first, as `{ number, title, state, closedAt }` (state OPEN or CLOSED). A plain
  * listing, not GitHub search, which indexes a new issue a while later: the verdict that follows a lane's early red
@@ -788,7 +805,7 @@ async function rollingInputs(cfg, env) {
 export const listRedIssues = (state = "open", since = "") =>
     sh("gh", [
         "api",
-        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${since ? `&since=${since}` : ""}`,
+        `repos/{owner}/{repo}/issues?state=${state}&labels=priority:critical&per_page=100${sinceParam(since)}`,
         "--jq",
         String.raw`.[] | select(.title | startswith("${RED_TITLE}")) | {number, title, state: (.state // "open" | ascii_upcase), createdAt: .created_at, closedAt: .closed_at, stateReason: .state_reason} | tojson`,
         // every page: an issue left open for weeks must not drop out of the listing
@@ -1039,37 +1056,58 @@ export function flakyFilings(stories, at, tail) {
 }
 
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
-function fileFlaky(name, body) {
-    const title = `${FLAKY_TITLE} ${name}`;
-    const open = sh("gh", [
-        "api",
-        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
-        "--jq",
-        `.[] | select(.title == ${JSON.stringify(title)}) | .number`,
-        "--paginate",
-    ]).split("\n")[0];
+function fileFlaky(name, body, open, run) {
     const file = join(tmpdir(), `full-run-flaky-${process.pid}.md`);
     writeFileSync(file, body);
-    if (open) return sh("gh", ["issue", "comment", open, "--body-file", file]);
+    if (open) return run("gh", ["issue", "comment", open, "--body-file", file]);
     const labels = ["bug", "priority:critical", "effort:medium"].flatMap((l) => ["--label", l]);
-    return sh("gh", ["issue", "create", "--title", title, ...labels, "--body-file", file]);
+    return run("gh", ["issue", "create", "--title", `${FLAKY_TITLE} ${name}`, ...labels, "--body-file", file]);
 }
 
-function fileFlakies(env, lanes, stories) {
+/**
+ * Files the flaky lanes and stories, each as a new issue or a comment on its open one. The open critical issues
+ * are read once, not once per filing: paging through them for each of 337 stories took 14 silent minutes (#4983).
+ * @param env the environment
+ * @param lanes the flaky lanes
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param run runs a command and returns its output
+ */
+export function fileFlakies(env, lanes, stories, run = sh) {
     const at = `on ${env.SHA} (${env.RUN_URL}, attempt ${env.RUN_ATTEMPT ?? 1})`;
     const tail = "It does not block nightly: this is a confirmation, not a quarantine. Find the mechanism and fix it.";
-    for (const l of lanes) {
-        const body = `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`;
-        bestEffort(
-            () => fileFlaky(LANES[l].name, body),
-            `filing the flaky ${LANES[l].name}`,
-            () => null,
-        );
+    const filings = [
+        ...lanes.map((l) => ({
+            name: LANES[l].name,
+            body: `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`,
+        })),
+        ...flakyFilings(stories, at, tail),
+    ];
+    if (!filings.length) return;
+    const listed = bestEffort(
+        () =>
+            run("gh", [
+                "api",
+                "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+                "--jq",
+                ".[] | [.number, .title] | @tsv",
+                "--paginate",
+            ]),
+        "reading the open critical issues",
+        () => null,
+    );
+    // without them a recurring flaky would be filed again as a duplicate: file nothing
+    if (listed === null) return;
+    const open = new Map();
+    for (const row of listed.split("\n").filter(Boolean)) {
+        const [n, title] = row.split("\t");
+        if (!open.has(title)) open.set(title, n);
     }
-    for (const { name, body } of flakyFilings(stories, at, tail)) {
+    for (const { name, body } of filings) {
+        const issue = open.get(`${FLAKY_TITLE} ${name}`);
+        console.log(issue ? `flaky: commenting on #${issue} (${name})` : `flaky: filing ${name}`);
         bestEffort(
-            () => fileFlaky(name, body),
-            `filing the flaky story ${name}`,
+            () => fileFlaky(name, body, issue, run),
+            `filing the flaky ${name}`,
             () => null,
         );
     }
@@ -1128,6 +1166,8 @@ export const heldLine = (held) =>
 
 async function verdictMain(env) {
     const cfg = config(env);
+    // one group per phase: a step that stops printing names the phase it stopped in
+    console.log("::group::verdict: judge the lanes and captures");
     const lanes = JSON.parse(env.LANES);
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
     const { changed, missing } = differingImages(env.CAPTURES, projects);
@@ -1143,6 +1183,8 @@ async function verdictMain(env) {
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
     const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
+    console.log("::endgroup::");
+    console.log("::group::verdict: red issue, bisect or close");
     if (wait) {
         console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
     } else if (state === "red") {
@@ -1156,11 +1198,15 @@ async function verdictMain(env) {
     }
     // a lane red on the attempt before and green now, and a story the re-capture found flaky: filed, not blocking
     const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
+    console.log("::endgroup::");
+    console.log("::group::verdict: flaky lanes and stories");
     if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
     if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
     // a failed pick judged no commit: recording red on one would make the next slot skip it. A deferred red is
     // recorded as deferred, which the pick ignores, until the re-run (or release-rerun.yml) decides
+    console.log("::endgroup::");
+    console.log("::group::verdict: record and hold");
     const recorded = wait ? DEFERRED : state;
     if (cfg && red[0] !== "pick")
         await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
@@ -1174,6 +1220,7 @@ async function verdictMain(env) {
     const hold =
         wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
     const owner = heldLine(env.VERSION_HELD);
+    console.log("::endgroup::");
     output({
         state,
         issue: issue ? String(issue) : "",

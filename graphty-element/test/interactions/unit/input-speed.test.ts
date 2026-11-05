@@ -14,7 +14,7 @@ import type { OrbitInputController } from "../../../src/cameras/OrbitInputContro
 import type { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
 import type { InputController } from "../../../src/cameras/TwoDInputController";
 import type { Graph } from "../../../src/Graph";
-import { holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
+import { holdKey, releaseHeldKeys, releaseKey, wheel } from "../../helpers/real-input";
 import { getCameraPosition, getSceneScale, setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
@@ -265,19 +265,37 @@ describe("Input Speed and Sensitivity", () => {
             assert.isBelow(distanceChange, initialDistance, "Zoom speed should not be excessively fast");
         });
 
-        test("mouse wheel zooms the camera in and out", () => {
+        test("mouse wheel zooms the camera in and out", async () => {
             const { cameraController } = get3DControllers(graph);
-            const wheel = (deltaY: number): boolean =>
-                graph.canvas.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true }));
+            const { canvas } = graph;
+            const center = { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
+            // Whether each real wheel event the canvas got was cancelled, read once it is handled.
+            const cancelled: boolean[] = [];
+            const onWheel = (event: WheelEvent): void => {
+                cancelled.push(event.defaultPrevented);
+            };
+            globalThis.addEventListener("wheel", onWheel);
+            const turn = async (deltaY: number): Promise<void> => {
+                const before = cancelled.length;
+                await wheel(canvas, center, deltaY);
+                await vi.waitFor(() => {
+                    assert.isAbove(cancelled.length, before, "the canvas got the wheel");
+                });
+            };
 
-            const start = cameraController.cameraDistance;
-            assert.isFalse(wheel(-100), "the wheel must not scroll the page");
-            const zoomedIn = cameraController.cameraDistance;
-            assert.isBelow(zoomedIn, start * 0.95, "wheel up should move the camera closer");
-            assert.isAbove(zoomedIn, start * 0.5, "one notch should not jump the camera");
+            try {
+                const start = cameraController.cameraDistance;
+                await turn(-100);
+                assert.isTrue(cancelled.at(-1), "the wheel must not scroll the page");
+                const zoomedIn = cameraController.cameraDistance;
+                assert.isBelow(zoomedIn, start * 0.95, "wheel up should move the camera closer");
+                assert.isAbove(zoomedIn, start * 0.5, "one notch should not jump the camera");
 
-            wheel(100);
-            assert.isAbove(cameraController.cameraDistance, zoomedIn, "wheel down should move the camera away");
+                await turn(100);
+                assert.isAbove(cameraController.cameraDistance, zoomedIn, "wheel down should move the camera away");
+            } finally {
+                globalThis.removeEventListener("wheel", onWheel);
+            }
         });
 
         test("keyboard rotation speed is within expected range", async () => {

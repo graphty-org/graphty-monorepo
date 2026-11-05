@@ -7,7 +7,7 @@ import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { act, cleanup, fireEvent, render, screen } from "../../../test/test-utils";
+import { cleanup, render, screen } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -77,10 +77,7 @@ async function rightClick(hit: Hit, motion: "on" | "still" = "on"): Promise<Retu
             </CanvasMenu>
         </WorkspaceContext.Provider>,
     );
-    await act(async () => {
-        fireEvent.contextMenu(screen.getByTestId("graph"), { clientX: 100, clientY: 100, button: 2 });
-        await Promise.resolve();
-    });
+    await userEvent.click(screen.getByTestId("graph"), { button: "right", position: { x: 100, y: 100 } });
     await screen.findByRole("menu");
     return apply;
 }

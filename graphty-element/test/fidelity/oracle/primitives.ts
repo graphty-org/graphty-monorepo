@@ -5,6 +5,8 @@
  * comparer (`compare-oracle.ts`) runs and is unit-tested in Node.
  */
 
+import { convexHull } from "../../../src/meshes/shapeOutlines";
+
 /** A point in a side's own pixel frame, y down. */
 export type Pt = [number, number];
 
@@ -137,6 +139,11 @@ export interface PText {
      * `xml:space="preserve"`), which part it from a run of the same line drawn beside it.
      */
     blank?: { before: boolean; after: boolean };
+    /**
+     * The oracle's side only: drawn as glyph outlines (`Prim.lettering`), so `lines` and `color` are what was drawn, but
+     * `content` is empty and `sizePx` only the rows' height: the words and the face are not known.
+     */
+    glyphs?: true;
 }
 
 /** A box drawn behind a label's words (Cytoscape.js `text-background-*`, `text-border-*`; graphty's label plane). */
@@ -162,6 +169,8 @@ export interface Prim {
     gradient?: PGradient;
     /** The outline sampled by arc length (shapes and paths), in the side's frame. */
     points: Pt[];
+    /** A curved outline with a dent (`dented`: Pajek's man) sampled finely, for its node's figure; absent otherwise. */
+    fine?: Pt[];
     closed: boolean;
     /** Polygon vertex count, when the shape is a straight-sided polygon; 0 when curved. */
     corners: number;
@@ -180,6 +189,8 @@ export interface Prim {
      * that are no arrowhead, band or body. Absent for everything else.
      */
     lettering?: true;
+    /** The fill of the panel a yFiles group lays over this, its tab. Absent for everything else. */
+    panel?: PFill;
     /** What the program's own markup says this belongs to, when it says. */
     hint: {
         role: "node" | "edge" | "group" | "graph";
@@ -242,6 +253,13 @@ export interface PNode {
      * later node is drawn in front of an earlier one).
      */
     order?: number;
+    /**
+     * A figure's own outline, where it is neither its box nor the ellipse its box holds (a shape with a dent: Pajek's
+     * man, woman and cross, a star): its edges, in halves of the node's width and height from its center, y down, so
+     * the node's place and size carry it. A line is cut, and a node judged hidden, at it (`insideFigure`). Absent for
+     * any other shape.
+     */
+    figure?: [Pt, Pt][];
 }
 
 /**
@@ -338,6 +356,11 @@ export interface PGroup {
     box: PBox;
     fill: PFill | null;
     stroke: PStroke | null;
+    /**
+     * The oracle's side only: the panel a yFiles group lays over its frame. This is the fill behind its members, and
+     * `fill` is then the band of the frame left showing round it. Absent for any other group.
+     */
+    panel?: PFill;
     label: PText | null;
     /** Node ids drawn inside it. */
     members: string[];
@@ -1101,6 +1124,10 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
     const [a0, a1] = [Math.min(...a), Math.max(...a)];
     const [c0, c1] = [Math.min(...c), Math.max(...c)];
     const [L, W] = [a1 - a0, c1 - c0];
+    // a line across the edge with no length of its own, as far as its coordinates' rounding (yEd's dash and t_shape)
+    if (W > 1e-9 && L < BAR_LENGTH * W) {
+        return "tee";
+    }
     if (!(L > 1e-9 && W > 1e-9)) {
         return "other";
     }
@@ -1218,6 +1245,9 @@ export function strokedBarb(outline: readonly Pt[]): boolean {
     return thickest <= STROKED_BARB * d;
 }
 
+/** The share of its width a head reaches along its line at most, to be a bar drawn as one line across it. */
+const BAR_LENGTH = 0.02;
+
 /**
  * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
  * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
@@ -1270,4 +1300,85 @@ function crossedDelta(outline: readonly Pt[], a: readonly number[], c: readonly 
         // an outlined delta drawn as a frame (an inner delta inside the outer one) reads as a notched one
         ["triangle", "vee"].includes(arrowShapeOf(front, dir))
     );
+}
+
+/** A closed outline's area under this share of its convex hull's has a dent a reader sees: a figure, not a box. */
+export const FIGURE_FILLS = 0.95;
+
+/** Twice the area a closed outline encloses (shoelace). */
+export const twiceArea = (ring: readonly (readonly [number, number])[]): number =>
+    Math.abs(
+        ring.reduce(
+            (s, [x0, y0], i) => s + x0 * ring[(i + 1) % ring.length][1] - ring[(i + 1) % ring.length][0] * y0,
+            0,
+        ),
+    );
+
+/**
+ * Whether a closed outline has a dent (Pajek's man, woman and cross, a star): its area under `FIGURE_FILLS` of its
+ * convex hull's. A shape with none is judged by its box or the ellipse in it.
+ * @param pts - the outline
+ * @returns true for a figure
+ */
+export function dented(pts: readonly (readonly [number, number])[]): boolean {
+    return pts.length >= 4 && twiceArea(pts) < FIGURE_FILLS * twiceArea(convexHull(pts));
+}
+
+/**
+ * A closed outline's edges in halves of a box from a center (a node's `figure`), when it has a dent (`dented`), else
+ * undefined.
+ * @param pts - the outline, in the side's pixels
+ * @param n - the node's center and size, in the same pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @returns the edges, or undefined
+ */
+export function figureOf(
+    pts: readonly Pt[],
+    n: { cx: number; cy: number; w: number; h: number },
+): [Pt, Pt][] | undefined {
+    if (!(n.w > 0 && n.h > 0) || !dented(pts)) {
+        return undefined;
+    }
+    const unit = pts.map(([x, y]): Pt => [(x - n.cx) / (n.w / 2), (y - n.cy) / (n.h / 2)]);
+    return unit.map((q, i): [Pt, Pt] => [q, unit[(i + 1) % unit.length]]);
+}
+
+/**
+ * Whether a point lies inside a node's figure (`PNode.figure`, even-odd), or within `slack` pixels of its outline.
+ * @param figure - the figure's edges, in halves of the node's size from its center
+ * @param n - the node's center and size, in the point's pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @param p - the point
+ * @param slack - how far outside the outline still counts as inside, in pixels
+ * @returns true when the point is inside
+ */
+export function insideFigure(
+    figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
+    n: { cx: number; cy: number; w: number; h: number },
+    [px, py]: Readonly<Pt>,
+    slack = 0,
+): boolean {
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    const edges = figure.map(([a, b]): [Pt, Pt] => [
+        [n.cx + a[0] * hw, n.cy + a[1] * hh],
+        [n.cx + b[0] * hw, n.cy + b[1] * hh],
+    ]);
+    let inside = false;
+    for (const [[x0, y0], [x1, y1]] of edges) {
+        if (y0 > py !== y1 > py && px < x0 + ((py - y0) * (x1 - x0)) / (y1 - y0)) {
+            inside = !inside;
+        }
+    }
+    const off = ([[x0, y0], [x1, y1]]: [Pt, Pt]): number => {
+        const [dx, dy] = [x1 - x0, y1 - y0];
+        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
+    };
+    return inside || (slack > 0 && edges.some((e) => off(e) <= slack));
 }

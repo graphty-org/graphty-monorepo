@@ -246,6 +246,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
+    "edge.fadeStart": "mesh",
+    "edge.fadeEnd": "mesh",
+    "edge.fadeOpacity": "mesh",
+    "edge.blending": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",
     "edge.waveAmplitude": "mesh",
@@ -364,6 +368,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelOffsetY": "content",
     "node.labelShiftX": "content",
     "node.labelShiftY": "content",
+    "node.labelShiftOf": "content",
     "edge.labelColor": "content",
     "edge.labelSize": "content",
     "edge.labelLetterSize": "content",
@@ -397,6 +402,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelOffsetY": "content",
     "edge.labelShiftX": "content",
     "edge.labelShiftY": "content",
+    "edge.labelShiftOf": "content",
     // A route is per edge by nature, like a label: keyed into the mesh it would mint one line batch
     // per edge. `Edge.syncContent` reads it on every paint instead.
     "edge.bends": "content",

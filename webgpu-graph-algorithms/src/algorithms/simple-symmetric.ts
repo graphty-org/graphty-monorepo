@@ -39,6 +39,7 @@ import { COO_PARAMS, FILL_PARAMS, kernelSpec } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { prepareCompact } from "../primitives/compact.js";
 import { prepareCooToCsr } from "../primitives/coo-to-csr.js";
+import { viewBinding } from "../primitives/core-shape.js";
 import { prepareRadixSort, type RadixBits, radixHistBytes } from "../primitives/radix-sort.js";
 import { prepareScan } from "../primitives/scan.js";
 import { prepareSegmentedReduce } from "../primitives/segmented-reduce.js";
@@ -238,7 +239,7 @@ export async function buildSimpleSymmetric(
     // the edge list, so it asks for rowPtr alone
     ctx.residency.core(s, ["rowPtr"]);
     const edges = ctx.residency.view(s, "edgeList");
-    const edgeWeights = edges.bindings.weights ?? null;
+    const edgeWeights = viewBinding(edges, "weights");
     const emitPlan = plan1d(arcs, wg, ctx.caps);
     const emit = new Map<boolean, Kernel>();
     for (const indexed of [false, true]) {

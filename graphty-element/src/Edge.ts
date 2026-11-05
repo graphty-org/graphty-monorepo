@@ -255,7 +255,7 @@ function taperOf(style: EdgeStyleConfig | null): number {
 
 /**
  * What a style asks the line to be drawn with beyond its plain look, as the key the line was
- * built for: a surface, a taper, or nothing.
+ * built for: a surface, a widened line (a taper or a fade), or nothing.
  * @param style - The resolved style.
  * @returns `"surface:<id>"`, `"taper"` or `"plain"`.
  */
@@ -265,7 +265,17 @@ function flavorOf(style: EdgeStyleConfig | null): string {
         return `surface:${surface}`;
     }
 
-    return taperOf(style) === 1 ? "plain" : "taper";
+    return widensLine(style) ? "taper" : "plain";
+}
+
+/**
+ * Whether a style's line is drawn from a widened batch without a surface: one whose slots carry a
+ * taper or the whole edge's length, which a fade reads.
+ * @param style - The resolved style.
+ * @returns True for a taper or a fade.
+ */
+function widensLine(style: EdgeStyleConfig | null): boolean {
+    return taperOf(style) !== 1 || EdgeMesh.fadeOf(style) !== undefined;
 }
 
 /**
@@ -558,7 +568,7 @@ export class Edge {
      */
     private lineWanted = "plain";
 
-    /** What the line was built with: the flavor asked for, or `"plain"` while a surface cannot draw. */
+    /** What the line was built with: the flavor asked for, or a lesser one while a surface cannot draw. */
     private lineBuilt = "plain";
 
     /**
@@ -2016,7 +2026,10 @@ export class Edge {
 
         this.lineWanted = flavorOf(style);
         this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
-        this.lineBuilt = this.lineBatch === null ? "plain" : this.lineWanted;
+        // A surface that cannot draw yet leaves a taper's or a fade's batch here, or nothing; which
+        // of them was built is what wakes the edge once the surface can.
+        const built = shaded(this.lineBatch) === null ? "taper" : this.lineWanted;
+        this.lineBuilt = this.lineBatch === null ? "plain" : built;
         this.lineBatch ??= EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             options,
@@ -2073,7 +2086,7 @@ export class Edge {
         if (surface !== null) {
             const drawing = EdgeShaderDrawing.of(scene, this.context.getSession?.());
             const is2D = EdgeMesh.drawsFlat(scene);
-            const opacity = style.line?.opacity ?? 1;
+            const opacity = EdgeMesh.opacityOf(style);
             const batch = drawing?.surfaceBatch(
                 this,
                 surface,
@@ -2084,6 +2097,8 @@ export class Edge {
                     worldWidth: is2D,
                     color: options.color,
                     opacity,
+                    fade: EdgeMesh.fadeOf(style),
+                    opaque: EdgeMesh.drawsOpaque(style),
                 },
             );
             if (batch) {
@@ -2092,7 +2107,7 @@ export class Edge {
         }
 
         const loop = this.srcNode === this.dstNode;
-        if (taperOf(style) === 1 || EdgeMesh.drawsAsPattern(style, loop)) {
+        if (!widensLine(style) || EdgeMesh.drawsAsPattern(style, loop)) {
             return null;
         }
 

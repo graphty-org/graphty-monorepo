@@ -214,7 +214,8 @@ export function refusedSave(
     if (note === undefined) {
         return null;
     }
-    const code = codes[note.code] ?? REFUSAL_CODES[note.code] ?? "E_UNSUPPORTED";
+    const own: Readonly<Partial<Record<string, RefusalCode>>> = codes;
+    const code = own[note.code] ?? REFUSAL_CODES[note.code] ?? "E_UNSUPPORTED";
     return new GraphFormatError(code, note.message, { code: note.code, column: note.column, count: note.count });
 }
 
@@ -222,7 +223,7 @@ export function refusedSave(
 type RefusalCode = "E_INVALID_ID" | "E_DIRECTED" | "E_COLUMN_TYPE" | "E_UNSUPPORTED";
 
 /** The error code a save throws for each shared refusal note. */
-const REFUSAL_CODES: Readonly<Record<string, RefusalCode>> = {
+const REFUSAL_CODES: Readonly<Partial<Record<string, RefusalCode>>> = {
     [ID_CHARSET_REFUSAL]: "E_INVALID_ID",
     [ID_TEXT_COLLISION_CODE]: "E_INVALID_ID",
     [MIXED_DIRECTION_CODE]: "E_DIRECTED",

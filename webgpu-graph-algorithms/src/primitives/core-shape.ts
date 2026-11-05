@@ -13,6 +13,17 @@ import { type ArcWindow, type Binding } from "../types/memory.js";
 /** The lanes one TIER 1 (mid-degree) row is folded by, in segmentedReduce and spmvPull alike (PD-6: bitwise the same on every subgroup size). */
 export const MID_TIER_LANES = 32;
 
+/**
+ * A view's binding of one array, or null when the view has none: the residency adds a key to a view's bindings only
+ * for an array the view carries (the edge list's weights only for a weighted snapshot).
+ * @param v - the view binding
+ * @param name - the binding name
+ * @returns the binding or null
+ */
+export function viewBinding(v: ViewBinding, name: string): Binding | null {
+    return name in v.bindings ? v.bindings[name] : null;
+}
+
 /** The degree tiers of degreeOrder(): the permutation binding and the CPU-side segmentOffsets [0, hiEnd, midEnd, lowEnd, n]. */
 export interface DegreeTiers {
     readonly perm: Binding;
@@ -27,15 +38,15 @@ export interface DegreeTiers {
  * ascending numbers ending at the row count (4 bytes per row of the perm binding)
  */
 export function degreeTiersOf(view: ViewBinding): DegreeTiers {
-    const { perm }: { readonly perm?: Binding | undefined } = view.bindings;
-    if (perm === undefined) {
+    const perm = viewBinding(view, "perm");
+    if (perm === null) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `the ${view.view} view has no perm binding`, {
             argument: "view",
             value: view.view,
             expected: "a view with a perm binding (degreeOrder, reverseDegreeOrder)",
         });
     }
-    const so: readonly number[] | undefined = view.scalars.segmentOffsets;
+    const so = "segmentOffsets" in view.scalars ? view.scalars.segmentOffsets : undefined;
     const ascending =
         so?.length === 5 &&
         so[0] === 0 &&
@@ -173,6 +184,15 @@ export function assertWholeCore(core: CoreBinding, arcCount: number, limit: numb
 }
 
 /**
+ * A binding, or null for a zero-size one.
+ * @param b - the binding or null
+ * @returns b when it binds at least one byte, else null
+ */
+function nonEmpty(b: Binding | null): Binding | null {
+    return b !== null && b.size > 0 ? b : null;
+}
+
+/**
  * The CoreBinding shape of a residency VIEW (spec 4.3). residency.view() returns a ViewBinding -- a name -> Binding
  * record -- while graphBindings / graphOverrides and every core-walking primitive read rowPtr / colIdx / weights as
  * top-level fields (src/kernels.ts graphBindings / graphOverrides). This is the only adapter between the two in the
@@ -188,8 +208,8 @@ export function assertWholeCore(core: CoreBinding, arcCount: number, limit: numb
  * @returns the equivalent CoreBinding
  */
 export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
-    const { rowPtr }: { readonly rowPtr?: Binding | undefined } = v.bindings;
-    if (rowPtr === undefined) {
+    const rowPtr = viewBinding(v, "rowPtr");
+    if (rowPtr === null) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `the ${v.view} view has no rowPtr binding`, {
             argument: "view",
             value: v.view,
@@ -198,8 +218,8 @@ export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
     }
     // an arc-less DIRECTED snapshot's reverse view uploads zero-byte arc arrays; the core spells "no arcs" as null
     // (graphBindings then binds the rowPtr dummy), and a zero-size binding is never bound (spec 3.6)
-    const colIdx = v.bindings.colIdx === undefined || v.bindings.colIdx.size === 0 ? null : v.bindings.colIdx;
-    const weights = v.bindings.weights === undefined || v.bindings.weights.size === 0 ? null : v.bindings.weights;
+    const colIdx = nonEmpty(viewBinding(v, "colIdx"));
+    const weights = nonEmpty(viewBinding(v, "weights"));
     const bound = colIdx === null ? 0 : colIdx.size / 4;
     if (bound !== arcCount) {
         throw new WebGpuGraphError(

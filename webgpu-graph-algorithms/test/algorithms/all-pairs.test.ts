@@ -156,9 +156,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
                     // oracle suite checks the two orders agree on integer weights). Sweeping it again was 12.9 s of
                     // grid30/integer's 18.6 s on lavapipe with coverage, and checked nothing new.
                     const exact =
-                        s.weights !== null &&
-                        s.weights.every(Number.isInteger) &&
-                        blocked.every((x) => x === Infinity || x < 2 ** 24);
+                        s.weights.every(Number.isInteger) && blocked.every((x) => x === Infinity || x < 2 ** 24);
                     const f64 = exact ? blocked : floydWarshallOracle(s, { weighted: true, precision: "f64" });
                     const spread = relSpread(first.dist, f64);
                     console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);

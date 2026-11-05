@@ -29,8 +29,10 @@ runs:
           # Browsers other than Chromium alone add their names, so Chromium's own key is unchanged.
           run: echo "key=playwright-debs-${ImageOS:?}-${ImageVersion:?}-$(pnpm exec playwright --version | awk '{print $2}')$([ "$BROWSERS" = chromium ] || echo "-${BROWSERS// /-}")" >> "$GITHUB_OUTPUT"
 
+        # Restore only: the save below runs on master and the full run, so a pull request reuses master's
+        # .deb files and never stores its own copy in its own cache scope (#3591).
         - id: cache
-          uses: actions/cache@v6
+          uses: actions/cache/restore@v6
           with:
               path: ~/.cache/playwright-debs
               key: ${{ steps.key.outputs.key }}
@@ -41,3 +43,9 @@ runs:
               HIT: ${{ steps.cache.outputs.cache-hit }}
               BROWSERS: ${{ inputs.browsers }}
           run: '"$GITHUB_ACTION_PATH/install.sh"'
+
+        - if: steps.cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+          uses: actions/cache/save@v6
+          with:
+              path: ~/.cache/playwright-debs
+              key: ${{ steps.key.outputs.key }}

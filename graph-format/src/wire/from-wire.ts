@@ -344,16 +344,17 @@ export function resolveFromWireOptions(
     options: FromWireOptions | undefined,
     defaultLevel: ValidationLevel,
 ): ResolvedFromWireOptions {
-    const level = options?.validate ?? defaultLevel;
+    // strings, not the option types: a JavaScript caller may pass any value
+    const level: string = options?.validate ?? defaultLevel;
     if (level !== "none" && level !== "structure" && level !== "full") {
-        throw new GraphFormatError("E_UNSUPPORTED", `unknown validation level ${String(level)}`, {
+        throw new GraphFormatError("E_UNSUPPORTED", `unknown validation level ${level}`, {
             option: "validate",
             found: level,
         });
     }
-    const unknownColumns = options?.unknownColumns ?? "error";
+    const unknownColumns: string = options?.unknownColumns ?? "error";
     if (unknownColumns !== "error" && unknownColumns !== "skip") {
-        throw new GraphFormatError("E_UNSUPPORTED", `unknown unknownColumns policy ${String(unknownColumns)}`, {
+        throw new GraphFormatError("E_UNSUPPORTED", `unknown unknownColumns policy ${unknownColumns}`, {
             option: "unknownColumns",
             found: unknownColumns,
         });

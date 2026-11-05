@@ -6,7 +6,7 @@
 #
 #   ./tools/commit-changes.sh --dry-run     # read the plan; STAGES NOTHING
 #   ./tools/commit-changes.sh               # make the commits
-#   ./tools/commit-changes.sh --check       # run prepush:fast first, abort if it fails
+#   ./tools/commit-changes.sh --check       # validate every message against commitlint, then stop
 #
 # WHY THIS SCRIPT EXISTS, and why it does not use `git commit -m`.
 #
@@ -23,9 +23,7 @@
 # Every commit is GPG-signed. The script refuses to run unless commit.gpgsign is true,
 # and it never disables signing.
 #
-# It does NOT push. Pushing stays a separate, deliberate step -- and the pre-push
-# hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
-# validation then.
+# It does NOT push. Pushing stays a separate, deliberate step (tools/pr-open.sh).
 #
 # The plan below is tailored to one specific change set, the last one landed with
 # it. It is data, not machinery -- STEPS, SUBJECTS, PATHS and one body_* function
@@ -1035,6 +1033,5 @@ echo
 echo "Not pushed. Next:"
 echo "  git push origin $BRANCH"
 echo
-echo "The pre-push hook runs tools/prepush.sh -- lint, knip, build and the fast tests"
-echo "across every package, not just the ones touched here. Expect a few minutes."
+echo "Before the pull request, run pnpm run check:quick (tools/check-quick.sh)."
 exit "$STALE"

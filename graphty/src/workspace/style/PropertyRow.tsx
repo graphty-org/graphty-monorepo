@@ -1,5 +1,5 @@
 import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
-import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Text, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
@@ -467,6 +467,10 @@ interface FieldProps {
     readonly pending?: boolean;
     /** Takes a property added with "+" away again before any row sets it. */
     readonly onCancel?: () => void;
+    /** A style's own "+", beside its name, that adds the style's settings under its row. */
+    readonly settings?: React.ReactNode;
+    /** The property is a setting drawn under its style's row, indented under it. */
+    readonly setting?: boolean;
 }
 
 /** The workspace store. */
@@ -623,6 +627,9 @@ function removeField(remove: RemoveField): void {
     const { session } = ctx;
     const { own, partly } = lines;
     const fail = failureOf(store, channel);
+    // A style goes with its settings (graphty-element's `modifies`): no setting stays behind
+    // meaning nothing.
+    const settings = channelsFor(ctx.side).flatMap((d) => (d.modifies === channel ? [d.channel] : []));
     store.set({ announcement: `${name} removed` });
     // Focus goes to the section's "+", never onto the line that slides up into this one's place.
     if (box.current?.contains(document.activeElement) === true) {
@@ -630,8 +637,10 @@ function removeField(remove: RemoveField): void {
     }
     // A property "+" added is no longer waiting, set or not.
     onCancel?.();
-    if (ctx.many !== undefined && (own !== undefined || partly !== undefined)) {
-        ctx.many.clear(channel).catch(fail);
+    const { many } = ctx;
+    if (many !== undefined && (own !== undefined || partly !== undefined)) {
+        const held = settings.filter((each) => many.count(each) > 0);
+        held.reduce((done, each) => done.then(() => many.clear(each)), many.clear(channel)).catch(fail);
         return;
     }
     // Added with "+" and set on no row yet: nothing to write.
@@ -645,7 +654,10 @@ function removeField(remove: RemoveField): void {
             async (tx) => {
                 const layer = tx.styles.get(own.layer.id);
                 if (layer !== undefined) {
-                    await removeLine(tx, layer, channel);
+                    const held = settings.filter(
+                        (each) => layer.set?.[each] !== undefined || layer.encode?.[each] !== undefined,
+                    );
+                    await removeLine(tx, layer, channel, ...held);
                 }
             },
         )
@@ -1125,6 +1137,68 @@ function fieldBreakdown(ctx: RowContext, channel: Channel, word: string, lines: 
     return breakdownWords(word, many.breakdown(channel), spread !== undefined);
 }
 
+/** Props for FieldCaptions. */
+interface FieldCaptionsProps {
+    ctx: RowContext;
+    channel: Channel;
+    own: FieldLines["own"];
+    pending: boolean;
+    over: PaintedOver | undefined;
+    label: string;
+    breakdown: string;
+}
+
+/**
+ * The captions under a property row: what covers it, a value the element draws nothing for, the
+ * first value of a selection with no layer yet, and how several rows set it.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.channel - the property
+ * @param props.own - the row's own line
+ * @param props.pending - just added with "+", waiting for a value
+ * @param props.over - what a layer above covers
+ * @param props.label - the name drawn in the label column
+ * @param props.breakdown - how several rows set it, or empty
+ * @returns the captions
+ */
+function FieldCaptions({
+    ctx,
+    channel,
+    own,
+    pending,
+    over,
+    label,
+    breakdown,
+}: Readonly<FieldCaptionsProps>): React.JSX.Element {
+    const { session } = ctx;
+    // Just added on a selection with no layer yet: the value drawn is not set, and the first one
+    // picked makes the layer.
+    const firstValue =
+        pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
+    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
+    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
+    return (
+        <>
+            {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {undrawn === undefined ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
+                    {UNDRAWN_WORDS[undrawn]}
+                </Text>
+            )}
+            {firstValue ? (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
+                    {firstValueWords(label)}
+                </Text>
+            ) : null}
+            {breakdown === "" ? null : (
+                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
+                    {breakdown}
+                </Text>
+            )}
+        </>
+    );
+}
+
 /**
  * One property this layer sets (the owner's style panel design, 2026-10-13): its name, its value,
  * the vary glyph, and a minus that removes it so the layers beneath show through. A property the
@@ -1138,6 +1212,8 @@ function fieldBreakdown(ctx: RowContext, channel: Channel, word: string, lines: 
  * @param props.word - the name drawn in the label column, when not the property's own
  * @param props.pending - just added with "+", waiting for a value
  * @param props.onCancel - takes a just-added property away again
+ * @param props.settings - a style's own "+" beside its name, adding its settings
+ * @param props.setting - drawn as a setting under its style's row
  * @returns The row, or nothing when the layer does not set the property
  */
 export function Field({
@@ -1146,6 +1222,8 @@ export function Field({
     word,
     pending = false,
     onCancel,
+    settings,
+    setting = false,
 }: Readonly<FieldProps>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const box = useRef<HTMLDivElement>(null);
@@ -1250,18 +1328,13 @@ export function Field({
     const breakdown = fieldBreakdown(ctx, channel, label, lines, pending);
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
-    // Just added on a selection with no layer yet: the value drawn is not set, and the first one
-    // picked makes the layer.
-    const firstValue =
-        pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
-    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
-    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
         <div
             ref={box}
             className="ws-row"
             data-line={channel}
             data-set=""
+            data-setting={setting ? "" : undefined}
             data-accepts={descriptor.accepts}
             data-bound={own?.binding === undefined ? undefined : ""}
             data-covered={over === undefined ? undefined : ""}
@@ -1276,6 +1349,7 @@ export function Field({
                     <span className="ws-field-name" title={label} aria-hidden>
                         {label}
                     </span>
+                    {settings}
                 </span>
                 <div className="ws-field-control">{control}</div>
                 <span className="ws-slot ws-vary">{varySlot}</span>
@@ -1287,22 +1361,15 @@ export function Field({
                     </Tooltip>
                 </span>
             </div>
-            {over === undefined ? null : <CoveredLine session={session} over={over} />}
-            {undrawn === undefined ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
-                    {UNDRAWN_WORDS[undrawn]}
-                </Text>
-            )}
-            {firstValue ? (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
-                    {firstValueWords(label)}
-                </Text>
-            ) : null}
-            {breakdown === "" ? null : (
-                <Text className="ws-field-covered ws-bulk-words" data-breakdown>
-                    {breakdown}
-                </Text>
-            )}
+            <FieldCaptions
+                ctx={ctx}
+                channel={channel}
+                own={own}
+                pending={pending}
+                over={over}
+                label={label}
+                breakdown={breakdown}
+            />
             {pendingVary === null ? null : (
                 <BulkBinding
                     session={session}

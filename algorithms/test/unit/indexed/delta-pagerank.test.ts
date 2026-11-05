@@ -1,4 +1,4 @@
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { type F64, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { DeltaPageRank, deltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
@@ -7,7 +7,7 @@ import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId } from "../../helpers/legacy-types.js";
+import type { NodeId, PageRankResult } from "../../helpers/legacy-types.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, gnm } from "./port-fixtures.js";
 
@@ -77,7 +77,7 @@ function toMap(s: GraphSnapshot, scores: ArrayLike<number>): Map<NodeId, number>
 }
 
 /** A per-index vector from a legacy id-keyed Map, `fill` where the Map has no entry. */
-function toVector(s: GraphSnapshot, map: Map<NodeId, number>, fill: number): Float64Array {
+function toVector(s: GraphSnapshot, map: Map<NodeId, number>, fill: number): F64 {
     const out = new Float64Array(s.nodeCount).fill(fill);
     for (const [id, value] of map) {
         out[s.ids.indexOf(id)] = value;
@@ -174,8 +174,8 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b");
         const s = snapshotOf(g);
-        expect(() => deltaPageRank(s, { personalization: [1] })).toThrow(RangeError);
-        expect(() => deltaPageRank(s, { initialRanks: [1, 2, 3] })).toThrow(RangeError);
+        expect(() => deltaPageRank(s, { personalization: Float64Array.of(1) })).toThrow(RangeError);
+        expect(() => deltaPageRank(s, { initialRanks: Float64Array.of(1, 2, 3) })).toThrow(RangeError);
     });
 
     it("rejects a per-arc weights override whose length is not the arc count", () => {
@@ -183,7 +183,7 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
         g.addEdge("a", "b");
         g.addEdge("b", "c");
         const s = snapshotOf(g);
-        const weights = [1];
+        const weights = Float64Array.of(1);
         expect(() => deltaPageRank(s, { weighted: true, weights })).toThrow(RangeError);
         expect(() => new DeltaPageRank(s, { weights })).toThrow(RangeError);
         expect(() => new PriorityDeltaPageRank(s, { weights })).toThrow(RangeError);
@@ -337,7 +337,7 @@ describe("indexed.PriorityDeltaPageRank", () => {
         const power = pageRank(s, { tolerance: 1e-14, maxIterations: 10_000 });
         expect(power.converged).toBe(true);
         let relaxations = 0;
-        const weights = new Proxy(new Array<number>(s.arcCount).fill(1), {
+        const weights = new Proxy(new Float64Array(s.arcCount).fill(1), {
             get(target, key): unknown {
                 if (typeof key === "string" && /^\d+$/.test(key)) {
                     relaxations++;

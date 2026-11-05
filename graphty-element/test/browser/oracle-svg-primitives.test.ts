@@ -3,13 +3,15 @@
  * programs write: a label outline Cytoscape.js strokes as its own unfilled text before the filled
  * label is not a label of its own, so the label's color is the filled text's; a gradient's direction
  * on screen through its own transform and its element's; a stroke painted with a gradient; a dash
- * array under a round cap; a band drawn as a fill read subpath by subpath.
+ * array under a round cap; a band drawn as a fill read subpath by subpath; yEd's and yEd Live's markup: what a `<use>`
+ * draws, base64 broken by `&#10;`, a fill with nothing inside, a group's inner panel.
  */
 import { assert, describe, it } from "vitest";
 
 import { associate, shapeOf } from "../fidelity/oracle/associate";
+import type { Pixels } from "../fidelity/oracle/picture-gradient";
 import type { PScene } from "../fidelity/oracle/primitives";
-import { readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
+import { embeddedPngs, readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
 
 describe("the oracle SVG reader", () => {
     it("reads an outlined label as its filled text, not its unfilled outline", () => {
@@ -327,5 +329,115 @@ describe("the oracle SVG reader", () => {
         </svg>`;
         const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text.content] : []));
         assert.deepEqual(texts, ["Label"]);
+    });
+
+    it("reads what a <use> draws through its transform, once, and not its definition", () => {
+        // yEd Live's arrowhead: one path in <defs>, pointing at 0, 0, turned and placed by each <use>
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100">
+            <g transform="translate(10 10)">
+                <use transform="matrix(-1 0 0 -1 100 50)" xlink:href="#head"/>
+            </g>
+            <defs><path id="head" fill="rgb(80,80,80)" stroke="rgb(80,80,80)" d="M 8,-3 L 0,0 L 8,3 Z"/></defs>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.deepEqual(
+            prims.map((p) => [p.kind, p.box, p.fill?.color]),
+            [["shape", { x0: 102, y0: 57, x1: 110, y1: 63 }, "#505050"]],
+        );
+    });
+
+    it("reads an open stroke a <use> stamps as a shape that encloses nothing, not a line", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <defs><path id="open" fill="none" stroke="rgb(80,80,80)" d="M 8,-3 L 0,0 L 8,3"/></defs>
+            <use transform="translate(50 50)" href="#open"/>
+        </svg>`;
+        const [p] = readSvgPrimitives(svg).prims;
+        assert.strictEqual(p.kind, "shape");
+        assert.deepEqual(p.points, [
+            [58, 47],
+            [50, 50],
+            [58, 53],
+            [50, 50],
+            [58, 47],
+        ]);
+    });
+
+    it("reads a <use> of a <symbol> at its own size, a <use> of a <use>, and leaves one naming nothing out", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <defs>
+                <symbol id="s" viewBox="0 0 10 10"><rect width="10" height="10" fill="rgb(1,2,3)"/></symbol>
+                <rect id="r" width="4" height="4" fill="rgb(4,5,6)"/>
+                <use id="u" href="#r" x="1" y="1"/>
+            </defs>
+            <use href="#s" x="20" y="30" width="40" height="40"/>
+            <use href="#u" x="100" y="50"/>
+            <use href="#none"/>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.fill?.color, p.box]),
+            [
+                ["#010203", { x0: 20, y0: 30, x1: 60, y1: 70 }],
+                ["#040506", { x0: 101, y0: 51, x1: 105, y1: 55 }],
+            ],
+        );
+    });
+
+    it("finds a picture written across lines with &#10; under the address the page reads back", () => {
+        // yEd breaks its base64 every 76 characters with the entity
+        const href = "data:image/png;base64,iVBOR&#10;w0KGgo=";
+        const unbroken = "data:image/png;base64,iVBORw0KGgo=";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><image width="20" height="20" href="${href}"/></svg>`;
+        assert.deepEqual([...embeddedPngs(svg)], [unbroken]);
+        const white: Pixels = { width: 1, height: 1, data: new Uint8ClampedArray([255, 255, 255, 255]) };
+        const seen: string[] = [];
+        const pictures = new Map([[unbroken, white]]);
+        const get = pictures.get.bind(pictures);
+        pictures.get = (key) => {
+            seen.push(key);
+            return get(key);
+        };
+        readSvgPrimitives(svg, pictures);
+        assert.deepEqual(seen, [unbroken]);
+    });
+
+    it("drops a fill with nothing inside, and keeps the stroke after it next to its line", () => {
+        // yEd's dash arrowhead: a line there and back, filled and then stroked; Z closes each subpath
+        const bar = "M60 40 L60 49 Z";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <path fill="none" stroke="black" d="M10 45 L60 45"/>
+            <path fill="black" stroke="none" d="${bar}"/>
+            <path fill="none" stroke="red" d="${bar}"/>
+            <path fill="black" stroke="none" d="M80 40 L90 40 L90 50 Z"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.deepEqual(
+            prims.map((p) => [p.index, p.stroke?.color ?? null, p.fill?.color ?? null]),
+            [
+                [0, "#000000", null],
+                [1, "#ff0000", null],
+                [2, null, "#000000"],
+            ],
+        );
+    });
+
+    it("reads a yFiles group's inner panel as part of its frame, and as the group where it has no frame", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g class="y-group-node">
+                <path class="yfiles-group-node-tab" fill="rgb(200,200,200)" d="M 0 0H 80V 60H 0z"/>
+                <path class="yfiles-group-node-content" fill="rgb(255,255,255)" d="M 4 20H 76V 56H 4z"/>
+                <path class="yfiles-group-node-stroke" fill="none" stroke="rgb(80,80,80)" d="M 0 0H 80V 60H 0z"/>
+            </g>
+            <g class="y-group-node">
+                <path class="yfiles-group-node-content" fill="rgb(255,255,255)" d="M 104 20H 176V 56H 104z"/>
+            </g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.fill?.color, p.panel?.color, p.box.x0, p.box.x1]),
+            [
+                ["#c8c8c8", "#ffffff", 0, 80],
+                [undefined, "#ffffff", 0, 80],
+                ["#ffffff", undefined, 104, 176],
+            ],
+        );
     });
 });

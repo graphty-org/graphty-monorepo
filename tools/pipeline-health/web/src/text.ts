@@ -31,7 +31,7 @@ export const REPO = "https://github.com/graphty-org/graphty-monorepo";
  * @returns The text with every HTML special character escaped.
  */
 export function esc(s: unknown): string {
-    return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    return String(s).replaceAll(/[&<>"']/g, (c) => `&#${c.codePointAt(0) ?? 0};`);
 }
 
 /**
@@ -290,7 +290,7 @@ export const shaLink = (sha: string): string =>
  * @returns The phrases joined in a sentence.
  */
 export function and(items: string[]): string {
-    return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+    return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }
 
 // ---------------------------------------------------------------- states
@@ -720,7 +720,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before, by more than one step of the timer's resolution. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
         red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {
@@ -1085,6 +1085,18 @@ type P = Record<string, Param>;
 const num = (p: P, k: string): number => Number(p[k] ?? 0);
 const str = (p: P, k: string): string => esc(p[k] ?? "");
 const arr = (p: P, k: string): (string | number)[] => (Array.isArray(p[k]) ? [...(p[k] as (string | number)[])] : []);
+/**
+ * A workflow error's fix: "; fix #N", and how long it waits on the owner when it does; empty with no fix.
+ * @param p The fact's parameters, with `fix` and `waits_owner_s`.
+ * @returns The words.
+ */
+function workflowFix(p: P): string {
+    if (!p.fix) {
+        return "";
+    }
+    const wait = p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : "";
+    return `; fix ${prLink(num(p, "fix"))}${wait}`;
+}
 const at = (p: P, k: string): string => (typeof p[k] === "string" ? fmtTime(p[k]) : "");
 const plural = (n: number, one: string, many = `${one}s`): string => `${fmtN(n)} ${n === 1 ? one : many}`;
 
@@ -1249,12 +1261,7 @@ const S: Record<string, (p: P) => string> = {
         `cancelled together at ${at(p, "at")} to free runners; the run's cancel actor is a person`,
     "cause.signature": (p) => `"${str(p, "signature")}"`,
     "cause.unknown": () => "cause not recorded",
-    "cause.workflow_error": (p) =>
-        `workflow error: ${str(p, "detail")}${
-            p.fix
-                ? `; fix ${prLink(num(p, "fix"))}${p.waits_owner_s ? ` waits on the owner (code owners), ${fmtDur(num(p, "waits_owner_s"))}` : ""}`
-                : ""
-        }`,
+    "cause.workflow_error": (p) => `workflow error: ${str(p, "detail")}${workflowFix(p)}`,
     "check.family": (p) => `family of ${fmtN(num(p, "bins"))} bins`,
     "check.failed_alone": () => "failed alone",
     suspect: (p) => `${prLink(num(p, "pr"))} ${str(p, "title")}`,
@@ -1407,11 +1414,18 @@ function netText(n: number): string {
 }
 
 /**
- * The span an Issues count covers: the last 28 days, or every issue's history.
+ * The span an Issues count covers: the last hour to 28 days, or every issue's history.
  * @param p The fact's parameters, with `range`.
  * @returns The words.
  */
-const issueSpan = (p: P): string => (p.range === "all" ? "since the first issue" : "over the last 28 days");
+const issueSpan = (p: P): string => ISSUE_SPANS[String(p.range)] ?? "over the last 28 days";
+const ISSUE_SPANS: Record<string, string> = {
+    "1h": "over the last hour",
+    "6h": "over the last 6 hours",
+    "1d": "over the last day",
+    "7d": "over the last 7 days",
+    all: "since the first issue",
+};
 
 /**
  * The words for a fact; an unknown code is drawn as its code and parameters, never dropped.
@@ -1492,7 +1506,7 @@ export function dayMeasure(w: Member["window"]): string {
  * @param html HTML that may hold links.
  * @returns The HTML without its anchor tags.
  */
-export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");
+export const unlinked = (html: string): string => html.replaceAll(/<a\b[^>]*>|<\/a>/g, "");
 
 /**
  * A member in a sentence: "runner wait p90 31 min", or its short fact.

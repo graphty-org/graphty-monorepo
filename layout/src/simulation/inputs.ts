@@ -39,7 +39,7 @@ function numericValues(s: GraphSnapshot, name: string, column: Column): F32 {
  * @returns n values
  */
 export function resolveNodeVector(
-    spec: F32 | string | Readonly<Record<NodeId, number>> | null | undefined,
+    spec: F32 | string | Readonly<Partial<Record<NodeId, number>>> | null | undefined,
     s: GraphSnapshot,
     fallback: (i: number) => number,
 ): F32 {

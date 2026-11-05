@@ -5,7 +5,7 @@ import { kruskalMST, primMST, type PrimResult } from "../../../src/indexed/mst.j
 import { exactArcWeights } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { Edge } from "../../helpers/legacy-types.js";
+import type { Edge, MSTResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 

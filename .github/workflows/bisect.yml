@@ -1,6 +1,6 @@
 # .github/workflows/bisect.yml -- finds the merge that turned a full run red (design/ci/channels-pipeline/channels.md
 # section 6). release.yml dispatches it once per red full run with the last green full-run commit (`good`), the red
-# one (`bad`), the lane that failed and its failing tests. The rules are tools/bisect-core.mjs's (verify.mjs's); the
+# one (`bad`), the lane that failed and its failing tests. The rules are tools/bisect-core.mjs's; the
 # state between rounds is tools/bisect-ci.mjs's.
 #
 # One run is one round. The first confirms: only the failing test files, 5 runs on the red commit (2 for the LLM

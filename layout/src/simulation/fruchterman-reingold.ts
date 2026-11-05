@@ -154,7 +154,8 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
      * @param options - design 9.3 FruchtermanReingoldOptions (every field optional)
      */
     constructor(options: FruchtermanReingoldOptions = {}) {
-        const dim = options.dim ?? FA2_DEFAULTS.dim;
+        // a number and a string, not the option types: a JavaScript caller may pass any value
+        const dim: number = options.dim ?? FA2_DEFAULTS.dim;
         if (dim !== 2 && dim !== 3) {
             throw new RangeError(`FruchtermanReingoldSimulation: dim must be 2 or 3, got ${String(dim)}`);
         }
@@ -179,10 +180,10 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             }
             this.kOption = k;
         }
-        const cooling = options.cooling ?? "linear";
+        const cooling: string = options.cooling ?? "linear";
         if (cooling !== "linear" && cooling !== "adaptive") {
             throw new RangeError(
-                `FruchtermanReingoldSimulation: cooling must be "linear" or "adaptive", got ${String(cooling)}`,
+                `FruchtermanReingoldSimulation: cooling must be "linear" or "adaptive", got ${cooling}`,
             );
         }
         this.adaptive = cooling === "adaptive";

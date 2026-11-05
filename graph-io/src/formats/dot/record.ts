@@ -5,6 +5,8 @@
  * widths, which the specimen sheets pin; another font is measured as if it were DejaVu Sans.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /** One field of a record: its text lines (a leaf) or its sub-fields, laid left to right (`lr`) or top to bottom. */
 interface Field {
     lines: RecordLine[] | null;
@@ -83,7 +85,7 @@ function splitLines(text: string): RecordLine[] {
     let i = 0;
     while (i < text.length) {
         const c = text[i];
-        const next = text[i + 1];
+        const next = itemAt(text, i + 1);
         if (c === "\\" && (next === "n" || next === "l" || next === "r")) {
             lines.push({ text: line, justify: next === "n" ? "c" : next });
             line = "";

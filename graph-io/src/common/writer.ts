@@ -119,12 +119,12 @@ export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStr
     const iterator = chunks[Symbol.asyncIterator]();
     return new ReadableStream<Uint8Array>({
         async pull(controller): Promise<void> {
-            const { done, value } = await iterator.next();
-            if (done) {
+            const step: IteratorResult<Uint8Array, unknown> = await iterator.next();
+            if (step.done) {
                 controller.close();
                 return;
             }
-            controller.enqueue(value);
+            controller.enqueue(step.value);
         },
         async cancel(): Promise<void> {
             await iterator.return?.(undefined);

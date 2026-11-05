@@ -67,7 +67,9 @@ async function get<T>(path: string, fixture: string): Promise<T> {
     }
     let res: Response;
     try {
-        res = await fetch(`${API}${path}`, { headers: { accept: "application/json" } });
+        // no-cache: always ask the API, never take the browser's copy, which can outlive the 60-second max-age
+        // in a tab left open for days (#5783).
+        res = await fetch(`${API}${path}`, { headers: { accept: "application/json" }, cache: "no-cache" });
     } catch (e) {
         throw new ApiError(path, e instanceof Error ? e.message : String(e), true);
     }
@@ -128,7 +130,7 @@ function rangeOf(page: Here["page"], r: string): Here["range"] {
         return r === "28d" ? "28d" : "7d";
     }
     if (page === "issues") {
-        return r === "all" ? "all" : "28d";
+        return (["1h", "6h", "1d", "7d", "all"] as const).find((x) => x === r) ?? "28d";
     }
     return r === "6h" || r === "24h" ? r : "1h";
 }
@@ -216,7 +218,7 @@ async function load(h: Here): Promise<Loaded> {
         status: own,
         html: pageView(p),
         generated: p.generated,
-        title: `${cat ? `${stateWord(cat.state)} ` : ""}${PAGE_TITLE[page]}`,
+        title: cat ? `${stateWord(cat.state)} ${PAGE_TITLE[page]}` : PAGE_TITLE[page],
     };
 }
 
@@ -431,14 +433,25 @@ app.addEventListener("click", (ev) => {
     }
 });
 
-window.addEventListener("hashchange", () => {
+globalThis.addEventListener("hashchange", () => {
     current = parse(location.hash);
     void show(true);
 });
 setInterval(() => void show(false), REFRESH_MS);
-void show(false).then(() => {
-    const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-    if (target) {
-        mark(target);
+// A tab the browser froze or a machine that slept refreshes as soon as it is back, not up to a minute later (#5783).
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        void show(false);
     }
 });
+globalThis.addEventListener("online", () => void show(false));
+globalThis.addEventListener("pageshow", (ev) => {
+    if (ev.persisted) {
+        void show(false);
+    }
+});
+await show(false);
+const target = current.section ? document.getElementById(`s-${current.section}`) : null;
+if (target) {
+    mark(target);
+}

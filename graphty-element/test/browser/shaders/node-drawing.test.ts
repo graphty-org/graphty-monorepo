@@ -131,6 +131,25 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 }
 
 /**
+ * Make the page's clock (`performance.now()`) advance one 60 Hz frame per frame the element draws,
+ * and a microsecond per read so a loop that works until a time still ends. Put back after the test.
+ * @param element - The element whose frames drive it.
+ */
+function frameClock(element: Graphty): void {
+    const realNow = performance.now.bind(performance);
+    let now = realNow();
+    const scene = element.graph.getScene();
+    const tick = scene.onBeforeRenderObservable.add(() => {
+        now += 1000 / 60;
+    });
+    performance.now = () => (now += 0.001);
+    cleanups.unshift(() => {
+        scene.onBeforeRenderObservable.remove(tick);
+        performance.now = realNow;
+    });
+}
+
+/**
  * A node of the graph.
  * @param element - The element.
  * @param id - The node id.
@@ -402,6 +421,11 @@ describe("node effects", () => {
             () => ![...drawingOf(element).stats().slots.values()].some((n) => n > 0),
         );
 
+        // An entrance lasts 0.55 s of the page's clock. Under a loaded CPU, drawing 500 reticles can
+        // take longer than that by the wall clock, and every entrance had ended before the count
+        // was read (issue #4434). The page's clock follows the frames drawn instead, a 60 Hz frame
+        // each, so what is counted is the entrances the frames played, not the machine's speed.
+        frameClock(element);
         await element.session.selection.apply({ nodes: nodes.map((node) => node.id) });
         await until(element, "every selected node carries the reticle", () => batchHolds(element, 500));
         // Counted by the slots given an entrance, not by those still playing it: an entrance lasts

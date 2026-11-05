@@ -23,7 +23,8 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
  * The default shape table. Every 2D shape is drawn as the element's own flat shape of the same
  * name, exactly: `none` as a node with no body, which draws only its label, and Pajek's cross,
  * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`), Cytoscape.js's
- * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`) and
+ * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`), the
+ * rectangles rounded on one side only (`other:top-round-rectangle`, `other:bottom-round-rectangle`) and
  * vis-network's database (`other:database`) as the element's shapes of those names, and Graphviz's cylinder
  * (`other:cylinder`) as the database it is drawn as.
  */
@@ -54,6 +55,9 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     "other:round-octagon": "round-octagon",
     "other:round-polygon": "round-polygon",
     "other:barrel": "barrel",
+    // Cytoscape.js's bottom-round-rectangle and yFiles' `corners` TOP and BOTTOM
+    "other:top-round-rectangle": "top-round-rectangle",
+    "other:bottom-round-rectangle": "bottom-round-rectangle",
     "other:database": "database",
     // Graphviz's cylinder: a box between two ellipses, the near half of the top one drawn across it
     "other:cylinder": "database",

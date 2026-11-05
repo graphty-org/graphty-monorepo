@@ -1286,6 +1286,10 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
             if (polygon === "polygon") {
                 return "polygon";
             }
+            // two square corners, which no neutral shape has; other formats still read the name as round-rectangle
+            if (polygon === "bottom-round-rectangle" || polygon === "bottomroundrectangle") {
+                return "other:bottom-round-rectangle";
+            }
             // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
             return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
                 ? `other:${polygon}`

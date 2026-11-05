@@ -12,7 +12,7 @@ import {
 import { ActionIcon, Badge, Chip, Group, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
-import { START_SAMPLES } from "../../data/sampleManifest";
+import { offeredSamples } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
@@ -146,7 +146,7 @@ function sampleEntries(
             },
         };
     });
-    const graphs = START_SAMPLES.map((sample): SampleEntry => {
+    const graphs = offeredSamples().map((sample): SampleEntry => {
         const copy = copyOf(sample);
         const incoming = { name: sample.name, source: { config: { url: sample.url }, name: sample.name } };
         return {

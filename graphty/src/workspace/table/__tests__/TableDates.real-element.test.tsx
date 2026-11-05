@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { columnGlyph } from "../../data-place/words";
 import { createWorkspaceStore } from "../../state/store";
@@ -66,6 +67,7 @@ function labelLeft(row: HTMLElement): number {
 describe("dates in the table", () => {
     beforeAll(async () => {
         await page.viewport(1366, 900);
+        await siteFeatures(["timeline"]);
     });
 
     it("reads a date column as dates, sorts it oldest first, words A to Z, and lines up a fix", async () => {

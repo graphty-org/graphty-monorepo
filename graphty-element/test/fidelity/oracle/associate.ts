@@ -205,7 +205,9 @@ function curvedShapeOf(p: Prim): PShape | null {
     const onSide = p.points.filter(
         ([x, y]) => Math.min(x - b.x0, b.x1 - x) < 0.03 * 2 * a || Math.min(y - b.y0, b.y1 - y) < 0.03 * 2 * c,
     ).length;
-    return fills > 0.86 && onSide >= 0.3 * p.points.length ? "roundrect" : "other";
+    // a rounded rectangle rounds every corner: one drawn square is a shape with a curved side (yEd's delay, document
+    // and stored data), which also fills most of its box
+    return fills > 0.86 && onSide >= 0.3 * p.points.length && p.squareCorner !== true ? "roundrect" : "other";
 }
 
 /**

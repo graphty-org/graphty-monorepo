@@ -7,6 +7,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { sampleTile } from "../../../test/samples-dialog";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { ariaKey, formatKey } from "../../keys/keys";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
@@ -41,6 +42,8 @@ function renderStart(initial?: Parameters<typeof createWorkspaceStore>[0]) {
 }
 
 beforeEach(async () => {
+    // The timeline is an experiment, and the timed samples wait for it.
+    await siteFeatures(["timeline"]);
     await clearRecent();
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
@@ -54,6 +57,17 @@ afterEach(() => {
 });
 
 describe("the start screen", () => {
+    it("offers no timed sample with the timeline off", async () => {
+        await siteFeatures([]);
+        renderStart();
+        const library = within(screen.getByRole("region", { name: "Sample library" }));
+        const names = library
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => button.getAttribute("aria-label") ?? "");
+        assert.lengthOf(names, 20);
+        assert.notMatch(names.join(), /Campus contacts|Graph researchers|Marvel films|Paper citations/);
+    });
+
     it("offers the first visit's ways in and the sample library, the four samples first", async () => {
         renderStart();
 

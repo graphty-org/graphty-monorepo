@@ -1,6 +1,6 @@
 {
     "site": "canary",
-    "features": [],
+    "features": ["timeline"],
     "datasets": "https://canary.graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "canary"
 }

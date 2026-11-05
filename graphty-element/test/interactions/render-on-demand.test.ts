@@ -16,12 +16,18 @@
 import "../../src/graphty-element";
 
 import { CreateScreenshotAsync, MeshBuilder } from "@babylonjs/core";
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
 import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const WIDTH = 400;
 const HEIGHT = 300;

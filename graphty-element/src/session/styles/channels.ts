@@ -421,6 +421,9 @@ export interface ChannelValues {
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
     "node.outerBorderCount": number;
+    "node.raisedBorderWidth": number;
+    "node.raisedBorderLightColor": ColorValue;
+    "node.raisedBorderDarkColor": ColorValue;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.cornerFraction": number;
@@ -715,6 +718,8 @@ export type ColorChannel =
     | "node.tooltipBackground"
     | "node.gradientColor"
     | "node.outerBorderColor"
+    | "node.raisedBorderLightColor"
+    | "node.raisedBorderDarkColor"
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
@@ -1111,6 +1116,11 @@ const NODE_OUTER_BORDER_CAVEAT =
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
     "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
     "It is not `node.outline`, which is a highlight drawn over the node's rim.";
+
+const NODE_RAISED_BORDER_CAVEAT =
+    "Strips along the inside of the node's edge that make it look raised: `node.raisedBorderLightColor` on its left " +
+    "and top, `node.raisedBorderDarkColor` on its bottom and right, cut to the node's outline. Drawn only with a " +
+    "`node.raisedBorderWidth` above 0, in the units of `node.borderWidth`.";
 
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
@@ -2793,6 +2803,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "outerBorder.count",
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.raisedBorderWidth": {
+        channel: "node.raisedBorderWidth",
+        target: "node",
+        plainName: "Node Raised Border Width",
+        shortName: "Raised border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "raisedBorder.width",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
+    },
+    "node.raisedBorderLightColor": {
+        channel: "node.raisedBorderLightColor",
+        target: "node",
+        plainName: "Node Raised Border Light Color",
+        shortName: "Raised border light color",
+        group: "shape",
+        default: "#FFFFFF",
+        accepts: "color",
+        stylePath: "raisedBorder.lightColor",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
+    },
+    "node.raisedBorderDarkColor": {
+        channel: "node.raisedBorderDarkColor",
+        target: "node",
+        plainName: "Node Raised Border Dark Color",
+        shortName: "Raised border dark color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "raisedBorder.darkColor",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
     },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),

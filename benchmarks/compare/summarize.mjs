@@ -15,8 +15,10 @@ const med = (a) => {
     const s = [...a].sort((x, y) => x - y);
     return s[Math.floor((s.length - 1) / 2)];
 };
-const nice = (v) =>
-    Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+const nice = (v) => {
+    if (Math.abs(v) >= 100) return Math.round(v).toLocaleString("en-US");
+    return v.toFixed(Math.abs(v) >= 10 ? 1 : 2);
+};
 const pick = (cfg) =>
     rows.filter(
         (r) =>
@@ -58,7 +60,8 @@ const cell = (cfg, [, f, p95, unit]) => {
         v = values(rs, f);
     if (!v.length) return "-";
     const p = p95 ? values(rs, p95) : [];
-    return `${nice(med(v))}${p.length ? ` / ${nice(med(p))}` : ""} ${unit} (${nice(Math.min(...v))}-${nice(Math.max(...v))}, ${v.length} runs)`;
+    const p95Text = p.length ? " / " + nice(med(p)) : "";
+    return `${nice(med(v))}${p95Text} ${unit} (${nice(Math.min(...v))}-${nice(Math.max(...v))}, ${v.length} runs)`;
 };
 const table = (title, cols) => {
     console.log(
@@ -134,7 +137,7 @@ for (const r of all) {
     ].join(" | ");
     groups.set(k, (groups.get(k) ?? 0) + 1);
 }
-for (const [k, c] of groups) console.log(`| ${k} |${c > 1 ? ` x${c}` : ""}`);
+for (const [k, c] of groups) console.log(`| ${k} |${c > 1 ? " x" + c : ""}`);
 // The figures of section 8.3 (cosmos.gl: middle of its range; hover for graphty-element: the "on golden" row).
 const OLD = {
     "cosmos.gl": {
@@ -175,9 +178,9 @@ for (const [size, key, cfgs] of [
     ],
     ["1,000,000 nodes", "l", [["cosmos.gl", COSMOS]]],
 ]) {
-    const sz = key === "s" ? S : key === "m" ? M : L;
+    const sz = { s: S, m: M, l: L }[key];
     console.log(
-        `\n**${size}**\n\n| Measure | ${cfgs.map((c) => `${c[0]}: 8.3 -> now (ratio)`).join(" | ")} |\n|---|${cfgs.map(() => "---").join("|")}|`,
+        `\n**${size}**\n\n| Measure | ${cfgs.map((c) => c[0] + ": 8.3 -> now (ratio)").join(" | ")} |\n|---|${cfgs.map(() => "---").join("|")}|`,
     );
     METRICS.forEach((m, i) => {
         if (m[0] === "Card memory growth") return;

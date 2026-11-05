@@ -2,7 +2,7 @@
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. See RUNBOOK.md for the other variables.
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { loadavg } from "node:os";
@@ -30,9 +30,8 @@ const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
 // The extracted libEGL sits in the main checkout's tmp/, which a worktree does not have.
-const MAIN = dirname(
-    execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }).toString().trim(),
-);
+const gitDir = execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+const MAIN = dirname(gitDir.toString().trim());
 const EGL = process.env.BENCH_EGL ?? join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
 const FLAGS = [
     "--enable-unsafe-webgpu",
@@ -46,10 +45,10 @@ const FLAGS = [
     "--js-flags=--max-old-space-size=16384",
 ];
 const gpuMB = () =>
-    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim());
+    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim()); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
 // Sum RSS (MB) of every browser process launched with this run's profile dir, by process type.
 const rssMB = () => {
-    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers")
+    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers") // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
         .toString()
         .trim()
         .split("\n")
@@ -109,9 +108,9 @@ setTimeout(async () => {
     log("failure", DEADLINE_S >= 570 ? "did not finish in 10 minutes" : `did not finish in ${DEADLINE_S} s`);
     save();
     try {
-        execSync(`pkill -9 -f ${UDD}`);
+        execFileSync("pkill", ["-9", "-f", UDD]); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
     } catch {
-        /* pkill matches its own shell too */
+        /* pkill exits 1 when nothing matched */
     }
     rmSync(UDD, { recursive: true, force: true });
     process.exit(0);
@@ -138,7 +137,7 @@ try {
     });
     const cdp = await ctx.newCDPSession(page);
     await page.goto(`${BASE}/`);
-    await page.waitForFunction(() => window.B);
+    await page.waitForFunction(() => globalThis.B);
     const info = await page.evaluate(() => B.info());
     log("info", info);
     Object.assign(out, {

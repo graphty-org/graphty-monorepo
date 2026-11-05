@@ -2,7 +2,7 @@
 // `vite build` also needs BENCH_SOURCE: the checkout whose dist is measured. Its identity is baked
 // into the page, so a result row always names the build that really ran, not the one you meant.
 import { defineConfig } from "vite";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 const https = process.env.HTTPS_CERT_PATH
@@ -13,13 +13,16 @@ const S = process.env.BENCH_SOURCE;
 export default defineConfig(({ command }) => {
     if (!label) throw new Error("set BENCH_LABEL");
     if (command === "build" && !S) throw new Error("set BENCH_SOURCE to the checkout to measure");
-    const git = (a) => execSync(`git -C ${S} ${a}`).toString().trim();
+    const git = (...a) =>
+        execFileSync("git", ["-C", S, ...a])
+            .toString()
+            .trim(); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
     const build = S
         ? {
               label,
               source: basename(resolve(S)),
-              sha: git("rev-parse HEAD"),
-              dirty: git("status --porcelain --untracked-files=no") !== "",
+              sha: git("rev-parse", "HEAD"),
+              dirty: git("status", "--porcelain", "--untracked-files=no") !== "",
               distBuilt: statSync(`${S}/graphty-element/dist/graphty.js`).mtime.toISOString(),
           }
         : null;

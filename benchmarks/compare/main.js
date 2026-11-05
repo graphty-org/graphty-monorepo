@@ -21,8 +21,8 @@ const intervals = (st) => st.slice(1).map((t, i) => t - st[i]);
 
 function mulberry32(a) {
     return () => {
-        a |= 0;
-        a = (a + 0x6d2b79f5) | 0;
+        a |= 0; // NOSONAR(S7767): int32 wrap, which Math.trunc does not do; the positions depend on it
+        a = (a + 0x6d2b79f5) | 0; // NOSONAR(S7767): int32 wrap, as above
         let t = Math.imul(a ^ (a >>> 15), 1 | a);
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -37,7 +37,7 @@ function webglRenderer() {
 
 // The element's own 30 s default rejects at 100,000 nodes; the runner's deadline is what ends a hang.
 const STABLE_MS = 600000;
-let G = null; // { n, m, src, dst, xy }
+let G = null; // the graph: its counts, edge endpoints and positions
 let lib = null; // adapter
 const stamps = [];
 // When true, every drawn frame is followed by a blocking 1-pixel readPixels, so a stamp marks
@@ -154,8 +154,8 @@ const B = {
         return c ? { width: c.width, height: c.height, cssW: c.clientWidth, cssH: c.clientHeight } : null;
     },
 };
-window.B = B;
-window.addEventListener(
+globalThis.B = B;
+globalThis.addEventListener(
     "pointermove",
     () => {
         if (B._hover && B._hover.ev === null) B._hover.ev = now();
@@ -429,7 +429,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 }
             };
             const deadline = now() + STABLE_MS;
-            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20);
+            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20); // NOSONAR(S2189): an event handler sets tFirst and errors during the await
             onFrame = null;
             if (tFirst === null)
                 return {
@@ -471,7 +471,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
             cam0 ??= graph.getCameraState();
             if (mode === "lean") {
                 const p = cam0.pan ?? { x: 0, y: 0 };
-                void graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
+                graph.setCameraState({ pan: { x: p.x + 0.05 * 4 * Math.sqrt(G.n) * Math.sin(i / 20), y: p.y } });
             } else {
                 const P = cam0.position,
                     T = cam0.target ?? { x: 0, y: 0, z: 0 };
@@ -482,7 +482,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 cam0.alpha ??= Math.atan2(dz, dx);
                 cam0.beta ??= Math.acos(dy / r);
                 cam0.radius ??= r;
-                void graph.setCameraState({
+                graph.setCameraState({
                     alpha: cam0.alpha + i * 0.01,
                     beta: cam0.beta,
                     radius: cam0.radius,
@@ -492,7 +492,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
         },
         async resetCamera() {
             if (cam0)
-                void graph.setCameraState(
+                graph.setCameraState(
                     mode === "lean"
                         ? { pan: cam0.pan }
                         : { alpha: cam0.alpha, beta: cam0.beta, radius: cam0.radius, target: cam0.target },

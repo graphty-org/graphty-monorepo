@@ -3420,9 +3420,18 @@ export function labelAnchor(t: PText, b: PBox): string {
  */
 export function lineAlign(t: PText): "start" | "middle" | "end" | null {
     // a table's cells side by side are read apart: a cell's lines overlap across, the cell beside them does not
-    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides
+    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides. A cell spanning two side by
+    // side is in neither column, so it says nothing of how either's lines align (dot-synth-nodes n_html3: A | B over
+    // a wide cell reads right-aligned or left-aligned by a pixel of where the two narrow cells fall)
+    const lines = t.lines ?? [];
+    const under = (wide: PBox, b: PBox): boolean => b !== wide && b.x0 < wide.x1 && b.x1 > wide.x0;
+    const sameRow = (a: PBox, b: PBox): boolean => a.y0 < b.y1 && b.y0 < a.y1;
+    const spans = (wide: PBox): boolean =>
+        lines.some(
+            (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
+        );
     const cells: PBox[][] = [];
-    for (const b of [...(t.lines ?? [])].sort((p, q) => p.x0 - q.x0)) {
+    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

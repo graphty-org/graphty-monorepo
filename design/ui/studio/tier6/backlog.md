@@ -4,6 +4,9 @@ Everything the dry run sent past: friction, wording, cosmetic and accessibility 
 
 ## First in line
 
+- A run the model removes itself leaves Open run dead and 'Changed the graph' under 'No changes were made' (T95 A): results' remove returns no effect of its own. Same family as T94 B's dead Open run and Open layer.
+- Enter on Answer sends focus to an earlier turn's Undo, so a second Enter undoes it; `Waiting.tsx` raises `composerCalls` for Change this and not for Answer (T95 A).
+- After a decline the model answered 'remove' with a hide (T93 A).
 - The model acts after a no: Keep them hid the seven (T93 A), and the model changes the reader's selection on a plain question (T91 B, T92 A, T92 B, T93 B).
 - Undo in a turn takes focus off the conversation; it fails bar 8 as written (T94 A, T94 B, T95 A).
 - 'Or type an answer' refuses a typed answer, against design 4.8 (T95 A).
@@ -232,3 +235,69 @@ Everything the dry run sent past: friction, wording, cosmetic and accessibility 
 - wording, sev 1, detour-1: 'Undid Which nodes matter most?.' with the panel open. Wording. [T95B/detour-1/08.png]
 - wording, sev 1, keyboard: 'Stopped. Changes taken back.' when nothing had changed. Harmless wording. [T95B/keyboard/45.png]
 - wording, sev 1, success, detour-3: 20 to 25 seconds in, only 'Sending to Google' and a step count. The step count moves. [T95B/success/03.png, detour-3/02.png]
+
+## From the second dry run pass (build 3549e11129)
+
+Paths here are under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/r1d1/pilot/. Rows marked carried repeat an entry above with a newer screenshot.
+
+### T90A
+
+- friction, sev 2, touched-26, touched-26-names: With the transcript overflowing, opening the steps list makes the whole panel body scroll too: a second scrollbar, the composer jumps up, the title row scrolls away. The composer still works and the text can be reached. Same fault as T92A's and T93B's two scrollbars. [T90A/touched-26/20.png, T90A/touched-26-names/10.png]
+- friction, sev 1, touched-26-names: 'and 8 more' under the change lines opens the steps list instead of the remaining lines. The steps hold them; one more read. [T90A/touched-26-names/09.png, 10.png]
+- wording, sev 1, touched-26-names: A warning row 'No matches.' is the last line of a right reply, with nothing saying which lookup it belongs to. The reply is right and stands. The chip-row rule puts a found result first where the turn has one. [T90A/touched-26-names/05.png]
+- friction, sev 2, success, touched-26, touched-30: The Select step moves the camera and cuts nodes off at the left and bottom of the canvas. Carried from the first pass. No value or node is wrong; Fit recovers. [T90A/success/14.png]
+- wording, sev 2, success, touched-26, touched-30: 'Computed Reach' and step Reach against Closeness in the key card, inspector and reply. Carried. Wording; the study's answer does not hang on the name. [T90A/success/14.png]
+- friction, sev 2, touched-26: Closing the conversations list replays each earlier failure as a notice, three at once. Carried. Nothing is lost and the notices go. [T90A/touched-26/07.png]
+- friction, sev 2, touched-26: Send again stacks a duplicate question and failure each time. Carried. answers.md calls pressing it a wrong turn; the model label still leads on. [T90A/touched-26/05.png]
+- friction, sev 2, touched-26: Forget key has no confirmation or notice. Carried. Retyping recovers. [T90A/touched-26/08.png]
+- friction, sev 2, touched-26-names: Enter during a run does nothing and says nothing; the message waits unsent. Carried. The text stays and Enter after the run sends it. [T90A/touched-26-names/04.png]
+- friction, sev 1, touched-26: After Forget key and Save, New conversation is undone and the failed conversation returns. Carried. The next message still works. [T90A/touched-26/10.png]
+- wording, sev 1, touched-26: 'Stopped. Changes taken back.' when nothing had changed. Carried. Harmless wording. [T90A/touched-26/14.png]
+- wording, sev 1, success: With a selection the placeholder still reads 'Ask about this graph' over the scope 'Selection 1'. Carried. The scope line above it is right. [T90A/success/14.png]
+
+### T91B
+
+- wording, sev 1, touched-27: A bare 'No matches.' ends a turn with no Send again and without saying what found nothing. Same turn as the first row; a next message recovers. [T91B/touched-27/12.png]
+
+### T92A
+
+- friction, sev 2, success, keyboard: The Whole graph scope does not reach the model's memory of the conversation: the reply still led with six or 'the 9'. Carried. The message went as whole graph; the model carried on. answers.md grades the report, and the reply holds 7. [T92A/success/11.png, T92A/keyboard/54.png, T92A/touched-13/02.png]
+- wording, sev 2, touched-29: A failed reply gives advice the screen has overtaken: 'Please clear your selection and ask again' under a line reading Whole graph. A next message recovers. It has the chip-row unit's cause, so check on the re-walk that it has gone. [T92A/touched-29/05.png]
+- friction, sev 2, touched-29: After a canvas right-click, then x and Send again, focus stays on the graph drawing, not in the composer. One click reaches the composer. Whether typing is lost was not tried. [T92A/touched-29/07.png, 08.png]
+- friction, sev 2, touched-33: The model selects on a plain question, which replaces the reader's selection and becomes the next message's scope. Carried; first in line in the backlog. The model's act; the screen says what happened and a next message recovers. Not a blocked route. [T92A/touched-33/02.png]
+- friction, sev 2, touched-19: Redo lit with Undo dim after a rolled-back turn. Carried. Nothing is wrong in the graph. [T92A/touched-19/08.png]
+- cosmetic, sev 1, touched-16: Two scrollbars side by side once the conversation is long, narrowing the composer row by about 15 px. The panel still works. [T92A/touched-16/05.png]
+- wording, sev 1, touched-16: 'Changed the graph' is a change line that says nothing, under two exact lines. Wording; the two exact lines are true. [T92A/touched-16/03.png]
+- accessibility, sev 1, touched-13, success: Open steps give several chips one accessible name. Only a screen-reader user meets it. [T92A/touched-13/03.png, T92A/success/12.png]
+- wording, sev 1, touched-19, touched-29: One request named its layer two ways on two walks. The model's wording; either name is a working layer. [T92A/touched-19/09.png, T92A/touched-29/08.png]
+- accessibility, sev 1, keyboard: Control+I closing the panel put focus on inspector tab 'Values', where the earlier pilot had it on the Assistant rail button. Only a keyboard user meets it; Control+I still reopens the panel. [T92A/keyboard/63.png]
+- cosmetic, sev 1, success: The whole page sits about 1 px higher once the inspector shows a run. Cosmetic. [T92A/success/05.png, 07.png]
+- friction, sev 1, tool: A session folder under the main checkout's tmp/design-studio/tier6 is not read as tier 6 by real.mjs, so a start without REAL_TIER=6 fails with SETUP FAILED: nothing called Assistant. The study tool, not the app. Start every walk with REAL_TIER=6, as the tool's README already says for sessions.
+
+### T93A
+
+- friction, sev 2, touched-20 (detour-1: Change this and Keep them): After a decline, a plain request to remove became a hide with no request card: 'I hid the 7 people', 'Filtered to 17 of 24 nodes', '7 hidden' on the scope line. Seen once. The screen says hid three ways and 'for good, not just hide them' brought the card back, so no route is blocked and a reader reporting them gone has misread: the key's F is fair. Joins the model acting after a no, first in line. [T93A/touched-20/06.png]
+
+### T93B
+
+- wording, sev 1, touched-22: A turn that colored the drawing does not say so; detour-1 read 'Changed the graph' for the same coloring. The drawing and the key card show it. [T93B/touched-22/03.png]
+- wording, sev 1, detour-1: 'Declined. Nothing changed.' leaves the turn after the next message, while 'Not run: you sent a new message.' stays. The turn's words stay; the end row goes. Nothing false. [T93B/detour-1/05.png, 06.png, T93B/touched-23/04.png]
+- friction, sev 1, detour-1: After a message the conversation stopped on the previous turn with 'Jump to newest', with the message and reply below the fold. The pill is the way down. Mechanism not traced. [T93B/detour-1/07.png]
+- cosmetic, sev 1, touched-22: With 8 steps open on a long conversation and a waiting request, a second outer scrollbar, and the header and composer move in about 15 px. Same fault as T90A's row. The request stays reachable. [T93B/touched-22/10.png]
+
+### T94A
+
+- friction, sev 2, setup, any route: A click on Assistant just after the project opens is thrown back to Graph, one start of six; a second click a second later was thrown back too, and a third opened the panel. Carried, and it corrects the backlog: a second click does not always work. A failed start is run again, and a participant's first click comes well after the open. [T94A/setup-race/02.png, 04.png, setup.log]
+
+### T95A
+
+- friction, sev 3, success, detour-2: Open run does nothing and says nothing, because the model removed its own run. Not a step of T95: answers.md says Open run doing nothing is neither a step nor a wrong turn, and the grade rests on the report. Same family as T94B's 'Open run does nothing once the run is gone'. Mechanism now read in source and fitting success/05.png: the results tool's remove returns no effect of its own, so it draws 'Changed the graph', and nothing tells the turn the run left. Every T92 walk that asked fact 1 kept its run, so that check is not touched. First in line. [T95A/success/06.png, 09.png, 12.png, T95A/detour-2/04.png, T95A/keyboard/19.png]
+- accessibility, sev 2, keyboard: Enter on Answer sends focus to the first turn's Undo, so a second Enter takes that turn's changes back. Only a keyboard user meets it, and Undo's Redo brings it back. First in line. [T95A/keyboard/34.png, 36.png]
+- wording, sev 2, success: 'No changes were made to the graph' sits directly over 'Changed the graph' with Undo. answers.md rules it no wrong turn. The same cause as Open run; the words go when that is fixed. [T95A/success/04.png]
+- friction, sev 2, detour-2: The transcript jumps to the top after Undo, so the turn just undone and its Undone mark go out of view. Scrolling recovers; the graph is right. [T95A/detour-2/12.png, 10.png]
+- wording, sev 1, touched-39, keyboard: Change lines repeat ('Selected 5 nodes' twice; 'Selected 2, 0, 2 nodes'), and the status line speaks them the same way. Wording; the zero goes with chip-row. [T95A/touched-39/02.png, T95A/keyboard/36.png]
+- wording, sev 1, detour-2: 'The five volunteers ... followed by Omar Haddad' names six. The model's wording. [T95A/detour-2/06.png]
+- wording, sev 1, detour-2: Nothing but the reply says a file was saved, and it says 'ready for download'; no line names the file. The browser shows the download. [T95A/detour-2/10.png]
+- accessibility, sev 1, keyboard: The spoken news 'Degree finished: v02 ranks first, 8' sounds like the answer. Only a screen-reader user meets it. [T95A/keyboard/11.png]
+- accessibility, sev 1, keyboard: The Undid status quotes the whole message and ends in two periods, and focus lands on the top bar's disabled Undo. Carried; only a keyboard or screen-reader user meets it. [T95A/keyboard/52.png]
+- cosmetic, sev 1, success, keyboard: A disabled Send (composer empty) is drawn as the filled green primary button. Reads as ready, and its name says disabled; nothing is blocked. A shared Figma-locked look. [T95A/success/04.png, T95A/keyboard/11.png]

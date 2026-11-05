@@ -220,3 +220,24 @@ data.trained == false.` on nine false rows.
 - **An answer goes on with the message it answers, so its turn and the question's turn share one
   undo step.** (2026-11-05.) Reason: one step per message. Two Undo buttons for that step are backlog,
   not a wrong step. Evidence: `design/ai/assistant-coverage-design.md` 4.3; T95 A.
+
+## Settled by the second dry run (2026-11-05, build 3549e11129)
+
+None of these reverses an entry above. Evidence: `dry-run-r1-2.md`.
+
+- **A message is limited to its selection only while that selection holds something. Once it is empty
+  the message is about the whole graph for the rest of its run, an answer included, and a later
+  select does not bring the old ids back.** (2026-11-05.) Reason: the scope line always states what a
+  message is about, and it reads Whole graph the moment the selection empties, so the reads must too.
+  Refusing the model's clear was rejected: a reader may ask for it, and the offered "Apply to the
+  entire graph" would stay dead. While the selection holds anything, every target stays limited to
+  it. Evidence: T91 B touched-27, T92 B touched-31, T92 A touched-33; `settleTarget` in `fields.ts`.
+- **What the Assistant exports is what the message is about: a target the call names, else the bound
+  selection, else the whole graph. A format that cannot narrow refuses a narrowed call.** (2026-11-05.)
+  Reason: a saved file that holds more than the screen says is the worst place for a false line, and
+  on T95 A it held every phone number. Evidence: T95 A detour-2 and touched-39 downloads.
+- **The chip row stays the turn's last result that found something; the model is told to make that
+  read the one its reply counts.** (2026-11-05.) Reason: a chip may not be matched to prose, since a
+  model's prose never becomes one, so the order of the reads is the honest lever. A row of several
+  chips was rejected: chips carry no label, and it would leave Show in table with no one target.
+  Evidence: T92 A touched-13 and success.

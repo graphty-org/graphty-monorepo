@@ -3703,3 +3703,15 @@ to hide it.
 
 **Why.** Code comments in `EdgeMesh.ts` and `CustomLineRenderer.ts` call the width pixels, which
 it is not, and the app's Width control shows the bare number with no unit.
+
+## 2026-11-05 -- Decided by the team: an Assistant export takes a target, and a message's selection binding ends with the selection
+
+Both sit behind the `assistant` experiment. `export_graph` gains the target fields every other tool
+has, and `ExportScope` gains `{ nodes }` so that a scope can name ids. Both are additive. A message
+sent with `scope: "selection"` stops being limited once the selection is empty; while the selection
+holds anything it behaves as before.
+
+**Why settled here.** Additive changes are the team's (CLAUDE.md, "Non-breaking API changes need no
+owner approval"); the binding is `@experimental assistant`, which may change in a minor release
+(owner, 2026-10-25/26), and `tier6/decided.md`, "The scope line always states what a message is
+about", already says what the reads must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.

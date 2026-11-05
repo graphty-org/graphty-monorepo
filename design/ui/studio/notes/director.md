@@ -5,22 +5,25 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-05 (tier 6 dry run pass 1 triaged).
+Last updated: 2026-11-05 (tier 6 dry run pass 2 triaged).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-11-05) TIER 6 DRY RUN PASS 1 TRIAGED: 232 rows on 8fa33aa786, 24 fix now (0 crashes, 1 blocks, 23 spoils,
-  all new), 16 decided, 184 backlog, 8 sessions, ten units, `tier6/dry-run-r1-1.md`, `tier6/backlog.md`. Next: build
-  the units, re-match `answers.md`, refreeze, walk the routes each unit names.
+- (2026-11-05) TIER 6 DRY RUN PASS 2 TRIAGED: 57 lines on 3549e11129, 4 of them notes; 9 fix now (0 crashes, 0 blocks,
+  9 spoils; 7 repeats, 2 new, 0 regressions), 1 decided, 41 backlog, 2 sessions, three units, `tier6/dry-run-r1-2.md`.
+  Next: build `chip-row`, `export-scope`, `last-read`, re-match `answers.md`, refreeze, walk their routes.
+- (2026-11-05) The rejected chip-row fix had the right rule and the wrong layer: the binding outlives the selection in
+  `settleTarget`. One cause behind seven rows. Binding ends when the selection empties, for good within the message.
+- (2026-11-05) `last-read` is a prompt line and may only lower the odds of a 5 or 9 chip. If it does not hold, the key's
+  `Build decided` line stays and the report gives both numbers. Do not reach for a second chip.
+- (2026-11-05) Pass 1 total: 24 fix now of 232, ten units. Pass 1's fixes all held, with no regression.
 - (2026-11-05) Two selector faults in graphty-element lie behind the 63, 361 and 24 chips the pilots filed as
   separate panel defects: a lone `false` read as a column, and a negative rule true on every edge that lacks the
   column. Reproduced in a script. Pilots reported symptoms in four tasks; the cause was two lines of predicate logic.
 - (2026-11-05) A rule-language fix is not an API break when the old answer contradicts the file's own promise
   (query.ts: a path nothing answers matches nothing). Both recorded as the team's.
-- (2026-11-05) `run-scope` is read in source, not reproduced: the unit says test first and name the real call if
-  it differs. The 2-in-4 failure on T92 A's start is the best reason to believe it.
 - (2026-11-05) Backlog's first line: the model acting after a no (Keep them hid the seven) and changing the selection
   on a plain question. Truthful on screen, so not a spoil; both are the model's acts, and a tool or prompt rule is
   the likely fix between rounds.
@@ -30,8 +33,6 @@ history.
   `Checked:` and `Card:` grade the first report. A prompt that asks "how sure" measures obedience.
 - (2026-11-05) The planted wrong count is a selection, not a falsified reply: T92 A starts with the 14 people
   selected; 6 of 9 against the file's 7 of 12. Prose against a chip stays untested and is the report's first limit.
-- (2026-11-05) Known defects kept by `answers.md`: the refused key reading as a connection failure (bar 4 will likely
-  fail on it, as expected), the `name` starter, a question repainting, a selection surviving Undo.
 - (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`, research in
   `design/ai/assistant-chat-research.md`. A rail place, not a window. Plain text is the model's, a chip is computed, a
   change line is what happened. Undo on the newest step only.
@@ -83,6 +84,13 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 dry run pass 2.** 9 of 53 defects fix now. Reasons: `Build decided: yes` stays the test for a
+  spoil, which makes the chip of 5 under 7 a spoil though every count is true. Its fix is the model's read order, since
+  the row itself is decided and may not read prose. Open run doing nothing stays backlog though rated 3: the key says it
+  is no step on T95, and every T92 walk that asked fact 1 kept its run. The 'Selected 0 nodes' rows ride with chip-row as
+  one defect, whatever their rating. Binding ends rather than the clear being refused, because a refusal leaves the
+  model's own offer dead. Export takes a target, not only the bound selection, because 'export those five' under Whole
+  graph is the same false file.
 - **2026-11-05, tier 6 dry run pass 1.** 24 of 232 fix now. Reasons: a row with a route past it is backlog however
   the pilot rated it (Done dropping a key leaves an honest screen); `answers.md`'s `Build decided: yes` lines are the
   test for a spoil, since they name a careful reader marked wrong; keyboard-only rows go to backlog by this pass's
@@ -111,6 +119,11 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (dry run pass 2) -- Worked: reading `rejected-fixes.md` before any row; it named the cause and the rows
+  fell into it. Worked: `work.json` across every walk plus the typed messages, which settled that T92 is untouched by
+  the dead Open run. Worked: reading the screenshot behind a mechanism marked not proved (two Algorithm results steps
+  last, then 'Changed the graph'). Did not work: nothing failed; the T92 A report is missing from the study's folder, so
+  those rows rest on the pilot's list and the screenshots.
 - 2026-11-05 (dry run pass 1) -- Worked: reading the element before classing; a five-line tsx script against
   `compileExpressionPredicate` turned four tasks' chip complaints into two causes. Worked: the rows file plus
   generator with per-task counts asserted (232 rows). Worked: reading `design/ai/assistant-coverage-design.md` before
@@ -134,6 +147,9 @@ history.
 
 ## Thinking
 
+- **2026-11-05, tier 6 dry run pass 2:** a value frozen at send time and a screen that reads live state will drift
+  apart, and the drift looks like a panel bug. Look for the frozen copy first. A fix that makes something visible (the
+  export arriving) can expose the next fault behind it, so walk the result, not only the arrival.
 - **2026-11-05, tier 6 dry run:** panel rows pointed at the element, as they keep doing: a chip is only as true as
   the selector behind it, and the app was right to show what it was given. When the same wrong number shows on
   several surfaces, go below all of them first. Next tier, add a tool line that records each failed call's name and
@@ -155,9 +171,9 @@ history.
 
 ## Sources
 
-- Tier 6: `tier6/{criteria,tasks,answers,roster,decided,design,backlog,dry-run-r1-1}.md`; pilots
+- Tier 6: `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
-  `tmp/design-studio/tier6/r1/pilot/`; generator `tmp/director-dryrun-t6/` in the studio worktree.
+  `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/` and `tmp/director-dryrun-t6-2/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs
   `tier4/dry-run-r1-*.md` (each file names the triages it replaced).
 - Tier 3: `tier3/{criteria,tasks,answers,roster,decided,design,bulk-edit-plan,decisions-round-6}.md`,

@@ -11,8 +11,10 @@ import { join } from "node:path";
 
 import { assert, describe, it } from "vitest";
 
+import { GLSL_RESERVED } from "../../src/catalog/shaderGlsl";
 import type { ShaderParamDescriptor } from "../../src/catalog/shaders";
 import { parseShaderText } from "../../src/catalog/shaderText";
+import { GLSL_STRUCTS } from "../../src/shaders/runtime/glsl";
 import {
     clockAssignments,
     compileProblem,
@@ -22,6 +24,7 @@ import {
     sampleProgram,
     uniformValueOf,
     unprefix,
+    WGSL_NAMES,
     wrappedLibrary,
     WRAPPER_LINE,
 } from "../../src/shaders/runtime/wrap";
@@ -68,6 +71,61 @@ describe("the shader wrapper", () => {
     it("keeps every line where it was", () => {
         const out = prefixBody(BODY, [SPEED]);
         assert.strictEqual(out.split("\n").length, BODY.split("\n").length);
+    });
+
+    it("prefixes every use of a name WGSL will not take, local, parameter and field alike", () => {
+        const body =
+            "struct S { float fn; };\n" +
+            "float g(float target) { return target; }\n" +
+            "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = g(s.fn); float select = 0.5;\n" +
+            "    for (int i = 0; i < 2; i++) { pass += select * length(n.uv); }\n" +
+            "    return vec4(n.color.rgb, pass); }\n";
+        const out = prefixBody(body, []);
+        assert.include(out, "struct graphty_u_S { float graphty_u_fn; };");
+        assert.include(out, "float graphty_u_g(float graphty_u_target) { return graphty_u_target; }");
+        assert.include(out, "s.graphty_u_fn = 1.0; float graphty_u_pass = graphty_u_g(s.graphty_u_fn);");
+        assert.include(out, "float graphty_u_select = 0.5;");
+        // The GLSL keywords and built-ins WGSL also names keep theirs.
+        assert.include(out, "for (int i = 0; i < 2; i++) { graphty_u_pass += graphty_u_select * length(n.uv); }");
+        assert.include(out, "return vec4(n.color.rgb, graphty_u_pass); }");
+        for (const name of ["pass", "target", "fn", "select"]) {
+            assert.notMatch(out, new RegExp(`(?<!graphty_u_)\\b${name}\\b`), name);
+        }
+    });
+
+    it("renames a local named after a built-in both languages have, and leaves its calls", () => {
+        const body =
+            "struct S { float abs; };\n" +
+            "float g(float max) { return max; }\n" +
+            "vec4 shade(NodeInput n) { S s; float mod = mod(n.size, 2.0); s.abs = abs(mod);\n" +
+            "    { float abs = 1.0; mod *= abs; } return vec4(max(mod, g(s.abs))); }\n";
+        const out = prefixBody(body, []);
+        assert.include(out, "struct graphty_u_S { float abs; };");
+        assert.include(out, "float graphty_u_g(float graphty_u_max) { return graphty_u_max; }");
+        assert.include(out, "float graphty_u_mod = mod(n.size, 2.0); s.abs = abs(graphty_u_mod);");
+        assert.include(out, "{ float graphty_u_abs = 1.0; graphty_u_mod *= graphty_u_abs; }");
+        assert.include(out, "return vec4(max(graphty_u_mod, graphty_u_g(s.abs)));");
+    });
+
+    it("keeps a name a body declares as a function or struct renamed at its calls too", () => {
+        assert.include(
+            prefixBody("vec4 shade(NodeInput n) { struct max { float a; }; max m = max(1.0); return vec4(m.a); }", []),
+            "struct graphty_u_max { float a; }; graphty_u_max m = graphty_u_max(1.0);",
+        );
+    });
+
+    it("sends a body's modf to the library, the built-in having no WGSL translation", () => {
+        assert.include(prefixBody("float f(float x, out float w) { return modf(x, w); }", []), "graphty_modf(");
+        assert.include(wrappedLibrary(), "vec4 graphty_modf(vec4 x, out vec4 whole)");
+    });
+
+    it("gives no input field a name it would rename, since a body's use of it would then miss", () => {
+        const fields = [...GLSL_STRUCTS.matchAll(/^\s+\w+ (\w+);$/gm)].map((match) => match[1]);
+        assert.isAbove(fields.length, 30);
+        assert.deepEqual(
+            fields.filter((name) => WGSL_NAMES.has(name) && !GLSL_RESERVED.has(name)),
+            [],
+        );
     });
 
     it("renames only identifiers it is given", () => {

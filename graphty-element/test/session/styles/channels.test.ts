@@ -66,6 +66,7 @@ const DECLARED = [
     "node.labelShiftX",
     "node.labelShiftY",
     "node.labelShiftOf",
+    "node.labelGapOf",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -150,6 +151,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -363,6 +365,7 @@ const DECLARED = [
     "edge.labelShiftX",
     "edge.labelShiftY",
     "edge.labelShiftOf",
+    "edge.labelGapOf",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
@@ -403,9 +406,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-nine node channels and one hundred and sixty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 189);
-        assert.strictEqual(channelsFor("edge").length, 160);
+    it("splits into one hundred and ninety-one node channels and one hundred and sixty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 191);
+        assert.strictEqual(channelsFor("edge").length, 161);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -694,6 +697,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
@@ -817,6 +821,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelShiftX",
         "node.labelShiftY",
         "node.labelShiftOf",
+        "node.labelGapOf",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -845,6 +850,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelShiftX",
         "edge.labelShiftY",
         "edge.labelShiftOf",
+        "edge.labelGapOf",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

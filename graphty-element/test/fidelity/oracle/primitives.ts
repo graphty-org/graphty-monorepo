@@ -277,7 +277,7 @@ export interface PNode {
  * chevron), a crow's foot (tines spreading toward the node, one of them along the line), a vee pointing back with no
  * tine along the line ("inverted-vee", vis-network's crow), a diamond, a circle, a box, a bar across the line ("tee"),
  * half an arrow on one side of the line, half a disc with its flat side across the tip ("half-circle", or its round
- * side alone). "other" matches nothing.
+ * side alone), two strokes crossing on the line ("cross"). "other" matches nothing.
  */
 export type ArrowShape =
     | "triangle"
@@ -297,6 +297,8 @@ export type ArrowShape =
     | "cross-delta"
     // a disc at the tip with a triangle behind it pointing at it (Cytoscape.js's circle-triangle)
     | "circle-triangle"
+    // two strokes crossing on the line (yEd's and yEd Live's cross)
+    | "cross"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -461,10 +463,14 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
         return "solid";
     }
     const dot = Math.max(1, width) * 1.5;
+    // long dashes and short ones (a dot, drawn two widths long by a round cap) alternate: by the quartiles, as a measured
+    // line's last element is cut short by its end
+    const sorted = [...on].sort((x, y) => x - y);
+    const alternate = sorted[Math.floor(0.75 * sorted.length)] >= 2 * sorted[Math.floor(0.25 * sorted.length)];
     if (on.every((d) => d <= dot)) {
-        return "dotted";
+        // under the floor every dash is a dot, but a hairline's dash and dot still differ (cx-syn-mappings 342->360)
+        return alternate ? "dash-dot" : "dotted";
     }
-    // long dashes and short ones (a dot, drawn two widths long by a round cap) alternate
     return Math.max(...on) >= 2 * Math.min(...on) ? "dash-dot" : "dashed";
 }
 
@@ -720,6 +726,23 @@ interface PatternRun {
     mirror: (p: Pt) => Pt;
 }
 
+/**
+ * Whether pieces are drawn in turn on two rows, each nearer the one two after it than the next (Cytoscape desktop's
+ * double border, tick by tick, one on each row): how a double ring shows on a node that is not round, whose rows are no
+ * distance from one center (cx2-syn-mappings 273: a 46 x 17 diamond). One row's next piece is always its nearest.
+ * @param subpaths - the pieces, in drawing order
+ * @returns true for two rows
+ */
+function drawnInTurn(subpaths: readonly (readonly Pt[])[]): boolean {
+    const centers = subpaths.map((q): Pt => [
+        q.reduce((t, p) => t + p[0], 0) / q.length,
+        q.reduce((t, p) => t + p[1], 0) / q.length,
+    ]);
+    const step = (by: number): number =>
+        median(centers.slice(by).map((c, i) => Math.hypot(c[0] - centers[i][0], c[1] - centers[i][1])));
+    return centers.length >= 4 && step(2) < 0.75 * step(1);
+}
+
 function piecesPattern(
     subpaths: readonly (readonly Pt[])[],
     frame: PatternFrame,
@@ -764,6 +787,9 @@ function piecesPattern(
     }
     const thick = median(pieces.map((p) => Math.min(p.short, p.long)));
     if (split > 0 && gap > 1.5 * thick && Math.min(split, offsets.length - split) >= 0.25 * offsets.length) {
+        return { dashClass: "double", width: null };
+    }
+    if (run.circular === true && drawnInTurn(subpaths)) {
         return { dashClass: "double", width: null };
     }
     const kind = (p: Piece): "dot" | "dash" | "slash" | "arrow" => {
@@ -883,6 +909,26 @@ export function isLettering(subpaths: readonly (readonly Pt[])[]): boolean {
     return median(gaps) <= 0.5 * h;
 }
 
+/** How much of two boxes' union they must share for two wavy outlines to be one ring's. */
+const CROSSED_WAVE_SHARE = 0.7;
+
+/**
+ * Whether two outlines are a wave's round one small node, each swinging past the other so neither's box holds the other's
+ * (cx2-syn-mappings 195: a zigzag border 2 px past its other outline on a 48 x 18 hexagon): nearly one box, and wavy.
+ * @param subpaths - the two outlines, sampled
+ * @param boxes - their boxes
+ * @returns true for one ring
+ */
+function crossedWave(subpaths: readonly (readonly Pt[])[], [a, b]: readonly PBox[]): boolean {
+    const shared =
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    return (
+        shared >= CROSSED_WAVE_SHARE * (areaOf(a) + areaOf(b) - shared) &&
+        subpaths.every((q) => continuousPattern(q) !== "solid")
+    );
+}
+
 /**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
@@ -915,7 +961,8 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
         x1: outerBox.x1 + slack,
         y1: outerBox.y1 + slack,
     };
-    if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(grown, b))) {
+    const nested = boxes.every((b) => b === outerBox || holds(grown, b));
+    if (subpaths.length === 2 && (nested || crossedWave(subpaths, boxes))) {
         const band = Math.abs(subpaths.reduce((sum, q) => sum + signedArea(q), 0));
         const width = (2 * band) / subpaths.reduce((sum, q) => sum + lengthOf(q), 0);
         if (!(width > 0)) {
@@ -936,7 +983,7 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
     }
     // two shapes side by side, neither round the other, are two shapes (Cytoscape.js's triangle-tee arrow): a line
     // drawn in pieces round a node is many pieces
-    if (subpaths.length === 2 || !ringsAHole(subpaths, box) || !closesOnItself(boxes)) {
+    if (subpaths.length === 2 || !(ringsAHole(subpaths, box) || drawnInTurn(subpaths)) || !closesOnItself(boxes)) {
         return null;
     }
     // round the ring: along is the angle at the ring's mean radius, its mirror the circle there
@@ -1158,15 +1205,17 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return span > 1e-9 ? inside / span : 1;
     };
     const [back, middle, tip] = [w[0], w[4], w[8]];
+    // full width all along is a box however it is turned: one a few degrees off its axis has one corner for a tip, at
+    // its side, as a zigzag's fitted axis leaves it on cx-syn-mappings 252->255
+    if (Math.min(...w) >= 0.85) {
+        return L < 0.5 * W ? "tee" : "box";
+    }
     // half an arrow (a barb, a triangle with one side along the line) lies wholly to one side of its tip, which is on
     // the line
     const tipped = outline.flatMap((_, i) => (a[i] >= a1 - 0.02 * L ? [c[i]] : []));
     const ct = tipped.reduce((x, y) => x + y, 0) / tipped.length;
     if (c0 >= ct - 0.15 * W || c1 <= ct + 0.15 * W) {
         return "half";
-    }
-    if (Math.min(...w) >= 0.85) {
-        return L < 0.5 * W ? "tee" : "box";
     }
     if (middle >= 0.85 && back <= 0.45 && tip <= 0.45) {
         return "diamond";
@@ -1258,6 +1307,39 @@ export function strokedBarb(outline: readonly Pt[]): boolean {
 const BAR_LENGTH = 0.02;
 
 /**
+ * A stroke's two ends, where it runs straight, there and back if the path closes it: the point farthest from its start.
+ * @param q - the stroke's points
+ * @returns its ends, or null for a stroke that bends
+ */
+function straightRun(q: readonly Pt[]): [Pt, Pt] | null {
+    const a = q[0];
+    const b = q.reduce(
+        (far, p) => (Math.hypot(p[0] - a[0], p[1] - a[1]) > Math.hypot(far[0] - a[0], far[1] - a[1]) ? p : far),
+        a,
+    );
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const off = (p: Pt): number => Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len;
+    return len > 1e-9 && q.every((p) => off(p) <= 0.05 * len) ? [a, b] : null;
+}
+
+/**
+ * Whether an arrowhead's pieces are two straight strokes crossing at their middles: the middles within a tenth of a
+ * stroke's length of one another, and not along one line.
+ * @param pieces - the arrowhead's subpaths
+ * @returns true for a cross
+ */
+export function crossedStrokes(pieces: readonly (readonly Pt[])[]): boolean {
+    const [s, t] = pieces.map(straightRun);
+    if (pieces.length !== 2 || s === null || t === null) {
+        return false;
+    }
+    const [u, v] = [s, t].map(([a, b]) => [b[0] - a[0], b[1] - a[1]]);
+    const [m, n] = [s, t].map(([a, b]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+    const [lu, lv] = [Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1])];
+    return Math.hypot(m[0] - n[0], m[1] - n[1]) <= 0.1 * lu && Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.25 * lu * lv;
+}
+
+/**
  * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
  * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
  * reads as its triangle, pointing the way it points (a triangle-tee or triangle-cross part-way along a line, pointing
@@ -1267,6 +1349,9 @@ const BAR_LENGTH = 0.02;
  * @returns the class, or null when the pieces are none of these
  */
 export function piecedArrowShapeOf(pieces: readonly (readonly Pt[])[], dir: Pt): ArrowShape | null {
+    if (crossedStrokes(pieces)) {
+        return "cross";
+    }
     const shapes = pieces.map((q) => arrowShapeOf(q, dir));
     const triangles = shapes.filter((x) => x === "triangle" || x === "inverted");
     const rest = shapes.filter((x) => x !== "triangle" && x !== "inverted");

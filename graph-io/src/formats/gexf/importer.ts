@@ -3160,6 +3160,9 @@ function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
 /** A head that starts with markup, after an optional byte-order mark and whitespace. */
 const XML_START = /^\uFEFF?\s*</;
 
+/** The hosts of the GEXF namespaces. */
+const GEXF_HOSTS: ReadonlySet<string> = new Set(["gexf.net", "www.gexf.net"]);
+
 /**
  * Confidence that a document head is GEXF.
  * @param head - the first bytes
@@ -3175,7 +3178,7 @@ function sniffGexf(head: Uint8Array): number {
     if (/<(\w+:)?gexf[\s>]/.test(text)) {
         return 1;
     }
-    return text.includes("gexf.net") ? 0.8 : 0;
+    return text.split(/["'\s/]+/).some((part) => GEXF_HOSTS.has(part)) ? 0.8 : 0;
 }
 
 /**

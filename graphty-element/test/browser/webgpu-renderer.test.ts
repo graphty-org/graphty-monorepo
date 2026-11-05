@@ -19,8 +19,10 @@ import { EngineStore, Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands } from "vitest/browser";
 
+import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -483,6 +485,172 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         const resized = await screenshot(graph, "webgpu-resized");
         const { ink } = compare(resized, resized);
         assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
+    });
+
+    /**
+     * Draws the nodes with a shader body and holds its compiled program to the device's verdict.
+     * The frame the style lands in can finish on the default material alone, so this waits for the
+     * body's own module rather than for a frame: a refused name is otherwise never seen.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     */
+    async function assertDraws(id: string, glsl: string): Promise<void> {
+        defineShader({ id, glsl });
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const device = graph.engine._device;
+        const own: Promise<GPUCompilationInfo>[] = [];
+        const create = device.createShaderModule.bind(device);
+        device.createShaderModule = (descriptor) => {
+            const module = create(descriptor);
+            if (descriptor.code.includes("graphty_u_shade")) {
+                own.push(module.getCompilationInfo());
+            }
+
+            return module;
+        };
+        const errors: unknown[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error);
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "shader under test",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: id }] },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.scene.whenReadyAsync();
+        while (own.length === 0) {
+            await drawnFrames(graph.scene, 1);
+        }
+        await drawnFrames(graph.scene, 1);
+
+        const refused = (await Promise.all(own)).flatMap(({ messages }) =>
+            messages.filter(({ type }) => type === "error").map(({ message }) => message),
+        );
+        assert.deepEqual(refused, []);
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
+        const pixels = await screenshot(graph, id.replace("/", "-"));
+        const { ink } = compare(pixels, pixels);
+        assert.isAbove(ink, 0.001, "the nodes drawn with the shader are not on the canvas");
+    }
+
+    it("draws a shader whose names WGSL reserves, local, parameter, field and built-in alike", async () => {
+        // Legal GLSL that WGSL would refuse with the names kept: `pass`, `target` and `fn` are
+        // reserved, a local `select` hides the built-in the translated program calls (#5852), and
+        // `sampler` is a keyword of the compiler that reads GLSL for WebGPU.
+        await assertDraws(
+            "webgpu-renderer/reserved-words",
+            "struct S { float fn; }; float lift(float target) { return target; } " +
+                "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = lift(s.fn); float sampler = 1.0; " +
+                "float select = n.color.r > 0.5 ? 1.0 : 0.9; return vec4(n.color.rgb, pass * select * sampler); }",
+        );
+    });
+
+    it("draws a local named after a built-in both languages have, beside calls to the built-in", async () => {
+        // WGSL's `mod` is reserved, and a `var abs` in the translated function is "not a call
+        // target" for the `abs` call beside it (#5872).
+        await assertDraws(
+            "webgpu-renderer/shared-built-ins",
+            "vec4 shade(NodeInput n) { float v = abs(n.color.r - 0.5); float mod = mod(v, 0.5); " +
+                "{ float abs = 1.0; v *= abs; } return vec4(n.color.rgb, v + mod + 0.5); }",
+        );
+    });
+
+    it("draws a shader that calls modf", async () => {
+        await assertDraws(
+            "webgpu-renderer/modf",
+            "vec4 shade(NodeInput n) { vec2 whole; vec2 part = modf(n.uv * 3.5, whole); float w; " +
+                "float f = modf(n.color.r * 3.5, w); return vec4(n.color.rgb, part.x + whole.x + f + w + 0.5); }",
+        );
+    });
+
+    it("stops claiming to draw and reports it when the device refuses a shader", async () => {
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        // Every GLSL body the element accepts now translates, so the device is handed WGSL it
+        // refuses directly, through the same device the graph's shaders are compiled on.
+        graph.engine._device.createShaderModule({ code: "fn refused( {" });
+
+        const error = await refused;
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.match(String(error.details.messages), /expected/);
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    /**
+     * Paints the nodes with a shader body and waits for the graph to report it.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     * @returns The graph and the error it reported.
+     */
+    async function refusedShader(id: string, glsl: string): Promise<{ graph: Graph; error: Error }> {
+        defineShader({ id, glsl });
+        const graph = await open("webgpu");
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "refused",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: id }] },
+        });
+        return { graph, error: await refused };
+    }
+
+    it("reports a shader the GLSL compiler stops on", async () => {
+        // `image2D` is a free name in GLSL ES 3.00 and a type in the Vulkan GLSL glslang reads.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/compiler-stops",
+            "vec4 shade(NodeInput n) { float image2D = 1.0; return vec4(n.color.rgb, image2D); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "compiler");
+        assert.match(String(error.details.messages), /GLSL compilation failed/);
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("reports a shader the translator loses", async () => {
+        // The translator has no `acosh`: it stops there and hands back WGSL with no entry point.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/translator-stops",
+            "vec4 shade(NodeInput n) { return vec4(n.color.rgb, acosh(n.color.r + 1.5)); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "translator");
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("answers a pasted shader the GLSL compiler stops on, with the picture left as it was", async () => {
+        const graph = await open("webgpu");
+        const errors: unknown[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error);
+        });
+        const added = await graph.getSession().shaders.add(`/* graphty-shader 1
+{ "id": "user/compiler-stops", "name": "Stops", "place": "paint" }
+*/
+vec4 shade(NodeInput n) { float image2D = 1.0; return vec4(n.color.rgb, image2D); }
+`);
+        assert.isFalse(added.ok);
+        assert.equal(added.ok ? "" : added.problems[0].code, "shader.compile");
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
     });
 
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {

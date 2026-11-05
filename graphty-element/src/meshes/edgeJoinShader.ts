@@ -588,8 +588,8 @@ void main() {
     // both its corners (a U whose middle is short, say).
     bool clearPrev2 = cornerA > 1.5;
     bool clearNext2 = cornerB > 1.5;
-    for (int pass = 0; pass < 2; pass++) {
-        float mm = pass == 0 ? m : 0.0;
+    for (int attempt = 0; attempt < 2; attempt++) {
+        float mm = attempt == 0 ? m : 0.0;
         bool joinPrev = inJoin(u2, -back2, -vNbA.xy, vPrev2.w, vNbA.z, vEndB.z, mm);
         bool joinA = inJoin(uA, -vNbA.xy, vOwn.zw, vNbA.z, lenOwn, vWidth.x, mm);
         bool joinB = inJoin(uB, vOwn.zw, vNbB.xy, lenOwn, vNbB.z, vWidth.y, mm);

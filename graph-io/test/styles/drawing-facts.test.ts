@@ -149,8 +149,8 @@ describe("TOOL_DEFAULTS arrowhead", () => {
         expect(length("gephi", 1, 4)).toBe(13);
         // vis-network: 15 times scaleFactor plus 3 widths
         expect(length("vis-network", 1, 1)).toBe(18);
-        // yEd, as draw.io draws its files: endSize 6 plus the width
-        expect(length("yed", 1, 1)).toBe(7);
+        // yEd: 12 long on a line 1 wide, an eighth of that more for each further unit of width
+        expect(length("yed", 1, 1)).toBe(12);
     });
 
     it("reads Cytoscape's EDGE_TARGET_ARROW_SIZE as the factor of its normal 6", async () => {

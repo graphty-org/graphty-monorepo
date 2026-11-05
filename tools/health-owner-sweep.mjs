@@ -5,13 +5,19 @@
 //   node tools/health-owner-sweep.mjs [--json]
 //
 // Reads the public status API (GET /v1/status and /v1/page/<page>, no credentials) and asks GitHub once (one GraphQL
-// query through `gh api graphql`, as graphty-agent) about the issues and pull requests involved. A member's owner is an
-// open issue or pull request whose title or body names its id; a table row's owner is the issue or pull request in
-// its own cells. An owner is live when it is open and is a pull request, was updated in the last 24 hours, or has an
-// open pull request that closes it. "The rows should age out" is not an owner. Prints one line per member and row;
-// exits 1 when any of them has no live owner, 0 when every one has, 2 when the API or GitHub did not answer.
+// query through `gh api graphql`, as graphty-agent) about the issues and pull requests involved, then once more about
+// the branches naming those issues. A member's owner is an open issue or pull request whose title or body names its
+// id; a table row's owner is the issue or pull request in its own cells. An owner is live only on real work (#5857):
+// a commit in the last 24 hours on a branch naming the issue, an open pull request (its own, or one closing the issue)
+// that is green or has a commit in 24 hours, or a `taken` marker whose session is alive on this machine. A comment
+// alone is not work: such an owner prints IDLE, "owned, idle <N> h". "The rows should age out" is not an owner.
+// Prints one line per member and row; exits 1 when any of them has no live owner, 0 when every one has, 2 when the
+// API or GitHub did not answer.
 //   env STATUS_API (default the public endpoint), GITHUB_REPOSITORY (default graphty-org/graphty-monorepo)
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const STATUS_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1";
@@ -75,8 +81,15 @@ export function tableRows(pages) {
     return rows;
 }
 
+const PR_FIELDS =
+    "number state mergeable commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }";
+const FIELDS =
+    "__typename ... on Issue { number state createdAt comments(last: 20) { nodes { body } } " +
+    `closedByPullRequestsReferences(first: 5, includeClosedPrs: false) { nodes { ${PR_FIELDS} } } } ` +
+    `... on PullRequest { ${PR_FIELDS} }`;
+
 /**
- * The one GraphQL query: each referenced issue or pull request, and a search per member for the open ones naming it.
+ * The first GraphQL query: each referenced issue or pull request, and a search per member for the open ones naming it.
  * @param repo owner/name
  * @param numbers the referenced numbers
  * @param members the member ids
@@ -84,32 +97,106 @@ export function tableRows(pages) {
  */
 export function ownerQuery(repo, numbers, members) {
     const [owner, name] = repo.split("/");
-    const fields =
-        "__typename ... on Issue { number state updatedAt closedByPullRequestsReferences(first: 5, includeClosedPrs: false) { nodes { state } } } ... on PullRequest { number state updatedAt }";
-    const items = [...new Set(numbers)].map((n) => `n${n}: issueOrPullRequest(number: ${n}) { ${fields} }`);
+    const items = [...new Set(numbers)].map((n) => `n${n}: issueOrPullRequest(number: ${n}) { ${FIELDS} }`);
     const searches = members.map((id, i) => {
         const query = JSON.stringify(`repo:${repo} is:open "${id}"`);
-        return `m${i}: search(query: ${query}, type: ISSUE, first: 5) { nodes { ${fields} } }`;
+        return `m${i}: search(query: ${query}, type: ISSUE, first: 5) { nodes { ${FIELDS} } }`;
     });
     const repoPart = items.length ? `repository(owner: "${owner}", name: "${name}") { ${items.join(" ")} }` : "";
     return `{ ${repoPart} ${searches.join(" ")} }`;
 }
 
 /**
- * Whether an issue or pull request is a live owner.
+ * The second GraphQL query, once the owning issues are known: the branches whose names hold each issue's number.
+ * @param repo owner/name
+ * @param numbers the issue numbers
+ * @returns the query; its answer's repository.b<n>.nodes are `{ name, target: { committedDate } }`
+ */
+export function branchQuery(repo, numbers) {
+    const [owner, name] = repo.split("/");
+    const refs = [...new Set(numbers)].map(
+        (n) =>
+            `b${n}: refs(refPrefix: "refs/heads/", query: "${n}", first: 20) { nodes { name target { ... on Commit { committedDate } } } }`,
+    );
+    return `{ repository(owner: "${owner}", name: "${name}") { ${refs.join(" ")} } }`;
+}
+
+/**
+ * The issue numbers among an answer of ownerQuery: the ones branchQuery asks about.
+ * @param gql the answer's data
+ * @returns the numbers
+ */
+export function issueNumbers(gql) {
+    const nodes = [
+        ...Object.values(gql?.repository ?? {}),
+        ...Object.entries(gql ?? {})
+            .filter(([k]) => k !== "repository")
+            .flatMap(([, v]) => v?.nodes ?? []),
+    ];
+    return [...new Set(nodes.filter((n) => n?.__typename === "Issue").map((n) => n.number))];
+}
+
+const TAKEN = /^pipeline-round: (?:taken by session (\S+?),|released\b)/m;
+/**
+ * The session of an issue's newest `taken` marker.
+ * @param issue GraphQL's issue, with its last comments
+ * @returns the session id, or null when there is none or a `released` came after it
+ */
+export function takenSession(issue) {
+    for (const c of [...(issue.comments?.nodes ?? [])].reverse()) {
+        const m = TAKEN.exec(c.body ?? "");
+        if (m) return m[1] ?? null;
+    }
+    return null;
+}
+
+// a pull request is working when it is green and mergeable, or has a commit in 24 hours
+function prWork(p, now) {
+    const commit = p.commits?.nodes?.[0]?.commit;
+    const at = commit ? Date.parse(commit.committedDate) : NaN;
+    const green = commit?.statusCheckRollup?.state === "SUCCESS" && p.mergeable !== "CONFLICTING";
+    if (green) return { live: true, why: "green" };
+    if (now - at <= LIVE_MS) return { live: true, why: `commit ${Math.floor((now - at) / HOUR)} h ago`, at };
+    return { live: false, at };
+}
+
+/**
+ * Whether an issue or pull request is a live owner: one with real work. A comment is not work (#5857): an issue is
+ * live only with a commit in 24 hours on a branch naming it, an open pull request closing it that is green or has a
+ * commit in 24 hours, or a `taken` marker whose session is alive.
  * @param node GraphQL's issue or pull request, or null
  * @param now ms
- * @returns `{ live, why }`
+ * @param o the evidence beyond the node
+ * @param o.branches the branchQuery answer's repository (`{ b<n>: { nodes } }`)
+ * @param o.alive (session id) => whether that session is alive
+ * @returns `{ live, why, idle }`; idle is true for an open owner with no work in 24 hours
  */
-export function liveness(node, now) {
+export function liveness(node, now, o = {}) {
+    const { branches = {}, alive = () => false } = o;
     if (!node) return { live: false, why: "not found" };
     if (node.state !== "OPEN") return { live: false, why: node.state.toLowerCase() };
-    if (node.__typename === "PullRequest") return { live: true, why: "open pull request" };
-    if ((node.closedByPullRequestsReferences?.nodes ?? []).some((p) => p.state === "OPEN"))
-        return { live: true, why: "open, with an open pull request" };
-    const age = now - Date.parse(node.updatedAt);
-    if (age <= LIVE_MS) return { live: true, why: `open, updated ${Math.floor(age / HOUR)} h ago` };
-    return { live: false, why: `open, but untouched ${Math.floor(age / HOUR)} h` };
+    const idle = (times) => {
+        const last = Math.max(...times.filter(Number.isFinite));
+        const h = Number.isFinite(last) ? Math.floor((now - last) / HOUR) : null;
+        return { live: false, idle: true, why: h === null ? "owned, no work yet" : `owned, idle ${h} h` };
+    };
+    if (node.__typename === "PullRequest") {
+        const w = prWork(node, now);
+        return w.live ? { live: true, why: `open pull request, ${w.why}` } : idle([w.at]);
+    }
+    const prs = (node.closedByPullRequestsReferences?.nodes ?? []).filter((p) => p.state === "OPEN");
+    const works = prs.map((p) => ({ p, w: prWork(p, now) }));
+    const pr = works.find((x) => x.w.live);
+    if (pr) return { live: true, why: `open, pull request #${pr.p.number} ${pr.w.why}` };
+    const named = new RegExp(`(^|\\D)${node.number}(\\D|$)`);
+    const commits = (branches[`b${node.number}`]?.nodes ?? [])
+        .filter((b) => named.test(b.name))
+        .map((b) => ({ name: b.name, at: Date.parse(b.target?.committedDate) }));
+    const fresh = commits.find((b) => now - b.at <= LIVE_MS);
+    if (fresh) return { live: true, why: `open, commit ${Math.floor((now - fresh.at) / HOUR)} h ago on ${fresh.name}` };
+    const session = takenSession(node);
+    if (session && alive(session)) return { live: true, why: `open, taken by live session ${session}` };
+    return idle([...works.map((x) => x.w.at), ...commits.map((b) => b.at), Date.parse(node.createdAt)]);
 }
 
 function ref(node) {
@@ -117,6 +204,10 @@ function ref(node) {
     const kind = node.__typename === "PullRequest" ? "PR " : "";
     return `${kind}#${node.number}`;
 }
+const tag = (best) => {
+    if (best?.l.live) return "owned  ";
+    return best?.l.idle ? "IDLE   " : "NO OWNER";
+};
 const hours = (since, now) => (since ? `${Math.floor((now - Date.parse(since)) / HOUR)} h` : "? h");
 
 /**
@@ -125,33 +216,33 @@ const hours = (since, now) => (since ? `${Math.floor((now - Date.parse(since)) /
  * @param o.status GET /v1/status
  * @param o.pages the owned tables' pages
  * @param o.gql the GraphQL answer's data for ownerQuery(...)
+ * @param o.branches the repository of the GraphQL answer's data for branchQuery(...)
+ * @param o.alive (session id) => whether that session is alive
  * @param o.now ms
  * @returns `{ lines, unowned }`
  */
-export function sweep({ status, pages, gql, now }) {
+export function sweep({ status, pages, gql, branches, alive, now }) {
     const members = notOkMembers(status);
     const rows = tableRows(pages);
     const items = gql?.repository ?? {};
     const lines = [];
     let unowned = 0;
     members.forEach((m, i) => {
-        const found = (gql?.[`m${i}`]?.nodes ?? []).map((n) => ({ n, l: liveness(n, now) }));
+        const found = (gql?.[`m${i}`]?.nodes ?? []).map((n) => ({ n, l: liveness(n, now, { branches, alive }) }));
         const best = found.find((f) => f.l.live) ?? found[0];
         if (!best?.l.live) unowned++;
         const who = best ? `${ref(best.n)} (${best.l.why})` : "no issue or pull request names it";
-        lines.push(
-            `${best?.l.live ? "owned  " : "NO OWNER"} member ${m.id} ${m.state} for ${hours(m.since, now)}: ${who}`,
-        );
+        lines.push(`${tag(best)} member ${m.id} ${m.state} for ${hours(m.since, now)}: ${who}`);
     });
     for (const r of rows) {
         const found = r.refs
             .map((x) => ({ n: items[`n${x.n}`] ?? null, x }))
-            .map((f) => ({ ...f, l: liveness(f.n, now) }));
+            .map((f) => ({ ...f, l: liveness(f.n, now, { branches, alive }) }));
         const best = found.find((f) => f.l.live) ?? found[0];
         if (!best?.l.live) unowned++;
         let who = "no issue in its row";
         if (best) who = `${best.n ? ref(best.n) : "#" + best.x.n} (${best.l.why})`;
-        lines.push(`${best?.l.live ? "owned  " : "NO OWNER"} ${r.table} "${r.label}": ${who}`);
+        lines.push(`${tag(best)} ${r.table} "${r.label}": ${who}`);
     }
     const total = members.length + rows.length;
     lines.push(
@@ -168,6 +259,41 @@ async function getJson(url) {
     return res.json();
 }
 
+function graphql(query) {
+    const out = execFileSync("gh", ["api", "graphql", "-f", `query=${query}`], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "inherit"],
+    });
+    return JSON.parse(out).data ?? {};
+}
+
+/**
+ * Whether a Claude session is alive on this machine, as pipeline-round's shared.md defines it: a session file names
+ * it, and its pid runs with the same start time (session files outlive their sessions, and pids are reused).
+ * @param id the session id
+ * @param dir the session files' folder
+ * @returns boolean
+ */
+export function sessionAlive(id, dir = join(homedir(), ".claude", "sessions")) {
+    let files = [];
+    try {
+        files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    } catch {
+        return false;
+    }
+    return files.some((f) => {
+        try {
+            const s = JSON.parse(readFileSync(join(dir, f), "utf8"));
+            if (s.sessionId !== id) return false;
+            const stat = readFileSync(`/proc/${s.pid}/stat`, "utf8");
+            // field 22 (starttime), counted after the parenthesized command name, which may hold spaces
+            return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19] === String(s.procStart);
+        } catch {
+            return false;
+        }
+    });
+}
+
 async function main(env = process.env) {
     const api = env.STATUS_API || STATUS_API;
     const repo = env.GITHUB_REPOSITORY || "graphty-org/graphty-monorepo";
@@ -177,14 +303,10 @@ async function main(env = process.env) {
     const members = notOkMembers(status).map((m) => m.id);
     const numbers = tableRows(pages).flatMap((r) => r.refs.map((x) => x.n));
     let gql = {};
-    if (members.length || numbers.length) {
-        const out = execFileSync("gh", ["api", "graphql", "-f", `query=${ownerQuery(repo, numbers, members)}`], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "inherit"],
-        });
-        gql = JSON.parse(out).data ?? {};
-    }
-    const r = sweep({ status, pages, gql, now: Date.now() });
+    if (members.length || numbers.length) gql = graphql(ownerQuery(repo, numbers, members));
+    const issues = issueNumbers(gql);
+    const branches = issues.length ? (graphql(branchQuery(repo, issues)).repository ?? {}) : {};
+    const r = sweep({ status, pages, gql, branches, alive: sessionAlive, now: Date.now() });
     console.log(r.lines.join("\n"));
     return r.unowned ? 1 : 0;
 }

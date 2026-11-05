@@ -2,10 +2,22 @@
 // reads: tools/fixtures/health-owner-sweep/) and a GitHub answer written here.
 // Run: node tools/health-owner-sweep.test.mjs
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { liveness, notOkMembers, ownerQuery, sweep, tableRows } from "./health-owner-sweep.mjs";
+import {
+    branchQuery,
+    issueNumbers,
+    liveness,
+    notOkMembers,
+    ownerQuery,
+    sessionAlive,
+    sweep,
+    tableRows,
+    takenSession,
+} from "./health-owner-sweep.mjs";
 
 const fixture = (f) => JSON.parse(readFileSync(new URL(`fixtures/health-owner-sweep/${f}`, import.meta.url), "utf8"));
 const status = fixture("status.json");
@@ -13,14 +25,25 @@ const pages = fixture("pages.json");
 const NOW = Date.parse("2026-10-30T14:10:00Z");
 const HOUR = 3_600_000;
 const at = (h) => new Date(NOW - h * HOUR).toISOString();
-const issue = (number, h, prs = []) => ({
+// an open issue created h hours ago, with its comments and the open pull requests closing it
+const issue = (number, h, prs = [], comments = []) => ({
     __typename: "Issue",
     number,
     state: "OPEN",
-    updatedAt: at(h),
+    createdAt: at(h),
+    comments: { nodes: comments.map((body) => ({ body })) },
     closedByPullRequestsReferences: { nodes: prs },
 });
-const pr = (number) => ({ __typename: "PullRequest", number, state: "OPEN", updatedAt: at(100) });
+// an open pull request whose last commit is h hours old with checks in the given state
+const pr = (number, h = 100, checks = "SUCCESS", mergeable = "MERGEABLE") => ({
+    __typename: "PullRequest",
+    number,
+    state: "OPEN",
+    mergeable,
+    commits: { nodes: [{ commit: { committedDate: at(h), statusCheckRollup: { state: checks } } }] },
+});
+const branch = (name, h) => ({ name, target: { committedDate: at(h) } });
+const STATUS = "pipeline-round: taken by session s-1, branch fix/1-x, worktree .worktrees/1-x -- next bug";
 
 describe("the not-ok members", () => {
     it("are every category's setBy and others that are bad or warn, with their open episode's start", () => {
@@ -69,14 +92,65 @@ describe("one GraphQL query", () => {
     });
 });
 
-describe("liveness", () => {
-    it("open and touched in 24 hours, an open pull request, or an issue with an open pull request", () => {
-        assert.equal(liveness(issue(1, 3), NOW).live, true);
-        assert.equal(liveness(issue(1, 30), NOW).live, false, "'should age out' is not an owner");
-        assert.equal(liveness(issue(1, 30, [{ state: "OPEN" }]), NOW).live, true);
-        assert.equal(liveness(pr(2), NOW).live, true);
+describe("the second query", () => {
+    it("asks once per owning issue for the branches holding its number", () => {
+        const gql = {
+            repository: { n1: issue(1, 1), n2: pr(2) },
+            m0: { nodes: [issue(3, 1), issue(1, 1)] },
+        };
+        assert.deepEqual(issueNumbers(gql), [1, 3]);
+        const q = branchQuery("graphty-org/graphty-monorepo", [1, 3]);
+        assert.match(q, /b1: refs\(refPrefix: "refs\/heads\/", query: "1"/);
+        assert.match(q, /b3: refs\(/);
+    });
+});
+
+describe("liveness (#5857: only real work counts)", () => {
+    it("a fresh issue whose only activity is comments is idle, not live", () => {
+        // the old rule called this live: it was updated (by the comment) in the last 24 hours
+        const l = liveness({ ...issue(1, 40, [], [STATUS]), updatedAt: at(1) }, NOW);
+        assert.equal(l.live, false);
+        assert.equal(l.idle, true);
+        assert.equal(l.why, "owned, idle 40 h");
+    });
+    it("a commit in 24 hours on a branch naming the issue is live; another number's branch is not", () => {
+        const branches = { b57: { nodes: [branch("fix/5857-x", 1), branch("fix/57-y", 30)] } };
+        assert.equal(liveness(issue(57, 40), NOW, { branches }).live, false, "5857 is not 57");
+        assert.equal(liveness(issue(57, 40), NOW, { branches }).why, "owned, idle 30 h");
+        const fresh = { b57: { nodes: [branch("fix/57-y", 3)] } };
+        assert.deepEqual(liveness(issue(57, 40), NOW, { branches: fresh }), {
+            live: true,
+            why: "open, commit 3 h ago on fix/57-y",
+        });
+    });
+    it("an open pull request is live when green or with a commit in 24 hours, not when red, conflicted and old", () => {
+        assert.equal(liveness(pr(2, 100), NOW).live, true);
+        assert.equal(liveness(pr(2, 3, "FAILURE"), NOW).live, true);
+        assert.equal(liveness(pr(2, 50, "FAILURE"), NOW).live, false);
+        assert.equal(liveness(pr(2, 50, "SUCCESS", "CONFLICTING"), NOW).why, "owned, idle 50 h");
+        assert.equal(liveness(issue(1, 30, [pr(2, 100)]), NOW).live, true);
+        assert.equal(liveness(issue(1, 30, [pr(2, 50, "FAILURE")]), NOW).live, false);
+    });
+    it("a taken marker counts while its session is alive and until a released marker", () => {
+        const alive = (s) => s === "s-1";
+        assert.equal(liveness(issue(1, 40, [], [STATUS]), NOW, { alive }).live, true);
+        assert.equal(liveness(issue(1, 40, [], [STATUS]), NOW, { alive: () => false }).live, false);
+        assert.equal(takenSession(issue(1, 1, [], [STATUS, "pipeline-round: released -- stale"])), null);
+        assert.equal(takenSession(issue(1, 1, [], ["pipeline-round: released -- x", STATUS, "status"])), "s-1");
+    });
+    it("closed or missing is no owner", () => {
         assert.equal(liveness({ ...issue(1, 1), state: "CLOSED" }, NOW).live, false);
         assert.equal(liveness(null, NOW).live, false);
+    });
+    it("a session is alive only when its pid runs with the recorded start time", () => {
+        const dir = mkdtempSync(join(tmpdir(), "owner-sweep-"));
+        const start = readFileSync("/proc/self/stat", "utf8").split(") ")[1].split(" ")[19];
+        writeFileSync(join(dir, "a.json"), JSON.stringify({ sessionId: "me", pid: process.pid, procStart: start }));
+        writeFileSync(join(dir, "b.json"), JSON.stringify({ sessionId: "old", pid: process.pid, procStart: "1" }));
+        assert.equal(sessionAlive("me", dir), true);
+        assert.equal(sessionAlive("old", dir), false, "a reused pid");
+        assert.equal(sessionAlive("gone", dir), false);
+        assert.equal(sessionAlive("me", join(dir, "missing")), false);
     });
 });
 
@@ -84,16 +158,25 @@ describe("the sweep", () => {
     it("names every member and row without a live owner and counts them", () => {
         const members = notOkMembers(status).map((m) => m.id);
         const gql = Object.fromEntries(members.map((_, i) => [`m${i}`, { nodes: [] }]));
-        gql.m1 = { nodes: [issue(4600, 2)] }; // ci.chronic_jobs: a fresh issue
-        gql.m3 = { nodes: [issue(4486, 40, [{ state: "OPEN" }])] }; // costs.llm: an open fix
+        gql.m1 = { nodes: [issue(4600, 30)] }; // ci.chronic_jobs: a branch with a fresh commit
+        gql.m2 = { nodes: [{ ...issue(4700, 30, [], [STATUS]), updatedAt: at(1) }] }; // ci.bins_over: status comments only
+        gql.m3 = { nodes: [issue(4486, 40, [pr(4490, 2, "FAILURE")])] }; // costs.llm: an open fix
         gql.repository = { n4554: issue(4554, 50), n1677: pr(1677), n1941: pr(1941), n2013: pr(2013) };
-        const r = sweep({ status, pages, gql, now: NOW });
+        const branches = { b4600: { nodes: [branch("fix/4600-chronic", 2)] } };
+        const r = sweep({ status, pages, gql, branches, alive: () => false, now: NOW });
         const text = r.lines.join("\n");
-        assert.match(text, /^owned {3}member ci\.chronic_jobs bad for 24 h: #4600 \(open, updated 2 h ago\)$/m);
-        assert.match(text, /^owned {3}member costs\.llm bad for \d+ h: #4486 \(open, with an open pull request\)$/m);
+        assert.match(
+            text,
+            /^owned {3}member ci\.chronic_jobs bad for 24 h: #4600 \(open, commit 2 h ago on fix\/4600-/m,
+        );
+        assert.match(text, /^IDLE {4}member ci\.bins_over warn for \d+ h: #4700 \(owned, idle 30 h\)$/m);
+        assert.match(
+            text,
+            /^owned {3}member costs\.llm bad for \d+ h: #4486 \(open, pull request #4490 commit 2 h ago\)$/m,
+        );
         assert.match(text, /^NO OWNER member costs\.t4 bad for \d+ h: no issue or pull request names it$/m);
         assert.match(text, /^NO OWNER ci\/chronic "Story tests \(graphty-element\)": no issue in its row$/m);
-        assert.match(text, /^NO OWNER ci\/chronic "Performance Benchmarks": #4554 \(open, but untouched 50 h\)$/m);
+        assert.match(text, /^IDLE {4}ci\/chronic "Performance Benchmarks": #4554 \(owned, idle 50 h\)$/m);
         assert.match(text, /^owned {3}pull-requests\/owner "feat!: one major/m);
         // 7 members (2 owned) and 6 rows (3 owned)
         assert.equal(r.unowned, 8);

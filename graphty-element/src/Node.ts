@@ -54,7 +54,7 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { drawnAgainstBox, isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
+import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
@@ -272,6 +272,9 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  * no single radius that describes where its surface is.
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+/** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
+const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
@@ -569,6 +572,14 @@ export class Node implements ModelUser {
     private halfExtentsMesh: AbstractMesh | null = null;
     private readonly halfExtentsScale = { x: 0, y: 0, z: 0 };
     private readonly halfExtentsValue = { x: 0, y: 0, z: 0 };
+
+    /** What {@link Node.reachOutline} last built, and the mesh, style and label fit it built it from. */
+    private reachOutlineBuilt: {
+        mesh: AbstractMesh;
+        style: NodeStyleConfig | null;
+        fit: { width: number; height: number } | null;
+        value: readonly Point2[] | null;
+    } | null = null;
 
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
@@ -2618,6 +2629,40 @@ export class Node implements ModelUser {
      */
     get surfaceIsBox(): boolean {
         return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * The outline an edge ends on, for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
+     * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size, which
+     * {@link Node.drawnHalfExtents} scales back out. Built once per mesh, style and label fit, so an edge pays one
+     * pass over the outline's sides. Null for a shape whose box or ellipse is its outline, or that is not flat.
+     * @returns The outline, counter-clockwise, or null.
+     * @internal
+     */
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
+        const built = this.reachOutlineBuilt;
+        if (built?.mesh === this.mesh && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
+            return built.value;
+        }
+
+        const style = this.drawnStyle;
+        const shape = style?.shape;
+        const type = shape?.type;
+        const outlined = type !== undefined && isFlatShape(type) && !BOX_OR_ELLIPSE.has(type) && !this.surfaceIsBox;
+        const value = outlined
+            ? inUnitBox(
+                  NodeMesh.faceOf(
+                      {
+                          shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent },
+                          border: style?.border,
+                      },
+                      this.size,
+                      this.mesh,
+                  ).outline,
+              )
+            : null;
+        this.reachOutlineBuilt = { mesh: this.mesh, style, fit: this.fittedExtent, value };
+        return value;
     }
 
     /**

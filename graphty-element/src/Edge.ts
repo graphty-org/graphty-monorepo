@@ -2920,14 +2920,20 @@ export class Edge {
     }
 
     /**
-     * How far a node's surface and border are from its center in a direction.
+     * How far a node's surface and border are from its center in a direction: on a flat shape, its own outline
+     * ({@link Node.reachOutline}), so a line ends on a star's point and not out at its box's corner.
      * @param node - The node.
      * @param dir - The unit direction.
      * @returns The distance.
      */
     private static reachOf(node: Node, dir: Xyz): number {
         return (
-            surfaceReach(dir, node.drawnHalfExtents, node.roundRadius, node.shapeType === "ellipse") + node.borderReach
+            surfaceReach(
+                dir,
+                node.drawnHalfExtents,
+                node.roundRadius,
+                node.shapeType === "ellipse" || (node.reachOutline ?? false),
+            ) + node.borderReach
         );
     }
 

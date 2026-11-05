@@ -1,10 +1,10 @@
 import { defineRegistration } from "../commands/registry";
-import { openDataPage } from "./request";
+import { chooseAndOpenFile } from "../start/open";
 
 /**
- * The Data page package's commands: Add data..., which opens the Data page to add data to the open
- * project from Quick actions (tier1-design.md section 2.10). The start
- * screen's New from data... opens the same page as a new graph.
+ * The Data page package's commands: Add data..., in Quick actions, which adds a file to the open
+ * project by the same door as the Sources "+" File...: the file picker, then, onto a graph that holds
+ * data, the join screen. The start screen's New from data... opens the Data page as a new graph.
  */
 export const registration = defineRegistration({
     owner: "data-page",
@@ -15,9 +15,7 @@ export const registration = defineRegistration({
             group: "Data",
             keywords: ["import", "file", "table", "csv"],
             disabled: ({ workspace }) => (workspace.get().project === null ? "No project is open" : null),
-            run: ({ workspace }) => {
-                openDataPage(workspace, { intent: "add" });
-            },
+            run: chooseAndOpenFile,
         },
     ],
 });

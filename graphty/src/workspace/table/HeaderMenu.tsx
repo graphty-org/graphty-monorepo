@@ -1,20 +1,19 @@
 import { MenuCheckItem } from "@graphty/compact-mantine";
 import {
+    COLUMN_ROLES,
     type ColumnRef,
     type ColumnRole,
     type DataIssue,
     type GraphSession,
-    isGraphtyError,
-    type ValueType,
+    type LoadedSource,
 } from "@graphty/graphty-element/session";
 import { Menu } from "@mantine/core";
 import React from "react";
 
-import { pickEnd } from "../data-place/commands";
 import { remap } from "../data-place/words";
-import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
+    failWords,
     fixLabel,
     headerRoles,
     issueLabel,
@@ -24,6 +23,12 @@ import {
     VALUE_TYPES,
     valueTypeOf,
 } from "./columns";
+
+/**
+ * MenuCheckItem's empty 16 px check column, for a plain row among an issue's fix rows, so Ignore
+ * and Show rows start where the fixes do (Figma: a menu's labels stay aligned).
+ */
+const CHECK_COLUMN = <span className="cm-menu-row-check" aria-hidden="true" />;
 
 /** What the header menu asks the table to do with its own arrangement. */
 export interface HeaderMenuActions {
@@ -50,57 +55,31 @@ interface HeaderMenuProps {
 }
 
 /**
- * Gives a column a role, one undo step. A role the rows are made from (id, source, target, kind)
- * cannot change in place, so graphty-element refuses it; the column's load is then read again
- * with the column in that role, as the Fields row does. Source or target on a node column is one
- * end of rows read as edges: held until the other end is picked, here or in Fields.
- * @param workspace - the workspace store.
+ * Gives a column a role, one undo step: in place, or for a role the rows are made from
+ * (`COLUMN_ROLES[kind].atLoad`: id, source, target, kind) by reading the column's load again with
+ * the column in that role, as the Fields row does.
  * @param session - the element's session.
  * @param ref - the column.
  * @param role - the role, or null for none.
  * @param kind - nodes or edges.
- * @param from - the loads whose rows carry the column, when the element says.
+ * @param load - the load whose rows carry the column, when it can be read again.
  */
 async function assignRole(
-    workspace: WorkspaceStore,
     session: GraphSession,
     ref: ColumnRef,
     role: ColumnRole | null,
     kind: RecordKind,
-    from: readonly string[] | undefined,
+    load: LoadedSource | undefined,
 ): Promise<void> {
-    const load = session.data
-        .sources()
-        .find((source) => source.reloadable === true && (from?.includes(source.key) ?? true));
-    if (kind === "node" && (role === "source" || role === "target") && load !== undefined) {
-        await pickEnd(workspace, session, load, role, ref.name);
-        return;
-    }
-    try {
-        await session.data.setRole(ref, role);
-    } catch (error) {
-        if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED" || role === null || load === undefined) {
-            throw error;
+    if (role !== null && COLUMN_ROLES[kind].atLoad.includes(role)) {
+        if (load === undefined) {
+            throw new Error("the load cannot be read again");
         }
         const side = kind === "node" ? "nodes" : "edges";
         await session.data.reloadSource(load.key, { mapping: remap(load, side, { [role]: ref.name }) });
+        return;
     }
-}
-
-/**
- * How many values would not convert to a type, as the Type row says before it is chosen.
- * @param session - the element's session.
- * @param ref - the column.
- * @param type - the type.
- * @returns such as "1 will not convert", or undefined when every value converts.
- */
-function failWords(session: GraphSession, ref: ColumnRef, type: ValueType): string | undefined {
-    try {
-        const { fails } = session.data.previewType(ref, type);
-        return fails === 0 ? undefined : `${String(fails)} will not convert`;
-    } catch {
-        return undefined;
-    }
+    await session.data.setRole(ref, role);
 }
 
 /**
@@ -127,6 +106,12 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
     };
     const { ref } = column;
     const current = valueTypeOf(column.descriptor);
+    // A found location is already the column's role (columnChoices).
+    const role = column.role ?? null;
+    const from = column.descriptor?.sources;
+    const load = session?.data
+        .sources()
+        .find((source) => source.reloadable === true && (from?.includes(source.key) ?? true));
     const registered =
         ref === undefined ? [] : registry.columnHeader.filter((command) => command.shown?.(workspace, ref) ?? true);
 
@@ -150,6 +135,7 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                               </MenuCheckItem>
                           ))}
                           <Menu.Item
+                              leftSection={CHECK_COLUMN}
                               onClick={() => {
                                   session.data.ignoreIssue(issue, true).catch(fail);
                               }}
@@ -157,6 +143,7 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                               Ignore
                           </Menu.Item>
                           <Menu.Item
+                              leftSection={CHECK_COLUMN}
                               onClick={() => {
                                   actions.showRows(issue);
                               }}
@@ -201,25 +188,18 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                             <Menu.Sub.Item>Role</Menu.Sub.Item>
                         </Menu.Sub.Target>
                         <Menu.Sub.Dropdown>
-                            {[null, ...headerRoles(kind)].map((role) => (
+                            {[null, ...headerRoles(kind, load !== undefined)].map((each) => (
                                 <MenuCheckItem
-                                    key={role ?? "none"}
+                                    key={each ?? "none"}
                                     radio
-                                    checked={role === (column.role ?? null)}
+                                    checked={each === role}
                                     onClick={() => {
-                                        if (role !== (column.role ?? null)) {
-                                            assignRole(
-                                                store,
-                                                session,
-                                                ref,
-                                                role,
-                                                kind,
-                                                column.descriptor?.sources,
-                                            ).catch(fail);
+                                        if (each !== role) {
+                                            assignRole(session, ref, each, kind, load).catch(fail);
                                         }
                                     }}
                                 >
-                                    {role === null ? "none" : ROLE_WORDS[role]}
+                                    {each === null ? "None" : ROLE_WORDS[each]}
                                 </MenuCheckItem>
                             ))}
                         </Menu.Sub.Dropdown>

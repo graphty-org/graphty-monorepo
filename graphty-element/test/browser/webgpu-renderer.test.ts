@@ -487,24 +487,26 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
     });
 
-    it("draws a shader whose names WGSL reserves, local, parameter, field and built-in alike", async () => {
-        // Legal GLSL that WGSL would refuse with the names kept: `pass`, `target` and `fn` are
-        // reserved, and a local `select` hides the built-in the translated program calls (#5852).
-        defineShader({
-            id: "webgpu-renderer/reserved-words",
-            glsl:
-                "struct S { float fn; }; float lift(float target) { return target; } " +
-                "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = lift(s.fn); " +
-                "float select = n.color.r > 0.5 ? 1.0 : 0.9; return vec4(n.color.rgb, pass * select); }",
-        });
+    /**
+     * Draws the nodes with a shader body and holds its compiled program to the device's verdict.
+     * The frame the style lands in can finish on the default material alone, so this waits for the
+     * body's own module rather than for a frame: a refused name is otherwise never seen.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     */
+    async function assertDraws(id: string, glsl: string): Promise<void> {
+        defineShader({ id, glsl });
         const graph = await open("webgpu");
         assert.instanceOf(graph.engine, WebGPUEngine);
         const device = graph.engine._device;
-        const compiled: Promise<GPUCompilationInfo>[] = [];
+        const own: Promise<GPUCompilationInfo>[] = [];
         const create = device.createShaderModule.bind(device);
         device.createShaderModule = (descriptor) => {
             const module = create(descriptor);
-            compiled.push(module.getCompilationInfo());
+            if (descriptor.code.includes("graphty_u_shade")) {
+                own.push(module.getCompilationInfo());
+            }
+
             return module;
         };
         const errors: unknown[] = [];
@@ -513,25 +515,57 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         });
         await graph.addNodes(NODES);
         await graph.getSession().styles.add({
-            name: "reserved",
+            name: "shader under test",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.shaders": [{ shader: "webgpu-renderer/reserved-words" }] },
+            set: { "node.shaders": [{ shader: id }] },
         });
         await operationQueueOf(graph).waitForCompletion();
         await graph.scene.whenReadyAsync();
+        while (own.length === 0) {
+            await drawnFrames(graph.scene, 1);
+        }
         await drawnFrames(graph.scene, 1);
 
-        const refused = (await Promise.all(compiled)).flatMap(({ messages }) =>
+        const refused = (await Promise.all(own)).flatMap(({ messages }) =>
             messages.filter(({ type }) => type === "error").map(({ message }) => message),
         );
-        assert.isAbove(compiled.length, 0, "no shader was compiled after the style was added");
         assert.deepEqual(refused, []);
         assert.deepEqual(errors, []);
         assert.equal(graph.rendererStatus?.drawing, true);
-        const pixels = await screenshot(graph, "webgpu-reserved-words");
+        const pixels = await screenshot(graph, id.replace("/", "-"));
         const { ink } = compare(pixels, pixels);
         assert.isAbove(ink, 0.001, "the nodes drawn with the shader are not on the canvas");
+    }
+
+    it("draws a shader whose names WGSL reserves, local, parameter, field and built-in alike", async () => {
+        // Legal GLSL that WGSL would refuse with the names kept: `pass`, `target` and `fn` are
+        // reserved, a local `select` hides the built-in the translated program calls (#5852), and
+        // `sampler` is a keyword of the compiler that reads GLSL for WebGPU.
+        await assertDraws(
+            "webgpu-renderer/reserved-words",
+            "struct S { float fn; }; float lift(float target) { return target; } " +
+                "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = lift(s.fn); float sampler = 1.0; " +
+                "float select = n.color.r > 0.5 ? 1.0 : 0.9; return vec4(n.color.rgb, pass * select * sampler); }",
+        );
+    });
+
+    it("draws a local named after a built-in both languages have, beside calls to the built-in", async () => {
+        // WGSL's `mod` is reserved, and a `var abs` in the translated function is "not a call
+        // target" for the `abs` call beside it (#5872).
+        await assertDraws(
+            "webgpu-renderer/shared-built-ins",
+            "vec4 shade(NodeInput n) { float v = abs(n.color.r - 0.5); float mod = mod(v, 0.5); " +
+                "{ float abs = 1.0; v *= abs; } return vec4(n.color.rgb, v + mod + 0.5); }",
+        );
+    });
+
+    it("draws a shader that calls modf", async () => {
+        await assertDraws(
+            "webgpu-renderer/modf",
+            "vec4 shade(NodeInput n) { vec2 whole; vec2 part = modf(n.uv * 3.5, whole); float w; " +
+                "float f = modf(n.color.r * 3.5, w); return vec4(n.color.rgb, part.x + whole.x + f + w + 0.5); }",
+        );
     });
 
     it("stops claiming to draw and reports it when the device refuses a shader", async () => {

@@ -490,6 +490,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.stripeOpacities": "Stripe opacities",
     "node.stripeDirection": "Stripe direction",
     "node.stripeSize": "Stripe size",
+    "node.stripeFrame": "Stripe frame",
     "node.chartKind": "Chart kind",
     "node.chartValues": "Chart values",
     "node.chartColors": "Chart colors",

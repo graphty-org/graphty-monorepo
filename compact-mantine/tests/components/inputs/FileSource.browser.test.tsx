@@ -114,6 +114,31 @@ describe("FileSource", () => {
         expect(field).not.toHaveAttribute("aria-invalid", "true");
     });
 
+    it("opens the typed address from an Open button beside the field, when it has one", async () => {
+        const onUrl = vi.fn();
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource variant="row" openLabel="Open" onFiles={() => undefined} onUrl={onUrl} />
+            </div>,
+        );
+        const field = screen.getByRole("textbox", { name: "URL" });
+        await userEvent.click(field);
+        await userEvent.keyboard("not a url");
+        await userEvent.click(screen.getByRole("button", { name: "Open" }));
+        expect(onUrl).not.toHaveBeenCalled();
+        expect(field).toHaveAttribute("aria-invalid", "true");
+
+        await userEvent.clear(field);
+        await userEvent.keyboard("https://graphty.app/data/karate.json");
+        await userEvent.click(screen.getByRole("button", { name: "Open" }));
+        expect(onUrl).toHaveBeenCalledWith("https://graphty.app/data/karate.json");
+    });
+
+    it("draws no Open button without openLabel", async () => {
+        await renderThemed(<FileSource variant="row" onFiles={() => undefined} onUrl={() => undefined} />);
+        expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+    });
+
     it("ignores drops and keeps its controls off while disabled", async () => {
         const onFiles = vi.fn();
         await renderThemed(<FileSource variant="drop" disabled onFiles={onFiles} />);

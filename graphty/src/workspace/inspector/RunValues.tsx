@@ -33,6 +33,7 @@ import {
     formatNumber,
     groupName,
     modularityBandName,
+    nodeName,
     queuedWords,
     rankedName,
     routeWords,
@@ -444,7 +445,7 @@ export function PathValues({
                 {nodes.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
-                        name={String(entry.id)}
+                        name={nodeName(session, entry.id)}
                         value={formatNumber(entry.value + 1)}
                         onClick={() => {
                             selectNode(session, entry.id);
@@ -550,8 +551,7 @@ function groupScope(run: RunId, field: string, group: string | number): ScopeInp
 
 /**
  * A group row's Values tab (tier1-design.md section 2.7): Summary (its size, a link that selects
- * its members) and its first members, each a link that selects that node. Members are named by
- * id until graphty-element publishes a node's name (#895).
+ * its members) and its first members, each a link that selects that node, called by its name.
  * @param props - Component props
  * @param props.run - The grouping run
  * @param props.group - The group
@@ -599,7 +599,7 @@ export function GroupValues({
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow
                             key={nodeKey(id)}
-                            name={String(id)}
+                            name={nodeName(session, id)}
                             onClick={() => {
                                 selectNode(session, id);
                             }}

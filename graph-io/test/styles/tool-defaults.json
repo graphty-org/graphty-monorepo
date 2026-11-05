@@ -205,7 +205,7 @@
     "yed": {
         "units": "px",
         "node": {
-            "fill": "#ffcc00",
+            "fill": "#ccccff",
             "shape": "rectangle",
             "borderColor": "#000000",
             "borderWidth": 1,

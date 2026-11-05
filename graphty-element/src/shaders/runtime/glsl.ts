@@ -207,6 +207,12 @@ float iconSdf(int icon, vec2 p) {
     return wrapped > 5 ? abs(d + 0.02) - 0.04 : d;
 }
 
+// GLSL's modf under its own name: the WebGPU translator stops at the built-in, so a body's call lands here.
+float modf(float x, out float whole) { whole = trunc(x); return x - whole; }
+vec2 modf(vec2 x, out vec2 whole) { whole = trunc(x); return x - whole; }
+vec3 modf(vec3 x, out vec3 whole) { whole = trunc(x); return x - whole; }
+vec4 modf(vec4 x, out vec4 whole) { whole = trunc(x); return x - whole; }
+
 float fillAA(float d) { float w = fwidth(d); return 1.0 - smoothstep(-w, w, d); }
 float strokeAA(float d, float hw) { return fillAA(abs(d) - hw); }
 `;

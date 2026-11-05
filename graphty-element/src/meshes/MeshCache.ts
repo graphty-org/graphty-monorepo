@@ -37,10 +37,21 @@ export class MeshCache {
      * @returns Instanced mesh from cache or newly created
      */
     get(name: string, creator: MeshCreatorFn): InstancedMesh {
+        return this.sourceFor(name, creator).createInstance(name);
+    }
+
+    /**
+     * Get or create a source mesh, with no instance of it: what a row with no mesh of its own is
+     * drawn and picked from.
+     * @param name - Cache key for the mesh
+     * @param creator - Function to create the mesh if not cached
+     * @returns The source mesh
+     */
+    sourceFor(name: string, creator: MeshCreatorFn): Mesh {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
-            return mesh.createInstance(name);
+            return mesh;
         }
 
         this.misses++;
@@ -55,7 +66,7 @@ export class MeshCache {
 
         mesh.freezeWorldMatrix();
         this.meshCacheMap.set(name, mesh);
-        return mesh.createInstance(name);
+        return mesh;
     }
 
     /**

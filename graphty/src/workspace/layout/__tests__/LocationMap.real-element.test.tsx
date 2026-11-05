@@ -370,6 +370,7 @@ describe("the location map", () => {
         // The app's own choices: nodes one size on screen, on a map six times the element's default.
         assert.strictEqual(element.session.layout.options.nodeScale, "screen");
         assert.strictEqual(element.session.layout.options.mapScale, 6);
+        assert.strictEqual(element.session.layout.options.flatNodeScale, 2);
         // West to east on screen: Seattle, Chicago, New York; Seattle, the farthest north, highest.
         assert.isBelow(at(element, "SEA").x, at(element, "CHI").x);
         assert.isBelow(at(element, "CHI").x, at(element, "NYC").x);

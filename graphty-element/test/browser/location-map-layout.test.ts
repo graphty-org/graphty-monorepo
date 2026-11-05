@@ -329,6 +329,19 @@ describe("the location map layout", () => {
             0.01,
             "a node is six times smaller against the map in view",
         );
+
+        // flatNodeScale gives those nodes back some size, under the same map
+        await graph.setLayout("location-map", { mapScale: 6, nodeScale: "screen", flatNodeScale: 2 });
+        await settled();
+        await drawnFrames(graph.getScene(), 2);
+        const mesh = graph.getNode(ids[0])?.mesh;
+        assert.isDefined(mesh);
+        assert.closeTo(
+            mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() / screenSix.nodeWorld,
+            2,
+            0.02,
+            "a node is drawn twice the size",
+        );
     });
 
     it("keeps a city's whole 2D map in front of the far clip plane in 3D, however far the camera is", async () => {

@@ -397,6 +397,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
+    "location-map.flatNodeScale": { label: "Flat map node size" },
     "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
     "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,

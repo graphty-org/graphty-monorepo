@@ -2538,7 +2538,7 @@ export class UpdateManager implements Manager {
      */
     private screenSizingScale(): number | null {
         const engine = this.layoutManager.layoutEngine as
-            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string } } | undefined;
+            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string; flatNodeScale?: number } } | undefined;
         const frame = engine?.geoFrame;
         const camera = this.graphContext.getScene().activeCamera;
         if (frame === undefined || frame === null || engine?.config?.nodeScale !== "screen" || camera === null) {
@@ -2550,7 +2550,8 @@ export class UpdateManager implements Manager {
         // against the drawn map: dividing the scale back out left them touching at any scale.
         // ponytail: a globe still divides it out, so `mapScale` does not thin its nodes; dropping
         // the division there too makes them six times smaller at the app's scale.
-        const extent = frame.surface === "flat" ? frame.size : frame.size / frame.mapScale;
+        const extent =
+            frame.surface === "flat" ? frame.size / (engine?.config?.flatNodeScale ?? 1) : frame.size / frame.mapScale;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
             return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }

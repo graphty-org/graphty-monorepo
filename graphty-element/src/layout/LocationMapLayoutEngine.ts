@@ -177,6 +177,16 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    flatNodeScale: {
+        schema: z.number().positive().default(1),
+        meta: {
+            label: "Flat Node Scale",
+            description:
+                "How many times larger a flat map's nodes are drawn with Node Scale on screen, so a map " +
+                "drawn large leaves them big enough to see; a globe's nodes keep their size",
+            advanced: true,
+        },
+    },
 });
 
 const LocationMapLayoutConfig = z.strictObject({
@@ -193,6 +203,7 @@ const LocationMapLayoutConfig = z.strictObject({
     unplaced: z.enum(["tray", "leave"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
+    flatNodeScale: z.number().positive().default(1),
     map: Basemap.nullable().default(null),
     gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
     dim: z.number().default(3),

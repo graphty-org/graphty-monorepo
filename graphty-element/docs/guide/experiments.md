@@ -73,21 +73,30 @@ if (session.features.enabled.includes("timeline")) {
 Instead of the attribute, `await session.time.setField({ edges: { start: "sent" } })` picks the
 column from code.
 
-With it off, every member of `session.time` refuses with `E_FEATURE_OFF` (`details` carry
-`{ feature, key }`): reading a plain property such as `session.time.field`, or calling `play`,
-`pause` or `window`, throws, while `setField`, `setSettings`, `stepBy`, `seek` and `commit` return a
-promise that rejects. Check `session.features.enabled.includes("timeline")` first, as above. The four
-attributes do nothing but log that refusal, and a text column of dates does not measure time.
+With it off, reading `session.time` answers as it does with no time field: `field` and `current` are
+null, `extent()` and `bins()` return null, `candidates()` returns an empty list and `playing` is
+false, so a display needs no check. Its actions refuse with `E_FEATURE_OFF` (`details` carry
+`{ feature, key }`): `play`, `pause` and `window` throw, while `setField`, `setSettings`, `stepBy`,
+`seek` and `commit` return a promise that rejects. Check
+`session.features.enabled.includes("timeline")` before an action, as above. A text column of dates
+does not measure time.
+
+The four attributes change nothing with it off. `element.refusedFeatures` lists each one set to a
+value, as `{ code: "E_FEATURE_OFF", params: { feature, key } }` with `key` the property's name, and
+it is complete by the time `graphty-features` fires. Clearing an attribute is no refusal.
+
 `session.data.setRole(column, "time")` and a load mapping that newly names `time` or `timeUnit`
-refuse the same way. `session.visibility.setWindow` works either way, by its bounds: it refuses with
-`E_FEATURE_OFF` a window that names `nodes: "ends"` or `missing: "outside"`, and on a column with a
-time role its bounds are instants, as they are with the timeline on.
+refuse with `E_FEATURE_OFF` too. `session.visibility.setWindow` works either way, by its bounds: it
+refuses with `E_FEATURE_OFF` a window that names `nodes: "ends"` or `missing: "outside"`, and with
+the timeline off its bounds compare with the column's values as they stand, even on a column with a
+time role.
 
 A project saved with the timeline on keeps its time settings when it is opened and saved with it
 off. Playback settings and a window's `nodes` and `missing` options do nothing meanwhile, and
 `project.open` reports each in `problems` as `E_FEATURE_OFF` with `{ feature, key }`. A column's time
 role stays and is not reported. A saved window still limits what shows, by its bounds only, and
-`session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row.
+`session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row, and
+a saved run's `caveats.window` is left out of what `session.runs` hands over.
 
 Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds
 `features="timeline"` to keep it.

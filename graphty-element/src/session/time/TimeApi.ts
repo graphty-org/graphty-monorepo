@@ -319,7 +319,8 @@ export interface TimeCandidate {
 
 /**
  * The timeline: designate a time field, read its distribution, and move a window along it. It
- * needs `features="timeline"`, and every member refuses with `E_FEATURE_OFF` otherwise.
+ * needs `features="timeline"`: otherwise an action refuses with `E_FEATURE_OFF` and a read answers
+ * as it does with no field designated.
  * @experimental timeline
  * @beta
  */
@@ -499,20 +500,41 @@ const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
 ]);
 
 /**
- * `session.time` behind its experiment: every member refuses with `E_FEATURE_OFF` while the
- * experiment is off. Reading a member throws, except that the ones returning a promise read as a
- * function that rejects. Reading `session.time` itself is safe, and asked per member, because an
- * element's session settles its features only when the element first renders.
+ * `session.time` behind its experiment. While it is off an action refuses with `E_FEATURE_OFF`
+ * (the ones returning a promise read as a function that rejects, the rest throw when read) and a
+ * read gives the answer it gives with nothing designated, so a consumer's display needs no check.
+ * Asked per member, because an element's session settles its features only when it first renders.
  * @param api - The timeline.
  * @param on - Whether the experiment is on now.
  * @returns The gated timeline.
  */
 export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
+    const nothing: Partial<TimeApi> = {
+        field: null,
+        current: null,
+        atStart: false,
+        atEnd: false,
+        playing: false,
+        settings: DEFAULT_TIME_SETTINGS,
+        mode: DEFAULT_TIME_SETTINGS.mode,
+        interval: DEFAULT_INTERVAL,
+        ready: Promise.resolve(),
+        extent: () => null,
+        bins: () => null,
+        candidates: () => [],
+        notices: () => [],
+        changes: () => NO_CHANGES,
+        parse: () => null,
+    };
     const gated = {} as TimeApi;
     for (const key of Object.keys(api) as (keyof TimeApi)[]) {
         Object.defineProperty(gated, key, {
             get: () => {
                 if (!on()) {
+                    if (key in nothing) {
+                        return nothing[key];
+                    }
+
                     const refusal = featureOff("timeline", `time.${key}`);
                     if (REJECTING_MEMBERS.has(key)) {
                         return () => Promise.reject(refusal);

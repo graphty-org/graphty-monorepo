@@ -1,5 +1,5 @@
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { seekEdge, stepWindow, timeField, timelineOn, togglePlay } from "./timeActions";
+import { seekEdge, stepWindow, timelineOn, togglePlay } from "./timeActions";
 
 /**
  * Why a timeline command cannot run now, or null.
@@ -11,7 +11,7 @@ function noTimeline({ session }: CommandContext): string | null {
     if (session === null) {
         return "The graph is still loading";
     }
-    return timeField(session) === null ? "No time field is set" : null;
+    return session.time.field === null ? "No time field is set" : null;
 }
 
 /**
@@ -36,7 +36,8 @@ export const registration = defineRegistration({
             keywords: ["time", "playback", "window", "dock"],
             description: "Show or hide the timeline",
             // Only with a time field: without one there is no timeline to show.
-            shown: ({ session }) => timeField(session) !== null,
+            shown: ({ session }) => session !== null && session.time.field !== null,
+            feature: "timeline",
             run: ({ workspace }) => {
                 workspace.set((state) => ({ timelineOpen: !state.timelineOpen }));
             },
@@ -48,6 +49,7 @@ export const registration = defineRegistration({
             keys: [","],
             keywords: ["timeline", "window", "previous"],
             shown: timelineShown,
+            feature: "timeline",
             disabled: noTimeline,
             run: ({ session, workspace }) => {
                 if (session !== null) {
@@ -62,6 +64,7 @@ export const registration = defineRegistration({
             keys: ["."],
             keywords: ["timeline", "window", "next"],
             shown: timelineShown,
+            feature: "timeline",
             disabled: noTimeline,
             run: ({ session, workspace }) => {
                 if (session !== null) {
@@ -77,6 +80,7 @@ export const registration = defineRegistration({
             keys: ["<"],
             keywords: ["timeline", "window", "first", "beginning"],
             shown: timelineShown,
+            feature: "timeline",
             disabled: noTimeline,
             run: ({ session, workspace }) => {
                 if (session !== null) {
@@ -92,6 +96,7 @@ export const registration = defineRegistration({
             keys: [">"],
             keywords: ["timeline", "window", "last"],
             shown: timelineShown,
+            feature: "timeline",
             disabled: noTimeline,
             run: ({ session, workspace }) => {
                 if (session !== null) {
@@ -105,6 +110,7 @@ export const registration = defineRegistration({
             group: "View",
             keywords: ["timeline", "animate", "playback"],
             shown: timelineShown,
+            feature: "timeline",
             disabled: noTimeline,
             run: ({ session, workspace }) => {
                 if (session !== null) {

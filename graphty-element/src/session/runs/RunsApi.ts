@@ -1399,6 +1399,7 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
+            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1755,7 +1756,7 @@ class Runs implements SessionRunsApi {
         }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
-            record: run.record,
+            record: run.savedRecord,
             result: run.computed as RunResult,
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),

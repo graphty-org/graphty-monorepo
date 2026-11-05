@@ -83,7 +83,7 @@ import {
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./session/shaders";
-import type { ProgressChange } from "./session/shared";
+import type { CodedFact, ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
@@ -833,13 +833,13 @@ export class Graphty extends LitElement {
         this.#settingUp = false;
         super.firstUpdated(changedProperties);
         // Every attribute the page declared is in, so this is when the session settles its features.
-        this.dispatchEvent(
-            new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
-        );
         for (const [name, value] of this.#heldTimeFields) {
             this.#setTimeField(name, value);
         }
         this.#heldTimeFields.clear();
+        this.dispatchEvent(
+            new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
+        );
 
         this.asyncFirstUpdated().catch((e: unknown) => {
             throw e;
@@ -1142,6 +1142,16 @@ export class Graphty extends LitElement {
      */
     get enabledFeatures(): EnabledFeatures {
         return this.session.features;
+    }
+
+    /**
+     * The attributes refused because their experiment is off, one fact per attribute:
+     * `{ code: "E_FEATURE_OFF", params: { feature, key } }`, where `key` names the property. Complete
+     * by the time `graphty-features` fires for what was set before the first render.
+     * @returns The refusals.
+     */
+    get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[] {
+        return [...this.#refusedFeatures.values()];
     }
     #autosaveRestoreValue: "auto" | "manual" = "auto";
     #autosaveOptionsValue: Partial<AutosaveOptions> = {};
@@ -1456,6 +1466,8 @@ export class Graphty extends LitElement {
         });
     }
 
+    /** What {@link Graphty.refusedFeatures} reports, by property, so setting one again adds nothing. */
+    readonly #refusedFeatures = new Map<string, CodedFact<"E_FEATURE_OFF">>();
     /** The time attributes set before the first render, when the experiments are not settled yet. */
     readonly #heldTimeFields = new Map<string, string | undefined>();
 
@@ -1481,8 +1493,10 @@ export class Graphty extends LitElement {
             this.#heldTimeFields.set(name, value);
         } else if (this.session.features.enabled.includes("timeline")) {
             this.#setKnownField(name, value);
-        } else {
-            console.error(`<graphty-element>: ${name} was refused.`, featureOff("timeline", name));
+        } else if (value !== undefined && value !== null && value !== "") {
+            const refusal = featureOff("timeline", name);
+            this.#refusedFeatures.set(name, { code: "E_FEATURE_OFF", params: { feature: "timeline", key: name } });
+            console.error(`<graphty-element>: ${name} was refused.`, refusal);
         }
     }
 

@@ -774,6 +774,11 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         visibility: {
             filter: visibility.filter,
             window: visibility.window,
+            // Written only for a window whose bounds are values, not instants: one set with the
+            // timeline off. A reader that ignores it reads them as instants.
+            ...(visibility.window === null || (visibility as SessionVisibilityApi).holdsInstants(visibility.window)
+                ? {}
+                : { windowRaw: true }),
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before. The
             // steps are the keep and exclude conditions, so an older reader hides the same.
@@ -1401,7 +1406,7 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
     }
 
     if (playback !== undefined && playback !== null) {
-        await tx.execute({ op: "visibility.playback", playback: null, restoring: true });
+        await (tx.visibility as SessionVisibilityApi).restorePlayback(null);
     }
 
     await tx.data.clear();
@@ -1833,7 +1838,10 @@ async function readProject(
             }
 
             if (visibility.window !== null && visibility.window !== undefined) {
-                await tx.execute({ op: "visibility.window", window: visibility.window as never, restoring: true });
+                await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                    visibility.window as TimeWindow,
+                    visibility.windowRaw === true,
+                );
             }
 
             await readFilterConditions(opening, visibility, remap);
@@ -1841,11 +1849,7 @@ async function readProject(
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await tx.execute({
-                    op: "visibility.playback",
-                    playback: visibility.playback as never,
-                    restoring: true,
-                });
+                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
             }
 
             tx.visibility.showContext = visibility.showContext === true;

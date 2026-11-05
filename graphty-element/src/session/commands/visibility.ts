@@ -34,11 +34,6 @@ interface VisibilityWindowCommand {
      * step recorded just before it.
      */
     readonly ownStep?: boolean;
-    /**
-     * Set when opening a project: a window is kept as saved whatever the session switched on, so
-     * one saved with the timeline on survives being opened and saved with it off.
-     */
-    readonly restoring?: true;
 }
 
 /** `visibility.context`: draw hidden nodes faintly, or not at all. */
@@ -66,11 +61,6 @@ interface VisibilityConditionsCommand {
 interface VisibilityPlaybackCommand {
     readonly op: "visibility.playback";
     readonly playback: TimePlayback | null;
-    /**
-     * Set when opening or clearing a project: its settings are kept whatever the session switched
-     * on, so a project saved with the timeline on survives being opened and saved with it off.
-     */
-    readonly restoring?: true;
 }
 
 /** Every visibility op. */

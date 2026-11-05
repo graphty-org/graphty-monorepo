@@ -131,10 +131,26 @@ describe("the timeline's switch", () => {
 });
 
 describe("session.time with the timeline off", () => {
-    it("can be read, and every member refuses with E_FEATURE_OFF", () => {
+    it("answers a read as it does with no time field", async () => {
+        const { time } = await loaded(OFF);
+        assert.isNull(time.field);
+        assert.isNull(time.current);
+        assert.isFalse(time.playing);
+        assert.isFalse(time.atStart);
+        assert.isFalse(time.atEnd);
+        assert.deepEqual(time.settings, createGraphSession(ON).time.settings);
+        assert.isNull(time.extent());
+        assert.isNull(time.bins());
+        assert.deepEqual(time.candidates(), []);
+        assert.deepEqual(time.notices(), []);
+        assert.deepEqual(time.changes(), { entered: { nodes: [], edges: [] }, left: { nodes: [], edges: [] } });
+        assert.isNull(time.parse("2026-01-01"));
+        await time.ready;
+    });
+
+    it("throws from the actions that return no promise", () => {
         const { time } = createGraphSession(OFF);
-        const members = ["field", "settings", "playing", "extent", "bins", "play", "pause", "window"];
-        for (const member of members) {
+        for (const member of ["play", "pause", "window"]) {
             const error = thrownBy(() => time[member as keyof typeof time]);
             assert.instanceOf(error, GraphtyError, member);
             assert.strictEqual(error.code, "E_FEATURE_OFF");
@@ -172,6 +188,77 @@ describe("session.time with the timeline off", () => {
 
         await session.visibility.setWindow(FIRST_DAYS);
         assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+    });
+
+    it("refuses the same request inside a batch, and keeps the marker of a restore private", async () => {
+        const session = await loaded(OFF);
+        const playback = { op: "visibility.playback", playback: { mode: "cumulative" } } as const;
+        const window = { op: "visibility.window", window: { ...FIRST_DAYS, nodes: "ends" } } as const;
+        await assertOff(session.execute({ op: "batch", steps: [playback] }), "batch");
+        await assertOff(session.execute({ op: "batch", steps: [window] }), "batch");
+        await assertOff(session.execute({ ...playback, restoring: true } as never), "visibility.playback");
+        await assertOff(session.execute({ ...window, restoring: true } as never), "visibility.window");
+        assert.isNull(session.visibility.window);
+        assert.isUndefined(dispatcherOf(session).state.visibility.playback ?? undefined);
+    });
+});
+
+describe("a live window with the timeline off", () => {
+    /**
+     * How many edges a window leaves on a column, with and without a time role from the config.
+     * @param values - The column's values.
+     * @param from - The window's start.
+     * @param to - The window's end.
+     * @returns The visible edges, undesignated and then designated.
+     */
+    async function shown(
+        values: readonly (number | string)[],
+        from: number | string,
+        to: number | string,
+    ): Promise<[number, number]> {
+        const counts: number[] = [];
+        for (const designated of [false, true]) {
+            const session = createGraphSession({ ...OFF, runs: { execute } });
+            const edges = values.map((at, index) => ({ source: `n${String(index)}`, target: "hub", at }));
+            await session.data.import({ type: "json", config: { data: JSON.stringify({ edges }) } });
+            if (designated) {
+                await session.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
+            }
+            await session.visibility.setWindow({ attribute: "at", from, to });
+            counts.push(session.visibility.summary.visibleEdges);
+        }
+        return counts as [number, number];
+    }
+
+    it.each([
+        ["years", [2001, 2005, 2009, 2015], 2000, 2010, 3],
+        ["epoch seconds", SECONDS, 1_700_000_000, 1_700_250_000, 3],
+        [
+            "offset-less dates",
+            ["2020-03-01T12:00", "2020-03-02T12:00", "2020-03-09T12:00"],
+            "2020-03-01",
+            "2020-03-05",
+            2,
+        ],
+    ] as const)("reads %s the same on a column with a time role", async (_name, values, from, to, expected) => {
+        assert.deepEqual(await shown(values, from, to), [expected, expected]);
+    });
+
+    it("reads the same after a save and an open", async () => {
+        const session = await chain(YEARS, "edges");
+        const off = createGraphSession({ ...OFF, runs: { execute } });
+        await off.project.open((await session.project.save()).text);
+        await off.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
+        await off.visibility.setWindow({ attribute: "at", from: 1999, to: 2006 });
+        assert.strictEqual(off.visibility.summary.visibleEdges, 2);
+
+        const { text } = await off.project.save();
+        const reopened = createGraphSession({ ...OFF, runs: { execute } });
+        await reopened.project.open(text);
+        assert.strictEqual(reopened.visibility.summary.visibleEdges, 2);
+        const again = createGraphSession({ ...OFF, runs: { execute } });
+        await again.project.open((await reopened.project.save()).text);
+        assert.strictEqual(again.visibility.summary.visibleEdges, 2);
     });
 });
 
@@ -326,6 +413,45 @@ describe("a project saved with the timeline on, opened with it off", () => {
         if ("nodes" in field) {
             assert.strictEqual(session.visibility.summary.visibleNodes, visibleNodes);
         }
+    });
+
+    it("keeps a saved window's instants across undo and another save", async () => {
+        const saved = await chain(YEARS, "edges");
+        await saved.time.setField({ edges: { start: "at", unit: "year" } });
+        const { from, to } = saved.time.extent() ?? { from: 0, to: 0 };
+        await saved.time.window({ from: (from + to) / 2, to: to + 1 });
+        const { visibleEdges } = saved.visibility.summary;
+        assert.isAbove(visibleEdges, 0);
+
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open((await saved.project.save()).text);
+        await session.visibility.setWindow(null);
+        await session.undo();
+        assert.strictEqual(session.visibility.summary.visibleEdges, visibleEdges);
+
+        const reopened = createGraphSession({ ...OFF, runs: { execute } });
+        await reopened.project.open((await session.project.save()).text);
+        assert.strictEqual(reopened.visibility.summary.visibleEdges, visibleEdges);
+    });
+
+    it("hands out no saved run's window, and saves it", async () => {
+        const saved = await loaded(ON);
+        await saved.time.setField({ edges: { start: "sent" } });
+        await saved.time.window({ from: FIRST_DAYS.from, to: FIRST_DAYS.to });
+        await saved.runs.start("degree", {}, { scope: "visible", as: "kept" });
+        const { window } = saved.runs.list()[0]?.caveats ?? {};
+        assert.isDefined(window);
+
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open((await saved.project.save()).text);
+        const run = session.runs.list()[0];
+        assert.isDefined(run);
+        assert.isUndefined(run?.caveats?.window);
+        assert.isUndefined(run?.record.caveats.window);
+
+        const reopened = createGraphSession({ ...ON, runs: { execute } });
+        await reopened.project.open((await session.project.save()).text);
+        assert.deepEqual(reopened.runs.list()[0]?.caveats?.window, window);
     });
 
     it("reports nothing for a project that holds only a time role", async () => {

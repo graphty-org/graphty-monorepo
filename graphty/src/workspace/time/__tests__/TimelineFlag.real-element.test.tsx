@@ -103,6 +103,47 @@ async function timeCommands(): Promise<string> {
 }
 
 /**
+ * What the Keyboard shortcuts dialog lists.
+ * @returns the dialog's words, once it has closed again.
+ */
+async function shortcuts(): Promise<string> {
+    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+    const words = (await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).textContent;
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
+    });
+    return words;
+}
+
+/**
+ * The samples the main menu's Open sample list offers.
+ * @returns the items' words, once the menu has closed again.
+ */
+async function menuSamples(): Promise<string> {
+    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+    await userEvent.hover(await screen.findByRole("menuitem", { name: "Open sample" }));
+    await screen.findByRole("menuitem", { name: /Les Miserables/ });
+    const words = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("{Escape}");
+    return words.join("|");
+}
+
+/**
+ * What Quick actions lists for a timed sample's name.
+ * @returns the rows' words, once the palette has closed again.
+ */
+async function sampleCommands(): Promise<string> {
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByPlaceholderText("Search commands"), "Paper citations");
+    const words = screen.queryAllByRole("option").map((option) => option.textContent);
+    await userEvent.keyboard("{Escape}");
+    return words.join("|");
+}
+
+/**
  * What a column's header menu offers as its role.
  * @param kind - nodes or edges.
  * @param name - the column.
@@ -137,6 +178,9 @@ async function loadRoles(): Promise<(string | null)[]> {
     await userEvent.click(await screen.findByRole("combobox", { name: "Role of sent" }));
     return (await screen.findAllByRole("option")).map((option) => option.textContent);
 }
+
+/** The commands of the timeline that have a key, as the Keyboard shortcuts dialog lists them. */
+const TIME_KEYS = ["Timeline", "Step time back", "Step time forward", "Jump time to the start", "Jump time to the end"];
 
 /** What Quick actions lists for the timeline. */
 const TIME_COMMANDS = [
@@ -182,6 +226,14 @@ describe("the timeline's switch in the app", () => {
             session.data.attributes().map((each) => each.name),
             "sent",
         );
+
+        const listed = await shortcuts();
+        assert.include(listed, "Quick actions", "the dialog lists the other commands");
+        for (const label of TIME_KEYS) {
+            assert.notInclude(listed, label);
+        }
+        assert.notInclude(await menuSamples(), "Paper citations");
+        assert.notInclude(await sampleCommands(), "Paper citations");
     });
 
     it("offers the same reader the timeline with the experiment on", async () => {
@@ -205,6 +257,12 @@ describe("the timeline's switch in the app", () => {
         for (const label of TIME_COMMANDS) {
             assert.include(commands, label);
         }
+        const listed = await shortcuts();
+        for (const label of TIME_KEYS) {
+            assert.include(listed, label);
+        }
+        assert.include(await menuSamples(), "Paper citations");
+        assert.include(await sampleCommands(), "Paper citations");
         assert.include(await headerRoles("node", "team"), "Time");
         await columnVerb("node", "team", "Details");
         await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));

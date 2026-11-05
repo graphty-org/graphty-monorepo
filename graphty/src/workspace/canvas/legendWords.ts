@@ -27,7 +27,7 @@ import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
 import { sourceName } from "../style/row";
 import { channelWord } from "../style/words";
-import { timelineOn, unitOf } from "../time/timeActions";
+import { unitOf } from "../time/timeActions";
 import { rangeWords } from "../time/timeWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
@@ -706,8 +706,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     // The algorithm's name as the reader picked it, as the style tree names the run's row.
     const name = runName(session, run);
     // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
-    // A saved run keeps its window with the timeline off, which then has no unit to word it in.
-    const ran = timelineOn(session) ? run.caveats.window : undefined;
+    const ran = run.caveats.window;
     if (ran !== undefined) {
         const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session))}`;
         return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;

@@ -19,7 +19,7 @@ import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { announceWindow, reportTimeError, stepWindow, timeExtent, togglePlay, unitOf } from "./timeActions";
+import { announceWindow, reportTimeError, stepWindow, togglePlay, unitOf } from "./timeActions";
 import { countWords, finerThanDay, instantWords, intervalOf, rangeWords, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
@@ -279,7 +279,7 @@ export function TimeDock(): React.JSX.Element | null {
         });
     }, [session, store]);
 
-    const extent = timeExtent(session);
+    const extent = session === null ? null : session.time.extent();
     if (session === null || extent === null || !open) {
         return null;
     }

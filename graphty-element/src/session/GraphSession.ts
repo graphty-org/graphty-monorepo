@@ -486,16 +486,20 @@ function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, tok
 }
 
 /**
- * Whether a command does something only the timeline experiment applies. A project's own restore
- * never does: it keeps what was saved.
+ * Whether a command does something only the timeline experiment applies.
  * @param command - The command.
- * @returns True for playback settings and a window that names the timeline's options.
+ * @returns True for playback settings, a window that names the timeline's options, and a batch
+ *   holding either.
  */
 function needsTimeline(command: SessionCommand): boolean {
-    const asks =
+    if (command.op === "batch") {
+        return command.steps.some(needsTimeline);
+    }
+
+    return (
         command.op === "visibility.playback" ||
-        (command.op === "visibility.window" && windowNeedsTimeline(command.window));
-    return asks && command.restoring !== true;
+        (command.op === "visibility.window" && windowNeedsTimeline(command.window))
+    );
 }
 
 /**

@@ -3,14 +3,7 @@
  * a call on graphty-element's `session.time` and the words the app writes about it.
  */
 
-import type {
-    CodedFact,
-    GraphSession,
-    TimeExtent,
-    TimeField,
-    TimeNoticeCode,
-    TimeUnit,
-} from "@graphty/graphty-element/session";
+import type { CodedFact, GraphSession, TimeField, TimeNoticeCode, TimeUnit } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
@@ -25,30 +18,12 @@ export function timelineOn(session: GraphSession | null): boolean {
 }
 
 /**
- * The designated time field; none while the timeline experiment is off, whatever the data holds.
- * @param session - the element's session, or null.
- * @returns the field, or null.
- */
-export function timeField(session: GraphSession | null): TimeField | null {
-    return session !== null && timelineOn(session) ? session.time.field : null;
-}
-
-/**
- * The span of the designated field's time.
- * @param session - the element's session, or null.
- * @returns the span, or null with no field.
- */
-export function timeExtent(session: GraphSession | null): TimeExtent | null {
-    return session !== null && timeField(session) !== null ? session.time.extent() : null;
-}
-
-/**
  * The unit the designated field reads numbers in.
  * @param session - the element's session.
  * @returns the unit.
  */
 export function unitOf(session: GraphSession): TimeUnit {
-    const field = timeField(session);
+    const { field } = session.time;
     return field?.edges?.unit ?? field?.nodes?.unit ?? "ms";
 }
 
@@ -219,7 +194,7 @@ export function reportTimeError(store: WorkspaceStore): (error: unknown) => void
  * @returns "Jan 31, 2025" for a time, else the value.
  */
 export function timeValue(session: GraphSession, kind: "node" | "edge", column: string, value: unknown): unknown {
-    const field = timeField(session);
+    const { field } = session.time;
     const source = kind === "node" ? field?.nodes : field?.edges;
     if (source?.start !== column || value === null || value === undefined || value === "") {
         return value;

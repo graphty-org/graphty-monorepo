@@ -41,32 +41,47 @@ describe("the timeline's attributes", () => {
     });
 
     it("are refused with the experiment off, and change nothing", async () => {
-        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
         const made = await element([]);
 
-        const refusal = logged.mock.calls.flat().find((each) => (each as { code?: string }).code === "E_FEATURE_OFF");
-        assert.deepEqual((refusal as { details?: unknown } | undefined)?.details, {
-            feature: "timeline",
-            key: "edgeTimePath",
-        });
+        assert.deepEqual(made.refusedFeatures, [
+            { code: "E_FEATURE_OFF", params: { feature: "timeline", key: "edgeTimePath" } },
+        ]);
         assert.isUndefined(made.edgeTimePath);
         assert.isNull(made.session.config.data.knownFields.edgeTimePath);
     });
 
     it("are refused when set after the first render with the experiment off", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const made = await element([]);
+
+        made.nodeTimePath = "joined";
+        made.nodeTimePath = "joined";
+
+        assert.deepEqual(made.refusedFeatures.at(-1), {
+            code: "E_FEATURE_OFF",
+            params: { feature: "timeline", key: "nodeTimePath" },
+        });
+        assert.lengthOf(made.refusedFeatures, 2);
+        assert.isUndefined(made.nodeTimePath);
+        assert.isNull(made.session.config.data.knownFields.nodeTimePath);
+    });
+
+    it("refuses nothing when an attribute is cleared with the experiment off", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
         const made = await element([]);
         logged.mockClear();
 
-        made.nodeTimePath = "joined";
+        made.nodeTimePath = undefined;
+        made.edgeTimeUnit = "";
 
-        const refusal = logged.mock.calls.flat().find((each) => (each as { code?: string }).code === "E_FEATURE_OFF");
-        assert.deepEqual((refusal as { details?: unknown } | undefined)?.details, {
-            feature: "timeline",
-            key: "nodeTimePath",
-        });
-        assert.isUndefined(made.nodeTimePath);
-        assert.isNull(made.session.config.data.knownFields.nodeTimePath);
+        assert.lengthOf(made.refusedFeatures, 1);
+        assert.lengthOf(logged.mock.calls, 0);
+    });
+
+    it("lists no refusal with the experiment on", async () => {
+        const made = await element(["timeline"]);
+        assert.deepEqual(made.refusedFeatures, []);
     });
 
     it("designate the field when set after the first render with the experiment on", async () => {

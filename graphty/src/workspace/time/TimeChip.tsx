@@ -3,7 +3,7 @@ import React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { focusBrush, reportTimeError, timeField, unitOf } from "./timeActions";
+import { focusBrush, reportTimeError, unitOf } from "./timeActions";
 import { windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
@@ -17,7 +17,7 @@ import { useTimeVersion } from "./useTimeVersion";
 export function TimeChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
-    if (session === null || timeField(session) === null || session.time.current === null) {
+    if (session === null || session.time.field === null || session.time.current === null) {
         return null;
     }
     const window = session.time.current;

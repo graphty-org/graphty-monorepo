@@ -56,7 +56,7 @@ import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { showNotices, timeField, timelineOn } from "../time/timeActions";
+import { showNotices, timelineOn } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
@@ -317,7 +317,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
         noticeFileStyles(store, session);
         // A time field marked at import says what its values held, as Set as time does.
-        if (timeField(session) !== null) {
+        if (session.time.field !== null) {
             showNotices(session, store, session.time.notices());
         }
         // The status line, written once the place is showing and the header has its name: the

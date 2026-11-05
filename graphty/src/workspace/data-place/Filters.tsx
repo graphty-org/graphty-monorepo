@@ -30,7 +30,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
-import { reportTimeError, timeField, timelineOn, unitOf } from "../time/timeActions";
+import { reportTimeError, timelineOn, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
     conditionWords,
@@ -144,7 +144,7 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [asked, session, store]);
 
-    const timed = session !== null && timeField(session) !== null;
+    const timed = session !== null && session.time.field !== null;
     const plus =
         session === null ? null : (
             <AddMenu
@@ -282,7 +282,7 @@ function AddMenu({
                         Neighbors of selection
                     </Menu.Item>
                 )}
-                {timeField(session) !== null && session.time.current === null && (
+                {session.time.field !== null && session.time.current === null && (
                     <Menu.Item
                         onClick={() => {
                             session.time.pause();
@@ -841,7 +841,7 @@ export function FilterChip(): React.JSX.Element | null {
     const edges = savedWindow || hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
     const words = chipWords(session.visibility.summary, edges);
     // The time window is one of the filters in force, as the Filters list shows it.
-    const window = timeField(session) === null ? null : session.time.current;
+    const window = session.time.field === null ? null : session.time.current;
     const on = [
         ...hiding.map((c) => conditionWords(session, c.rule)),
         ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),

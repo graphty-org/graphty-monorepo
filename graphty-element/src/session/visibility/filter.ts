@@ -232,6 +232,13 @@ export interface FilterSources {
     /** Whether the timeline experiment is on; absent reads on. */
     readonly timeline?: () => boolean;
     /**
+     * Whether a window's bounds are instants of a time column's parsed values rather than values
+     * to compare as they stand: with the timeline on, or read from a project that saved them so.
+     * @param window - The window.
+     * @returns True for instants. Absent, the answer is whether the timeline is on.
+     */
+    readonly holdsInstants?: (window: TimeWindow) => boolean;
+    /**
      * The instants of a designated time column, parsed once. Absent, or null for a path or a
      * kind, a window parses each element's value itself.
      * @param path - The window's attribute.
@@ -1750,7 +1757,8 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     // With the timeline off a saved window's options stay saved and are not applied.
     const timeline = context.sources.timeline?.() !== false;
     const missingInside = !timeline || window.missing !== "outside";
-    const indexed = context.sources.instants?.(window.attribute) ?? null;
+    const holdsInstants = context.sources.holdsInstants?.(window) ?? timeline;
+    const indexed = holdsInstants ? (context.sources.instants?.(window.attribute) ?? null) : null;
 
     /**
      * The test of one kind: whether its instant falls inside the half-open window. An element

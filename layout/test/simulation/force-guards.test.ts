@@ -25,6 +25,56 @@ function ring(n: number): GraphSnapshot {
     return fromEdgeArrays({ directed: false, nodeCount: n, src: Uint32Array.from(src), dst: Uint32Array.from(dst) });
 }
 
+/** Every pair joined: the stiffest graph of n nodes, whose Euler step scales a mode by 1 - a n / 1000. */
+function clique(n: number): GraphSnapshot {
+    const src: number[] = [];
+    const dst: number[] = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            src.push(i);
+            dst.push(j);
+        }
+    }
+    return fromEdgeArrays({ directed: false, nodeCount: n, src: Uint32Array.from(src), dst: Uint32Array.from(dst) });
+}
+
+/** NetworkX's arf_layout iteration in 2D from `pos`, with no guard: the drawing a stable run must keep, bit for bit. */
+function networkxArf(g: GraphSnapshot, pos: F32, a: number, maxIter: number): F32 {
+    const n = g.nodeCount;
+    const rho = Math.sqrt(n);
+    const p = Float64Array.from(pos);
+    const change = new Float64Array(2 * n);
+    let error = 1;
+    for (let iter = 0; error > 1e-6 && iter < maxIter; iter++) {
+        change.fill(0);
+        for (let i = 0; i < n; i++) {
+            const neighbours = new Set(Array.from(g.colIdx).slice(g.rowPtr[i], g.rowPtr[i + 1]));
+            for (let j = 0; j < n; j++) {
+                if (i !== j) {
+                    const dx = p[2 * i] - p[2 * j];
+                    const dy = p[2 * i + 1] - p[2 * j + 1];
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const spring = neighbours.has(j) ? a : 1;
+                    change[2 * i] += (rho / dist) * dx - spring * dx;
+                    change[2 * i + 1] += (rho / dist) * dy - spring * dy;
+                }
+            }
+        }
+        error = 0;
+        for (let i = 0; i < n; i++) {
+            p[2 * i] += change[2 * i] * 1e-3;
+            p[2 * i + 1] += change[2 * i + 1] * 1e-3;
+            error += Math.sqrt(change[2 * i] * change[2 * i] + change[2 * i + 1] * change[2 * i + 1]);
+        }
+    }
+    return Float32Array.from(p);
+}
+
+/** A stride-2 start of radius about `r`, with no two rows equal. */
+function wideStart(n: number, r: number): F32 {
+    return Float32Array.from({ length: 2 * n }, (_, i) => Math.sin(i * 12.9 + 1) * r);
+}
+
 /** A stride-3 start of radius about 4, z 0. */
 function spread(n: number): F32 {
     return Float32Array.from({ length: 3 * n }, (_, i) => (i % 3 === 2 ? 0 : Math.sin(i * 12.9) * 3));
@@ -174,6 +224,31 @@ describe("no tick throws a node beyond the layout", () => {
         const bound = 2 * Math.sqrt(N) * N; // a tick moves at most sqrt(n); 300 ticks of a bounded swing stay far inside
         for (const v of positions) {
             assert.ok(Math.abs(v) < bound, `component ${v}`);
+        }
+    });
+
+    // spring sum a n = 1980 in the clique, under the 2 / dt = 2000 where the step stops contracting
+    for (const [name, g, a, r] of [
+        ["pixel-scale start", ring(100), 1.1, 500],
+        ["start a thousand times the settled radius", ring(100), 1.1, 1e4],
+        ["spring that overshoots every tick but contracts", clique(20), 99, 500],
+    ] as const) {
+        for (const maxIter of [3, 300]) {
+            it(`ARF keeps NetworkX's drawing on a stable run: ${name}, ${maxIter} ticks`, () => {
+                const pos = wideStart(g.nodeCount, r);
+                const { positions } = arf(g, { pos, a, dim: 2, maxIter });
+                assert.deepStrictEqual(positions, networkxArf(g, pos, a, maxIter));
+            });
+        }
+    }
+
+    it("ARF stays finite from a wide start just past the stable stiffness", () => {
+        const pos = wideStart(20, 500);
+        const unguarded = networkxArf(clique(20), pos, 101, 2000);
+        assert.ok(!unguarded.every((v) => Math.abs(v) < 1000), "NetworkX's step should diverge here");
+        const { positions } = arf(clique(20), { pos, a: 101, dim: 2, maxIter: 2000 });
+        for (const v of positions) {
+            assert.ok(Math.abs(v) < 1000, `component ${v}`);
         }
     });
 });

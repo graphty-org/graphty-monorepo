@@ -12,6 +12,7 @@ import type { GpuContext } from "../../src/context.js";
 import type { GpuLayoutTuning } from "../../src/types/layout.js";
 import { BASE_OPTIONS, NETWORKX, PAPER, withSim } from "../helpers/fa2-parity.js";
 import { FR_BASE_OPTIONS, FR_TUNING, withFrSim } from "../helpers/fr-parity.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { SE_BASE_OPTIONS, SE_TUNING, withSeSim } from "../helpers/se-parity.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
@@ -74,43 +75,55 @@ describe("the force kernels' guards (issue #3255)", () => {
         ] as const) {
             it(`ForceAtlas2 (${name}, ${dim}D) pushes apart nodes on one point`, async (t) => {
                 requireGpu(t);
-                await withSim(ctx, { ...BASE_OPTIONS, dim, settleThreshold: 0 }, tuning, async (sim) => {
-                    const positions = new Float32Array(3 * N);
-                    sim.load(ring(N), positions);
-                    await sim.step(20);
-                    expect(minGap(positions)).toBeGreaterThan(1e-3);
-                });
+                const run = (): Promise<F32> =>
+                    withSim(ctx, { ...BASE_OPTIONS, dim, settleThreshold: 0 }, tuning, async (sim) => {
+                        const positions = new Float32Array(3 * N);
+                        sim.load(ring(N), positions);
+                        await sim.step(20);
+                        return positions;
+                    });
+                const positions = await run();
+                expectBitwiseEqual(positions, await run(), "second run");
+                expect(minGap(positions)).toBeGreaterThan(1e-3);
             });
         }
 
         it(`Fruchterman-Reingold (${dim}D) pushes apart nodes on one point, at most the start temperature a tick`, async (t) => {
             requireGpu(t);
             const options = { ...FR_BASE_OPTIONS, dim, iterations: 50, settleThreshold: 0 };
-            await withFrSim(ctx, options, FR_TUNING, async (sim) => {
-                const positions = new Float32Array(3 * N);
-                sim.load(ring(N), positions);
-                for (let tick = 0; tick < 50; tick++) {
-                    const before = positions.slice();
-                    await sim.step(1);
-                    expect(maxMove(before, positions)).toBeLessThanOrEqual(0.1 * (1 + 1e-5));
-                }
-                expect(minGap(positions)).toBeGreaterThan(1e-3);
-            });
+            const run = (): Promise<F32> =>
+                withFrSim(ctx, options, FR_TUNING, async (sim) => {
+                    const positions = new Float32Array(3 * N);
+                    sim.load(ring(N), positions);
+                    for (let tick = 0; tick < 50; tick++) {
+                        const before = positions.slice();
+                        await sim.step(1);
+                        expect(maxMove(before, positions)).toBeLessThanOrEqual(0.1 * (1 + 1e-5));
+                    }
+                    return positions;
+                });
+            const positions = await run();
+            expectBitwiseEqual(positions, await run(), "second run");
+            expect(minGap(positions)).toBeGreaterThan(1e-3);
         });
 
         it(`spring-electrical (${dim}D) pushes apart nodes on one point, at most the time step a tick`, async (t) => {
             requireGpu(t);
             const options = { ...SE_BASE_OPTIONS, dim, settleThreshold: 0, timeStep: 0.5 };
-            await withSeSim(ctx, options, SE_TUNING, async (sim) => {
-                const positions = new Float32Array(3 * N);
-                sim.load(ring(N), positions);
-                for (let tick = 0; tick < 50; tick++) {
-                    const before = positions.slice();
-                    await sim.step(1);
-                    expect(maxMove(before, positions)).toBeLessThanOrEqual(0.5 * (1 + 1e-5));
-                }
-                expect(minGap(positions)).toBeGreaterThan(1e-3);
-            });
+            const run = (): Promise<F32> =>
+                withSeSim(ctx, options, SE_TUNING, async (sim) => {
+                    const positions = new Float32Array(3 * N);
+                    sim.load(ring(N), positions);
+                    for (let tick = 0; tick < 50; tick++) {
+                        const before = positions.slice();
+                        await sim.step(1);
+                        expect(maxMove(before, positions)).toBeLessThanOrEqual(0.5 * (1 + 1e-5));
+                    }
+                    return positions;
+                });
+            const positions = await run();
+            expectBitwiseEqual(positions, await run(), "second run");
+            expect(minGap(positions)).toBeGreaterThan(1e-3);
         });
     }
 

@@ -52,16 +52,17 @@ function guardSetup() {
 }
 
 /**
- * Gives a block's Playwright provider the wait guard as its action deadline.
+ * Gives every Playwright provider of a `browser` block the wait guard as its action deadline: the
+ * block's own and any an instance carries, which wins over it. In place, because the provider reads
+ * the object `playwright()` was handed, and a copy of it would change nothing.
  * @param browser - the `browser` block of a `test` block
- * @returns the block with the guard on its provider, or the block as it was
  */
 function guardActions(browser) {
-    const provider = browser.provider;
-    if (provider?.name !== "playwright") {
-        return browser;
+    for (const provider of [browser.provider, ...(browser.instances ?? []).map((i) => i.provider)]) {
+        if (provider?.name === "playwright") {
+            provider.options.actionTimeout = WAIT_GUARD_MS;
+        }
     }
-    return { ...browser, provider: { ...provider, options: { ...provider.options, actionTimeout: WAIT_GUARD_MS } } };
 }
 
 /**
@@ -76,6 +77,9 @@ function guardTest(test) {
     }
     const guard = guardSetup();
     const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== guard);
+    if (test.browser) {
+        guardActions(test.browser);
+    }
     return {
         ...test,
         testTimeout: TEST_GUARD_MS,
@@ -83,7 +87,6 @@ function guardTest(test) {
         teardownTimeout: TEST_GUARD_MS,
         expect: { ...test.expect, poll: { timeout: WAIT_GUARD_MS } },
         setupFiles: [...setupFiles, guard],
-        ...(test.browser ? { browser: guardActions(test.browser) } : {}),
     };
 }
 

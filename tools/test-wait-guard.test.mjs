@@ -55,19 +55,34 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
-test("a real action gets the wait guard on the root and every inline project, keeping the provider's options", () => {
-    const provider = { name: "playwright", options: { launchOptions: { args: ["--x"] }, actionTimeout: 5 } };
-    const config = withTestGuards({
-        test: { browser: { provider }, projects: [{ test: { name: "x", browser: { enabled: true, provider } } }] },
+test("a real action gets the wait guard on the object each Playwright provider holds, on instances too", () => {
+    // playwright() reads the options object it was handed, so that object is what must change.
+    const [root, project, instance, other] = [{ actionTimeout: 5 }, { hasTouch: true }, {}, {}];
+    withTestGuards({
+        test: {
+            browser: { provider: { name: "playwright", options: root } },
+            projects: [
+                {
+                    test: {
+                        name: "x",
+                        browser: {
+                            provider: { name: "playwright", options: project },
+                            instances: [
+                                { browser: "chromium" },
+                                { browser: "chromium", provider: { name: "playwright", options: instance } },
+                            ],
+                        },
+                    },
+                },
+                { test: { name: "y", browser: { provider: { name: "webdriverio", options: other } } } },
+            ],
+        },
     });
-    const [x] = config.test.projects;
-    for (const t of [config.test, x.test]) {
-        assert.equal(t.browser.provider.options.actionTimeout, WAIT_GUARD_MS);
-        assert.deepEqual(t.browser.provider.options.launchOptions, { args: ["--x"] });
+    for (const options of [root, project, instance]) {
+        assert.equal(options.actionTimeout, WAIT_GUARD_MS);
     }
-    assert.equal(x.test.browser.enabled, true);
-    assert.equal(provider.options.actionTimeout, 5, "a provider shared by two projects is not changed in place");
-    assert.equal(withTestGuards({ test: {} }).test.browser, undefined);
+    assert.equal(project.hasTouch, true);
+    assert.deepEqual(other, {});
 });
 
 test("a bench project is a measurement: no time limit and no guard", () => {

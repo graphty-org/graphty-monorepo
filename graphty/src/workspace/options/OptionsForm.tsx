@@ -1,12 +1,9 @@
 import {
-    AdvancedButton,
     CompactColorInput,
     DataRow,
     FieldRow,
     PanelField,
     PanelLabelsProvider,
-    Popout,
-    PopoutManager,
     ResetButton,
 } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
@@ -26,7 +23,7 @@ import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { isPanelEscape } from "../keys/keys";
+import { splitOptions } from "./splitOptions";
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -49,8 +46,8 @@ interface OptionsFormProps {
     words: (option: OptionDescriptor) => OptionLabel;
     /** Whether a node option offers "Use selected node" (off where the selection fills it). */
     canUseSelectedNode?: boolean;
-    /** More controls at the end of the Advanced pop-out (a layout's Seed and Reshuffle). */
-    advanced?: React.ReactNode;
+    /** More controls after the last option (a layout's Seed and Reshuffle). */
+    after?: React.ReactNode;
     /**
      * The meaning of weight the algorithm reads (`descriptor.weightMeaning`): when set, its
      * `weight` option is drawn as the Weight line, listing the loaded weight first.
@@ -58,13 +55,7 @@ interface OptionsFormProps {
     weightReads?: Meaning;
     /** The algorithm the form sets up: the element's plan for it says whether the loaded weight is read. */
     algorithm?: string;
-    /** The Advanced pop-out's name, when two folds can be on screen at once (the right panel's and a popover's). */
-    advancedLabel?: string;
-    /**
-     * Insets the fields (and the Advanced pop-out's fields) from the section's content edge, while
-     * the fold's own toggle stays on that edge, so its chevron hangs in the section's gutter in
-     * line with the section chevrons.
-     */
+    /** Insets the fields from the section's content edge. */
     fieldInset?: MantineSpacing;
     /**
      * Controls drawn after an option's field, on its line: a shader parameter's vary glyph and its
@@ -81,19 +72,6 @@ interface OptionsFormProps {
     rows?: readonly (readonly string[])[];
 }
 
-/** The option types the form draws a control for; the rest keep their defaults. */
-const DRAWN = new Set<OptionDescriptor["type"]>([
-    "number",
-    "color",
-    "integer",
-    "enum",
-    "boolean",
-    "string",
-    "attribute",
-    "partition",
-    "node-id",
-]);
-
 /**
  * A value if it is a number.
  * @param value - the value.
@@ -106,7 +84,7 @@ function num(value: unknown): number | undefined {
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
-    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset" | "trailing" | "rows"
+    "options" | "values" | "after" | "fieldInset" | "trailing" | "rows"
 > {
     option: OptionDescriptor;
     value: unknown;
@@ -660,8 +638,9 @@ function OptionControl({
 
 /**
  * The options form shared by every method editor (an algorithm's short form, a run's Made with,
- * a layout's form): the key options first, then the advanced ones behind an "Advanced" button whose pop-out
- * starts closed and draws nothing while closed. Internal options are never drawn.
+ * a layout's form): the key options first, then the advanced ones, all in place. It never opens
+ * anything of its own: a caller that keeps the advanced ones out of its row draws them in a
+ * SettingsPopout, with {@link splitOptions}. Internal options are never drawn.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.options - The element's option descriptors
@@ -671,9 +650,8 @@ function OptionControl({
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
  * @param props.weightReads - The meaning of weight the algorithm reads, or null
  * @param props.algorithm - The algorithm the form sets up
- * @param props.advanced - More controls at the end of the Advanced pop-out
- * @param props.advancedLabel - The Advanced pop-out's name
- * @param props.fieldInset - Insets the fields, not the fold's toggle
+ * @param props.after - More controls after the last option
+ * @param props.fieldInset - Insets the fields from the section's content edge
  * @param props.trailing - Controls after an option's field, on its line
  * @param props.rows - Options drawn side by side, each group in one row
  * @returns The fields
@@ -681,15 +659,14 @@ function OptionControl({
 export function OptionsForm({
     options,
     values,
-    advanced: more,
-    advancedLabel = "Advanced",
+    after: more,
     fieldInset,
     trailing,
     rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
-    const [advancedOpen, setAdvancedOpen] = useState(false);
-    const drawn = options.filter((o) => o.internal !== true && DRAWN.has(o.type));
+    const { key, advanced } = splitOptions(options);
+    const list = [...key, ...advanced];
     const field = (option: OptionDescriptor): React.JSX.Element => {
         const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;
         const after = trailing?.(option);
@@ -705,80 +682,30 @@ export function OptionsForm({
     // Options that share a row are drawn side by side where the row's first one stands.
     const rowOf = (option: OptionDescriptor): readonly string[] | undefined =>
         rows.find((r) => r.includes(option.name));
-    const placed = (list: readonly OptionDescriptor[]): React.JSX.Element[] =>
-        list.flatMap((option) => {
-            const row = rowOf(option);
-            if (row === undefined) {
-                return [field(option)];
-            }
-            if (row[0] !== option.name) {
-                return [];
-            }
-            const members = row.flatMap((name) => list.filter((o) => o.name === name));
-            return [
-                <Group key={`row-${option.name}`} gap={8} grow wrap="nowrap" align="flex-start">
-                    {members.map(field)}
-                </Group>,
-            ];
-        });
-    const advanced = drawn.filter((o) => o.advanced === true);
-    const basic = drawn.filter((o) => o.advanced !== true);
-    return (
+    const placed = list.flatMap((option) => {
+        const row = rowOf(option);
+        if (row === undefined) {
+            return [field(option)];
+        }
+        if (row[0] !== option.name) {
+            return [];
+        }
+        const members = row.flatMap((name) => list.filter((o) => o.name === name));
+        return [
+            <Group key={`row-${option.name}`} gap={8} grow wrap="nowrap" align="flex-start">
+                {members.map(field)}
+            </Group>,
+        ];
+    });
+    return fieldInset === undefined ? (
         <>
-            {fieldInset === undefined && placed(basic)}
-            {fieldInset !== undefined && basic.length > 0 && (
-                <Stack gap={8} px={fieldInset}>
-                    {placed(basic)}
-                </Stack>
-            )}
-            {advanced.length > 0 || more !== undefined ? (
-                // The rare settings behind an Advanced button that opens a pop-out (compact-mantine
-                // draws no folds inside a panel). The form brings its own floating layer, whose
-                // panels render in place: inside a Mantine popover (Analyze, Layout) a panel in the
-                // page's layer would be a click outside that popover, which closes it under the click.
-                // Escape while the pop-out is open closes it alone: the form around it (a popover's
-                // form steps back to its list on Escape) never sees it. The pop-out renders in place,
-                // so its keys bubble through here.
-                <div // NOSONAR(S6847): catches Escape bubbling from the pop-out's own controls
-                    style={{ display: "contents" }}
-                    onKeyDown={(event) => {
-                        if (advancedOpen && isPanelEscape(event)) {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setAdvancedOpen(false);
-                        }
-                    }}
-                >
-                    <PopoutManager>
-                        <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
-                            <Popout.Trigger>
-                                <Tooltip label={advancedLabel}>
-                                    <AdvancedButton
-                                        label={advancedLabel}
-                                        changed={advanced.some((o) => values[o.name] !== undefined)}
-                                        aria-haspopup="dialog"
-                                        aria-expanded={advancedOpen}
-                                    />
-                                </Tooltip>
-                            </Popout.Trigger>
-                            <Popout.Panel
-                                width={264}
-                                placement="left"
-                                alignment="start"
-                                header={{ variant: "title", title: advancedLabel }}
-                                closeLabel={`Close ${advancedLabel}`}
-                            >
-                                <Popout.Content>
-                                    <Stack gap={8}>
-                                        {advanced.map(field)}
-                                        {more}
-                                    </Stack>
-                                </Popout.Content>
-                            </Popout.Panel>
-                        </Popout>
-                    </PopoutManager>
-                </div>
-            ) : null}
+            {placed}
+            {more}
         </>
+    ) : (
+        <Stack gap={8} px={fieldInset}>
+            {placed}
+            {more}
+        </Stack>
     );
 }

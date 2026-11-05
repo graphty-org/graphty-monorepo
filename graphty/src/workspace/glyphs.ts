@@ -96,7 +96,6 @@ import {
     Search,
     Server,
     Settings,
-    Settings2,
     Shapes,
     Share2,
     Shuffle,
@@ -290,7 +289,6 @@ export const GLYPHS = {
     tags: Tags,
     toggle: ToggleLeft,
     server: Server,
-    serverOptions: Settings2,
     openExternal: SquareArrowOutUpRight,
     tableFile: Table2,
     // A sample source, and a server source's Load more and Refresh.

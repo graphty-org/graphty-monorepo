@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { FieldCaret, Popout, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -38,6 +38,7 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget, printable } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
 import { type Verb, verbsAt } from "./model";
@@ -996,14 +997,21 @@ export function StepPane({
                             />
                         )}
                         {hasAdvanced && (
-                            <SettingsButton
-                                name={algorithmWords ?? value}
-                                changed={changed}
+                            // The cards sit at the workspace's start edge, so it opens over the drawing:
+                            // the workspace holds its PopoutManager, outside the modal, so never under it.
+                            <SettingsPopout
+                                label={`Settings for ${algorithmWords ?? value}`}
+                                title={algorithmWords ?? value}
+                                tip={changed.length === 0 ? "Settings" : `Settings: ${changed.join(", ")}`}
+                                changed={changed.length > 0}
                                 opened={settingsOpen}
-                                onOpened={setSettingsOpen}
+                                onOpenChange={setSettingsOpen}
+                                width={280}
+                                placement="right"
                             >
-                                {advancedRows}
-                            </SettingsButton>
+                                {/* A portal: Escape here closes the panel, never the workspace around it. */}
+                                <div data-portal="">{advancedRows}</div>
+                            </SettingsPopout>
                         )}
                         {done}
                     </>
@@ -1257,59 +1265,6 @@ function OutputSelect({
                 }
             }}
         />
-    );
-}
-
-/**
- * A card's settings button: the algorithm's settings and the step's other choices (Advanced in a
- * pane) in a popover beside it. The workspace holds its PopoutManager, outside the modal, so the
- * panel is drawn over the preview's canvas, never under it.
- * @param props - Component props
- * @param props.name - what the settings are for
- * @param props.changed - the choices set away from their defaults, said in its tooltip
- * @param props.opened - its popover is open
- * @param props.onOpened - opens or closes its popover
- * @param props.children - the rows
- * @returns The button and its popover
- */
-function SettingsButton({
-    name,
-    changed,
-    opened,
-    onOpened,
-    children,
-}: Readonly<{
-    name: string;
-    changed: readonly string[];
-    opened: boolean;
-    onOpened: (opened: boolean) => void;
-    children: React.ReactNode;
-}>): React.JSX.Element {
-    const setOpened = onOpened;
-    const label = changed.length === 0 ? "Settings" : `Settings: ${changed.join(", ")}`;
-    return (
-        <Popout opened={opened} onOpenChange={setOpened}>
-            <Popout.Trigger>
-                <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={`Settings for ${name}`}
-                    title={label}
-                    aria-haspopup="dialog"
-                    aria-expanded={opened}
-                    data-settings=""
-                    data-changed={changed.length > 0 ? "" : undefined}
-                >
-                    <GLYPHS.settings size={14} aria-hidden />
-                </ActionIcon>
-            </Popout.Trigger>
-            <Popout.Panel width={280} placement="right" alignment="start" header={{ variant: "title", title: name }}>
-                <Popout.Content>
-                    {/* A portal: Escape here closes the panel, never the workspace around it. */}
-                    <div data-portal="">{children}</div>
-                </Popout.Content>
-            </Popout.Panel>
-        </Popout>
     );
 }
 

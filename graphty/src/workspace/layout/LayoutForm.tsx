@@ -154,7 +154,7 @@ function ApplyRow({
     differs,
 }: Readonly<{ reason: string | null; seconds: number; differs: boolean }>): React.JSX.Element {
     return (
-        <Group justify="space-between" wrap="nowrap">
+        <Group justify="space-between" wrap="nowrap" className="ws-layout-apply">
             <Text size="xs" c={reason === null ? "dimmed" : "red"}>
                 {reason ?? costLine(seconds)}
             </Text>
@@ -536,7 +536,7 @@ export function LayoutForm({
                     onChange={(name, value) => {
                         edit({ ...values, [name]: value });
                     }}
-                    advanced={seed}
+                    after={seed}
                     disabledReason={disabledReason}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />

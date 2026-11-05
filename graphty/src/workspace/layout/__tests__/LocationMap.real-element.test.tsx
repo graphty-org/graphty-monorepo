@@ -549,21 +549,11 @@ describe("the location map", () => {
         assert.notExists(flat.session.layout.options.map, "no map was chosen for the reader");
     });
 
-    it("closes only the Advanced pop-out on Escape, and names its button", async () => {
+    it("draws the map's advanced settings in the Map form, with no button to reach them", async () => {
         await openAirports();
         const popover = await openMapForm();
-        // The app opens the map with nodes kept one size on screen, an advanced setting, so the
-        // button's name also says a setting behind it is changed.
-        const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
-        await userEvent.hover(advanced);
-        const tip = await screen.findByRole("tooltip", {});
-        assert.strictEqual(tip.textContent, "Advanced");
-        await userEvent.click(advanced);
-        await within(popover).findByRole("combobox", { name: "Format" });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(within(popover).queryByRole("combobox", { name: "Format" }), "the pop-out closed");
-        });
-        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Map type" }), "still in the Map form");
+        assert.isNotNull(await within(popover).findByRole("combobox", { name: "Format" }));
+        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Map type" }));
+        assert.isNull(within(popover).queryByRole("button", { name: /^Advanced/ }));
     });
 });

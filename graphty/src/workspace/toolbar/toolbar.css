@@ -42,3 +42,11 @@
     font-weight: 600;
     line-height: 1;
 }
+
+/* A long layout form scrolls under its Apply, which stays in reach. */
+.ws-layout-apply {
+    position: sticky;
+    bottom: 0;
+    padding-block: 4px;
+    background: var(--mantine-color-body);
+}

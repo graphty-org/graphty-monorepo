@@ -87,6 +87,7 @@ export function ExportDialog(): React.JSX.Element {
      * @param message - the notice.
      * @param file - the file's name, when a file was saved.
      */
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
             const choices = { image, video, data }[output as "image" | "video" | "data"] as RecentExport["choices"];
@@ -116,7 +117,15 @@ export function ExportDialog(): React.JSX.Element {
             case "video":
                 return <VideoOutput choices={video} onChange={setVideo} onCancel={close} onDone={done} />;
             case "data":
-                return <DataOutput choices={data} onChange={setData} onCancel={close} onDone={done} />;
+                return (
+                    <DataOutput
+                        choices={data}
+                        onChange={setData}
+                        onCancel={close}
+                        onSettingsOpen={setSettingsOpen}
+                        onDone={done}
+                    />
+                );
             default:
                 return <DocumentOutput key={output} kind={output} onCancel={close} onDone={done} />;
         }
@@ -126,6 +135,8 @@ export function ExportDialog(): React.JSX.Element {
         <Modal
             opened={opened}
             onClose={close}
+            // Mantine's modal sees Escape before anything inside it: a settings popover closes alone.
+            closeOnEscape={!settingsOpen}
             title="Export"
             size="lg"
             classNames={{ body: "ws-dialog-columns ws-export-body" }}

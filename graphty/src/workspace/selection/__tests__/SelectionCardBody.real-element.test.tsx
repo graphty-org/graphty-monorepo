@@ -178,6 +178,24 @@ describe("the workspace's cards, as the approved prototype", () => {
         });
     });
 
+    it("puts every Leiden setting in the card's one settings popover (the owner's path)", async () => {
+        await openLayer();
+        await openWorkspace();
+        await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Leiden");
+        await userEvent.click(await within(cards()[0]).findByRole("button", { name: /^Settings for Leiden/u }));
+        const panel = await screen.findByRole("dialog", { name: "Leiden" });
+        for (const name of [/^Resolution/u, /^Random seed/u, /^Max iterations/u, /^Threshold/u]) {
+            assert.isNotNull(within(panel).getByRole("spinbutton", { name }));
+        }
+        assert.lengthOf(
+            within(panel)
+                .getAllByRole("button")
+                .filter((button) => button.getAttribute("aria-haspopup") === "dialog"),
+            0,
+            "no setting opens another popover",
+        );
+    });
+
     it("opens the settings beside the cards, over the drawing, and Escape there closes only them", async () => {
         await openLayer();
         const modal = await openWorkspace();

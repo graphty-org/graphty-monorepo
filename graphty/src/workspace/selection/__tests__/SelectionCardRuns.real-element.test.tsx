@@ -206,11 +206,6 @@ describe("a card's setting its run name does not carry (the owner, 2026-11-04)",
 
         await userEvent.click(within(modal).getAllByRole("button", { name: /^Settings for /u })[0]);
         await screen.findByRole("dialog", { name: /Louvain/u });
-        // Max iterations may sit behind an "Advanced" button in the settings.
-        const advanced = screen.queryByRole("button", { name: "Advanced" });
-        if (advanced !== null) {
-            await userEvent.click(advanced);
-        }
         const field = await screen.findByLabelText(/Max iterations/u);
         await userEvent.clear(field);
         await userEvent.type(field, "1{Enter}");

@@ -19,7 +19,7 @@ import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { readonlyPositions, writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
-import { ElementPositions, isStorableCoordinate } from "../data/positions";
+import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Node, NodeIdType } from "../Node";
@@ -212,6 +212,25 @@ export interface LayoutEngineStatics {
     zodOptionsSchema?: OptionsSchema;
     getZodOptionsSchema(): OptionsSchema;
     hasZodOptions(): boolean;
+}
+
+/**
+ * Whether a column entry can be published at all: a real row number and three storable coordinates.
+ * @param row - the entry's row
+ * @param x - scene-unit x
+ * @param y - scene-unit y
+ * @param z - scene-unit z
+ * @returns true when nothing about the entry itself refuses it
+ */
+function isPublishable(row: number, x: number, y: number, z: number): boolean {
+    return (
+        row !== INVALID_INDEX &&
+        Number.isInteger(row) &&
+        row >= 0 &&
+        isStorableCoordinate(x) &&
+        isStorableCoordinate(y) &&
+        isStorableCoordinate(z)
+    );
 }
 
 /**
@@ -425,6 +444,9 @@ export abstract class LayoutEngine {
      * would silently swap that array for the one its own graph owns.
      */
     private positionArrayAttached = false;
+
+    private scratchRows = new Float64Array(0);
+    private scratchCoords = new Float64Array(0);
 
     /** The rows the element is holding still, or null when nothing is held. See {@link setHoldMask}. */
     private hold: NodeMask | null = null;
@@ -920,6 +942,91 @@ export abstract class LayoutEngine {
 
         positions.write(index, x, y, z);
         return true;
+    }
+
+    /**
+     * The reusable column an engine fills for {@link LayoutEngine.publishColumn}.
+     * @param count - how many rows it will fill
+     * @returns each entry's row, and three coordinates per entry. The rows are doubles, not u32s,
+     *     so that an index that is no row number reaches the guard as it is instead of wrapping
+     * @internal
+     */
+    protected publishScratch(count: number): { rows: Float64Array; coords: Float64Array } {
+        if (this.scratchRows.length < count) {
+            this.scratchRows = new Float64Array(count);
+            this.scratchCoords = new Float64Array(3 * count);
+        }
+
+        return { rows: this.scratchRows, coords: this.scratchCoords };
+    }
+
+    /**
+     * Publish a whole column: {@link LayoutEngine.writeNodePosition}'s guards in one loop over typed
+     * arrays, with the array resolved once instead of per node.
+     * @param n - any node of the column, which resolves the array; nothing is published without one
+     * @param rows - each entry's row
+     * @param coords - each entry's scene-unit x, y, z
+     * @param count - how many entries to publish
+     * @param firstPlacement - true when a row with no coordinate takes this one as a placement,
+     *     whatever pin or hold it carries
+     * @internal
+     */
+    protected publishColumn(
+        n: Node | undefined,
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement = false,
+    ): void {
+        if (n === undefined) {
+            return;
+        }
+
+        const positions = this.positionsFor(n);
+        const holds = this.holdsAny;
+        let live = positions.count;
+        let array = positions.view(live);
+        let pins = positions.pinnedView(live);
+        let written = 0;
+        let changed = 0;
+        for (let i = 0; i < count; i++) {
+            const row = rows[i];
+            const x = coords[3 * i];
+            const y = coords[3 * i + 1];
+            const z = coords[3 * i + 2];
+            if (!isPublishable(row, x, y, z)) {
+                continue;
+            }
+
+            const base = POSITION_COMPONENTS * row;
+            const placed = row < live && isStorableCoordinate(array[base]);
+            const guarded = placed || !firstPlacement;
+            if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
+                continue;
+            }
+
+            if (row >= live) {
+                positions.grow(row + 1);
+                live = positions.count;
+                array = positions.view(live);
+                pins = positions.pinnedView(live);
+            }
+
+            if (
+                array[base] !== Math.fround(x) ||
+                array[base + 1] !== Math.fround(y) ||
+                array[base + 2] !== Math.fround(z)
+            ) {
+                changed++;
+            }
+
+            array[base] = x;
+            array[base + 1] = y;
+            array[base + 2] = z;
+            written++;
+        }
+
+        positions.moved(written, changed);
     }
 
     /**
@@ -1970,30 +2077,50 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
+        const nodes = this._nodes;
+        const { rows, coords } = this.publishScratch(nodes.length);
+        let count = 0;
+        for (const n of nodes) {
+            if (this.computedCoords(n, coords, 3 * count)) {
+                rows[count] = n.index;
+                count++;
+            }
+        }
+
+        this.publishColumn(nodes[0], rows, coords, count);
+    }
+
+    /**
+     * Put what the layout computed for one node, in scene units, into the column.
+     * @param n - the node
+     * @param coords - the column
+     * @param at - where its x goes
+     * @returns false when the layout has no answer for the node
+     */
+    private computedCoords(n: Node, coords: Float64Array, at: number): boolean {
         const loaded = this.#loaded;
         const column = this.#column;
-        for (const n of this._nodes) {
-            if (loaded !== null && column.length > 0) {
-                const row = loaded.rowOf(n);
-                if (row !== INVALID_INDEX && 3 * row + 2 < column.length) {
-                    this.writeNodePosition(n, column[3 * row], column[3 * row + 1], column[3 * row + 2]);
-                }
-
-                continue;
+        if (loaded !== null && column.length > 0) {
+            const row = loaded.rowOf(n);
+            if (row === INVALID_INDEX || 3 * row + 2 >= column.length) {
+                return false;
             }
 
-            const pos = this.positions[n.id] as number[] | undefined;
-            if (!pos || pos.length === 0) {
-                continue;
-            }
-
-            this.writeNodePosition(
-                n,
-                pos[0] * this.scalingFactor,
-                pos[1] * this.scalingFactor,
-                (pos[2] ?? 0) * this.scalingFactor,
-            );
+            coords[at] = column[3 * row];
+            coords[at + 1] = column[3 * row + 1];
+            coords[at + 2] = column[3 * row + 2];
+            return true;
         }
+
+        const pos = this.positions[n.id] as number[] | undefined;
+        if (!pos || pos.length === 0) {
+            return false;
+        }
+
+        coords[at] = pos[0] * this.scalingFactor;
+        coords[at + 1] = pos[1] * this.scalingFactor;
+        coords[at + 2] = (pos[2] ?? 0) * this.scalingFactor;
+        return true;
     }
 
     /**

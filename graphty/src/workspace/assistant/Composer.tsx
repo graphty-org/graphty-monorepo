@@ -8,7 +8,7 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { answerQuestion, send } from "./connection";
+import { answerQuestion, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
 import { hiddenWords, WORDS } from "./words";
@@ -16,9 +16,7 @@ import { hiddenWords, WORDS } from "./words";
 /** The scope a message goes with. */
 interface Scope {
     /** What the next message is about. */
-    readonly kind: "selection" | "graph";
-    /** Sends with the next message: the x lasts for one. */
-    readonly sent: () => void;
+    readonly kind: ScopeKind;
     readonly line: React.JSX.Element;
 }
 
@@ -28,20 +26,28 @@ interface Scope {
  * @returns The scope and its line
  */
 function useScope(): Scope {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     useVisibilityVersion(session);
     useSessionVersion(session);
-    const [dropped, setDropped] = useState(false);
+    const dropped = useWorkspaceState((state) => state.assistantScopeDropped);
+    const setDropped = (assistantScopeDropped: boolean): void => {
+        store.set({ assistantScopeDropped });
+    };
     const selected = session?.selection.nodes.length ?? 0;
     const selectedEdges = session?.selection.edges.length ?? 0;
     const any = selected + selectedEdges > 0;
-    useEffect(
-        () =>
-            session?.on("selection:changed", () => {
-                setDropped(false);
-            }),
-        [session],
-    );
+    const kind = scopeKind(session, dropped);
+    useEffect(() => {
+        const forget = (): void => {
+            store.set({ assistantScopeDropped: false });
+        };
+        const off = session?.on("selection:changed", forget);
+        return () => {
+            off?.();
+            // Nothing watches the selection without this line, so the x goes with it.
+            forget();
+        };
+    }, [session, store]);
     const { nodes = 0, edges = 0 } = session?.status.counts ?? {};
     const hidden = nodes - (session?.visibility.summary.visibleNodes ?? nodes);
     const chips = (nodeCount: number, edgeCount: number): React.JSX.Element => (
@@ -51,7 +57,7 @@ function useScope(): Scope {
         </>
     );
     const line =
-        any && !dropped ? (
+        kind === "selection" ? (
             <Group gap={4} wrap="nowrap" className="ws-assistant-scope">
                 <Text size="xs">{WORDS["assistant.scope.selection"]}</Text>
                 {chips(selected, selectedEdges)}
@@ -88,13 +94,7 @@ function useScope(): Scope {
                 ) : null}
             </Group>
         );
-    return {
-        kind: any && !dropped ? "selection" : "graph",
-        sent: () => {
-            setDropped(false);
-        },
-        line,
-    };
+    return { kind, line };
 }
 
 /** Props for Composer. */
@@ -145,7 +145,6 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
             scope: scope.kind,
             ...(spoken === null ? {} : { via: "voice" as const, ...spoken }),
         });
-        scope.sent();
     };
     return (
         <div className="ws-assistant-foot">

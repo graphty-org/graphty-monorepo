@@ -98,6 +98,8 @@ export interface WorkspaceState {
     readonly assistantTalkPress: boolean;
     /** What the reader pointed at, while a spoken message waits in the composer; else null. */
     readonly assistantSpoken: { readonly pointing?: AiPointing } | null;
+    /** The x on the scope line: the next message, whatever sends it, is about the whole graph. */
+    readonly assistantScopeDropped: boolean;
     /** The open question refused the composer's text: it stays open with one line. */
     readonly assistantRefused: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
@@ -295,6 +297,7 @@ const INITIAL: WorkspaceState = {
     assistantWaiting: 0,
     assistantTalkPress: false,
     assistantSpoken: null,
+    assistantScopeDropped: false,
     assistantRefused: false,
     assistantEnded: null,
     rightWidth: PANEL_MIN,

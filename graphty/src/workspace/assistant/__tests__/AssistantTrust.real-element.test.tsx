@@ -499,7 +499,7 @@ describe("checking what the Assistant says", () => {
         });
     });
 
-    it("Send again goes out with the scope the failed message had", async () => {
+    it("Send again goes with the selection the scope line still shows", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(3) });
         Object.defineProperty(model, "name", { value: "google" });
@@ -516,6 +516,47 @@ describe("checking what the Assistant says", () => {
                 ["selection", "selection"],
             );
         });
+    });
+
+    it("Send again after the x goes with the graph and spends the x, as Send does", async () => {
+        const { session } = await openOn(50);
+        await session.selection.apply({ ids: ids(3) });
+        Object.defineProperty(model, "name", { value: "google" });
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("About these");
+        const row = await screen.findByRole("alert");
+        model.clearError();
+
+        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
+        await within(panel()).findByText("Whole graph");
+        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await screen.findByText("The reply.");
+        await finished();
+        assert.deepEqual(
+            sent.map((options) => options.scope),
+            ["selection", "graph"],
+        );
+        await within(panel()).findByText("Selection");
+    });
+
+    it("Send again after the selection went goes with the graph", async () => {
+        const { session } = await openOn(50);
+        await session.selection.apply({ ids: ids(3) });
+        Object.defineProperty(model, "name", { value: "google" });
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("About these");
+        const row = await screen.findByRole("alert");
+        model.clearError();
+
+        await session.selection.apply({ ids: [] });
+        await within(panel()).findByText("Whole graph");
+        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await screen.findByText("The reply.");
+        await finished();
+        assert.deepEqual(
+            sent.map((options) => options.scope),
+            ["selection", "graph"],
+        );
     });
 
     it("updates the line while typing and keeps the draft when the selection changes", async () => {

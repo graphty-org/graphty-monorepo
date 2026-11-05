@@ -7,7 +7,7 @@ import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ChangeRows, ResultRow } from "./Checks";
-import { send } from "./connection";
+import { scopeKind, send } from "./connection";
 import { isRunning } from "./useAssistantView";
 import {
     durationWords,
@@ -444,7 +444,7 @@ interface ConversationProps {
  * @returns The log
  */
 export function Conversation({ conversation, status, choice }: Readonly<ConversationProps>): React.JSX.Element {
-    const { element, store } = useWorkspace();
+    const { element, session, store } = useWorkspace();
     const log = useRef<HTMLElement>(null);
     const following = useRef(true);
     const [behind, setBehind] = useState(false);
@@ -467,9 +467,10 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
             setBehind(true);
         }
     }, [turns.length, status?.streamedText, status?.toolCalls?.length, status?.state, late]);
-    const again = ({ text, scope, via }: ReaderMessage): void => {
+    const again = ({ text, via }: ReaderMessage): void => {
         if (element !== null) {
-            void send(element, store, choice, text, { via, ...(scope === undefined ? {} : { scope: scope.kind }) });
+            const scope = scopeKind(session, store.get().assistantScopeDropped);
+            void send(element, store, choice, text, { via, scope });
         }
     };
     return (

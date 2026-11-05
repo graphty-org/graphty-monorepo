@@ -1,6 +1,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { AiCommandOptions, ExecutionResult } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -16,6 +17,20 @@ const links = new WeakMap<GraphtyElement, Promise<void>>();
 
 /** Results that end a message for now and wait on the reader. */
 const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
+
+/** What a message is about. */
+export type ScopeKind = NonNullable<AiCommandOptions["scope"]>;
+
+/**
+ * What the next message is about, as the scope line says it.
+ * @param session - the element's session.
+ * @param dropped - whether the x is on.
+ * @returns the selection while one stands and the x is off, else the graph.
+ */
+export function scopeKind(session: GraphSession | null, dropped: boolean): ScopeKind {
+    const { nodes = [], edges = [] } = session?.selection ?? {};
+    return nodes.length + edges.length > 0 && !dropped ? "selection" : "graph";
+}
 
 /**
  * Sets up the element's assistant. The key is the element's: given here once, and back from storage
@@ -205,7 +220,13 @@ export async function send(
     text: string,
     options: AiCommandOptions = {},
 ): Promise<void> {
-    store.set({ assistantDraft: "", assistantEnded: null, assistantSpoken: null, assistantRefused: false });
+    store.set({
+        assistantDraft: "",
+        assistantEnded: null,
+        assistantSpoken: null,
+        assistantScopeDropped: false,
+        assistantRefused: false,
+    });
     await follow(element, store, choice, text, () => element.aiCommand(text, options));
 }
 

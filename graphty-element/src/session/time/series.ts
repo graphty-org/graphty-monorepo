@@ -137,7 +137,13 @@ export function windowsUntil(
  * @returns The density, or null under two nodes.
  */
 function densityOf({ nodes, edges }: TimeCountPair, directed: boolean): number | null {
-    return nodes < 2 ? null : ((directed ? 1 : 2) * edges) / (nodes * (nodes - 1));
+    if (nodes < 2) {
+        return null;
+    }
+
+    const density = edges / (nodes * (nodes - 1));
+
+    return directed ? density : 2 * density;
 }
 
 /**

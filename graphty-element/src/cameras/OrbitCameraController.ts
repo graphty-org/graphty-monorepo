@@ -37,6 +37,9 @@ const DEFAULT_NEAR_PLANE = 1;
 /** The nearest the near clip plane comes, close to a globe, so depth keeps its precision. */
 const MIN_NEAR_PLANE = 0.01;
 
+/** How squarely the line of sight must face a {@link OrbitCameraController.surfacePlane} to reach it. */
+const MIN_PLANE_FACING = 0.01;
+
 /** No room kept clear: framing uses the whole canvas. */
 const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
 
@@ -298,6 +301,14 @@ export class OrbitCameraController {
     public farReach: { readonly radius: number } | null = null;
 
     /**
+     * The plane z = 0 of a flat map under a map layout: the pivot stays on it, so a turn is about
+     * a point of the map and the camera's distance from the pivot is its distance from the map,
+     * however far framing or a zoom toward the pointer put the pivot off it. `floor` is the least
+     * distance from the map. Null for none.
+     */
+    public surfacePlane: { readonly floor: number } | null = null;
+
+    /**
      * Turn the view so the point of the {@link grabSphere} under one spot of the canvas moves to
      * another, as a hand turns a globe.
      * @param from - The pointer's last spot, CSS pixels from the canvas's top-left corner.
@@ -350,7 +361,7 @@ export class OrbitCameraController {
     #floor(): number {
         const floor = this.surfaceFloor;
         if (floor === null) {
-            return this.config.minZoomDistance;
+            return Math.min(this.config.minZoomDistance, this.surfacePlane?.floor ?? Infinity);
         }
 
         return Math.max(this.config.minZoomDistance, this.#outside(floor.radius));
@@ -391,6 +402,8 @@ export class OrbitCameraController {
      * Parents camera to pivot and positions at negative Z distance.
      */
     public updateCameraPosition(): void {
+        this.#settleOnPlane();
+
         // Parent the camera to the pivot for proper transformation
         this.camera.parent = this.pivot;
 
@@ -433,12 +446,34 @@ export class OrbitCameraController {
     #nearPlane(): number {
         const sphere = this.grabSphere ?? this.surfaceFloor;
         if (sphere === null) {
-            return DEFAULT_NEAR_PLANE;
+            return this.surfacePlane === null
+                ? DEFAULT_NEAR_PLANE
+                : Scalar.Clamp(this.cameraDistance / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
         }
 
         const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
         const height = eye.length() - sphere.radius;
         return Math.max(Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE), height / 16);
+    }
+
+    /**
+     * Slide the pivot along the line of sight onto the {@link surfacePlane}, the camera staying
+     * where it is. Edge on, the line of sight meets the plane too far away to move to.
+     */
+    #settleOnPlane(): void {
+        if (this.surfacePlane === null) {
+            return;
+        }
+
+        const forward = Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix(true)).normalize();
+        if (Math.abs(forward.z) < MIN_PLANE_FACING) {
+            return;
+        }
+
+        const along = -this.pivot.position.z / forward.z;
+        this.pivot.position.addInPlace(forward.scale(along));
+        this.pivot.computeWorldMatrix(true);
+        this.cameraDistance = this.clampDistance(this.cameraDistance + along);
     }
 
     /**

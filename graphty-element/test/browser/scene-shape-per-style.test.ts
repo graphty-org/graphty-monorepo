@@ -19,7 +19,7 @@
  */
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Mesh, Vector3 } from "@babylonjs/core";
+import { type Buffer, Mesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
@@ -229,14 +229,20 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             uploads.push(kind);
             upload(kind);
         };
-        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
-        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
-        if (slots) {
-            const update = slots.update.bind(slots);
-            slots.update = (data): void => {
-                uploads.push("slots");
-                update(data);
-            };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch), and a cap's
+        // billboard values are buffers of theirs (ArrowCapBatch).
+        for (const [kind, name] of [
+            ["pA", "slots"],
+            ["arrowDirection", "arrowDirection"],
+        ]) {
+            const buffer = mesh.getVertexBuffer(kind)?.getWrapperBuffer();
+            if (buffer) {
+                const update = buffer.updateDirectly.bind(buffer);
+                buffer.updateDirectly = (...args): void => {
+                    uploads.push(name);
+                    update(...args);
+                };
+            }
         }
 
         const moved = graph.getDataManager().nodes.get(node);
@@ -346,11 +352,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isDefined(capBatch);
         assert.isNotNull(capBatch);
         const uploads: string[] = [];
-        const upload = capBatch.thinInstanceBufferUpdated.bind(capBatch);
-        capBatch.thinInstanceBufferUpdated = (kind: string): void => {
-            uploads.push(kind);
-            upload(kind);
-        };
+        for (const kind of ["arrowColor", "arrowSize"]) {
+            const buffer: Buffer | undefined = capBatch.getVertexBuffer(kind)?.getWrapperBuffer();
+            assert.isDefined(buffer, `${kind} is a buffer of the batch`);
+            const upload = buffer.updateDirectly.bind(buffer);
+            buffer.updateDirectly = (...args): void => {
+                uploads.push(kind);
+                upload(...args);
+            };
+        }
 
         await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
         await frame();

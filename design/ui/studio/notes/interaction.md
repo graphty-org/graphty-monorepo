@@ -15,56 +15,43 @@ save and reopen.
 
 ## Top of mind
 
-- (2026-10-23, issue #3315) Location entries behave exactly like Label and Weight: "+"
-  picks the kind, the new entry's column list opens focused, Escape with no pick drops it and
-  focus returns to "+", the minus moves focus to "+". My argument, adopted: a gear makes the
-  number of column pickers depend on a closed popout, so the row changes shape from a control the
-  reader cannot see; changing a column's kind is minus and "+", as for every other entry.
-
-1. (2026-10-21) **Tier 3 round 1 closed; the studio stopped at its 1-round cap with bar 5 still
-   failing**, only on the two pre-round severity 3 backlog items (a node's own Fill "+" making a
-   one-node layer; the folder's chain icon painting every cluster one color). 55 of 56 succeeded:
-   the round is at its success ceiling, so cost, routes and problems are the signal.
-2. (2026-10-21) **A new style line must start where the reader can see it act.** Fill "+" starts
-   at the color every node already has, edge Width at 8 with no unit; accepting changes nothing
-   and readers cannot tell it took (9 sessions, 5 halves). Same lesson as tier 2's "style + on the
-   drawn default" -- third time. Next: a new line opens its editor with nothing committed, or
-   commits a value that differs, and the unit is on the field.
-3. (2026-10-21) **Node color is looked for in the Graph inspector first** (9 sessions, 5 halves);
-   recovery only by matching the "Everything" count to the node count. The empty-selection Style
-   tab needs a door to the layer that paints nodes, not a copy of its controls.
-4. (2026-10-21) **Keyboard focus defects, mine:** the inspector's F6 stop draws no focus ring
-   (WCAG 2.4.7); both "Samples" controls scroll to the library and leave focus behind; 30+ Tabs to
-   a sample card (nine chips = nine stops; Enter in the search does nothing). Fix: focus follows
-   the scroll target, chips one stop with arrows, Enter in search goes to the first card.
-5. (2026-10-21) **Checking a layer's members is done by eye:** Values lists ids, the table neither
-   marks nor filters to a layer's rows. Criterion 10 says the count is a link that selects what it
-   counts -- "4 of 24" should select (and the table show) those 4, by name.
-6. (2026-10-21) **Picker defects:** one hue-bar click sets and closes the picker; a "+" click is
-   lost when the find list closes and the panel re-lays out between press and release (act on
-   pointerdown or hold layout until release); swatch focus drawn on the whole box; Escape from a
-   selection returns to the Graph inspector instead of the open layer (Esc ladder broken).
-7. (2026-10-21) **The color box accepts words but never says so.** Placeholder or example, not a
-   new sentence. Spoken color names come from compact-mantine's `colorWord`, which checks CSS
-   keywords before hue ("gold" for FFD700); the fix is in compact-mantine, never an app table.
-8. (2026-10-21) **A find-box pick becomes a fixed id list** while its rows read as rules ("kind is
-   company (6)"); the layer is named by its count. Offer the rule when the pick came from a rule.
-9. (2026-10-21) **Avoidance is not understanding.** 0 of 10 hit the chain-icon trap, but 6 went
-   around the purple Layer token. Next round needs a measure that separates the two before I call
-   the token readable.
-10. (2026-10-21) **Untraced moves are owed:** the 130 px drawing move on first color with a
-    find-box pick, the off-center smaller reopen of a saved project, and a real-notch wheel repro
-    (the 0.75% zoom figure was one synthetic event). Name the mechanism before any fix.
-11. (2026-10-16) Bulk field is BoundValue: the pill is the only tab stop, its spoken name carries
-    the count, chits are pointer shortcuts; Escape on the inline Which picker keeps edits (one undo
-    step per open-close). Watch whether anyone presses Escape expecting to cancel.
-12. (2026-10-13) Unset is the minus, emptying + Enter, or Delete; focus never falls to the page
-    (to the emptied field, the next entry, the restored control); a kind change keeps settings.
-13. Standing: one model plays every persona -- trust repros and code causes, discount a prompt's or
-    briefing's own words; a decided change unverified on the served build is not done; words at
-    rest go down, never up; every detour works or does not look clickable.
-14. Standing: where a fix goes -- graph facts in graphty-element, flows/focus/words in the app,
-    shared control defects in compact-mantine; no app copies of element logic.
+1. (2026-10-30) **Tier 4 round 1 closed; the studio stopped at its 1-round cap.** Success holds
+   (25 of 26 pointer sessions), 0 severity 4, no severity 3 survived the skeptic check. Failing:
+   keyboard (axe critical on 14 of 16 screens: the table's Nodes tab names a panel never
+   rendered), the owner-approved joined-source ratio clipped (bar 6), and cost on core tasks
+   (join about 12 inputs against a path of 7). Cost and routes are the signal now.
+2. (2026-10-30) **Fix the study tool before any round 2:** hovering something that opens a
+   popover prints "tooltip: null", and four participants believed the line over the screenshot
+   and reported the issue mark's fix list "did nothing". Never trust tool text over the picture.
+3. (2026-10-30) **Show what an act will do before it happens.** The join preview leaves the
+   unknown-end row untagged ("1 not in graph" read as "left out") while Join adds it as an empty
+   node, and tags the repeated key as added. Preview tags must equal Join's result row for row;
+   most severe open problem (severity 2).
+4. (2026-10-30) **Decide before the act, not after it with a default applied.** Unknown ends are
+   decided only after Join with "Add nodes" in effect; "Leave out" does not say it deletes. A new
+   filter card starts on Hide (5 of 5 who meant to mark lost part of the picture). The planned
+   "Select | Filter to | Filter out" renames but still starts on taking things out -- a new card
+   should start on the non-destructive effect, and every choice names its consequence.
+5. (2026-10-30) **One fact, one drawing.** Designating the time leaves the header's text glyph
+   while the timeline draws dates; a filter chip counts the whole graph under Hide and the picture
+   under Select; place roles set but unmarked on headers. Each costs a second menu to check.
+6. (2026-10-30) **Column work starts at the table header.** 3 of 4 went there; the inspector's
+   "Set in Data" misleads only when the column's kind matters. Keep the header the primary door.
+7. (2026-10-30) **Keyboard debts:** the header "..." is not a Tab stop; the issue mark is an
+   image with a default cursor whose issue is not spoken on focus; Export's format warning drops
+   focus (needs its own repro); a repeat's menu marks no current choice and names no row.
+8. (2026-10-30) **A popover press on its own scrollbar must not count as outside.** One step each
+   time; cheap to fix.
+9. (2026-10-21) **A new style line must start where the reader can see it act** (third tier in a
+   row): open the editor uncommitted or commit a visibly different value; unit on the field.
+10. (2026-10-21) **Checking membership is done by eye:** a count should be a link that selects what
+    it counts, and the table should show those rows by name.
+11. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center
+    reopen of a saved project, a real-notch wheel repro. Name the mechanism before any fix.
+12. Standing: one model plays every persona -- a failure is strong evidence, a pass weak; trust
+    repros and code causes; a decided change unverified on the served build is not done.
+13. Standing: graph facts in graphty-element, flows/focus/words in the app, shared control defects
+    in compact-mantine; location entries behave like Label and Weight ("+", minus, Escape drops).
 
 ## Priorities and values
 
@@ -206,6 +193,15 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Tried: worked / did not work
 
+- 2026-10-30 Tier 4 round 1 (returning users managing data). Worked: the header Role menu for
+  places (T63), the header "..." on hover (every T62 session found it), Hide for T66. Did not
+  work: the join preview tags; deciding unknown ends after Join; Hide as a new card's default when
+  marking first; "Set in Data" when the kind matters; the joined-source row layout (name and
+  approved ratio clipped). Tool defect: popover-on-hover reported as "tooltip: null".
+- 2026-10-21 Tier 3 round 1 (summarized): style "+" on the drawn default changed nothing (9
+  sessions); node color looked for in the Graph inspector first; F6 stop with no focus ring; find
+  pick became a fixed id list read as a rule; 6 of 10 went around the purple Layer token.
+
 - 2026-10-10 Round 2 (all 55 sessions succeeded; weak evidence because of the leak). Did not work:
   the "start with =" hint (shown only when the exact column and a condition are typed; 6 of 8 typed
   "chapters 10" or ">= 10" and got "No match"; backticks stopped 7); a new style line on the
@@ -266,6 +262,10 @@ Each with its reason. A screen that breaks one is a defect.
   understanding.
 
 ## Thinking
+
+- 2026-10-30 **Skeptic checks move severities more than sessions do.** All four severity 3
+  candidates fell to 2 or below once two skeptics re-read the evidence; a grader's "trap" often
+  was the task's order or the answer key's definition. Ask "did a wrong result stand?" first.
 
 - 2026-10-21 **Ceiling rounds need cost bars.** With success at 55 of 56, steps over the key and
   wrong turns per half are the only signal; a round whose bars are all success-based cannot move.

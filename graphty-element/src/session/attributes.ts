@@ -190,7 +190,7 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
  * Never from how many distinct values there are: the same column must not change meaning when
  * next month's file has more rows. Numbers are amounts until someone declares them codes.
  * @param type - the settled type
- * @param accumulator - what the walk saw, for text that reads as dates
+ * @param accumulator - what the walk saw, for text that reads as dates; absent when dates are not read
  * @returns the measurement
  */
 function inferMeasurement(type: AttributeType, accumulator?: Accumulator): Measurement {
@@ -229,9 +229,16 @@ function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
  * @param kind - whether it was found on nodes or on edges
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptor
  */
-function describe(name: string, kind: "node" | "edge", accumulator: Accumulator, total: number): AttributeDescriptor {
+function describe(
+    name: string,
+    kind: "node" | "edge",
+    accumulator: Accumulator,
+    total: number,
+    readDates: boolean,
+): AttributeDescriptor {
     const settled = settleType(accumulator.types);
     const numeric = settled === "number" || settled === "integer";
     const type = settled === "string" && isCategorical(accumulator, total) ? "category" : settled;
@@ -246,7 +253,10 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         type,
         ...(accumulator.present === 0
             ? {}
-            : { measurement: inferMeasurement(settled, accumulator), measurementSource: "inferred" as const }),
+            : {
+                  measurement: inferMeasurement(settled, readDates ? accumulator : undefined),
+                  measurementSource: "inferred" as const,
+              }),
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
@@ -284,16 +294,18 @@ function newAccumulator(): Accumulator {
  * @param rows - the rows
  * @param kind - whether they will be nodes or edges
  * @param order - column names to list first, in this order, even when no row carries a value
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors
  */
 export function describeRows(
     rows: readonly Readonly<Record<string, unknown>>[],
     kind: "node" | "edge",
     order: readonly string[] = [],
+    readDates = true,
 ): readonly AttributeDescriptor[] {
     const found = walk(rows.length, (index) => rows[index]);
     const names = new Set([...order, ...found.keys()]);
-    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length, readDates));
 }
 
 /**
@@ -339,11 +351,13 @@ function walk(
  * @param records - where to read the attributes a record arrived with; null means the element
  *     holds none, which is what a session with no view sees until the store carries attribute
  *     columns of its own
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors, node attributes first
  */
 export function describeAttributes(
     snapshot: GraphSnapshot,
     records: SessionRecordSource | null,
+    readDates = true,
 ): readonly AttributeDescriptor[] {
     if (records === null) {
         return Object.freeze([]);
@@ -358,11 +372,11 @@ export function describeAttributes(
 
     const described: AttributeDescriptor[] = [];
     for (const [name, accumulator] of nodes) {
-        described.push(describe(name, "node", accumulator, snapshot.nodeCount));
+        described.push(describe(name, "node", accumulator, snapshot.nodeCount, readDates));
     }
 
     for (const [name, accumulator] of edges) {
-        described.push(describe(name, "edge", accumulator, snapshot.edgeCount));
+        described.push(describe(name, "edge", accumulator, snapshot.edgeCount, readDates));
     }
 
     return Object.freeze(described);

@@ -81,7 +81,7 @@ describe("GML styles: who wrote the file", () => {
     it("reads yEd's keys with yEd's defaults: no fill, label color and weight, arrows by name, curves, extra labels", async () => {
         const { snapshot, styles } = await load(file("yed-labels-and-arrows.gml"));
         expect(styles.styles.source).toEqual({ format: "gml", dialect: "yed", tool: "yed" });
-        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "DejaVu Sans, sans-serif" });
+        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ccccff", labelFont: "DejaVu Sans, sans-serif" });
         const kind = (i: number): string => String(snapshot.nodes.value("label", i)).replace(/\d+$/, "");
         const opacity = resolveStyles(styles, "node", "fillOpacity", snapshot);
         const weight = resolveStyles(styles, "node", "labelWeight", snapshot);
@@ -432,6 +432,24 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
     });
 
+    it("reads a yEd label's fill and outline as its box and keeps them through a save, on nodes and edges alike", async () => {
+        const label = 'LabelGraphics [ text "A" fill "#EBEBEB" outline "#FF0000" ]';
+        const { snapshot, styles } = await load(
+            `Creator "yFiles"\ngraph [ node [ id 1 ${label} ] node [ id 2 LabelGraphics [ text "B" ] ] edge [ source 1 target 2 ${label} ] ]`,
+        );
+        expect(resolveStyles(styles, "node", "labelBackground", snapshot)).toEqual(["#ebebeb", null]);
+        expect(resolveStyles(styles, "node", "labelBorderColor", snapshot)).toEqual(["#ff0000", null]);
+        expect(resolveStyles(styles, "node", "labelBorderWidth", snapshot)).toEqual([1, null]);
+        expect(resolveStyles(styles, "edge", "labelBackground", snapshot)).toEqual(["#ebebeb"]);
+        const text = await registry.exportGraphToString(snapshot, "gml", { styles });
+        expect(text.match(/LabelGraphics \[[^\]]*fill "#EBEBEB"/g)).toHaveLength(2);
+        // yEd's outline is a one-pixel line, so a border is carried by the styles block, whatever its width
+        expect(text).not.toMatch(/LabelGraphics \[[^\]]*outline/);
+        const back = await load(text);
+        expect(resolveStyles(back.styles, "node", "labelBorderColor", back.snapshot)).toEqual(["#ff0000", null]);
+        expect(resolveStyles(back.styles, "node", "labelBorderWidth", back.snapshot)).toEqual([1, null]);
+    });
+
     it("reads yEd's inside anchors (t, b, l, r, tl, ...) as inside places and n, s, e, w, nw, ... as outside", async () => {
         const anchors = ["c", "t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
         const nodes = anchors.map(
@@ -467,8 +485,43 @@ describe("GML styles: yEd's flowchart shapes", () => {
         ]);
         // stored data: its outline, a left side bulging out and a right side bulging in
         const [, , , stored] = resolveStyles(styles, "node", "shapePoints", snapshot);
-        expect(String(stored)).toContain("0.8,0");
+        expect(String(stored)).toContain("0.84,1");
         expect(String(stored)).toContain("-1,0");
+    });
+
+    it("draws the shapes and sizes yEd draws for its types and palette nodes", async () => {
+        const node = (id: number, extra: string): string =>
+            `node [ id ${String(id)} graphics [ w 48.0 h 36.0 outlineWidth 1 ${extra} ] ]`;
+        const doc = `Creator "yFiles"\ngraph [ ${[
+            'type "fatarrow"',
+            'type "fatarrow2"',
+            'type "triangle2"',
+            'type "hexagon2"',
+            'type "octagon2"',
+            'type "rectangle3d"',
+            'customconfiguration "com.yworks.flowchart.annotation"',
+            'customconfiguration "com.yworks.flowchart.start2"',
+        ]
+            .map((extra, i) => node(i, extra))
+            .join(" ")} ]`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "polygon",
+            "polygon",
+            "ellipse",
+            "ellipse",
+            "rectangle",
+            "rectangle",
+            "ellipse",
+        ]);
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot).slice(0, 3)).toEqual([
+            "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0",
+            "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0",
+            "-1,1 1,1 0,-1",
+        ]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([1, 1, 1, 1, 1, 0, 0, 1]);
+        expect(resolveStyles(styles, "node", "width", snapshot).at(-1)).toBe(36);
     });
 });
 

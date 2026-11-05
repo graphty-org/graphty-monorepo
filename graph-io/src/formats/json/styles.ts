@@ -888,6 +888,27 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
 }
 
 /**
+ * vis-network loads each picture once (vis-network 9.1.9 `Images.load`, cached by URL): the first `image` or
+ * `circularImage` node naming a URL decides the broken image it gives way to, and every later node naming that URL
+ * shows the same, whatever its own `brokenImage` says.
+ * @param layer - the node's merged layer
+ * @param shape - its vis-network shape
+ * @param brokenOf - each URL's broken image so far, by the first node naming it; written in place
+ * @returns the layer, with the broken image its URL gives way to
+ */
+function visSharedBrokenImage(layer: VisLayer, shape: string, brokenOf: Map<string, unknown>): VisLayer {
+    const url = layer.image;
+    if ((shape !== "image" && shape !== "circularImage") || typeof url !== "string" || url === "") {
+        return layer;
+    }
+    if (!brokenOf.has(url)) {
+        brokenOf.set(url, layer.brokenImage);
+        return layer;
+    }
+    return { ...layer, brokenImage: brokenOf.get(url) };
+}
+
+/**
  * What a vis-network `image` or `circularImage` node draws (vis-network 9.1.9 `Image`, `CircularImage`,
  * `CircleImageBase._resizeImage`): its picture, the broken image in its place when it has none, with its shorter
  * side across the node's `2 * size` square (or at its own pixels with `shapeProperties.useImageSize`); an `image`
@@ -895,7 +916,8 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
  * `shapeProperties.useBorderWithImage`; a `circularImage` is cut to a circle and ringed by its border. Its
  * `imagePadding` keeps the picture that far inside the node's box on each side, stretched to what is left
  * (`_drawImageAtPosition`); the node's `opacity` fades the picture too; with `shapeProperties.coordinateOrigin`
- * "top-left" an `image` node with no box of its own draws its picture with its top left corner at the node's position.
+ * "top-left" an `image` node with no box of its own draws its picture with its top left corner at the node's position
+ * (a `circularImage` moves whole: visCenterOffset).
  * @param layer - the node's merged layer
  * @param shape - its vis-network shape
  * @param box - the node's width and height, in the file's units
@@ -954,6 +976,29 @@ function visImagePlace(row: Row, layer: VisLayer, box: { width: number; height: 
         row.imageOffsetX = box.width / 2 + (typeof row.imageOffsetX === "number" ? row.imageOffsetX : 0);
         row.imageOffsetY = box.height / 2 + (typeof row.imageOffsetY === "number" ? row.imageOffsetY : 0);
     }
+}
+
+/**
+ * How far a vis-network node's middle is from its `x` and `y`: a `circularImage` with
+ * `shapeProperties.coordinateOrigin` "top-left" draws its circle, picture and label with their box's top left corner
+ * there (vis-network 9.1.9 `CircularImage.draw`), half its `2 * size` square down and right of where any other node is
+ * drawn. An edge still runs to `x` and `y` in vis-network; here it follows the node.
+ * @param snapshot - the graph
+ * @returns each node's offset, null for none
+ */
+export function visCenterOffset(snapshot: GraphSnapshot): (row: number) => readonly [number, number] | null {
+    const [shape, properties, size] = ["shape", "shapeProperties", "size"].map((name) => cells(snapshot, "node", name));
+    return (row) => {
+        const own = properties?.(row);
+        if (shape?.(row) !== "circularImage" || !isJsonObject(own) || own.coordinateOrigin !== "top-left") {
+            return null;
+        }
+        // ponytail: the node's own keys only; a shape, origin or size from options.nodes or a group, or a size from
+        // `value`, needs them passed through the import, since a positions hook sees only the snapshot. A picture that
+        // is not square, or drawn at useImageSize, moves vis-network's box by its own pixels, which no file holds
+        const radius = size?.(row);
+        return typeof radius === "number" && radius >= 0 ? [radius, radius] : [VIS_SIZE, VIS_SIZE];
+    };
 }
 
 /**
@@ -1787,6 +1832,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const rawRecords = elementRaw(snapshot, "node");
     const range = visNodeValueRange(n, groupOf, rawRecords, groupLayers, nodeDefaults);
     const ownGroup = visOwnGroup(groupLayers, visGroupDefs(src, options));
+    const brokenOf = new Map<string, unknown>();
     for (let i = 0; i < n; i++) {
         const g = groupOf(i);
         const raw = rawRecords(i);
@@ -1801,7 +1847,11 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             element: i,
             budget: context.budget,
         });
-        const merged = visMergedNode(nodeDefaults, group, own, g !== null && raw.color !== undefined);
+        const merged = visSharedBrokenImage(
+            visMergedNode(nodeDefaults, group, own, g !== null && raw.color !== undefined),
+            shape,
+            brokenOf,
+        );
         for (const [p, v] of Object.entries(visNodeRow(merged, shape, range, site))) {
             node.put(p, i, v);
         }
@@ -2018,11 +2068,16 @@ function visFitShape(merged: VisLayer, shape: string): Row {
         row.labelPosition = `inside-${merged.valign}`;
     } else if (shape === "database") {
         // a database draws its label at its top, its top margin down (Database.draw: this.top + margin.top), not in
-        // the middle of the square it grows to
+        // the middle of the square it grows to; the label's padding already holds the margins' mean (visLabelFit)
         const m = merged.margin;
         const top = isJsonObject(m) ? m.top : m;
+        const down =
+            (typeof top === "number" && Number.isFinite(top) && top >= 0 ? top : VIS_MARGIN) -
+            Number(row.labelPaddingY);
         row.labelPosition = "inside-top";
-        row.labelOffsetY = typeof top === "number" && Number.isFinite(top) && top >= 0 ? top : VIS_MARGIN;
+        if (down !== 0) {
+            row.labelOffsetY = down;
+        }
     }
     // a box's corners are rounded at `shapeProperties.borderRadius`, at most half its shorter side (drawRoundRect)
     if (shape === "box" && typeof merged.borderRadius === "number" && Number.isFinite(merged.borderRadius)) {
@@ -3158,7 +3213,7 @@ const visShapeFactBack =
         if (shape === "hexagon" && typeof size === "number") {
             return property === "height" ? (Math.sqrt(3) * size) / 2 : ((2 - Math.sqrt(3)) * size) / 4;
         }
-        return property === "labelOffsetY" && shape === "database" ? VIS_MARGIN : null;
+        return null;
     };
 
 /**

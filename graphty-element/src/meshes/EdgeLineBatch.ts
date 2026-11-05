@@ -526,7 +526,10 @@ export class EdgeLineBatch {
         return out.fromArray(this.slots, index * this.stride + (end === 0 ? 3 : 6));
     }
 
-    /** Upload everything written since the last upload, in one call. */
+    /**
+     * Upload everything written since the last upload, in one call, up to the high-water mark: the
+     * arrays double, so uploading all of them would send as much again of slots nothing draws.
+     */
     flush(): void {
         // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
         // of data uploaded in part), so the first frame after one uploads every slot again.
@@ -544,9 +547,9 @@ export class EdgeLineBatch {
             this.staticDirty = false;
             if (expanded?.statics) {
                 repeatPerVertex(this.statics, expanded.statics, this.highWater, EDGE_STATIC_FLOATS);
-                this.staticBuffer?.update(expanded.statics);
+                this.staticBuffer?.updateDirectly(expanded.statics, 0, this.highWater * TEMPLATE_VERTICES);
             } else {
-                this.staticBuffer?.update(this.statics);
+                this.staticBuffer?.updateDirectly(this.statics, 0, this.highWater);
             }
         }
 
@@ -557,9 +560,9 @@ export class EdgeLineBatch {
                 // ponytail: every live piece is copied again when any one moved; copy only the
                 // pieces written since the last upload if a still graph's single moves show up.
                 repeatPerVertex(this.slots, expanded.slots, this.highWater, this.stride);
-                this.buffer?.update(expanded.slots);
+                this.buffer?.updateDirectly(expanded.slots, 0, this.highWater * TEMPLATE_VERTICES);
             } else if (this.buffer) {
-                this.buffer.update(this.slots);
+                this.buffer.updateDirectly(this.slots, 0, this.highWater);
             } else {
                 this.mesh.thinInstanceBufferUpdated("matrix");
             }

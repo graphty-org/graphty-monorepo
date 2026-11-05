@@ -205,3 +205,82 @@ describe("DOT styles: writing what these read", () => {
         expect(resolveStyles(back.styles, "node", "label", back.snapshot)[0]).toBe("x & y");
     });
 });
+
+describe("DOT styles: an arrow of several shapes written back (#5925)", () => {
+    const NAMES = [
+        "crowodot",
+        "dotodot",
+        "boxdotnormal",
+        "lteeoldiamond",
+        "normalnormal",
+        "dotcurve",
+        "doticurve",
+        "crowobox",
+        "normaloinv",
+        "boxboxboxbox",
+    ];
+
+    /**
+     * Each edge's written arrow attribute.
+     * @param doc - the document
+     * @param attribute - `arrowhead` or `arrowtail`
+     * @returns the names, and the text without its style block
+     */
+    async function written(doc: string, attribute: string): Promise<{ names: string[]; text: string }> {
+        const { snapshot, styles } = await load(doc);
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        const names = [...text.matchAll(new RegExp(`\\b${attribute}="?(\\w+)`, "g"))].map((m) => m[1]);
+        return { names, text: text.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "") };
+    }
+
+    it("writes each compound arrowhead's whole name, which reads back as the same arrow", async () => {
+        const doc = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        const { names, text } = await written(doc, "arrowhead");
+        expect(names).toEqual(NAMES);
+        const back = await load(text);
+        const before = await load(doc);
+        for (const property of ["targetArrow", "targetArrowParts"] as const) {
+            expect(resolveStyles(back.styles, "edge", property, back.snapshot)).toEqual(
+                resolveStyles(before.styles, "edge", property, before.snapshot),
+            );
+        }
+    });
+
+    it("writes a compound arrowtail's whole name", async () => {
+        const { names } = await written(`digraph { a -> b [dir=both, arrowtail=lteeoldiamond] }`, "arrowtail");
+        expect(names).toEqual(["lteeoldiamond"]);
+    });
+
+    it("writes a lone arrow as it always did", async () => {
+        const { names } = await written(
+            `digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=odot]; c -> d [arrowhead=lbox]; d -> e [arrowhead=normal] }`,
+            "arrowhead",
+        );
+        expect(names).toEqual(["crow", "odot", "box"]);
+    });
+
+    it("leaves out of the name a shape Graphviz has no name for, and any past the fourth", async () => {
+        const { snapshot, styles } = await load(`digraph { a -> b [arrowhead=crow] }`);
+        const rule = (parts: string): ExtractedStyles => ({
+            ...styles,
+            styles: {
+                ...styles.styles,
+                rules: [
+                    ...styles.styles.rules,
+                    {
+                        id: "parts",
+                        target: "edge",
+                        role: "group",
+                        origin: "declared",
+                        where: { all: true },
+                        set: { targetArrowParts: parts },
+                    },
+                ],
+            },
+        });
+        const nameOf = async (parts: string): Promise<string | undefined> =>
+            /arrowhead=(\w+)/.exec(await registry.exportGraphToString(snapshot, "dot", { styles: rule(parts) }))?.[1];
+        expect(await nameOf("other:kite half circle")).toBe("crowdot");
+        expect(await nameOf("circle circle circle circle")).toBe("crowdotdotdot");
+    });
+});

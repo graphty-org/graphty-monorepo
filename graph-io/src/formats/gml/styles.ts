@@ -8,7 +8,7 @@
  * defaults go beneath the file's own values; igraph and unknown writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
- * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fontSize`, `fontName`,
+ * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
  * `fontStyle`) replace every style key any reader here reads, inside the records the graph already has, so positions,
  * bends and other keys stay. The `graphty.styles` block and the per-element values its rules read are keys too,
  * named by the GML writer's rule for names that are not GML keys (`graphty_styles`, `graphty_style_node_<key>`).
@@ -68,12 +68,18 @@ import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putOutline,
+    putRaisedBorder,
+    typeOutline,
     type ValueColumns,
     valueColumns,
     YED_ARROWS,
     YED_LINES,
     YED_SHAPES,
+    yedArrowLength,
+    yedArrowWidth,
     yedColor,
+    yedDrawnWidth,
     yedFontName,
     yedSpelled,
     yedValue,
@@ -539,15 +545,44 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         }
         put("shape", shape ?? null);
     } else if (g.type !== undefined) {
-        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         const outline = configurationOutline(g.customconfiguration);
-        put("shape", outline?.shape ?? null);
-        if (outline?.points !== undefined) {
-            put("shapePoints", outline.points);
+        if (outline !== null) {
+            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
         }
     }
+}
+
+/**
+ * Reads a node's `type`, by what yEd draws for it where the writer is yEd.
+ * @param g - the graphics record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readTypedShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const outline = writer.vocabulary === "yed" ? typeOutline(g.type, "ellipse") : null;
+    if (outline === null) {
+        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        return;
+    }
+    putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+    if (outline.raised === true) {
+        const fill = Number(g.hasFill) === 0 ? undefined : g.fill;
+        putRaisedBorder(canonColor(fill, writer.spelling, at("fill"))?.color ?? null, put);
+    }
+}
+
+/**
+ * A side of a node's box, for a shape drawn by its size.
+ * @param side - the `w` or `h` value
+ * @returns the number, or null when it is not one
+ */
+function boxSide(side: unknown): number | null {
+    const n = Number(side);
+    return side !== undefined && Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -711,7 +746,8 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     // OGDF's GraphIO::writeGML writes the stroke color as `outline`; older OGDF wrote `line`
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
-    put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
+    const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
 /**
@@ -748,7 +784,8 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     }
     readColor(g.fill, "color", "opacity", writer, put, at);
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
-    put("width", width === undefined ? null : canonNumber(width, at("width")));
+    const read = width === undefined ? null : canonNumber(width, at("width"));
+    put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
     put("lineStyle", strokeStyle(v === "ogdf" ? g.stipple : g.style, "lineStyle", writer, at("lineStyle")));
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("visible", false);
@@ -773,8 +810,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         if (ends === undefined) {
             noteAt(at("targetArrow"), STYLE_ISSUE.UNKNOWN_VALUE, g.arrow.slice(0, MAX_STYLE_VALUE_LENGTH));
         } else {
-            put("sourceArrow", ends[0]);
-            put("targetArrow", ends[1]);
+            // yEd draws the `arrow` key's heads as its standard head, 10 wide where its triangle is 12
+            const head = (end: string): string => (writer.tool === "yed" && end === "triangle" ? "vee" : end);
+            put("sourceArrow", head(ends[0]));
+            put("targetArrow", head(ends[1]));
         }
     }
     for (const [keys, property] of [
@@ -791,6 +830,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.tool === "yed") {
+            put(`${property}Length`, yedArrowLength(raw));
+            put(`${property}Width`, yedArrowWidth(raw));
+        }
     }
 }
 
@@ -895,8 +938,8 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
-    if (lg.fill !== undefined && yedLabel) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
+    if (yedLabel) {
+        readYedLabelBox(lg, writer, put, at);
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
@@ -907,6 +950,21 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
         put("labelPosition", known ?? null);
+    }
+}
+
+/**
+ * Reads the box yEd draws behind a label's words: its `fill`, and its `outline`, a one-pixel line round the box.
+ * @param lg - the label record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYedLabelBox(lg: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(lg.fill, "labelBackground", null, writer, put, at);
+    if (lg.outline !== undefined) {
+        readColor(lg.outline, "labelBorderColor", null, writer, put, at);
+        put("labelBorderWidth", 1);
     }
 }
 
@@ -1554,6 +1612,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelWeight",
         "labelItalic",
         "labelPosition",
+        "labelBackground",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1572,6 +1631,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelBackground",
     ] as const),
     block: "native",
 });
@@ -1608,7 +1668,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
+    label: new Set(["text", "color", "fill", "outline", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1722,6 +1782,10 @@ function labelGraphics(get: Get): Rec | null {
     const color = get("labelColor");
     if (typeof color === "string") {
         lg.color = color.toUpperCase();
+    }
+    const background = get("labelBackground");
+    if (typeof background === "string") {
+        lg.fill = background.toUpperCase();
     }
     const size = get("labelSize");
     if (typeof size === "number") {

@@ -511,7 +511,7 @@ export class NodeDragHandler {
      */
     constructor(node: GraphNode) {
         this.node = node;
-        this.scene = node.mesh.getScene();
+        this.scene = node.drawnScene;
         this.dragState = {
             dragging: false,
             dragStartMeshPosition: null,
@@ -560,7 +560,7 @@ export class NodeDragHandler {
         this.dragState.dragging = true;
         this.dragState.moved = false;
         this.roster.engaged.add(this);
-        this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
+        this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.node.dragging = true;
 
@@ -595,7 +595,7 @@ export class NodeDragHandler {
         // Emit node-drag-start event
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-start", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -698,7 +698,7 @@ export class NodeDragHandler {
         // Emit node-drag-end event before resetting drag state
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -822,7 +822,7 @@ export class NodeDragHandler {
         }
 
         if (gesture.moved) {
-            const { x, y, z } = this.node.mesh.position;
+            const { x, y, z } = this.node.drawnPosition;
             scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
         }
 
@@ -868,7 +868,7 @@ export class NodeDragHandler {
 
     /**
      * Get the node being dragged.
-     * Used by XRInputHandler to access the node's mesh for position calculations.
+     * Used by XRInputHandler to read the node's position.
      * @returns The graph node associated with this drag handler
      */
     public getNode(): GraphNode {
@@ -1106,10 +1106,10 @@ export class NodeDragHandler {
         // This maintains predictable drag behavior
         const camera = this.scene.activeCamera;
         if (!camera) {
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
-        const nodePosition = this.node.mesh.position;
+        const nodePosition = this.node.drawnPosition;
 
         // Use stored plane normal from drag start if available
         // Otherwise fall back to current camera forward (for initial calculation)
@@ -1127,7 +1127,7 @@ export class NodeDragHandler {
         const denominator = Vector3.Dot(ray.direction, planeNormal);
         if (Math.abs(denominator) < 0.0001) {
             // Ray parallel to plane, return current position
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
         const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) / denominator;
@@ -1183,14 +1183,12 @@ export class NodeBehavior {
      * @param options - Configuration options for node behaviors
      */
     static addDefaultBehaviors(node: GraphNode, options: NodeBehaviorOptions = {}): void {
-        node.mesh.isPickable = true;
-
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
         // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
-        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
-        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // the node's drawn* accessors whenever it acts, so it needs nothing from the new mesh, and it
+        // holds what the pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
         // telling the selection, so a Hovered layer kept painting a node the pointer had left.
         node.dragHandler ??= new NodeDragHandler(node);
 
@@ -1203,7 +1201,7 @@ export class NodeBehavior {
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
-        node.mesh.actionManager = nodeActionManagerOf(this.getContext(node).getScene());
+        node.makeDrawnPickable(nodeActionManagerOf(this.getContext(node).getScene()));
     }
 
     /**

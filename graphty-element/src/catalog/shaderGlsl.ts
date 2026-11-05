@@ -140,19 +140,9 @@ export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
     "GroupInput",
 ]);
 
-/**
- * The GLSL ES 3.00 keywords, reserved words and built-in functions a parameter may not be named,
- * since every parameter becomes a global name in the body.
- */
-export const GLSL_RESERVED: ReadonlySet<string> = new Set(
+/** The GLSL ES 3.00 built-in functions a parameter may not be named. */
+export const GLSL_FUNCTIONS: ReadonlySet<string> = new Set(
     (
-        "attribute const uniform varying layout centroid flat smooth break continue do for while switch case " +
-        "default if else in out inout float int void bool true false invariant discard return mat2 mat3 mat4 " +
-        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 " +
-        "bvec3 bvec4 uint uvec2 uvec3 uvec4 lowp mediump highp precision sampler2D sampler3D samplerCube struct " +
-        "asm class union enum typedef template this goto inline noinline volatile public static extern external " +
-        "interface long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 " +
-        "dvec4 fvec2 fvec3 fvec4 sizeof cast namespace using buffer shared main " +
         "radians degrees sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh pow exp log exp2 log2 " +
         "sqrt inversesqrt abs sign floor trunc round roundEven ceil fract mod min max clamp mix step " +
         "smoothstep isnan isinf floatBitsToInt floatBitsToUint intBitsToFloat uintBitsToFloat packSnorm2x16 " +
@@ -161,6 +151,23 @@ export const GLSL_RESERVED: ReadonlySet<string> = new Set(
         "lessThan lessThanEqual greaterThan greaterThanEqual equal notEqual any all not dFdx dFdy fwidth texture"
     ).split(" "),
 );
+
+/**
+ * The GLSL ES 3.00 keywords, reserved words and built-in functions a parameter may not be named,
+ * since every parameter becomes a global name in the body.
+ */
+export const GLSL_RESERVED: ReadonlySet<string> = new Set([
+    ...(
+        "attribute const uniform varying layout centroid flat smooth break continue do for while switch case " +
+        "default if else in out inout float int void bool true false invariant discard return mat2 mat3 mat4 " +
+        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 " +
+        "bvec3 bvec4 uint uvec2 uvec3 uvec4 lowp mediump highp precision sampler2D sampler3D samplerCube struct " +
+        "asm class union enum typedef template this goto inline noinline volatile public static extern external " +
+        "interface long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 " +
+        "dvec4 fvec2 fvec3 fvec4 sizeof cast namespace using buffer shared main"
+    ).split(" "),
+    ...GLSL_FUNCTIONS,
+]);
 
 /** Declarations the element writes itself, refused anywhere in a body. */
 const FORBIDDEN_QUALIFIERS: ReadonlySet<string> = new Set([

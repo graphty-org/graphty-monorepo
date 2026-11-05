@@ -1,11 +1,12 @@
 import { EdgeArrowTypes } from "../config/EdgeStyle";
 
-/** One cap of an end cap's `stack`: its type, and the side, size and width it has of its own. */
+/** One cap of an end cap's `stack`: its type, and the side, size, width and outline width it has of its own. */
 export interface ArrowStackPart {
     readonly type: string;
     readonly side?: "left" | "right";
     readonly size?: number;
     readonly width?: number;
+    readonly outline?: number;
 }
 
 /** The types a stacked cap may be: every cap type but none, and a picture, which has no picture of its own here. */
@@ -15,7 +16,7 @@ const STACKABLE: ReadonlySet<string> = new Set(EdgeArrowTypes.options.filter((t)
 export const MAX_ARROW_STACK_PARTS = 8;
 
 const NUMBER = String.raw`(\d+(?:\.\d+)?|\.\d+)`;
-const PART = new RegExp(String.raw`^([a-z-]+)(?::(left|right))?(?:\*${NUMBER})?(?:x${NUMBER})?$`);
+const PART = new RegExp(String.raw`^([a-z-]+)(?::(left|right))?(?:\*${NUMBER})?(?:x${NUMBER})?(?:o${NUMBER})?$`);
 
 /**
  * The caps an end cap's `stack` draws behind it, in order from it. A word that is not a cap type, or a size of 0, is
@@ -37,12 +38,13 @@ export function parseArrowStack(stack: string | undefined): ArrowStackPart[] {
                 return [];
             }
 
-            const [, type, side, size, width] = m;
+            const [, type, side, size, width, outline] = m;
             const part: ArrowStackPart = {
                 type,
                 ...(side === undefined ? {} : { side: side as "left" | "right" }),
                 ...(size === undefined ? {} : { size: Number(size) }),
                 ...(width === undefined ? {} : { width: Number(width) }),
+                ...(outline === undefined ? {} : { outline: Number(outline) }),
             };
             return part.size === 0 ? [] : [part];
         })

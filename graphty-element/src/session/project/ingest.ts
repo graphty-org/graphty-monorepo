@@ -555,6 +555,15 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * What to wait on while loads run.
+     * @returns Settles once the load running now, and every load waiting behind it, has; null when
+     *     none runs.
+     */
+    get settling(): Promise<void> | null {
+        return this.loading;
+    }
+
+    /**
      * Run one load at a time: this ingest keeps one load's state in its own fields (what it
      * supplied, its tally, its left-out rows), so a load started while another runs -- two members
      * of a batch started together, or one dispatched inline into a running group -- waits for it

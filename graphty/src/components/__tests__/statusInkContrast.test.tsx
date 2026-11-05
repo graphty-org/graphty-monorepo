@@ -24,7 +24,9 @@ import { ErrorFallback } from "../ErrorFallback";
 */
 
 async function contrastFailures(element: Element): Promise<string[]> {
-    await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined)));
+    // A looping animation's `finished` never settles: waiting on one hung this file until the job limit (#5845).
+    const ending = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+    await Promise.all(ending.map((animation) => animation.finished.catch(() => undefined)));
     const results = await axe.run(element, { runOnly: ["color-contrast"], resultTypes: ["violations"] });
 
     return results.violations.flatMap((violation) =>
@@ -107,6 +109,15 @@ beforeEach(async () => {
 });
 
 describe("status ink contrast", () => {
+    it("measures with a looping animation on the page, as the start page's loading placeholder is", async () => {
+        renderIn("light", <p data-testid="looping">Loading</p>);
+        const looping = await screen.findByTestId("looping");
+        const pulse = looping.animate({ opacity: [1, 0.9] }, { duration: 1000, iterations: Infinity });
+
+        assert.deepEqual(await contrastFailures(looping), []);
+        pulse.cancel();
+    });
+
     it("a recent project's can-no-longer-be-read line meets 4.5:1", async () => {
         const root = await navigator.storage.getDirectory();
         const handle = await root.getFileHandle("gone.graphty.json", { create: true });

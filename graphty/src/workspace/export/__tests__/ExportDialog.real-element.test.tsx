@@ -144,10 +144,8 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             assert.notEqual(preview.textContent, "Writing the preview...");
         });
         assert.include(preview.textContent, header);
+        // CSV holds no styles, as Format says: Export saves at once.
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        // Degree's colors are style layers a CSV file cannot hold: the dialog asks first.
-        const warning = await within(again).findByRole("alertdialog");
-        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         assert.isDefined(table, "the table was saved");
@@ -171,8 +169,8 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await session.data.addEdges(EDGES);
 
         for (const [label, file, sniff] of [
-            ["GML (keeps style layers)", "untitled_graph.gml", /^\s*(Creator|graph)/],
-            ["Cytoscape Session (keeps style layers)", "untitled_graph.cys", /^PK/],
+            ["GML", "untitled_graph.gml", /^\s*(Creator|graph)/],
+            ["Cytoscape Session", "untitled_graph.cys", /^PK/],
         ] as const) {
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });
@@ -211,8 +209,6 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(within(dialog).getByRole("combobox", { name: "Scope" }));
         await userEvent.click(await screen.findByRole("option", { name: "Shown 4 of 6" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        const warning = await within(dialog).findByRole("alertdialog", {});
-        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         const rows = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];

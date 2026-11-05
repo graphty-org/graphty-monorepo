@@ -354,6 +354,9 @@ describe("the graphty scene extractor's vocabulary", () => {
             "other:round-octagon": "other",
             "other:round-polygon": "other",
             "other:barrel": "roundrect",
+            // two square corners and two curved ones: no class, as the programs' own read
+            "other:top-round-rectangle": "other",
+            "other:bottom-round-rectangle": "other",
             "other:database": "roundrect",
             "other:cylinder": "roundrect",
             "other:icon": "other",

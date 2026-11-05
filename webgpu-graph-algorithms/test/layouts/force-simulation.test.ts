@@ -65,6 +65,8 @@ const FAKE_PARAMS = UniformBlock.define("FakeParams", [
     ["count", "u32"],
     ["value", "u32"],
     ["mode", "u32"],
+    ["clusterStrength", "f32"],
+    ["clusterCount", "u32"],
 ]);
 
 const FAKE_STATE_FIELDS = [

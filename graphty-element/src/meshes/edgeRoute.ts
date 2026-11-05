@@ -6,6 +6,8 @@
  * Plain numbers, nothing from Babylon.js, so it runs in Node.
  */
 
+import { type Point2, rayReach } from "./shapeOutlines";
+
 /** A point or a direction. */
 export interface Xyz {
     readonly x: number;
@@ -329,21 +331,32 @@ export function bezierThroughControls(flat: readonly number[]): number[] {
 /**
  * How far from a node's center a segment leaving it in a direction crosses its surface: its
  * radius when it is round, where the ray leaves the ellipse filling its box across the view when
- * it is a flat ellipse, else where the ray leaves its box.
+ * it is a flat ellipse, where it last crosses the outline when it is another flat shape (a star, a diamond, Pajek's
+ * man), else where the ray leaves its box.
  * @param dir - The unit direction.
  * @param half - The node's half extents.
  * @param radius - The node's radius when it is round, else null.
- * @param elliptic - Whether the node is drawn as a flat ellipse (`ellipse`), whose box corners are empty.
+ * @param flat - True for a node drawn as a flat ellipse (`ellipse`), whose box corners are empty; or a flat shape's
+ *   outline in units of its box's half size ({@link inUnitBox}); else false.
  * @returns The distance.
  */
-export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, elliptic = false): number {
+export function surfaceReach(
+    dir: Xyz,
+    half: Xyz,
+    radius: number | null,
+    flat: boolean | readonly Point2[] = false,
+): number {
     if (radius !== null) {
         return radius;
     }
 
-    if (elliptic && half.x > 0 && half.y > 0 && (dir.x !== 0 || dir.y !== 0)) {
-        // ponytail: across the view only; a flat ellipse has no depth for a segment to leave through
-        return 1 / Math.hypot(dir.x / half.x, dir.y / half.y);
+    if (flat !== false && half.x > 0 && half.y > 0 && (dir.x !== 0 || dir.y !== 0)) {
+        // ponytail: across the view only; a flat shape has no depth for a segment to leave through
+        const [ux, uy] = [dir.x / half.x, dir.y / half.y];
+        const reach = flat === true ? 1 / Math.hypot(ux, uy) : rayReach(flat, ux, uy);
+        if (reach > 0) {
+            return reach;
+        }
     }
 
     const reach = Math.min(

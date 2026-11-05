@@ -10,7 +10,7 @@
 
 import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
-import { type DotEdge, type DotStructure, isHtmlLabel } from "./toDot";
+import type { DotEdge, DotStructure } from "./toDot";
 
 /**
  * The edge attributes that move dot's nodes -- how hard an edge pulls, how many ranks it spans, whether it ranks its
@@ -91,9 +91,6 @@ const GRAPH_NAME_ESCAPE = String.raw`\G`;
 /** The label escape that names the node (`\N`), Graphviz's default label. */
 const NODE_NAME_ESCAPE = String.raw`\N`;
 
-/** The markup of an HTML-like label (`<b>name</b>`): Graphviz is handed its text. */
-const MARKUP = /<[^<>]*>/g;
-
 /** An edge as the layout holds it. */
 interface EdgeLike {
     readonly srcId: NodeIdType;
@@ -154,21 +151,14 @@ function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeI
  * @returns the value
  */
 function attributeText(name: string, value: string): string {
+    // a label, HTML-like ones included, goes as the file wrote it: an HTML table's cells, padding and borders take
+    // room its words alone do not, and Graphviz places an edge's label by the room it takes (toDot writes it unquoted)
     if (LABELS.has(name)) {
-        return labelText(value);
+        return value;
     }
     // `plain` is as big as its label, and Graphviz is handed no label: `plaintext` keeps the size
     // the element draws it (a node of no size leaves `splines=ortho` routing nothing at all)
     return name === "shape" && value === "plain" ? "plaintext" : value;
-}
-
-/**
- * A label's text: an HTML-like label without its markup, whose words take the room.
- * @param label - the label as the file gave it
- * @returns the text
- */
-function labelText(label: string): string {
-    return isHtmlLabel(label) ? label.slice(1, -1).replaceAll(MARKUP, "") : label;
 }
 
 /**

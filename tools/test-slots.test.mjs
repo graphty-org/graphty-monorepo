@@ -6,6 +6,7 @@
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -333,6 +334,47 @@ describe("test-slots", () => {
         assert.equal(commandWhat(["/usr/bin/pnpm", "exec", "vitest"]), "pnpm");
         assert.equal(packageName(join(ROOT, "layout")), "layout");
         assert.equal(packageName(TMP), TMP.split("/").at(-1));
+    });
+
+    it("--lint queues one holder at a time, in a queue of its own beside the test slots", async () => {
+        const dirs = { GRAPHTY_TEST_SLOTS_DIR: fresh(), GRAPHTY_LINT_SLOTS_DIR: fresh() };
+        const env = { ...process.env, ...dirs, GITHUB_ACTIONS: "", GRAPHTY_TEST_SLOTS: "4", [HELD]: "" };
+        const held = await acquire({
+            ...quiet,
+            dir: dirs.GRAPHTY_LINT_SLOTS_DIR,
+            slots: 1,
+            pid: sleeper().pid,
+            label: "lint",
+        });
+        const child = spawn(process.execPath, [SCRIPT, "--lint", process.execPath, "-e", "console.log('ran')"], {
+            env,
+        });
+        let out = "";
+        child.stdout.on("data", (chunk) => (out += chunk));
+        const waiting = await new Promise((resolve) => {
+            child.stderr.once("data", (chunk) => resolve(String(chunk)));
+        });
+        assert.match(waiting, /waiting for one of 1 machine-wide/);
+        assert.equal(out, "", "the command waits for the holder");
+        held();
+        const [code] = await once(child, "exit");
+        assert.equal(code, 0);
+        assert.equal(out, "ran\n");
+        assert.deepEqual(readdirSync(dirs.GRAPHTY_TEST_SLOTS_DIR), [], "it takes no test slot");
+    });
+
+    it("a command killed by a signal says so and exits as a shell would", () => {
+        const env = { ...process.env, GRAPHTY_TEST_SLOTS_DIR: fresh(), GITHUB_ACTIONS: "", [HELD]: "" };
+        const run = spawnSync(
+            process.execPath,
+            [SCRIPT, process.execPath, "-e", "process.kill(process.pid, 'SIGTERM')"],
+            {
+                env,
+                encoding: "utf8",
+            },
+        );
+        assert.equal(run.status, 143);
+        assert.match(run.stderr, /was killed by SIGTERM \(exit 143\)/);
     });
 
     it("--gpu holds the one GPU slot instead of a test slot, so a run under it takes no test slot", async () => {

@@ -18,6 +18,7 @@ import type {
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
+import { timelineOn } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -166,12 +167,24 @@ export function shapeOf(session: GraphSession, condition: Pick<FilterCondition, 
 }
 
 /**
+ * A card's leaf as a filter writes it. A Data source leaf speaks of nodes only (`side: "nodes"`):
+ * keeping a load keeps the nodes it supplied and every edge between them, whichever load supplied
+ * the edge, so a load of nodes and a load of edges between them can be narrowed by either.
+ * @param card - the card.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function filterLeaf(card: Card): RuleTree | null {
+    const leaf = leafOf(card);
+    return leaf?.kind === "source" ? { ...leaf, side: "nodes" } : leaf;
+}
+
+/**
  * The rule a card's field cards make: their leaves ANDed, or null while none has a value.
  * @param cards - the cards.
  * @returns the rule.
  */
 export function ruleOfCards(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+    const leaves = cards.flatMap((card) => filterLeaf(card) ?? []);
     if (leaves.length === 0 || leaves.length < cards.length) {
         return null;
     }
@@ -262,5 +275,5 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
  * @returns true when a time window can be offered.
  */
 export function offersTime(session: GraphSession): boolean {
-    return session.time.field !== null || session.time.candidates().length > 0;
+    return timelineOn(session) && (session.time.field !== null || session.time.candidates().length > 0);
 }

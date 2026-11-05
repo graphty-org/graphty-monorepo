@@ -47,6 +47,7 @@ import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
 import { minimumWorkPerFrame } from "./minimumWork";
 import { pendingWorkOf, trackOnScene } from "./PendingWork";
+import { RecoveringWebGPUEngine } from "./RecoveringWebGPUEngine";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -107,7 +108,8 @@ export interface RendererStatus {
     /**
      * Whether anything is drawn. False when the browser gave the page no working WebGL context:
      * the graph's data, its session and autosave still work, and the canvas stays empty. The log
-     * records it as `E_NO_WEBGL`.
+     * records it as `E_NO_WEBGL`. Also false once a shader cannot be built for WebGPU, which can lose
+     * every frame it is part of; that is reported as a `graph-error` with `E_SHADER_REFUSED`.
      * @since 3.29.0
      */
     readonly drawing: boolean;
@@ -184,7 +186,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  *     out a WebGPU one.
  * @returns The initialised engine, or the reason there is none.
  */
-export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine | string> {
+export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
@@ -210,7 +212,7 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
         );
     }
 
-    const engine = new WebGPUEngine(canvas, { antialias: true });
+    const engine = new RecoveringWebGPUEngine(canvas, { antialias: true });
     try {
         // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
         // is given, though its type and its docs ask for the instance itself.

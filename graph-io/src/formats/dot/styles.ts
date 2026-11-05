@@ -124,6 +124,8 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "sourceArrowParts",
+        "targetArrowParts",
         "sourceArrowColor",
         "targetArrowColor",
         "arrowSize",
@@ -142,6 +144,17 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
     graph: Object.freeze(["background", "rotation"] as const),
     block: "native",
 });
+
+/**
+ * The properties the writer reads: what it writes natively, and an edge's arrow sides, which it writes only inside an
+ * arrow name of several shapes (`lteeoldiamond`); a lone shape's side stays in the block.
+ * @param target - nodes or edges
+ * @returns the properties
+ */
+function writerReads(target: StyleTarget): readonly string[] {
+    const written = DOT_STYLE_CAPABILITIES[target];
+    return target === "edge" ? [...written, "sourceArrowSide", "targetArrowSide"] : written;
+}
 
 /** The style column holding the name each node shows when it has no label (Graphviz's `\N`). */
 const NAME_KEY = "name";
@@ -448,21 +461,30 @@ function stripTags(text: string): string {
 /**
  * Reads the font runs of an HTML-like label (`<B>`, `<I>`, `<FONT COLOR FACE POINT-SIZE>`) as Graphviz draws them:
  * one run in a font of its own sets the label's own font (color, size, family, weight, slant), several are
- * `labelRuns`. Underline, overline, strike-through, `<SUB>` and `<SUP>` have no neutral slot and draw plain.
+ * `labelRuns`, a `<SUB>` or `<SUP>` run lowered or raised (`shift`). Underline, overline and strike-through have no
+ * neutral slot and draw plain.
  * @param raw - the label as the file gives it
  * @param html - the file's HTML strings
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size (`fontsize`)
  * @param put - receives the values
  * @param at - the sites
  */
-function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | null, put: Put, at: At): void {
+function readHtmlRuns(
+    raw: string,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    size: number,
+    put: Put,
+    at: At,
+): void {
     if (!isHtmlString(raw) && !html.has(`<${raw}>`)) {
         return;
     }
     const markup = isHtmlString(raw) ? raw : `<${raw}>`;
     const runs: Record<string, StyleValue>[] = [];
     for (const span of htmlLabelSpans(markup)) {
-        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, at("labelRuns")) };
+        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, size, at("labelRuns")) };
         const last = runs.at(-1);
         if (last !== undefined && JSON.stringify({ ...last, text: "" }) === JSON.stringify({ ...run, text: "" })) {
             last.text = `${String(last.text)}${run.text}`;
@@ -475,7 +497,8 @@ function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | n
         return;
     }
     if (runs.length === 1) {
-        const { text: _text, ...font } = runs[0];
+        // a label raised or lowered whole is drawn where the label is
+        const { text: _text, shift: _shift, ...font } = runs[0];
         for (const [property, value] of Object.entries(font)) {
             put(RUN_PROPERTY[property], value);
         }
@@ -512,18 +535,27 @@ const RUN_PROPERTY: Readonly<Record<string, string>> = {
 };
 
 /**
- * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, and the innermost `FONT`'s face,
- * point size and color.
+ * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, the innermost `FONT`'s face, point
+ * size and color, and how far `<SUB>` lowers it or `<SUP>` raises it.
  * @param tags - the open tags, outermost first
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size
  * @param site - where a bad color is noted
  * @returns the fields that differ from the label's own font
  */
-function htmlRunFont(tags: readonly string[], scheme: string | null, site: CanonSite): Record<string, StyleValue> {
+function htmlRunFont(
+    tags: readonly string[],
+    scheme: string | null,
+    size: number,
+    site: CanonSite,
+): Record<string, StyleValue> {
     const out: Record<string, StyleValue> = {};
+    let shift = 0;
     for (const tag of tags) {
         const name = /^<(\w+)/.exec(tag)?.[1].toLowerCase();
-        if (name === "b") {
+        if (name === "sub" || name === "sup") {
+            shift += name === "sub" ? 1 : -1;
+        } else if (name === "b") {
             out.weight = "bold";
         } else if (name === "i") {
             out.italic = true;
@@ -533,8 +565,30 @@ function htmlRunFont(tags: readonly string[], scheme: string | null, site: Canon
             }
         }
     }
+    if (shift !== 0) {
+        const own = typeof out.size === "number" ? out.size : size;
+        out.shift = Math.round(shift * SUB_SUP_SHIFT * own * 100) / 100;
+    }
     return out;
 }
+
+/**
+ * A `fontsize` as Graphviz reads it, 14 when it is unset or no size.
+ * @param raw - the attribute's value
+ * @returns the size
+ */
+function fontSizeOf(raw: string | null): number {
+    const size = Number(raw ?? Number.NaN);
+    return Number.isFinite(size) && size > 0 ? size : 14;
+}
+
+/**
+ * How far `<SUB>` lowers a run and `<SUP>` raises it, over its font size. Graphviz writes `baseline-shift="sub"` and
+ * `"super"` in its SVG (plugin/core/gvrender_core_svg.c) and leaves the distance to the viewer; Chromium shifts by half
+ * the font's height (ascent plus descent), 0.585 of a DejaVu Sans em, measured.
+ * ponytail: one share for every face; read the face's own height when a serif label is judged off by it
+ */
+const SUB_SUP_SHIFT = 0.585;
 
 /**
  * Reads one attribute of a `FONT` tag into a run's font fields: its face, point size or color.
@@ -811,7 +865,11 @@ function htmlTableFrame(
     const cells = readLabelTable(
         markup,
         tagAttrs,
-        (tags) => htmlRunFont(tags, scheme, site),
+        (tags) => {
+            // ponytail: a table cell's SUB and SUP draw on the line; carry the shift into cells when one is judged
+            const { shift: _shift, ...font } = htmlRunFont(tags, scheme, 0, site);
+            return font;
+        },
         (value) => {
             const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
             return c === null || c.alpha <= 0 ? null : c.color;
@@ -947,7 +1005,7 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
     if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
-        readHtmlRuns(label, cx.html, n.scheme, put, at);
+        readHtmlRuns(label, cx.html, n.scheme, fontSizeOf(get("fontsize")), put, at);
         if (n.table !== null) {
             // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
             put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
@@ -1989,7 +2047,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             put(property, labelText(raw, cx.names, cx.html, false, at(property)));
             if (property === "label") {
                 readLabelAlign(raw, cx.names, cx.html, false, put);
-                readHtmlRuns(raw, cx.html, scheme, put, at);
+                readHtmlRuns(raw, cx.html, scheme, fontSizeOf(get("fontsize")), put, at);
             }
         }
     }
@@ -2781,6 +2839,20 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:open-inverted", "oinv"],
 ]);
 
+/**
+ * The Graphviz arrows a name of several shapes is made of: every neutral arrow that has one. A shape outside this table
+ * would make the whole name one Graphviz does not know. The element draws `icurve` as its open half circle.
+ */
+const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
+    ...ARROWS,
+    ["other:curve", "curve"],
+    ["other:inv-curve", "icurve"],
+    ["other:open-half-circle", "icurve"],
+]);
+
+/** The most shapes a Graphviz arrow name holds (arrows.c's NUMB_OF_ARROWHEADS). */
+const MAX_ARROW_NAME_SHAPES = 4;
+
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
 const STROKES: ReadonlyMap<string, string> = new Map([
     ["dashed", "dashed"],
@@ -3234,7 +3306,9 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const target = get("targetArrow");
     const tail = typeof source === "string" && source !== "none";
     const head = typeof target === "string" && target !== "none";
-    const plain = directed ? head && !tail && target === "triangle" && get("targetArrowSide") === null : !head && !tail;
+    const plain = directed
+        ? head && !tail && target === "triangle" && get("targetArrowParts") === null
+        : !head && !tail;
     if (plain || (source === null && target === null)) {
         return;
     }
@@ -3247,23 +3321,63 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
         dir = "back";
     }
     out.set("dir", dir);
-    // a one-sided arrow is its shape with an `l` or `r` before it; the neutral half arrow, one barb, is nearest to the
-    // left half of Graphviz's triangle, which reads back as that
-    const arrow = (value: string, side: StyleValue | null, property: string): string => {
+    // the neutral half arrow, one barb, is nearest to the left half of Graphviz's triangle, which reads back as that
+    const arrow = (value: string, property: string): string => {
+        const parts = get(`${property}Parts`);
+        if (typeof parts === "string") {
+            const side = sideSuffix(get(`${property}Side`));
+            return arrowName(`${value}${side} ${parts}`, property, approximate);
+        }
         if (value === "half") {
             approximate(property, value);
             approximate(`${property}Side`, value);
             return "lnormal";
         }
-        const name = spelled(ARROWS, value, "normal", property, approximate);
-        return side === "left" || side === "right" ? `${side[0]}${name}` : name;
+        return spelled(ARROWS, value, "normal", property, approximate);
     };
     if (head) {
-        out.set("arrowhead", arrow(target, get("targetArrowSide"), "targetArrow"));
+        out.set("arrowhead", arrow(target, "targetArrow"));
     }
     if (tail) {
-        out.set("arrowtail", arrow(source, get("sourceArrowSide"), "sourceArrow"));
+        out.set("arrowtail", arrow(source, "sourceArrow"));
     }
+}
+
+/**
+ * A side as a `targetArrowParts` word writes it after its shape.
+ * @param side - the side, or null for the whole shape
+ * @returns the suffix
+ */
+function sideSuffix(side: StyleValue | null): string {
+    return side === "left" || side === "right" ? `:${side}` : "";
+}
+
+/**
+ * The Graphviz name of an arrow of several shapes, nearest the node first, each with an `l` or `r` before it for the
+ * side it keeps: the inverse of graphvizArrows(). A shape Graphviz has no name for and any past the fourth are left out,
+ * so the name stays one Graphviz reads.
+ * @param shapes - the shapes as `targetArrowParts` writes them, separated by spaces
+ * @param property - the property, for the approximation note
+ * @param approximate - records approximations
+ * @returns the name
+ */
+function arrowName(shapes: string, property: string, approximate: Approximate): string {
+    const names = shapes
+        .trim()
+        .split(/\s+/)
+        .flatMap((word) => {
+            const side = /:(left|right)$/.exec(word)?.[1];
+            const name = ARROW_NAME_SHAPES.get(word.replace(/:(left|right)$/, ""));
+            if (name === undefined) {
+                approximate(property, word);
+                return [];
+            }
+            return [side === undefined ? name : name.replace(/^o?/, `$&${side[0]}`)];
+        });
+    for (const dropped of names.slice(MAX_ARROW_NAME_SHAPES)) {
+        approximate(property, dropped);
+    }
+    return names.slice(0, MAX_ARROW_NAME_SHAPES).join("") || "normal";
 }
 
 /**
@@ -3289,7 +3403,7 @@ function exactFromBlock(
         values: read[target],
         properties:
             target === "node" ? [...DOT_STYLE_CAPABILITIES.node, ...LABEL_PADDINGS] : DOT_STYLE_CAPABILITIES[target],
-        writes: DOT_STYLE_CAPABILITIES[target],
+        writes: writerReads(target),
         readBack: (i, want) => {
             const raw: Attr = (name) => cellText(target === "node" ? snapshot.nodes : snapshot.edges, name, i);
             const back = writtenAndReadBack(target, i, want, { cx, raw }, notes);
@@ -3494,7 +3608,7 @@ function attributeColumns(
     w: AttributeWrite,
 ): Map<string, (Written | null)[]> {
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const get = elementValues((t, p) => input.picture(t, p as never), target, DOT_STYLE_CAPABILITIES[target]);
+    const get = elementValues((t, p) => input.picture(t, p as never), target, writerReads(target));
     const columns = new Map<string, (Written | null)[]>();
     for (let i = 0; i < n; i++) {
         const attrs =

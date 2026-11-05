@@ -42,6 +42,8 @@ import {
 } from "@graphty/graph-format";
 
 import { BarnesHutTree } from "./barnes-hut.js";
+import { addClusterPull, type ClusterField, clusterField } from "./clusters.js";
+import { assertCollision, collide, settleCollisions } from "./collision.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -51,7 +53,7 @@ import {
 } from "./constants.js";
 import { resolveNodeVector, resolveWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
-import type { ForceAtlas2Options, LayoutSimulation } from "./types.js";
+import type { ClusterOptions, CollisionOptions, ForceAtlas2Options, LayoutSimulation } from "./types.js";
 
 /** The options of the ForceAtlas2Simulation constructor: every ForceAtlas2Options field, plus `compat`. */
 export type ForceAtlas2SimulationOptions = ForceAtlas2Options & {
@@ -528,6 +530,11 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private fixed: NodeMask | null = null;
     /** The rows taken out of the forces (setInert), or null for none. */
     private inert: NodeMask | null = null;
+    /** What setClusters() set, or null. */
+    private clusters: ClusterField | null = null;
+
+    /** What setCollision() set, or null. */
+    private collision: CollisionOptions | null = null;
     /** n less the inert rows: what every statistic divides by. */
     private liveRows = 0;
     private scratch: Scratch = allocateScratch(0);
@@ -621,6 +628,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         if (n !== this.n) {
             this.fixed = null;
             this.inert = null;
+            this.clusters = null;
+            this.collision = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
@@ -678,6 +687,17 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         }
         // settled on entry: nothing ran, so nothing to write back
         if (k > 0) {
+            if (this.settled && this.collision !== null) {
+                settleCollisions(
+                    this.positions,
+                    this.n,
+                    this.dim,
+                    this.collision,
+                    this.options.scale,
+                    this.fixed,
+                    this.inert,
+                );
+            }
             this.writeBack();
         }
     }
@@ -707,6 +727,15 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     }
 
     /**
+     * Pulls communities together (LayoutSimulation.setClusters). Copied; never reheats.
+     * @param clusters - the communities and the strength, or null to stop
+     */
+    setClusters(clusters: ClusterOptions | null): void {
+        this.assertLoaded();
+        this.clusters = clusterField(clusters, this.n);
+    }
+
+    /**
      * Takes rows out of the forces (LayoutSimulation.setInert): an inert row weighs 0, so it repels nothing and no
      * gravity acts on it, its edges pull nothing, and it never moves. The mask must hold ceil(n / 32) words; it is
      * copied, survives a same-size reload and is cleared when n changes, as the fixed mask is. Never reheats.
@@ -727,6 +756,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             // the first iteration reads load()'s centroid: count the live rows only, as every later fold does
             this.writeInitialStatistics();
         }
+    }
+
+    /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision). Copied; never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision !== null) {
+            assertCollision(collision, this.n);
+        }
+        this.collision = collision === null ? null : { ...collision, radii: collision.radii.slice() };
     }
 
     /**
@@ -781,6 +822,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.mass = new Float64Array(0);
         this.liveMass = new Float64Array(0);
         this.inert = null;
+        this.clusters = null;
+        this.collision = null;
         this.weights = null;
         this.rowPtr = new Uint32Array(1);
         this.colIdx = new Uint32Array(0);
@@ -964,6 +1007,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         for (let i = 0; i < n; i++) {
             this.attract(i);
         }
+        if (this.clusters !== null) {
+            const { mass } = this;
+            addClusterPull(this.clusters, this.positions, (row) => mass[row], scratch.attraction);
+        }
         // ---- K3: all-pairs repulsion in tile order (j ascending), gravity, force +=, swing / traction per node
         scratch.swing.fill(0);
         scratch.traction.fill(0);
@@ -992,6 +1039,9 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             disp: groupTotals(disp, n),
             free: groupTotals(free, n),
         };
+        if (this.collision !== null) {
+            collide(this.positions, n, this.dim, this.collision, this.options.scale, this.fixed, this.inert);
+        }
     }
 
     /**

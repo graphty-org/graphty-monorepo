@@ -127,8 +127,8 @@ export function nodeFramingBox(
  * @returns The center as both corners.
  */
 function centerOf(node: Node): { min: Vector3; max: Vector3 } {
-    node.mesh.computeWorldMatrix(true);
-    const center = node.mesh.getAbsolutePosition();
+    node.drawnWorldMatrix(true);
+    const center = node.drawnWorldPosition;
     return { min: center.clone(), max: center.clone() };
 }
 
@@ -325,6 +325,12 @@ const STYLE_FRAME_BUDGET_MS = 16;
 
 /** How many nodes are painted between two looks at the clock. */
 const NODE_PAINT_BATCH = 128;
+
+/**
+ * The share of the nodes past which a frame walks every edge rather than finding the moved nodes'
+ * edges one node at a time, a lookup that costs several times one step of the walk.
+ */
+const MOST_MOVED_SHARE = 1 / 16;
 
 /** How many edges are painted between two looks at the clock. */
 const EDGE_PAINT_BATCH = 1024;
@@ -1036,7 +1042,9 @@ export class UpdateManager implements Manager {
             this.syncNodeStyles(painter, deadline);
         }
 
-        if (painter.hasPendingEdges) {
+        // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
+        // out of step, so the nodes finish first and each edge is placed once, at its nodes' sizes.
+        if (painter.hasPendingEdges && !(painter.hasPendingNodes && this.dataManager.drawHeld)) {
             this.syncEdgeStyles(painter, deadline);
         }
 
@@ -1056,6 +1064,15 @@ export class UpdateManager implements Manager {
     /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
     private paintBatches: (() => void) | null = null;
 
+    /** The edges a repaint touched since the last edge pass, which that pass places. */
+    private edgesToPlace: Edge[] = [];
+
+    /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
+    private paintIndex: {
+        rows: { version: number; map: Map<number, Node> } | null;
+        incident: { version: number; map: Map<Node, Edge[]> } | null;
+    } = { rows: null, incident: null };
+
     /** Release the token held while a repaint's batches remain, when one is held. */
     private paintBatchesDone(): void {
         this.paintBatches?.();
@@ -1068,8 +1085,7 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
     private syncEdgeStyles(painter: StylePainter, deadline: number): void {
-        // A repainted edge's own appearance changed: the frame visits every edge.
-        this.forceEdgeWalk();
+        this.sceneChanged = true;
 
         do {
             for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -1078,22 +1094,31 @@ export class UpdateManager implements Manager {
 
                 if (edge !== undefined && paint !== null) {
                     edge.applySessionPaint(paint);
+                    this.edgesToPlace.push(edge);
                 }
             }
         } while (painter.hasPendingEdges && performance.now() < deadline);
+
+        // A repainted edge's own appearance changed, so this frame places the edges it painted, and
+        // the frame that finishes the repaint visits every edge. Visiting every edge on each frame
+        // made a repaint cost its frames times the edges: a million edges take about a thousand
+        // frames, and those walks were most of a 100,000-node load.
+        if (!painter.hasPendingEdges) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
-     * @param pending - The nodes that were pending when the frame began, by index.
+     * @param rows - Every node, by index.
      * @returns Each node of the batch and its paint.
      */
-    private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
+    private takeNodeBatch(painter: StylePainter, rows: ReadonlyMap<number, Node>): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
         for (const index of painter.takeNodes(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : NODE_PAINT_BATCH)) {
-            const node = pending.get(index);
+            const node = rows.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
             if (node !== undefined && paint !== null) {
@@ -1110,21 +1135,11 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
-        // Walked once a frame rather than indexed, because the data manager keeps its nodes by id.
-        // The membership test is one hash lookup per node and touches no mesh; every rebuild is
-        // still bounded by the batches taken.
-        const pending = new Map<number, Node>();
-
-        for (const node of this.dataManager.nodes.values()) {
-            if (painter.isNodePending(node.index)) {
-                pending.set(node.index, node);
-            }
-        }
-
+        const rows = this.nodesByRow();
         const resized = new Set<Node>();
 
         do {
-            for (const node of this.paintNodes(this.takeNodeBatch(painter, pending))) {
+            for (const node of this.paintNodes(this.takeNodeBatch(painter, rows))) {
                 resized.add(node);
             }
         } while (painter.hasPendingNodes && performance.now() < deadline);
@@ -1135,24 +1150,89 @@ export class UpdateManager implements Manager {
             }
         }
 
+        if (resized.size > 0) {
+            this.remeasureEdgesOf(resized);
+        }
+
         // A repaint can change how a node is drawn in ways that move where its edges stop without
-        // moving the node, so the frame that finishes the repaint visits every edge. So does any
-        // frame that resized a node, and the edges of those nodes, found in one walk however many
-        // batches ran, measure again. The frames in between walk no edge: on a graph of 36,906
-        // edges that walk was most of every frame a repaint was spread over.
-        if (resized.size > 0 || !painter.hasPendingNodes) {
+        // moving the node, so the frame that finishes the repaint visits every edge. The frames in
+        // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
+        // repaint was spread over.
+        if (!painter.hasPendingNodes) {
             this.forceEdgeWalk();
+            this.paintIndex = { rows: null, incident: null };
         }
+    }
 
-        if (resized.size === 0) {
-            return;
-        }
+    /**
+     * Make the edges of resized nodes measure again, and place them this frame. While a load holds
+     * the draw they wait for their own paint, or for the walk that ends the repaint.
+     * @param resized - The nodes this frame resized.
+     */
+    private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+        this.sceneChanged = true;
+        const incident = this.edgesByNode();
+        const place = !this.dataManager.drawHeld;
 
-        for (const edge of this.dataManager.edges.values()) {
-            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+        for (const node of resized) {
+            for (const edge of incident.get(node) ?? []) {
                 edge.invalidatePositionCache();
+                if (place) {
+                    this.edgesToPlace.push(edge);
+                }
             }
         }
+    }
+
+    /**
+     * Every node by its row, built once for a repaint rather than on each frame of it, because the
+     * data manager keeps its nodes by id.
+     * @returns The nodes by index.
+     */
+    private nodesByRow(): ReadonlyMap<number, Node> {
+        const { nodeVersion } = this.dataManager;
+
+        if (this.paintIndex.rows?.version !== nodeVersion) {
+            const map = new Map<number, Node>();
+
+            for (const node of this.dataManager.nodes.values()) {
+                map.set(node.index, node);
+            }
+
+            this.paintIndex.rows = { version: nodeVersion, map };
+        }
+
+        return this.paintIndex.rows.map;
+    }
+
+    /**
+     * Each node's edges, built once for a repaint rather than on each frame that resizes a node.
+     * @returns The edges at each node.
+     */
+    private edgesByNode(): ReadonlyMap<Node, Edge[]> {
+        const { edgeVersion } = this.dataManager;
+
+        if (this.paintIndex.incident?.version !== edgeVersion) {
+            const map = new Map<Node, Edge[]>();
+            const add = (node: Node, edge: Edge): void => {
+                const edges = map.get(node);
+
+                if (edges === undefined) {
+                    map.set(node, [edge]);
+                } else {
+                    edges.push(edge);
+                }
+            };
+
+            for (const edge of this.dataManager.edges.values()) {
+                add(edge.srcNode, edge);
+                add(edge.dstNode, edge);
+            }
+
+            this.paintIndex.incident = { version: edgeVersion, map };
+        }
+
+        return this.paintIndex.incident.map;
     }
 
     /**
@@ -1757,11 +1837,40 @@ export class UpdateManager implements Manager {
     /**
      * The reader moved the camera themselves (a pan, a zoom, a turn): stop following the selection
      * there is now, so the camera stays where they put it, until the selection changes.
+     *
+     * Given the selection the camera was following, the glide to it is finished first, at once: a
+     * selection change that holds the camera (a cause `camera.pivotOnSelectionCauses` leaves out)
+     * then leaves it where the selections put it, not wherever the glide had reached on the frame
+     * the change arrived (issue #5097). Not when the camera had already stopped following it.
+     * @param following - The selection the camera was following before the change.
      */
-    holdSelectionFollow(): void {
+    holdSelectionFollow(following: readonly Node[] = []): void {
+        if (following.length > 0 && !isHeld(following, this.heldSelection)) {
+            this.finishGlideTo(following);
+        }
+
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
+    }
+
+    /**
+     * Put the camera's pivot on a selection's center at once, as the glide to it would end; not
+     * while the element is framing the graph or a node of it is dragged (see `followSelection`).
+     * @param nodes - The selection.
+     */
+    private finishGlideTo(nodes: readonly Node[]): void {
+        if (
+            !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection ||
+            nodes.some((node) => node.dragging) ||
+            this.willZoomToFit()
+        ) {
+            return;
+        }
+
+        if (this.camera.followPoint(selectionCenter(nodes), 1, true)) {
+            this.viewMoved();
+        }
     }
 
     /**
@@ -1804,14 +1913,9 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const center = nodes[0].mesh.position.clone();
-        for (const node of nodes.slice(1)) {
-            center.addInPlace(node.mesh.position);
-        }
-
         // A camera still gliding to the selection is a picture that is not final yet.
         const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
-        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length), frames);
+        this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 
     /**
@@ -2209,6 +2313,9 @@ export class UpdateManager implements Manager {
     /** How many edges the last walk saw, so an added or removed one forces the next. */
     private lastWalkedEdgeCount = -1;
 
+    /** The edge set (`DataManager.edgeVersion`) the last walk saw, for the same reason. */
+    private lastWalkedEdgeVersion = -1;
+
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
@@ -2230,28 +2337,55 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        const walk = this.edgesNeedWalking();
+        // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
+        // every node on each of a load's thousands of frames, waits for the first frame it releases.
+        const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
+        const everyEdge = walk === true;
         // support points move after their nodes stop, until they come to rest, and their edges with them
-        const bowed = this.dataManager.supportPoints.update(
-            () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
-            this.layoutManager.edges,
-            (edge) => edge.supportEdge(),
-            walk,
-        );
+        const bowed =
+            !this.dataManager.drawHeld &&
+            this.dataManager.supportPoints.update(
+                () => Array.from(this.layoutManager.nodes, (node) => node.drawnPosition),
+                this.layoutManager.edges,
+                (edge) => edge.supportEdge(),
+                // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
+                // need not read every edge to ask.
+                everyEdge || (walk !== false && this.dataManager.supportPoints.hasEdges),
+            );
         this.sceneChanged ||= bowed;
-        if (walk || bowed) {
+        if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             for (const edge of this.layoutManager.edges) {
                 edge.update();
             }
+        } else {
+            this.updateEdgesOf(walk === false ? [] : walk);
+            for (const edge of this.edgesToPlace) {
+                edge.update();
+            }
         }
+
+        this.edgesToPlace = [];
 
         this.statsManager.edgeUpdate.endMonitoring();
     }
 
     /**
-     * Whether this frame has to visit every edge at all.
+     * Update the edges at some nodes. An edge between two of them is visited twice; the second
+     * visit finds it placed.
+     * @param nodes - The nodes.
+     */
+    private updateEdgesOf(nodes: readonly Node[]): void {
+        for (const node of nodes) {
+            for (const id of this.dataManager.incidentEdgeIds(node)) {
+                this.dataManager.edges.get(id)?.update();
+            }
+        }
+    }
+
+    /**
+     * Which edges this frame has to visit.
      *
      * WHY THIS EXISTS. An edge that has not moved decides so in a few field reads, but the graph
      * is walked whether or not anything moved, and at the declared ceiling that walk is a million
@@ -2266,9 +2400,14 @@ export class UpdateManager implements Manager {
      * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
      * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
      * million, and ten edges per node is the shape of every graph this is about.
-     * @returns True when at least one endpoint may have moved, or the graph itself has changed.
+     *
+     * WHY MOVED NODES ARE NAMED. An edge left alone by a frame is one neither of whose ends moved,
+     * and `Edge.update` would do nothing for it, so a drag visits the dragged node's edges and not
+     * the million others (see {@link nodesMoved}).
+     * @returns True for every edge, when the graph itself has changed or most of it moved; the
+     *     nodes whose edges are to be visited when only those moved; false for none.
      */
-    private edgesNeedWalking(): boolean {
+    private edgesNeedWalking(): boolean | readonly Node[] {
         if (this.edgeWalkForced) {
             this.edgeWalkForced = false;
             this.lastWalkedEdgeCount = -1;
@@ -2278,45 +2417,53 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
-        // be the million-edge walk this method exists to avoid. A layout engine that hands back
-        // something that is not an array cannot be counted cheaply, so it always walks.
+        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // added, which leave a count alone. An engine's array is counted as well, for an engine
+        // that takes an edge up after the store told it: read off the array's own length, since
+        // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
+        // engine that hands back an iterator has to hold every edge the moment it is told.
         const { edges } = this.layoutManager;
         const edgeCount = Array.isArray(edges) ? edges.length : -1;
+        const { edgeVersion } = this.dataManager;
 
-        if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
+        if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
             this.lastWalkedEdgeCount = edgeCount;
+            this.lastWalkedEdgeVersion = edgeVersion;
             this.sceneChanged = true;
 
             return true;
         }
 
-        if (this.anyNodeMoved()) {
-            this.sceneChanged = true;
+        const moved = this.nodesMoved();
 
-            return true;
+        if (moved !== false) {
+            this.sceneChanged = true;
         }
 
-        return false;
+        return moved;
     }
 
     /**
-     * Whether any node's mesh sits somewhere other than where it sat at the last edge walk.
+     * Which nodes' meshes sit somewhere other than where they sat at the last edge walk.
      *
      * The positions are kept in one typed array rather than a vector per node, so the scan is a
      * linear read of three floats against three floats and allocates nothing. A node whose index
-     * is past the end of the array has never been seen, which counts as moved and grows the array.
-     * @returns True when at least one node has moved.
+     * is past the end of the array has never been seen, which grows the array.
+     * @returns The nodes that moved; true when one was never seen, or so many moved that walking
+     *     every edge is cheaper than finding theirs; false when none did.
      */
-    private anyNodeMoved(): boolean {
-        let moved = false;
+    private nodesMoved(): boolean | readonly Node[] {
+        const moved: Node[] = [];
+        let unseen = false;
+        let nodeCount = 0;
         let highest = -1;
 
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
+            nodeCount++;
 
             if (index === INVALID_INDEX) {
-                moved = true;
+                unseen = true;
                 continue;
             }
 
@@ -2327,25 +2474,41 @@ export class UpdateManager implements Manager {
             const at = index * 3;
 
             if (at + 2 >= this.lastNodePositions.length) {
-                moved = true;
+                unseen = true;
                 continue;
             }
 
-            const { position } = node.mesh;
+            const position = node.drawnPosition;
 
             if (
                 this.lastNodePositions[at] !== position.x ||
                 this.lastNodePositions[at + 1] !== position.y ||
                 this.lastNodePositions[at + 2] !== position.z
             ) {
-                moved = true;
+                this.lastNodePositions[at] = position.x;
+                this.lastNodePositions[at + 1] = position.y;
+                this.lastNodePositions[at + 2] = position.z;
+                moved.push(node);
             }
         }
 
-        if (!moved) {
+        if (unseen) {
+            this.noteEveryNode(highest);
+            return true;
+        }
+
+        if (moved.length === 0) {
             return false;
         }
 
+        return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Note where every node sits, making room for nodes never seen.
+     * @param highest - The highest node index.
+     */
+    private noteEveryNode(highest: number): void {
         if ((highest + 1) * 3 > this.lastNodePositions.length) {
             const grown = new Float64Array(Math.max((highest + 1) * 3, this.lastNodePositions.length * 2, 96));
             grown.set(this.lastNodePositions);
@@ -2360,14 +2523,12 @@ export class UpdateManager implements Manager {
             }
 
             const at = index * 3;
-            const { position } = node.mesh;
+            const position = node.drawnPosition;
 
             this.lastNodePositions[at] = position.x;
             this.lastNodePositions[at + 1] = position.y;
             this.lastNodePositions[at + 2] = position.z;
         }
-
-        return true;
     }
 
     /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
@@ -2485,7 +2646,7 @@ export class UpdateManager implements Manager {
     private nodesInFrustum(planes: Plane[]): Set<Node> {
         const onScreen = new Set<Node>();
         for (const node of this.layoutManager.nodes) {
-            if (node.mesh.isInFrustum(planes)) {
+            if (node.isDrawnInFrustum(planes)) {
                 onScreen.add(node);
             }
         }
@@ -2500,8 +2661,8 @@ export class UpdateManager implements Manager {
     private resetNodeScales(): boolean {
         let changed = false;
         for (const node of this.layoutManager.nodes) {
-            if (node.mesh.scaling.x !== 1) {
-                node.mesh.scaling.setAll(1);
+            if (node.drawnScale !== 1) {
+                node.drawnScale = 1;
                 changed = true;
             }
         }
@@ -2538,7 +2699,7 @@ export class UpdateManager implements Manager {
      */
     private screenSizingScale(): number | null {
         const engine = this.layoutManager.layoutEngine as
-            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string } } | undefined;
+            { geoFrame?: LocationMapFrame | null; config?: { nodeScale?: string; flatNodeScale?: number } } | undefined;
         const frame = engine?.geoFrame;
         const camera = this.graphContext.getScene().activeCamera;
         if (frame === undefined || frame === null || engine?.config?.nodeScale !== "screen" || camera === null) {
@@ -2546,9 +2707,12 @@ export class UpdateManager implements Manager {
         }
 
         // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
-        // A map drawn `mapScale` times larger keeps its nodes their size on screen, so they spread
-        // apart rather than grow with it.
-        const extent = frame.size / frame.mapScale;
+        // A flat map is framed whole, so `mapScale` shows only if its nodes stay the same size
+        // against the drawn map: dividing the scale back out left them touching at any scale.
+        // ponytail: a globe still divides it out, so `mapScale` does not thin its nodes; dropping
+        // the division there too makes them six times smaller at the app's scale.
+        const extent =
+            frame.surface === "flat" ? frame.size / (engine?.config?.flatNodeScale ?? 1) : frame.size / frame.mapScale;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
             return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }
@@ -2620,15 +2784,14 @@ export class UpdateManager implements Manager {
     ): boolean {
         let changed = false;
         for (const node of this.layoutManager.nodes) {
-            const { mesh } = node;
             let scale = screen ?? 1;
             if (pivot !== null) {
-                const depth = depthOf(mesh.getAbsolutePosition());
+                const depth = depthOf(node.drawnWorldPosition);
                 scale *= depth > 0 ? depth / reference : 1;
             }
 
-            if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
-                mesh.scaling.setAll(scale);
+            if (Math.abs(node.drawnScale - scale) > 1e-4) {
+                node.drawnScale = scale;
                 changed = true;
             }
         }
@@ -2687,7 +2850,7 @@ export class UpdateManager implements Manager {
      * appears stuck, one that is hidden stays on screen, one that is added never appears, and one
      * that the camera turns towards is missing because it was culled when the list was taken. So
      * everything that can change any of those has to say so, and this method trusts nothing it was
-     * not told -- except movement, which it reads off the nodes themselves in `anyNodeMoved`, and
+     * not told -- except movement, which it reads off the nodes themselves in `nodesMoved`, and
      * the camera, which it reads here. The frame is drawn AFTER this runs, so an unfreeze decided
      * here takes effect on the same frame that needed it.
      */
@@ -3089,6 +3252,31 @@ export class UpdateManager implements Manager {
     updateConfig(config: Partial<UpdateManagerConfig>): void {
         Object.assign(this.config, config);
     }
+}
+
+/**
+ * The plain average of a selection's positions: the point the camera pivots on.
+ * @param nodes - The selected nodes, at least one.
+ * @returns Their center, in world space.
+ */
+function selectionCenter(nodes: readonly Node[]): Vector3 {
+    const center = nodes[0].drawnPosition.clone();
+    for (const node of nodes.slice(1)) {
+        center.addInPlace(node.drawnPosition);
+    }
+
+    return center.scaleInPlace(1 / nodes.length);
+}
+
+/**
+ * Whether a selection, in any order, is the one held.
+ * @param nodes - The selection.
+ * @param held - The held selection's `selectionKey`, or null.
+ * @returns True when they hold the same nodes.
+ */
+function isHeld(nodes: readonly Node[], held: string | null): boolean {
+    const ids = new Set(held?.split("\u0000"));
+    return ids.size === nodes.length && nodes.every((node) => ids.has(String(node.id)));
 }
 
 /**

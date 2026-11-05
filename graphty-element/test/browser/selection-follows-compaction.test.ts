@@ -43,6 +43,20 @@ function selected(graph: Graph): { nodes: string[]; edges: string[] } {
 }
 
 describe("the selection of a rendered graph across a compacting freeze", () => {
+    // A repaint keeps a row-to-node lookup across its frames, and rebuilds it when this version moves.
+    test("a freeze that renumbers the nodes moves the node version", async () => {
+        const graph = await makePath();
+        const manager = graph.getDataManager();
+        const before = manager.nodeVersion;
+
+        (manager as unknown as { walkNodeRemap: (remap: Uint32Array) => void }).walkNodeRemap(
+            Uint32Array.from({ length: NODE_COUNT }, (_, row) => row),
+        );
+
+        assert.isAbove(manager.nodeVersion, before);
+        graph.dispose();
+    });
+
     test("keeps a selected edge whose row moved when the nodes before it went", async () => {
         const graph = await makePath();
         const session = graph.getSession();

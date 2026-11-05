@@ -90,6 +90,26 @@ describe("a layout engine gives back a node the graph has removed", () => {
         assert.deepStrictEqual([...simulation.edges], [], "and so is the link that named it");
     });
 
+    it("counts an edge d3 takes up at a later step, and one it gives back", () => {
+        // The frame loop has only the array's length to tell it d3 took an edge up after the store
+        // announced it. An iterator here leaves that edge unplaced while its nodes hold still.
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const link = edge(a, b);
+        const simulation = new D3GraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        simulation.step();
+        const count = (): unknown => (simulation.edges as Edge[]).length;
+
+        assert.strictEqual(count(), 0, "no edge yet");
+        layoutEngineInternals.addEdges(simulation, [link]);
+        assert.strictEqual(count(), 0, "told, but not taken up");
+        simulation.step();
+        assert.strictEqual(count(), 1, "taken up");
+        simulation.removeEdge(link);
+        assert.strictEqual(count(), 0, "given back");
+    });
+
     it("takes the node and its link out of ngraph's own graph, not just out of the element's map", () => {
         // ngraph keeps its own graph and its own bodies. Deleting only the element's mapping would
         // leave the simulation spending force on a body nothing can see or reach.

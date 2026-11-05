@@ -167,6 +167,43 @@ describe("flaky in CI with no open issue", () => {
     });
 });
 
+describe("a flaky test whose issue was closed as fixed", () => {
+    const file = "graphty-element/stories/Layout2D.stories.ts";
+    // #5820 as the search returned it, closed the day after the story's only flaky events.
+    const issue5820: IssueText = {
+        title: "Flaky story: Node Gap in Layout2D.stories.ts draws two different pictures (flaky.no_issue)",
+        body: "The test with no issue is the story **Node Gap** in `graphty-element/stories/Layout2D.stories.ts`.",
+        closedAt: new Date(NOW - 3_600_000).toISOString(),
+    };
+
+    it("is filed when the close came on a later day than its last flaky event", async () => {
+        const store = new MemoryStore();
+        await day(store, TODAY - DAY, [["graphty-element-stories", file, "Node Gap"]]);
+        const m = await flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
+    });
+
+    /** The story was flaky today at `seenAt`, and its issue closed an hour before NOW. */
+    async function flakyToday(seenAt: number) {
+        const store = new MemoryStore();
+        await day(store, TODAY, [["graphty-element-stories", file, "Node Gap"]]);
+        await putRaw(store, [{ ...testItem("1.1.a", file, "Node Gap", "flaky"), seenAt }], NOW);
+        return flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
+    }
+
+    it("is filed when the close came later on the day of its last flaky event", async () => {
+        const m = await flakyToday(NOW - 2 * 3_600_000);
+        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m["flaky.net_change"]).toBe(0); // new this week, and fixed
+    });
+
+    it("counts again when it goes flaky after the close on the same day", async () => {
+        const m = await flakyToday(NOW - 30 * MIN);
+        expect(m["flaky.no_issue"]).toBe(1);
+        expect(m["flaky.net_change"]).toBe(1); // new this week, and not fixed
+    });
+});
+
 describe("the six flaky issues of 2026-10-26", () => {
     // Read once from GitHub (number, title, state, stateReason, closedAt, body), as the search returns them.
     const issues = JSON.parse(

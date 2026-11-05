@@ -60,8 +60,8 @@ describe("site.json", () => {
 
         const element = await mountElement();
         assert.deepEqual(element.features, ["timeline", "location-map"]);
-        // This build declares no experiment yet, so the element reports both ids as unknown.
-        assert.deepEqual(element.enabledFeatures.unknown, ["timeline", "location-map"]);
+        // This build has the timeline and not the map, so the element reports only the map as unknown.
+        assert.deepEqual(element.enabledFeatures, { enabled: ["timeline"], unknown: ["location-map"] });
         await screen.findByLabelText("Site: nightly");
     });
 

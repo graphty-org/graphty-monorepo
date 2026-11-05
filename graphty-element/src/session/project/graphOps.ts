@@ -52,6 +52,8 @@ interface GraphHome {
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
     readonly session: boolean;
+    /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
+    readonly countsRewrites?: () => boolean;
 }
 
 /**
@@ -346,6 +348,8 @@ export class GraphOps {
     private readonly tokens = createCounter();
     private readonly epochs = createCounter();
     private warned = false;
+    /** How many changes were more than rows added at the end. */
+    private rewritten = 0;
     /** The store the last writer wrote, which strict state checks for writes made around it. */
     private store: GraphStore | null = null;
 
@@ -426,10 +430,46 @@ export class GraphOps {
     }
 
     /**
-     * Take a token never issued before and make it the slice's.
+     * A mark that moves on every change other than rows added at the end: a record edit, a removal,
+     * a merge into an existing row, an undo or a redo, any token not taken by a writer, and rows
+     * renumbered by a freeze, so read it after the freeze. Two reads alike mean the rows of the first
+     * still hold what they held. It reads the two counts apart: the store's restarts with a new store.
+     * @returns The mark.
+     */
+    get rewrites(): string {
+        return `${String(this.rewritten)}:${String(this.store?.renumberCount ?? 0)}`;
+    }
+
+    /**
+     * Whether anything reads {@link GraphOps.rewrites}.
+     * @returns True with the timeline on.
+     */
+    get countsRewrites(): boolean {
+        return this.home.countsRewrites?.() === true;
+    }
+
+    /** Count a change that is more than rows added at the end. */
+    noteRewrite(): void {
+        if (this.countsRewrites) {
+            this.rewritten++;
+        }
+    }
+
+    /**
+     * Take a token never issued before and make it the slice's, for a write {@link GraphOps.noteRewrite}
+     * does not see: anyone but a writer may have changed anything.
      * @returns The token.
      */
     retoken(): number {
+        this.noteRewrite();
+        return this.nextToken();
+    }
+
+    /**
+     * Take a token never issued before and make it the slice's.
+     * @returns The token.
+     */
+    nextToken(): number {
         const token = this.tokens.next();
         const slice = this.home.read();
         if (this.home.strict && token <= slice.token) {
@@ -445,6 +485,7 @@ export class GraphOps {
      * @param token - The token.
      */
     restoreToken(token: number): void {
+        this.noteRewrite();
         this.home.write(Object.freeze({ ...this.home.read(), token }));
     }
 
@@ -1262,6 +1303,11 @@ class Writer implements GraphWriter {
             this.store.touch();
         }
 
+        // A record holding only the id, as a node an edge made is given, puts nothing in the row.
+        if (this.graph.countsRewrites && (prior !== undefined || (merged && Object.keys(record).length > 1))) {
+            this.graph.noteRewrite();
+        }
+
         nodes.set(id, record);
         bumpFields(this.store, "node", prior, record, this.bumped);
         this.record({ kind: "node", id, record, seed, existed: merged, prior }, nodeKey(id), NODES_ADDED);
@@ -1305,6 +1351,7 @@ class Writer implements GraphWriter {
 
     mergeEdge(edgeIndex: number, weight: number, given: GraphRecord | null): void {
         this.begin();
+        this.graph.noteRewrite();
         const record = given === null ? null : frozenRecord(given);
         const edgeId = this.store.edgeIdAt(edgeIndex);
         const prior = this.store.builder.edgeWeight(edgeIndex);
@@ -1352,6 +1399,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
@@ -1428,6 +1476,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         // A record whose id graph-format would not store has no row: only the record goes.
         for (const id of new Set(rowless)) {
             const prior = nodes.get(id);
@@ -1454,11 +1503,13 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         return this.removeRows([], counters);
     }
 
     clear(): void {
         this.begin();
+        this.graph.noteRewrite();
         const { slice } = this.graph;
         const prior: GraphMaps = { nodes: slice.nodes, edges: slice.edges, values: slice.values };
         // The pins go with the graph, in this draft, so undoing the clear pins them again.
@@ -1526,7 +1577,7 @@ class Writer implements GraphWriter {
         // Anything that wrote the builder since the last primitive is kept, not absorbed.
         this.store.audit();
         const before = this.graph.slice.token;
-        const after = this.graph.retoken();
+        const after = this.graph.nextToken();
         if (this.draft !== null) {
             this.entry = new GraphEntry(this.graph, this.store, before, after);
             this.draft.log(this.entry);

@@ -101,7 +101,7 @@ jobs:
         timeout-minutes: 120
         strategy:
             fail-fast: false
-            max-parallel: 8 # with a full run's 28-job matrix and the pull requests, inside the 60 Linux runners
+            max-parallel: 8 # with a full run's 20 capped runners (ci.yml) and the pull requests, inside the 60 Linux runners
             matrix:
                 sha: ${{ fromJSON(needs.plan.outputs.points) }}
         steps:

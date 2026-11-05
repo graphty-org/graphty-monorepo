@@ -16,13 +16,10 @@
 /* Many group tabs scroll sideways rather than stack. */
 .ws-table-tabs {
     flex: 0 1 auto;
+    flex-wrap: nowrap;
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
-}
-
-.ws-table-tabs [role="tablist"] {
-    flex-wrap: nowrap;
 }
 
 .ws-table-spacer {

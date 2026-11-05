@@ -3,7 +3,21 @@
  * as a coded fact.
  */
 
+import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type CodedFactParam, GraphtyError } from "@graphty/graphty-element/session";
+
+/** The app's names for sources whose catalog name is not the reader's word, by catalog id. */
+const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API" };
+
+/**
+ * A source's name in the app: the catalog's, or the app's own where the catalog's is jargon
+ * ("REST API" reads "Web API", as Open network data's card does).
+ * @param entry - the source.
+ * @returns the name.
+ */
+export function kindName(entry: SourceCatalogEntry): string {
+    return KIND_NAMES[entry.id] ?? entry.descriptor.plainName;
+}
 
 /** A short label per source code (graph-io's `SOURCE_ISSUE`); the code itself for any other. */
 const CODE_WORDS: Readonly<Record<string, string>> = {

@@ -2019,6 +2019,36 @@ export async function assertControlsPresent(
 }
 
 /**
+ * The communities a run found sit in lumps: a node's distance from its community's centre, against the arrangement's
+ * radius, is at most `atMost`.
+ * @param scene - What the story drew.
+ * @param run - The run's id.
+ * @param atMost - The largest ratio.
+ */
+export async function assertCommunitiesLumped(scene: Drawn, run: string, atMost: number): Promise<void> {
+    const result = scene.session.results.get(run);
+    const groups = new Map<unknown, (readonly number[])[]>();
+    for (const node of scene.nodes) {
+        const group = result?.node(node.id)?.group;
+        groups.set(group, [...(groups.get(group) ?? []), node.position]);
+    }
+
+    const spread = (points: readonly (readonly number[])[]): number => {
+        const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
+        return points.reduce((sum, p) => sum + Math.hypot(...centre.map((v, axis) => v - p[axis])), 0);
+    };
+    const within = [...groups.values()].reduce((sum, points) => sum + spread(points), 0);
+    const ratio = within / spread(scene.nodes.map((node) => node.position));
+
+    await holds(
+        groups.size > 2 && ratio <= atMost,
+        `${scene.story}: the ${String(groups.size)} communities of "${run}" should sit in lumps, and a node averages ` +
+            `${ratio.toFixed(3)} of the arrangement's radius from its community's centre (at most ` +
+            `${String(atMost)} expected)`,
+    );
+}
+
+/**
  * Heavily weighted edges are drawn shorter, on average, than lightly weighted ones.
  *
  * WHAT A WEIGHTED LAYOUT PROMISES and an unweighted one does not. The edges are split at the

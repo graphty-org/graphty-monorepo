@@ -244,6 +244,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
 | `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
 | `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
+| `node.gradientCenterX`        | a radial gradient's middle across the node, 0 (left) to 1 (right); 0.5 by default                                                                |
+| `node.gradientCenterY`        | a radial gradient's middle down the node, 0 (top) to 1 (bottom); 0.5 by default                                                                  |
+| `node.gradientRadius`         | how far a radial gradient reaches from its middle, in halves of the node's side; 1 (its edge) by default                                         |
 | `node.size`                   | 0 or more; what it measures is `node.sizeMode`'s                                                                                                 |
 | `node.sizeMode`               | `scale` (the default), `diameter` or `uniform`: what `node.size` measures                                                                        |
 | `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |

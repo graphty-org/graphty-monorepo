@@ -332,6 +332,23 @@ describe("StylePainter channels", () => {
             stops: [0, 0.2, 1],
         });
 
+        // a radial gradient's middle and reach (issue #4515)
+        await held.styles.add({
+            name: "radial circle",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientCenterX": 0.25, "node.gradientCenterY": 0.75, "node.gradientRadius": 1.5 },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+            stops: [0, 0.2, 1],
+            centerX: 0.25,
+            centerY: 0.75,
+            radius: 1.5,
+        });
+
         // stops that are not one per colour are left out, so the colours are evenly spaced
         await held.styles.add({
             name: "linear two stops",
@@ -523,6 +540,24 @@ describe("StylePainter dirty set", () => {
         assert.isTrue(held.painter.hasPendingEdges, "the edges were not touched");
         assert.isFalse(held.painter.isNodePending(0), "a node taken is no longer pending");
         assert.isTrue(held.painter.hasPending, "while the edges still are");
+    });
+
+    it("takes rows queued between two batches, oldest first and each once", async () => {
+        const held = harness();
+        await held.paintAll();
+        held.painter.takeNodes();
+        for (const row of [0, 1, 2]) {
+            held.painter.queue("node", row);
+        }
+
+        assert.deepStrictEqual(held.painter.takeNodes(2), [0, 1]);
+        held.painter.queue("node", 0);
+        held.painter.queue("node", 3);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [2, 0], "a row taken and queued again goes to the back");
+        assert.deepStrictEqual(held.painter.takeNodes(2), [3]);
+        held.painter.queue("node", 1);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [1], "a queue that ran dry takes again");
+        assert.isFalse(held.painter.hasPendingNodes);
     });
 
     it("queues ONLY the elements one edit touched", async () => {

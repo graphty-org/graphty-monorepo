@@ -37,7 +37,6 @@ import {
     type RenderTargetTexture,
     type Scene,
     ShaderMaterial,
-    ShaderStore,
     type TransformNode,
     Vector3,
     VertexData,
@@ -249,12 +248,11 @@ export class GroupOutlinePass {
         orderLayers(scene);
 
         const program = splatProgram();
-        ShaderStore.ShadersStore.graphtyOutlineSplatVertexShader = program.vertex;
-        ShaderStore.ShadersStore.graphtyOutlineSplatFragmentShader = program.fragment;
         this.splatMaterial = new ShaderMaterial(
             "graphty-outline-splat",
             scene,
-            { vertex: "graphtyOutlineSplat", fragment: "graphtyOutlineSplat" },
+            // Inline, as `sceneEffect` is: this module loads lazily (issue #5894).
+            { vertexSource: program.vertex, fragmentSource: program.fragment, spectorName: "graphtyOutlineSplat" },
             {
                 attributes: [...program.attributes],
                 uniforms: [...program.uniforms],

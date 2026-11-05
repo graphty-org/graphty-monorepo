@@ -11,17 +11,22 @@ import { join } from "node:path";
 
 import { assert, describe, it } from "vitest";
 
+import { GLSL_RESERVED } from "../../src/catalog/shaderGlsl";
 import type { ShaderParamDescriptor } from "../../src/catalog/shaders";
 import { parseShaderText } from "../../src/catalog/shaderText";
+import { GLSL_STRUCTS } from "../../src/shaders/runtime/glsl";
 import {
     clockAssignments,
     compileProblem,
     EDGE_CLOCK_FIELDS,
+    fragmentPrelude,
     prefixBody,
     renameIdentifiers,
     sampleProgram,
     uniformValueOf,
     unprefix,
+    VULKAN_GLSL_NAMES,
+    WGSL_NAMES,
     wrappedLibrary,
     WRAPPER_LINE,
 } from "../../src/shaders/runtime/wrap";
@@ -68,6 +73,114 @@ describe("the shader wrapper", () => {
     it("keeps every line where it was", () => {
         const out = prefixBody(BODY, [SPEED]);
         assert.strictEqual(out.split("\n").length, BODY.split("\n").length);
+    });
+
+    it("prefixes every use of a name WGSL will not take, local, parameter and field alike", () => {
+        const body =
+            "struct S { float fn; };\n" +
+            "float g(float target) { return target; }\n" +
+            "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = g(s.fn); float select = 0.5;\n" +
+            "    for (int i = 0; i < 2; i++) { pass += select * length(n.uv); }\n" +
+            "    return vec4(n.color.rgb, pass); }\n";
+        const out = prefixBody(body, []);
+        assert.include(out, "struct graphty_u_S { float graphty_u_fn; };");
+        assert.include(out, "float graphty_u_g(float graphty_u_target) { return graphty_u_target; }");
+        assert.include(out, "s.graphty_u_fn = 1.0; float graphty_u_pass = graphty_u_g(s.graphty_u_fn);");
+        assert.include(out, "float graphty_u_select = 0.5;");
+        // The GLSL keywords and built-ins WGSL also names keep theirs.
+        assert.include(out, "for (int i = 0; i < 2; i++) { graphty_u_pass += graphty_u_select * length(n.uv); }");
+        assert.include(out, "return vec4(n.color.rgb, graphty_u_pass); }");
+        for (const name of ["pass", "target", "fn", "select"]) {
+            assert.notMatch(out, new RegExp(`(?<!graphty_u_)\\b${name}\\b`), name);
+        }
+    });
+
+    it("renames a local named after a built-in both languages have, and leaves its calls", () => {
+        const body =
+            "struct S { float abs; };\n" +
+            "float g(float max) { return max; }\n" +
+            "vec4 shade(NodeInput n) { S s; float mod = mod(n.size, 2.0); s.abs = abs(mod);\n" +
+            "    { float abs = 1.0; mod *= abs; } return vec4(max(mod, g(s.abs))); }\n";
+        const out = prefixBody(body, []);
+        assert.include(out, "struct graphty_u_S { float abs; };");
+        assert.include(out, "float graphty_u_g(float graphty_u_max) { return graphty_u_max; }");
+        assert.include(out, "float graphty_u_mod = mod(n.size, 2.0); s.abs = abs(graphty_u_mod);");
+        assert.include(out, "{ float graphty_u_abs = 1.0; graphty_u_mod *= graphty_u_abs; }");
+        assert.include(out, "return vec4(max(graphty_u_mod, graphty_u_g(s.abs)));");
+    });
+
+    it("keeps a name a body declares as a function or struct renamed at its calls too", () => {
+        assert.include(
+            prefixBody("vec4 shade(NodeInput n) { struct max { float a; }; max m = max(1.0); return vec4(m.a); }", []),
+            "struct graphty_u_max { float a; }; graphty_u_max m = graphty_u_max(1.0);",
+        );
+    });
+
+    it("sends a body's modf to the library, the built-in having no WGSL translation", () => {
+        assert.include(prefixBody("float f(float x, out float w) { return modf(x, w); }", []), "graphty_modf(");
+        assert.include(wrappedLibrary(), "vec4 graphty_modf(vec4 x, out vec4 whole)");
+    });
+
+    it("sends isnan, isinf and the inverse hyperbolics to helpers WebGPU alone compiles", () => {
+        assert.include(prefixBody("float f(vec2 x) { return isnan(x).x ? acosh(x.y) : 0.0; }", []), "graphty_isnan(x)");
+        const library = wrappedLibrary();
+        for (const name of ["isnan", "isinf", "acosh", "asinh", "atanh"]) {
+            assert.include(library, `#define graphty_${name} ${name}\n`.trimEnd());
+            assert.include(library, ` graphty_${name}(vec4 x)`);
+        }
+
+        assert.isBelow(library.indexOf("#ifdef WEBGPU"), library.indexOf("graphty_acosh(float x)"));
+        assert.isBelow(library.indexOf("graphty_acosh(float x)"), library.indexOf("#ifndef WEBGPU"));
+    });
+
+    it("leaves isnan and isinf the built-in wherever GLSL takes only a constant expression", () => {
+        const out = prefixBody(
+            "struct S { float a; float b[isnan(1.5) ? 2 : 3]; }; const bool K = isnan(S(1.0).a) || isinf(1.5);\n" +
+                "float g[isinf(1.5) ? 2 : 3];\n" +
+                "float f(const float x) { const bool L = isnan(S(1.0).a), M = isinf(1.5); float s[isnan(1.5) ? 2 : 3]; " +
+                "float u[2], v[isinf(1.5) ? 2 : 3]; float[isnan(1.5) ? 1 : 2] w; " +
+                "switch (1) { case isnan(1.5) ? 1 : 2: break; } return 0.0; }",
+            [],
+        );
+        assert.notInclude(out, "graphty_isnan");
+        assert.notInclude(out, "graphty_isinf");
+    });
+
+    it("sends every other isnan and isinf in a function to the helper", () => {
+        const out = prefixBody(
+            "float f(float x, float a[2]) { bool b = isnan(x) || isinf(1.5); a[isnan(x) ? 0 : 1] = 1.0; " +
+                "switch (int(x)) { case 1: b = isinf(x) ? b : !b; break; } " +
+                "return isnan(a[0]) ? a[isinf(x) ? 0 : 1] : 1.0; }",
+            [],
+        );
+        assert.notMatch(out, /[^_](?:isnan|isinf)\(/);
+    });
+
+    it("renames a Vulkan GLSL keyword as a local and a field and leaves its calls alone", () => {
+        assert.strictEqual(
+            prefixBody("float image2D = s.atomic_uint + texture1D(1.0);", []),
+            "float graphty_u_image2D = s.graphty_u_atomic_uint + texture1D(1.0);",
+        );
+        assert.include(
+            prefixBody(
+                "vec4 shade(NodeInput n) { struct sample { float a; }; sample m = sample(1.0); return vec4(m.a); }",
+                [],
+            ),
+            "struct graphty_u_sample { float a; }; graphty_u_sample m = graphty_u_sample(1.0);",
+        );
+    });
+
+    it("asks WebGPU to let a derivative run in a branch, as GLSL does", () => {
+        assert.include(fragmentPrelude(), "#define DISABLE_UNIFORMITY_ANALYSIS\n");
+    });
+
+    it("gives no input field a name it would rename, since a body's use of it would then miss", () => {
+        const fields = [...GLSL_STRUCTS.matchAll(/^\s+\w+ (\w+);$/gm)].map((match) => match[1]);
+        assert.isAbove(fields.length, 30);
+        assert.deepEqual(
+            fields.filter((name) => VULKAN_GLSL_NAMES.has(name) || (WGSL_NAMES.has(name) && !GLSL_RESERVED.has(name))),
+            [],
+        );
     });
 
     it("renames only identifiers it is given", () => {

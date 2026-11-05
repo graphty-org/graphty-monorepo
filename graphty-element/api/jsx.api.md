@@ -5,6 +5,8 @@
 ```ts
 
 import { AbstractMesh } from '@babylonjs/core';
+import { ActionManager } from '@babylonjs/core';
+import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
@@ -48,6 +50,7 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';

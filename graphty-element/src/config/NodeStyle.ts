@@ -103,6 +103,11 @@ export const NodeShapes = z.enum([
     // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
     "rectangle",
     "round-rectangle",
+    // A rectangle with only its top two or bottom two corners rounded, the other two square
+    // (yFiles' `corners`, Cytoscape.js bottom-round-rectangle); `shape.cornerRadius` and its kin
+    // round them as they round a round-rectangle's.
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -145,6 +150,8 @@ export const NodeShapes = z.enum([
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "rectangle",
     "round-rectangle",
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -437,6 +444,18 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     /**
+     * Strips `width` wide along the inside of the node's edge, in the units of the border's width: `lightColor` on its
+     * left and top and `darkColor` on its bottom and right, so the node looks raised (yEd's 3D rectangle). They are cut
+     * to the node's outline. No width draws none.
+     */
+    raisedBorder: z
+        .strictObject({
+            width: z.number().nonnegative().optional(),
+            lightColor: ColorStyle.optional(),
+            darkColor: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
      * A filled shape drawn behind the node (Cytoscape.js `underlay-*`): `padding` beyond the node's
      * box on every side, in the units of `shape.size`, in `color` at `opacity`, as `shape` (unset,
      * the node's own) with `cornerRadius` for a rounded one. No opacity, or 0, draws none.
@@ -523,7 +542,9 @@ export const NodeStyle = z.strictObject({
      * Bands of color drawn over the node's face, inside its outline (Cytoscape.js `stripe-*`,
      * Graphviz `style=striped`): `colors`, `sizes` and `opacities` as a pie's, the bands following
      * one another top to bottom (`direction` "down", the default) or left to right ("right"),
-     * over a box `size` (default 1) times the node's, centred on it.
+     * over a box `size` (default 1) times the node's, centred on it. `frame`, four fractions
+     * "top right bottom left" (of the box's height and width), keeps only the rim that deep inside
+     * the box's edges, so the bands frame what the node shows in the middle.
      */
     stripes: z
         .strictObject({
@@ -532,6 +553,7 @@ export const NodeStyle = z.strictObject({
             opacities: z.string().optional(),
             direction: z.enum(["down", "right"]).optional(),
             size: z.number().nonnegative().optional(),
+            frame: z.string().optional(),
         })
         .optional(),
     /**

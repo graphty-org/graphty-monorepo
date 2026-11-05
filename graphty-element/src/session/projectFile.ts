@@ -57,7 +57,7 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
-import { DEFAULT_TIME_SETTINGS, sameSettings } from "./time/TimeApi";
+import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
     GraphSession,
@@ -69,7 +69,7 @@ import type {
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
-import { assertVisibility } from "./visibility/filter";
+import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
 
 /** The container's `kind`. */
@@ -775,6 +775,11 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         visibility: {
             filter: visibility.filter,
             window: visibility.window,
+            // Written only for a window whose bounds are values, not instants: one set with the
+            // timeline off. A reader that ignores it reads them as instants.
+            ...(visibility.window === null || (visibility as SessionVisibilityApi).holdsInstants(visibility.window)
+                ? {}
+                : { windowRaw: true }),
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before. The
             // steps are the keep and exclude conditions, so an older reader hides the same.
@@ -1364,8 +1369,9 @@ const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", param
 /**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
+ * @param playback - The timeline settings the session held, which go too.
  */
-async function clearInto(tx: TransactionScope): Promise<void> {
+async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
     for (const note of tx.notes.list()) {
         tx.notes.remove(note.id);
     }
@@ -1373,6 +1379,14 @@ async function clearInto(tx: TransactionScope): Promise<void> {
     // Every row of the style tree, folders with their layers; the element's own layers stay.
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
+    }
+
+    // With the timeline off a Ghost row is in no tree, and it must not outlive its project either.
+    const ghosts = tx.styles
+        .list()
+        .filter(({ source }) => source.by === "template" && source.templateId === GHOST_ROW_ID);
+    for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
+        await tx.styles.deleteRow(row);
     }
 
     for (const set of tx.sets.list()) {
@@ -1400,8 +1414,8 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await (tx.visibility as SessionVisibilityApi).restoreConditions([]);
     }
 
-    if (!sameSettings(tx.time.settings, DEFAULT_TIME_SETTINGS)) {
-        await tx.execute({ op: "visibility.playback", playback: null });
+    if (playback !== undefined && playback !== null) {
+        await (tx.visibility as SessionVisibilityApi).restorePlayback(null);
     }
 
     await tx.data.clear();
@@ -1568,6 +1582,29 @@ interface Opening {
     readonly tx: TransactionScope;
     readonly problems: ProjectProblem[];
     readonly restored: Set<ProjectSlice>;
+    /** The timeline settings the session held before this open, which it clears. */
+    readonly playback?: unknown;
+}
+
+/**
+ * What a project's session member holds that is kept as saved but does nothing with the timeline
+ * off: playback settings and the options a saved window takes. A time role is not one: projects
+ * had it before the timeline, and it stays and applies.
+ * @param state - The `graphty-session` member.
+ * @returns One `E_FEATURE_OFF` per part.
+ */
+function timelineLeftOff(state: Record<string, unknown> | undefined): ProjectProblem[] {
+    const { visibility } = (state ?? {}) as {
+        visibility?: { playback?: unknown; window?: TimeWindow | null };
+    };
+    const window = visibility?.window ?? null;
+    const held: Record<string, unknown> = {
+        "visibility.playback": visibility?.playback,
+        "visibility.window": windowNeedsTimeline(window) ? window : null,
+    };
+    return Object.keys(held)
+        .filter((key) => held[key] !== undefined && held[key] !== null)
+        .map((key) => ({ code: "E_FEATURE_OFF", params: { feature: "timeline", key } }));
 }
 
 /**
@@ -1655,7 +1692,7 @@ async function readProject(
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
-    await clearInto(tx);
+    await clearInto(tx, opening.playback);
     await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
@@ -1810,7 +1847,10 @@ async function readProject(
             }
 
             if (visibility.window !== null && visibility.window !== undefined) {
-                await tx.visibility.setWindow(visibility.window as never);
+                await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                    visibility.window as TimeWindow,
+                    visibility.windowRaw === true,
+                );
             }
 
             await readFilterConditions(opening, visibility, remap);
@@ -1818,7 +1858,7 @@ async function readProject(
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await tx.execute({ op: "visibility.playback", playback: visibility.playback as never });
+                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
             }
 
             tx.visibility.showContext = visibility.showContext === true;
@@ -2310,6 +2350,9 @@ export function projectOf(
             now: new Date().toISOString(),
         });
         problems.push(...loads.problems);
+        if (dispatcher.services.timeline?.() === false) {
+            problems.push(...timelineLeftOff(state));
+        }
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.
@@ -2319,7 +2362,15 @@ export function projectOf(
         try {
             await session.transaction(
                 "Open project",
-                (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned, loads),
+                (tx) =>
+                    readProject(
+                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        doc,
+                        graph,
+                        name,
+                        canned,
+                        loads,
+                    ),
                 opening,
             );
         } catch (error) {

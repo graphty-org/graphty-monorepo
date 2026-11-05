@@ -294,6 +294,22 @@ describe("flat shape outlines", () => {
         assert.approximately(Math.max(...top), 2 - 0.25, 1e-9);
     });
 
+    test("a rectangle rounded on one side keeps the other side's corners square", () => {
+        const onCorner = (outline: Point2[], x: number, y: number): boolean =>
+            outline.some(([px, py]) => Math.abs(px - x) < 1e-9 && Math.abs(py - y) < 1e-9);
+
+        // y is up: Cytoscape.js's bottom-round-rectangle is square along its top
+        const bottom = flatShapeOutline("bottom-round-rectangle", 4, 2);
+        assert.isTrue(onCorner(bottom, 2, 1) && onCorner(bottom, -2, 1));
+        assert.isFalse(onCorner(bottom, 2, -1) || onCorner(bottom, -2, -1));
+        assert.approximately(Math.max(...bottom.filter(([, y]) => y === -1).map(([x]) => x)), 2 - 0.5, 1e-9);
+
+        const top = flatShapeOutline("top-round-rectangle", 4, 2, 0.25, undefined, true, { exact: true });
+        assert.isTrue(onCorner(top, 2, -1) && onCorner(top, -2, -1));
+        assert.isFalse(onCorner(top, 2, 1) || onCorner(top, -2, 1));
+        assert.approximately(Math.max(...top.filter(([, y]) => y === 1).map(([x]) => x)), 2 - 0.25, 1e-9);
+    });
+
     test("a rounded rectangle's corner radius is capped, so a large box keeps small corners", () => {
         const topEnd = (outline: Point2[], halfHeight: number): number =>
             Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));

@@ -274,6 +274,11 @@ export interface RunSurroundings {
      */
     queuePosition(): number | null;
     /**
+     * Whether the timeline experiment is on; absent reads on.
+     * @returns True when it is on.
+     */
+    timeline?(): boolean;
+    /**
      * Why this run's numbers no longer describe what is on screen.
      * @returns The note, or null when they still do.
      */
@@ -756,7 +761,30 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The caveats.
      */
     get caveats(): Caveats {
+        return this.windowForReaders(this.savedCaveats);
+    }
+
+    /**
+     * The caveats as the `runs` slice saves them.
+     * @returns The caveats.
+     */
+    private get savedCaveats(): Caveats {
         return this.heldRecord()?.caveats ?? this.caveatsValue;
+    }
+
+    /**
+     * Caveats as a reader gets them: a saved run keeps its window with the timeline off, which
+     * then has no unit to read it in, so only the project file holds it.
+     * @param caveats - The caveats.
+     * @returns The caveats, without the window while the timeline is off.
+     */
+    private windowForReaders(caveats: Caveats): Caveats {
+        if (caveats.window === undefined || this.surroundings.timeline?.() !== false) {
+            return caveats;
+        }
+
+        const { window: _kept, ...rest } = caveats;
+        return rest;
     }
 
     /**
@@ -829,6 +857,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The record.
      */
     get record(): RunRecord {
+        const record = this.savedRecord;
+        const caveats = this.windowForReaders(record.caveats);
+        return caveats === record.caveats ? record : Object.freeze({ ...record, caveats });
+    }
+
+    /**
+     * The record as the `runs` slice holds and saves it.
+     * @returns The record.
+     */
+    get savedRecord(): RunRecord {
         const held = this.heldRecord();
         const scope: RunScopeRecord =
             held?.scope ??
@@ -858,7 +896,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             engine: this.engine,
             fields: this.fields,
             shape: this.shape,
-            caveats: this.caveats,
+            caveats: this.savedCaveats,
             ...(summary === undefined ? {} : { summary }),
         };
 

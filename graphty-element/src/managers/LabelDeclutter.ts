@@ -737,8 +737,8 @@ export class LabelDeclutter {
         // render id without looking at the position, so a node the layout moved after that
         // was measured one step behind, and the last step before the layout rested left labels
         // decided for places their nodes had left.
-        const parent = entry.node.mesh;
-        const centre = Vector3.TransformCoordinatesToRef(mesh.position, parent.computeWorldMatrix(true), this.centre);
+        const { node } = entry;
+        const centre = Vector3.TransformCoordinatesToRef(mesh.position, node.drawnWorldMatrix(true), this.centre);
 
         // A label behind the camera projects to a mirrored point on screen, and one outside
         // the view is not drawn at all; neither may hide a label the reader can see. This
@@ -749,7 +749,7 @@ export class LabelDeclutter {
         }
 
         const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        const scale = parent.absoluteScaling;
+        const scale = node.drawnWorldScaling;
         const corner = this.corner.copyFrom(centre);
         this.right.scaleAndAddToRef(extent.x * Math.abs(scale.x * mesh.scaling.x), corner);
         this.up.scaleAndAddToRef(extent.y * Math.abs(scale.y * mesh.scaling.y), corner);
@@ -781,7 +781,7 @@ export class LabelDeclutter {
 
         if (entry.styled === "size") {
             entry.labelSize = entry.bottom - entry.top;
-            entry.nodeSize = parent.getBoundingInfo().boundingSphere.radiusWorld / Math.max(entry.perPixelY, 1e-12);
+            entry.nodeSize = node.drawnWorldRadius / Math.max(entry.perPixelY, 1e-12);
         }
         return true;
     }
@@ -962,10 +962,9 @@ export class LabelDeclutter {
     private nodesChanged(): boolean {
         let seen = 0;
         for (const node of this.context.getDataManager().nodes.values()) {
-            const { mesh } = node;
-            const { position } = mesh;
-            seen += position.x * 1.31 + position.y * 2.71 + position.z * 3.17 + mesh.uniqueId * 0.001;
-            if (mesh.isEnabled()) {
+            const position = node.drawnPosition;
+            seen += position.x * 1.31 + position.y * 2.71 + position.z * 3.17 + node.drawnGeneration * 0.001;
+            if (node.isDrawn) {
                 seen += 0.5;
             }
         }
@@ -1009,7 +1008,7 @@ export class LabelDeclutter {
                 return true;
             }
 
-            const { position } = entry.node.mesh;
+            const position = entry.node.drawnPosition;
             if (
                 position.x !== entry.x ||
                 position.y !== entry.y ||
@@ -1046,9 +1045,10 @@ export class LabelDeclutter {
             entry.placed = null;
         }
 
-        entry.x = node.mesh.position.x;
-        entry.y = node.mesh.position.y;
-        entry.z = node.mesh.position.z;
+        const { x, y, z } = node.drawnPosition;
+        entry.x = x;
+        entry.y = y;
+        entry.z = z;
         entry.enabled = mesh.isEnabled();
         entry.selected = node.isSelected();
         entry.degree = this.degrees.get(node.id) ?? 0;
@@ -1225,14 +1225,13 @@ export class LabelDeclutter {
      * @returns False when the node is not drawn or is behind the camera.
      */
     private projectNode(node: Node, slot: number, size: number): boolean {
-        const { mesh } = node;
-        if (mesh.isDisposed() || !mesh.isEnabled()) {
+        if (!node.isDrawn) {
             return false;
         }
 
         const { view, viewport, nodeAreas } = this;
         // Forced, for the reason given in `placeNodes`.
-        const centre = mesh.computeWorldMatrix(true).getTranslationToRef(this.centre);
+        const centre = node.drawnWorldMatrix(true).getTranslationToRef(this.centre);
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         if (depth <= 0) {
             return false;
@@ -1245,13 +1244,11 @@ export class LabelDeclutter {
         // A node ringed by its halo (the selection ring) reaches as far as the ring: a label moved
         // beside it, its own or another node's, keeps clear of the ring, not of the node inside it.
         const ring = node.label?.ringScale ?? 1;
-        if (node.roundRadius === null && ring <= 1 && this.projectBox(mesh, at)) {
+        if (node.roundRadius === null && ring <= 1 && this.projectBox(node, at)) {
             nodeAreas[at + 4] = 0;
         } else {
-            const root =
-                mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
             const corner = this.corner.copyFrom(centre);
-            this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(root), corner);
+            this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(node.drawnRootScale), corner);
             const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
             const r = Math.hypot(k.x - c.x, k.y - c.y);
             nodeAreas[at + 2] = r;
@@ -1286,17 +1283,17 @@ export class LabelDeclutter {
      * into its slot, as half-sizes about the centre already there. A box, a tall cylinder or a
      * torus is not the circle its largest half-extent draws: a box's corners reach past it, and a
      * tall or flat node's circle hides labels beside it for nothing.
-     * @param mesh - The node's mesh, its world matrix computed.
+     * @param node - The node, its world matrix computed.
      * @param at - Where its slot starts.
      * @returns False, writing nothing, when a corner is behind the camera and cannot be projected.
      */
-    private projectBox(mesh: Node["mesh"], at: number): boolean {
+    private projectBox(node: Node, at: number): boolean {
         const { view, nodeAreas } = this;
         const cx = nodeAreas[at];
         const cy = nodeAreas[at + 1];
         let rx = 0;
         let ry = 0;
-        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        for (const corner of node.drawnBoundingBox.vectorsWorld) {
             if (corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14] <= 0) {
                 return false;
             }
@@ -1543,8 +1540,7 @@ export class LabelDeclutter {
         // The plane's centre from the words' rectangle: the inverse of `frame`.
         const x = entry.left - (2 * text.left - 1) * entry.across;
         const y = entry.top - (2 * text.top - 1) * entry.down;
-        const parent = entry.node.mesh;
-        const world = parent.computeWorldMatrix();
+        const world = entry.node.drawnWorldMatrix();
         const at = Vector3.TransformCoordinatesToRef(entry.home, world, this.moved);
         this.right.scaleAndAddToRef((x - entry.cx) * entry.perPixelX, at);
         // Screen y grows downwards.

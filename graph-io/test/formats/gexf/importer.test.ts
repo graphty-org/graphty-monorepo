@@ -839,6 +839,8 @@ describe("gexfImporter: error aggregation (design 8.6)", () => {
             severity: "error",
             element: "a[0]",
             line: 17,
+            // only the value was dropped: node a is kept
+            params: { skipped: "value" },
         });
         expect(report.issues.find((i) => i.code === UNKNOWN_PARENT_CODE)).toMatchObject({
             category: "missing-value",

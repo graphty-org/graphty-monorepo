@@ -35,6 +35,17 @@ const near = (hex: string | undefined, rgb: readonly number[]): boolean =>
     hex !== undefined && rgb.every((v, k) => Math.abs(Number.parseInt(hex.slice(1 + 2 * k, 3 + 2 * k), 16) - v) <= 3);
 
 describe("a gradient read off a picture's pixels", () => {
+    it("reads a radial ramp centered off the picture's middle, its stops in halves of the side from there", () => {
+        // Cytoscape's cy_center 0.25, 0.25: the middle of the ramp a quarter of the way in, reaching 1.4 halves of the side
+        const g = pictureGradient(
+            picture(60, (x, y) => (inDisc(x, y) ? mix(WHITE, BLUE, Math.hypot(x + 0.5, y + 0.5) / 1.4) : null)),
+        );
+        assert.strictEqual(g?.kind, "radial");
+        assert.deepEqual(g?.center, [0.25, 0.25]);
+        const at = g?.stops.find((s) => s.offset >= 0.7);
+        assert.isTrue(near(at?.color, mix(WHITE, BLUE, (at?.offset ?? 0) / 1.4)), at?.color);
+    });
+
     it("reads a linear ramp across a round node, its ends carried to the box's corners", () => {
         // white at the bottom left, blue at the top right: Cytoscape's 45 degrees
         const g = pictureGradient(picture(60, (x, y) => (inDisc(x, y) ? mix(WHITE, BLUE, (x - y + 2) / 4) : null)));

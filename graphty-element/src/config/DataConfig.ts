@@ -32,6 +32,7 @@ const ID_COERCION_RULES = ["canonical", "keep"] as const satisfies readonly IdCo
 // back to the default in silence -- but it is a BREAKING direction for a stored template, so a key
 // removed from here later needs a StyleTemplate majorVersion bump and an upgrade step, not a
 // quiet deletion.
+
 const GraphKnownFields = z.strictObject({
     nodeIdPath: z.string().default("id"),
     // What to CALL a node, as distinct from how to address it. A result card naming the busiest
@@ -45,6 +46,9 @@ const GraphKnownFields = z.strictObject({
     // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
     // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
     nodeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    // The IANA zone text in the node time column reads in when it carries no offset. Null reads UTC.
+    // Not checked here: a saved name stays saved where it is not read. time.setField refuses a bad one.
+    nodeTimeParseZone: z.string().or(z.null()).optional(),
     // Where each node's location is: one column of whole locations, or a latitude and a longitude
     // column. The location map layout reads them when its own options name none; absent or null,
     // it finds them by name or by their values.
@@ -104,6 +108,7 @@ const GraphKnownFields = z.strictObject({
     edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
     edgeTimePath: z.string().or(z.null()).default(null),
     edgeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    edgeTimeParseZone: z.string().or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

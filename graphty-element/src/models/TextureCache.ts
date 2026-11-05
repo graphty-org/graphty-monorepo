@@ -102,6 +102,30 @@ async function textureOf(scene: Scene, bytes: Uint8Array, name: string): Promise
     return texture;
 }
 
+/**
+ * Report that a picture a node draws (`node.image`) could not be loaded, nor its fallback, as
+ * `model:changed` under the URL the layer named, `state` "failed", with `E_IMAGE_LOAD`.
+ * @param session - The session, or anything that cannot publish (then nothing is reported).
+ * @param ref - The URL the layer named.
+ * @param failed - The URL that failed last.
+ */
+export function publishImageFailure(session: unknown, ref: string, failed: string): void {
+    const held = session as Partial<GateSession & Pick<TextureSession, "publishModelChange">> | undefined;
+    if (held?.publishModelChange === undefined || held.styles === undefined) {
+        return;
+    }
+
+    held.publishModelChange(
+        Object.freeze({
+            ref,
+            layerIds: Object.freeze(layersNaming(held.styles, ref, "node.image")),
+            state: "failed" as const,
+            problems: Object.freeze([{ code: "E_IMAGE_LOAD", params: { url: failed.slice(0, 256) } }]),
+        }),
+    );
+    console.warn(`graphty-element: node image ${ref.slice(0, 80)} was not drawn: E_IMAGE_LOAD`);
+}
+
 /** The pictures one scene draws. */
 export class TextureCache {
     private readonly entries = new Map<string, Entry>();

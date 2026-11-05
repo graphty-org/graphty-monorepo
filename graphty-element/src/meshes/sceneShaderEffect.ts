@@ -1,7 +1,6 @@
 /**
  * @file What the scene passes (the background and the group outlines) share: a program compiled as an
- * `EffectWrapper` whose two stages are inline in Babylon's shader store, its parameters as plain
- * uniforms, and a render target sized by the shader quality level and its memory budget.
+ * `EffectWrapper` whose two stages go inline to the engine, its parameters as plain uniforms, and a render target sized by the shader quality level and its memory budget.
  *
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
@@ -14,7 +13,6 @@ import {
     EffectWrapper,
     RenderTargetTexture,
     type Scene,
-    ShaderStore,
     Texture,
 } from "@babylonjs/core";
 
@@ -48,23 +46,35 @@ export interface SceneEffect {
  * @returns The effect.
  */
 export function sceneEffect(engine: AbstractEngine, base: string, program: SceneProgram): SceneEffect {
-    // Unique per compile: Babylon caches an effect by its shader names, so two compiles of one
-    // text under one name would share an effect, and disposing the one a newer call replaced
-    // would dispose the one drawing.
+    // Unique per compile: Babylon caches an effect by its text and defines, so two compiles of one
+    // text would share an effect, and disposing the one a newer call replaced would dispose the
+    // one drawing.
     const name = `${base}n${String(++compiles)}`;
-    ShaderStore.ShadersStore[`${name}VertexShader`] = program.vertex;
-    ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
+    // The engine compiles it, so no shader store is involved: this module loads lazily, and on a
+    // page where that gave it a second copy of Babylon, its store is not the engine's (issue #5894).
+    // The wrapper's own compile cannot do this: inline source there loses the uniform buffers.
     const wrapper = new EffectWrapper({
         engine,
         name,
         vertexShader: name,
         fragmentShader: name,
         useShaderStore: true,
-        attributeNames: [...program.attributes],
-        uniformNames: [...program.uniforms],
-        uniformBuffers: [...program.uniformBuffers],
-        samplerNames: [...program.samplers],
+        blockCompilation: true,
     });
+    wrapper.effect = engine.createEffect(
+        { vertexSource: program.vertex, fragmentSource: program.fragment, spectorName: name },
+        {
+            attributes: [...program.attributes],
+            uniformsNames: [...program.uniforms],
+            uniformBuffersNames: [...program.uniformBuffers],
+            samplers: [...program.samplers],
+            defines: `#define GRAPHTY_COMPILE ${String(compiles)}`,
+            fallbacks: null,
+            onCompiled: null,
+            onError: null,
+        },
+        engine,
+    );
     const ready = new Promise<boolean>((resolve) => {
         const { effect } = wrapper;
         if (effect.isReady()) {
@@ -89,9 +99,6 @@ export function sceneEffect(engine: AbstractEngine, base: string, program: Scene
             } catch {
                 // Released with the engine.
             }
-
-            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}VertexShader`);
-            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}FragmentShader`);
         },
     };
 }

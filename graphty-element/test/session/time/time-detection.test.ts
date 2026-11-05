@@ -3,10 +3,16 @@
  * never from the column's name; bare numbers never do.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { GraphSession } from "../../../src/session/types";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A session over nodes carrying the given columns, one value each per node.

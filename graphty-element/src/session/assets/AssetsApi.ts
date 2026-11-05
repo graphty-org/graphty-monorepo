@@ -292,8 +292,8 @@ export interface AssetsApi {
      */
     allowHosts(hosts: readonly string[]): void;
     /**
-     * Where each model a style layer has named stands: the latest `model:changed` of each, by
-     * `ref`, in the order first named. A page that mounts after a model settled reads its state
+     * Where each model a style layer has named stands, and each node picture that failed: the
+     * latest `model:changed` of each, by `ref`, in the order first named. A page that mounts after a model settled reads its state
      * (and its warnings, such as `W_MODEL_COLOR_IGNORED`) here instead of waiting for an event.
      * @returns The changes.
      * @example

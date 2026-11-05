@@ -17,10 +17,10 @@ import { useTimeVersion } from "./useTimeVersion";
 export function TimeChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
-    const window = session?.time.current ?? null;
-    if (session === null || window === null || session.time.field === null) {
+    if (!session?.time.field || session.time.current === null) {
         return null;
     }
+    const window = session.time.current;
     const words = windowWords(window, unitOf(session));
     return (
         <Group gap={0} wrap="nowrap" className="tl-chip">

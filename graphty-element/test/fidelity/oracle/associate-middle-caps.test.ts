@@ -6,7 +6,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate } from "./associate";
+import { arrowheadEdge, associate } from "./associate";
 import { boxOfPoints, type PEdge, type PNode, type Prim, type PScene, type Pt } from "./primitives";
 
 const disc = (cx: number, cy: number, r: number): Pt[] =>
@@ -166,5 +166,36 @@ describe("a picture drawn as part of a node", () => {
         const o = sceneWith((prim) => [prim({ kind: "image", tag: "image", fill: null, points: disc(171, 200, 3.5) })]);
         const t = o.nodes.find((n) => n.id === "t");
         assert.lengthOf(t?.pictures ?? [], 1);
+    });
+});
+
+describe("a picture at the end of a line that runs on to its node's center", () => {
+    it("caps that end from where the line leaves the node, however far its middle is from the center", () => {
+        // json-vis-synth 11 -> 12: a 17 px image arrow against a 40 px node, its middle 29.5 px from the line's end
+        const t = { ...node("t", 0, 0, 40, 40), shape: null };
+        const line = {
+            ...edge("s->t#g0", "s", "t"),
+            points: [
+                [300, 0],
+                [0, 0],
+            ] as Pt[],
+        };
+        const picture: Prim = {
+            index: 0,
+            tag: "image",
+            kind: "image",
+            box: { x0: 21, y0: -8.5, x1: 38, y1: 8.5 },
+            points: [],
+            closed: true,
+            corners: 4,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+        };
+        const found = arrowheadEdge(picture, [line], [node("s", 300, 0, 40, 40), t], true);
+        assert.strictEqual(found?.e, line);
+        assert.strictEqual(found?.end, "target");
     });
 });

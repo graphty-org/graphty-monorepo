@@ -248,12 +248,14 @@ function ellipse(halfWidth: number, halfHeight: number): Point2[] {
  * A rectangle with rounded corners filling a box. The corner radius is `fraction` of the shorter
  * side (a quarter by default), or `maxRadius` when that is smaller -- Cytoscape.js's rule, which
  * caps a quarter at 8 px, so a large box keeps small corners -- and it is the same in both
- * directions however long and thin the box is.
+ * directions however long and thin the box is. `side` rounds only the top two corners (1) or the
+ * bottom two (-1), leaving the others square; 0 rounds all four.
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
  * @param maxRadius - The largest corner radius; unset, `fraction` of the shorter side.
  * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at `fraction`.
  * @param fraction - The share of the shorter side the corners are rounded by, up to a half.
+ * @param side - Which corners are rounded: 1 the top two, -1 the bottom two, 0 all four.
  * @returns The outline, counter-clockwise.
  */
 function roundRectangle(
@@ -262,6 +264,7 @@ function roundRectangle(
     maxRadius = Infinity,
     exact = false,
     fraction = 1 / 4,
+    side = 0,
 ): Point2[] {
     const half = Math.min(halfWidth, halfHeight);
     const radius = Math.max(
@@ -271,17 +274,20 @@ function roundRectangle(
             : Math.min(half, 2 * half * fraction, maxRadius),
     );
     const corners: Point2[] = [
-        [halfWidth - radius, -halfHeight + radius],
-        [halfWidth - radius, halfHeight - radius],
-        [-halfWidth + radius, halfHeight - radius],
-        [-halfWidth + radius, -halfHeight + radius],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+        [-1, -1],
     ];
     const points: Point2[] = [];
 
-    corners.forEach(([cx, cy], corner) => {
+    corners.forEach(([sx, sy], corner) => {
+        // a square corner is an arc of no radius: its repeated points go with the filter below
+        const r = side === 0 || side === sy ? radius : 0;
+        const [cx, cy] = [sx * (halfWidth - r), sy * (halfHeight - r)];
         for (let step = 0; step <= ARC_STEPS; step++) {
             const angle = -Math.PI / 2 + (Math.PI / 2) * (corner + step / ARC_STEPS);
-            points.push([cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)]);
+            points.push([cx + r * Math.cos(angle), cy + r * Math.sin(angle)]);
         }
     });
 
@@ -417,6 +423,47 @@ export function polygonReach(points: readonly Point2[]): [number, number] {
     return [Math.max(...points.map(([x]) => Math.abs(x))), Math.max(...points.map(([, y]) => Math.abs(y)))];
 }
 
+/**
+ * An outline divided by its box's half width and half height, so the box spans 2 each way (not moved: an outline
+ * off its center stays off it).
+ * @param outline - The outline.
+ * @returns The outline in units of its box's half size, or null for an outline with no width or height.
+ */
+export function inUnitBox(outline: readonly Point2[]): Point2[] | null {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+    const [hw, hh] = [(Math.max(...xs) - Math.min(...xs)) / 2, (Math.max(...ys) - Math.min(...ys)) / 2];
+    return outline.length >= 3 && hw > 0 && hh > 0 ? outline.map(([x, y]): Point2 => [x / hw, y / hh]) : null;
+}
+
+/**
+ * How far along a ray from the origin it last crosses an outline: where a line coming in from outside first meets
+ * the shape, a star's point and not the dent beside it, a figure's leg and not the gap between its legs.
+ * @param outline - The closed outline.
+ * @param x - The ray's x.
+ * @param y - The ray's y.
+ * @returns The farthest crossing, in multiples of (x, y), or 0 when the ray crosses no side.
+ */
+export function rayReach(outline: readonly Point2[], x: number, y: number): number {
+    let far = 0;
+    for (let i = 0; i < outline.length; i++) {
+        const [ax, ay] = outline[i];
+        const [bx, by] = outline[(i + 1) % outline.length];
+        const [ex, ey] = [bx - ax, by - ay];
+        const denom = x * ey - y * ex;
+        if (denom === 0) {
+            continue;
+        }
+        // t (x, y) = a + s e, solved by crossing both sides with e and with (x, y)
+        const t = (ax * ey - ay * ex) / denom;
+        const s = (ax * y - ay * x) / denom;
+        if (s >= 0 && s <= 1 && t > far) {
+            far = t;
+        }
+    }
+    return far;
+}
+
 /** The polygons drawn with rounded corners, by the name of their rounded shape. */
 const ROUNDED: Readonly<Record<string, string>> = {
     "round-triangle": "triangle",
@@ -425,6 +472,13 @@ const ROUNDED: Readonly<Record<string, string>> = {
     "round-hexagon": "hexagon",
     "round-octagon": "octagon",
     "round-polygon": "polygon",
+};
+
+/** The rectangles with rounded corners, by which corners: all four (0), the top two (1) or the bottom two (-1). */
+const ROUND_RECTANGLES: Readonly<Record<string, number>> = {
+    "round-rectangle": 0,
+    "top-round-rectangle": 1,
+    "bottom-round-rectangle": -1,
 };
 
 /** How one of a node's further texts is drawn where it differs from the node's label. */
@@ -490,11 +544,11 @@ export function shapeTexts(text: string | undefined): [number, number, string, S
 export function isFlatShape(shape: string): boolean {
     return (
         shape === "ellipse" ||
-        shape === "round-rectangle" ||
         shape === "none" ||
         shape === "polygon" ||
         shape === "barrel" ||
         shape === "database" ||
+        Object.hasOwn(ROUND_RECTANGLES, shape) ||
         Object.hasOwn(ROUNDED, shape) ||
         Object.hasOwn(UNIT_OUTLINES, shape)
     );
@@ -664,8 +718,9 @@ export function flatShapeOutline(
         return ellipse(halfWidth, halfHeight);
     }
 
-    if (shape === "round-rectangle") {
-        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact, fraction);
+    const side = ROUND_RECTANGLES[shape] as number | undefined;
+    if (side !== undefined) {
+        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact, fraction, side);
     }
 
     const sharp = ROUNDED[shape] as string | undefined;

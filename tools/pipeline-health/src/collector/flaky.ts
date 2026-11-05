@@ -3,7 +3,7 @@
 // rollup (distinct tests seen flaky in CI, live and backfilled), the RUNTESTS index of test rows (items.ts), the
 // open pull requests' checks, and the flaky issue searches (read to their last page) per cycle.
 
-import { DAY, floorTo } from "../model/items.js";
+import { DAY, floorTo, skTime } from "../model/items.js";
 import { loadSeries } from "../model/rollup.js";
 import { isLive, type Store } from "../model/store.js";
 import type { GitHub } from "./github.js";
@@ -151,7 +151,7 @@ export const QUIET_DAYS = 7;
  * it. A test is resolved when an issue naming it was closed as fixed after its last detection, or when it has gone
  * QUIET_DAYS without one. ponytail: the design's "10 clean runs" is read as 7 quiet days, since clean runs per test
  * are not stored; count them from the shard runs' file rows if quiet days prove too coarse.
- * Detections are known by day, so an issue closed on the day of a later detection still counts as the fix.
+ * Detections are known by day here; flakyMembers leaves out of `fixedAt` a close that a later event on its day undid.
  * @param history - 28 days of flakyHistory
  * @param fixedAt - when an issue naming the test was closed as fixed, by testKey
  * @param now - the current time, in ms
@@ -286,6 +286,32 @@ export async function blockedPrs(
 }
 
 /**
+ * Whether an issue closed at `closedAt` came after the test's last flaky event. The rollup knows detections by day, so
+ * a close on the day of the last detection is settled by that day's event times in the test's history.
+ * @param store - the metrics store
+ * @param s - the test, as flakyHistory read it
+ * @param closedAt - when the issue was closed, in ms
+ * @param now - the current time, in ms
+ * @returns whether no flaky event follows the close
+ */
+async function closedAfterLastFlake(store: Store, s: FlakySeen, closedAt: number, now: number): Promise<boolean> {
+    const day = s.days.at(-1) ?? 0;
+    if (closedAt < day || closedAt >= day + DAY) {
+        return closedAt >= day;
+    }
+    const rows = await store.query(`TESTH#${s.file}`, { from: skTime(day), to: skTime(day + DAY) });
+    return !rows.some(
+        (r) =>
+            isLive(r, now) &&
+            r.name === s.name &&
+            r.source === "ci" &&
+            r.outcome === "flaky" &&
+            !r.bump &&
+            Number(r.seenAt) > closedAt,
+    );
+}
+
+/**
  * The four observations, at one cycle.
  * @param store - the metrics store
  * @param gh - the GitHub client
@@ -306,18 +332,19 @@ export async function flakyMembers(
     const week = [...history.values()].filter((s) => (s.days.at(-1) ?? 0) >= weekStart);
     const issues = await issuesNaming(gh, repo, week, weekStart);
     const fixedAt = new Map<string, number>();
-    for (const [k, v] of issues) {
-        if (v.closedAt !== undefined) {
-            fixedAt.set(k, v.closedAt);
+    for (const s of week) {
+        const k = testKey(s.file, s.name);
+        const closedAt = issues.get(k)?.closedAt;
+        if (closedAt !== undefined && (await closedAfterLastFlake(store, s, closedAt, now))) {
+            fixedAt.set(k, closedAt);
         }
     }
     const blocked = await blockedPrs(store, open, new Set(history.keys()), now);
     return {
-        // A test is filed while an issue naming it is open, or once one was closed as fixed on or after its last
-        // detection's day (the same rule as netChange).
+        // A test is filed while an issue naming it is open, or once one was closed as fixed after its last flaky event.
         "flaky.no_issue": week.filter((s) => {
-            const i = issues.get(testKey(s.file, s.name));
-            return !i?.open && !(i?.closedAt !== undefined && i.closedAt >= (s.days.at(-1) ?? 0));
+            const k = testKey(s.file, s.name);
+            return !issues.get(k)?.open && !fixedAt.has(k);
         }).length,
         "flaky.blocked_prs": blocked.prs.length,
         "flaky.blocked_oldest_ms": blocked.oldestMs,

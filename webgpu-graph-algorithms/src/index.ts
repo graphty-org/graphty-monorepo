@@ -165,6 +165,8 @@ export type {
     SpringElectricalTraceRecord,
 } from "./types/layout.js";
 export type {
+    ClusterOptions,
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

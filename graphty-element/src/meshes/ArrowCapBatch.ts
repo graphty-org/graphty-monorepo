@@ -511,7 +511,13 @@ export class ArrowCapBatch {
         }
 
         for (const kind of this.dirty) {
-            this.mesh.thinInstanceBufferUpdated(kind);
+            const data = this.billboard?.[kind as keyof typeof BILLBOARD_BUFFERS];
+            if (data === undefined) {
+                // Babylon uploads the matrices only up to the instance count already.
+                this.mesh.thinInstanceBufferUpdated(kind);
+            } else {
+                this.mesh.getVertexBuffer(kind)?.getWrapperBuffer().updateDirectly(data, 0, this.highWater);
+            }
         }
 
         this.dirty.clear();

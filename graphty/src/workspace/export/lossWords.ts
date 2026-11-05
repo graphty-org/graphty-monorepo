@@ -27,6 +27,8 @@ export interface LossRow {
     readonly count: number | null;
     /** What the count counts: nodes or edges (drawn as a node or edge chip), or neither. */
     readonly kind: Kind;
+    /** Whether it is about the graph's styles (a style loss code, or drawn colors and sizes). */
+    readonly style: boolean;
 }
 
 /**
@@ -301,7 +303,52 @@ export function lossRow(loss: ExportLoss): LossRow | null {
         columns: Array.isArray(params.columns) ? params.columns.map(String) : [],
         count: typeof params.count === "number" ? params.count : null,
         kind: typeof kind === "function" ? kind(params) : kind,
+        // graph-io's drawn colors and sizes, as a format's own columns, count with the styles.
+        style: isStyleLoss(loss) || loss.code === "W_VIZ_DROPPED",
     };
+}
+
+/** The most parts the one-line summary names before it counts the rest. */
+const SUMMARY_PARTS = 3;
+
+/**
+ * The lower-case-first form of a label, for the middle of a line.
+ * @param text - the label.
+ * @returns it, its first letter lower case.
+ */
+function lower(text: string): string {
+    return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/**
+ * What a file loses, as one counted line (tier 4, R14): each loss that is not about styles by its
+ * label (with how many columns it is about, when it counts no nodes or edges), then the style losses as one count -- "positions not
+ * written, 9 style settings" -- the rest counted as "N more". The rows themselves sit behind a
+ * Details disclosure.
+ * @param rows - the loss rows.
+ * @returns the line.
+ */
+export function lossSummary(rows: readonly LossRow[]): string {
+    const styles = rows.filter((row) => row.style);
+    const parts = rows
+        .filter((row) => !row.style)
+        .map((row) => {
+            const { length } = row.columns;
+            // A node or edge count already says how much; columns are counted only for the rest.
+            if (length === 0 || row.kind !== null) {
+                return lower(row.what);
+            }
+            return `${lower(row.what)}: ${String(length)} ${length === 1 ? "column" : "columns"}`;
+        });
+    if (styles.length === 1) {
+        parts.push(lower(styles[0].what));
+    } else if (styles.length > 1) {
+        parts.push(`${String(styles.length)} style settings`);
+    }
+    if (parts.length <= SUMMARY_PARTS) {
+        return parts.join(", ");
+    }
+    return [...parts.slice(0, SUMMARY_PARTS - 1), `${String(parts.length - SUMMARY_PARTS + 1)} more`].join(", ");
 }
 
 /**

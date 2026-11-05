@@ -6,6 +6,7 @@
  * ids never throw, because a link made for a newer build can be opened on an older one.
  */
 
+import { GraphtyError } from "../errors";
 import { type FeatureId, FEATURES, GRADUATED_FEATURES } from "./registry";
 
 /** What a session or element actually switched on, and the ids it did not recognise. */
@@ -60,6 +61,21 @@ export function resolveFeatures(requested?: readonly string[]): EnabledFeatures 
     const known = new Set<string>([...FEATURES.map((feature) => feature.id), ...GRADUATED_FEATURES, "all"]);
     const unknown = [...asked].filter((id) => !known.has(id));
     return Object.freeze({ enabled: Object.freeze(enabled), unknown: Object.freeze(unknown) });
+}
+
+/**
+ * The refusal of something whose experiment is off.
+ * @param feature - The experiment.
+ * @param key - What was asked for, such as `time.play`.
+ * @returns The error, `E_FEATURE_OFF` with `{ feature, key }`.
+ */
+export function featureOff(feature: FeatureId, key: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_FEATURE_OFF",
+        message: `${key} needs the "${feature}" experiment, which is off.`,
+        source: "config",
+        details: { feature, key },
+    });
 }
 
 /**

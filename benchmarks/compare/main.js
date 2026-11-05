@@ -13,6 +13,7 @@ function stats(xs) {
         n: s.length,
         median: +q(0.5).toFixed(2),
         p95: +q(0.95).toFixed(2),
+        p99: +q(0.99).toFixed(2),
         min: +s[0].toFixed(2),
         max: +s[s.length - 1].toFixed(2),
     };
@@ -117,6 +118,13 @@ const B = {
     async orbit(frames = 200) {
         const st = await lib.frames(frames + 1, (i) => lib.moveCamera(i));
         await lib.resetCamera?.();
+        return stats(intervals(st));
+    },
+    // A node moved each frame the way a drag does, straight onto its mesh; cosmos.gl has no drag here.
+    async drag(frames = 60) {
+        if (!lib.moveNode) return null;
+        const st = await lib.frames(frames + 1, (i) => lib.moveNode(i));
+        await lib.settle();
         return stats(intervals(st));
     },
     async orbitDebug(frames) {
@@ -389,6 +397,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
         if (onFrame) onFrame();
     });
     let cam0 = null;
+    let moved = null;
     const a = {
         el,
         describe: () => ({
@@ -466,6 +475,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 await raf();
             }
             return stamps.slice(0, count);
+        },
+        moveNode(i) {
+            moved ??= graph.getNode(0)?.mesh ?? null;
+            if (moved) moved.position.x += 0.05 * Math.sin(i / 5 + 1);
         },
         moveCamera(i) {
             cam0 ??= graph.getCameraState();
@@ -555,6 +568,23 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 }
                 out.stepPlusReadback = stats(single);
                 out.perStepBatched16 = stats(b16);
+                const publish = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    eng.publishPositions();
+                    publish.push(now() - t);
+                }
+                out.publish = stats(publish);
+                // Nothing runs after this stage, so the frame loop can stop for good: what is left of
+                // the step is the simulation and its readback, without the frames sharing the card.
+                graph.scene.getEngine().stopRenderLoop();
+                const undrawn = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    await eng.stepAsync(1);
+                    undrawn.push(now() - t);
+                }
+                out.stepUndrawn = stats(undrawn);
             } else {
                 const single = [];
                 const budget = now() + 20000;

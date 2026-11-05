@@ -3,7 +3,15 @@ import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import { EXPORT_LOSS_CODES, EXPORT_STYLE_LOSS_CODES } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { isLabeled, isStyleLoss, layersBackWords, listedStyleLosses, lossRow, lossRows } from "../lossWords";
+import {
+    isLabeled,
+    isStyleLoss,
+    layersBackWords,
+    listedStyleLosses,
+    lossRow,
+    lossRows,
+    lossSummary,
+} from "../lossWords";
 
 /**
  * A loss as the element reports one.
@@ -59,12 +67,14 @@ describe("lossRows", () => {
             columns: ["title", "year"],
             count: 2,
             kind: null,
+            style: false,
         });
         assert.deepEqual(lossRow(loss("W_CSV_DIRECTION_DROPPED", [], 254)), {
             what: "Undirected edges read back as directed",
             columns: [],
             count: 254,
             kind: "edge",
+            style: false,
         });
         assert.deepEqual(lossRow(loss("W_SOMETHING_NEW", ["tags"], 4))?.what, "Not kept");
     });
@@ -86,6 +96,32 @@ describe("lossRows", () => {
         assert.strictEqual(rows[0].count, 254);
     });
 
+    it("says what a file loses in one line: each loss, the style losses as one count, the rest as more", () => {
+        const fill = loss("W_STYLE_NOT_WRITTEN", [], 8, { target: "node", property: "fill" });
+        const size = loss("W_STYLE_NOT_WRITTEN", [], 8, { target: "node", property: "size" });
+        assert.strictEqual(
+            lossSummary(lossRows([loss("W_POSITIONS_DROPPED", [], 9), fill, size])),
+            "positions not written, 2 style settings",
+        );
+        assert.strictEqual(lossSummary(lossRows([fill])), "node fill color not written");
+        assert.strictEqual(
+            lossSummary(lossRows([loss("W_COLUMN_DROPPED", ["a", "b"]), loss("W_POSITIONS_DROPPED", [], 9)])),
+            "not written: 2 columns, positions not written",
+        );
+        assert.strictEqual(
+            lossSummary(
+                lossRows([
+                    loss("W_POSITIONS_DROPPED", [], 9),
+                    loss("W_MULTI_EDGES", [], 2),
+                    loss("W_SELF_LOOPS", [], 1),
+                    fill,
+                    size,
+                ]),
+            ),
+            "positions not written, parallel edges dropped, 2 more",
+        );
+    });
+
     it("words every style code an export reports, from the element's own list", () => {
         assert.isAbove(EXPORT_STYLE_LOSS_CODES.length, 5);
         for (const code of EXPORT_STYLE_LOSS_CODES) {
@@ -104,6 +140,7 @@ describe("lossRows", () => {
             columns: [],
             count: 8,
             kind: "node",
+            style: true,
         });
         assert.deepEqual(
             whats([

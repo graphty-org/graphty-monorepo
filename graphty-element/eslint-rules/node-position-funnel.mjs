@@ -14,7 +14,8 @@
  *
  * A NODE MESH is `<receiver>.mesh` where the receiver is `node`, `n`, any name ending in `Node`
  * (`srcNode`, `this.node`, `entry.node`), or `this` inside a class named `Node`. A local bound to
- * a node mesh or to its position (`const { position } = node.mesh`) counts the same. Label, edge,
+ * a node mesh or to its position (`const { position } = node.mesh`) counts the same, and so does
+ * `<receiver>.drawnPosition`, which is that same position. Label, edge,
  * arrow, camera and cache meshes have other receivers and are not matched.
  */
 
@@ -131,6 +132,9 @@ const rule = {
         // `<node mesh>.position`, or a local bound to one.
         const isNodePosition = (n, depth = 0) => {
             n = unwrap(n);
+            if (propName(n) === "drawnPosition") {
+                return isNodeReceiver(n.object);
+            }
             if (propName(n) === "position") {
                 return isNodeMesh(n.object);
             }

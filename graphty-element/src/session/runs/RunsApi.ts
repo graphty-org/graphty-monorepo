@@ -217,6 +217,12 @@ export interface RunsApiOptions {
      */
     readonly dataDigest?: () => string;
     /**
+     * The weight a run reads when its `weight` option names none (the column given the weight
+     * role and its meaning), as a key. A run that reads it re-executes when it changed since the
+     * run started. Absent, it is not compared.
+     */
+    readonly defaultWeight?: () => string;
+    /**
      * A scope digest a run counts as current besides the one it ran on: what a time window move
      * under `results: "keep"` accepted. Absent, only the digest it ran on is current.
      * @param id - The run.
@@ -236,6 +242,8 @@ export interface RunsApiOptions {
      * @returns The accepted window key, or undefined.
      */
     readonly acceptedWindow?: (id: RunId) => string | undefined;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -805,6 +813,8 @@ class Runs implements SessionRunsApi {
     private readonly holds = new Map<RunId, PaintHold>();
     /** The style of each run first started with `groups: "layers"`, kept for its re-runs and restores. */
     private readonly groupStyles = new Map<RunId, Exclude<RunStyle, boolean>>();
+    /** The default weight key in force when each run last started (see `defaultWeight`). */
+    private readonly weightKeys = new Map<RunId, string>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -1228,7 +1238,9 @@ class Runs implements SessionRunsApi {
                 this.restart(existing, options.style ?? true, command, derived);
             }
 
-            return this.reuse(existing, identity, result, descriptor, launch);
+            const reused = this.reuse(existing, identity, result, descriptor, launch);
+            this.recordWeight(id);
+            return reused;
         }
 
         if (name !== undefined) {
@@ -1236,6 +1248,7 @@ class Runs implements SessionRunsApi {
         }
 
         this.spellings.set(id, spelled);
+        this.recordWeight(id);
 
         return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
     }
@@ -1397,6 +1410,7 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
+            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1513,7 +1527,38 @@ class Runs implements SessionRunsApi {
         return (
             this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest ||
             this.dataMoved(run) ||
-            this.windowMoved(run)
+            this.windowMoved(run) ||
+            this.weightMoved(run)
+        );
+    }
+
+    /**
+     * Note the default weight in force as a run starts.
+     * @param id - The run.
+     */
+    private recordWeight(id: RunId): void {
+        const now = this.options.defaultWeight?.();
+        if (now !== undefined) {
+            this.weightKeys.set(id, now);
+        }
+    }
+
+    /**
+     * Whether a run that reads the default weight started under another one than is in force now
+     * (the weight role moved to another column, or its meaning changed).
+     * @param run - The run.
+     * @returns False for a run that names its own weight, an algorithm that reads none, or a run
+     *   this session did not start.
+     */
+    private weightMoved(run: ManagedRun): boolean {
+        const recorded = this.weightKeys.get(run.id);
+        if (recorded === undefined || this.options.defaultWeight === undefined || run.params.weight !== undefined) {
+            return false;
+        }
+
+        return (
+            (this.descriptorFor(run.algorithm).weightMeaning ?? null) !== null &&
+            this.options.defaultWeight() !== recorded
         );
     }
 
@@ -1525,7 +1570,7 @@ class Runs implements SessionRunsApi {
      */
     private windowMoved(run: ManagedRun): boolean {
         const ran = run.scopeWindow;
-        if (ran === undefined || this.options.windowNow === undefined) {
+        if (ran === undefined || this.options.windowNow === undefined || this.options.timeline?.() === false) {
             return false;
         }
 
@@ -1753,7 +1798,7 @@ class Runs implements SessionRunsApi {
         }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
-            record: run.record,
+            record: run.savedRecord,
             result: run.computed as RunResult,
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),

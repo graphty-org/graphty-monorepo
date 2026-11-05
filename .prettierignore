@@ -12,6 +12,8 @@ graph-samples/public-data/
 tools/pipeline-health/cdk.out/
 
 # Generated files
+# Measured runs: written by benchmarks/compare/run.mjs and summarize.mjs
+benchmarks/results/
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
 */api/*.api.md
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and

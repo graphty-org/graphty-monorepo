@@ -1,0 +1,237 @@
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [no-still] [no-move]
+// lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
+// dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
+// unset, the element keeps its default. See RUNBOOK.md for the other variables.
+import { execSync } from "node:child_process";
+import { appendFileSync, mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { loadavg } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PROFILES = join(HERE, "profiles");
+mkdirSync(PROFILES, { recursive: true });
+// The checkout whose Playwright, and so whose Chromium, drives the run.
+const TOOLS = process.env.BENCH_TOOLS ?? join(HERE, "../..");
+const { chromium } = createRequire(join(TOOLS, "visual-review/package.json"))("playwright");
+
+const BASE = process.env.BENCH_URL;
+const RESULTS = process.env.BENCH_RESULTS;
+if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
+const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
+const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
+const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
+const skip = flags.includes("skip-layout"),
+    labels = flags.includes("labels"),
+    noStill = flags.includes("no-still"),
+    noMove = flags.includes("no-move");
+const N = Number(n),
+    M = Number(m),
+    DPR = Number(dpr);
+// The extracted libEGL sits in the main checkout's tmp/, which a worktree does not have.
+const MAIN = dirname(
+    execSync("git rev-parse --path-format=absolute --git-common-dir", { cwd: HERE }).toString().trim(),
+);
+const EGL = process.env.BENCH_EGL ?? join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
+const FLAGS = [
+    "--enable-unsafe-webgpu",
+    "--enable-features=Vulkan",
+    "--use-angle=vulkan",
+    "--disable-vulkan-surface",
+    "--enable-precise-memory-info",
+    "--disable-gpu-vsync",
+    "--disable-frame-rate-limit",
+    `--unsafely-treat-insecure-origin-as-secure=${BASE}`,
+    "--js-flags=--max-old-space-size=16384",
+];
+const gpuMB = () =>
+    Number(execSync("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits").toString().trim());
+// Sum RSS (MB) of every browser process launched with this run's profile dir, by process type.
+const rssMB = () => {
+    const rows = execSync("ps -eo pid,ppid,rss,args --no-headers")
+        .toString()
+        .trim()
+        .split("\n")
+        .map((l) => {
+            const [pid, ppid, rss, ...a] = l.trim().split(/\s+/);
+            return { pid: +pid, ppid: +ppid, rss: +rss, args: a.join(" ") };
+        });
+    const roots = rows.filter((r) => r.args.includes(UDD) && !r.args.includes("--type="));
+    const kids = new Map();
+    for (const r of rows) (kids.get(r.ppid) ?? kids.set(r.ppid, []).get(r.ppid)).push(r);
+    const by = {};
+    const st = [...roots];
+    while (st.length) {
+        const r = st.pop();
+        const type = (r.args.match(/--type=([a-z-]+)/) ?? [null, "browser"])[1];
+        const sub = (r.args.match(/--utility-sub-type=([a-zA-Z.]+)/) ?? [null, ""])[1];
+        const key = type === "utility" && sub ? sub.split(".").pop() : type;
+        by[key] = (by[key] ?? 0) + r.rss;
+        st.push(...(kids.get(r.pid) ?? []));
+    }
+    for (const k in by) by[k] = Math.round(by[k] / 1024);
+    return by;
+};
+
+mkdirSync(join(dirname(RESULTS), "shots"), { recursive: true });
+const out = {
+    lib,
+    mode,
+    accel,
+    renderPath: lib === "graphty" ? RENDER_PATH : undefined,
+    n: N,
+    m: M,
+    dpr: DPR,
+    labels,
+    flags,
+    at: new Date().toISOString(),
+    loadavgBefore: loadavg()[0],
+};
+const log = (k, v) => {
+    out[k] = v;
+    console.log(k, JSON.stringify(v));
+};
+const UDD = mkdtempSync(join(PROFILES, "p-"));
+const ctx = await chromium.launchPersistentContext(UDD, {
+    args: FLAGS,
+    env: { ...process.env, FC_FONTATIONS: "1", LD_LIBRARY_PATH: EGL },
+    viewport: { width: 1280, height: 1000 },
+    deviceScaleFactor: DPR,
+});
+let saved = false;
+const save = () => {
+    if (!saved) appendFileSync(RESULTS, JSON.stringify(out) + "\n");
+    saved = true;
+};
+// Ends a run that cannot finish: the row records how far it got, and the failure is the result.
+setTimeout(async () => {
+    log("failure", DEADLINE_S >= 570 ? "did not finish in 10 minutes" : `did not finish in ${DEADLINE_S} s`);
+    save();
+    try {
+        execSync(`pkill -9 -f ${UDD}`);
+    } catch {
+        /* pkill matches its own shell too */
+    }
+    rmSync(UDD, { recursive: true, force: true });
+    process.exit(0);
+}, DEADLINE_S * 1000).unref();
+try {
+    const page = ctx.pages()[0] ?? (await ctx.newPage());
+    page.setDefaultTimeout(900000);
+    page.on("pageerror", (e) => console.log("pageerror:", e.message));
+    page.on("crash", () => log("crash", { atS: Math.round((Date.now() - Date.parse(out.at)) / 1000), peak: out.peak }));
+    // Labels at 100,000 nodes can end the browser, so a run with them keeps the highest memory it saw.
+    if (labels) {
+        out.peak = { gpuMB: 0, rendererMB: 0, gpuProcessMB: 0 };
+        setInterval(() => {
+            const r = rssMB();
+            out.peak = {
+                gpuMB: Math.max(out.peak.gpuMB, gpuMB()),
+                rendererMB: Math.max(out.peak.rendererMB, r.renderer ?? 0),
+                gpuProcessMB: Math.max(out.peak.gpuProcessMB, r["gpu-process"] ?? 0),
+            };
+        }, 5000).unref();
+    }
+    page.on("console", (c) => {
+        if (c.type() === "error") console.log("console.error:", c.text().slice(0, 300));
+    });
+    const cdp = await ctx.newCDPSession(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForFunction(() => window.B);
+    const info = await page.evaluate(() => B.info());
+    log("info", info);
+    Object.assign(out, {
+        sha: info.build.sha,
+        source: info.build.source,
+        dirty: info.build.dirty,
+        renderer: info.webgl,
+    });
+    if (!/RTX 4070 SUPER/.test(info.webgl) || /swiftshader/i.test(info.webgl)) {
+        out.void = true;
+        throw new Error("void: renderer is " + info.webgl);
+    }
+    const gpu0 = gpuMB();
+    log("baseline", {
+        gpuMB: gpu0,
+        rssMB: rssMB(),
+        secure: await page.evaluate(() => [isSecureContext, !!navigator.gpu]),
+    });
+    log("floor", await page.evaluate(() => B.floor()));
+    log("gen", await page.evaluate(([n, m]) => B.gen(n, m), [N, M]));
+    log(
+        "setup",
+        await page.evaluate(
+            ([l, o]) => B.setup(l, o),
+            [lib, { mode, accel, dpr: DPR, labels, renderPath: RENDER_PATH, onDemand: !!process.env.LAYOUT_ONLY }],
+        ),
+    );
+    const load = await page.evaluate(() => B.load());
+    log("load", load);
+    if (load.error) throw new Error("load failed: " + load.error);
+    log("canvas", await page.evaluate(() => B.canvasSize()));
+    if (process.env.ONLY_ORBIT) {
+        console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
+        throw new Error("debug stop");
+    }
+    if (process.env.LAYOUT_ONLY) {
+        out.layoutOnly = true;
+        log(
+            "layoutSteps",
+            await page.evaluate(async () => {
+                await B.layoutFps(1, 1);
+                return B.layoutSteps();
+            }),
+        );
+        throw new Error("layout-only run, render-on-demand");
+    }
+    if (!noStill) log("still", await page.evaluate(() => B.still(200)));
+    await page
+        .screenshot({
+            path: join(
+                dirname(RESULTS),
+                "shots",
+                `${lib}-${mode}-${accel}-${N}-${M}-dpr${DPR}${labels ? "-labels" : ""}.png`,
+            ),
+            timeout: 20000,
+        })
+        .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
+    if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
+    await cdp.send("HeapProfiler.collectGarbage");
+    log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
+    // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is
+    // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
+    const K = 10;
+    const targets = await page.evaluate((k) => B.hoverTargets(k), K);
+    const lats = [];
+    for (const t of targets) {
+        await page.mouse.move(1260, 980);
+        await page.waitForTimeout(150);
+        await page.evaluate(() => B.armHover());
+        await page.mouse.move(t.x, t.y);
+        const ok = await page
+            .waitForFunction(() => B.hoverResult()?.hit, null, { timeout: 180000, polling: 20 })
+            .then(
+                () => true,
+                () => false,
+            );
+        if (!ok) {
+            lats.push(">180000");
+            break;
+        }
+        const r = await page.evaluate(() => B.hoverResult());
+        lats.push(+r.hit.lat.toFixed(1));
+    }
+    await page.mouse.move(1260, 980);
+    log("hover", { targets: targets.length, latMs: lats });
+    if (!skip) {
+        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
+        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
+    }
+} catch (e) {
+    log("failure", String(e?.message ?? e).slice(0, 500));
+} finally {
+    save();
+    await ctx.close();
+    rmSync(UDD, { recursive: true, force: true });
+}

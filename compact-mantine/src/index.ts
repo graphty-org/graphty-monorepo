@@ -19,6 +19,7 @@ export {
 } from "./theme";
 
 // Component exports
+export { CardList } from "./components/cards";
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
@@ -190,6 +191,7 @@ export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-ut
 export { isRtl } from "./utils/rtl";
 
 // Type exports
+export type { CardListItem, CardListProps } from "./components/cards";
 export type {
     ActionRowProps,
     ActivationEvent,

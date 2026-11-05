@@ -14,6 +14,7 @@ import { pickEnd } from "../data-place/commands";
 import { remap } from "../data-place/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { timelineOn } from "../time/timeActions";
 import {
     fixLabel,
     headerRoles,
@@ -201,27 +202,29 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                             <Menu.Sub.Item>Role</Menu.Sub.Item>
                         </Menu.Sub.Target>
                         <Menu.Sub.Dropdown>
-                            {[null, ...headerRoles(kind)].map((role) => (
-                                <MenuCheckItem
-                                    key={role ?? "none"}
-                                    radio
-                                    checked={role === (column.role ?? null)}
-                                    onClick={() => {
-                                        if (role !== (column.role ?? null)) {
-                                            assignRole(
-                                                store,
-                                                session,
-                                                ref,
-                                                role,
-                                                kind,
-                                                column.descriptor?.sources,
-                                            ).catch(fail);
-                                        }
-                                    }}
-                                >
-                                    {role === null ? "none" : ROLE_WORDS[role]}
-                                </MenuCheckItem>
-                            ))}
+                            {[null, ...headerRoles(kind)]
+                                .filter((role) => role !== "time" || timelineOn(session) || column.role === "time")
+                                .map((role) => (
+                                    <MenuCheckItem
+                                        key={role ?? "none"}
+                                        radio
+                                        checked={role === (column.role ?? null)}
+                                        onClick={() => {
+                                            if (role !== (column.role ?? null)) {
+                                                assignRole(
+                                                    store,
+                                                    session,
+                                                    ref,
+                                                    role,
+                                                    kind,
+                                                    column.descriptor?.sources,
+                                                ).catch(fail);
+                                            }
+                                        }}
+                                    >
+                                        {role === null ? "none" : ROLE_WORDS[role]}
+                                    </MenuCheckItem>
+                                ))}
                         </Menu.Sub.Dropdown>
                     </Menu.Sub>
                     <Menu.Item onClick={actions.rename}>Rename...</Menu.Item>

@@ -801,6 +801,15 @@ export function assertVisibility(
 }
 
 /**
+ * Whether a window asks for what only the timeline experiment applies.
+ * @param window - The window, or null for none.
+ * @returns True when it names `nodes: "ends"` or `missing: "outside"`.
+ */
+export function windowNeedsTimeline(window: TimeWindow | null): boolean {
+    return window?.nodes === "ends" || window?.missing === "outside";
+}
+
+/**
  * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
  * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
  * recorded rather than on every later evaluation.

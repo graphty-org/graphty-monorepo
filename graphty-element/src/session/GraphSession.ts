@@ -216,7 +216,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
-import type { FilterRunResult, TimeWindow } from "./visibility/filter";
+import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -820,6 +820,15 @@ class Session implements ElementSession {
         ) => Promise<void>,
     ): CommandOutcome<C> {
         if (command.op === "visibility.playback" && command.restoring !== true && !this.timelineOn()) {
+            return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
+        }
+
+        if (
+            command.op === "visibility.window" &&
+            command.restoring !== true &&
+            !this.timelineOn() &&
+            windowNeedsTimeline(command.window)
+        ) {
             return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
         }
 
@@ -2886,7 +2895,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
-        instants: (path: Path) => timeline()?.instants(path) ?? null,
+        // Not behind the experiment: a saved window's bounds are instants of the parsed column.
+        instants: (path: Path) => timeInternals?.instants(path) ?? null,
         timeline: timelineOn,
         components,
         dispatcher,

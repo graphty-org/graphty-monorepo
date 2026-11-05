@@ -318,7 +318,8 @@ export interface TimeCandidate {
 }
 
 /**
- * The timeline: designate a time field, read its distribution, and move a window along it.
+ * The timeline: designate a time field, read its distribution, and move a window along it. It
+ * needs `features="timeline"`, and every member refuses with `E_FEATURE_OFF` otherwise.
  * @experimental timeline
  * @beta
  */

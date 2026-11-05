@@ -34,6 +34,11 @@ interface VisibilityWindowCommand {
      * step recorded just before it.
      */
     readonly ownStep?: boolean;
+    /**
+     * Set when opening a project: a window is kept as saved whatever the session switched on, so
+     * one saved with the timeline on survives being opened and saved with it off.
+     */
+    readonly restoring?: true;
 }
 
 /** `visibility.context`: draw hidden nodes faintly, or not at all. */

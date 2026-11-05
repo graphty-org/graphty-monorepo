@@ -47,6 +47,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
@@ -1604,6 +1605,7 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
+                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -3950,6 +3952,10 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
+        if (role === "time" && !this.timelineOn) {
+            throw featureOff("timeline", "data.setRole");
+        }
+
         const { kind, name } = resolveColumn(this.attributes(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();

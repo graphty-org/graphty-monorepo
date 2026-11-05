@@ -22,6 +22,8 @@ const OFF = { features: [] };
 const ON = { features: ["timeline"] };
 const CSV = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\nD,A,2026-01-04\n";
 const DAY = 86_400_000;
+const YEARS = [1995, 2000, 2005, 2010];
+const SECONDS = [1_700_000_000, 1_700_100_000, 1_700_200_000, 1_700_300_000];
 const FIRST_DAYS = { attribute: "data.sent", from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 0, 1) + 2 * DAY };
 
 /**
@@ -69,6 +71,39 @@ function thrownBy(call: () => unknown): unknown {
         return error;
     }
     return undefined;
+}
+
+/**
+ * Assert a call was refused for the timeline.
+ * @param call - The call's promise.
+ * @param key - What the refusal names.
+ */
+async function assertOff(call: Promise<unknown>, key: string): Promise<void> {
+    const error = await call.then(
+        () => undefined,
+        (refusal: unknown) => refusal,
+    );
+    assert.instanceOf(error, GraphtyError, key);
+    assert.strictEqual(error.code, "E_FEATURE_OFF");
+    assert.deepEqual(error.details, { feature: "timeline", key });
+}
+
+/**
+ * A session over a chain of nodes where the nodes, or the edges into them, carry one value each.
+ * @param values - The values.
+ * @param on - Which kind carries them.
+ * @returns The session, with the timeline on.
+ */
+async function chain(values: readonly number[], on: "nodes" | "edges"): Promise<GraphSession> {
+    const session = createGraphSession({ ...ON, runs: { execute } });
+    const nodes = values.map((at, index) => ({ id: `n${String(index)}`, ...(on === "nodes" ? { at } : {}) }));
+    const edges = values.slice(1).map((at, index) => ({
+        source: `n${String(index)}`,
+        target: `n${String(index + 1)}`,
+        ...(on === "edges" ? { at } : {}),
+    }));
+    await session.data.import({ type: "json", config: { data: JSON.stringify({ directed: true, nodes, edges }) } });
+    return session;
 }
 
 beforeEach(() => {
@@ -158,11 +193,39 @@ describe("the data with the timeline off", () => {
         assert.notStrictEqual(column?.measurement, "time");
     });
 
-    it("applies only a window's bounds", async () => {
+    it("refuses a time role, by setRole and by a load's mapping, and takes one away", async () => {
         const session = await loaded(OFF);
-        await session.visibility.setWindow({ ...FIRST_DAYS, nodes: "ends", missing: "outside" });
-        // A window that took `nodes: "ends"` would leave only the three nodes of those two edges.
-        assert.strictEqual(session.visibility.summary.visibleNodes, 4);
+        const ref = { kind: "edge", name: "sent" } as const;
+        await assertOff(session.data.setRole(ref, "time"), "data.setRole");
+        const draft = await session.data.prepare({ type: "csv", config: { data: CSV } });
+        await assertOff(draft.load({ mapping: { time: "sent" } }), "mapping.time");
+        await assertOff(draft.load({ mapping: { timeUnit: "ms" } }), "mapping.timeUnit");
+        assert.isNull(session.config.data.knownFields.edgeTimePath);
+
+        await session.config.set({ data: { knownFields: { edgeTimePath: "sent" } } });
+        await session.data.setRole(ref, null);
+        assert.notInclude(session.data.attributes().find((each) => each.name === "sent")?.roles ?? [], "time");
+    });
+
+    it("loads a mapping that repeats the time role the configuration holds", async () => {
+        const session = await loaded(OFF);
+        await session.config.set({ data: { knownFields: { edgeTimePath: "sent" } } });
+        const draft = await session.data.prepare({ type: "csv", config: { data: CSV } });
+        await draft.load({ mapping: { time: "sent" } });
+        assert.strictEqual(session.data.statistics().edgeCount, 4);
+    });
+
+    it("refuses a window's options by every door", async () => {
+        const session = await loaded(OFF);
+        for (const options of [{ nodes: "ends" }, { missing: "outside" }] as const) {
+            const window = { ...FIRST_DAYS, ...options };
+            const error = thrownBy(() => session.visibility.setWindow(window));
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_FEATURE_OFF");
+            assert.deepEqual(error.details, { feature: "timeline", key: "visibility.window" });
+            await assertOff(session.execute({ op: "visibility.window", window }), "visibility.window");
+        }
+        assert.isNull(session.visibility.window);
     });
 
     it("writes no window on a run, and a moved window makes it scope-changed", async () => {
@@ -210,13 +273,18 @@ describe("a project saved with the timeline on, opened with it off", () => {
         const report = await session.project.open(text);
         assert.sameDeepMembers(
             [...report.problems],
-            ["visibility.playback", "data.knownFields.edgeTimePath", "visibility.window"].map((key) => ({
+            ["visibility.playback", "visibility.window"].map((key) => ({
                 code: "E_FEATURE_OFF",
                 params: { feature: "timeline", key },
             })),
         );
         assert.strictEqual(session.config.data.knownFields.edgeTimePath, "sent");
         assert.strictEqual(session.config.data.knownFields.edgeTimeUnit, "ms");
+        // The saved window keeps its `nodes: "ends"`, and only its bounds apply: that option would
+        // leave only the three nodes of the two edges inside it.
+        assert.strictEqual(session.visibility.window?.nodes, "ends");
+        assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 4);
         const ghostRows = (each: GraphSession): number =>
             each.styles.list().filter((layer) => layer.source.by === "template" && layer.source.templateId === GHOST)
                 .length;
@@ -237,6 +305,37 @@ describe("a project saved with the timeline on, opened with it off", () => {
         assert.strictEqual(reopened.time.settings.outside, "ghost");
         assert.strictEqual(reopened.time.field?.edges?.start, "sent");
         assert.include(rowNames(reopened), "Ghost");
+    });
+
+    it.each([
+        ["years on nodes, unit inferred", YEARS, { nodes: { start: "at" } }],
+        ["years on nodes", YEARS, { nodes: { start: "at", unit: "year" } }],
+        ["epoch seconds on edges", SECONDS, { edges: { start: "at", unit: "s" } }],
+    ] as const)("keeps a window on %s showing the same elements", async (_name, values, field) => {
+        const saved = await chain(values, "nodes" in field ? "nodes" : "edges");
+        await saved.time.setField(field);
+        const { from, to } = saved.time.extent() ?? { from: 0, to: 0 };
+        await saved.time.window({ from: (from + to) / 2, to: to + 1 });
+        const { visibleNodes, visibleEdges, totalNodes, totalEdges } = saved.visibility.summary;
+        assert.isAbove(visibleNodes + visibleEdges, 0);
+        assert.isBelow(visibleNodes + visibleEdges, totalNodes + totalEdges);
+
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open((await saved.project.save()).text);
+        assert.strictEqual(session.visibility.summary.visibleEdges, visibleEdges);
+        if ("nodes" in field) {
+            assert.strictEqual(session.visibility.summary.visibleNodes, visibleNodes);
+        }
+    });
+
+    it("reports nothing for a project that holds only a time role", async () => {
+        const saved = await loaded(OFF);
+        await saved.config.set({ data: { knownFields: { edgeTimePath: "sent" } } });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        const report = await session.project.open(text);
+        assert.deepEqual(report.problems, []);
+        assert.strictEqual(session.config.data.knownFields.edgeTimePath, "sent");
     });
 
     it("reports nothing for a project that never used the timeline", async () => {

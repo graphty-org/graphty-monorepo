@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
-import { onSiteConfig } from "../../siteConfig";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
@@ -149,6 +149,8 @@ interface SampleTile {
     readonly field: string;
     readonly size: string;
     readonly sentence: string;
+    /** It waits for the timeline experiment. */
+    readonly timed?: true;
     /**
      * The address of a picture of the graph, when graph-samples publishes one. Asked for when the
      * tile draws: the address depends on the site's dataset address, which loads after this module.
@@ -229,6 +231,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
+                ...(sample.timed === true ? { timed: true as const } : {}),
                 picture: () => samplePicture(sample),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
@@ -279,12 +282,6 @@ function sampleTiles(
 
 /** The tiles, worked out once. */
 const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS);
-
-/** The fields the tiles come from, in the order they first appear. */
-const SAMPLE_FIELDS = [...new Set(SAMPLE_TILES.map((tile) => tile.field))];
-
-/** How many of the tiles are real networks. */
-const DATASET_COUNT = SAMPLE_TILES.filter((tile) => tile.field !== GENERATED).length;
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -507,7 +504,12 @@ function SampleLibrary(): React.JSX.Element {
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
     const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring };
     const query = text.trim().toLowerCase();
-    const tiles = SAMPLE_TILES.filter(
+    // The first paint does not wait for the site's configuration.
+    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
+    const offered = SAMPLE_TILES.filter((tile) => tile.timed !== true || timeline);
+    const fields = [...new Set(offered.map((tile) => tile.field))];
+    const datasetCount = offered.filter((tile) => tile.field !== GENERATED).length;
+    const tiles = offered.filter(
         (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
     );
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
@@ -520,7 +522,7 @@ function SampleLibrary(): React.JSX.Element {
                 Sample library
             </h2>
             <p className="ws-land-intro">
-                {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
+                {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
                 routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
             </p>
             <div className="ws-land-libhead">
@@ -528,7 +530,7 @@ function SampleLibrary(): React.JSX.Element {
                     className="ws-land-search"
                     type="search"
                     aria-label="Search samples"
-                    placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein, small world...`}
+                    placeholder={`Search ${String(offered.length)} samples: karate, airline, protein, small world...`}
                     leftSection={<GLYPHS.quickActions size={15} aria-hidden />}
                     value={text}
                     onChange={(event) => {
@@ -557,7 +559,7 @@ function SampleLibrary(): React.JSX.Element {
                 </fieldset>
             </div>
             <fieldset className="ws-land-facets" aria-label="Field">
-                {["", ...SAMPLE_FIELDS].map((each) => (
+                {["", ...fields].map((each) => (
                     <UnstyledButton
                         key={each}
                         className="ws-land-facet"

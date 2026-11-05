@@ -2236,7 +2236,7 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element edge-time-path="sent"></graphty-element>
+     * <graphty-element features="timeline" edge-time-path="sent"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
      * @experimental timeline
@@ -2258,7 +2258,7 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element node-time-path="published"></graphty-element>
+     * <graphty-element features="timeline" node-time-path="published"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
      * @experimental timeline
@@ -2282,7 +2282,7 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
+     * <graphty-element features="timeline" edge-time-path="ts" edge-time-unit="s"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
      * @experimental timeline
@@ -2311,7 +2311,7 @@ export class Graphty extends LitElement {
      * @since 3.31.0
      * @example
      * ```html
-     * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
+     * <graphty-element features="timeline" node-time-path="year" node-time-unit="ordinal"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
      * @experimental timeline

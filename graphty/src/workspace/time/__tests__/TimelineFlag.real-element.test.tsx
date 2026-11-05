@@ -7,11 +7,14 @@
 import "@graphty/graphty-element";
 
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
+import { act } from "react";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { columnVerb, openColumnMenu } from "../../../test/column-header";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { openDataPage } from "../../data-page/request";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -87,6 +90,63 @@ function dataPlace(): ReturnType<typeof within> {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 
+/**
+ * The commands Quick actions lists for "time".
+ * @returns the rows' words, once the palette has closed again.
+ */
+async function timeCommands(): Promise<string> {
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByPlaceholderText("Search commands"), "time");
+    const words = screen.queryAllByRole("option").map((option) => option.textContent);
+    await userEvent.keyboard("{Escape}");
+    return words.join("|");
+}
+
+/**
+ * What a column's header menu offers as its role.
+ * @param kind - nodes or edges.
+ * @param name - the column.
+ * @returns the roles' words, once the menu has closed again.
+ */
+async function headerRoles(kind: "node" | "edge", name: string): Promise<(string | null)[]> {
+    await openColumnMenu(kind, name);
+    await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+    const roles = (await screen.findAllByRole("menuitemradio")).map((item) => item.textContent);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard("{Escape}");
+    return roles;
+}
+
+/**
+ * Opens a CSV of dated edges on the Data page (a drop, which a page cannot start any other way)
+ * and reads what the `sent` column's role select offers.
+ * @returns the options' words.
+ */
+async function loadRoles(): Promise<(string | null)[]> {
+    const store = createWorkspaceStore({ project: { name: "Timeline", id: 1 } });
+    render(<Workspace store={store} registrations={REGISTRATIONS} />);
+    act(() => {
+        openDataPage(store, { intent: "new" });
+    });
+    const dataPage = await screen.findByRole("region", { name: "Data page" });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([DATED_EDGES], "dated.csv"));
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        dataPage.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+    await userEvent.click(await screen.findByRole("combobox", { name: "Role of sent" }));
+    return (await screen.findAllByRole("option")).map((option) => option.textContent);
+}
+
+/** What Quick actions lists for the timeline. */
+const TIME_COMMANDS = [
+    "Step time back",
+    "Step time forward",
+    "Jump time to the start",
+    "Jump time to the end",
+    "Play or pause time",
+];
+
 describe("the timeline's switch in the app", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -139,6 +199,56 @@ describe("the timeline's switch in the app", () => {
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
         await screen.findByRole("menuitem", { name: "Time window" });
+        await userEvent.keyboard("{Escape}");
+
+        const commands = await timeCommands();
+        for (const label of TIME_COMMANDS) {
+            assert.include(commands, label);
+        }
+        assert.include(await headerRoles("node", "team"), "Time");
+        await columnVerb("node", "team", "Details");
+        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+        await screen.findByRole("menuitem", { name: "Set as time" });
+    });
+
+    it("offers no time role on the Data page with the experiment off", async () => {
+        await siteFeatures([]);
+        assert.notInclude(await loadRoles(), "Date or time");
+    });
+
+    it("offers no time role in a header with the experiment off", async () => {
+        await siteFeatures([]);
+        await open();
+        assert.notInclude(await headerRoles("edge", "sent"), "Time");
+    });
+
+    it("offers the time role on the Data page with the experiment on", async () => {
+        await siteFeatures(["timeline"]);
+        assert.include(await loadRoles(), "Date or time");
+    });
+
+    it("offers nothing that works the timeline over a project's time field with the experiment off", async () => {
+        await siteFeatures([]);
+        const session = await mount("data");
+        await session.project.open(await timedProject(), { discard: true });
+        await waitFor(() => {
+            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+        });
+
+        await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
+        await screen.findAllByRole("menuitem");
+        assert.isNull(screen.queryByRole("menuitem", { name: "Time window" }), "no Filters entry");
+        await userEvent.keyboard("{Escape}");
+
+        const commands = await timeCommands();
+        for (const label of TIME_COMMANDS) {
+            assert.notInclude(commands, label);
+        }
+
+        await columnVerb("edge", "sent", "Details");
+        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+        await screen.findAllByRole("menuitem");
+        assert.isNull(screen.queryByRole("menuitem", { name: "Set as time" }), "no column verb");
     });
 
     it("offers Set as time in the Overview with the experiment on", async () => {

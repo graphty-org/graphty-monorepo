@@ -1037,8 +1037,14 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
     const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
+    // With the timeline off Time is no choice, but a role the element already reads stays shown.
+    const timeOffered =
+        timelineOn(session) ||
+        table.columns.some((column) => elementRole(draft, table, column.name, page.choices) === "time");
     const options: { value: string; label: string }[] = [
-        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes
+            .filter((role) => role !== "time" || timeOffered)
+            .map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),

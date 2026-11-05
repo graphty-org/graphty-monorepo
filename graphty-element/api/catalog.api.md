@@ -1971,6 +1971,9 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
+export function resolveFeatures(requested?: readonly string[]): EnabledFeatures;
+
+// @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];
 
 // @public

@@ -78,11 +78,15 @@ With it off, every member of `session.time` refuses with `E_FEATURE_OFF` (`detai
 `pause` or `window`, throws, while `setField`, `setSettings`, `stepBy`, `seek` and `commit` return a
 promise that rejects. Check `session.features.enabled.includes("timeline")` first, as above. The four
 attributes do nothing but log that refusal, and a text column of dates does not measure time.
-`session.visibility.setWindow` works either way.
+`session.data.setRole(column, "time")` and a load mapping that newly names `time` or `timeUnit`
+refuse the same way. `session.visibility.setWindow` works either way, by its bounds: it refuses with
+`E_FEATURE_OFF` a window that names `nodes: "ends"` or `missing: "outside"`, and on a column with a
+time role its bounds are instants, as they are with the timeline on.
 
 A project saved with the timeline on keeps its time settings when it is opened and saved with it
-off. They do nothing meanwhile, and `project.open` reports each one in `problems` as `E_FEATURE_OFF`
-with `{ feature, key }`. A saved window still limits what shows, by its bounds only, and
+off. Playback settings and a window's `nodes` and `missing` options do nothing meanwhile, and
+`project.open` reports each in `problems` as `E_FEATURE_OFF` with `{ feature, key }`. A column's time
+role stays and is not reported. A saved window still limits what shows, by its bounds only, and
 `session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row.
 
 Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds

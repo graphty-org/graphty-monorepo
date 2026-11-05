@@ -63,6 +63,7 @@ import type {
 } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { featureOff } from "../../features/resolve";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
 import type { VisibilityState } from "../project/state";
@@ -107,6 +108,7 @@ import {
     runPass,
     type ScopeLeaf,
     type TimeWindow,
+    windowNeedsTimeline,
 } from "./filter";
 import { type SlideCounts, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
@@ -1979,6 +1981,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
             assertVisibility(null, window);
+            if (sources.timeline?.() === false && windowNeedsTimeline(window)) {
+                throw featureOff("timeline", "visibility.window");
+            }
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
         },

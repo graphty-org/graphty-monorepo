@@ -68,7 +68,7 @@ import type {
 } from "./types";
 import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
-import { assertVisibility } from "./visibility/filter";
+import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
 
 /** The container's `kind`. */
@@ -1574,22 +1574,19 @@ interface Opening {
 
 /**
  * What a project's session member holds that is kept as saved but does nothing with the timeline
- * off: playback settings, a designated time field, and the options a saved window takes.
+ * off: playback settings and the options a saved window takes. A time role is not one: projects
+ * had it before the timeline, and it stays and applies.
  * @param state - The `graphty-session` member.
  * @returns One `E_FEATURE_OFF` per part.
  */
 function timelineLeftOff(state: Record<string, unknown> | undefined): ProjectProblem[] {
-    const { config, visibility } = (state ?? {}) as {
-        config?: { data?: { knownFields?: Record<string, unknown> } };
-        visibility?: { playback?: unknown; window?: { nodes?: string; missing?: string } | null };
+    const { visibility } = (state ?? {}) as {
+        visibility?: { playback?: unknown; window?: TimeWindow | null };
     };
-    const known = config?.data?.knownFields;
-    const window = visibility?.window;
+    const window = visibility?.window ?? null;
     const held: Record<string, unknown> = {
         "visibility.playback": visibility?.playback,
-        "data.knownFields.nodeTimePath": known?.nodeTimePath,
-        "data.knownFields.edgeTimePath": known?.edgeTimePath,
-        "visibility.window": window?.nodes === "ends" || window?.missing === "outside" ? window : null,
+        "visibility.window": windowNeedsTimeline(window) ? window : null,
     };
     return Object.keys(held)
         .filter((key) => held[key] !== undefined && held[key] !== null)
@@ -1836,7 +1833,7 @@ async function readProject(
             }
 
             if (visibility.window !== null && visibility.window !== undefined) {
-                await tx.visibility.setWindow(visibility.window as never);
+                await tx.execute({ op: "visibility.window", window: visibility.window as never, restoring: true });
             }
 
             await readFilterConditions(opening, visibility, remap);

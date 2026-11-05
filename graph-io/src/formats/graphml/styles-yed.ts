@@ -1274,11 +1274,6 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
-    // yEd draws an image node's picture and nothing else, whatever fill and border the file keeps for it
-    if (real.type === "ImageNode") {
-        put("fillOpacity", 0);
-        put("borderWidth", 0);
-    }
 }
 
 /**

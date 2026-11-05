@@ -324,7 +324,8 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
 
 /**
  * The line a reader sees along an outline: a narrower one drawn over it down the same path (yFiles' bevel, a line of 1
- * over a lighter one of 2), which leaves the wider only a halo either side.
+ * over a lighter one of 2), which leaves the wider only a halo either side. A line under half as wide is the gap of a
+ * double line (Cytoscape.js's `double` border, a third of its width), whose outline is the wider.
  * @param line - the outline
  * @param shapes - the node's shapes
  * @returns the narrower line drawn over it, else the outline
@@ -339,6 +340,7 @@ export function lineOnTop(line: Prim | undefined, shapes: readonly Prim[]): Prim
         s.fill === null &&
         s.stroke !== null &&
         s.stroke.width < width &&
+        s.stroke.width >= width / 2 &&
         s.points.length === line.points.length &&
         s.points.every(([x, y], i) => Math.hypot(x - line.points[i][0], y - line.points[i][1]) <= 0.01);
     return shapes.filter(along).at(-1) ?? line;

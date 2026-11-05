@@ -802,21 +802,13 @@ describe("GraphML styles: yFiles 3", () => {
         expect(points(56).split(" ")[8]).toBe("-0.357,-1");
     });
 
-    it("draws a line in a color with no alpha as no line, and an image node as its picture alone", async () => {
+    it("draws a line in a color with no alpha as no line", async () => {
         const border = '<y:BorderStyle color="#FFFFFF00" type="line" width="1.0"/>';
         const graph = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
             <key for="node" id="d0" yfiles.type="nodegraphics"/><graph edgedefault="directed"><node id="n"><data key="d0">
             <y:ShapeNode><y:Geometry height="10" width="1" x="0" y="0"/>${border}</y:ShapeNode></data></node></graph></graphml>`;
         const { snapshot, styles } = await load(new TextEncoder().encode(graph));
         expect(resolveStyles(styles, "node", "borderWidth", snapshot)[0]).toBe(0);
-        const images = await load(
-            corpusBytes(
-                join(import.meta.dirname, "../../fidelity/specimens/yed-graphml/specimen-images-charts.graphml"),
-            ),
-        );
-        const at = images.snapshot.ids.indexOf("image-node");
-        expect(resolveStyles(images.styles, "node", "fillOpacity", images.snapshot)[at]).toBe(0);
-        expect(resolveStyles(images.styles, "node", "borderWidth", images.snapshot)[at]).toBe(0);
     });
 
     it("notes shared references that refer to each other and finishes", async () => {

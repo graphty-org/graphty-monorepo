@@ -110,6 +110,9 @@ describe("yFiles' bevel", () => {
         assert.strictEqual(lineOnTop(over, all), over);
         const elsewhere = box(3, [352, 786.4, 400, 814.4], null, line("#505050", 1));
         assert.strictEqual(lineOnTop(under, [under, elsewhere]), under);
+        const wide = box(2, [350, 784.4, 402, 816.4], null, line("#505050", 6));
+        const gap = box(3, [350, 784.4, 402, 816.4], null, line("#ffffff", 2));
+        assert.strictEqual(lineOnTop(wide, [wide, gap]), wide);
     });
 
     it("still fails a flat node and a line in another color against that reading", () => {

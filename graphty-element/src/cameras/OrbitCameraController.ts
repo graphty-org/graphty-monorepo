@@ -391,8 +391,10 @@ export class OrbitCameraController {
      * @returns Whether the pivot moved.
      */
     public followPoint(point: Vector3, frames = 1): boolean {
-        this.pivotController.center = point;
-        const moved = glideTowards(this.pivot.position, point, frames);
+        // The point's own place on a map's plane: what stands above the map, the pivot never reaches.
+        const target = point.add(this.#forward().scale(this.#alongToPlane(point)));
+        this.pivotController.center = target;
+        const moved = glideTowards(this.pivot.position, target, frames);
         this.updateCameraPosition();
         return moved;
     }
@@ -457,21 +459,35 @@ export class OrbitCameraController {
     }
 
     /**
+     * The way the camera looks, in world space.
+     * @returns The unit vector.
+     */
+    #forward(): Vector3 {
+        return Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix(true)).normalize();
+    }
+
+    /**
+     * How far along the line of sight a point is from the {@link surfacePlane}. Edge on, the line
+     * of sight meets the plane too far away to move to.
+     * @param point - The point, in world space.
+     * @returns The distance, signed; 0 with no plane, or edge on.
+     */
+    #alongToPlane(point: Vector3): number {
+        const facing = this.#forward().z;
+        return this.surfacePlane === null || Math.abs(facing) < MIN_PLANE_FACING ? 0 : -point.z / facing;
+    }
+
+    /**
      * Slide the pivot along the line of sight onto the {@link surfacePlane}, the camera staying
-     * where it is. Edge on, the line of sight meets the plane too far away to move to.
+     * where it is.
      */
     #settleOnPlane(): void {
-        if (this.surfacePlane === null) {
+        const along = this.#alongToPlane(this.pivot.position);
+        if (along === 0) {
             return;
         }
 
-        const forward = Vector3.TransformNormal(Vector3.Forward(), this.pivot.computeWorldMatrix(true)).normalize();
-        if (Math.abs(forward.z) < MIN_PLANE_FACING) {
-            return;
-        }
-
-        const along = -this.pivot.position.z / forward.z;
-        this.pivot.position.addInPlace(forward.scale(along));
+        this.pivot.position.addInPlace(this.#forward().scale(along));
         this.pivot.computeWorldMatrix(true);
         this.cameraDistance = this.clampDistance(this.cameraDistance + along);
     }

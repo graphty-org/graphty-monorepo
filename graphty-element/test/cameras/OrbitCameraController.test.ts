@@ -155,6 +155,20 @@ describe("OrbitCameraController", () => {
             assert.isAbove(Math.abs(finalRotation.z - initialClone.z), 0.1);
         });
 
+        test("a glide to a point off a map's plane ends, at the same distance from the map", () => {
+            controller.surfacePlane = { floor: 0.01 };
+            controller.updateCameraPosition();
+            const distance = controller.cameraDistance;
+            let frames = 0;
+            while (controller.followPoint(new Vector3(3, 2, -0.5)) && frames < 200) {
+                frames++;
+            }
+
+            assert.isBelow(frames, 200, "the glide came to rest");
+            assert.closeTo(controller.cameraDistance, distance, 1e-3);
+            assert.closeTo(controller.pivot.position.z, 0, 1e-6);
+        });
+
         test("should update camera position after spin", () => {
             const updateSpy = vi.spyOn(controller, "updateCameraPosition");
 

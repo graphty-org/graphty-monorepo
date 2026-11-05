@@ -277,6 +277,19 @@ describe("the camera on a location map", () => {
         assert.isBelow(Math.hypot(after.x - chicago.x, after.y - chicago.y), 4, "Chicago stayed under the pointer");
     });
 
+    it("glides to a node picked on a tilted 2D map and comes to rest, no farther from the map", async () => {
+        const element = await mounted("3d", { mapDimension: "2d" });
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+        const camera = element.graph.getScene().activeCamera as FreeCamera;
+        const before = Math.abs(camera.globalPosition.z);
+        await click(element, at(element, "DEN"));
+        await applied(element);
+        assert.deepStrictEqual(element.session.selection.nodes.map(String), ["DEN"]);
+        assert.closeTo(Math.abs(camera.globalPosition.z) / before, 1, 0.02, "the camera kept its height");
+        const den = at(element, "DEN");
+        assert.isBelow(Math.hypot(den.x - CENTER.x, den.y - CENTER.y), 12, "Denver came to the view's center");
+    });
+
     it("pans a 2D drag on empty canvas with a node selected, and keeps the pan", async () => {
         const element = await mounted("2d");
         element.layoutBehavior = { camera: { pivotOnSelection: true } };

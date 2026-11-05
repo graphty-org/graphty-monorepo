@@ -8,7 +8,8 @@
  * parameters become `graphty_u_<name>`, and the library's become `graphty_<name>`, with every
  * reference renamed to match; a field after a `.` and a struct member keep their names. So a
  * helper a reader calls `world` never collides with a name Babylon.js declares in the same
- * program, and nothing a body declares can shadow the element's own.
+ * program, and nothing a body declares can shadow the element's own. A name WGSL will not take is
+ * prefixed everywhere, fields and locals too, so the same body also draws under WebGPU.
  *
  * **Driver lines map back to the text.** `#line 1` precedes the body, so a compile error inside
  * it is reported at the body's own line, which the caller offsets to the line of the whole text.
@@ -22,7 +23,7 @@
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { tokenize } from "../../catalog/shaderGlsl";
+import { GLSL_RESERVED, tokenize } from "../../catalog/shaderGlsl";
 import {
     drawingOf,
     isClockBinding,
@@ -61,6 +62,54 @@ const BODY_PREFIX = "graphty_u_";
 
 /** The prefix of the library's names. */
 const LIBRARY_PREFIX = "graphty_";
+
+/**
+ * The names WGSL will not take as a name of the body's own: the WGSL specification's keywords
+ * (section 15.4) and reserved words (section 15.5), and its built-in functions (section 17), which a
+ * local of the same name would shadow where the translated program calls them. Under WebGPU a GLSL
+ * program is translated to WGSL with its names kept, so a local called `pass` or `select` is legal
+ * GLSL the device refuses, losing the whole frame (#5852). The body's uses of these names are
+ * renamed `graphty_u_<name>`, the GLSL keywords and built-ins among them excepted ({@link GLSL_RESERVED},
+ * and `modf`, a GLSL built-in left out of this list).
+ */
+export const WGSL_NAMES: ReadonlySet<string> = new Set(
+    // Keywords.
+    (
+        "alias break case const const_assert continue continuing default diagnostic discard else enable false fn " +
+        "for if let loop override requires return struct switch true var while " +
+        // Reserved words.
+        "NULL Self abstract active alignas alignof as asm asm_fragment async attribute auto await become " +
+        "binding_array cast catch class co_await co_return co_yield coherent column_major common compile " +
+        "compile_fragment concept const_cast consteval constexpr constinit crate debugger decltype delete demote " +
+        "demote_to_helper do dynamic_cast enum explicit export extends extern external fallthrough filter final " +
+        "finally friend from fxgroup get goto groupshared highp impl implements import inline instanceof interface " +
+        "layout lowp macro macro_rules match mediump meta mod module move mut mutable namespace new nil noexcept " +
+        "noinline nointerpolation non_coherent noncoherent noperspective null nullptr of operator package " +
+        "packoffset partition pass patch pixelfragment precise precision premerge priv protected pub public " +
+        "readonly ref regardless register reinterpret_cast require resource restrict self set shared sizeof " +
+        "smooth snorm static static_assert static_cast std subroutine super target template this thread_local " +
+        "throw trait try type typedef typeid typename typeof union unless unorm unsafe unsized use using varying " +
+        "virtual volatile wgsl where with writeonly yield " +
+        // Built-in functions.
+        "bitcast abs acos acosh all any arrayLength asin asinh atan atan2 atanh atomicAdd atomicAnd " +
+        "atomicCompareExchangeWeak atomicExchange atomicLoad atomicMax atomicMin atomicOr atomicStore atomicSub " +
+        "atomicXor ceil clamp cos cosh countLeadingZeros countOneBits countTrailingZeros cross degrees determinant " +
+        "distance dot dot4I8Packed dot4U8Packed dpdx dpdxCoarse dpdxFine dpdy dpdyCoarse dpdyFine exp exp2 " +
+        "extractBits faceForward firstLeadingBit firstTrailingBit floor fma fract frexp fwidth fwidthCoarse " +
+        "fwidthFine insertBits inverseSqrt ldexp length log log2 max min mix normalize pack2x16float " +
+        "pack2x16snorm pack2x16unorm pack4x8snorm pack4x8unorm pack4xI8 pack4xI8Clamp pack4xU8 pack4xU8Clamp pow " +
+        "quantizeToF16 radians reflect refract reverseBits round saturate select sign sin sinh smoothstep sqrt " +
+        "step storageBarrier subgroupAdd subgroupAll subgroupAnd subgroupAny subgroupBallot subgroupBroadcast " +
+        "subgroupBroadcastFirst subgroupElect subgroupExclusiveAdd subgroupExclusiveMul subgroupInclusiveAdd " +
+        "subgroupInclusiveMul subgroupMax subgroupMin subgroupMul subgroupOr subgroupShuffle subgroupShuffleDown " +
+        "subgroupShuffleUp subgroupShuffleXor subgroupXor quadBroadcast quadSwapDiagonal quadSwapX quadSwapY tan " +
+        "tanh textureBarrier textureDimensions textureGather textureGatherCompare textureLoad textureNumLayers " +
+        "textureNumLevels textureNumSamples textureSample textureSampleBaseClampToEdge textureSampleBias " +
+        "textureSampleCompare textureSampleCompareLevel textureSampleGrad textureSampleLevel textureStore transpose " +
+        "trunc unpack2x16float unpack2x16snorm unpack2x16unorm unpack4x8snorm unpack4x8unorm unpack4xI8 unpack4xU8 " +
+        "workgroupBarrier workgroupUniformLoad"
+    ).split(" "),
+);
 
 /** One token, as the checker's tokenizer reads it. */
 type Token = ReturnType<typeof tokenize>["tokens"][number];
@@ -156,12 +205,18 @@ function isMemberName(tokens: readonly Token[], i: number, inStruct: boolean): b
 
 /**
  * Rename identifiers in a GLSL text, in place, keeping every other character -- comments, spaces
- * and line breaks -- so line numbers stay. A field after `.` and a struct member keep their names.
+ * and line breaks -- so line numbers stay. A field after `.` and a struct member keep their names,
+ * unless the name is in `fields`.
  * @param text - The text.
  * @param rename - The new name of each identifier to rename.
+ * @param fields - Names renamed as fields and struct members too.
  * @returns The renamed text.
  */
-export function renameIdentifiers(text: string, rename: ReadonlyMap<string, string>): string {
+export function renameIdentifiers(
+    text: string,
+    rename: ReadonlyMap<string, string>,
+    fields: ReadonlySet<string> = new Set(),
+): string {
     const { tokens } = tokenize(text, { line: 1, column: 1 });
     const lineStarts = lineStartsOf(text);
     const edits: { at: number; length: number; to: string }[] = [];
@@ -169,7 +224,8 @@ export function renameIdentifiers(text: string, rename: ReadonlyMap<string, stri
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const to = token.kind === "id" ? rename.get(token.text) : undefined;
-        if (to === undefined || tokens[i - 1]?.text === "." || isMemberName(tokens, i, inStruct[i])) {
+        const field = tokens[i - 1]?.text === "." || isMemberName(tokens, i, inStruct[i]);
+        if (to === undefined || (field && !fields.has(token.text))) {
             continue;
         }
 
@@ -265,18 +321,29 @@ export function wrappedLibrary(): string {
 
 /**
  * A body with its own names prefixed `graphty_u_` and its references to the library renamed to
- * the library's prefixed names.
+ * the library's prefixed names. A name WGSL will not take ({@link WGSL_NAMES}) is prefixed
+ * wherever the body uses it, local, parameter and field alike, so the program also translates
+ * to WGSL.
  * @param body - The body.
  * @param params - The shader's parameters, which are globals of the body.
  * @returns The renamed body.
  */
 export function prefixBody(body: string, params: readonly ShaderParamDescriptor[]): string {
     const rename = new Map<string, string>();
+    const { tokens } = tokenize(body, { line: 1, column: 1 });
+    const fields = new Set<string>();
+    for (const { kind, text } of tokens) {
+        if (kind === "id" && WGSL_NAMES.has(text) && !GLSL_RESERVED.has(text)) {
+            rename.set(text, BODY_PREFIX + text);
+            fields.add(text);
+        }
+    }
+
     for (const name of namesOfLibrary()) {
         rename.set(name, LIBRARY_PREFIX + name);
     }
 
-    for (const name of topLevelNames(tokenize(body, { line: 1, column: 1 }).tokens)) {
+    for (const name of topLevelNames(tokens)) {
         rename.set(name, BODY_PREFIX + name);
     }
 
@@ -284,7 +351,7 @@ export function prefixBody(body: string, params: readonly ShaderParamDescriptor[
         rename.set(param.name, BODY_PREFIX + param.name);
     }
 
-    return renameIdentifiers(body, rename);
+    return renameIdentifiers(body, rename, fields);
 }
 
 /**

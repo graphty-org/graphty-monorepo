@@ -621,14 +621,19 @@ function testCard(
         return ownCard(session, step, rule, reading, side);
     }
     const path = session.results.path(run, rule.field);
-    const field = fields.find((each) => each.path === path);
-    if (field === undefined || path === undefined) {
+    const found = fields.find((each) => each.path === path);
+    if (found === undefined || path === undefined) {
         return { card: null };
     }
+    // What the catalog declares a yes-or-no stays one when a run left it nowhere set (no route found).
+    const declared = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
+    const yesNo = declared?.fields.find((each) => each.name === rule.field)?.type === "boolean";
+    const field = yesNo ? { ...found, kind: "yes-no" as const } : found;
+    const known = yesNo ? fields.map((each) => (each.path === path ? field : each)) : fields;
     const card =
         rule.test === undefined
-            ? cardOf(session, untested(field), fields, 0)
-            : cardOf(session, testLeaf(rule.test, path), fields, 0);
+            ? cardOf(session, untested(field), known, 0)
+            : cardOf(session, testLeaf(rule.test, path), known, 0);
     return { card: card.type === "fixed" ? null : card, field };
 }
 
@@ -675,6 +680,9 @@ function ownCard(
 /** The path a So far step's own values go by in its card: no element path names them. */
 const SO_FAR_PATH = "so-far:";
 
+/** A checklist's test with nothing ticked. */
+const NOTHING_TICKED: MeasureTest = { kind: "categories", values: [] };
+
 /**
  * A step's rule after its card was edited: the card's leaf (untested while it holds no test), or
  * for a `measure`, its test with the path taken off.
@@ -688,7 +696,10 @@ export function ruleOfCard(step: UnionStep, card: Card): RuleTree {
     if (step.rule.kind !== "measure") {
         return leaf;
     }
-    const test = leafOf(card) === null ? undefined : testOf(leaf);
+    // A checklist with nothing ticked selects nothing, as a fresh one does; only a number's untouched
+    // range has no test, which reads as every measured element.
+    const empty = card.type === "category" || card.type === "yes-no" ? NOTHING_TICKED : undefined;
+    const test = leafOf(card) === null ? empty : testOf(leaf);
     const { test: _old, ...rest } = step.rule;
     return test === undefined ? rest : { ...rest, test };
 }

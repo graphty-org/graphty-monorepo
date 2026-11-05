@@ -315,8 +315,7 @@ class Visit {
                     return (
                         box.querySelector(".sel-ws-head > .sel-count")?.textContent === w.title &&
                         JSON.stringify(seen) === JSON.stringify(w.cards) &&
-                        grid !== null &&
-                        Number(grid.getAttribute("aria-rowcount")) - 1 === w.rows
+                        (w.rows === 0 ? grid === null : Number(grid?.getAttribute("aria-rowcount")) - 1 === w.rows)
                     );
                 },
                 want,
@@ -416,7 +415,8 @@ class Visit {
                         const v = document.querySelector("graphty-element").session.visibility;
                         return (side === "node" ? v.nodes.size : v.edges.size) === n;
                     },
-                    [this.side, total.size],
+                    // A filter with nothing picked yet filters nothing (graphty-element's inert condition).
+                    [this.side, total.size === 0 ? this.all.size : total.size],
                     { timeout: SETTLE },
                 )
                 .catch(async () => {
@@ -660,8 +660,8 @@ const KINDS = {
         label: () => "Shortest path",
         async fill(v, step) {
             const [from, to] = NODES[v.dataset];
-            await v.reference(step, "Source Node", from);
-            await v.reference(step, "Target Node", to);
+            await v.reference(step, "From", from);
+            await v.reference(step, "To", to);
             await step.getByRole("combobox", { name: "On the route is" }).click();
             await v.page.getByRole("option", { name: /^(Yes|true)$/i }).click();
         },
@@ -1078,7 +1078,26 @@ const valuesOf = async (v, algorithm) =>
         ? [...v.neighbors.values()].map((set) => set.size)
         : Object.values(await v.runValues(algorithm, "value"));
 
-// A setting changed, then groups ticked and unticked: the counts follow every tick.
+// Which groups the card shows ticked, by number.
+const tickedGroups = (box) =>
+    box.evaluate((step) =>
+        [...step.querySelectorAll("input[type=checkbox]:checked")].flatMap((each) => {
+            const found = /^Group (\d+),/u.exec(each.getAttribute("aria-label") ?? "");
+            return found === null ? [] : [Number(found[1])];
+        }),
+    );
+
+// The best-connected node of a community, as a run's values and the graph's edges say.
+const hubOf = (v, values, group) => {
+    const sizes = new Map();
+    Object.values(values).forEach((each) => sizes.set(each, (sizes.get(each) ?? 0) + 1));
+    const ranked = [...sizes.keys()].sort((a, b) => sizes.get(b) - sizes.get(a) || a - b);
+    const members = Object.keys(values).filter((id) => values[id] === ranked[group - 1]);
+    return members.reduce((a, b) => (v.neighbors.get(b).size > v.neighbors.get(a).size ? b : a));
+};
+
+// A setting changed, then groups ticked and unticked: a tick follows its group's best-connected
+// node into the new run, the counts follow every tick, and the last tick off holds nothing.
 const retune = (dataset, entry, kind, settings, run) => async (page) => {
     const v = await visit(page, dataset, entry);
     if (v.cards[0].start !== "none") {
@@ -1086,24 +1105,25 @@ const retune = (dataset, entry, kind, settings, run) => async (page) => {
     }
     const step = await v.firstStep(kind, { pick: [1] });
     const box = v.step(0, 0);
+    const hub = hubOf(v, await v.runValues(kind.algorithm, "group"), 1);
     for (const [label, value] of Object.entries(settings)) {
         await v.setting(box, label, value);
     }
     step.params.run = run;
-    step.params.groups = [];
-    await v.page.waitForFunction(
-        () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]").length > 0,
-    );
+    const values = await v.runValues(kind.algorithm, "group", run);
+    // The tick is on the group that now holds the old group's best-connected node.
     await v.page
         .waitForFunction(
-            () =>
-                [...document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]")].every(
-                    (each) => !each.checked,
-                ),
+            () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 1,
             null,
             { timeout: SETTLE },
         )
-        .catch(() => fail("the ticks of the old run stayed after its setting changed"));
+        .catch(() => fail("the old group's tick did not follow it into the new run"));
+    [step.params.groups[0]] = await tickedGroups(box);
+    const held = await kind.leaf(v, step);
+    if (!held.has(hub) || values[hub] === undefined) {
+        fail(`the tick is on group ${String(step.params.groups[0])}, which does not hold ${hub}`);
+    }
     await v.check("after the setting");
     const ticks = await box.getByRole("checkbox").count();
     const moves = [1, 2, 1, Math.min(3, ticks), 2];
@@ -1117,7 +1137,238 @@ const retune = (dataset, entry, kind, settings, run) => async (page) => {
         }
         await v.check(`toggle group ${String(group)}`);
     }
+    // Every tick off, one by one: nothing ticked selects nothing, as a fresh card does.
+    for (const group of [...step.params.groups]) {
+        await box.getByRole("checkbox", { name: new RegExp(`^Group ${String(group)},`) }).click();
+        step.params.groups.splice(step.params.groups.indexOf(group), 1);
+        await v.check(`untick group ${String(group)}`);
+    }
+    await box.getByRole("checkbox", { name: /^Group 1,/ }).click();
+    step.params.groups.push(1);
+    await v.check("tick again after none");
+    await box.getByRole("checkbox", { name: /^Group 1,/ }).click();
+    step.params.groups.length = 0;
+    await v.check("none ticked again");
     await v.leave("done");
+    const saved = await v.held();
+    if (v.host === "style" && !saved.includes('"test":{"kind":"categories","values":[]')) {
+        fail(`Done saved the unticked card without its empty test: ${saved.slice(0, 300)}`);
+    }
+};
+
+// A card with nothing changed: the last tick off holds nothing, from either start, and Done saves that.
+const untickToZero = (dataset, entry, kind, start) => async (page) => {
+    const v = await visit(page, dataset, entry);
+    if (v.cards[0].start !== start) {
+        await v.flipStart(0);
+    }
+    const step = await v.firstStep(kind, { pick: [1] });
+    await v
+        .step(0, 0)
+        .getByRole("checkbox", { name: /^Group 1,/ })
+        .click();
+    step.params.groups.length = 0;
+    await v.check("the last tick off");
+    await v.leave("done");
+};
+
+// Typing the end the slider's label shows takes that end, however the label rounds it.
+const typedEnds = (dataset, kind, algorithm) => async (page) => {
+    const v = await visit(page, dataset, "style-nodes");
+    await v.pickFirst(0, kind);
+    const card = v.step(0, 0);
+    const from = card.getByRole("textbox", { name: `${kind} from, number` });
+    await from.waitFor();
+    const end = await card.getByRole("slider", { name: `${kind} range end` }).getAttribute("aria-valuemax");
+    const maximum = await card.getByRole("textbox", { name: `${kind} to, number` }).getAttribute("placeholder");
+    await v.type(from, maximum);
+    const values = await valuesOf(v, algorithm);
+    const top = values.filter((each) => each === Math.max(...values)).length;
+    await v.page
+        .waitForFunction(
+            (n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n,
+            `${String(top)} of ${String(v.all.size)}`,
+            { timeout: SETTLE },
+        )
+        .catch(async () =>
+            fail(`typing ${String(maximum)} (the scale ends at ${String(end)}) leaves ${(await v.shown()).title}`),
+        );
+    if ((await card.locator("[role=alert]").count()) > 0) {
+        fail(`typing the shown maximum was refused: ${await card.locator("[role=alert]").innerText()}`);
+    }
+    const lit = await card.locator('[data-testid="histogram-chart"] [data-highlighted="true"]').count();
+    if (lit === 0) {
+        fail("both thumbs on the last value light no bar");
+    }
+};
+
+// Settings that give the same groups keep the same ticks.
+const sameGroupsKeepTicks = async (page) => {
+    const v = await visit(page, "karate", "style-nodes");
+    const step = await v.firstStep(KINDS.louvain, { pick: [1, 3] });
+    const box = v.step(0, 0);
+    // Iterations past what Karate Club needs leave the communities as they were.
+    await v.setting(box, "Max iterations", "150");
+    step.params.run = { maxIterations: 150 };
+    await v.page.waitForFunction(
+        () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 2,
+        null,
+        { timeout: SETTLE },
+    );
+    const now = await tickedGroups(box);
+    if (JSON.stringify([...now].sort()) !== JSON.stringify([1, 3])) {
+        fail(`the same groups were ticked as ${now.join(",")}`);
+    }
+    await v.check("the same groups");
+    await v.leave("done");
+};
+
+// A saved card reads as it did: its list stays largest first whatever is ticked.
+const reopenOrder = async (page) => {
+    const v = await visit(page, "lesmis", "style-nodes");
+    await v.firstStep(KINDS.louvain, { pick: [2, 3] });
+    const names = () =>
+        v
+            .step(0, 0)
+            .getByRole("checkbox")
+            .evaluateAll((all) => all.map((each) => each.getAttribute("aria-label").split(",")[0]));
+    const before = await names();
+    // A press on the drawing leaves focus there, as a reader's does.
+    await v.page.mouse.click(520, 80);
+    await v.leave("done");
+    await v.page.getByRole("button", { name: "Graph", exact: true }).click();
+    await v.page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    await v.ws.waitFor();
+    await v.unfold(0);
+    await v.step(0, 0).getByRole("checkbox").first().waitFor();
+    const after = await names();
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+        fail(`reopening moved the groups: ${after.join(",")} (was ${before.join(",")})`);
+    }
+    const ring = await v.page.evaluate(() => {
+        const at = document.activeElement;
+        return at?.closest("graphty-element, .ws-canvas-surface") === null ? null : (at?.tagName ?? null);
+    });
+    if (ring !== null) {
+        fail(`opening left focus, and its ring, on the drawing (${String(ring)})`);
+    }
+    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+};
+
+// A workspace opened while the graph is still being framed leaves it framed.
+const quickOpen = (how) => async (page) => {
+    const v = await visit(page, "lesmis", "style-nodes");
+    await v.pickFirst(0, "Degree");
+    await v.step(0, 0).getByRole("textbox", { name: "Degree from, number" }).waitFor();
+    await (how === "done"
+        ? v.ws.getByRole("button", { name: "Done", exact: true }).click()
+        : v.ws.getByRole("button", { name: /^Cancel/ }).click());
+    await v.ws.waitFor({ state: "detached" });
+    const zoomed = await inPage(page, async () => {
+        const element = document.querySelector("graphty-element");
+        await element.waitForSettled();
+        await element.waitForPainted();
+        const near = () => {
+            const { position, target } = element.getCameraState();
+            return Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+        };
+        const left = near();
+        element.zoomToFit();
+        await element.waitForSettled();
+        await element.waitForPainted();
+        return left / near();
+    });
+    if (zoomed < 0.9) {
+        fail(`the drawing was left over-zoomed: its camera stands at ${zoomed.toFixed(2)} of a fit's distance`);
+    }
+};
+
+// Every key a card's menu shows does what it says on the card's grip.
+const cardKeys = async (page) => {
+    const v = await visit(page, "karate", "style-nodes");
+    await v.firstStep(KINDS.reference);
+    await v.addCard(KINDS.touching);
+    await v
+        .card(0)
+        .getByRole("button", { name: /^More for / })
+        .click();
+    for (const key of ["F2", "Ctrl+D", "Ctrl+]", "Ctrl+[", "Del"]) {
+        const shown = await v.page.getByRole("menu").innerText();
+        if (!shown.includes(key)) {
+            fail(`the card's menu shows no ${key}: ${shown.replaceAll("\n", " ")}`);
+        }
+    }
+    await v.page.keyboard.press("Escape");
+    const grip = (at) => v.card(at).locator(".cm-card-grip");
+    await grip(1).focus();
+    await v.page.keyboard.press("ControlOrMeta+]");
+    v.cards.unshift(v.cards.pop());
+    await v.page.waitForFunction(
+        (want) =>
+            JSON.stringify(
+                [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-card")].map((c) => c.dataset.cardId),
+            ) === want,
+        JSON.stringify(v.cards.map((c) => c.id)),
+        { timeout: SETTLE },
+    );
+    await grip(0).focus();
+    await v.page.keyboard.press("F2");
+    await v.card(0).getByRole("textbox").waitFor();
+    await v.page.keyboard.press("Escape");
+    await grip(0).focus();
+    await v.page.keyboard.press("ControlOrMeta+d");
+    await v.ws.locator(".cm-card-list > .cm-card").nth(2).waitFor();
+    await grip(1).focus();
+    await v.page.keyboard.press("Delete");
+    await v.ws.locator(".cm-card-list > .cm-card").nth(2).waitFor({ state: "detached" });
+    await v.check("after the keys");
+};
+
+// A click on the Export dialog's backdrop with its settings open closes only the settings.
+const exportBackdrop = async (page) => {
+    const v = new Visit(page, "karate", "style-nodes");
+    await v.open();
+    await page.getByRole("button", { name: "Main menu" }).click();
+    await page.getByRole("menuitem", { name: /^Export/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Export" });
+    await dialog.waitFor();
+    await dialog.getByRole("grid", { name: "What to export" }).getByText("Data").click();
+    await dialog.getByRole("combobox", { name: "Format" }).click();
+    await page.getByRole("option", { name: /CSV/ }).first().click();
+    await dialog.getByRole("button", { name: /^Format settings/ }).click();
+    const panel = page.locator("[data-popout-id]");
+    await panel.first().waitFor();
+    await page.mouse.click(8, 450);
+    await panel.first().waitFor({ state: "hidden" });
+    if (!(await dialog.isVisible())) {
+        fail("one click on the backdrop closed the settings and the dialog");
+    }
+    await page.mouse.click(8, 450);
+    await dialog.waitFor({ state: "hidden" });
+};
+
+// Analyze is a calm list: the chosen row's settings at its end, Run at the bottom.
+const analyzeList = async (page) => {
+    const v = new Visit(page, "karate", "style-nodes");
+    await v.open();
+    await page.getByRole("button", { name: "Analyze", exact: true }).click();
+    const leiden = page.getByRole("option", { name: "Leiden" }).first();
+    await leiden.click();
+    await page.getByRole("button", { name: "Settings for Leiden" }).click();
+    const panel = page.locator('[data-settings="leiden"]');
+    await panel.waitFor();
+    await v.type(panel.getByLabel("Seed", { exact: true }), "7");
+    await page.getByRole("button", { name: "Run Leiden" }).click();
+    await page.waitForFunction(
+        () => {
+            const s = document.querySelector("graphty-element").session;
+            return s.runs
+                .list()
+                .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
+        },
+        null,
+        { timeout: SETTLE },
+    );
 };
 
 // Every popover closes on an outside click and leaves the workspace open.
@@ -1267,6 +1518,21 @@ const dragBothWays = async (page) => {
     await reopenSame(v);
 };
 
+// A Degree card shows its values in the table, and the Add, Keep, Except row waits for a test.
+const degreeColumn = async (page) => {
+    const v = await visit(page, "lesmis", "style-nodes");
+    await v.firstStep(KINDS.degree);
+    const table = await v.ws.locator(".sel-ws-strip").innerText();
+    if (!table.includes("Degree")) {
+        fail(`the table has no Degree column: ${table.slice(0, 120)}`);
+    }
+    await v.addCard(KINDS.louvain, { pick: [] });
+    if ((await v.card(1).locator("[data-verb]").count()) !== 0) {
+        fail("Add, Keep and Except show on a card with nothing ticked");
+    }
+    await v.leave("cancel");
+};
+
 // Adding a card folds the others.
 const addFolds = async (page) => {
     const v = await visit(page, "karate", "style-nodes");
@@ -1324,6 +1590,13 @@ const dataColumns = (verb) => async (page) => {
     await v.firstStep(topic);
     await v.addStep(0, verb, year);
     await v.addCard(year);
+    // The table shows what the cards test.
+    const table = await v.ws.locator(".sel-ws-strip").innerText();
+    for (const name of ["topic", "year"]) {
+        if (!table.includes(name)) {
+            fail(`the table has no ${name} column: ${table.slice(0, 120)}`);
+        }
+    }
     await v.leave("done");
     await reopenSame(v);
 };
@@ -1338,7 +1611,13 @@ const flagOff = async (page) => {
     await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
     await page.getByRole("textbox", { name: "Layer name" }).waitFor();
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    const edit = page.getByRole("button", { name: /^Edit Which nodes/ });
+    await page.mouse.move(0, 0);
+    const opacity = await edit.evaluate((each) => getComputedStyle(each).opacity);
+    if (opacity !== "0") {
+        fail(`with the feature off Edit is drawn at rest (opacity ${opacity}): it stays a hover control`);
+    }
+    await edit.click({ force: true });
     await page.locator(".sel-ws").waitFor();
     if ((await page.locator(".sel-ws.sel-modal").count()) > 0) {
         fail("the modal opened with the feature off");
@@ -1369,11 +1648,11 @@ const SCENARIOS = [
     ],
     [
         "settings: Leiden seed then ticks",
-        retune("karate", "style-nodes", KINDS.leiden, { "Random seed": "7" }, { randomSeed: 7 }),
+        retune("karate", "style-nodes", KINDS.leiden, { Seed: "7" }, { randomSeed: 7 }),
     ],
     [
         "settings: Leiden seed then ticks, Data filter",
-        retune("lesmis", "filter-nodes", KINDS.leiden, { "Random seed": "11" }, { randomSeed: 11 }),
+        retune("lesmis", "filter-nodes", KINDS.leiden, { Seed: "11" }, { randomSeed: 11 }),
     ],
     [
         "settings: Label propagation seed then ticks",
@@ -1381,7 +1660,7 @@ const SCENARIOS = [
             "lesmis",
             "style-nodes",
             community("Label propagation", "label-propagation"),
-            { "Random seed": "7" },
+            { Seed: "7" },
             { randomSeed: 7 },
         ),
     ],
@@ -1389,6 +1668,17 @@ const SCENARIOS = [
         "settings: Leiden resolution then ticks",
         retune("lesmis", "style-nodes", KINDS.leiden, { Resolution: "1.4" }, { resolution: 1.4 }),
     ],
+    ["ticks: the last tick off, Louvain, No nodes", untickToZero("karate", "style-nodes", KINDS.louvain, "none")],
+    ["ticks: the last tick off, Leiden, Data filter", untickToZero("lesmis", "filter-nodes", KINDS.leiden, "none")],
+    ["ticks: same groups keep their ticks", sameGroupsKeepTicks],
+    ["reopen: a saved card's list keeps its order, no ring on the drawing", reopenOrder],
+    ["typed: the shown maximum, Betweenness, Karate Club", typedEnds("karate", "Betweenness", "betweenness")],
+    ["typed: the shown maximum, Degree, Les Miserables", typedEnds("lesmis", "Degree", "degree")],
+    ["camera: a quick visit, Cancel", quickOpen("cancel")],
+    ["camera: a quick visit, Done", quickOpen("done")],
+    ["keys: a card's menu keys work on its grip", cardKeys],
+    ["popovers: the Export backdrop closes the settings first", exportBackdrop],
+    ["analyze: chosen row, its settings, Run", analyzeList],
     ["popovers: outside clicks, style layer", outsideClick("style-nodes")],
     ["popovers: outside clicks, Data filter", outsideClick("filter-nodes")],
     ["escape: a list and a panel take their own Escape", escapeLevels],
@@ -1398,6 +1688,7 @@ const SCENARIOS = [
     ["titles: every length, open and folded", longTitles],
     ["drag: by the grip, up then down", dragBothWays],
     ["fold: adding a card folds the others and keeps ticks", addFolds],
+    ["table: a Degree column, and no actions before a test", degreeColumn],
     ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
     ["flag: off keeps the old editor", flagOff],
     ["columns: category and number, Add", dataColumns("add")],

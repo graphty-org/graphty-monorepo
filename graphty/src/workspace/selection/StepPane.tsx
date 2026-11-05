@@ -9,6 +9,7 @@
 import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
+    NodeId,
     RuleTree,
     StepReading,
     UnionBranch,
@@ -64,6 +65,12 @@ import {
 } from "./values";
 import { linksSaid, linksTested, NOUNS, reasonWords, rowWords, VERB_WORDS } from "./words";
 
+/** Where the workspace's header ends: its 28px margin and 40px row. A card's settings stay under it. */
+const MODAL_HEAD_BOTTOM = 68;
+
+/** A card's words for the nodes a route runs between, by option name (the approved prototype). */
+const REFERENCE_WORDS: Readonly<Partial<Record<string, string>>> = { source: "From", target: "To" };
+
 /** What a step pane asks its editor to do. */
 export interface StepActions {
     readonly onStep: (patch: Partial<UnionStep>) => void;
@@ -83,7 +90,7 @@ export interface StepActions {
 export function CaptionedRow({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     const label = React.isValidElement<{ label?: string }>(children) ? children.props.label : undefined;
     return (
-        <Stack gap={4}>
+        <Stack gap={4} className="sel-captioned">
             {/* The control keeps the word as its own accessible name: the caption is drawn only. */}
             <span aria-hidden="true" className="cm-caption">
                 {label}
@@ -391,35 +398,66 @@ function readsLinks(rule: RuleTree): boolean {
 }
 
 /**
- * Links, in a step's Advanced (spec 3.5): All links, or Links where one edge condition holds --
- * an edge value and its test, the controls of section 5 -- so the step reads only the links that
- * pass ("ignore links with weight under 2") without the graph-wide Data filter.
+ * Links, in a step's Advanced (spec 3.5): All links, or Links where one edge condition holds. The
+ * choice alone: {@link LinksCondition} draws the condition.
+ * @param props - Component props
+ * @param props.where - the choice is Edges where
+ * @param props.onChoice - takes the choice
+ * @returns The row
+ */
+function LinksChoice({
+    where,
+    onChoice,
+}: Readonly<{ where: boolean; onChoice: (where: boolean) => void }>): React.JSX.Element {
+    return (
+        <CaptionedRow>
+            <SegmentedControl
+                label="Edges"
+                fullWidth
+                data={[
+                    { value: "all", label: "All edges" },
+                    { value: "where", label: "Edges where ..." },
+                ]}
+                value={where ? "where" : "all"}
+                onChange={(next) => {
+                    onChoice(next === "where");
+                }}
+            />
+        </CaptionedRow>
+    );
+}
+
+/**
+ * Links where one edge condition holds (spec 3.5): an edge value and its test, the controls of
+ * section 5, so the step reads only the links that pass ("ignore links with weight under 2")
+ * without the graph-wide Data filter. On a workspace card it is drawn on the card, never inside the
+ * card's settings: a popover holds settings, not a card of its own.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.step - the step
  * @param props.within - the selection's base
+ * @param props.toField - the field takes focus as it is drawn
  * @param props.onLinks - takes the edge condition, or undefined for every link
  * @returns The rows
  */
-function LinksBody({
+function LinksCondition({
     session,
     step,
     within,
+    toField,
     onLinks,
 }: Readonly<{
     session: GraphSession;
     step: UnionStep;
     within: UnionLeaf["within"];
+    toField: boolean;
     onLinks: (links: RuleTree | undefined) => void;
 }>): React.JSX.Element {
-    const [where, setWhere] = useState(step.links !== undefined);
     const [picking, setPicking] = useState(false);
     // Choosing "Links where ..." hands focus to the edge value's field, where Enter opens its list.
     const field = useRef<HTMLButtonElement>(null);
-    const [toField, setToField] = useState(false);
     useEffect(() => {
         if (toField) {
-            setToField(false);
             field.current?.focus();
         }
     }, [toField]);
@@ -448,65 +486,44 @@ function LinksBody({
     const name = shown !== null && "field" in shown ? shown.field.name : "";
     return (
         <>
-            <CaptionedRow>
-                <SegmentedControl
-                    label="Edges"
-                    fullWidth
-                    data={[
-                        { value: "all", label: "All edges" },
-                        { value: "where", label: "Edges where ..." },
-                    ]}
-                    value={where ? "where" : "all"}
-                    onChange={(next) => {
-                        setWhere(next === "where");
-                        if (next === "all") {
-                            onLinks(undefined);
-                        } else if (step.links === undefined) {
-                            setToField(true);
-                        }
-                    }}
-                />
-            </CaptionedRow>
-            {where && (
-                <AddCondition
-                    fields={picking ? fields : []}
-                    used={[]}
-                    placeholder="Find edge attributes"
-                    opened={picking}
-                    onAdd={(field) => {
+            <AddCondition
+                fields={picking ? fields : []}
+                used={[]}
+                placeholder="Find edge attributes"
+                opened={picking}
+                onAdd={(field) => {
+                    setPicking(false);
+                    toTest.current = true;
+                    // Untouched: every link with a value passes until a test is set.
+                    onLinks(ruleOfField(session, field));
+                }}
+                onOpened={(next) => {
+                    if (!next) {
                         setPicking(false);
-                        toTest.current = true;
-                        // Untouched: every link with a value passes until a test is set.
-                        onLinks(ruleOfField(session, field));
-                    }}
-                    onOpened={(next) => {
-                        if (!next) {
-                            setPicking(false);
-                        }
-                    }}
-                    anchor={
-                        <InputBase
-                            ref={field}
-                            component="button"
-                            size="sm"
-                            variant="outlined"
-                            rightSection={<FieldCaret />}
-                            rightSectionPointerEvents="none"
-                            type="button"
-                            pointer
-                            aria-label={`Edge value: ${name === "" ? "none" : name}`}
-                            aria-haspopup="dialog"
-                            aria-expanded={picking}
-                            onClick={() => {
-                                setPicking(true);
-                            }}
-                        >
-                            <span className="sel-field-text">{name === "" ? "Edge value..." : name}</span>
-                        </InputBase>
                     }
-                />
-            )}
-            {where && shown !== null && (
+                }}
+                anchor={
+                    <InputBase
+                        ref={field}
+                        component="button"
+                        size="sm"
+                        variant="outlined"
+                        rightSection={<FieldCaret />}
+                        rightSectionPointerEvents="none"
+                        type="button"
+                        pointer
+                        aria-label={`Edge value: ${name === "" ? "none" : name}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={picking}
+                        onClick={() => {
+                            setPicking(true);
+                        }}
+                    >
+                        <span className="sel-field-text">{name === "" ? "Edge value..." : name}</span>
+                    </InputBase>
+                }
+            />
+            {shown !== null && (
                 <div ref={testBox}>
                     <CardBody
                         session={session}
@@ -688,10 +705,50 @@ export function StepPane({
     const canSoFar = step.op !== "add" && algorithm?.scopeInput === "subgraph";
     // The algorithm's own settings, as Analyze draws them (spec 3.2), past the ones a step binds.
     const settings = algorithm?.options.filter((o) => o.internal !== true && o.type !== "node-id") ?? [];
+    // A tick on a value that is only a name (a community's number) follows the group it stood for:
+    // graphty-element names each group's best-connected member, and once the new run answers, the
+    // ticks go to whichever groups now hold those members. So settings that give the same groups
+    // keep the same ticks.
+    const following = useRef<{ from: string | null; nodes: readonly NodeId[] } | null>(null);
+    const tickedMembers = (values: readonly unknown[]): readonly NodeId[] => {
+        if (card === null || !("field" in card)) {
+            return [];
+        }
+        const ticked = new Set(values.map(String));
+        const read = session.scope.histogram(card.field.path, {
+            ...(rule.within === undefined ? {} : { within: rule.within }),
+            as: "categorical",
+        });
+        return read.kind === "categorical"
+            ? read.values.flatMap((each) =>
+                  ticked.has(String(each.value)) && each.member !== undefined ? [each.member] : [],
+              )
+            : [];
+    };
+    useEffect(() => {
+        const held = following.current;
+        const run = reading?.run ?? null;
+        if (held === null || run === null || run === held.from || step.rule.kind !== "measure") {
+            return;
+        }
+        const { rule: measureNow } = step;
+        const result = session.runs.get(run)?.result;
+        if (result === undefined) {
+            return;
+        }
+        following.current = null;
+        const groups = held.nodes.flatMap((node) => {
+            const value = result.node(node)?.[measureNow.field];
+            return typeof value === "string" || typeof value === "number" ? [String(value)] : [];
+        });
+        if (groups.length > 0) {
+            onStep({ rule: { ...measureNow, test: { kind: "categories", values: [...new Set(groups)] } } });
+        }
+    });
     /**
      * The measure under new settings. A field whose values are names a re-run may spell differently
-     * (a community's number) has its picked values cleared: "Group 1" of the old run is not the
-     * new run's Group 1.
+     * (a community's number) has its picked values cleared until the new run says which groups
+     * hold the old ticks' members: "Group 1" of the old run is not the new run's Group 1.
      * @param measure - the step's measure.
      * @param params - its new settings.
      * @returns the measure.
@@ -701,9 +758,11 @@ export function StepPane({
         params: Readonly<Record<string, unknown>>,
     ): RuleTree => {
         const renames = algorithm?.fields.some((field) => field.name === measure.field && field.unstable === true);
-        const test =
-            renames === true && measure.test?.kind === "categories" ? { ...measure.test, values: [] } : measure.test;
-        return { ...measure, params, ...(test === undefined ? {} : { test }) };
+        if (renames !== true || measure.test?.kind !== "categories") {
+            return { ...measure, params, ...(measure.test === undefined ? {} : { test: measure.test }) };
+        }
+        following.current = { from: reading?.run ?? null, nodes: tickedMembers(measure.test.values) };
+        return { ...measure, params, test: { ...measure.test, values: [] } };
     };
     const pending = reading?.state === "pending";
     // A state the Run button does not already say (Paused, Waits for step 1, No reference) is said
@@ -804,6 +863,7 @@ export function StepPane({
             (field) =>
                 field.kind === side && field.type !== "table" && field.name !== "rank" && field.name !== "percentile",
         ) ?? [];
+    const outputName = algorithm?.fields.find((field) => measure?.field === field.name)?.plainName ?? value;
     const testBody = (
         <div ref={testBox} className="sel-test-box">
             {isRelative(step.rule) ? (
@@ -837,6 +897,29 @@ export function StepPane({
                 </>
             )}
         </div>
+    );
+    // Links: the choice in Advanced; the condition under it in a pane, on the card itself in a card.
+    const [linksWhere, setLinksWhere] = useState(step.links !== undefined);
+    const [toLinks, setToLinks] = useState(false);
+    const chooseLinks = (where: boolean): void => {
+        setLinksWhere(where);
+        setToLinks(where && step.links === undefined);
+        if (!where) {
+            onStep({ links: undefined });
+        } else if (cards) {
+            setSettingsOpen(false);
+        }
+    };
+    const linksCondition = (
+        <LinksCondition
+            session={session}
+            step={step}
+            within={rule.within}
+            toField={toLinks}
+            onLinks={(links) => {
+                onStep({ links });
+            }}
+        />
     );
     // Advanced's rows: under its disclosure in a pane, behind the settings button on a card.
     const advancedRows = (
@@ -887,16 +970,8 @@ export function StepPane({
                     />
                 </CaptionedRow>
             )}
-            {linked && (
-                <LinksBody
-                    session={session}
-                    step={step}
-                    within={rule.within}
-                    onLinks={(links) => {
-                        onStep({ links });
-                    }}
-                />
-            )}
+            {linked && <LinksChoice where={linksWhere} onChoice={chooseLinks} />}
+            {linked && linksWhere && !cards && linksCondition}
             {readsEnds && (
                 <CaptionedRow>
                     <SegmentedControl
@@ -1008,9 +1083,12 @@ export function StepPane({
                                 onOpenChange={setSettingsOpen}
                                 width={280}
                                 placement="right"
+                                boundaryTop={MODAL_HEAD_BOTTOM}
                             >
                                 {/* A portal: Escape here closes the panel, never the workspace around it. */}
-                                <div data-portal="">{advancedRows}</div>
+                                <div data-portal="" className="ws-options-rows">
+                                    {advancedRows}
+                                </div>
                             </SettingsPopout>
                         )}
                         {done}
@@ -1039,12 +1117,12 @@ export function StepPane({
                                 // the card, by search or on the canvas, never from a list of every node.
                                 <Group key={option.name} gap={6} wrap="nowrap" className="sel-card-ref">
                                     <Text size="sm" className="sel-card-ref-name">
-                                        {option.plainName}
+                                        {REFERENCE_WORDS[option.name] ?? option.plainName}
                                     </Text>
                                     <ReferencePicker
                                         session={session}
                                         host={host}
-                                        name={option.plainName}
+                                        name={REFERENCE_WORDS[option.name] ?? option.plainName}
                                         reference={measure.bind?.[option.name]}
                                         firstStep={first}
                                         onReference={(reference) => {
@@ -1058,7 +1136,22 @@ export function StepPane({
                                     />
                                 </Group>
                             ))}
-                        {testBody}
+                        {card?.type === "yes-no" ? (
+                            // A yes-or-no output is named as the From and To rows are.
+                            <Group gap={6} wrap="nowrap" className="sel-card-ref">
+                                <Text size="sm" className="sel-card-ref-name">
+                                    {outputName}
+                                </Text>
+                                {testBody}
+                            </Group>
+                        ) : (
+                            testBody
+                        )}
+                        {linked && linksWhere && (
+                            <div className="sel-card-links" data-card-links="">
+                                {linksCondition}
+                            </div>
+                        )}
                     </>
                 }
             />
@@ -1252,7 +1345,7 @@ function OutputSelect({
         <Select
             aria-label={`${name} output`}
             allowDeselect={false}
-            w={124}
+            className="sel-card-output"
             data={outputs.map((each) => ({ value: each.name, label: each.plainName }))}
             value={rule.field}
             comboboxProps={{ withinPortal: true }}

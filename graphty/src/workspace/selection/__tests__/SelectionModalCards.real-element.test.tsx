@@ -211,9 +211,7 @@ describe("the selection modal with colored group cards", () => {
         const { session, layer } = await openLayer();
         await openModal();
         await pickValue("Within hops of");
-        const reference = await within(cards()[0]).findByRole("button", { name: /^Reference/ });
-        await userEvent.click(reference);
-        await userEvent.click(await screen.findByRole("option", { name: /Pick on canvas/ }));
+        await userEvent.click(await within(cards()[0]).findByRole("button", { name: "Pick on canvas" }));
         const element = document.querySelector("graphty-element");
         if (element === null) {
             throw new Error("no element");
@@ -367,9 +365,7 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         const { session } = await openLayer();
         await openModal();
         await pickValue("Within hops of");
-        const reference = await within(cards()[0]).findByRole("button", { name: /^Reference/ });
-        await userEvent.click(reference);
-        await userEvent.click(await screen.findByRole("option", { name: /Pick on canvas/ }));
+        await userEvent.click(await within(cards()[0]).findByRole("button", { name: "Pick on canvas" }));
         const element = document.querySelector("graphty-element");
         if (element === null) {
             throw new Error("no element");

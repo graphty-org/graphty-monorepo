@@ -1,6 +1,7 @@
 import type { GraphSession, StyleRow, StyleRowPin } from "@graphty/graphty-element/session";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
+import { selectionWorkspaceOn } from "../features";
 import { focusInspectorTitle, focusIsLost } from "../frame/focus";
 import type { GLYPHS } from "../glyphs";
 import { errorWords } from "../project/words";
@@ -231,7 +232,13 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
                 `select what ${row.name} paints`,
                 selectWhatItPaints(session, row).then(({ nodes, edges }) => {
                     if (nodes + edges === 0) {
-                        workspace.set({ notice: { message: `${row.name} paints nothing, so nothing was selected` } });
+                        workspace.set({
+                            notice: {
+                                message: selectionWorkspaceOn(session)
+                                    ? `${row.name}: nothing painted`
+                                    : `${row.name} paints nothing, so nothing was selected`,
+                            },
+                        });
                     }
                 }),
             );

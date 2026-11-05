@@ -206,6 +206,10 @@
     box-shadow: 0 8px 32px rgb(0 0 0 / 30%);
 }
 
+.sel-ws.sel-modal:focus {
+    outline: none;
+}
+
 .sel-ws-head {
     display: flex;
     align-items: center;
@@ -356,14 +360,78 @@
     flex: 0 0 12px;
 }
 
-/* A card's start, All or No nodes, beside its letter: compact, never a row of its own. */
+/* A card's start, All or No nodes: a named line at the head of the open card. */
+.sel-card-start-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 0;
+}
+
 .sel-card-start {
     flex: 0 0 auto;
 }
 
-/* A key shown on its button ("Cancel Esc"). */
+/* A key shown on its button ("Cancel Esc"): its word, close to the button's. */
 .sel-key {
     font-size: inherit;
+}
+
+.sel-ws-head .mantine-Button-section[data-position="right"] {
+    margin-inline-start: 4px;
+}
+
+/* An icon sits close to its own word, and a button's end stays clear of the next one's icon. */
+.sel-card-actions .mantine-Button-section[data-position="left"],
+.sel-card-new .mantine-Button-section[data-position="left"] {
+    margin-inline-end: 4px;
+}
+
+/* A card's output shares the row with its value, each as wide as the other. */
+.sel-card-value > .sel-card-output {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A card's named rows: their labels in one column, so the boxes start at one x. */
+.sel-card-ref {
+    min-width: 0;
+}
+
+.sel-card-ref-name {
+    flex: 0 0 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sel-card-ref > .sel-test-box {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A step's edge condition, on the card: the settings hold only its choice. */
+.sel-card-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* A card's count selects what it counts: it reads as something to press. */
+.sel-card .cm-card-head .sel-count {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+
+.sel-card-new {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sel-card-new [data-full] {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .sel-card-step {
@@ -387,7 +455,7 @@
 .sel-card-actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 8px;
 }
 
 /* Its buttons are plain subtle buttons; only the verb's glyph carries the verb's color, and the
@@ -451,9 +519,16 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
     flex: 1 1 auto;
 }
 
+/* At rest the heading and its value sit close, the value and Edit on one line, flush with the
+   panel's other rows (the approved prototype). */
+.sel-rest:not(.sel-rest-inline) .sel-row {
+    height: 24px;
+    padding-inline: 0;
+}
+
 /* The sidebar title row's Edit is always drawn: it is how a reader finds a layer's selection, as the
    approved design has it. The title takes the row's width, so Edit and any count sit at its end. */
-.sel-rest .sel-title-row .sel-title {
+.sel-rest:not(.sel-rest-inline) .sel-title-row .sel-title {
     flex: 1 1 0;
 }
 
@@ -464,6 +539,13 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
     overflow: hidden;
     background: var(--cm-bg);
     border-top: 1px solid var(--cm-border);
+}
+
+/* Nothing matches: no search and no table, one quiet line. */
+.sel-ws-strip[data-empty] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .sel-ws-strip-search {

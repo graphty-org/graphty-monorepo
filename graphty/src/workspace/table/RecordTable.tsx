@@ -49,7 +49,7 @@ function cellValue(
     record: NodeRecord | EdgeRecord,
 ): DataTableValue {
     const key = column.attribute ?? column.id;
-    const value = record[key];
+    const value = column.structure === true ? session.data.structureValue(record.id, key) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
         return session.data.name(id) ?? String(id);

@@ -226,7 +226,28 @@
 
 /* The Runs section (the selection-workspace experiment): one row per run, its name and remove
    button, then chips for the selections that read it and its style layers, or Show. */
+/* One line a run, and a list that scrolls: the Filters under it stay in reach. */
+.dp-run {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.dp-run > .dp-run-head {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.dp-run > .dp-run-facts {
+    flex: none;
+    padding-inline-start: 0;
+}
+
 .dp-runs {
+    max-height: 168px;
+    overflow-y: auto;
+
     margin: 0;
     padding: 0;
     list-style: none;

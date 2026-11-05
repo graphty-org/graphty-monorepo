@@ -1,9 +1,10 @@
 import { FieldRow, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Select, Stack } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import { OptionsForm } from "../options/OptionsForm";
+import { selectionWorkspaceOn } from "../features";
+import { OptionRow, OptionsForm } from "../options/OptionsForm";
 import { enumWords } from "../style/words";
 import { TRANSITION_WORDS as WORDS } from "./words";
 
@@ -28,8 +29,36 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
         setNow(next);
         void session.config.set({ layoutTransition: next });
     };
+    // What a transition adds comes into view under Apply, rather than below the form's fold.
+    const added = useRef<HTMLDivElement>(null);
+    const chosen = now?.transition;
+    const shown = useRef(chosen);
+    useEffect(() => {
+        if (shown.current !== chosen) {
+            shown.current = chosen;
+            added.current?.scrollIntoView?.({ block: "nearest" });
+        }
+    }, [chosen]);
+    const row = selectionWorkspaceOn(session);
+    const seconds =
+        now === undefined ? null : (
+            <PanelField
+                label={WORDS.seconds}
+                kind="number"
+                width={row ? "fill" : undefined}
+                value={now.seconds ?? null}
+                placeholder={WORDS.defaultSeconds}
+                min={0}
+                max={30}
+                step={0.1}
+                decimalScale={1}
+                onChange={(next) => {
+                    write({ ...now, seconds: Number(next) });
+                }}
+            />
+        );
     return (
-        <Stack gap={8}>
+        <Stack gap={row ? 4 : 8}>
             <Select
                 size="xs"
                 label={WORDS.transition}
@@ -50,23 +79,14 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
                     );
                 }}
             />
-            {now === undefined ? null : (
+            {seconds !== null && row && (
+                <div ref={added} className="ws-transition-added">
+                    <OptionRow label={WORDS.seconds}>{seconds}</OptionRow>
+                </div>
+            )}
+            {seconds !== null && !row && (
                 <PanelLabelsProvider showLabels>
-                    <FieldRow>
-                        <PanelField
-                            label={WORDS.seconds}
-                            kind="number"
-                            value={now.seconds ?? null}
-                            placeholder={WORDS.defaultSeconds}
-                            min={0}
-                            max={30}
-                            step={0.1}
-                            decimalScale={1}
-                            onChange={(next) => {
-                                write({ ...now, seconds: Number(next) });
-                            }}
-                        />
-                    </FieldRow>
+                    <FieldRow>{seconds}</FieldRow>
                 </PanelLabelsProvider>
             )}
             {now === undefined || descriptor === undefined || descriptor.params.length === 0 ? null : (

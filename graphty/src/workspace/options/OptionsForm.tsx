@@ -1,3 +1,5 @@
+import "./options.css";
+
 import {
     CompactColorInput,
     DataRow,
@@ -22,8 +24,51 @@ import {
 import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { splitOptions } from "./splitOptions";
+
+/** One name for one idea across the algorithms and layouts, by option (the `selection-workspace` forms). */
+const ONE_NAME: Readonly<Partial<Record<string, string>>> = {
+    randomSeed: "Seed",
+    seed: "Seed",
+    threshold: "Tolerance",
+    tolerance: "Tolerance",
+};
+
+/**
+ * A catalog's Title Case name in sentence case, as the forms' other names are: "Max iterations",
+ * with a name's own capitals kept ("LinLog mode").
+ * @param name - the name.
+ * @returns the name in sentence case.
+ */
+const sentenceCase = (name: string): string =>
+    name.replace(/ ([A-Z])(?=[a-z])/gu, (_all, letter: string) => ` ${letter.toLowerCase()}`);
+
+/**
+ * One line of a form in the `selection-workspace` forms: the name at its left, its control filling
+ * the rest, as Figma's property rows and the approved prototype's settings.
+ * @param props - Component props
+ * @param props.label - the name
+ * @param props.children - the control
+ * @param props.after - drawn after the control, on its line
+ * @returns The line
+ */
+export function OptionRow({
+    label,
+    children,
+    after,
+}: Readonly<{ label: string; children: React.ReactNode; after?: React.ReactNode }>): React.JSX.Element {
+    return (
+        <div className="ws-option-row">
+            <Text size="xs" span className="ws-option-name" title={label}>
+                {label}
+            </Text>
+            <div className="ws-option-value">{children}</div>
+            {after}
+        </div>
+    );
+}
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -202,6 +247,7 @@ const LOADED = "\u0000loaded";
  * @param props.reads - The meaning the algorithm reads
  * @param props.algorithm - The algorithm, for the element's plan
  * @param props.onChange - Called with the new value
+ * @param props.plain - Lists a column by its name alone, with no "(closer)"
  * @returns The select
  */
 function WeightField({
@@ -211,6 +257,7 @@ function WeightField({
     reads,
     algorithm,
     onChange,
+    plain,
 }: Readonly<{
     session: GraphSession;
     value: unknown;
@@ -218,6 +265,7 @@ function WeightField({
     reads: WeightMeaningRead;
     algorithm: string | undefined;
     onChange: (v: unknown) => void;
+    plain: boolean;
 }>): React.JSX.Element {
     const loaded = session.data.loadedWeight();
     // The plan is asked again when the loaded weight or its meaning changes.
@@ -240,7 +288,7 @@ function WeightField({
             live = false;
         };
     }, [session, algorithm, loadedAttribute, loadedMeaning]);
-    const data = weightChoices(session, loaded, unread, reads);
+    const data = weightChoices(session, loaded, unread, plain ? null : reads);
     const shown = shownWeight(value, loaded, unread);
     const unreadLoaded = unread !== null && (value === undefined || value === loaded?.attribute);
     return (
@@ -277,14 +325,14 @@ type LoadedWeight = ReturnType<GraphSession["data"]["loadedWeight"]>;
  * @param session - The element's session
  * @param loaded - The loaded weight, or null
  * @param unread - Why the run would leave the loaded weight unread, or null
- * @param reads - The meaning the algorithm reads
+ * @param reads - The meaning the algorithm reads, or null to name a column alone
  * @returns The choices
  */
 function weightChoices(
     session: GraphSession,
     loaded: LoadedWeight,
     unread: string | null,
-    reads: WeightMeaningRead,
+    reads: Meaning,
 ): { value: string; label: string; disabled?: boolean }[] {
     const data: { value: string; label: string; disabled?: boolean }[] = [];
     if (loaded !== null) {
@@ -326,6 +374,8 @@ interface ControlProps {
     label: string;
     empty: string | undefined;
     onChange: (v: unknown) => void;
+    /** Drawn as a line of the `selection-workspace` forms. */
+    row?: boolean;
 }
 
 /**
@@ -336,46 +386,56 @@ interface ControlProps {
  * @param props.label - The app's words for it
  * @param props.empty - What an empty box means, when the default is no value
  * @param props.onChange - Called with the new value
+ * @param props.row - Drawn as a line of the `selection-workspace` forms
  * @returns The number box
  */
-function NumberOption({ option, value, label, empty, onChange }: Readonly<ControlProps>): React.JSX.Element {
+function NumberOption({
+    option,
+    value,
+    label,
+    empty,
+    onChange,
+    row = false,
+}: Readonly<ControlProps>): React.JSX.Element {
     const integer = option.type === "integer";
     // The value in force, the default included: an option always has one, so the box never says
     // "not set" beside it. At the default there is nothing to reset: no Reset is drawn.
     const shown = num(value) ?? num(option.default);
     const changed = num(value) !== undefined && num(value) !== num(option.default);
-    return (
+    const reset = changed && (
+        <ResetButton
+            label={label}
+            onClick={() => {
+                // A reset sets the default itself, so a run reset to what it used is unchanged.
+                onChange(typeof option.default === "number" ? option.default : undefined);
+            }}
+        />
+    );
+    const field = (
+        <PanelField
+            label={label}
+            kind="number"
+            width="fill"
+            value={shown ?? null}
+            // A default of no value (a sample size left to every node) is an empty box
+            // that says what empty means, never a 0 the run would not use.
+            placeholder={option.default === null ? (empty ?? "Not set") : undefined}
+            min={num(option.min)}
+            max={num(option.max)}
+            step={option.step ?? (integer ? 1 : undefined)}
+            decimalScale={integer ? 0 : undefined}
+            onChange={(v) => {
+                onChange(Number(v));
+            }}
+        />
+    );
+    return row ? (
+        <OptionRow label={label} after={reset}>
+            {field}
+        </OptionRow>
+    ) : (
         <PanelLabelsProvider showLabels>
-            <FieldRow
-                trailing={
-                    changed && (
-                        <ResetButton
-                            label={label}
-                            onClick={() => {
-                                // A reset sets the default itself, so a run reset to what it used is unchanged.
-                                onChange(typeof option.default === "number" ? option.default : undefined);
-                            }}
-                        />
-                    )
-                }
-            >
-                <PanelField
-                    label={label}
-                    kind="number"
-                    width="fill"
-                    value={shown ?? null}
-                    // A default of no value (a sample size left to every node) is an empty box
-                    // that says what empty means, never a 0 the run would not use.
-                    placeholder={option.default === null ? (empty ?? "Not set") : undefined}
-                    min={num(option.min)}
-                    max={num(option.max)}
-                    step={option.step ?? (integer ? 1 : undefined)}
-                    decimalScale={integer ? 0 : undefined}
-                    onChange={(v) => {
-                        onChange(Number(v));
-                    }}
-                />
-            </FieldRow>
+            <FieldRow trailing={reset}>{field}</FieldRow>
         </PanelLabelsProvider>
     );
 }
@@ -528,14 +588,16 @@ function OptionControl({
     choiceNote,
     disabled = false,
 }: Readonly<FieldProps & { disabled?: boolean }>): React.JSX.Element | null {
-    const { label, choice, empty } = words(option);
+    const { label: named, choice, empty } = words(option);
+    const row = selectionWorkspaceOn(session);
+    const label = row ? (ONE_NAME[option.name] ?? sentenceCase(named)) : named;
     const set = (v: unknown): void => {
         onChange(option.name, v);
     };
     switch (option.type) {
         case "number":
         case "integer":
-            return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} />;
+            return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} row={row} />;
         case "enum":
             return (
                 <EnumOption
@@ -567,17 +629,21 @@ function OptionControl({
                 />
             );
         }
-        case "boolean":
-            return (
-                <Checkbox
-                    size="xs"
-                    label={label}
-                    checked={typeof value === "boolean" ? value : option.default === true}
-                    onChange={(event) => {
-                        set(event.currentTarget.checked);
-                    }}
-                />
+        case "boolean": {
+            const box = {
+                checked: typeof value === "boolean" ? value : option.default === true,
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                    set(event.currentTarget.checked);
+                },
+            };
+            return row ? (
+                <OptionRow label={label}>
+                    <Checkbox size="xs" aria-label={label} {...box} />
+                </OptionRow>
+            ) : (
+                <Checkbox size="xs" label={label} {...box} />
             );
+        }
         case "string": {
             return (
                 <TextInput
@@ -605,6 +671,7 @@ function OptionControl({
                         reads={weightReads}
                         algorithm={algorithm}
                         onChange={set}
+                        plain={row}
                     />
                 );
             }
@@ -682,10 +749,19 @@ export function OptionsForm({
     // Options that share a row are drawn side by side where the row's first one stands.
     const rowOf = (option: OptionDescriptor): readonly string[] | undefined =>
         rows.find((r) => r.includes(option.name));
+    // In the workspace's forms the advanced options sit under a quiet word: the key ones lead.
+    const lined = selectionWorkspaceOn(rest.session);
     const placed = list.flatMap((option) => {
         const row = rowOf(option);
         if (row === undefined) {
-            return [field(option)];
+            return lined && key.length > 0 && option === advanced[0]
+                ? [
+                      <Text key="advanced" size="xs" c="dimmed" className="ws-options-more">
+                          Advanced
+                      </Text>,
+                      field(option),
+                  ]
+                : [field(option)];
         }
         if (row[0] !== option.name) {
             return [];

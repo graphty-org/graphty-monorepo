@@ -8,6 +8,7 @@
 
 import { type DataTableSort, SearchInput } from "@graphty/compact-mantine";
 import type { EdgeId, GraphSession, NodeId, UnionLeaf } from "@graphty/graphty-element/session";
+import { Text } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useDeferredValue, useState } from "react";
 
@@ -75,15 +76,44 @@ export function MatchesStrip({
         ),
     );
     const runs = new Set((reading?.branches ?? []).flatMap((each) => each.steps.flatMap((step) => step.run ?? [])));
+    // A step reads a data column by its path (`data.score`, `data.score.value`).
+    const reads = (attribute: string): boolean =>
+        [...tested].some(
+            (path) => path === attribute || path === `data.${attribute}` || path.startsWith(`data.${attribute}.`),
+        );
     const columns = columnChoices(session, kind).filter(
         (choice) =>
             choice.hidden !== true &&
             (!modal ||
                 choice.group === "key" ||
                 choice.role === "label" ||
-                (choice.attribute !== undefined && tested.has(choice.attribute)) ||
+                (choice.attribute !== undefined && reads(choice.attribute)) ||
                 (choice.run !== undefined && runs.has(choice.run))),
     );
+    // A card on the graph's structure (Degree) shows it too: it is no attribute, so no choice above.
+    const structure =
+        !modal || kind !== "node"
+            ? []
+            : session.data
+                  .structureValues()
+                  .filter((value) => tested.has(value.path))
+                  .map((value) => ({
+                      id: `s:${value.path}`,
+                      header: value.plainName,
+                      group: "attribute" as const,
+                      numeric: true,
+                      attribute: value.path,
+                      structure: true,
+                  }));
+    if (modal && reading !== null && reading.total.count === 0) {
+        return (
+            <section className="sel-ws-strip" aria-label="Matches" data-empty="">
+                <Text size="sm" c="dimmed">
+                    No matches
+                </Text>
+            </section>
+        );
+    }
     return (
         <section className="sel-ws-strip" aria-label="Matches">
             <SearchInput
@@ -99,7 +129,7 @@ export function MatchesStrip({
                         key={`${JSON.stringify(reading.rule)} ${typed}`}
                         session={session}
                         kind={kind}
-                        columns={columns}
+                        columns={[...columns, ...structure]}
                         scope={reading.branches.find((each) => each.id === branch)?.members ?? reading.result}
                         groupOf={groupOf}
                         sort={sort}

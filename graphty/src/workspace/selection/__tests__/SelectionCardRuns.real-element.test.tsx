@@ -185,7 +185,7 @@ function listedGroups(modal: HTMLElement): Map<string, number> {
 }
 
 describe("a card's setting its run name does not carry (the owner, 2026-11-04)", () => {
-    it("Louvain's Max iterations makes the card's own run: its groups are re-read and the ticks cleared", async () => {
+    it("Louvain's Max iterations makes the card's own run: its groups are re-read and the tick follows its group", async () => {
         const { session, layer } = await openLayer();
         await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
         const modal = await waitFor(() => {
@@ -221,15 +221,29 @@ describe("a card's setting its run name does not carry (the owner, 2026-11-04)",
             firstParams,
             "the first run was never re-run in place",
         );
-        await waitFor(() => {
-            assert.strictEqual(cardCount(), 0, "the old run's Group 1 is not ticked on the new run");
+        // The tick stands on the group that holds the old group's best-connected node.
+        const ticked = await waitFor(() => {
+            const boxes = within(modal)
+                .getAllByRole<HTMLInputElement>("checkbox")
+                .filter((box) => box.checked);
+            assert.lengthOf(boxes, 1, "one group ticked on the new run");
+            return boxes[0];
         });
-        // Each listed group's count is what ticking it adds: the list reads the new run.
         const groups = await waitFor(() => {
             const found = listedGroups(modal);
             assert.isAbove(found.size, 1);
             return found;
         });
+        const held = groups.get(ticked.getAttribute("aria-label")?.split(",")[0] ?? "");
+        await waitFor(() => {
+            assert.strictEqual(cardCount(), held, "the card counts the group its tick followed to");
+        });
+        // The last tick off holds nothing, as a card never ticked does.
+        await userEvent.click(ticked);
+        await waitFor(() => {
+            assert.strictEqual(cardCount(), 0, "nothing ticked selects nothing");
+        });
+        // Each listed group's count is what ticking it adds: the list reads the new run.
         const [name, count] = [...groups][0];
         await userEvent.click(within(modal).getByRole("checkbox", { name: new RegExp(`^${name}\\b`, "u") }));
         await waitFor(() => {

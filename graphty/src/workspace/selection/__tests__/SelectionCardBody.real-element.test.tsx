@@ -184,7 +184,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Leiden");
         await userEvent.click(await within(cards()[0]).findByRole("button", { name: /^Settings for Leiden/u }));
         const panel = await screen.findByRole("dialog", { name: "Leiden" });
-        for (const name of [/^Resolution/u, /^Random seed/u, /^Max iterations/u, /^Threshold/u]) {
+        for (const name of [/^Resolution/u, /^Seed/u, /^Max iterations/u, /^Tolerance/u]) {
             assert.isNotNull(within(panel).getByRole("spinbutton", { name }));
         }
         assert.lengthOf(

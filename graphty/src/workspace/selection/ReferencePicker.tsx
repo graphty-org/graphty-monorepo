@@ -141,7 +141,7 @@ export function ReferencePicker({
         };
     }, [arming, session]);
     const typed = search.trim();
-    const sections = combobox.dropdownOpened ? referenceSections(session, host, firstStep, typed) : [];
+    const sections = combobox.dropdownOpened ? referenceSections(session, host, firstStep, typed, modal) : [];
     const chosen = referenceValue(reference);
     const token = reference === undefined ? "" : referenceWords(session, reference);
     return (
@@ -149,6 +149,8 @@ export function ReferencePicker({
             store={combobox}
             position="bottom-start"
             withinPortal
+            // In the workspace the list keeps its field's width, however long a node's name is.
+            {...(modal ? { width: "target" as const } : {})}
             classNames={LISTBOX_CLASS_NAMES}
             onOptionSubmit={(value) => {
                 combobox.closeDropdown();
@@ -221,7 +223,13 @@ export function ReferencePicker({
                                     aria-disabled={each.disabled}
                                     active={each.value === chosen}
                                 >
-                                    {each.label}
+                                    {modal ? (
+                                        <span className="sel-field-text" title={each.label}>
+                                            {each.label}
+                                        </span>
+                                    ) : (
+                                        each.label
+                                    )}
                                     {each.hint !== undefined && (
                                         <Text span size="sm" c="dimmed" ml={6}>
                                             {each.hint}

@@ -700,7 +700,10 @@ function chipWords(session: GraphSession, shown: Shown, rows: number): string {
     const holding = shown.per.filter((each) => each !== undefined).length;
     // Every layer holding it needs no count: the panel's header says how many layers there are.
     const layers = holding < rows ? `, ${String(holding)} of ${String(rows)} layers` : "";
-    return `${cardName(shown.card)}: ${LAYER_TOKEN}${layers}`;
+    // Read in plain words in the workspace: the token is the shared card's own mark.
+    return selectionWorkspaceOn(session)
+        ? `${cardName(shown.card).replace(/^The rule$/u, "Rule")} by layer${layers}`
+        : `${cardName(shown.card)}: ${LAYER_TOKEN}${layers}`;
 }
 
 /**
@@ -1843,8 +1846,13 @@ function ValueBrush({
                     from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
                     to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
                     // No bound set is the whole range, every bar lit: what the step passes.
-                    // A one-value bin at the low bound (from = to = min) is in range too.
-                    highlighted: (bin.to > shown[0] || bin.from >= shown[0]) && bin.from <= shown[1],
+                    // A one-value bin at the low bound (from = to = min) is in range too, and so is
+                    // the last bin, which holds its upper end, when both thumbs sit on it.
+                    highlighted:
+                        (bin.to > shown[0] ||
+                            bin.from >= shown[0] ||
+                            (wide && at === spread.bins.length - 1 && bin.to >= shown[0])) &&
+                        bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
                 maxLabel={formatNumber(high)}
@@ -2354,6 +2362,10 @@ interface Drafts {
  * @param total - the elements a count can keep.
  * @param total.count - how many there are, the most a count can keep.
  * @param total.side - nodes or edges, for their noun.
+ * @param scale - the values' ends, when a box that reads an end as the slider's label writes it is
+ *     that end (the label's 231.1 is the scale's 231.0714...).
+ * @param scale.low - the lowest value.
+ * @param scale.high - the highest value.
  * @returns the numbers, the boxes that refuse them, what to do about it (`why`), and the reason
  * alone (`gist`) for words said after the card has gone.
  */
@@ -2363,6 +2375,7 @@ function checkDrafts(
     parse: (text: string) => number,
     example: string,
     total: { readonly count: number; readonly side: Side },
+    scale?: { readonly low: number; readonly high: number },
 ): {
     min?: number;
     max?: number;
@@ -2372,8 +2385,14 @@ function checkDrafts(
     gist?: string;
     reason?: Refusal;
 } {
+    const atEnd = (value: number | undefined | null): number | undefined | null => {
+        const end = [scale?.low, scale?.high].find(
+            (each) => each !== undefined && value !== null && parse(formatNumber(each)) === value,
+        );
+        return end ?? value;
+    };
     const read = (key: keyof Drafts, held: number | undefined): number | undefined | null =>
-        drafts[key] === undefined ? held : readTyped(drafts[key], parse);
+        drafts[key] === undefined ? held : atEnd(readTyped(drafts[key], parse));
     const min = read("min", card.min);
     const max = read("max", card.max);
     const top = read("top", card.top);
@@ -2400,8 +2419,8 @@ function checkDrafts(
         return {
             ...values,
             bad: typed,
-            why: `From is above to: ${String(values.min)} is more than ${String(values.max)}.`,
-            gist: `from is above to (${String(values.min)} is more than ${String(values.max)})`,
+            why: `From is above to: ${formatNumber(values.min)} is more than ${formatNumber(values.max)}.`,
+            gist: `from is above to (${formatNumber(values.min)} is more than ${formatNumber(values.max)})`,
             reason: "order",
         };
     }
@@ -2543,7 +2562,9 @@ function NumberCard({
     // What the count and the drawing still use while a box holds what the card cannot take: a
     // By position with no count yet uses none, so it names none.
     const held =
-        card.match === "top" ? heldTopWords(card) : `${String(card.min ?? low)} to ${String(card.max ?? high)}`;
+        card.match === "top"
+            ? heldTopWords(card)
+            : `${formatNumber(card.min ?? low)} to ${formatNumber(card.max ?? high)}`;
     const heldWords =
         held === null
             ? "The step keeps everything until a count is typed."
@@ -2551,7 +2572,9 @@ function NumberCard({
     // Typing still held when the card goes (the picker closed, the card removed) is said, not lost.
     const leaving = useRef<string | null>(null);
     const count = { count: total, side };
-    const check = checkDrafts(drafts, card, parse, example, count);
+    // In the workspace a box takes an end as its label writes it; the outline editor stays as it was.
+    const scale = selectionWorkspaceOn(session) && range !== undefined ? { low, high } : undefined;
+    const check = checkDrafts(drafts, card, parse, example, count, scale);
     const heldAfter = held === null ? "so it has no count yet" : `so it went back to ${held}`;
     leaving.current = check.bad.length > 0 ? `${name}: ${check.gist ?? ""}, ${heldAfter}.` : null;
     useEffect(
@@ -2580,7 +2603,7 @@ function NumberCard({
         };
     }, []);
     const commit = (leaving = false): void => {
-        const now = checkDrafts(drafts, card, parse, example, count);
+        const now = checkDrafts(drafts, card, parse, example, count, scale);
         if (now.bad.length > 0) {
             const refusal = {
                 bad: now.bad,
@@ -2627,7 +2650,7 @@ function NumberCard({
                 setDrafts(next);
                 // A refusal goes as soon as the text it named is taken; a new one waits for a commit.
                 if (refused !== null) {
-                    const still = checkDrafts(next, card, parse, example, count);
+                    const still = checkDrafts(next, card, parse, example, count, scale);
                     const bad = refused.bad.filter((each) => still.bad.includes(each));
                     // Text refused for another reason now is not said until it is committed.
                     setRefused(bad.length === 0 || still.reason !== refused.reason ? null : { ...refused, bad });
@@ -3102,6 +3125,9 @@ function categoryCounts(
     };
 }
 
+/** No value pinned to a checklist's top. */
+const NO_VALUES: ReadonlySet<string> = new Set();
+
 /**
  * A category card: a counted checklist of the values, ticked ones being alternatives, drawing at
  * most 8 rows whatever the column holds; over 8 a search ("Search 5,000"), and while searching
@@ -3168,7 +3194,10 @@ function CategoryCard({
     if (ordered.current.typed !== typed) {
         ordered.current = { typed, checked };
     }
-    const { rows } = checklistRows(named, ordered.current.checked, typed);
+    // A workspace list that shows every row keeps its order (largest first) whatever is ticked: a
+    // saved card reads as it did. Pinning is for the list cut to 8 rows, where a tick could be cut.
+    const whole = variant === "step" && selectionWorkspaceOn(session) && named.length <= SHOWN_VALUES;
+    const { rows } = checklistRows(named, whole ? NO_VALUES : ordered.current.checked, typed);
     const { moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
     const toggle = (value: string, on: boolean): void => {
         const values = on ? [...card.values, value] : card.values.filter((v) => v !== value);

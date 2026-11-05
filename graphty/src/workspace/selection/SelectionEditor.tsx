@@ -34,7 +34,18 @@ import type {
     UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, InputBase, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Group,
+    InputBase,
+    Loader,
+    Menu,
+    Stack,
+    Text,
+    Tooltip,
+    UnstyledButton,
+} from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -735,6 +746,16 @@ export function SelectionEditor({
         }
     });
 
+    // Focus comes into the modal as it opens, wherever it was: left on the drawing, the drawing's focus
+    // ring would stand round the preview, and Tab would start behind the modal.
+    const opened = open && wsPlace !== null;
+    useEffect(() => {
+        const at = document.activeElement;
+        if (opened && wsBox.current !== null && !wsBox.current.contains(at)) {
+            wsBox.current.focus({ preventScroll: true });
+        }
+    }, [opened]);
+
     const readingOf = (id: string | undefined): StepReading | undefined =>
         reading.branches.flatMap((branch) => branch.steps).find((step) => step.id === id);
     const branchReading = (id: string | undefined): StepsReading["branches"][number] | undefined =>
@@ -1154,6 +1175,19 @@ export function SelectionEditor({
             return multi && stepId !== undefined ? 3 : 2;
         };
         const graphWord = host === "filter" ? "full" : "filtered";
+        const editButton = (
+            <Button
+                size="compact-xs"
+                variant="default"
+                data-edit=""
+                aria-label={`Edit ${name}`}
+                onClick={() => {
+                    openAt(TITLE, EDIT);
+                }}
+            >
+                Edit
+            </Button>
+        );
         const rowProps = (
             id: string,
             selects: string,
@@ -1255,19 +1289,7 @@ export function SelectionEditor({
                             Run
                         </Button>
                     )}
-                    {!ws && !editing && (
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            data-edit=""
-                            aria-label={`Edit ${name}`}
-                            onClick={() => {
-                                openAt(TITLE, EDIT);
-                            }}
-                        >
-                            Edit
-                        </Button>
-                    )}
+                    {!ws && !editing && recipeTitle && editButton}
                 </div>
                 {!ws && !editing && !recipeTitle && (
                     // At rest the sidebar says the selection in one calm line; Edit opens the modal.
@@ -1276,6 +1298,7 @@ export function SelectionEditor({
                             <Text size="sm" c="dimmed" className="sel-value">
                                 {restSummary}
                             </Text>
+                            {editButton}
                         </div>
                     </Tooltip>
                 )}
@@ -1597,6 +1620,7 @@ export function SelectionEditor({
                       icon: "selection" as const,
                       group: "edit" as const,
                       reason: reading.total.count === 0 ? `No ${NOUNS[side].many} match` : null,
+                      reasonDrawn: false,
                       onRun: () => {
                           showMembers(reading.result, null);
                       },
@@ -1613,20 +1637,27 @@ export function SelectionEditor({
         },
     ];
 
-    // A folded card's summary: its value and conditions in one line.
+    // A folded card's summary: what each of its steps selects, in one line. The test comes first in
+    // the words the row gives it; an algorithm goes by its method, never its field, so what was
+    // picked is not the part an ellipsis takes.
+    const foldedStep = (step: UnionStep): string => {
+        const words = outlineWords.get(step.id ?? "");
+        const test = words === undefined ? "" : rowTest(words);
+        const value = words?.value ?? "";
+        const name = step.rule.kind === "measure" ? (value.split(":")[0] ?? value) : value;
+        return [name, test === "" ? untestedWords(step, readingOf(step.id)) : test]
+            .filter((each) => each !== "")
+            .join(" ");
+    };
     const foldedWords = (branch: UnionBranch): string =>
         branch.steps.length === 0
             ? startWords(branch)
             : branch.steps
-                  .map((step, index) => {
-                      const words = outlineWords.get(step.id ?? "");
-                      const said = [words?.value ?? "", words ? rowTest(words) : ""]
-                          .filter((each) => each !== "")
-                          .join(" ");
-                      return index === 0 && step.op === newVerb(branch)
-                          ? said
-                          : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
-                  })
+                  .map((step, index) =>
+                      index === 0 && step.op === newVerb(branch)
+                          ? foldedStep(step)
+                          : `${VERB_WORDS[step.op].word.toLowerCase()} ${foldedStep(step)}`,
+                  )
                   .join(", ");
     /**
      * A card's step: the card's value (its first step) or a narrowing condition under it, its
@@ -1704,6 +1735,11 @@ export function SelectionEditor({
             </div>
         );
     };
+    // A card moved by its keys keeps focus on its grip.
+    const moveCardBy = (id: string, by: -1 | 1): void => {
+        moveBranchBy(id, by);
+        focusAfter.current = `[data-card-grip="${CSS.escape(id)}"]`;
+    };
     // A card's x: the card goes; the last card goes back to one empty card.
     const removeCard = (branch: UnionBranch): void => {
         if (rule.branches.length > 1) {
@@ -1714,6 +1750,27 @@ export function SelectionEditor({
         say(`Removed ${branchName(branch)}`);
         setSelected(null);
         setAdding(null);
+    };
+    // A card's keys, as its "..." menu shows them, on its header's controls (its grip, its fold, ...).
+    const cardKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
+        const target = event.target as HTMLElement;
+        const head = target.closest<HTMLElement>("[data-card-id] > .cm-card-head");
+        const branchId = head?.parentElement?.dataset.cardId;
+        const branch = rule.branches.find((each) => each.id === branchId);
+        if (branch === undefined || isTypingTarget(target)) {
+            return;
+        }
+        const at = rule.branches.indexOf(branch);
+        const item = cardItems(branch, at).find(
+            (each) =>
+                each.key !== undefined && (each.reason ?? null) === null && matchesKey(event.nativeEvent, each.key),
+        );
+        if (item === undefined) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        item.onRun();
     };
     // A card's "..." items.
     const cardItems = (branch: UnionBranch, at: number): readonly SelectionMenuItem[] => {
@@ -1727,6 +1784,7 @@ export function SelectionEditor({
                 label: "Rename",
                 icon: "rename",
                 group: "edit",
+                key: "F2",
                 onRun: () => {
                     setRenaming(branchId);
                 },
@@ -1736,6 +1794,7 @@ export function SelectionEditor({
                 label: on ? "Turn off" : "Turn on",
                 icon: on ? "hide" : "show",
                 group: "edit",
+                key: "Shift+Mod+H",
                 onRun: () => {
                     toggle(branch);
                 },
@@ -1745,7 +1804,9 @@ export function SelectionEditor({
                 label: "Duplicate",
                 icon: "duplicate",
                 group: "edit",
+                key: "Mod+D",
                 reason: reading.branchesLeft === 0 ? "No more cards" : null,
+                reasonDrawn: false,
                 onRun: () => {
                     duplicate(branch);
                 },
@@ -1756,6 +1817,7 @@ export function SelectionEditor({
                 icon: "several",
                 group: "edit",
                 reason: (branchRead?.count ?? 0) === 0 ? `No ${NOUNS[side].many} in it` : null,
+                reasonDrawn: false,
                 onRun: () => {
                     const members = branchRead?.members;
                     if (members !== undefined) {
@@ -1770,10 +1832,11 @@ export function SelectionEditor({
                 label: "Move up",
                 icon: "moveUp",
                 group: "edit",
+                key: "Mod+]",
                 reason: at === 0 ? "Already at the top" : null,
                 reasonDrawn: false,
                 onRun: () => {
-                    moveBranchBy(branchId, -1);
+                    moveCardBy(branchId, -1);
                 },
             },
             {
@@ -1781,10 +1844,11 @@ export function SelectionEditor({
                 label: "Move down",
                 icon: "moveDown",
                 group: "edit",
+                key: "Mod+[",
                 reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
                 reasonDrawn: false,
                 onRun: () => {
-                    moveBranchBy(branchId, 1);
+                    moveCardBy(branchId, 1);
                 },
             },
             {
@@ -1792,6 +1856,7 @@ export function SelectionEditor({
                 label: "Delete",
                 icon: "delete",
                 group: "remove",
+                key: "Delete",
                 onRun: () => {
                     removeCard(branch);
                 },
@@ -1855,39 +1920,12 @@ export function SelectionEditor({
                             {foldedWords(branch)}
                         </Text>
                     ),
-                    aside: (
-                        <>
-                            <Tooltip
-                                label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
-                                openDelay={500}
-                            >
-                                <Button
-                                    size="compact-xs"
-                                    variant="default"
-                                    className="sel-card-start"
-                                    data-start={branch.start}
-                                    onClick={() => {
-                                        if (converted) {
-                                            setStartsAll(!startsAll);
-                                            return;
-                                        }
-                                        onChange(
-                                            editBranch(rule, branchId, {
-                                                start: branch.start === "all" ? "none" : "all",
-                                            }),
-                                        );
-                                    }}
-                                >
-                                    {startWords(branch)}
-                                </Button>
-                            </Tooltip>
-                            {(!on || startEmpties(branch, branchRead)) && (
-                                <Text size="sm" c="dimmed" className="sel-state">
-                                    {on ? "Passes none" : "Off"}
-                                </Text>
-                            )}
-                        </>
-                    ),
+                    aside:
+                        !on || startEmpties(branch, branchRead) ? (
+                            <Text size="sm" c="dimmed" className="sel-state">
+                                {on ? "Passes none" : "Off"}
+                            </Text>
+                        ) : undefined,
                     header:
                         branchRead?.state === "pending" ? (
                             <Text size="sm" c="dimmed" className="sel-state">
@@ -1907,6 +1945,37 @@ export function SelectionEditor({
                     menu: <PaneMenu name={letter} items={cardItems(branch, at)} />,
                     children: (
                         <>
+                            {/* Its own line in the open card, named: beside the count "No nodes" read as
+                                the card's result. */}
+                            <div className="sel-card-start-row">
+                                <Text size="sm" c="dimmed" span>
+                                    Start with
+                                </Text>
+                                <Tooltip
+                                    label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
+                                    openDelay={500}
+                                >
+                                    <Button
+                                        size="compact-xs"
+                                        variant="subtle"
+                                        className="sel-card-start"
+                                        data-start={branch.start}
+                                        onClick={() => {
+                                            if (converted) {
+                                                setStartsAll(!startsAll);
+                                                return;
+                                            }
+                                            onChange(
+                                                editBranch(rule, branchId, {
+                                                    start: branch.start === "all" ? "none" : "all",
+                                                }),
+                                            );
+                                        }}
+                                    >
+                                        {startWords(branch)}
+                                    </Button>
+                                </Tooltip>
+                            </div>
                             {branch.steps.length === 0 && (
                                 <div className="sel-card-step" data-new-step="">
                                     <NewStepPane
@@ -1949,9 +2018,9 @@ export function SelectionEditor({
                             )}
                         </>
                     ),
-                    // Shown once the card has a value: Add, Keep and Except change it.
+                    // Shown once the card's value has a test: Add, Keep and Except change what it holds.
                     footer:
-                        narrowing || branch.steps.length === 0 ? undefined : (
+                        narrowing || !cardHolds(branch, branchRead) ? undefined : (
                             <div className="sel-card-actions">
                                 {CARD_VERBS.map((op) => (
                                     <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
@@ -2023,6 +2092,9 @@ export function SelectionEditor({
             return undefined;
         }
         const camera = element?.getCameraState();
+        // Opened while the element is still framing a load: that camera is not where it would have
+        // ended, so the drawing is framed again on close rather than put back mid-way.
+        const framing = element?.framing === true;
         // The graph is framed in the preview cell once the element has taken the cell's size.
         const fit = (): void => {
             void element?.waitForPainted().then(() => {
@@ -2057,7 +2129,11 @@ export function SelectionEditor({
             for (const each of ["top", "left", "width", "height"]) {
                 canvas.style.removeProperty(`--sel-preview-${each}`);
             }
-            if (camera !== undefined) {
+            if (framing) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(fit);
+                });
+            } else if (camera !== undefined) {
                 void element?.setCameraState(camera);
             }
         };
@@ -2178,6 +2254,7 @@ export function SelectionEditor({
                           role="dialog"
                           aria-modal="true"
                           aria-labelledby={titleId}
+                          tabIndex={-1}
                           className="sel-ws sel-modal sel-editor"
                           data-host={host}
                           style={wsPlace ?? { visibility: "hidden" }}
@@ -2194,7 +2271,7 @@ export function SelectionEditor({
                                   event.key === "Escape" &&
                                   target.matches("input, textarea") &&
                                   target.closest(".sel-ws-cards") !== null &&
-                                  target.closest("[data-portal]") === null &&
+                                  target.closest(SELF_CLOSING) === null &&
                                   target.getAttribute("aria-expanded") !== "true" &&
                                   !("expanded" in target.dataset)
                               ) {
@@ -2205,6 +2282,7 @@ export function SelectionEditor({
                           }}
                           onKeyDown={(event) => {
                               tabToHead(event);
+                              cardKeys(event);
                               wsKeys(event);
                           }}
                       >
@@ -2227,9 +2305,13 @@ export function SelectionEditor({
                                   {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                               </Text>
                               {(drawing || starting || closing || !warm) && (
-                                  <Text size="sm" c="dimmed" className="sel-state" data-drawing="">
-                                      Drawing
-                                  </Text>
+                                  <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">
+                                      {/* A CSS spinner keeps turning while the page works on a large graph. */}
+                                      <Loader size={12} aria-hidden />
+                                      <Text size="sm" c="dimmed" span>
+                                          Drawing
+                                      </Text>
+                                  </Group>
                               )}
                               <span className="sel-spacer" />
                               <SegmentedControl
@@ -2343,7 +2425,7 @@ function asNone(rule: UnionLeaf): UnionLeaf {
 
 /** What closes itself on Escape: a list, a menu or a card's settings, never the workspace with it. */
 const SELF_CLOSING =
-    "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown";
+    "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown, .cm-card-head input";
 
 /** Where focus goes once a value is picked: the test's first control, when it is drawn. */
 const TEST_FOCUS: readonly string[] = [
@@ -2388,6 +2470,36 @@ function groupCount(branch: UnionBranch, read: StepsReading["branches"][number] 
     }
     const untested = read?.steps.every((step) => UNSET.has(step.reason?.code ?? "")) === true;
     return branch.start === "none" && untested ? "" : formatNumber(read?.count ?? 0);
+}
+
+/**
+ * Whether a card's value has a test, so what it holds can be changed: nothing ticked or no
+ * reference yet has none.
+ * @param branch - the card's group.
+ * @param read - its reading.
+ * @returns true when it has.
+ */
+function cardHolds(branch: UnionBranch, read: StepsReading["branches"][number] | undefined): boolean {
+    return branch.steps.length > 0 && read?.steps.every((step) => UNSET.has(step.reason?.code ?? "")) !== true;
+}
+
+/**
+ * What a folded card says for a step whose row names no test: an untouched number takes every
+ * value, a checklist with no tick none, a relative step waits for its reference.
+ * @param step - the step.
+ * @param read - its reading.
+ * @returns the words, or "" where the value says it all.
+ */
+function untestedWords(step: UnionStep, read: StepReading | undefined): string {
+    const code = read?.reason?.code;
+    if (code === "no-reference") {
+        return "not set";
+    }
+    if (code === "test-unset") {
+        return "none picked";
+    }
+    const { rule } = step;
+    return rule.kind === "range" || (rule.kind === "measure" && rule.test === undefined) ? "all" : "";
 }
 
 /**
@@ -2593,9 +2705,8 @@ function TitleName({
     return (
         <Group gap={4} wrap="nowrap" className="sel-ws-title" id={id}>
             {owner !== undefined && (
-                // A short layer name keeps its width; a long one stops at 40% and is cut short, so
-                // neither name pushes the header.
-                <Text size="sm" fw={600} truncate style={{ flexShrink: 0, maxWidth: "40%" }}>
+                // What it belongs to is a short word that keeps its width, whatever the name's length.
+                <Text size="sm" fw={600} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
                     {`${owner} /`}
                 </Text>
             )}
@@ -2687,9 +2798,9 @@ function AddCard({
                         size="compact-xs"
                         variant="subtle"
                         data-or=""
-                        title={full ? `No more: ${String(most)} is the most` : undefined}
                         aria-disabled={full}
-                        data-disabled={full ? true : undefined}
+                        aria-description={full ? `At most ${String(most)} cards` : undefined}
+                        data-full={full ? "" : undefined}
                         aria-haspopup="dialog"
                         aria-expanded={open}
                         leftSection={<GLYPHS.add size={12} aria-hidden />}
@@ -2703,6 +2814,11 @@ function AddCard({
                     </Button>
                 }
             />
+            {full && (
+                <Text size="sm" c="dimmed" span data-card-limit="">
+                    {`${String(most)} cards at most`}
+                </Text>
+            )}
         </div>
     );
 }

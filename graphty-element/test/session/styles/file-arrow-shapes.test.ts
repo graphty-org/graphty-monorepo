@@ -5,12 +5,7 @@
 import { assert, describe, it } from "vitest";
 
 import { EdgeArrowTypes } from "../../../src/config/EdgeStyle";
-import {
-    ARROW_ROW_SIZES,
-    ARROW_ROWS,
-    ARROW_SHAPES,
-    arrowShapesOf,
-} from "../../../src/session/styles/fileStyles/shapes";
+import { ARROW_RUNS, ARROW_SHAPES, arrowShapesOf } from "../../../src/session/styles/fileStyles/shapes";
 
 describe("the cap a file's arrow is drawn as, by the program that wrote it", () => {
     it("draws Cytoscape's half arrows as the half barb, on either side", () => {
@@ -38,32 +33,36 @@ describe("the cap a file's arrow is drawn as, by the program that wrote it", () 
             "other:kite": "kite",
             "other:deltoid": "deltoid",
             "other:open-vee": "open-vee",
-            "other:dash": "tee",
-            "other:crows_foot_optional": "open-dot",
-            "other:crows_foot_one": "tee",
+            "other:skewed-dash": "slash",
+            "other:dash": "stem",
+            "other:crows_foot_optional": "stem",
+            "other:crows_foot_one": "stem",
         };
         for (const [shape, cap] of Object.entries(caps)) {
             assert.strictEqual(arrowShapesOf("yed").get(shape), cap, shape);
         }
     });
 
-    it("draws yEd's crow's feet with a circle or a bar as a row of caps, nearest the node first", () => {
-        const rows = {
-            "other:crows_foot_many_optional": ["crow", "circle-open"],
-            "other:crows_foot_many_mandatory": ["crow", "tee"],
-            "other:crows_foot_one_mandatory": ["tee", "tee"],
-            "other:crows_foot_one_optional": ["tee", "circle-open"],
-            "other:white_delta_bar": ["open-normal", "tee"],
+    it("draws yEd's rows as their caps, nearest the line's end first, each as far back as yEd stands it", () => {
+        const rows: Record<string, [string, number | undefined, string[]]> = {
+            "other:dash": ["stem", 8, ["tee"]],
+            "other:crows_foot_one": ["stem", 10, ["tee"]],
+            "other:crows_foot_optional": ["stem", 10, ["open-dot"]],
+            "other:crows_foot_one_mandatory": ["stem", 6, ["tee", "stem", "tee"]],
+            "other:crows_foot_one_optional": ["stem", 6, ["tee", "stem", "open-dot"]],
+            "other:crows_foot_many_mandatory": ["crow", undefined, ["stem", "tee"]],
+            "other:crows_foot_many_optional": ["crow", undefined, ["open-dot"]],
+            "other:white_delta_bar": ["open-normal", undefined, ["stem", "tee"]],
         };
-        for (const [shape, [cap, behind]] of Object.entries(rows)) {
+        for (const [shape, [cap, lead, behind]] of Object.entries(rows)) {
+            const run = ARROW_RUNS.get(shape);
             assert.strictEqual(ARROW_SHAPES.get(shape), cap, shape);
-            assert.strictEqual(ARROW_ROWS.get(shape), behind, shape);
-        }
-    });
-
-    it("sizes a row's part as an arrow drawn with the same cap", () => {
-        for (const [shape, sizedAs] of ARROW_ROW_SIZES) {
-            assert.strictEqual(ARROW_SHAPES.get(sizedAs), ARROW_SHAPES.get(ARROW_ROWS.get(shape) ?? ""), shape);
+            assert.strictEqual(run?.lead, lead, shape);
+            assert.deepEqual(
+                run?.parts.map((p) => p.type),
+                behind,
+                shape,
+            );
         }
     });
 

@@ -730,7 +730,8 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     // OGDF's GraphIO::writeGML writes the stroke color as `outline`; older OGDF wrote `line`
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
-    put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
+    const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
 /**

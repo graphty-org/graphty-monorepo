@@ -1070,6 +1070,9 @@ void main() {
      * - "kite": widest a fifth of its length from its back, its back a point on the line (yEd Live's kite).
      * - "deltoid": wider than it is long, its sides bowed in and its back notched (yEd Live's deltoid).
      * - "open-vee": two half barbs meeting at the tip, nothing between them (yEd's plain, concave and convex).
+     * - "slash": one stroke a twelfth of the cap thick, from a third of the cap to one side of the line at its back to
+     *   a third to the other side two thirds on (yEd's skewed_dash, 12 long, a stroke 8 x 8 and 4 back from the tip).
+     * - "stem": a piece of the line, as long as the cap. EdgeMesh sets how wide from the line's width.
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
         "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
@@ -1180,6 +1183,18 @@ void main() {
             ...FilledArrowRenderer.POLYGON_ARROWS["half-barb"](),
             ...FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"](),
         ],
+        slash: () => {
+            const half = Math.SQRT1_2 / 24;
+            return [
+                [
+                    [-1 + half, -1 / 3 - half],
+                    [-1 - half, -1 / 3 + half],
+                    [-1 / 3 - half, 1 / 3 + half],
+                    [-1 / 3 + half, 1 / 3 - half],
+                ],
+            ];
+        },
+        stem: () => [rect(-1, 0, 0.5)],
         // Cytoscape's CROSS_DELTA: a delta with a bar across the line behind it, a gap between them
         "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
         // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid

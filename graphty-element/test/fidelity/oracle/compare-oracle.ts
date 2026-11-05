@@ -748,6 +748,28 @@ function arrowPlaceMiss(
     };
 }
 
+/**
+ * Whether a cap graphty stands back from its line's end stands as far back as the program's, each measured along its
+ * own whole line to the tip: between the nodes' outlines a node drawn in another shape would move the end.
+ * @param oLine - the oracle's whole line
+ * @param oa - the oracle's arrowhead
+ * @param gLine - graphty's whole line
+ * @param ga - graphty's arrowhead, in the same frame
+ * @returns the miss and what each side measured, or null where it stands at no read place
+ */
+function standBackMiss(
+    oLine: readonly Pt[],
+    oa: PArrow,
+    gLine: readonly Pt[],
+    ga: PArrow,
+): { miss: number; oracle: number; graphty: number } | null {
+    if (ga.standing !== true || oa.end === "middle" || oa.at === undefined || ga.at === undefined) {
+        return null;
+    }
+    const [o, g] = [fromOwnEnd(oLine, oa.at, oa.end).px, fromOwnEnd(gLine, ga.at, oa.end).px];
+    return { miss: Math.max(0, Math.abs(g - o) - ARROW_STAND_PX) / ARROW_STAND_PX, oracle: R(o), graphty: R(g) };
+}
+
 /** A break between a line and its half arrow of this share of the head's length or more is one a reader sees. */
 const LINE_GAP_SHARE = 0.25;
 
@@ -773,6 +795,8 @@ function halfRunOnMiss(oa: PArrow, ga: PArrow): { miss: number; oracle: string; 
 const ARROW_PART_WAY = 0.25;
 /** How far along its line a part-way arrowhead may sit from the program's, as a share of the line's length. */
 const ARROW_ALONG_SHARE = 0.05;
+/** How far a cap stood back from its line's end may sit from the program's, in pixels. */
+const ARROW_STAND_PX = 3;
 
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
@@ -2394,10 +2418,19 @@ export function compareOracle(
         };
         return [...new Set(e.arrows.map((x) => turn(x.end)))].sort().join(",");
     };
+    const headShapes = (e: PEdge, flipped: boolean): string =>
+        e.arrows
+            .map(
+                (x) =>
+                    `${flipped && x.end !== "middle" ? { source: "target", target: "source" }[x.end] : x.end} ${x.shape}`,
+            )
+            .sort()
+            .join();
     /**
      * How unlike an oracle edge found by its geometry a graphty edge between the same nodes is drawn, 0 for alike: in
      * another color or with other words, then another line class, then its route failing, then curved otherwise, then
-     * arrowheads at other ends, then running the other way. Between two parallel or antiparallel edges only the look
+     * arrowheads at other ends, then running the other way, then other arrowheads (graphml-synthetic-edges: two lines
+     * alike, drawn over one another, with a bar and a standard head). Between two parallel or antiparallel edges only the look
      * tells them apart: drawn over one another, or each program bowing them its own way (cx2-signor-aml 27->68, a blue
      * dashed line bowed and a purple solid one, each paired with the other's look by its route).
      */
@@ -2412,7 +2445,8 @@ export function compareOracle(
             (routePasses ? 0 : 8) +
             (curved(routeOf(o, g)) === curved(o.points) ? 0 : 4) +
             (arrowEnds(o, false) === arrowEnds(g, flips(o, g)) ? 0 : 2) +
-            (idMap.get(g.source) === o.source ? 0 : 1)
+            (idMap.get(g.source) === o.source ? 0 : 1) +
+            (headShapes(o, false) === headShapes(g, flips(o, g)) ? 0 : 0.5)
         );
     };
     const closest = (o: PEdge, list: PEdge[]): number => {
@@ -2718,7 +2752,9 @@ export function compareOracle(
                 oa.shape,
                 gg.shape,
             );
-            const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
+            const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
+            const place =
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(

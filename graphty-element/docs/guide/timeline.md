@@ -87,13 +87,37 @@ await time.window(null); // clear it
 Each of these is undoable, and the window is saved in the project. Moves made in quick succession
 merge into one undo step, as a drag does; `await time.commit()` always records its own step. `play`
 records one step for the whole play. It takes `step`, `mode` (`"sliding"`, or `"cumulative"` to grow from the start),
-`interval` (milliseconds per step, default 1000), `loop`, `motion` and `timeZone`.
+`interval` (milliseconds per step, default 1000), `loop`, `motion`, `timeZone` and `waitForRender`.
+
+With `motion: "steps"`, a play keeps to its timer even if drawing falls behind. Pass
+`waitForRender: true` to wait for each step to be drawn before timing the next. Nothing stops a play
+for long when no frame is coming, such as on a hidden page.
 
 While a window is moving without being recorded, as in a smooth play or a `seek` with `commit: false`,
 the two windows differ: `time.current` is the window on screen, and `time.committed` is the one undo
 and the project file hold. `await time.commit()` records where a `seek` left it. A stepped play
 (`motion: "steps"`, reduced motion, or `results: "rerun"`) records each window in the play's one
 history step, so `time.committed` follows every step.
+
+## Every window at once
+
+`time.series` counts every window of a step without moving what is on screen, for a chart over time:
+
+```js
+const { rows } = await time.series({ step: "month", measures: ["density"] });
+for (const row of rows) console.log(row.from, row.visible.edges, row.values.density);
+```
+
+Each row has `from`, `to`, the `visible` counts of nodes and edges, what `entered` and `left` since
+the row before (in the first row, everything it shows entered), and a value for each measure in
+`values`. The measures are `"nodes"`, `"edges"` and `"density"`, which is null under two nodes.
+
+The windows are the ones stepping would show, under the same filter. It takes `step`, `mode`,
+`timeZone`, and `from` and `to` to cover part of the data. Each one left out comes from the window in
+force, else the settings. A series holds at most 10,000 windows.
+
+`series` returns a run: `run.progress` says how many windows are done and `run.cancel()` stops it.
+You can also pass `signal` and `onProgress`.
 
 ## Time zones
 

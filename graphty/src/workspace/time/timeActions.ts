@@ -74,7 +74,7 @@ export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
         return;
     }
     try {
-        time.play({ interval: intervalOf(store.get().timeSpeed) });
+        time.play({ interval: intervalOf(store.get().timeSpeed), waitForRender: true });
     } catch {
         store.set({ notice: { message: "The timeline could not play." } });
     }

@@ -1016,6 +1016,8 @@ export class Graph implements GraphContext {
                 scheduler: queueScheduler(this.operationQueue),
                 // What the page declares before the graph first holds data is where history starts.
                 baselineWindow: true,
+                // Late-bound on purpose: a change of renderer replaces the render manager.
+                renderedFrame: () => this.renderManager.frameDrawn(),
             },
         );
 

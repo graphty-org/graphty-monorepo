@@ -11,12 +11,13 @@ import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
-import { MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
+import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
+import { META_KEY } from "./constants.js";
 import {
     configurationOutline,
     isTree,
@@ -107,8 +108,12 @@ class References {
     /**
      * Collects the shared objects of the graph's `SharedData` value.
      * @param data - the `<data>` content of the SharedData key
+     * @param yfiles26 - whether the file is yFiles for HTML 2.6's rather than 3's
      */
-    constructor(data: unknown) {
+    constructor(
+        data: unknown,
+        readonly yfiles26: boolean,
+    ) {
         for (const sd of treeChildren(data, "SharedData")) {
             if (isTree(sd)) {
                 this.collect(sd);
@@ -640,6 +645,7 @@ function readEdgeArrow(
         const open = fill === NULL ? strokeOf(refs, prop(a, "stroke")) : null;
         hollow = open !== null && open !== NULL;
         putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
+        readArrowSize(refs, a.e, type.toUpperCase(), end, put, at);
     } else if (typeof a === "string") {
         type = a;
     }
@@ -647,6 +653,65 @@ function readEdgeArrow(
         const arrow = canonEnum("arrow", RENAMED_ARROWS.get(type.toUpperCase()) ?? type, "yfiles3", at(property));
         put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
     }
+}
+
+/** yEd Live's chevron is 8 wide, its default head 6, and both read as the vee (yed-live-graphml-specimen-arrows). */
+const CHEVRON_WIDTH = 8 / 6;
+
+/** The namespace of yFiles for HTML 2.6's styles. */
+const YFILES_26_XAML = "http://www.yworks.com/xml/yfiles-for-html/2.0/xaml";
+
+/** The arrows a yFiles for HTML 2.6 file draws 4 long and 9 wide (yed-live-graphml-specimen-arrows-p2). */
+const STUBBY_26_ARROWS: ReadonlySet<string> = new Set(["TRIANGLE", "SHORT", "SIMPLE"]);
+
+/**
+ * The `length` an arrow draws at its normal size: `length="12"` is the one length drawn, three quarters of normal in
+ * both directions (yed-live-graphml-specimen-arrows).
+ */
+const NORMAL_ARROW_LENGTH = 16;
+
+/**
+ * Reads how an arrow element's size differs from its shape's normal size in yEd Live.
+ * @param refs - the references
+ * @param arrow - the arrow element
+ * @param type - its type, in capitals
+ * @param end - which end
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readArrowSize(
+    refs: References,
+    arrow: unknown,
+    type: string,
+    end: "source" | "target",
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const [lengthSite, widthSite] = [at(`${end}ArrowLength`), at(`${end}ArrowWidth`)];
+    const stubby = refs.yfiles26 && STUBBY_26_ARROWS.has(type);
+    const fixed =
+        treeAttr(arrow, "length") === undefined ? 1 : arrowScale(arrow, "length", lengthSite) / NORMAL_ARROW_LENGTH;
+    const scale = arrowScale(arrow, "scale", lengthSite) * fixed;
+    const along = arrowScale(arrow, "lengthScale", lengthSite) * scale * (stubby ? 4 / 8 : 1);
+    const across =
+        arrowScale(arrow, "widthScale", widthSite) *
+        scale *
+        (stubby ? 9 / 6 : 1) *
+        (type === "CHEVRON" ? CHEVRON_WIDTH : 1);
+    put(`${end}ArrowLength`, along === 1 ? null : along);
+    put(`${end}ArrowWidth`, across === 1 ? null : across);
+}
+
+/**
+ * One of an arrow element's scale attributes.
+ * @param arrow - the arrow element
+ * @param name - the attribute
+ * @param site - where a bad value is noted
+ * @returns the scale; 1 where it is unset or bad
+ */
+function arrowScale(arrow: unknown, name: string, site: CanonSite): number {
+    const raw = treeAttr(arrow, name);
+    return raw === undefined ? 1 : (canonNumber(raw, site) ?? 1);
 }
 
 /**
@@ -982,7 +1047,11 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
     }
     const graphKinds = columnsByKind(snapshot.graph);
     const sharedName = graphKinds.get("SharedData");
-    const refs = new References(sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)));
+    const meta = snapshot.meta.extra[META_KEY] as { readonly namespaces?: Record<string, string> } | undefined;
+    const refs = new References(
+        sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)),
+        Object.values(meta?.namespaces ?? {}).includes(YFILES_26_XAML),
+    );
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] =>
         readYfiles3Target({ snapshot, notes, budget, refs, boxes }, target, kinds);

@@ -73,7 +73,9 @@ import {
     YED_ARROWS,
     YED_LINES,
     YED_SHAPES,
+    yedArrowLength,
     yedColor,
+    yedDrawnWidth,
     yedFontName,
     yedSpelled,
     yedValue,
@@ -748,7 +750,8 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     }
     readColor(g.fill, "color", "opacity", writer, put, at);
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
-    put("width", width === undefined ? null : canonNumber(width, at("width")));
+    const read = width === undefined ? null : canonNumber(width, at("width"));
+    put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
     put("lineStyle", strokeStyle(v === "ogdf" ? g.stipple : g.style, "lineStyle", writer, at("lineStyle")));
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("visible", false);
@@ -773,8 +776,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         if (ends === undefined) {
             noteAt(at("targetArrow"), STYLE_ISSUE.UNKNOWN_VALUE, g.arrow.slice(0, MAX_STYLE_VALUE_LENGTH));
         } else {
-            put("sourceArrow", ends[0]);
-            put("targetArrow", ends[1]);
+            // yEd draws the `arrow` key's heads as its standard head, 10 wide where its triangle is 12
+            const head = (end: string): string => (writer.tool === "yed" && end === "triangle" ? "vee" : end);
+            put("sourceArrow", head(ends[0]));
+            put("targetArrow", head(ends[1]));
         }
     }
     for (const [keys, property] of [
@@ -791,6 +796,9 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.tool === "yed") {
+            put(`${property}Length`, yedArrowLength(raw));
+        }
     }
 }
 

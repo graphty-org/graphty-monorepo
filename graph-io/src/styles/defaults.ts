@@ -184,7 +184,6 @@ const CY_WAVE =
     "cytoscape-impl ding-presentation-impl 3.10.5 org.cytoscape.ding.impl.strokes: ZigzagStroke (amplitude 10, a turn every 10) and SineWaveStroke (amplitude 10, wavelength 20)";
 const CYJS = "cytoscape.js 3.34.3 dist/cytoscape.cjs.js line";
 const GV = "graphviz.org/docs/attrs";
-const YED_QA = "yEd Q&A, How can I change the default nodes and/or default edges";
 const YED_CORPUS = "yEd GraphML corpus, most frequent value";
 const YED_EDGE = "yFiles for Java 2.19 EdgeRealizer API docs";
 const YED_BG = "yFiles for Java 2.19 DefaultBackgroundRenderer API docs";
@@ -254,13 +253,34 @@ const CYTOSCAPE_BORDER_INSIDE = v<"inside">(
 );
 
 /**
- * draw.io draws a yEd or yFiles file's arrows `endSize` 6 plus the line width long and as wide; yEd itself could not
- * be run, so draw.io's drawing stands in.
+ * yEd's standard head is 12 long and 10 wide on a line 1 wide, and grows by an eighth of that for each further unit of
+ * line width. Its other shapes are drawn on a line 1 wide as their fractions say.
  */
-const DRAWIO_ARROWHEAD: ToolArrowhead = {
-    length: (size, width) => 6 * size + width,
-    aspect: 1,
-    source: `${MEASURED}graphml-*, draw.io 32.4.1 standing in for yEd)`,
+const YED_ARROWHEAD: ToolArrowhead = {
+    length: (size, width) => (12 * (7 + width) * size) / 8,
+    aspect: 10 / 12,
+    shapes: {
+        triangle: { length: 1, aspect: 1 },
+        "triangle-open": { length: 16 / 12, aspect: 12 / 16 },
+        diamond: { length: 14 / 12, aspect: 10 / 14 },
+        "diamond-open": { length: 14 / 12, aspect: 10 / 14 },
+        circle: { length: 8 / 12, aspect: 1 },
+        "circle-open": { length: 8 / 12, aspect: 1 },
+        square: { length: 8 / 12, aspect: 1 },
+        tee: { length: 1 / 12, aspect: 10 },
+    },
+    source: `${MEASURED}yed-graphml-specimen-arrows.svg, yed-graphml-specimen-edges-lines.svg: widths 1, 2, 3, 5 and 8 draw the standard head 12, 13.5, 15, 18 and 22.5 long, 10, 11.25, 12.5, 15 and 18.75 wide)`,
+};
+
+/** yEd Live draws its default head 8 long and 6 wide whatever the line width. */
+const YED_LIVE_ARROWHEAD: ToolArrowhead = {
+    length: (size) => 8 * size,
+    aspect: 6 / 8,
+    shapes: {
+        diamond: { length: 10 / 8, aspect: 6 / 10 },
+        circle: { length: 6 / 8, aspect: 1 },
+    },
+    source: `${MEASURED}yed-live-graphml-specimen-arrows.svg, yed-live-graphml-specimen-edges-lines.svg: widths 1 to 6 all draw 8 long, 6 wide)`,
 };
 
 /**
@@ -593,9 +613,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yEd / yFiles for Java 2.19",
                 units: "px",
                 roundedCornerRadius: cornerCap("yed"),
-                arrowhead: DRAWIO_ARROWHEAD,
+                arrowhead: YED_ARROWHEAD,
                 node: {
-                    fill: v("#ffcc00", `${YED_QA}; ${YED_CORPUS} of y:Fill color`),
+                    fill: v(
+                        "#ccccff",
+                        `${MEASURED}yed-graphml-specimen-node-fills-borders.svg, gml-specimen-node-fills-borders-p2.svg)`,
+                    ),
                     shape: v("rectangle", "yFiles for Java 2.19 ShapeNodeRealizer API docs"),
                     borderColor: v("#000000", `${YED_CORPUS} of y:BorderStyle`),
                     borderWidth: v(1, `${YED_CORPUS} of y:BorderStyle`),
@@ -634,7 +657,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yFiles for HTML (API docs retrieved 2026-10-11)",
                 units: "px",
                 roundedCornerRadius: cornerCap("yfiles3"),
-                arrowhead: DRAWIO_ARROWHEAD,
+                arrowhead: YED_LIVE_ARROWHEAD,
                 node: {
                     fill: v("#ffffff", `${Y3} ShapeNodeStyle fill`),
                     borderColor: v("#000000", `${Y3} ShapeNodeStyle stroke`),

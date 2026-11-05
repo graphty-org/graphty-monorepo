@@ -3613,6 +3613,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "RecoveringWebGPUEngine",
+        file: "src/managers/RecoveringWebGPUEngine.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "DefaultGraphContext",
         file: "src/managers/GraphContext.ts",
         half: "renderer",

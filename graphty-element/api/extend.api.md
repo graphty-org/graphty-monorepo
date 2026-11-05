@@ -2108,6 +2108,8 @@ class Node_2 implements ModelUser {
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
+    // @internal
+    get drawnByRowScan(): boolean;
     get drawnFill(): string | null;
     // @internal
     get drawnGeneration(): number;
@@ -2117,6 +2119,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnPickMesh(): AbstractMesh;
+    // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
     // @internal
@@ -2124,6 +2128,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScale(): number;
     set drawnScale(scale: number);
+    // @internal
+    get drawnScaling(): Readonly<Vector3>;
     // @internal
     get drawnScene(): Scene;
     // @internal

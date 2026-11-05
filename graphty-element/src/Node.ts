@@ -1312,6 +1312,26 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The mesh a pick answers with for this node. Stage 9 of the row renderer gives a press an
+     * answer without one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnPickMesh(): AbstractMesh {
+        return this.mesh;
+    }
+
+    /**
+     * Whether the row scan answers for this node. A model is picked by its whole bounding box
+     * (`NodeMesh.createModelInstance`), not by its source's triangles, so it stays on Babylon's pick.
+     * @returns True when it does.
+     * @internal
+     */
+    get drawnByRowScan(): boolean {
+        return this.drawnModel === null;
+    }
+
+    /**
      * The box the node is drawn in.
      * @returns The box.
      * @internal
@@ -1336,6 +1356,15 @@ export class Node implements ModelUser {
      */
     get drawnWorldScaling(): Vector3 {
         return this.mesh.absoluteScaling;
+    }
+
+    /**
+     * The node's own scale on each axis: a group's box is stretched, a model may be.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        return this.mesh.scaling;
     }
 
     /**

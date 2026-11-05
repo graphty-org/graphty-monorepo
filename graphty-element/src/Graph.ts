@@ -88,37 +88,6 @@ function hasEntryPoint(code: string | Uint32Array): boolean {
  */
 const ZOOM_STEP_FACTOR = 1.25;
 
-/** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
-const EDGE_PICK_TOLERANCE_PX = 6;
-
-/**
- * The world points an edge's line is drawn through: its curve's points, or its two ends.
- * @param edge - The edge.
- * @returns The points, in order along the line.
- */
-function edgeWorldPoints(edge: Edge): Vector3[] {
-    return drawnCurveInWorld(edge) ?? [edge.srcNode.drawnWorldPosition, edge.dstNode.drawnWorldPosition];
-}
-
-/**
- * The distance from a point to a segment, in the segment's pixels.
- * @param x - The point's x.
- * @param y - The point's y.
- * @param a - One end.
- * @param a.x - Its x.
- * @param a.y - Its y.
- * @param b - The other end.
- * @param b.x - Its x.
- * @param b.y - Its y.
- * @returns The distance.
- */
-function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length2 = dx * dx + dy * dy;
-    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
-    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
-}
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
@@ -165,7 +134,6 @@ import { type ExportGraphOptions, type ExportResult, exportSession } from "./dat
 import { WRITABLE_LANE } from "./data/lane";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
-import { drawnCurveInWorld } from "./edgeWorldCurve";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
@@ -230,14 +198,8 @@ import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import {
-    alongRay,
-    nodeActionManagerOf,
-    nodePointerRosterOf,
-    pickAsDrawn,
-    pickNodeId,
-    pointerEventTime,
-} from "./NodeBehavior";
+import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
+import { openRowScan, pickAsDrawn, pickCloseLabel, pickEdgeAt, pickNodeId, pickWorldPoint } from "./render/PickService";
 import { RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -4487,6 +4449,12 @@ export class Graph implements GraphContext {
         if (this.#rowTable === null) {
             this.#rowTable = new RowTable(this.scene, () => this.dataManager[WRITABLE_LANE]);
             this.#rowTable.replaced(null, this.dataManager.nodes.values());
+            openRowScan(
+                this.scene,
+                this.#rowTable,
+                (row) => this.dataManager.nodeAtRow(row),
+                this.renderManager.graphRoot,
+            );
         }
 
         return this.#rowTable;
@@ -4733,8 +4701,7 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const ray = this.scene.createPickingRay(x, y, null, null);
-            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
+            const picked = pickCloseLabel(this.scene, x, y);
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {
@@ -5901,17 +5868,7 @@ export class Graph implements GraphContext {
      * @returns World coordinates {x, y, z} or null if no intersection
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
-        const pickInfo = this.scene.pick(screenPos.x, screenPos.y);
-
-        if (pickInfo?.pickedPoint) {
-            return {
-                x: pickInfo.pickedPoint.x,
-                y: pickInfo.pickedPoint.y,
-                z: pickInfo.pickedPoint.z,
-            };
-        }
-
-        return null;
+        return pickWorldPoint(this.scene, screenPos.x, screenPos.y);
     }
 
     /**
@@ -5963,59 +5920,13 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
-     *
-     * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
-     * batch, and a line a pixel or two wide is too thin to hit with a pointer anyway.
+     * The drawn edge at a point.
      * @param x - X in CSS pixels from the canvas's left edge.
      * @param y - Y in CSS pixels from the canvas's top edge.
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        const camera = this.scene.activeCamera;
-        // Nothing is drawn before the first frame, and the scene's view matrix is unset until
-        // then: a press that arrives first picks nothing.
-        if (!camera || this.scene.getFrameId() === 0) {
-            return undefined;
-        }
-
-        // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
-        // hardware scaling level the same way.
-        const scaling = this.scene.getEngine().getHardwareScalingLevel();
-        const px = x / scaling;
-        const py = y / scaling;
-        let best = EDGE_PICK_TOLERANCE_PX / scaling;
-        let found: EdgeId | undefined;
-        const view = this.scene.getViewMatrix().m;
-        const inFront = (p: Vector3): boolean =>
-            p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
-
-        // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
-        for (const edge of this.dataManager.edges.values()) {
-            if (edge.isDisposed() || !edge.isRenderVisible()) {
-                continue;
-            }
-
-            const points = edgeWorldPoints(edge);
-            for (let i = 1; i < points.length; i++) {
-                if (!inFront(points[i - 1]) || !inFront(points[i])) {
-                    continue;
-                }
-
-                const distance = distanceToSegment(
-                    px,
-                    py,
-                    this.worldToScreen(points[i - 1]),
-                    this.worldToScreen(points[i]),
-                );
-                if (distance <= best) {
-                    best = distance;
-                    found = edge.id;
-                }
-            }
-        }
-
-        return found;
+        return pickEdgeAt(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**

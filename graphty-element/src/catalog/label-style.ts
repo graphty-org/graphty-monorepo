@@ -275,6 +275,12 @@ export interface LabelStyle {
      */
     shiftOf?: "box" | "words";
     /**
+     * What a label outside its node (`location` `top`, `bottom`, `left`, `right` or a corner) is placed against the
+     * node by: `"box"`, the label's whole box, the margins round its words included, or `"words"`, its words' own font
+     * box, so the bottom of a top label's words sits on the node's outline, as Cytoscape.js draws it. Unset, `"box"`.
+     */
+    gapOf?: "box" | "words";
+    /**
      * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
      * the other side of its node (right to left, top to bottom), then is moved in if it still
      * does not fit. Off by default.
@@ -449,6 +455,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     shiftX: 0,
     shiftY: 0,
     shiftOf: 0,
+    gapOf: 0,
     keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
@@ -540,6 +547,7 @@ export const RICH_TEXT_KEYS = {
     shiftX: "shiftX",
     shiftY: "shiftY",
     shiftOf: "shiftOf",
+    gapOf: "gapOf",
     keepInView: "keepInView",
     marginTop: "marginTop",
     marginBottom: "marginBottom",

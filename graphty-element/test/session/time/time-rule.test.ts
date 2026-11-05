@@ -8,7 +8,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 
-import { createGraphSession } from "../../../session";
+import { createGraphSession, type GraphSession } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { createRunResult } from "../../../src/session/results";
@@ -58,7 +58,8 @@ function random(seed: number): () => number {
 }
 
 /**
- * A graph where one element in eight carries no time; a hub graph sends half its edges to node 0.
+ * A graph where one element in eight carries no time and the last four nodes have no edges; a hub
+ * graph sends half its edges to node 0.
  * @param test - The case.
  * @returns The session, and its rows in snapshot order.
  */
@@ -72,9 +73,10 @@ function graphOf(test: Case): { harness: Harness; rows: Rows } {
         kind: at % 3 === 0 ? "hub" : "leaf",
         ...timeOf(test.field.nodes !== undefined),
     }));
+    const connected = count - 4;
     const edges = Array.from({ length: 3 * count }, () => ({
-        src: test.hub && next() < 0.5 ? "n0" : `n${String(Math.floor(next() * count))}`,
-        dst: `n${String(Math.floor(next() * count))}`,
+        src: test.hub && next() < 0.5 ? "n0" : `n${String(Math.floor(next() * connected))}`,
+        dst: `n${String(Math.floor(next() * connected))}`,
         heavy: next() > 0.4,
         ...timeOf(test.field.edges !== undefined),
     }));
@@ -118,14 +120,15 @@ function bruteForce(
     const edgePasses = rows.edges.map(
         (edge) => (!test.filtered || edge.heavy) && (test.field.edges === undefined || inside(edge.t)),
     );
+    // An edge counts for its ends by the filter and the window, its own time or none.
     const counted = new Set<number>();
-    edgePasses.forEach((passes, row) => {
-        if (passes) {
+    rows.edges.forEach((edge, row) => {
+        if ((!test.filtered || edge.heavy) && inside(edge.t)) {
             counted.add(graph.edgeSource(row));
             counted.add(graph.edgeTarget(row));
         }
     });
-    const ends = test.ends && test.field.edges !== undefined && window !== null;
+    const ends = test.ends && window !== null;
     const nodes = rows.nodes.map((node, row) =>
         (!test.filtered || node.kind === "leaf") &&
         (test.field.nodes === undefined || inside(node.t)) &&
@@ -152,17 +155,16 @@ function masks(harness: Harness): { nodes: number[]; edges: number[] } {
 
 /**
  * The ids a move took in and out of view, by brute force.
- * @param harness - The session.
+ * @param graph - The snapshot the masks describe.
  * @param was - The masks before.
  * @param now - The masks after.
  * @returns The ids, sorted.
  */
 function diffOf(
-    harness: Harness,
+    graph: GraphSnapshot,
     was: { nodes: number[]; edges: number[] },
     now: { nodes: number[]; edges: number[] },
 ): object {
-    const graph = harness.session.snapshot();
     const space = edgeSpaceOf(graph);
     const rowsWhere = (before: number[], after: number[]): number[] =>
         after.flatMap((byte, row) => (byte === 1 && before[row] !== 1 ? [row] : []));
@@ -194,8 +196,10 @@ function cases(): Case[] {
         for (const directed of [true, false]) {
             for (const missing of ["inside", "outside"] as const) {
                 for (const hub of [false, true]) {
-                    seed++;
-                    out.push({ seed, directed, field, missing, ends: field.edges !== undefined, hub, filtered: true });
+                    for (const ends of [false, true]) {
+                        seed++;
+                        out.push({ seed, directed, field, missing, ends, hub, filtered: true });
+                    }
                 }
 
                 seed++;
@@ -284,7 +288,7 @@ describe("the window's rule", () => {
                 check(`round ${String(round)}`);
                 const seen = time.changes();
                 const sorted = (ids: readonly unknown[]): unknown[] => [...ids].sort();
-                const brute = diffOf(harness, was, masks(harness)) as typeof seen;
+                const brute = diffOf(harness.session.snapshot(), was, masks(harness)) as typeof seen;
                 for (const side of ["entered", "left"] as const) {
                     assert.deepEqual(sorted(seen[side].nodes), sorted(brute[side].nodes), `${side} nodes`);
                     assert.deepEqual(sorted(seen[side].edges), sorted(brute[side].edges), `${side} edges`);
@@ -311,6 +315,99 @@ describe("the window's rule", () => {
         assert.deepEqual([...visibility.nodeMask()], [1, 1, 0], "c's only edge is filtered out");
         harness.session.dispose();
     });
+
+    it("hides a node with no edge the same way, however a node-timed window was reached", async () => {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            [
+                { id: "a", t: 10 },
+                { id: "b", t: 12 },
+                { id: "c", t: 30 },
+                { id: "d", t: 31 },
+                { id: "e", t: 32 },
+            ],
+            [
+                { src: "a", dst: "b" },
+                { src: "d", dst: "e" },
+            ],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({ nodes: { start: "t" } });
+        await time.window({ from: 0, to: 20, step: 20, nodes: "ends" });
+        await time.stepBy(1);
+        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 1, 1], "stepped: c has no edge");
+        await time.window({ from: 20, to: 40, step: 20, nodes: "ends" });
+        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 1, 1], "set directly");
+        await time.seek(0, { commit: false });
+        assert.deepEqual([...visibility.nodeMask()], [1, 1, 0, 0, 0], "slid back");
+        harness.session.dispose();
+    });
+
+    it("counts an untimed edge for its ends only when the window keeps what has no time", async () => {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            [
+                { id: "a", t: 5 },
+                { id: "b", t: 6 },
+            ],
+            [{ src: "a", dst: "b" }],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({ nodes: { start: "t" } });
+        await time.window({ from: 0, to: 10, step: 10, nodes: "ends", missing: "outside" });
+        assert.deepEqual([...visibility.nodeMask()], [0, 0]);
+        await time.window({ from: 0, to: 10, step: 10, nodes: "ends", missing: "inside" });
+        assert.deepEqual([...visibility.nodeMask()], [1, 1]);
+        harness.session.dispose();
+    });
+
+    it("follows a new reading of the field, though the masks were not rewritten", async () => {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", t: 5 },
+                { src: "b", dst: "c", t: 50 },
+            ],
+        );
+        const { config, time, visibility } = harness.session;
+        await time.setField({ edges: { start: "t", unit: "ms" } });
+        await time.window({ from: 0, to: 100, step: 100, nodes: "all" });
+        await time.stepBy(1);
+        await time.stepBy(-1);
+        await config.set({ data: { knownFields: { edgeTimeUnit: "s" } } });
+        await time.window({ from: 0, to: 10_000, step: 10_000, nodes: "all" });
+        assert.deepEqual([...visibility.edgeMask()], [1, 0], "5 s is inside, 50 s is not");
+        harness.session.dispose();
+    });
+
+    for (const [name, move] of [
+        ["a seek", (time: GraphSession["time"]) => time.seek(30)],
+        ["a window", (time: GraphSession["time"]) => time.window({ from: 30, to: 50, step: 20, nodes: "all" })],
+    ] as const) {
+        it(`names what ${name} changed by the graph it moved on, when a removal lands as it records`, async () => {
+            const session = createGraphSession({ features: ["timeline"] });
+            await session.data.addNodes(["a", "b", "c", "d", "e"].map((id, at) => ({ id, t: at * 10 })));
+            await session.data.addEdges([
+                { source: "a", target: "b" },
+                { source: "d", target: "e" },
+            ]);
+            await session.time.setField({ nodes: { start: "t" } });
+            await session.time.window({ from: 0, to: 20, step: 20, nodes: "all" });
+            const graph = session.snapshot();
+            const read = (): { nodes: number[]; edges: number[] } => ({
+                nodes: [...session.visibility.nodeMask()],
+                edges: [...session.visibility.edgeMask()],
+            });
+            const was = read();
+            const moved = move(session.time);
+            const brute = diffOf(graph, was, read()) as ReturnType<typeof session.time.changes>;
+            const removed = session.data.removeNodes(["a", "b"]);
+            await Promise.all([moved, removed]);
+            assert.deepEqual(session.time.changes(), brute);
+            session.dispose();
+        });
+    }
 
     it("reads a kind the field does not time by name, moved or passed by hand", async () => {
         const harness = makeSession({ directed: true });

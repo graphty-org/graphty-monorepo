@@ -53,6 +53,12 @@ const MUTATORS = [
     "rewrite",
 ] as const;
 
+/** The rows a rewrite took in and out of a mask. */
+export interface MaskRows {
+    readonly entered: ArrayLike<number>;
+    readonly left: ArrayLike<number>;
+}
+
 /**
  * Reject a row count that is not a non-negative integer.
  *
@@ -127,6 +133,9 @@ export class ElementMask<TId> {
     /** Bumped whenever a mutation actually changed the membership. */
     private revision = 0;
 
+    /** The rows the last rewrite changed, while no other write has come after it. */
+    private rewritten: MaskRows | null = null;
+
     /** Told of every version bump. */
     private readonly onVersion: (() => void) | undefined;
 
@@ -160,6 +169,7 @@ export class ElementMask<TId> {
     /** Move the version on, and tell whoever asked to be told. */
     private bump(): void {
         this.revision += 1;
+        this.rewritten = null;
         this.onVersion?.();
     }
 
@@ -444,6 +454,7 @@ export class ElementMask<TId> {
         this.array.set(bytes);
         this.members = this.countMembers();
         this.revision += 1;
+        this.rewritten = null;
     }
 
     /**
@@ -452,18 +463,30 @@ export class ElementMask<TId> {
      * this call only, so the staleness contract holds.
      * @param write - Writes `1` or `0` into rows below {@link ElementMask.count}, and lists the
      *     rows it took in and out of the set, each once.
+     * @param keepUpTo - The most changed rows {@link ElementMask.lastRows} keeps: past it, a reader
+     *     of the mask reads all of it anyway.
      * @returns What `write` returned.
      */
-    rewrite<TRows extends { readonly entered: ArrayLike<number>; readonly left: ArrayLike<number> }>(
-        write: (bytes: U8) => TRows,
-    ): TRows {
+    rewrite<TRows extends MaskRows>(write: (bytes: U8) => TRows, keepUpTo = Number.POSITIVE_INFINITY): TRows {
         const rows = write(this.array);
-        if (rows.entered.length + rows.left.length > 0) {
+        const changed = rows.entered.length + rows.left.length;
+        if (changed > 0) {
             this.members += rows.entered.length - rows.left.length;
-            this.bump();
+            this.revision += 1;
+            this.rewritten = changed <= keepUpTo ? rows : null;
+            this.onVersion?.();
         }
 
         return rows;
+    }
+
+    /**
+     * What the last {@link ElementMask.rewrite} changed, so a reader follows the mask by rows.
+     * @returns The rows that brought the mask to its current version, or null when another write
+     *     came after, or there were too many to keep.
+     */
+    get lastRows(): MaskRows | null {
+        return this.rewritten;
     }
 
     /**

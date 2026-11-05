@@ -71,6 +71,7 @@ import {
 import { normalizeText, textMatcher } from "../text";
 import { numericBound, readTimeValue } from "../time/parse";
 import { isTimeZone } from "../time/zone";
+import { slideCounters } from "./slide";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -1903,11 +1904,13 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (timeline && window.nodes === "ends" && edge !== null) {
+    if (timeline && window.nodes === "ends") {
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
+        // Saying nothing of edges leaves each with no time, which passes only under "inside".
+        const counted = edge ?? ((): boolean => missingInside);
         for (let index = 0; index < graph.edgeCount; index++) {
-            if (edge(index) && (filterEdge === null || filterEdge(index))) {
+            if (counted(index) && (filterEdge === null || filterEdge(index))) {
                 ends[list.src[index]] = 1;
                 ends[list.dst[index]] = 1;
             }
@@ -1931,6 +1934,7 @@ function remembered(test: ElementTest | null, count: number): ElementTest | null
         return null;
     }
 
+    slideCounters.filterReads++;
     const answers = new Uint8Array(count);
 
     return (index) => {
@@ -1977,8 +1981,9 @@ export function compileVisibility(
 
     const halves: CompiledHalves[] = [];
     const compiledFilter = filter === null ? null : compileOne(filter, context);
+    // Only a slide reads the answers again, so with the timeline off a pass runs the tests as they are.
     const filtering =
-        window === null || compiledFilter === null
+        window === null || compiledFilter === null || sources.timeline?.() !== true
             ? compiledFilter
             : {
                   node: remembered(compiledFilter.node, graph.nodeCount),

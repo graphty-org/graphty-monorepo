@@ -10,7 +10,7 @@
  * The result is exactly what a full pass over the filter AND the window writes (the rule of design
  * section 2.4, as `compileWindow` and `runPass` write it): a node shows when it passes the filter,
  * its own time (when nodes are timed) and, for `nodes: "ends"`, has an edge passing the filter and
- * the window; an edge shows when both its ends show and it passes the filter and the window. A full
+ * the window (an edge with no time passes under `missing: "inside"` only); an edge shows when both its ends show and it passes the filter and the window. A full
  * pass is left for starting a slide, for a kind whose records the window reads (timed by a column
  * the index does not hold, or holding the column though the field does not time it), and for masks
  * someone else rewrote since the last move.
@@ -25,12 +25,15 @@ import type { TimeInstants, TimeWindow } from "./filter";
 
 /**
  * The share of the graph a move walks row by row before flat loops cost less: a row walked costs
- * about as much as thirty read in order.
+ * about as much as four read in order, a burst's move measured at a million edges.
  */
-const BUDGET_SHARE = 32;
+const BUDGET_SHARE = 4;
 
 /** The rows a move may always walk: under this, flat loops have nothing to win. */
 const MIN_BUDGET = 32;
+
+/** The share of the graph a mask keeps as a changed-row list: past it, a reader reads every row. */
+const ROW_LIST_SHARE = 8;
 
 /** Work done by slides, for a test that counts it rather than times it. */
 export const slideCounters = {
@@ -42,6 +45,8 @@ export const slideCounters = {
     rows: 0,
     /** Small moves that scanned the window's edges rather than a moved node's. */
     scans: 0,
+    /** Times a filter's tests were kept or read for a slide, which only `session.time` reaches. */
+    filterReads: 0,
 };
 
 /** What one kind's index holds for a slide: the instants per row, and their sorted order. */
@@ -84,6 +89,8 @@ export interface SlideTarget {
 export interface SlideCounts {
     readonly entered: { readonly nodes: number; readonly edges: number };
     readonly left: { readonly nodes: number; readonly edges: number };
+    /** The snapshot the rows belong to, for a move published after the graph may have changed. */
+    readonly graph?: GraphSnapshot;
     /** The rows that changed, for `time.changes()`. */
     readonly rows: {
         readonly enteredNodes: ArrayLike<number>;
@@ -123,6 +130,9 @@ interface SlideState {
     readonly filterEdges: Uint8Array | null;
     readonly node: KindState | null;
     readonly edge: KindState | null;
+    /** The indexes the slide was built from, by identity: a new reading of the field starts it again. */
+    readonly nodeIndex: TimeInstants | null;
+    readonly edgeIndex: TimeInstants | null;
     /** Per node, how many incident edges pass the filter and the window (`nodes: "ends"` only). */
     readonly endCount: Int32Array | null;
     nodeVersion: number;
@@ -182,22 +192,35 @@ function placeWindow(kind: KindState, from: number, to: number, missingInside: b
 }
 
 /**
- * Count, per node, the incident edges that pass the filter and the window.
+ * Count, per node, the incident edges that pass the filter and the window. With no timed edges the
+ * window treats every edge as untimed, so the counts never move.
  * @param graph - The snapshot.
- * @param edge - The edges' place in the window.
+ * @param edge - The edges' place in the window, or null when no edge has a time.
+ * @param missingInside - Whether an edge with no instant is inside.
  * @param filterEdges - The filter's edge bytes.
- * @param endCount - The counts, written from zero.
+ * @returns The counts.
  */
-function countEnds(graph: GraphSnapshot, edge: KindState, filterEdges: Uint8Array | null, endCount: Int32Array): void {
+function countEnds(
+    graph: GraphSnapshot,
+    edge: KindState | null,
+    missingInside: boolean,
+    filterEdges: Uint8Array | null,
+): Int32Array {
     const { src, dst } = graph.edgeList();
-    const { inside } = edge;
-    endCount.fill(0);
-    for (let row = 0; row < inside.length; row++) {
-        if (inside[row] === 1 && (filterEdges === null || filterEdges[row] === 1)) {
+    const endCount = new Int32Array(graph.nodeCount);
+    if (edge === null && !missingInside) {
+        return endCount;
+    }
+
+    const inside = edge?.inside ?? null;
+    for (let row = 0; row < graph.edgeCount; row++) {
+        if ((inside === null || inside[row] === 1) && (filterEdges === null || filterEdges[row] === 1)) {
             endCount[src[row]]++;
             endCount[dst[row]]++;
         }
     }
+
+    return endCount;
 }
 
 /**
@@ -297,34 +320,36 @@ function distanceTo(kind: KindState | null, from: number, to: number): number {
  * @param to - The window's end.
  * @returns The rows that crossed in or out.
  */
-function crossRows(kind: KindState | null, from: number, to: number): number[] {
-    const out: number[] = [];
+function crossRows(kind: KindState | null, from: number, to: number): Uint32Array {
     if (kind === null) {
-        return out;
+        return NO_ROWS.left;
     }
 
     const { inside, index } = kind;
     const { perm, sorted } = index;
     const lo = lowerBound(sorted, from);
     const hi = lowerBound(sorted, to);
-    for (const [start, end] of [
+    const stretches = [
         [Math.min(lo, kind.lo), Math.max(lo, kind.lo)],
         [Math.min(hi, kind.hi), Math.max(hi, kind.hi)],
-    ]) {
+    ];
+    const out = new Uint32Array(stretches[0][1] - stretches[0][0] + stretches[1][1] - stretches[1][0]);
+    let crossed = 0;
+    for (const [start, end] of stretches) {
+        slideCounters.rows += end - start;
         for (let at = start; at < end; at++) {
             const row = perm[at];
             const now = at >= lo && at < hi ? 1 : 0;
-            slideCounters.rows++;
             if (inside[row] !== now) {
                 inside[row] = now;
-                out.push(row);
+                out[crossed++] = row;
             }
         }
     }
 
     kind.lo = lo;
     kind.hi = hi;
-    return out;
+    return out.subarray(0, crossed);
 }
 
 /**
@@ -334,12 +359,7 @@ function crossRows(kind: KindState | null, from: number, to: number): number[] {
  * @param edgeRows - The edges that crossed.
  * @param dirtyNodes - Takes the nodes.
  */
-function countCrossed(
-    graph: GraphSnapshot,
-    state: SlideState,
-    edgeRows: readonly number[],
-    dirtyNodes: number[],
-): void {
+function countCrossed(graph: GraphSnapshot, state: SlideState, edgeRows: Uint32Array, dirtyNodes: number[]): void {
     const { edge, endCount, filterEdges } = state;
     if (endCount === null || edge === null) {
         return;
@@ -354,7 +374,8 @@ function countCrossed(
             dirtyNodes.push(end);
         }
     };
-    for (const row of edgeRows) {
+    for (let at = 0; at < edgeRows.length; at++) {
+        const row = edgeRows[at];
         if (filterEdges === null || filterEdges[row] === 1) {
             const delta = inside[row] === 1 ? 1 : -1;
             shift(src[row], delta);
@@ -403,25 +424,30 @@ function moveNodes(state: SlideState, bytes: U8, rows: readonly number[]): Moved
 /**
  * Write edges by their own tests and both ends.
  * @param state - The slide.
- * @param target - The masks.
+ * @param graph - The snapshot.
+ * @param nodeBytes - The node mask's bytes, already written.
  * @param bytes - The edge mask's bytes.
  * @param rows - The edges.
- * @returns The edges that came and went.
+ * @param moved - Takes the edges that came and went.
  */
-function retestEdges(state: SlideState, target: SlideTarget, bytes: U8, rows: readonly number[]): MovedRows {
-    const { graph, nodes } = target;
+function retestEdges(
+    state: SlideState,
+    graph: GraphSnapshot,
+    nodeBytes: U8,
+    bytes: U8,
+    rows: Uint32Array,
+    moved: MovedRows,
+): void {
     const { src, dst } = graph.edgeList();
-    const moved: MovedRows = { entered: [], left: [] };
     slideCounters.rows += rows.length;
-    for (const row of rows) {
-        const shows = edgePasses(state, row) && nodes.has(src[row]) && nodes.has(dst[row]) ? 1 : 0;
+    for (let at = 0; at < rows.length; at++) {
+        const row = rows[at];
+        const shows = edgePasses(state, row) && nodeBytes[src[row]] === 1 && nodeBytes[dst[row]] === 1 ? 1 : 0;
         if (shows !== bytes[row]) {
             bytes[row] = shows;
             (shows === 1 ? moved.entered : moved.left).push(row);
         }
     }
-
-    return moved;
 }
 
 /**
@@ -429,7 +455,7 @@ function retestEdges(state: SlideState, target: SlideTarget, bytes: U8, rows: re
  * end, so this reads no endpoint list. An edge failing its own tests needs no look: if it showed,
  * it crossed the window and was re-tested already.
  * @param state - The slide.
- * @param nodes - The node mask.
+ * @param nodeBytes - The node mask's bytes, already written.
  * @param bytes - The edge mask's bytes.
  * @param arcs - That direction of the graph.
  * @param rows - The nodes.
@@ -437,7 +463,7 @@ function retestEdges(state: SlideState, target: SlideTarget, bytes: U8, rows: re
  */
 function walkArcs(
     state: SlideState,
-    nodes: ElementMask<NodeId>,
+    nodeBytes: U8,
     bytes: U8,
     arcs: Arcs,
     rows: readonly number[],
@@ -445,7 +471,7 @@ function walkArcs(
 ): void {
     const { rowPtr, colIdx, arcToEdge } = arcs;
     for (const row of rows) {
-        const shown = nodes.has(row);
+        const shown = nodeBytes[row] === 1;
         const end = rowPtr[row + 1];
         slideCounters.rows += end - rowPtr[row];
         for (let arc = rowPtr[row]; arc < end; arc++) {
@@ -455,7 +481,7 @@ function walkArcs(
                     bytes[edge] = 0;
                     moved.left.push(edge);
                 }
-            } else if (bytes[edge] === 0 && edgePasses(state, edge) && nodes.has(colIdx[arc])) {
+            } else if (nodeBytes[colIdx[arc]] === 1 && bytes[edge] === 0 && edgePasses(state, edge)) {
                 bytes[edge] = 1;
                 moved.entered.push(edge);
             }
@@ -517,6 +543,15 @@ class RowDiff {
     rows(): ChangedRows {
         return { entered: this.list.slice(0, this.entered), left: this.list.slice(this.left) };
     }
+}
+
+/**
+ * The most changed rows a mask keeps for a reader.
+ * @param graph - The snapshot.
+ * @returns The cap.
+ */
+function rowsKept(graph: GraphSnapshot): number {
+    return (graph.nodeCount + graph.edgeCount) / ROW_LIST_SHARE;
 }
 
 /** No rows at all. */
@@ -601,6 +636,28 @@ function countsOf(n: ChangedRows, e: ChangedRows): SlideCounts {
 }
 
 /**
+ * Whether what a slide kept still describes the masks, the filter and the field.
+ * @param state - What the last move left.
+ * @param target - The masks and what they are read from.
+ * @param window - The window to show.
+ * @returns True when the next move can step from it.
+ */
+function holdsFor(state: SlideState, target: SlideTarget, window: TimeWindow): boolean {
+    return (
+        state.graph === target.graph &&
+        state.filter.length === target.filter.length &&
+        state.filter.every((part, at) => part === target.filter[at]) &&
+        state.attribute === window.attribute &&
+        state.missingInside === (window.missing !== "outside") &&
+        state.ends === (window.nodes === "ends") &&
+        state.nodeIndex === (target.instants?.node ?? null) &&
+        state.edgeIndex === (target.instants?.edge ?? null) &&
+        state.nodeVersion === target.nodes.version &&
+        state.edgeVersion === target.edges.version
+    );
+}
+
+/**
  * Moves a time window through the visibility masks a frame at a time.
  */
 export class WindowSlider {
@@ -619,20 +676,9 @@ export class WindowSlider {
      */
     move(target: SlideTarget, window: TimeWindow): SlideCounts {
         const { state } = this;
-        if (
-            state?.graph !== target.graph ||
-            state.filter.length !== target.filter.length ||
-            state.filter.some((part, at) => part !== target.filter[at]) ||
-            state.attribute !== window.attribute ||
-            state.missingInside !== (window.missing !== "outside") ||
-            state.ends !== (window.nodes === "ends") ||
-            state.nodeVersion !== target.nodes.version ||
-            state.edgeVersion !== target.edges.version
-        ) {
-            return this.rebuild(target, window);
-        }
-
-        return this.step(target, state, window);
+        return state !== null && holdsFor(state, target, window)
+            ? this.step(target, state, window)
+            : this.rebuild(target, window);
     }
 
     /**
@@ -672,23 +718,21 @@ export class WindowSlider {
         }
 
         const filter = target.filterBytes();
-        let endCount: Int32Array | null = null;
-        if (window.nodes === "ends" && edge !== null) {
-            endCount = new Int32Array(graph.nodeCount);
-            countEnds(graph, edge, filter.edges, endCount);
-        }
+        const ends = window.nodes === "ends";
 
         this.state = {
             graph,
             filter: target.filter,
             attribute: window.attribute,
             missingInside,
-            ends: window.nodes === "ends",
+            ends,
             filterNodes: filter.nodes,
             filterEdges: filter.edges,
             node,
             edge,
-            endCount,
+            nodeIndex: target.instants.node,
+            edgeIndex: target.instants.edge,
+            endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
             nodeVersion: nodes.version,
             edgeVersion: edges.version,
         };
@@ -746,6 +790,7 @@ export class WindowSlider {
         const scans = windowRows(state, graph) !== Number.POSITIVE_INFINITY && room < graph.edgeCount / 4;
         const perm = scans && edge !== null ? edge.index.perm : null;
         let e = NO_ROWS;
+        const keep = rowsKept(graph);
         const n = nodes.rewrite((nodeBytes) => {
             const moved = rewriteNodes(state, nodeBytes, graph.nodeCount);
             e = edges.rewrite((edgeBytes) => {
@@ -755,10 +800,10 @@ export class WindowSlider {
                 }
 
                 return diff.rows();
-            });
+            }, keep);
 
             return moved;
-        });
+        }, keep);
         state.nodeVersion = nodes.version;
         state.edgeVersion = edges.version;
 
@@ -766,7 +811,7 @@ export class WindowSlider {
     }
 
     /**
-     * One move: row by row, or a jump when that would cost more than an eighth of the graph.
+     * One move: row by row, or flat loops when walking would cost more than the budget.
      * @param target - The masks.
      * @param state - What the last move left.
      * @param window - The window.
@@ -786,7 +831,7 @@ export class WindowSlider {
         }
 
         const edgeRows = crossRows(state.edge, from, to);
-        const dirtyNodes = crossRows(state.node, from, to);
+        const dirtyNodes = Array.from(crossRows(state.node, from, to));
         countCrossed(graph, state, edgeRows, dirtyNodes);
 
         // A row can repeat in these lists: the second visit finds nothing left to change.
@@ -799,29 +844,30 @@ export class WindowSlider {
             return this.rewrite(target, state, edgeWas);
         }
 
-        const moved = nodes.rewrite((bytes) => moveNodes(state, bytes, changing));
-
         // A node that came or went takes its edges with it: the node's, or the window's when there
         // are fewer of those.
         const scan = inWindow < degrees && state.edge !== null ? state.edge : null;
-        if (scan !== null) {
-            slideCounters.scans++;
-            for (let at = scan.lo; at < scan.hi; at++) {
-                edgeRows.push(scan.index.perm[at]);
-            }
-        }
-
-        const rows = edges.rewrite((bytes) => {
-            const changed = retestEdges(state, target, bytes, edgeRows);
-            if (scan === null) {
-                for (const arcs of directions) {
-                    walkArcs(state, nodes, bytes, arcs, moved.entered, changed);
-                    walkArcs(state, nodes, bytes, arcs, moved.left, changed);
+        const keep = rowsKept(graph);
+        const rows: MovedRows = { entered: [], left: [] };
+        const moved = nodes.rewrite((nodeBytes) => {
+            const changed = moveNodes(state, nodeBytes, changing);
+            edges.rewrite((bytes) => {
+                retestEdges(state, graph, nodeBytes, bytes, edgeRows, rows);
+                if (scan !== null) {
+                    slideCounters.scans++;
+                    retestEdges(state, graph, nodeBytes, bytes, scan.index.perm.subarray(scan.lo, scan.hi), rows);
+                } else {
+                    for (const arcs of directions) {
+                        walkArcs(state, nodeBytes, bytes, arcs, changed.entered, rows);
+                        walkArcs(state, nodeBytes, bytes, arcs, changed.left, rows);
+                    }
                 }
-            }
+
+                return rows;
+            }, keep);
 
             return changed;
-        });
+        }, keep);
 
         state.nodeVersion = nodes.version;
         state.edgeVersion = edges.version;

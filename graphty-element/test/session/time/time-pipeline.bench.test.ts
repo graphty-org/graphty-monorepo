@@ -6,8 +6,8 @@
  * Three seeded graphs, each under a node filter that hides a tenth of the nodes: uniform edge
  * instants, node-timed, and Zipf (bursty times on hub-heavy degrees, nodes and edges both timed).
  * Each measurement is the median of seven rounds, after one untimed pass through the same rounds: a
- * play is hundreds of moves, so a stopwatch on the first few would time the compiler. The window is
- * 30 days wide.
+ * play is hundreds of moves, so a stopwatch on the first few would time the compiler. That pass's
+ * slowest round prints too, as what a first play pays. The window is 30 days wide.
  * A jump goes between quantiles of the data. `stepBy` and `slide` move it a day, the first through
  * a recorded window and the second as a smooth play frame does, from a place where that day takes
  * in a quantile instant or, in the last round, the best connected node's instant: every round must
@@ -70,6 +70,8 @@ const BYTES_PER_ELEMENT = 1;
 interface Timing {
     readonly median: number;
     readonly slowest: number;
+    /** The slowest round of the untimed pass, which pays what a first play pays. */
+    readonly firstPass: number;
 }
 
 /** One seeded graph. */
@@ -165,8 +167,9 @@ async function timed(
     };
 
     // The warm-up ends at the last round's place, so the first round still moves.
+    let firstPass = 0;
     for (let at = 0; at < ROUNDS; at++) {
-        await round(at);
+        firstPass = Math.max(firstPass, await round(at));
     }
 
     const rounds: number[] = [];
@@ -175,7 +178,7 @@ async function timed(
     }
 
     rounds.sort((a, b) => a - b);
-    return { median: rounds[ROUNDS >> 1], slowest: rounds[ROUNDS - 1] };
+    return { median: rounds[ROUNDS >> 1], slowest: rounds[ROUNDS - 1], firstPass };
 }
 
 /**
@@ -241,7 +244,7 @@ function bytesHeld(): number {
 function report(name: string, measure: Measure, timing: Timing): void {
     const budget = BUDGET_MS[measure];
     console.log(
-        `[time-pipeline] ${name} ${measure}: median ${timing.median.toFixed(2)} ms, slowest ${timing.slowest.toFixed(2)} ms, budget ${String(budget)} ms: ${timing.slowest <= budget ? "pass" : "fail"}`,
+        `[time-pipeline] ${name} ${measure}: median ${timing.median.toFixed(2)} ms, slowest ${timing.slowest.toFixed(2)} ms, first pass ${timing.firstPass.toFixed(2)} ms, budget ${String(budget)} ms: ${timing.slowest <= budget ? "pass" : "fail"}`,
     );
 }
 

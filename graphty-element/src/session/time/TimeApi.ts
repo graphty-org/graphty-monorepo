@@ -1848,7 +1848,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         window: TimeWindow | null,
         cause: TimeStepEvent["cause"],
     ): TimeStepEvent => {
-        const graph = sources.snapshot();
+        // The rows belong to the snapshot the slide wrote them on, which a removal may have replaced.
+        const graph = counts?.graph ?? sources.snapshot();
         const rows = counts?.rows;
         let cached: TimeChanges | null = null;
         lastChanges = () => {

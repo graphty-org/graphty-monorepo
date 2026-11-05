@@ -1132,6 +1132,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             nodeMaskValue.fill();
             edgeMaskValue.fill();
             unresolvedValue = NO_PATHS;
+            lastCompiled = null;
 
             return;
         }
@@ -1139,7 +1140,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
-        lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
+        if (sources.timeline?.() === true) {
+            slideCounters.filterReads++;
+            lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
+        }
     };
 
     /**
@@ -1197,6 +1201,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         let read: FilterBytes | null = null;
         const tested = (): FilterBytes => {
             if (read === null) {
+                slideCounters.filterReads++;
                 const compiled = filterTests(graph, rule, key);
                 read = {
                     nodes: bytesOf(compiled?.node ?? null, graph.nodeCount),
@@ -2394,7 +2399,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             sources.onSlide?.();
 
-            return counts;
+            return { ...counts, graph: active.graph };
         },
 
         filterBytes(): FilterBytes {

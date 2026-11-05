@@ -196,6 +196,31 @@ describe("a state beside other conditions", () => {
     });
 });
 
+describe("a project on a state", () => {
+    it("keeps a state selector and a state condition live through a save and an open", async () => {
+        const saved = await line();
+        await saved.config.set({ startingRows: true });
+        await layersOn(saved, { kind: "all", of: [leaf("selected"), { kind: "isolated" }] });
+        const { text } = await saved.project.save();
+        saved.dispose();
+
+        const session = createGraphSession();
+        await session.project.open(text);
+        const of = (name: string): string => {
+            const layer = session.styles.list().find((each) => each.name === name && each.target === "node");
+            assert.isDefined(layer, name);
+            return layer?.id ?? "";
+        };
+        await session.selection.apply({ nodes: ["a", "b"] });
+        assert.strictEqual(await matched(session, of("Selected")), 2, "a starting layer's selector");
+        await session.styles.update(of("Node"), {
+            selector: { match: "rule", where: { kind: "all", of: [leaf("selected"), { kind: "degree", min: 2 }] } },
+        });
+        assert.strictEqual(await matched(session, of("Node")), 1, "b alone has two edges");
+        session.dispose();
+    });
+});
+
 describe("what cannot follow the reader refuses a state", () => {
     it("a kept set", async () => {
         const session = await line();

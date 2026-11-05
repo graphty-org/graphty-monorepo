@@ -533,6 +533,9 @@ export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 export type EdgeRef = EdgeId | EdgeMember;
 
 // @public
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+// @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
     readonly unknown: readonly string[];
@@ -2646,6 +2649,13 @@ export { SourceInfo }
 
 // @public
 export type SourceKey = string;
+
+// @public
+export interface StateLeaf {
+    // (undocumented)
+    readonly kind: "state";
+    readonly state: ElementState;
+}
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;

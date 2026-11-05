@@ -148,6 +148,30 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:image", "image"],
     // Cytoscape's arrows the element has no cap for, drawn as the nearest one: Cytoscape.js's chevron is a short vee
     ["other:chevron", "vee"],
+    // yEd's and yEd Live's own arrows
+    ["other:cross", "cross"],
+    ["other:kite", "kite"],
+    ["other:deltoid", "deltoid"],
+    ["other:open-vee", "open-vee"],
+    // the first cap of each of yEd's rows (`ARROW_ROWS`). Those it stands off its line's end, the line running on
+    // through them, are drawn at the end
+    ["other:white_delta_bar", "open-normal"],
+    ["other:crows_foot_many_optional", "crow"],
+    ["other:crows_foot_many_mandatory", "crow"],
+    ["other:crows_foot_one", "tee"],
+    ["other:crows_foot_one_mandatory", "tee"],
+    ["other:crows_foot_one_optional", "tee"],
+    ["other:crows_foot_optional", "open-dot"],
+    ["other:dash", "tee"],
+]);
+
+/** The arrow shape drawn in a row behind an arrow shape's own cap, for a file's arrow that names both at once. */
+export const ARROW_ROWS: ReadonlyMap<string, string> = new Map([
+    ["other:crows_foot_many_optional", "circle-open"],
+    ["other:crows_foot_many_mandatory", "tee"],
+    ["other:crows_foot_one_mandatory", "tee"],
+    ["other:crows_foot_one_optional", "circle-open"],
+    ["other:white_delta_bar", "tee"],
 ]);
 
 /**
@@ -174,7 +198,15 @@ export function arrowShapesOf(tool: string | null): ReadonlyMap<string, string> 
 
 /**
  * The arrow shapes drawn as the nearest cap rather than exactly: vis-network's
- * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, and Cytoscape.js's
- * chevron as a vee.
+ * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, Cytoscape.js's
+ * chevron as a vee, and yEd's bars and circles at the end, where yEd stands them back from it.
  */
-export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set(["other:inv-curve", "other:chevron"]);
+export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set([
+    "other:inv-curve",
+    "other:chevron",
+    "other:crows_foot_one",
+    "other:crows_foot_one_mandatory",
+    "other:crows_foot_one_optional",
+    "other:crows_foot_optional",
+    "other:dash",
+]);

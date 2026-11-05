@@ -151,6 +151,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.stripeOpacities": "mesh",
     "node.stripeDirection": "mesh",
     "node.stripeSize": "mesh",
+    "node.stripeFrame": "mesh",
     "node.chartKind": "mesh",
     "node.chartValues": "mesh",
     "node.chartColors": "mesh",

@@ -1228,6 +1228,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1484,6 +1488,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1740,6 +1748,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1784,6 +1796,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -5122,10 +5138,10 @@ export const NodeShapes: z.ZodEnum<{
     box: "box";
     diamond: "diamond";
     vee: "vee";
+    cross: "cross";
     star: "star";
     sphere: "sphere";
     ellipse: "ellipse";
-    cross: "cross";
     rectangle: "rectangle";
     triangle: "triangle";
     pentagon: "pentagon";
@@ -5198,10 +5214,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5390,10 +5406,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5449,10 +5465,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5552,6 +5568,7 @@ export const NodeStyle: z.ZodObject<{
             down: "down";
         }>>;
         size: z.ZodOptional<z.ZodNumber>;
+        frame: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     chart: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<{

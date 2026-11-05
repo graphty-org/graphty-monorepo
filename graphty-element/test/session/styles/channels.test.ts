@@ -150,6 +150,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -400,8 +401,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-six node channels and one hundred and sixty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 186);
+    it("splits into one hundred and eighty-seven node channels and one hundred and sixty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 187);
         assert.strictEqual(channelsFor("edge").length, 160);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -691,6 +692,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.

@@ -171,7 +171,7 @@ const ARROW_OF = inverse(
  * @param stack - An end cap's `stack` value.
  * @returns Its caps and their widths.
  */
-const stackShape = (stack: string): string => stack.replace(/\*[^x\s]+/g, "");
+const stackShape = (stack: string): string => stack.replaceAll(/\*[^x\s]+/g, "");
 
 // yEd's arrows of several pieces share end caps, so `ARROW_OF` names only one of them: the whole row names each
 const ARROW_ROWS = new Map(

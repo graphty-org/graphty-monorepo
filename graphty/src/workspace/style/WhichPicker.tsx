@@ -70,7 +70,6 @@ import {
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
-import { useStyleVersion } from "./useStyleVersion";
 import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
@@ -3130,8 +3129,20 @@ function CategoryCard({
 }>): React.JSX.Element {
     const { name, path, within, counted } = card.field;
     // A run re-run under the same id (Analyze tuning it, the data moving) keeps this path but not
-    // its values, so the groups and counts are read again on every run or data change.
-    const version = useStyleVersion(session, null);
+    // its values, so the groups and counts are read again when a run or the data changes (never on
+    // a style change: the card's own edits are style changes, and its values do not move with them).
+    const [version, setVersion] = useState(0);
+    useEffect(() => {
+        const bump = (): void => {
+            setVersion((v) => v + 1);
+        };
+        const offs = (["run:changed", "project:derived"] as const).map((event) => session.on(event, bump));
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session]);
     const counts = useMemo(
         () => categoryCounts(session, path, side, counted ?? within, version),
         [session, path, side, within, counted, version],

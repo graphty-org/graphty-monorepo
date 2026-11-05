@@ -39,7 +39,6 @@ import {
     alignTo,
     calendarStepAtLeast,
     calendarStepNear,
-    inferUnit,
     isCalendarStep,
     isNumericText,
     niceAtLeast,
@@ -51,6 +50,18 @@ import {
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
+import {
+    buildField,
+    drain,
+    type FieldIndex,
+    type FieldPlan,
+    type IndexWork,
+    inSlices,
+    type KindPlan,
+    mergeField,
+    noticesOf,
+    SLICED_ROWS,
+} from "./timeIndex";
 import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
 export type { TimeUnit } from "./parse";
@@ -373,14 +384,22 @@ export interface TimeApi {
      * @throws `E_BAD_COMMAND` with `reason: "time-zone"` for a bad zone name.
      */
     parse(text: string, options?: { readonly timeZone?: string }): number | null;
-    /** Resolves once the designated field is indexed, so the facts below answer synchronously. */
+    /**
+     * Resolves once the designated field is indexed, so the facts below answer synchronously. It
+     * waits for a load running, and for the last build when the field or the data changes while one
+     * runs: it never rejects for that. With nothing to build it resolves at once.
+     */
     readonly ready: Promise<void>;
-    /** The span of the data's time, or null when nothing is designated or nothing has a time. */
+    /**
+     * The span of the data's time, or null when nothing is designated, nothing has a time, or the
+     * index is not ready: a column of 50,000 rows or more builds in the background, starting at the
+     * first read, as does any column during a load. `time:ready` says when it is done.
+     */
     extent(): TimeExtent | null;
     /**
      * The histogram of the designated field.
      * @param options - Count, step or a most-bins budget, range, and which elements to count.
-     * @returns The bins, or null when there is no extent.
+     * @returns The bins, or null when there is no extent, as {@link TimeApi.extent} has none.
      * @throws `E_OPTION_RANGE` for a bad count or more than 10,000 bins; `E_BAD_COMMAND` with
      *     `reason: "calendar-step-on-ordinal"` for a calendar step on ordinal time, or
      *     `reason: "time-zone"` for a bad zone name.
@@ -491,6 +510,14 @@ export interface TimeSources {
     readonly timeline?: () => boolean;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
+    /**
+     * Moves on every change to the graph other than rows added at the end: a record edit, a
+     * removal, an undo, rows renumbered. While it stands still, rows already indexed still hold
+     * what they held and new ones follow them, so the index merges them in. Absent, it rebuilds.
+     */
+    readonly rewrites?: () => string;
+    /** Settles when the load running now and those behind it have; null when none runs. */
+    readonly loading?: () => Promise<void> | null;
     /**
      * The data's own revision: moves on a freeze or an attribute write, never on a mask. Keeps
      * `candidates()` until a column, type or value changes; absent, it is recomputed per call.
@@ -635,41 +662,8 @@ export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The index
+// Reading the index
 // ---------------------------------------------------------------------------------------------
-
-/** One kind's instants: per row, and sorted with the row of each. */
-interface KindIndex extends TimeInstants {
-    readonly sorted: Float64Array;
-    readonly perm: Uint32Array;
-    readonly counts: TimeCounts;
-    readonly loose: number;
-    readonly examples: readonly string[];
-    /** What every number in the column looks like, when the unit reads them as milliseconds. */
-    readonly suspect: "s" | "year" | "ordinal" | null;
-}
-
-/** The index of the designated field over one snapshot. */
-interface FieldIndex {
-    readonly key: string;
-    readonly path: string;
-    readonly unit: TimeUnit;
-    /** The unit each kind's values called for, when the designation gave none and they are numbers. */
-    readonly inferred: { readonly node?: TimeUnit; readonly edge?: TimeUnit };
-    readonly node: KindIndex | null;
-    readonly edge: KindIndex | null;
-    /** Whether every instant is a whole number, so an ordinal bin is never narrower than one. */
-    readonly whole: boolean;
-}
-
-/**
- * Whether every finite instant of a kind is a whole number.
- * @param kind - The kind's index, or null.
- * @returns True when it holds none that is not.
- */
-function wholeInstants(kind: KindIndex | null): boolean {
-    return kind === null || kind.sorted.every((value) => !Number.isFinite(value) || Number.isInteger(value));
-}
 
 const NO_COUNTS: TimeCounts = Object.freeze({ timed: 0, untimed: 0, unparsed: 0 });
 const NO_IDS: TimeIds = Object.freeze({ nodes: Object.freeze([]), edges: Object.freeze([]) });
@@ -713,146 +707,6 @@ function lowerBound(sorted: ArrayLike<number>, at: number): number {
     }
 
     return lo;
-}
-
-/**
- * Whether a value is a number, or text that is only a number.
- * @param value - The value.
- * @returns True for a bare number.
- */
-function isBareNumber(value: unknown): boolean {
-    return (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && isNumericText(value));
-}
-
-/**
- * Whether a column holds mostly date text, so a bare number in it is a stray value rather than an
- * epoch: more of its values are text that is not a number than are numbers.
- * @param count - How many rows.
- * @param read - Reads one row's value.
- * @returns True for a date-text column.
- */
-function mostlyText(count: number, read: (row: number) => unknown): boolean {
-    let text = 0;
-    let numbers = 0;
-    for (let row = 0; row < count; row++) {
-        const value = read(row);
-        if (isBareNumber(value)) {
-            numbers++;
-        } else if (typeof value === "string" && value.trim() !== "") {
-            text++;
-        }
-    }
-
-    return text > numbers;
-}
-
-/**
- * Parse one kind's column once and sort it.
- * @param count - How many rows.
- * @param read - Reads one row's value.
- * @param unit - How numbers are read.
- * @param zone - The zone text with no offset reads in.
- * @returns The index.
- */
-function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit, zone?: string): KindIndex {
-    const rows = new Float64Array(count);
-    let untimed = 0;
-    let unparsed = 0;
-    let loose = 0;
-    let numbers = 0;
-    let secondsLike = 0;
-    let yearLike = 0;
-    let fourDigit = 0;
-    const examples: string[] = [];
-    // In a column of date text, a stray number (a "1.10") is not an epoch in 1970.
-    const datesOnly = unit === "ms" && mostlyText(count, read);
-    for (let row = 0; row < count; row++) {
-        const value = read(row);
-        const reading =
-            datesOnly && isBareNumber(value)
-                ? { at: Number.NaN, how: "unparsed" as const }
-                : readInstant(value, unit, zone);
-        rows[row] = reading.at;
-        if (reading.how === "missing") {
-            untimed++;
-        } else if (reading.how === "unparsed") {
-            unparsed++;
-            if (examples.length < 3) {
-                examples.push(String(value));
-            }
-        } else if (reading.how === "loose") {
-            loose++;
-        }
-
-        if (typeof value === "number" && Number.isFinite(value)) {
-            numbers++;
-            secondsLike += value >= 1e8 && value < 1e10 ? 1 : 0;
-            yearLike += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-            fourDigit += Number.isInteger(value) && value >= 1000 && value <= 2999 ? 1 : 0;
-        }
-    }
-
-    const timed = count - untimed - unparsed;
-    const perm = new Uint32Array(timed);
-    let next = 0;
-    for (let row = 0; row < count; row++) {
-        if (!Number.isNaN(rows[row])) {
-            perm[next++] = row;
-        }
-    }
-
-    // ponytail: a comparator sort, about 5x slower than the radix argsort the design measured;
-    // switch when a 1M-element build matters.
-    perm.sort((a, b) => rows[a] - rows[b]);
-    const sorted = Float64Array.from(perm, (row) => rows[row]);
-    let suspect: KindIndex["suspect"] = null;
-    if (unit === "ms" && numbers > 0 && secondsLike === numbers) {
-        suspect = "s";
-    } else if (unit === "ms" && numbers > 0 && yearLike === numbers) {
-        suspect = fourDigit === numbers ? "year" : "ordinal";
-    }
-
-    return {
-        rows,
-        timed,
-        sorted,
-        perm,
-        counts: Object.freeze({ timed, untimed, unparsed }),
-        loose,
-        examples: Object.freeze(examples),
-        suspect,
-    };
-}
-
-/**
- * The notices one designated field's values call for.
- * @param built - The index.
- * @returns The notices.
- */
-function noticesOf(built: FieldIndex | null): readonly CodedFact<TimeNoticeCode>[] {
-    const notices: CodedFact<TimeNoticeCode>[] = [];
-    for (const kind of [built?.node, built?.edge]) {
-        if (kind === null || kind === undefined || built === null) {
-            continue;
-        }
-
-        if (kind.counts.unparsed > 0) {
-            notices.push({
-                code: "time.unparsed",
-                params: { path: built.path, count: kind.counts.unparsed, examples: kind.examples },
-            });
-        }
-
-        if (kind.loose > 0) {
-            notices.push({ code: "time.parsed-loosely", params: { path: built.path, count: kind.loose } });
-        }
-
-        if (kind.suspect !== null) {
-            notices.push({ code: "time.unit-suspect", params: { path: built.path, suggested: kind.suspect } });
-        }
-    }
-
-    return Object.freeze(notices);
 }
 
 /**
@@ -918,6 +772,39 @@ function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): bool
         (a?.unit ?? "ms") === (b?.unit ?? "ms") &&
         (a?.parseZone ?? UTC_ZONE) === (b?.parseZone ?? UTC_ZONE)
     );
+}
+
+/**
+ * What a field's designation says, as a key: what makes one index another's reading of the data.
+ * @param field - The field.
+ * @returns The key.
+ */
+function readingOf(field: TimeField): string {
+    return `${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.nodes?.parseZone ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}|${field.edges?.parseZone ?? ""}`;
+}
+
+/**
+ * A source with the unit its values called for, when it gave none.
+ * @param source - The source, or undefined.
+ * @param unit - The unit its values call for.
+ * @returns The source.
+ */
+function withUnit(source: TimeSource | undefined, unit: TimeUnit | undefined): TimeSource | undefined {
+    return source === undefined || source.unit !== undefined || unit === undefined ? source : { ...source, unit };
+}
+
+/**
+ * A field with only the kinds it names.
+ * @param field - The sources, either possibly undefined.
+ * @param field.nodes - The node source.
+ * @param field.edges - The edge source.
+ * @returns The field.
+ */
+function present(field: { readonly nodes?: TimeSource; readonly edges?: TimeSource }): TimeField {
+    return {
+        ...(field.nodes === undefined ? {} : { nodes: field.nodes }),
+        ...(field.edges === undefined ? {} : { edges: field.edges }),
+    };
 }
 
 /**
@@ -1153,6 +1040,10 @@ function timeCandidates(
 export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; readonly internals: TimeInternals } {
     const { visibility, dispatcher } = sources;
     let index: FieldIndex | null = null;
+    /** The build running a slice at a time, with the key it is for. */
+    let job: { readonly key: string; readonly work: IndexWork<FieldIndex>; done: Promise<void> } | null = null;
+    /** What `ready` holds: settles when no build is left to run. */
+    let following: Promise<void> | null = null;
     let lastChanges: (() => TimeChanges) | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     /** The window on screen while it is played smoothly or dragged, before it is recorded. */
@@ -1204,57 +1095,125 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Index one kind of a column.
-     * @param kind - Nodes or edges.
-     * @param column - The column.
-     * @param unit - How numbers are read.
-     * @param zone - The zone text with no offset reads in.
-     * @returns The kind's index.
+     * The write mark to compare an index by, read after the snapshot's freeze has run.
+     * @returns The mark; empty with the timeline off, where nothing is counted.
      */
-    const indexKind = (kind: "node" | "edge", column: string, unit: TimeUnit, zone = UTC_ZONE): KindIndex => {
-        const graph = sources.snapshot();
-        const attribute = `${ATTRIBUTE_PREFIX}${column}`;
-        // With the timeline off no zone is named, and text reads as it did before zones.
-        const named = sources.timeline?.() === false ? undefined : zone;
+    const rewritesNow = (): string => (sources.timeline?.() === false ? "" : (sources.rewrites?.() ?? ""));
 
-        return kind === "node"
-            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit, named)
-            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit, named);
+    /**
+     * The data as a key: what moved when an index built over it no longer fits.
+     * @returns The key.
+     */
+    const dataKey = (): string => {
+        const graph = sources.snapshot();
+
+        return `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${rewritesNow()}`;
     };
 
     /**
-     * The unit a column's numbers are read in when none was given, from its values.
-     * @param kind - Nodes or edges.
-     * @param column - The column.
-     * @returns The unit, or undefined for a column that is not all numbers.
+     * The key of a field's index over the graph as it stands.
+     * @param field - The field.
+     * @returns The key.
      */
-    const inferredUnit = (kind: "node" | "edge", column: string): TimeUnit | undefined => {
+    const keyOf = (field: TimeField): string => `${dataKey()}|${readingOf(field)}`;
+
+    /**
+     * What a build of a field reads.
+     * @param field - The field.
+     * @returns The plan.
+     */
+    const planOf = (field: TimeField): FieldPlan => {
         const graph = sources.snapshot();
-        const attribute = `${ATTRIBUTE_PREFIX}${column}`;
-        const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
-        const present: unknown[] = [];
-        for (let row = 0; row < count; row++) {
-            const value =
-                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute);
-            if (value !== undefined && value !== null && value !== "") {
-                present.push(value);
+        const path = columnOf(((field.edges ?? field.nodes) as TimeSource).start);
+        const attribute = `${ATTRIBUTE_PREFIX}${path}`;
+        // With the timeline off no zone is named, and text reads as it did before zones.
+        const zoneFor = (source: TimeSource): string | undefined =>
+            sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
+        const kindOf = (source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => ({
+            count,
+            read,
+            unit: source.unit,
+            zone: zoneFor(source),
+        });
+
+        return {
+            key: keyOf(field),
+            data: dataKey(),
+            reading: readingOf(field),
+            rewrites: rewritesNow(),
+            path,
+            node:
+                field.nodes === undefined
+                    ? null
+                    : kindOf(field.nodes, graph.nodeCount, (row) => sources.values.nodeValue(row, attribute)),
+            edge:
+                field.edges === undefined
+                    ? null
+                    : kindOf(field.edges, graph.edgeCount, (row) => sources.values.edgeValue(row, attribute)),
+        };
+    };
+
+    /**
+     * Whether a field's build runs a slice at a time.
+     * @param field - The field.
+     * @returns True above the threshold, with the timeline on.
+     */
+    const sliced = (field: TimeField): boolean => {
+        const graph = sources.snapshot();
+        const rows =
+            (field.nodes === undefined ? 0 : graph.nodeCount) + (field.edges === undefined ? 0 : graph.edgeCount);
+
+        return rows >= SLICED_ROWS && sources.timeline?.() !== false;
+    };
+
+    /**
+     * The work that brings the index up to a field's key: only the rows added, when that is all
+     * that happened, else the whole column.
+     * @param field - The field.
+     * @yields After each chunk.
+     * @returns The work.
+     */
+    function* workFor(field: TimeField): IndexWork<FieldIndex> {
+        const plan = planOf(field);
+        const held = index;
+        if (
+            held !== null &&
+            held.rewrites !== "" &&
+            held.rewrites === plan.rewrites &&
+            held.reading === plan.reading &&
+            (held.node?.rows.length ?? 0) <= (plan.node?.count ?? 0) &&
+            (held.edge?.rows.length ?? 0) <= (plan.edge?.count ?? 0)
+        ) {
+            const merged = yield* mergeField(held, plan);
+            if (merged !== null) {
+                return merged;
             }
         }
 
-        return inferUnit(present);
+        return yield* buildField(plan);
+    }
+
+    /**
+     * Take a finished index. It is often built inside a read (`time.field`, `extent()`): listeners
+     * hear on a microtask so none runs inside the caller's read (#4450). It still lands before an
+     * `await` of the call that built it resumes.
+     * @param built - The index.
+     * @param field - The field it indexes.
+     * @returns The index.
+     */
+    const land = (built: FieldIndex, field: TimeField): FieldIndex => {
+        index = built;
+        job = null;
+        queueMicrotask(() => {
+            sources.emit("time:ready", { field });
+        });
+
+        return built;
     };
 
     /**
-     * The unit a designated source reads numbers in: its own, else the one its values call for.
-     * @param kind - Nodes or edges.
-     * @param source - The source.
-     * @returns The unit.
-     */
-    const unitOfSource = (kind: "node" | "edge", source: TimeSource): TimeUnit | undefined =>
-        source.unit === undefined ? inferredUnit(kind, columnOf(source.start)) : undefined;
-
-    /**
-     * The index of the designated field over the graph as it stands, built on first use.
+     * The index of the designated field over the graph as it stands, however it must be had: a
+     * build under way is run to its end here, because a window needed now cannot wait for it.
      * @returns The index, or null when nothing is designated.
      */
     const indexNow = (): FieldIndex | null => {
@@ -1264,40 +1223,145 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return null;
         }
 
-        const source = (field.edges ?? field.nodes) as TimeSource;
-        const path = columnOf(source.start);
-        const graph = sources.snapshot();
-        const key = `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.nodes?.parseZone ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}|${field.edges?.parseZone ?? ""}`;
+        const key = keyOf(field);
         if (index?.key === key) {
             return index;
         }
 
-        const inferred = {
-            ...(field.nodes === undefined ? {} : { node: unitOfSource("node", field.nodes) }),
-            ...(field.edges === undefined ? {} : { edge: unitOfSource("edge", field.edges) }),
-        };
-        const nodeUnit = field.nodes === undefined ? undefined : (field.nodes.unit ?? inferred.node ?? "ms");
-        const edgeUnit = field.edges === undefined ? undefined : (field.edges.unit ?? inferred.edge ?? "ms");
-        const unit = edgeUnit ?? nodeUnit ?? "ms";
-        const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit, field.nodes?.parseZone);
-        const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit, field.edges?.parseZone);
-        index = { key, path, unit, inferred, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
-        // The index is built lazily, often inside a read (`time.field`, `extent()`): tell listeners
-        // on a microtask so none runs inside the caller's read (#4450). It still lands before an
-        // `await` of the call that built it resumes.
-        queueMicrotask(() => {
-            sources.emit("time:ready", { field });
-        });
-
-        return index;
+        return land(drain(job?.key === key ? job.work : workFor(field)), field);
     };
 
     /**
-     * The extent of the index.
+     * Run the build a field's key asks for, a slice at a time.
+     * @param field - The field.
+     * @param key - Its key.
+     * @returns Settles when the build landed or was dropped, never rejecting for a drop.
+     */
+    const buildInSlices = (field: TimeField, key: string): Promise<void> => {
+        if (job?.key === key) {
+            return job.done;
+        }
+
+        const running = { key, work: workFor(field), done: Promise.resolve() };
+        job = running;
+        const dropped = (): boolean => {
+            const now = fieldNow();
+            return (
+                job !== running ||
+                disposed ||
+                (sources.loading?.() ?? null) !== null ||
+                now === null ||
+                keyOf(now) !== running.key
+            );
+        };
+        running.done = inSlices(running.work, dropped).then((built) => {
+            if (built !== null) {
+                land(built, field);
+            } else if (job === running) {
+                job = null;
+            }
+        });
+
+        return running.done;
+    };
+
+    /**
+     * Wait until the index fits the graph: past any load running, through a build, and through
+     * whatever build replaces one that was dropped, so a caller holding this never sees a drop.
+     */
+    const settle = async (): Promise<void> => {
+        await Promise.resolve();
+        while (!disposed) {
+            const load = sources.loading?.() ?? null;
+            const field = fieldNow();
+            if (load !== null) {
+                await load;
+            } else if (field === null || index?.key === keyOf(field)) {
+                return;
+            } else if (sliced(field)) {
+                await buildInSlices(field, keyOf(field));
+            } else {
+                indexNow();
+                return;
+            }
+        }
+    };
+
+    /**
+     * The one wait for the index, shared by every holder of `time.ready`.
+     * @returns Settles as {@link settle} does.
+     */
+    const follow = (): Promise<void> => {
+        following ??= settle().finally(() => {
+            following = null;
+        });
+
+        return following;
+    };
+
+    /**
+     * The index of the designated field if a read can have it now. A big column or a load running
+     * leaves it to {@link follow}, which this starts, and a small one builds here.
+     * @returns The index, or null when nothing is designated or it is not ready.
+     */
+    const indexIfReady = (): FieldIndex | null => {
+        const field = fieldNow();
+        if (field === null) {
+            index = null;
+            return null;
+        }
+
+        if (index?.key === keyOf(field)) {
+            return index;
+        }
+
+        if ((sources.loading?.() ?? null) === null && !sliced(field)) {
+            return indexNow();
+        }
+
+        void follow();
+
+        return null;
+    };
+
+    /**
+     * The index once a field is designated: the one built for it beforehand, when the data has not
+     * moved since, under the key the designation gives it.
+     * @param field - The field designated, or null.
+     * @param proposed - The index built for it, or null.
+     * @returns The index, or null when nothing is designated.
+     */
+    const adopted = (field: TimeField | null, proposed: FieldIndex | null): FieldIndex | null => {
+        if (field === null || proposed === null || index?.key === keyOf(field) || proposed.data !== dataKey()) {
+            return indexNow();
+        }
+
+        return land({ ...proposed, key: keyOf(field), reading: readingOf(field), inferred: {} }, field);
+    };
+
+    /**
+     * An index for a field not yet designated, a slice at a time over a big column. Data that lands
+     * meanwhile starts it over.
+     * @param field - The field.
+     * @returns The index.
+     */
+    const indexFor = async (field: TimeField): Promise<FieldIndex> => {
+        for (;;) {
+            const plan = planOf(field);
+            const work = buildField(plan);
+            const built = sliced(field) ? await inSlices(work, () => keyOf(field) !== plan.key) : drain(work);
+            if (built !== null) {
+                return built;
+            }
+        }
+    };
+
+    /**
+     * The extent of an index.
+     * @param built - The index, or null.
      * @returns The extent, or null.
      */
-    const extentNow = (): TimeExtent | null => {
-        const built = indexNow();
+    const extentOf = (built: FieldIndex | null): TimeExtent | null => {
         if (built === null) {
             return null;
         }
@@ -1320,6 +1384,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                   edges: built.edge?.counts ?? NO_COUNTS,
               });
     };
+
+    /**
+     * The extent of the index as it must be had now.
+     * @returns The extent, or null.
+     */
+    const extentNow = (): TimeExtent | null => extentOf(indexNow());
 
     /**
      * Whether the designated field reads plain numbers.
@@ -2151,7 +2221,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const api: TimeApi = {
         get field() {
             const field = fieldNow();
-            const inferred = field === null ? undefined : indexNow()?.inferred;
+            const inferred = field === null ? undefined : indexIfReady()?.inferred;
             if (field === null || (inferred?.node === undefined && inferred?.edge === undefined)) {
                 return field;
             }
@@ -2179,33 +2249,30 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             // A column designated again without a unit takes the one the reader gave it before.
-            // Else its values decide: years, epochs, or plain numbers.
-            const withUnit = (source: TimeSource | undefined, kind: "node" | "edge"): TimeSource | undefined => {
-                if (source === undefined) {
-                    return undefined;
-                }
-
-                const unit =
-                    source.unit ?? units.get(columnOf(source.start)) ?? inferredUnit(kind, columnOf(source.start));
-                return unit === undefined ? source : { ...source, unit };
+            const remembered = (source: TimeSource | undefined): TimeSource | undefined => {
+                const unit = source === undefined ? undefined : (source.unit ?? units.get(columnOf(source.start)));
+                return source === undefined || unit === undefined ? source : { ...source, unit };
             };
-            const nodes = withUnit(field?.nodes, "node");
-            const edges = withUnit(field?.edges, "edge");
-            if (nodes !== undefined && edges !== undefined && columnOf(nodes.start) !== columnOf(edges.start)) {
+            const asked = { nodes: remembered(field?.nodes), edges: remembered(field?.edges) };
+            if (
+                asked.nodes !== undefined &&
+                asked.edges !== undefined &&
+                columnOf(asked.nodes.start) !== columnOf(asked.edges.start)
+            ) {
                 // ponytail: one path for both kinds, because a window reads one attribute; two
                 // paths need a window per kind.
                 throw badCommand("Nodes and edges name the same time column.", {
                     field: "start",
                     reason: "time-paths-differ",
-                    nodes: nodes.start,
-                    edges: edges.start,
+                    nodes: asked.nodes.start,
+                    edges: asked.edges.start,
                 });
             }
 
             const declarations = sources.declarations();
             for (const [kind, source] of [
-                ["node", nodes],
-                ["edge", edges],
+                ["node", asked.nodes],
+                ["edge", asked.edges],
             ] as const) {
                 const declared =
                     source === undefined ? undefined : declarations.get(`${kind}:${columnOf(source.start)}`);
@@ -2218,12 +2285,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                         measurement: declared.measurement,
                     });
                 }
+            }
 
+            // Read once: the unit its values call for, the refusal below, and the index itself.
+            const proposed =
+                asked.nodes === undefined && asked.edges === undefined ? null : await indexFor(present(asked));
+            const nodes = withUnit(asked.nodes, proposed?.inferred.node);
+            const edges = withUnit(asked.edges, proposed?.inferred.edge);
+            for (const [kind, source] of [
+                ["node", nodes],
+                ["edge", edges],
+            ] as const) {
                 // A column with values none of which reads as time is no timeline.
-                const tried =
-                    source === undefined
-                        ? null
-                        : indexKind(kind, columnOf(source.start), source.unit ?? "ms", source.parseZone);
+                const tried = proposed?.[kind] ?? null;
                 if (tried !== null && tried.counts.timed === 0 && tried.counts.unparsed > 0) {
                     throw badCommand("None of the column's values reads as a time.", {
                         field: "start",
@@ -2277,7 +2351,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             );
             const designated = fieldNow();
             sources.emit("time:field", { field: designated });
-            const built = indexNow();
+            const built = adopted(designated, proposed);
 
             return Object.freeze({
                 field: designated,
@@ -2316,18 +2390,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         get ready() {
-            // ponytail: built synchronously on a microtask; a time-sliced build is the design's
-            // answer at a million elements.
-            return Promise.resolve().then(() => {
-                indexNow();
-            });
+            return follow();
         },
 
-        extent: extentNow,
+        extent(): TimeExtent | null {
+            return extentOf(indexIfReady());
+        },
 
         bins(options: TimeBinsOptions = {}): readonly TimeBin[] | null {
-            const extent = extentNow();
-            const built = index;
+            const built = indexIfReady();
+            const extent = extentOf(built);
             if (extent === null || built === null) {
                 return null;
             }
@@ -2675,7 +2747,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return undefined;
             }
 
-            return indexNow()?.[kind]?.counts.timed;
+            return indexIfReady()?.[kind]?.counts.timed;
         },
 
         get playing() {
@@ -2722,6 +2794,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         dispose(): void {
             disposed = true;
+            job = null;
             stopTimer();
             playing = false;
         },

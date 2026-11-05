@@ -5270,6 +5270,7 @@ export function headlessDataService(
     });
 
     return {
+        loading: () => ingest.settling,
         apply: (mutation, draft) => {
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },

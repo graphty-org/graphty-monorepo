@@ -21,7 +21,7 @@ import { formatNumber } from "../inspector/words";
 import { type Card, cardFields, cardOf, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
-import { isRelative, referenceOf, stepCard, WHILE } from "./values";
+import { isRelative, referenceOf, STATE_WORDS, stepCard, WHILE } from "./values";
 
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
@@ -239,6 +239,9 @@ function ruleStepWords(
     }
     if (rule.kind === "member" && rule.of === "largest-component") {
         return { value: "Largest component", test: "" };
+    }
+    if (rule.kind === "state") {
+        return { value: STATE_WORDS[rule.state], test: "" };
     }
     if (rule.kind === "measure") {
         const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);

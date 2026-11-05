@@ -635,7 +635,7 @@ describe("the Style tab's sections", () => {
         });
     });
 
-    it("shows every eye at rest, names a hidden row's eye 'Show', and keeps Everything in place", async () => {
+    it("shows every eye at rest, names a hidden row's eye 'Show', and deletes Everything like any row", async () => {
         const { session } = await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.unhover(tree);
@@ -651,9 +651,9 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(tree).getByRole("treeitem", { name: /^Everything, / }));
         await userEvent.keyboard("{Delete}");
         await session.styles.settled();
-        assert.isDefined(
+        assert.isUndefined(
             session.styles.tree().find((row) => row.name === "Everything"),
-            "Delete leaves Everything in place",
+            "Delete takes Everything away",
         );
     });
 });

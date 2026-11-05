@@ -229,14 +229,20 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             uploads.push(kind);
             upload(kind);
         };
-        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
-        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
-        if (slots) {
-            const update = slots.update.bind(slots);
-            slots.update = (data): void => {
-                uploads.push("slots");
-                update(data);
-            };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch), and a cap's
+        // billboard values are buffers of theirs (ArrowCapBatch).
+        for (const [kind, name] of [
+            ["pA", "slots"],
+            ["arrowDirection", "arrowDirection"],
+        ]) {
+            const buffer = mesh.getVertexBuffer(kind)?.getWrapperBuffer();
+            if (buffer) {
+                const update = buffer.updateDirectly.bind(buffer);
+                buffer.updateDirectly = (...args): void => {
+                    uploads.push(name);
+                    update(...args);
+                };
+            }
         }
 
         const moved = graph.getDataManager().nodes.get(node);

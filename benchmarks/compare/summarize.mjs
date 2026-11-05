@@ -46,7 +46,6 @@ const METRICS = [
     ["Ready", (r) => r.load?.readyMs && r.load.readyMs / 1000, null, "s"],
     ["Still frame", (r) => r.still?.serial?.median, (r) => r.still?.serial?.p95, "ms", (r) => r.still?.serial?.p99],
     ["Moving frame", (r) => r.orbit?.median, (r) => r.orbit?.p95, "ms", (r) => r.orbit?.p99],
-    ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
     ["Hover", hoverMed, null, "ms"],
     ["JavaScript heap", (r) => r.memory?.usedMB, null, "MB"],
     ["Renderer and GPU processes", rss, null, "MB"],
@@ -54,6 +53,8 @@ const METRICS = [
     ["Frame while the layout runs", (r) => r.layoutFps?.median, (r) => r.layoutFps?.p95, "ms", (r) => r.layoutFps?.p99],
     ["One layout step plus readback", stepRead, null, "ms"],
     ["Layout step in a batch", batched, null, "ms"],
+    // Last, because `OLD` is read by position and has no figure for it.
+    ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
 ];
 const values = (rs, f) => rs.map(f).filter((v) => typeof v === "number");
 const cell = (cfg, [, f, p95, unit, p99]) => {
@@ -194,7 +195,7 @@ for (const [size, key, cfgs] of [
                 .map(([name, c]) => {
                     const v = values(pick({ ...c, size: sz }), m[1]),
                         o = OLD[name][key][i];
-                    if (!v.length) return "-";
+                    if (!v.length || o === undefined) return "-";
                     const x = med(v);
                     return `${nice(o)} -> ${nice(x)} ${m[3]} (${(x / o).toFixed(2)})`;
                 })

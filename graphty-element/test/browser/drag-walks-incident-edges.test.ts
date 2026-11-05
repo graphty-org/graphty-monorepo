@@ -6,14 +6,14 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { moveHeld, nextFrame, press, release } from "../helpers/real-input";
 
-/** The two graph sizes: big enough that a walk of every edge is 4x, and past the share of nodes a walk of edges at the moved ones is for. */
+/** The two graph sizes: big enough that a walk of every edge is 4x. */
 const SIZES = [100, 400] as const;
 
 /** The edges at the dragged node. */
@@ -83,13 +83,8 @@ async function dragCounted(size: number): Promise<{ visits: number; frames: numb
     const before = edge.drawnLine?.centre.clone();
     assert.isDefined(before, "its line is drawn");
 
-    let visits = 0;
     let frames = 0;
-    const update = Edge.prototype.update;
-    Edge.prototype.update = function (this: Edge): void {
-        visits++;
-        update.call(this);
-    };
+    const update = vi.spyOn(Edge.prototype, "update");
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
@@ -101,9 +96,11 @@ async function dragCounted(size: number): Promise<{ visits: number; frames: numb
 
         await nextFrame();
     } finally {
-        Edge.prototype.update = update;
         frame.remove();
     }
+
+    const visits = update.mock.calls.length;
+    update.mockRestore();
 
     await release(element, { x: x + 10 + 5 * MOVES, y: y + 5 });
     await element.waitForStableFrame();

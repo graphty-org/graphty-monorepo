@@ -394,7 +394,8 @@ export function LayoutForm({
     // Data > Fields), the warnings about what they held, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
     const arranged = isCurrent ? current.arrangedDimension : undefined;
-    const shape = isMap ? mapShapeOf(values) : shapeOf(values, values.dim === start.values.dim ? arranged : undefined);
+    const drawnShape = values.dim === start.values.dim ? arranged : undefined;
+    const shape = isMap ? mapShapeOf(values) : shapeOf(values, drawnShape);
     const startShape = isMap ? mapShapeOf(start.values) : shapeOf(start.values, arranged);
     const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
     const { mapDrawn, reads, read } = mapLines({ session, element, values, isMap, isCurrent });

@@ -134,17 +134,6 @@ async function openMapForm(): Promise<HTMLElement> {
 }
 
 /**
- * Picks an entry of a select by its label.
- * @param scope - where the select is.
- * @param label - the select's label.
- * @param option - the entry's name.
- */
-async function pick(scope: HTMLElement, label: string, option: RegExp | string): Promise<void> {
-    await userEvent.click(within(scope).getByRole("combobox", { name: label }));
-    await userEvent.click(await within(scope).findByRole("option", { name: option }));
-}
-
-/**
  * Picks an entry of a select with the keyboard: opens it, walks the highlight down to the entry
  * and presses Enter. For a list near the bottom of the popover's visible body: it opens two rows
  * tall, and a click on a later entry scrolls the popover and moves the list under the pointer

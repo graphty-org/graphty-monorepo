@@ -587,6 +587,72 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.equal(graph.rendererStatus?.drawing, false);
     });
 
+    /**
+     * Paints the nodes with a shader body and waits for the graph to report it.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     * @returns The graph and the error it reported.
+     */
+    async function refusedShader(id: string, glsl: string): Promise<{ graph: Graph; error: Error }> {
+        defineShader({ id, glsl });
+        const graph = await open("webgpu");
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "refused",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: id }] },
+        });
+        return { graph, error: await refused };
+    }
+
+    it("reports a shader the GLSL compiler stops on", async () => {
+        // `image2D` is a free name in GLSL ES 3.00 and a type in the Vulkan GLSL glslang reads.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/compiler-stops",
+            "vec4 shade(NodeInput n) { float image2D = 1.0; return vec4(n.color.rgb, image2D); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "compiler");
+        assert.match(String(error.details.messages), /GLSL compilation failed/);
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("reports a shader the translator loses", async () => {
+        // The translator has no `acosh`: it stops there and hands back WGSL with no entry point.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/translator-stops",
+            "vec4 shade(NodeInput n) { return vec4(n.color.rgb, acosh(n.color.r + 1.5)); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "translator");
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("answers a pasted shader the GLSL compiler stops on, with the picture left as it was", async () => {
+        const graph = await open("webgpu");
+        const errors: unknown[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error);
+        });
+        const added = await graph.getSession().shaders.add(`/* graphty-shader 1
+{ "id": "user/compiler-stops", "name": "Stops", "place": "paint" }
+*/
+vec4 shade(NodeInput n) { float image2D = 1.0; return vec4(n.color.rgb, image2D); }
+`);
+        assert.isFalse(added.ok);
+        assert.equal(added.ok ? "" : added.problems[0].code, "shader.compile");
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
+    });
+
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {
         // The first WebGPU graph on the page fetches the compiler; a failed fetch is not
         // remembered, so the next graph asks again -- and this one is refused.

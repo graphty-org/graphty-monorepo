@@ -3,9 +3,10 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import { InstancedMesh, Mesh, type Scene } from "@babylonjs/core";
+import { InstancedMesh, Mesh, type Scene, type TransformNode } from "@babylonjs/core";
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
+import { NodeBatch } from "./NodeBatch";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -27,6 +28,9 @@ export class MeshCache {
      * holding a slot in a mesh that no longer exists.
      */
     batchCacheMap = new Map<string, EdgeLineBatch>();
+
+    /** The node batches, by the source mesh they share a material with, which they die with. */
+    nodeBatchMap = new Map<Mesh, NodeBatch>();
     hits = 0;
     misses = 0;
 
@@ -96,6 +100,23 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the batch drawing a source mesh's rows.
+     * @param source - The source mesh.
+     * @param places - The table that places the rows.
+     * @param root - What the rows are drawn inside.
+     * @returns The batch.
+     */
+    batchFor(source: Mesh, places: ConstructorParameters<typeof NodeBatch>[1], root: TransformNode | null): NodeBatch {
+        let batch = this.nodeBatchMap.get(source);
+        if (batch === undefined) {
+            batch = new NodeBatch(source, places, root);
+            this.nodeBatchMap.set(source, batch);
+        }
+
+        return batch;
+    }
+
+    /**
      * Reset cache statistics (hits and misses)
      */
     reset(): void {
@@ -108,7 +129,7 @@ export class MeshCache {
      */
     clear(): void {
         for (const mesh of this.meshCacheMap.values()) {
-            MeshCache.disposeSource(mesh);
+            this.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
 
@@ -130,8 +151,8 @@ export class MeshCache {
      */
     prune(): void {
         for (const [name, mesh] of this.meshCacheMap) {
-            if (mesh.instances.length === 0) {
-                MeshCache.disposeSource(mesh);
+            if (mesh.instances.length === 0 && !this.nodeBatchMap.get(mesh)?.liveSlots) {
+                this.disposeSource(mesh);
                 this.meshCacheMap.delete(name);
             }
         }
@@ -148,7 +169,7 @@ export class MeshCache {
         let forgot = false;
         for (const [name, mesh] of this.meshCacheMap) {
             if (match(mesh)) {
-                MeshCache.disposeSource(mesh);
+                this.disposeSource(mesh);
                 this.meshCacheMap.delete(name);
                 forgot = true;
             }
@@ -162,10 +183,13 @@ export class MeshCache {
      *
      * Every creator handed to get() builds a fresh material for its mesh, so the material dies
      * with it; `mesh.dispose()` alone would leave it in `scene.materials` for good. Textures are
-     * kept: node gradient textures are shared across materials per scene.
+     * kept: node gradient textures are shared across materials per scene. A batch of the mesh goes
+     * first, as it draws with that material.
      * @param mesh - The cached source mesh
      */
-    private static disposeSource(mesh: Mesh): void {
+    private disposeSource(mesh: Mesh): void {
+        this.nodeBatchMap.get(mesh)?.dispose();
+        this.nodeBatchMap.delete(mesh);
         const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);

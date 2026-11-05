@@ -56,6 +56,7 @@ import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/re
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -5957,6 +5958,46 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
+     * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
+     * no change to the picture. It can change at any time.
+     * @returns The path asked for.
+     * @example
+     * ```html
+     * <graphty-element render-path="batched"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "render-path", reflect: true })
+    get renderPath(): RenderPath {
+        return this.#graph.renderPath;
+    }
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    set renderPath(value: RenderPath) {
+        const oldValue = this.#graph.renderPath;
+
+        try {
+            this.#graph.setRenderPath(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderPath", oldValue);
+    }
+
+    /**
+     * How many nodes and edges each render path is drawing, as of the last frame.
+     * @returns The counts.
+     */
+    get rowCounts(): RowCounts {
+        return this.#graph.rowCounts;
     }
 
     /**

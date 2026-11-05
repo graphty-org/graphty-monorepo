@@ -224,8 +224,10 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
@@ -818,6 +820,12 @@ export class Graph implements GraphContext {
     #resident: GraphSnapshot | null = null;
     /** The row tables, once something has opened them; see {@link Graph.openRowTable}. */
     #rowTable: RowTable | null = null;
+    /** How nodes are drawn; see {@link Graph.setRenderPath}. */
+    #renderPath: RenderPath = renderPathDefault.value;
+    /** The node batches, once the renderer is open on the `"batched"` path. */
+    #nodeBatches: NodeBatches | null = null;
+    /** The scene is the one that stays, so batches may be built on it. */
+    #renderPathOpen = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -1390,6 +1398,7 @@ export class Graph implements GraphContext {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, this.dataManager.nodes.values());
+                this.#nodeBatches?.rowsMoved();
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -2304,6 +2313,9 @@ export class Graph implements GraphContext {
             if (this.#teardown.signal.aborted) {
                 return;
             }
+
+            this.#renderPathOpen = true;
+            this.#applyRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -4478,8 +4490,85 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Start keeping the row tables, or get them if they are kept already. Nothing draws from them
-     * yet, so nothing opens them but tests and the benchmark harness.
+     * The node batches, on the `"batched"` path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches(): NodeBatches | null {
+        return this.#nodeBatches;
+    }
+
+    /**
+     * How nodes are drawn.
+     * @returns The path asked for.
+     */
+    get renderPath(): RenderPath {
+        return this.#renderPath;
+    }
+
+    /**
+     * Choose how nodes are drawn, at any time: `"objects"`, a mesh each, or `"batched"`, eligible
+     * rows in one draw per look. Under NullEngine every row stays an object row.
+     * @param path - The path.
+     */
+    setRenderPath(path: RenderPath): void {
+        if (path !== "objects" && path !== "batched") {
+            throw new Error(`unknown render path "${String(path)}"`);
+        }
+
+        this.#renderPath = path;
+        if (this.#renderPathOpen) {
+            this.#applyRenderPath();
+        }
+    }
+
+    /**
+     * How many rows each path is drawing, so a row that quietly left the fast path can be seen.
+     * @returns The counts as of the last frame.
+     */
+    get rowCounts(): RowCounts {
+        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        return {
+            batchedNodes,
+            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            pulledEdges: 0,
+            objectEdges: this.dataManager.edges.size,
+        };
+    }
+
+    /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
+    #applyRenderPath(): void {
+        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        if (batched && this.#nodeBatches === null) {
+            const places = this.openRowTable();
+            this.#nodeBatches = new NodeBatches(
+                {
+                    cache: this.dataManager.meshCache,
+                    places,
+                    root: () => this.scene.getTransformNodeByName("graph-root"),
+                    view: () => ({
+                        scaled: this.updateManager.nodesScaledByView,
+                        flatOutline: !this.is2D() && sceneLighting(this.scene) === "flat",
+                    }),
+                    nodes: () => this.dataManager.nodes.values(),
+                    meshesChanged: () => {
+                        this.updateManager.thawActiveMeshes();
+                        this.updateManager.meshesShownOrHidden();
+                    },
+                },
+                this.scene,
+            );
+        } else if (!batched && this.#nodeBatches !== null) {
+            this.#nodeBatches.dispose();
+            this.#nodeBatches = null;
+        }
+
+        this.renderManager.requestFrame();
+    }
+
+    /**
+     * Start keeping the row tables, or get them if they are kept already. The `"batched"` path
+     * draws from them; otherwise only tests and the benchmark harness open them.
      * @returns The tables.
      * @internal
      */
@@ -5104,6 +5193,12 @@ export class Graph implements GraphContext {
         if (mapped) {
             for (const node of this.dataManager.nodes.values()) {
                 this.#nodeMeshes.add(node.drawnSourceMesh);
+            }
+        }
+
+        if (mapped) {
+            for (const batch of this.dataManager.meshCache.nodeBatchMap.values()) {
+                this.#nodeMeshes.add(batch.mesh);
             }
         }
 

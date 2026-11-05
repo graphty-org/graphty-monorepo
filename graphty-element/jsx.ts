@@ -260,6 +260,10 @@ export interface GraphtyElementJSXProps {
      */
     renderer?: Graphty["renderer"];
     /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    renderPath?: Graphty["renderPath"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -407,6 +411,10 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    "render-path"?: string;
     /**
      * Sets the threshold and applies it immediately.
      *

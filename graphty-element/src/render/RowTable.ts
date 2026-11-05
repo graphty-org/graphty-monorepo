@@ -2,9 +2,9 @@
  * @file The drawn place and size of every row of one graph, as float textures a shader can read
  * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).
  *
- * A row is the node's index in the snapshot. Nothing draws from these tables yet: they follow
- * the meshes in shadow, built only when something opens them (`Graph.openRowTable`), so a graph
- * that never does pays one null check per move.
+ * A row is the node's index in the snapshot. Node batches draw from these tables. They are built
+ * only when something opens them (`Graph.openRowTable`), so a graph on the `"objects"` path pays
+ * one null check per move.
  */
 
 import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine } from "@babylonjs/core";

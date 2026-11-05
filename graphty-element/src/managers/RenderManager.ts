@@ -35,6 +35,7 @@ import type { BloomPass } from "../meshes/BloomPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
+import { isRowBatch } from "../meshes/RowPullPlugin";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
@@ -1801,7 +1802,10 @@ export class RenderManager implements Manager {
             if (isNodeMaterial(material)) {
                 lightNodeMaterial(material, lighting);
                 for (const mesh of material.getBindedMeshes()) {
-                    outlineNodeMesh(mesh, lighting);
+                    // A batch has no outline path: it would draw every row's at the root's origin.
+                    if (!isRowBatch(mesh)) {
+                        outlineNodeMesh(mesh, lighting);
+                    }
                 }
             }
 

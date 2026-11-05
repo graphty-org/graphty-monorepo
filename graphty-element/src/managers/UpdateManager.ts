@@ -2808,6 +2808,14 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether a node's size follows the view, which a node batch cannot draw yet.
+     * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
+     */
+    get nodesScaledByView(): boolean {
+        return this.depthSizingPivot() !== null || this.screenScaled !== null;
+    }
+
+    /**
      * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
      *
      * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node

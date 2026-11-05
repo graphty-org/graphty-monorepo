@@ -35,7 +35,7 @@ function applyValueText(root: HTMLElement | null, thumbProps: ThumbProps): void 
  * @param step - The step.
  * @returns Its decimals, at most 100 (what `toFixed` takes).
  */
-export function stepPrecision(step: number): number {
+function stepPrecision(step: number): number {
     const [mantissa = "", exponent = "0"] = String(Math.abs(step)).split("e");
     const decimals = mantissa.split(".")[1]?.length ?? 0;
     return Math.min(100, Math.max(0, decimals - Number(exponent)));
@@ -52,7 +52,7 @@ export function stepPrecision(step: number): number {
  * @param step - The step.
  * @returns The value, or the end it is next to.
  */
-export function snapToEnds(value: number, min: number, max: number, step: number): number {
+function snapToEnds(value: number, min: number, max: number, step: number): number {
     const near = Math.abs(step) / 2;
     if (max - value < near) {
         return max;

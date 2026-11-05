@@ -29,8 +29,9 @@ import { parse as parseYaml } from "yaml";
 
 import {
     ciCommand,
-    GROUPS,
+    FEATURES_ON_SHARDS,
     groupEntry,
+    GROUPS,
     MATRIX_CAP,
     matrixLine,
     parseOnly,
@@ -42,6 +43,7 @@ import {
     STORY_RUNS,
     STORY_SHARDS,
 } from "./ci-test-matrix.mjs";
+import { FEATURES_DECLARED } from "./features-on.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -108,15 +110,17 @@ const job = (text, name) => {
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
+// A full run's jobs: the On twins of the shards exist only while graphty-element declares an experiment.
+const FULL_RUN_JOBS = 34 + (FEATURES_DECLARED ? FEATURES_ON_SHARDS.length : 0);
 const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 34 jobs (the four fidelity slices among them)", () => {
+    it("runs every shard exactly once on a full run (the four fidelity slices among them)", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 34);
+        assert.equal(include.length, FULL_RUN_JOBS);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -1229,7 +1233,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 34, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1347,7 +1351,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "34");
+        assert.equal(called.out["test-count"], String(FULL_RUN_JOBS));
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");

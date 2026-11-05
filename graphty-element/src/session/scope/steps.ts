@@ -951,10 +951,11 @@ export function createScopeSteps(sources: ScopeStepsSources): ScopeStepsApi {
                             : (index: number): unknown => result.edgeValue(index, measure.field);
                     const field = result.fields.find((each) => each.name === measure.field) as
                         { readonly measurement?: string } | undefined;
+                    // An Add step takes from the whole base, not from what its group holds so far.
                     return sources.histogramOf(
                         leaf.side,
                         read,
-                        input,
+                        step.op === "add" ? new Uint8Array(input.length).fill(1) : input,
                         field?.measurement === "categorical" ? "categorical" : undefined,
                     );
                 },

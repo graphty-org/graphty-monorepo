@@ -88,44 +88,9 @@ export function ExportDialog(): React.JSX.Element {
      * @param file - the file's name, when a file was saved.
      */
     const [settingsOpen, setSettingsOpen] = useState(false);
-    // A press outside closes the settings on its way down. The dialog still counts them open until
-    // the click that press ends in has gone by, so one click closes the settings alone.
-    const pressed = useRef(false);
-    useEffect(() => {
-        if (!settingsOpen) {
-            return undefined;
-        }
-        const down = (): void => {
-            pressed.current = true;
-        };
-        const up = (): void => {
-            setTimeout(() => {
-                pressed.current = false;
-            });
-        };
-        document.addEventListener("pointerdown", down, true);
-        document.addEventListener("pointerup", up, true);
-        return () => {
-            document.removeEventListener("pointerdown", down, true);
-            document.removeEventListener("pointerup", up, true);
-        };
-    }, [settingsOpen]);
-    const settingsChanged = (open: boolean): void => {
-        if (open || !pressed.current) {
-            setSettingsOpen(open);
-            return;
-        }
-        pressed.current = false;
-        document.addEventListener(
-            "click",
-            () => {
-                setTimeout(() => {
-                    setSettingsOpen(false);
-                });
-            },
-            { once: true, capture: true },
-        );
-    };
+    // A press outside closes the settings on its way down, so the click it ends in is judged by what
+    // was open when it began: one click on the backdrop closes the settings alone.
+    const settingsAtPress = useRef(false);
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
             const choices = { image, video, data }[output as "image" | "video" | "data"] as RecentExport["choices"];
@@ -160,7 +125,7 @@ export function ExportDialog(): React.JSX.Element {
                         choices={data}
                         onChange={setData}
                         onCancel={close}
-                        onSettingsOpen={settingsChanged}
+                        onSettingsOpen={setSettingsOpen}
                         onDone={done}
                     />
                 );
@@ -175,7 +140,17 @@ export function ExportDialog(): React.JSX.Element {
             onClose={close}
             // Mantine's modal sees Escape before anything inside it: a settings popover closes alone.
             closeOnEscape={!settingsOpen}
-            closeOnClickOutside={!settingsOpen}
+            closeOnClickOutside={false}
+            overlayProps={{
+                onPointerDown: () => {
+                    settingsAtPress.current = settingsOpen;
+                },
+                onClick: () => {
+                    if (!settingsAtPress.current) {
+                        close();
+                    }
+                },
+            }}
             title="Export"
             size="lg"
             classNames={{ body: "ws-dialog-columns ws-export-body" }}

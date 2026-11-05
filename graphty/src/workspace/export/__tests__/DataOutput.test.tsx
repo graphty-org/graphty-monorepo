@@ -128,6 +128,7 @@ function Stateful({ first }: Readonly<{ first: DataChoices }>): React.JSX.Elemen
  */
 function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAULT_DATA): void {
     const session = {
+        features: { enabled: [] },
         catalog: { formats: () => FORMATS },
         data: {
             attributes: () => [],

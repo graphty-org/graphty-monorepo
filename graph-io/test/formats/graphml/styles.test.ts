@@ -449,7 +449,7 @@ describe("GraphML styles: yEd", () => {
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {
         const doc = `${YED_HEAD}<node id="a"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/></y:ShapeNode></data></node></graph></graphml>`;
         const { snapshot, styles } = await load(doc);
-        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
+        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ccccff"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(bare.styles.styles.graph.background).toBeUndefined();

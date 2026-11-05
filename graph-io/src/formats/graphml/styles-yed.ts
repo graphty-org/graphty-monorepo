@@ -1077,6 +1077,27 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
 }
 
 /**
+ * The width yEd draws a line of a given width: 0.5 and 1.5 both draw 1 wide (yed-graphml-specimen-arrows,
+ * yed-graphml-specimen-edges-lines), and whole widths as written. No other fraction has been drawn, so 2.5 stays as
+ * written until one has.
+ * @param width - the file's width
+ * @returns the drawn width
+ */
+export function yedDrawnWidth(width: number | null): number | null {
+    return width !== null && width > 0 && width < 2 ? 1 : width;
+}
+
+/**
+ * How long yEd draws an arrow as a fraction of its shape's length: its `short` arrow reads as the triangle and is 8
+ * long to the triangle's 12, as wide (yed-graphml-specimen-arrows).
+ * @param arrow - the arrow's name in the file
+ * @returns the fraction, or null for the shape's own length
+ */
+export function yedArrowLength(arrow: unknown): number | null {
+    return arrow === "short" ? 8 / 12 : null;
+}
+
+/**
  * Reads one edge realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1087,13 +1108,15 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     const line = treeChild(r, "LineStyle");
     if (line !== undefined) {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
-        put("width", canonNumber(treeAttr(line, "width"), at("width")));
+        put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
     }
     const arrows = treeChild(r, "Arrows");
     if (arrows !== undefined) {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
+        put("sourceArrowLength", yedArrowLength(treeAttr(arrows, "source")));
+        put("targetArrowLength", yedArrowLength(treeAttr(arrows, "target")));
     }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {

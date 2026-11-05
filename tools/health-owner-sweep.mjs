@@ -153,7 +153,7 @@ export function takenSession(issue) {
 // a pull request is working when it is green and mergeable, or has a commit in 24 hours
 function prWork(p, now) {
     const commit = p.commits?.nodes?.[0]?.commit;
-    const at = commit ? Date.parse(commit.committedDate) : NaN;
+    const at = commit ? Date.parse(commit.committedDate) : Number.NaN;
     const green = commit?.statusCheckRollup?.state === "SUCCESS" && p.mergeable !== "CONFLICTING";
     if (green) return { live: true, why: "green" };
     if (now - at <= LIVE_MS) return { live: true, why: `commit ${Math.floor((now - at) / HOUR)} h ago`, at };
@@ -188,7 +188,7 @@ export function liveness(node, now, o = {}) {
     const works = prs.map((p) => ({ p, w: prWork(p, now) }));
     const pr = works.find((x) => x.w.live);
     if (pr) return { live: true, why: `open, pull request #${pr.p.number} ${pr.w.why}` };
-    const named = new RegExp(`(^|\\D)${node.number}(\\D|$)`);
+    const named = new RegExp(String.raw`(^|\D)${node.number}(\D|$)`);
     const commits = (branches[`b${node.number}`]?.nodes ?? [])
         .filter((b) => named.test(b.name))
         .map((b) => ({ name: b.name, at: Date.parse(b.target?.committedDate) }));

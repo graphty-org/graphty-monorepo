@@ -263,6 +263,7 @@ import {
     dispatcherOf,
     handGraphPaintToRenderer,
     paintAddedRows,
+    repaintGraphPass,
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
@@ -1163,10 +1164,14 @@ export class Graph implements GraphContext {
             // so a run of queued adds repaints once, not once per add. Everything else -- undo,
             // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
             if (paintsWhole) {
+                // A forward add over a picture that is current names what it changed; undo, redo
+                // and a paint an earlier write left owed have no such list.
+                const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
                 dispatcher.paintOwed = false;
                 this.#passRepainted = true;
-                await this.repaintFromSession();
-                // The whole graph is painted, whatever an import stopped part way left waiting.
+                await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
+                // The whole graph is painted, whatever an import stopped part way left waiting:
+                // a pass that painted only the changed rows found every other row painted already.
                 this.dataManager.notePainted(null);
             } else if (this.#importsReading === 0) {
                 dispatcher.paintOwed = true;

@@ -2068,11 +2068,16 @@ function visFitShape(merged: VisLayer, shape: string): Row {
         row.labelPosition = `inside-${merged.valign}`;
     } else if (shape === "database") {
         // a database draws its label at its top, its top margin down (Database.draw: this.top + margin.top), not in
-        // the middle of the square it grows to
+        // the middle of the square it grows to; the label's padding already holds the margins' mean (visLabelFit)
         const m = merged.margin;
         const top = isJsonObject(m) ? m.top : m;
+        const down =
+            (typeof top === "number" && Number.isFinite(top) && top >= 0 ? top : VIS_MARGIN) -
+            Number(row.labelPaddingY);
         row.labelPosition = "inside-top";
-        row.labelOffsetY = typeof top === "number" && Number.isFinite(top) && top >= 0 ? top : VIS_MARGIN;
+        if (down !== 0) {
+            row.labelOffsetY = down;
+        }
     }
     // a box's corners are rounded at `shapeProperties.borderRadius`, at most half its shorter side (drawRoundRect)
     if (shape === "box" && typeof merged.borderRadius === "number" && Number.isFinite(merged.borderRadius)) {
@@ -3208,7 +3213,7 @@ const visShapeFactBack =
         if (shape === "hexagon" && typeof size === "number") {
             return property === "height" ? (Math.sqrt(3) * size) / 2 : ((2 - Math.sqrt(3)) * size) / 4;
         }
-        return property === "labelOffsetY" && shape === "database" ? VIS_MARGIN : null;
+        return null;
     };
 
 /**

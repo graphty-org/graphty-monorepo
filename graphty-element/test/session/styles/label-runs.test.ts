@@ -24,10 +24,10 @@ describe("a label drawn in runs", () => {
         assert.isNull(labelRunsMarkup("not json"));
         // a run larger than the label: its size as a share of the label's
         assert.strictEqual(labelRunsMarkup(JSON.stringify([{ text: "M", size: 15 }]), 10), "<size='150%'>M</size>");
-        // a run drawn lower than the line: how far, as a share of the label's size
+        // a run drawn lower than the line: how far, as a share of the label's size, the line staying where it was
         assert.strictEqual(
             labelRunsMarkup(JSON.stringify([{ text: "B", shift: 6 }, { text: " x" }]), 10),
-            "<shift='60%'>B</shift> x",
+            "<nudge='60%'>B</nudge> x",
         );
     });
 
@@ -42,6 +42,40 @@ describe("a label drawn in runs", () => {
                 ["C", 10],
             ],
         );
+    });
+
+    it("leaves a line where it was for a nudged run, and says how far the run reaches past it", () => {
+        // a context whose fonts are as tall as their size: ascent 0.8, descent 0.2
+        const ctx = {
+            font: "",
+            textBaseline: "alphabetic",
+            measureText(this: { font: string }, text: string) {
+                const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 0);
+                return { width: text.length, fontBoundingBoxAscent: 0.8 * size, fontBoundingBoxDescent: 0.2 * size };
+            },
+        } as unknown as CanvasRenderingContext2D;
+        const parser = new RichTextParser({ size: 10, weight: "normal", style: "normal", font: "x" } as RichTextStyle);
+        const options = { lineHeight: 1, textOutline: false, textOutlineWidth: 0 };
+        const measure = (text: string): ReturnType<typeof measureLine> =>
+            measureLine(ctx, parser.parse(text)[0], options);
+        const plain = measure("ab");
+        const nudged = measure("a<nudge='-50%'>b</nudge>");
+        assert.deepEqual(nudged.offsets, [0, -5]);
+        assert.deepEqual(
+            [nudged.lineBox, nudged.baseline, nudged.over],
+            [plain.lineBox, plain.baseline, { top: 5, bottom: 0 }],
+        );
+        assert.deepEqual(measure("a<nudge='50%'>b</nudge>").over, { top: 0, bottom: 5 });
+        // a shifted run still grows its line, as it always has
+        const shifted = measure("a<shift='-50%'>b</shift>");
+        assert.deepEqual([shifted.lineBox, shifted.over], [plain.lineBox + 5, { top: 0, bottom: 0 }]);
+        // the plane holds what reaches past the first line's top and the last line's bottom, and no other line's
+        const heights = (text: string): { totalHeight: number; over: { top: number; bottom: number } } => {
+            const { totalHeight, over } = parser.measureText(parser.parse(text), ctx, options);
+            return { totalHeight, over };
+        };
+        assert.deepEqual(heights("<nudge='-50%'>a</nudge>\nb"), { totalHeight: 25, over: { top: 5, bottom: 0 } });
+        assert.deepEqual(heights("a\n<nudge='-50%'>b</nudge>"), { totalHeight: 20, over: { top: 0, bottom: 0 } });
     });
 
     it("sets runs of different sizes on one line where the label's run alignment says", () => {

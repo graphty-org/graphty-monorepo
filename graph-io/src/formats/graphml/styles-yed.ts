@@ -419,7 +419,7 @@ export function configurationOutline(configuration: string): YedOutline | null {
  * `yed-live-graphml-specimen-node-shapes-p5`): a data object is a page with its top right corner folded, a data store
  * a cylinder. The message, group and annotation artifacts are not drawn as their outlines yet.
  */
-const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+export const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["artifact_type_data_object", { shape: "polygon", points: "-1,-1 1,-1 1,0.4 0.2,1 -1,1" }],
     ["artifact_type_data_store", { shape: "other:database" }],
 ]);

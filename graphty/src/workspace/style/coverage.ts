@@ -225,6 +225,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.pieOffsetY": NOT_PLACED,
     "node.stripeColors": NOT_PLACED,
     "node.stripeSizes": NOT_PLACED,
+    "node.stripeFrame": NOT_PLACED,
     "node.stripeOpacities": NOT_PLACED,
     "node.stripeDirection": NOT_PLACED,
     "node.stripeSize": NOT_PLACED,

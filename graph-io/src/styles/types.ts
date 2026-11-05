@@ -548,6 +548,11 @@ export interface NodeStyleValues {
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
     /**
+     * Keeps only the rim of the bands' box, four fractions "top right bottom left" of its height and width deep: the
+     * band yEd Live draws round a group's panel.
+     */
+    readonly stripeFrame: string;
+    /**
      * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
      * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower
      * quartile, the median, the upper quartile and the high whisker) or `cells` (a row of colored cells).

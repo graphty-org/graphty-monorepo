@@ -749,6 +749,7 @@ export type Channel =
     | "node.stripeOpacities"
     | "node.stripeDirection"
     | "node.stripeSize"
+    | "node.stripeFrame"
     | "node.chartKind"
     | "node.chartValues"
     | "node.chartColors"

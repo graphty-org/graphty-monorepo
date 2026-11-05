@@ -484,6 +484,7 @@ export interface ChannelValues {
     "node.stripeOpacities": string;
     "node.stripeDirection": NodeStripeDirectionValue;
     "node.stripeSize": number;
+    "node.stripeFrame": string;
     "node.chartKind": NodeChartKindValue;
     "node.chartValues": string;
     "node.chartColors": string;
@@ -1083,7 +1084,8 @@ const NODE_PIE_CAVEAT =
 const NODE_STRIPES_CAVEAT =
     "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
     'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
-    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s.';
+    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s; ' +
+    '`node.stripeFrame`, four fractions "top right bottom left", keeps only that rim of the box.';
 
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
@@ -3162,6 +3164,17 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "stripes.size",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeFrame": {
+        channel: "node.stripeFrame",
+        target: "node",
+        plainName: "Node Stripe Frame",
+        shortName: "Stripe frame",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.frame",
         renderable: true,
         caveat: NODE_STRIPES_CAVEAT,
     },

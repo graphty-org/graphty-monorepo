@@ -167,6 +167,7 @@ export const STYLE_PROPERTIES: {
         ["stripeOpacities", "text"],
         ["stripeDirection", "text"],
         ["stripeSize", "number"],
+        ["stripeFrame", "text"],
         ["chartKind", "text"],
         ["chartValues", "text"],
         ["chartColors", "text"],

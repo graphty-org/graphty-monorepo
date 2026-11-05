@@ -26,6 +26,7 @@ import {
     clipToBox,
     type ColorPiece,
     databaseRim,
+    framedBand,
     imageBox,
     type PieceBox,
     pieSlices,
@@ -329,11 +330,13 @@ type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean; r
  */
 function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; width: number; height: number }): Placed[] {
     // a band is the box it fills, cut to the node: its box for a reader is the band's own, as a clipped
-    // rectangle's is in an SVG
-    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) => {
-        const outline = clipToBox(face.outline, b.box);
-        return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
-    });
+    // rectangle's is in an SVG, and a framed band's strips each read as the whole band they make
+    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) =>
+        framedBand(o.stripes?.frame, b.box).flatMap((part) => {
+            const outline = clipToBox(face.outline, part);
+            return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
+        }),
+    );
     const rim =
         o.shape?.type === "database"
             ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))

@@ -763,6 +763,7 @@ function channelPlans(
             ["stripeOpacities", [id("node.stripeOpacities")]],
             ["stripeDirection", [id("node.stripeDirection")]],
             ["stripeSize", [id("node.stripeSize")]],
+            ["stripeFrame", [id("node.stripeFrame")]],
             ["chartKind", [id("node.chartKind")]],
             ["chartValues", [id("node.chartValues")]],
             ["chartColors", [id("node.chartColors")]],

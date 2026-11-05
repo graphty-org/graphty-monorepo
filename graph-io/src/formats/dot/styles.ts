@@ -448,21 +448,30 @@ function stripTags(text: string): string {
 /**
  * Reads the font runs of an HTML-like label (`<B>`, `<I>`, `<FONT COLOR FACE POINT-SIZE>`) as Graphviz draws them:
  * one run in a font of its own sets the label's own font (color, size, family, weight, slant), several are
- * `labelRuns`. Underline, overline, strike-through, `<SUB>` and `<SUP>` have no neutral slot and draw plain.
+ * `labelRuns`, a `<SUB>` or `<SUP>` run lowered or raised (`shift`). Underline, overline and strike-through have no
+ * neutral slot and draw plain.
  * @param raw - the label as the file gives it
  * @param html - the file's HTML strings
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size (`fontsize`)
  * @param put - receives the values
  * @param at - the sites
  */
-function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | null, put: Put, at: At): void {
+function readHtmlRuns(
+    raw: string,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    size: number,
+    put: Put,
+    at: At,
+): void {
     if (!isHtmlString(raw) && !html.has(`<${raw}>`)) {
         return;
     }
     const markup = isHtmlString(raw) ? raw : `<${raw}>`;
     const runs: Record<string, StyleValue>[] = [];
     for (const span of htmlLabelSpans(markup)) {
-        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, at("labelRuns")) };
+        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, size, at("labelRuns")) };
         const last = runs.at(-1);
         if (last !== undefined && JSON.stringify({ ...last, text: "" }) === JSON.stringify({ ...run, text: "" })) {
             last.text = `${String(last.text)}${run.text}`;
@@ -475,7 +484,8 @@ function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | n
         return;
     }
     if (runs.length === 1) {
-        const { text: _text, ...font } = runs[0];
+        // a label raised or lowered whole is drawn where the label is
+        const { text: _text, shift: _shift, ...font } = runs[0];
         for (const [property, value] of Object.entries(font)) {
             put(RUN_PROPERTY[property], value);
         }
@@ -512,18 +522,27 @@ const RUN_PROPERTY: Readonly<Record<string, string>> = {
 };
 
 /**
- * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, and the innermost `FONT`'s face,
- * point size and color.
+ * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, the innermost `FONT`'s face, point
+ * size and color, and how far `<SUB>` lowers it or `<SUP>` raises it.
  * @param tags - the open tags, outermost first
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size
  * @param site - where a bad color is noted
  * @returns the fields that differ from the label's own font
  */
-function htmlRunFont(tags: readonly string[], scheme: string | null, site: CanonSite): Record<string, StyleValue> {
+function htmlRunFont(
+    tags: readonly string[],
+    scheme: string | null,
+    size: number,
+    site: CanonSite,
+): Record<string, StyleValue> {
     const out: Record<string, StyleValue> = {};
+    let shift = 0;
     for (const tag of tags) {
         const name = /^<(\w+)/.exec(tag)?.[1].toLowerCase();
-        if (name === "b") {
+        if (name === "sub" || name === "sup") {
+            shift += name === "sub" ? 1 : -1;
+        } else if (name === "b") {
             out.weight = "bold";
         } else if (name === "i") {
             out.italic = true;
@@ -533,8 +552,30 @@ function htmlRunFont(tags: readonly string[], scheme: string | null, site: Canon
             }
         }
     }
+    if (shift !== 0) {
+        const own = typeof out.size === "number" ? out.size : size;
+        out.shift = Math.round(shift * SUB_SUP_SHIFT * own * 100) / 100;
+    }
     return out;
 }
+
+/**
+ * A `fontsize` as Graphviz reads it, 14 when it is unset or no size.
+ * @param raw - the attribute's value
+ * @returns the size
+ */
+function fontSizeOf(raw: string | null): number {
+    const size = Number(raw ?? Number.NaN);
+    return Number.isFinite(size) && size > 0 ? size : 14;
+}
+
+/**
+ * How far `<SUB>` lowers a run and `<SUP>` raises it, over its font size. Graphviz writes `baseline-shift="sub"` and
+ * `"super"` in its SVG (plugin/core/gvrender_core_svg.c) and leaves the distance to the viewer; Chromium shifts by half
+ * the font's height (ascent plus descent), 0.585 of a DejaVu Sans em, measured.
+ * ponytail: one share for every face; read the face's own height when a serif label is judged off by it
+ */
+const SUB_SUP_SHIFT = 0.585;
 
 /**
  * Reads one attribute of a `FONT` tag into a run's font fields: its face, point size or color.
@@ -811,7 +852,11 @@ function htmlTableFrame(
     const cells = readLabelTable(
         markup,
         tagAttrs,
-        (tags) => htmlRunFont(tags, scheme, site),
+        (tags) => {
+            // ponytail: a table cell's SUB and SUP draw on the line; carry the shift into cells when one is judged
+            const { shift: _shift, ...font } = htmlRunFont(tags, scheme, 0, site);
+            return font;
+        },
         (value) => {
             const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
             return c === null || c.alpha <= 0 ? null : c.color;
@@ -947,7 +992,7 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
     if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
-        readHtmlRuns(label, cx.html, n.scheme, put, at);
+        readHtmlRuns(label, cx.html, n.scheme, fontSizeOf(get("fontsize")), put, at);
         if (n.table !== null) {
             // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
             put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
@@ -1989,7 +2034,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             put(property, labelText(raw, cx.names, cx.html, false, at(property)));
             if (property === "label") {
                 readLabelAlign(raw, cx.names, cx.html, false, put);
-                readHtmlRuns(raw, cx.html, scheme, put, at);
+                readHtmlRuns(raw, cx.html, scheme, fontSizeOf(get("fontsize")), put, at);
             }
         }
     }

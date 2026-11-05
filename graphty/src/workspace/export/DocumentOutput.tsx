@@ -53,7 +53,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
             const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params?.count ?? 1), 0);
             return {
                 rows: [
-                    { label: "Sources", value: recipe.sources.length },
+                    { label: "Data sources", value: recipe.sources.length },
                     { label: "Columns", value: recipe.columns.length },
                     { label: "Joins", value: recipe.joins.length },
                     { label: "Layers", value: recipe.styles.layers.length },

@@ -3,10 +3,16 @@
  * every slide must leave exactly the masks a recorded window leaves, and a slide's work must
  * follow the rows that crossed an edge of the window, not the size of the graph.
  */
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
 import { type Harness, makeSession } from "../helpers";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A seeded pseudo-random number in [0, 1).

@@ -7,17 +7,18 @@
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type {
-    ColumnRef,
-    ColumnRole,
-    DataIssue,
-    FixCode,
-    GraphSession,
-    LoadedSource,
-    RecordSort,
-    ResultSort,
-    SummaryGroup,
-    ValueType,
+import {
+    COLUMN_ROLES,
+    type ColumnRef,
+    type ColumnRole,
+    type DataIssue,
+    type FixCode,
+    type GraphSession,
+    type LoadedSource,
+    type RecordSort,
+    type ResultSort,
+    type SummaryGroup,
+    type ValueType,
 } from "@graphty/graphty-element/session";
 
 import { loadValue, tableRoles } from "../data-place/words";
@@ -126,11 +127,20 @@ function roleOf(
  */
 export function columnChoices(session: GraphSession, kind: RecordKind, roles = headerRoles(kind)): TableColumnChoice[] {
     const sources = session.data.sources();
+    // A location the element found in a node column is that column's role, as Fields lists it and
+    // the Role menu checks it, though no one designated it: its header shows it too.
+    const located = new Map(
+        kind === "node"
+            ? Object.entries(session.layout.locationColumns().kinds).flatMap(([role, name]) =>
+                  typeof name === "string" && roles.includes(role as ColumnRole) ? [[name, role as ColumnRole]] : [],
+              )
+            : [],
+    );
     const loaded = session.data
         .attributes()
         .filter((attribute) => attribute.kind === kind && attribute.origin !== "result")
         .map((attribute): TableColumnChoice => {
-            const role = roleOf(attribute, sources, roles);
+            const role = roleOf(attribute, sources, roles) ?? located.get(attribute.name);
             return {
                 id: `a:${attribute.name}`,
                 header: attribute.name,
@@ -188,16 +198,38 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
 }
 
 /**
- * The roles a header's Role menu offers for a kind: what a load reads the kind's rows with, less
- * the edge id, which a reader never picks here. A node column also offers source and target,
- * which read its table's rows as edges once both ends are picked.
+ * Every role in the order the app lists them, wherever a list of roles is drawn: the header's
+ * Role menu and Data > Fields (its fixed rows, then its "+" entries).
+ */
+const ROLE_ORDER: readonly ColumnRole[] = [
+    "source",
+    "target",
+    "key",
+    "edgeId",
+    "label",
+    "kind",
+    "weight",
+    "time",
+    "latitude",
+    "longitude",
+    "coordinates",
+    "country",
+    "region",
+    "city",
+];
+
+/**
+ * The roles a header's Role menu offers for a kind: every role graphty-element says a column of
+ * the kind can take (`COLUMN_ROLES`), in the app's order; the roles the rows are made from only
+ * when the column's load can be read again, as Fields offers them. Source and target are an edge
+ * table's; a table of nodes is read as edges from Fields' "Rows are".
  * @param kind - nodes or edges.
+ * @param reloadable - whether the column's load can be read again.
  * @returns the roles.
  */
-export function headerRoles(kind: RecordKind): ColumnRole[] {
-    return kind === "node"
-        ? ["key", "label", "time", "kind", "source", "target"]
-        : ["source", "target", "weight", "time", "kind"];
+export function headerRoles(kind: RecordKind, reloadable = true): ColumnRole[] {
+    const { inPlace, atLoad } = COLUMN_ROLES[kind];
+    return ROLE_ORDER.filter((role) => inPlace.includes(role) || (reloadable && atLoad.includes(role)));
 }
 
 /**
@@ -212,9 +244,31 @@ export const ROLE_WORDS: Readonly<Record<string, string>> = {
     kind: "Kind",
     weight: "Weight",
     time: "Time",
-    location: "Location",
-    edgeId: "Edge id",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
+    edgeId: "Id",
 };
+
+/**
+ * How many values would not convert to a type, as a Type or a column list says before it is
+ * chosen.
+ * @param session - the element's session.
+ * @param ref - the column.
+ * @param type - the type.
+ * @returns such as "1 will not convert", or undefined when every value converts.
+ */
+export function failWords(session: GraphSession, ref: ColumnRef, type: ValueType): string | undefined {
+    try {
+        const { fails } = session.data.previewType(ref, type);
+        return fails === 0 ? undefined : `${String(fails)} will not convert`;
+    } catch {
+        return undefined;
+    }
+}
 
 /**
  * The role pill a header shows, or undefined: none on a key column, whose key glyph says it, and
@@ -289,6 +343,9 @@ export function sortCaption(column: TableColumnChoice | undefined, descending: b
     if (column.grouping === true) {
         return `Sorted by ${column.header}, ${descending ? "largest group first" : "smallest group first"}`;
     }
+    if (column.descriptor?.type === "time") {
+        return `Sorted by ${column.header}, ${descending ? "newest first" : "oldest first"}`;
+    }
     if (column.numeric) {
         return `Sorted by ${column.header}, ${descending ? "highest first" : "lowest first"}`;
     }
@@ -323,7 +380,7 @@ const ISSUE_WORDS: Readonly<Record<string, readonly [one: string, many: string]>
     "unknown-end": ["unknown end", "unknown ends"],
     "repeated-edge": ["repeated edge", "repeated edges"],
     "repeated-id": ["repeated id", "repeated ids"],
-    "padded-space": ["padded spaces", "padded spaces"],
+    "padded-space": ["value with padded spaces", "values with padded spaces"],
     "case-variant": ["case variant", "case variants"],
     "blank-id": ["blank id", "blank ids"],
     "refused-row": ["row refused", "rows refused"],
@@ -341,16 +398,26 @@ export function issueLabel(issue: DataIssue): string {
     if (issue.code === "refused-row" && Array.isArray(lines) && lines.length === 1) {
         return `row ${String(lines[0])} refused`;
     }
-    const [one, many] = ISSUE_WORDS[issue.code] ?? [issue.code, issue.code];
+    // An unknown end names which end it is, as the element says (params.ends).
+    const end = issue.code === "unknown-end" ? UNKNOWN_END_WORDS[String(issue.params.ends)] : undefined;
+    const [one, many] = end ?? ISSUE_WORDS[issue.code] ?? [issue.code, issue.code];
     return `${formatNumber(issue.count)} ${issue.count === 1 ? one : many}`;
 }
+
+/** An unknown-end issue's words by the end it is on. */
+const UNKNOWN_END_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+    source: ["edge with an unknown source", "edges with an unknown source"],
+    target: ["edge with an unknown target", "edges with an unknown target"],
+    both: ["edge with an unknown end", "edges with an unknown end"],
+};
 
 /** Each fix's button label. */
 const FIX_WORDS: Readonly<Record<string, string>> = {
     "make-blank": "Make blank",
     "read-decimal-comma": "Read as decimals",
     "add-nodes": "Add nodes",
-    "leave-out": "Leave out",
+    // Leaving an unknown end out removes the node made for it and every edge that names it.
+    "leave-out": "Remove nodes and edges",
     merge: "Merge",
     keep: "Keep",
     "keep-first": "Keep first",
@@ -369,19 +436,50 @@ export function fixLabel(fix: FixCode): string {
     return FIX_WORDS[fix] ?? fix;
 }
 
-/** Where an issue shows: the table and the column whose header carries its warning. */
+/** What each fix did, in the past tense, for the status line: "1 value made blank". */
+const FIX_DONE: Readonly<Record<string, string>> = {
+    "make-blank": "made blank",
+    "read-decimal-comma": "read as decimals",
+    "add-nodes": "added as nodes",
+    "leave-out": "left out",
+    merge: "merged",
+    keep: "kept",
+    "keep-first": "kept first",
+    "merge-rows": "merged",
+    trim: "trimmed",
+    "merge-case": "merged by case",
+    "read-yes-no": "read as yes/no",
+};
+
+/**
+ * What a fix did, in the past tense.
+ * @param fix - the element's fix code.
+ * @returns such as "trimmed".
+ */
+export function fixDone(fix: FixCode): string {
+    return FIX_DONE[fix] ?? "fixed";
+}
+
+/** The end columns an unknown-end issue's `params.ends` names; an issue without it is on Source. */
+const UNKNOWN_END_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+    source: ["source"],
+    target: ["target"],
+    both: ["source", "target"],
+};
+
+/** Where an issue shows: the table and the columns whose headers carry its warning. */
 interface IssuePlace {
     readonly kind: RecordKind;
-    /** The column id, as `TableColumnChoice.id`. */
-    readonly column: string;
+    /** The column ids, as `TableColumnChoice.id`: one, or both ends of an edge. */
+    readonly columns: readonly string[];
     /** What the Issues list names it by: the column's name, or "nodes" or "edges". */
     readonly name: string;
 }
 
 /**
  * Where an issue's warning shows. A column issue is in its column's header. An issue about rows
- * rather than a column is in the key header of the rows it is about: an edge's unknown end or
- * repeat in From, a repeated node id in Id; a refused or blank row in the key of the rows its
+ * rather than a column is in the key header of the rows it is about: an edge's unknown end in the
+ * end the element names (Source, Target or both), a repeat in Source, a repeated node id in Id; a refused or blank row in the key of the rows its
  * load made (edges when it made any).
  * @param issue - the element's issue.
  * @param session - the element's session, for the load's counts.
@@ -389,7 +487,7 @@ interface IssuePlace {
  */
 export function issuePlace(issue: DataIssue, session: GraphSession): IssuePlace {
     if (issue.column !== undefined) {
-        return { kind: issue.column.kind, column: `a:${issue.column.name}`, name: issue.column.name };
+        return { kind: issue.column.kind, columns: [`a:${issue.column.name}`], name: issue.column.name };
     }
     const edgeRows = (): boolean => {
         const { rowsAre } = issue.params;
@@ -401,9 +499,14 @@ export function issuePlace(issue: DataIssue, session: GraphSession): IssuePlace 
             .filter((each) => issue.source === undefined || each.key === issue.source);
         return sources.some((each) => each.counts.edges > 0);
     };
-    const onEdges =
-        issue.code === "unknown-end" || issue.code === "repeated-edge" || (issue.code !== "repeated-id" && edgeRows());
-    return onEdges ? { kind: "edge", column: "source", name: "edges" } : { kind: "node", column: "id", name: "nodes" };
+    if (issue.code === "unknown-end") {
+        const columns = UNKNOWN_END_COLUMNS[String(issue.params.ends)] ?? ["source"];
+        return { kind: "edge", columns, name: "edges" };
+    }
+    const onEdges = issue.code === "repeated-edge" || (issue.code !== "repeated-id" && edgeRows());
+    return onEdges
+        ? { kind: "edge", columns: ["source"], name: "edges" }
+        : { kind: "node", columns: ["id"], name: "nodes" };
 }
 
 /**

@@ -77,7 +77,7 @@ describe("the Data place's words", () => {
         );
         assert.deepEqual(
             FIELD_ENTRIES.edges.map((entry) => entry.name),
-            ["Weight", "Time", "Kind", "Id", "Kind of source", "Kind of target"],
+            ["Id", "Kind", "Weight", "Time", "Kind of source", "Kind of target"],
         );
     });
 

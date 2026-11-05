@@ -7,6 +7,7 @@
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -73,6 +74,7 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
@@ -522,6 +524,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    // @beta
     readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
@@ -1175,9 +1178,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1550,6 +1562,14 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+* leaves empty. Reported as `graph-error`.
+*/
+| "E_SHADER_REFUSED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -1566,12 +1586,6 @@ export type GraphtyErrorCode =
 * and `measurement`, and naming a `scale` draws it anyway.
 */
 | "E_UNSUPPORTED"
-/**
-* A call asked for something an experiment provides while that experiment is off. `details` are
-* `{ feature, key }`: the experiment's id and what was asked for. Nothing was substituted. The
-* caller switches the experiment on (`features`) or stops asking.
-*/
-| "E_FEATURE_OFF"
 /**
 * The target may not be mutated from here. A session that shares another session's data core
 * refuses structural mutation, and refuses to dispose the owner while a sharer is live.
@@ -1773,7 +1787,11 @@ export type GraphtyErrorCode =
 * A model a project file embeds does not match the digest the file records for it (or its id,
 * for an unnamed asset), so it was not added. `params.id`.
 */
-| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
+| "E_MODEL_DIGEST_MISMATCH"
+/**
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+*/
+| "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1929,6 +1947,8 @@ export abstract class LayoutEngine {
     protected abstract addNode(n: Node_2): void;
     protected addNodes(nodes: Node_2[]): void;
     protected attachPositions(positions: ElementPositions): void;
+    // @internal
+    clusterColumn: ClusterColumn | null;
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
@@ -1990,6 +2010,10 @@ export abstract class LayoutEngine {
     get type(): string;
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
+    // @internal
+    wakeForClusters(): boolean;
+    // @internal
+    wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema_2;
 }
@@ -2080,13 +2104,27 @@ class Node_2 implements ModelUser {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    // @internal
+    get drawnBoundingBox(): BoundingBox;
     get drawnFill(): string | null;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
         z: number;
     }>;
+    // @internal
+    get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    get drawnScene(): Scene;
+    // @internal
+    get drawnSourceMesh(): AbstractMesh;
+    // @internal
+    drawnWorldMatrix(force?: boolean): Matrix;
+    // @internal
+    get drawnWorldPosition(): Vector3;
+    // @internal
+    get drawnWorldScaling(): Vector3;
     // @internal
     framingBounds(): {
         min: Vector3;
@@ -2108,6 +2146,8 @@ class Node_2 implements ModelUser {
     get index(): number;
     isDisposed(): boolean;
     get isDrawnAsGroup(): boolean;
+    // @internal
+    isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -2138,6 +2178,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
+    // @internal
     refitPicture(): void;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
@@ -2161,9 +2203,13 @@ class Node_2 implements ModelUser {
     // (undocumented)
     size: number;
     // @internal
+    spacingRadius(flat: boolean): number;
+    // @internal
     get surfaceIsBox(): boolean;
     // @internal
     syncXlabelPlace(): void;
+    // @internal
+    get teardownMesh(): AbstractMesh;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;

@@ -273,7 +273,7 @@ describe("shards", () => {
     it("reads each vitest run of a shard command", () => {
         const runs = shardRuns(SHARDS.find((s) => s.shard === "graphty-element-browser-2"));
         assert.deepEqual(runs, [
-            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/5" },
+            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/8" },
         ]);
         assert.deepEqual(
             shardRuns(SHARDS.find((s) => s.shard === "graph-io-browser"))[0].config,
@@ -1569,9 +1569,8 @@ describe("visual-review files only the story setups load", () => {
 
     it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
         const picked = run(["visual-review/capture/story-test-setup.mjs"]);
-        // An On shard (tools/features-on.mjs) is "never" selected: only a full run runs it.
-        const story = SHARDS.filter((s) =>
-            /^(graphty(-element)?|layout)-storybook(?!.*features-on)/u.test(s.shard),
+        const story = SHARDS.filter(
+            (s) => /^(graphty(-element)?|layout)-storybook/u.test(s.shard) && !s["full-run-only"],
         ).map((s) => s.shard);
         const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
         // algorithms-browser and layout gate ci.yml's story-tests job for those two projects

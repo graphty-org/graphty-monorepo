@@ -23,8 +23,9 @@ export interface FeatureDescriptor {
     readonly since: string;
 }
 
-/** Every experiment this build can switch on; empty when there are none. */
+/** Every experiment this build can switch on. */
 export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
+    { id: "timeline", plainName: "Timeline", issue: 300, since: "2026-11-04" },
     { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
 ]);
 

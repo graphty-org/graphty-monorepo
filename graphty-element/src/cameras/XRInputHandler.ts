@@ -1044,7 +1044,7 @@ export class XRInputHandler {
 
         // Get the node's current position for debugging
         const node = dragHandler.getNode();
-        const nodeMeshPosition = node.mesh.position;
+        const nodeMeshPosition = node.drawnPosition;
         const { pickedPoint } = pickInfo;
 
         logger.debug("Drag start", {
@@ -1106,7 +1106,7 @@ export class XRInputHandler {
 
             // NOW call onDragStart since user has committed to dragging
             const node = this.draggedNodeHandler.getNode();
-            this.draggedNodeHandler.onDragStart(node.mesh.position.clone());
+            this.draggedNodeHandler.onDragStart(node.drawnPosition.clone());
 
             // Reset lastDragHandPosition to current so first delta is from threshold point
             this.lastDragHandPosition = currentHandPosition.clone();
@@ -1153,7 +1153,7 @@ export class XRInputHandler {
 
         // Get current node position and add delta
         const node = this.draggedNodeHandler.getNode();
-        const currentNodePos = node.mesh.position.clone();
+        const currentNodePos = node.drawnPosition.clone();
         const newPosition = currentNodePos.add(finalDelta);
 
         // Log only first 5 updates to catch initial movement issues

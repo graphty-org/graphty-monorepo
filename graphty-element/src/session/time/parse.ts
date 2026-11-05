@@ -4,18 +4,22 @@
  * Parsed ONCE per designated column, never per window: the index in `./TimeApi` holds the result.
  *
  * Every instant is UTC epoch milliseconds (or, for `unit: "ordinal"`, the plain number). A
- * date-time written with no offset is read as UTC, never as the machine's local time, so the same
- * file gives the same timeline on every machine.
+ * date-time written with no offset is read in the zone the caller names, never the machine's local
+ * time, so the same file gives the same timeline on every machine. With no zone named, strict text
+ * reads in UTC and loose text as `Date.parse` reads it, which is how it reads with the timeline off.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { TimeStep } from "../visibility/filter";
+import { instantOfWall, UTC_ZONE, wallClock } from "./zone";
 
 /**
  * How numbers in a time column are read: epoch milliseconds, epoch seconds, calendar years (`1995`
  * is January 1, 1995 UTC; a fraction is that share of the year), or plain ordered numbers with no
  * calendar (a simulation step, a tick). Strings and dates ignore it.
+ * @experimental timeline
+ * @beta
  */
 export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
@@ -34,6 +38,12 @@ const ISO =
 
 /** A plain decimal number written as text, such as a CSV cell holding an epoch. */
 const NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+
+/**
+ * Text that says its own zone, as `Date.parse` reads one: a zone name, or an offset after a clock
+ * time (a dash after a date is no offset: `01-15-2026`).
+ */
+const OWN_ZONE = /(?<![a-z])(?:Z|UTC?|GMT|[ECMP][SD]T)(?![a-z])|:\d{2}(?:\.\d+)?\s*(?:[ap]m\s*)?[+-]\d{1,2}/i;
 
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
@@ -67,9 +77,10 @@ function daysIn(year: number, month: number): number {
 /**
  * A strict ISO 8601 string as an instant, or null when it is not one or names no real date.
  * @param text - The trimmed text.
+ * @param zone - The zone text with no offset reads in.
  * @returns Milliseconds, or null.
  */
-function strictIso(text: string): number | null {
+function strictIso(text: string, zone: string): number | null {
     const match = ISO.exec(text);
     if (match === null) {
         return null;
@@ -101,6 +112,8 @@ function strictIso(text: string): number | null {
         const sign = offset.startsWith("-") ? -1 : 1;
         const digits = offset.slice(1).replace(":", "");
         at -= sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2))) * 60_000;
+    } else if (offset === undefined) {
+        at = instantOfWall(at, zone);
     }
 
     return Number.isFinite(at) ? at : null;
@@ -170,6 +183,40 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
 }
 
 /**
+ * The zone text reads in under a unit: 1995 in a year column is January 1 UTC in every zone, or it
+ * would read as 1994 west of Greenwich.
+ * @param unit - The unit.
+ * @param zone - The zone asked for.
+ * @returns The zone.
+ */
+function zoneUnder(unit: TimeUnit, zone: string): string {
+    return unit === "year" ? UTC_ZONE : zone;
+}
+
+/**
+ * Whether text only `Date.parse` understands says its own zone. `Date.parse` skips parentheses, so
+ * a zone named in them says nothing.
+ * @param text - The text.
+ * @returns True when the text says its zone.
+ */
+function namesOwnZone(text: string): boolean {
+    return OWN_ZONE.test(text.replaceAll(/\([^()]*\)/g, ""));
+}
+
+/**
+ * Text only `Date.parse` understands, in a zone. Text saying its own zone reads as it says: an
+ * added `UTC` would win over it.
+ * @param text - The text.
+ * @param zone - The zone.
+ * @returns The instant, NaN when it names none.
+ */
+function looseIn(text: string, zone: string): number {
+    const wall = namesOwnZone(text) ? Number.NaN : Date.parse(`${text} UTC`);
+
+    return Number.isNaN(wall) ? Date.parse(text) : instantOfWall(wall, zone);
+}
+
+/**
  * Read one value as an instant.
  *
  * 1. A number: by the unit. 2. A `Date`: its time. 3. Text: strict ISO 8601 first (except under
@@ -177,9 +224,15 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
  * then `Date.parse` as a last resort, reported as `"loose"`. Nothing parses: `"unparsed"`.
  * @param value - The value an element carries.
  * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in, UTC included. Absent, strict text reads
+ *     in UTC and loose text as `Date.parse` reads it.
  * @returns The instant (NaN when there is none) and how it was read.
  */
-export function readInstant(value: unknown, unit: TimeUnit): { readonly at: number; readonly how: InstantReading } {
+export function readInstant(
+    value: unknown,
+    unit: TimeUnit,
+    timeZone?: string,
+): { readonly at: number; readonly how: InstantReading } {
     if (value === undefined || value === null || value === "") {
         return { at: Number.NaN, how: "missing" };
     }
@@ -204,7 +257,8 @@ export function readInstant(value: unknown, unit: TimeUnit): { readonly at: numb
         return { at: numberOf(Number(text), unit), how: "strict" };
     }
 
-    const iso = strictIso(text);
+    const zone = zoneUnder(unit, timeZone ?? UTC_ZONE);
+    const iso = strictIso(text, zone);
     if (iso !== null) {
         return { at: iso, how: "strict" };
     }
@@ -213,18 +267,46 @@ export function readInstant(value: unknown, unit: TimeUnit): { readonly at: numb
         return { at: numberOf(Number(text), unit), how: "strict" };
     }
 
-    const loose = Date.parse(text);
+    const loose = timeZone === undefined ? Date.parse(text) : looseIn(text, zone);
 
     return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
 }
 
 /**
+ * Read one value as an instant the way the session's time parser reads typed text: as
+ * {@link readInstant} does, except that a date written loosely with no zone is read in the given
+ * zone, as the time field reads date-times.
+ * @param value - The value, or typed text.
+ * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in. Absent, text reads in UTC, and loose
+ *     text saying its own zone does too.
+ * @returns Epoch milliseconds (or the ordinal value), or null when it names no instant.
+ */
+export function readTimeValue(value: unknown, unit: TimeUnit, timeZone?: string): number | null {
+    const text = typeof value === "string" ? value.trim() : value;
+    const reading = readInstant(text, unit, timeZone);
+    if (reading.how === "strict") {
+        return reading.at;
+    }
+
+    if (typeof text === "string" && text !== "" && (timeZone === undefined || !namesOwnZone(text))) {
+        const utc = Date.parse(`${text} UTC`);
+        if (!Number.isNaN(utc)) {
+            return instantOfWall(utc, zoneUnder(unit, timeZone ?? UTC_ZONE));
+        }
+    }
+
+    return reading.how === "loose" ? reading.at : null;
+}
+
+/**
  * A window bound as a number: text is read as a date-time is read in a time column.
  * @param bound - The bound.
+ * @param timeZone - The zone text with no offset reads in, as {@link readInstant} takes it.
  * @returns The number, NaN when the text names no instant.
  */
-export function numericBound(bound: number | string): number {
-    return typeof bound === "number" ? bound : readInstant(bound, "ms").at;
+export function numericBound(bound: number | string, timeZone?: string): number {
+    return typeof bound === "number" ? bound : readInstant(bound, "ms", timeZone).at;
 }
 
 /**
@@ -319,14 +401,39 @@ export function isCalendarStep(step: TimeStep): step is Exclude<TimeStep, number
 }
 
 /**
- * Move an instant by whole steps, in UTC. A month added to January 31 lands on the last day of
- * February.
+ * Move an instant by whole days or longer on a zone's wall clock, so a day across a clock change is
+ * 23 or 25 hours. The first moment of a day stays the first moment of its day, also on a day whose
+ * midnight a change removed, so a walk of boundaries never drifts off midnight.
  * @param at - The instant.
  * @param step - The step.
  * @param count - How many steps; negative goes back.
+ * @param zone - The zone.
  * @returns The moved instant.
  */
-export function addSteps(at: number, step: TimeStep, count: number): number {
+function addWallSteps(at: number, step: Exclude<TimeStep, number>, count: number, zone: string): number {
+    const wall = wallClock(at, zone);
+    const midnight = alignTo(wall, "day");
+    const start = instantOfWall(midnight, zone) === at ? midnight : wall;
+    const moved = instantOfWall(addSteps(start, step, count), zone);
+
+    // A day the zone skipped reads as the day after it, which is no move at all going back.
+    return moved === at && count !== 0 ? addWallSteps(at, step, count + Math.sign(count), zone) : moved;
+}
+
+/**
+ * Move an instant by whole steps. A month added to January 31 lands on the last day of February.
+ * An hour is always absolute; a day and longer move on the zone's wall clock.
+ * @param at - The instant.
+ * @param step - The step.
+ * @param count - How many steps; negative goes back.
+ * @param zone - The zone calendar steps read in.
+ * @returns The moved instant.
+ */
+export function addSteps(at: number, step: TimeStep, count: number, zone: string = UTC_ZONE): number {
+    if (zone !== UTC_ZONE && isCalendarStep(step) && step !== "hour") {
+        return addWallSteps(at, step, count, zone);
+    }
+
     switch (step) {
         case "hour":
             return at + count * MS_PER_HOUR;
@@ -353,15 +460,24 @@ export function addSteps(at: number, step: TimeStep, count: number): number {
 }
 
 /**
- * The start of the calendar unit an instant falls in, in UTC: midnight for a day, Monday for a
- * week, the first of the month, quarter or year. A numeric step aligns nothing.
+ * The start of the calendar unit an instant falls in: midnight for a day, Monday for a week, the
+ * first of the month, quarter or year, and the whole hour on the zone's clock. A day with no
+ * midnight starts at its first moment. A numeric step aligns nothing.
  * @param at - The instant.
  * @param step - The step.
+ * @param zone - The zone calendar steps read in.
  * @returns The aligned instant.
  */
-export function alignTo(at: number, step: TimeStep): number {
+export function alignTo(at: number, step: TimeStep, zone: string = UTC_ZONE): number {
     if (!isCalendarStep(step)) {
         return at;
+    }
+
+    if (zone !== UTC_ZONE) {
+        const wall = wallClock(at, zone);
+        const aligned = alignTo(wall, step);
+
+        return step === "hour" ? at - (wall - aligned) : instantOfWall(aligned, zone);
     }
 
     if (step === "hour") {

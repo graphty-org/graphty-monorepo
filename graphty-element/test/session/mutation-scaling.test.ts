@@ -8,7 +8,7 @@
  * test runs under walk the whole history on every write by design, and would be counted here.
  */
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
@@ -17,6 +17,11 @@ import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { GraphSession } from "../../src/session/types";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 import { makeSession } from "./helpers";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [200, 800] as const;

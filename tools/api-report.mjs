@@ -151,6 +151,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "target",
     // a registered file format's id ("gexf", "graphml")
     "format",
+    // an IANA time zone name
+    "timeZone",
+    "parseZone",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",

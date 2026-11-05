@@ -32,6 +32,15 @@
  * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
  * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
  *
+ * The lint slot: `node tools/test-slots.mjs --lint <command...>` holds the one machine-wide lint slot
+ * (<main checkout>/tmp/lint-slots) in its own queue, beside the test slots. graphty-element's lint
+ * target runs its eslint under it (#5904): that eslint holds 6 to 7 GB (3.4 GB per worker), usually the
+ * most of anything on this machine, and once available memory falls to about 8 GB a process on the host
+ * sends SIGTERM to the largest process in this container. A probe caught it on 2026-11-05: si_pid 0 (outside
+ * this PID namespace), si_uid 61876, SI_USER, with no kernel OOM kill. Four eslints from different worktrees
+ * held 16 GB at that moment, the largest share of any kind of process. Its own queue, not a test slot, so a
+ * lint of about two minutes never waits behind a test run of an hour.
+ *
  * Mechanism: a directory of tickets (<main checkout>/tmp/test-slots, shared by every worktree), one
  * per run, named by arrival time and pid. A run proceeds once its ticket is among the oldest
  * GRAPHTY_TEST_SLOTS live tickets, so runs start in arrival order. A ticket whose process is gone
@@ -63,7 +72,7 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism, constants, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,14 +128,14 @@ export function shardCacheDir(env = process.env) {
 }
 
 /**
- * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR for the GPU slot), else the
- * main checkout's tmp/test-slots (tmp/gpu-slots; every worktree shares it), else one under the system
- * temp directory.
- * @param kind "test" or "gpu"
+ * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR, GRAPHTY_LINT_SLOTS_DIR for the
+ * others), else the main checkout's tmp/test-slots (tmp/gpu-slots, tmp/lint-slots; every worktree shares
+ * it), else one under the system temp directory.
+ * @param kind "test", "gpu" or "lint"
  * @returns an absolute path
  */
 export function slotDir(kind = "test") {
-    const set = process.env[kind === "gpu" ? "GRAPHTY_GPU_SLOTS_DIR" : "GRAPHTY_TEST_SLOTS_DIR"];
+    const set = process.env[`GRAPHTY_${kind.toUpperCase()}_SLOTS_DIR`];
     if (set) {
         return set;
     }
@@ -262,7 +271,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.poll milliseconds between looks
  * @param options.log where the one waiting line goes
  * @param options.list reads the live tickets (a test replaces it)
- * @param options.kind "test" or "gpu", for the wait log (tools/wait-log.mjs)
+ * @param options.kind "test", "gpu" or "lint", for the wait log (tools/wait-log.mjs)
  * @param options.waitLog records a wait that happened, and each hold when it ends (a test replaces it)
  * @param options.what what holds the slot, for the hold's log line: a package or a shard family
  * @returns a function that gives the slot back and logs the hold, `<kind>-slot-held` with `what` and the exit
@@ -438,29 +447,29 @@ export function statusLines(dir = slotDir()) {
     ];
 }
 
-// The command wrapper: node tools/test-slots.mjs [--gpu] <command...>, or `status`
+// The command wrapper: node tools/test-slots.mjs [--gpu | --lint] <command...>, or `status`
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (process.argv[2] === "status") {
         console.log(statusLines().join("\n"));
         process.exit(0);
     }
-    const gpu = process.argv[2] === "--gpu";
-    const [cmd, ...args] = process.argv.slice(gpu ? 3 : 2);
+    const single = { "--gpu": "gpu", "--lint": "lint" }[process.argv[2]];
+    const [cmd, ...args] = process.argv.slice(single ? 3 : 2);
     if (!cmd) {
-        console.error("usage: node tools/test-slots.mjs [--gpu] <command...>");
+        console.error("usage: node tools/test-slots.mjs [--gpu | --lint] <command...>");
         process.exit(2);
     }
     const label = labelOf([cmd, ...args]);
-    // The GPU slot is one card, not a share of the cores: one holder, whatever GRAPHTY_TEST_SLOTS
-    // says (0 still turns every limit off), and HELD (a test slot) does not stand in for it.
-    const take = gpu
+    // The GPU and lint slots are one thing each, not a share of the cores: one holder, whatever
+    // GRAPHTY_TEST_SLOTS says (0 still turns every limit off), and HELD (a test slot) does not stand in for them.
+    const take = single
         ? () =>
               acquire({
                   label,
-                  dir: slotDir("gpu"),
+                  dir: slotDir(single),
                   slots: Math.min(1, slotCount()),
                   env: {},
-                  kind: "gpu",
+                  kind: single,
                   what: commandWhat([cmd, ...args]),
               })
         : () => acquire({ label, what: commandWhat([cmd, ...args]) });
@@ -471,5 +480,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         console.error(`test-slots: ${err.message}`);
         process.exit(127);
     });
-    child.on("exit", (code, signal) => process.exit(code ?? (signal ? 128 : 1)));
+    child.on("exit", (code, signal) => {
+        if (signal) {
+            // Said out loud: a shell would have printed "Terminated", and this is the only trace of why it ended.
+            // The exit code also reaches the hold's line in tmp/waits.jsonl, which outlives the job's output.
+            const exit = 128 + constants.signals[signal];
+            console.error(`test-slots: ${basename(cmd)} was killed by ${signal} (exit ${exit})`);
+            if (process.platform === "linux") {
+                console.error(`test-slots: ${/MemAvailable:.*/.exec(readFileSync("/proc/meminfo", "utf8"))?.[0]}`);
+            }
+            process.exit(exit);
+        }
+        process.exit(code ?? 1);
+    });
 }

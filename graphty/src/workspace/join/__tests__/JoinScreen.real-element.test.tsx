@@ -1,7 +1,8 @@
 /**
  * The join screen on the REAL graphty-element (data prototype spec section 3.6, acceptance flows 5
  * and 7): a second file opens it with the element's suggestion; the chips read the element's join
- * report; Use, Show, the include boxes and Join act on it; Edit join reopens it; Undo takes a join
+ * report; the count chips narrow the tables; Ignore case, the include boxes and Join act on it; Edit join
+ * reopens it; Undo takes a join
  * back in one step.
  */
 
@@ -9,13 +10,39 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { assert, beforeAll, describe, it, vi } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** Eleven gauges, read as nodes. */
+const GAUGES = [
+    "id,station",
+    ...Array.from({ length: 11 }, (_, i) => `G${String(i + 1).padStart(2, "0")},S${String(i + 1)}`),
+].join("\n");
+
+/** Fifteen flows between gauges: one repeats an earlier row, one ends at G12, a gauge not in the graph. */
+const FLOWS = [
+    "from,to,km",
+    "G06,G01,3.2",
+    "G10,G06,2.8",
+    "G01,G02,1.9",
+    "G02,G03,2.4",
+    "G11,G02,1.6",
+    "G03,G04,2.1",
+    "G04,G05,1.7",
+    "G05,G07,2.5",
+    "G07,G08,1.9",
+    "G08,G09,2.2",
+    "G03,G04,2.1",
+    "G09,G12,4.0",
+    "G11,G03,2.0",
+    "G04,G08,3.6",
+    "G05,G08,3.1",
+].join("\n");
 
 /**
  * A fixture as a file, read from where the app serves it.
@@ -46,11 +73,14 @@ function drop(file: File): void {
 
 /**
  * An empty project on the Data place with a first file loaded.
- * @param first - the first file's name.
+ * @param first - the first file, or a fixture's name.
  * @param nodes - the nodes it draws.
  * @returns the store and the session.
  */
-async function projectWith(first: string, nodes: number): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+async function projectWith(
+    first: string | File,
+    nodes: number,
+): Promise<{ store: WorkspaceStore; session: GraphSession }> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
@@ -64,7 +94,7 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
         throw new Error("the element never came up");
     }
     const live = session;
-    drop(await fixture(first));
+    drop(typeof first === "string" ? await fixture(first) : first);
     await waitFor(() => {
         assert.strictEqual(live.data.nodes().length, nodes);
     });
@@ -79,7 +109,7 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
  */
 async function joinScreenFor(name: string): Promise<HTMLElement> {
     drop(await fixture(name));
-    return screen.findByRole("region", { name: "Join" });
+    return screen.findByRole("region", { name: `Join ${name}` });
 }
 
 /**
@@ -90,11 +120,19 @@ async function joinScreenFor(name: string): Promise<HTMLElement> {
 function chips(join: HTMLElement): string[] {
     const list = within(join).getByRole("list", { name: "Matches" });
     return [...list.querySelectorAll(":scope > li")].map((li) =>
-        (li.textContent ?? "")
-            .replace(/^(Node|Edge) /, "")
-            .replace(/(Show|Use)$/, "")
-            .trim(),
+        (li.textContent ?? "").replace(/^(Node|Edge) /, "").trim(),
     );
+}
+
+/**
+ * Clicks a count chip as a reader does: on its label (a Chip's checkbox is hidden).
+ * @param join - the join screen.
+ * @param name - the chip's name.
+ */
+async function toggle(join: HTMLElement, name: string): Promise<void> {
+    const label = within(join).getByRole<HTMLInputElement>("checkbox", { name }).labels?.[0];
+    assert.isDefined(label, `${name} has a label`);
+    await userEvent.click(label);
 }
 
 /**
@@ -117,40 +155,62 @@ describe("the join screen on the real element", () => {
         const join = await joinScreenFor("tumor-expression.tsv");
         assert.strictEqual(valueOf(join, "Match column"), "symbol");
         assert.strictEqual(valueOf(join, "Match graph value"), "Id");
-        assert.deepEqual(chips(join), [
-            "52 matched",
-            "10 not in graph",
-            "8 no value",
-            "1 repeated key",
-            "+6 ignoring case",
-            "+1 ignoring spaces",
-        ]);
+        assert.deepEqual(chips(join), ["52 matched", "10 not in graph", "8 no value", "1 repeated key"]);
+        // The Match row's boxes count the matches they would add, in sentence case.
+        within(join).getByRole("checkbox", { name: "Ignore spaces +1" });
+        // The section and its button have different names, and the screen is described by its counts.
+        assert.lengthOf(within(join).getAllByRole("button", { name: "Join" }), 1);
+        const described = join.getAttribute("aria-describedby") ?? "";
+        assert.strictEqual(document.getElementById(described), within(join).getByRole("list", { name: "Matches" }));
 
-        // Show narrows the incoming table to the rows that match nothing.
-        await userEvent.click(within(join).getByRole("button", { name: "Show rows not in graph" }));
+        // The "not in graph" chip narrows the incoming table to the rows that match nothing, and
+        // takes it back; Enter on it does the same.
+        const notInGraph = within(join).getByRole("checkbox", { name: "10 not in graph" });
+        await toggle(join, "10 not in graph");
         const incoming = within(join).getByRole("grid", { name: "tumor-expression.tsv" });
         await waitFor(() => {
             assert.strictEqual(incoming.querySelectorAll('[role="row"]').length, 17 + 1);
         });
-        await userEvent.click(within(join).getByRole("button", { name: "Show rows not in graph" }));
+        assert.isTrue(notInGraph.matches(":checked"));
+        // Space on the focused chip takes it back, as on the table's "With issues" chip.
+        notInGraph.focus();
+        await userEvent.keyboard(" ");
+        await waitFor(() => {
+            assert.isAbove(incoming.querySelectorAll('[role="row"]').length, 17 + 1);
+        });
 
-        await userEvent.click(within(join).getByRole("button", { name: "Use ignoring case" }));
+        // The "no value" chip narrows the graph table to its 8 nodes; the "matched" chip takes over.
+        const graphGrid = within(within(join).getByLabelText("Graph")).getByRole("grid");
+        await toggle(join, "8 no value");
+        await waitFor(() => {
+            assert.strictEqual(graphGrid.querySelectorAll('[role="row"]').length, 8 + 1);
+        });
+        await toggle(join, "52 matched");
+        await waitFor(() => {
+            assert.isFalse(within(join).getByRole("checkbox", { name: "8 no value" }).matches(":checked"));
+            assert.strictEqual(graphGrid.getAttribute("aria-rowcount"), String(52 + 1));
+            assert.strictEqual(incoming.getAttribute("aria-rowcount"), String(70 - 17 + 1));
+        });
+        await toggle(join, "52 matched");
+
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
         await waitFor(() => {
             assert.include(chips(join), "58 matched");
         });
-        assert.notInclude(chips(join), "+6 ignoring case");
+        assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore case" }).matches(":checked"));
 
         // Leave tissue out: only log2fc and padj are joined.
         await userEvent.click(within(join).getByRole("checkbox", { name: "Include tissue" }));
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Join" }));
+            assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
         assert.isDefined(session.data.node("TP53")?.log2fc);
         assert.isUndefined(session.data.node("TP53")?.tissue);
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
-        await screen.findByLabelText("58/70 matched");
+        // The Sources row names its join ratio with its unit (tier 4 R11).
+        await screen.findByText("58 of 70 rows joined");
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(
@@ -174,10 +234,10 @@ describe("the join screen on the real element", () => {
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "tumor-expression.tsv menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Edit join" }));
-        join = await screen.findByRole("region", { name: "Join" });
+        join = await screen.findByRole("region", { name: "Join tumor-expression.tsv" });
         assert.include(chips(join), "52 matched");
         assert.isNull(within(join).queryByRole("button", { name: "Join choices" }), "an edit only joins");
-        await userEvent.click(within(join).getByRole("button", { name: "Use ignoring case" }));
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(() => {
             assert.strictEqual(session.data.joins()[0]?.matched, 58);
@@ -194,12 +254,12 @@ describe("the join screen on the real element", () => {
         // An Esc outside the screen is not the join's.
         (document.activeElement as HTMLElement).blur();
         await userEvent.keyboard("{Escape}");
-        assert.isNotNull(screen.queryByRole("region", { name: "Join" }));
+        assert.isNotNull(screen.queryByRole("region", { name: /^Join / }));
 
         within(join).getByRole("button", { name: "Join" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Join" }));
+            assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
         assert.isNull(store.get().joining);
         assert.deepEqual(session.data.joins(), []);
@@ -209,7 +269,7 @@ describe("the join screen on the real element", () => {
         ).closest<HTMLElement>('[role="group"]');
         assert.isNotNull(toast);
         await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
-        const back = await screen.findByRole("region", { name: "Join" });
+        const back = await screen.findByRole("region", { name: /^Join / });
         assert.include(chips(back), "52 matched");
         await userEvent.click(within(back).getByRole("button", { name: "Join" }));
         await waitFor(() => {
@@ -267,12 +327,135 @@ describe("the join screen on the real element", () => {
         await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
         assert.isDefined(await screen.findByRole("menuitem", { name: "Replace suppliers.csv" }));
         await userEvent.keyboard("{Escape}");
-        assert.isNotNull(screen.queryByRole("region", { name: "Join" }), "Esc in the menu closes only the menu");
+        assert.isNotNull(screen.queryByRole("region", { name: /^Join / }), "Esc in the menu closes only the menu");
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, 150);
         });
         assert.strictEqual(session.data.nodes().length, 40);
         assert.strictEqual(session.data.sources()[1]?.kind, "join");
+    });
+
+    it("opens from Quick actions > Add data..., the same as the Sources + File...", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+
+        // The file input, as where a browser has no File System Access picker.
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        try {
+            await commands.chooseNextFile("flows.csv", "text/csv", FLOWS);
+            await userEvent.keyboard("{Control>}k{/Control}");
+            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            const join = await screen.findByRole("region", { name: "Join flows.csv" });
+            assert.deepEqual(chips(join), [
+                "14 edges added",
+                "1 new node",
+                "1 not in graph",
+                "1 repeated key",
+                "1 unknown end",
+            ]);
+            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await waitFor(() => {
+                assert.strictEqual(session.data.edges().length, 14);
+            });
+            assert.strictEqual(session.data.nodes().length, 12, "G12, the unknown end, is added");
+            assert.isAbove(session.data.issues().length, 0, "the unknown end is reported");
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("tags each row with what Join does, and decides an unknown end before joining", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        drop(new File([FLOWS], "flows.csv"));
+        const join = await screen.findByRole("region", { name: "Join flows.csv" });
+        const incoming = within(join).getByRole("grid", { name: "flows.csv" });
+        // The first cell of each drawn row: its tag.
+        const tags = (): string[] =>
+            [...incoming.querySelectorAll('[role="row"]')]
+                .slice(1)
+                .map((row) => row.querySelector('[role="rowheader"], [role="gridcell"]')?.textContent?.trim() ?? "");
+        await waitFor(() => {
+            const now = tags();
+            // Row 11 repeats row 6 (G03 to G04); row 12 ends at G12, which the graph lacks.
+            assert.strictEqual(now[5], "Edge G03 - G04");
+            assert.strictEqual(now[10], "Repeat, not added");
+            assert.strictEqual(now[11], "Edge G09 - G12, new node");
+        });
+
+        // The new node's chip narrows the file's table to the row that adds it, and takes it back.
+        await toggle(join, "1 new node");
+        await waitFor(() => {
+            assert.deepEqual(tags(), ["Edge G09 - G12, new node"]);
+        });
+        await toggle(join, "1 new node");
+        await toggle(join, "14 edges added");
+        await waitFor(() => {
+            assert.lengthOf(tags(), 14);
+            assert.notInclude(tags(), "Repeat, not added");
+        });
+        await toggle(join, "14 edges added");
+
+        // Keep both: the repeated row is joined too.
+        await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
+        const both = await screen.findByRole("menuitem", { name: "Keep both" });
+        assert.strictEqual(
+            (await screen.findByRole("menuitem", { name: "Keep first" })).getAttribute("aria-checked"),
+            "true",
+        );
+        await userEvent.click(both);
+        await waitFor(() => {
+            assert.strictEqual(tags()[10], "Edge G03 - G04");
+        });
+        await waitFor(() => {
+            assert.lengthOf(tags(), 15);
+        });
+
+        // The unknown end is decided here: leave its row out.
+        await userEvent.click(within(join).getByRole("button", { name: "1 unknown end" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Leave those rows out" }));
+        await waitFor(() => {
+            assert.strictEqual(tags()[11], "Left out");
+            assert.notInclude(chips(join), "1 new node");
+        });
+
+        // "Join", chosen from the Join choices menu, joins.
+        await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Join" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 14);
+        });
+        assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
+    });
+
+    it("keeps a joined source row's ratio whole and its name readable", async () => {
+        await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        drop(new File([FLOWS], "deliveries.csv"));
+        const join = await screen.findByRole("region", { name: "Join deliveries.csv" });
+        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        const row = await screen.findByRole("listitem", { name: "deliveries.csv" });
+        await waitFor(() => {
+            const ratio = row.querySelector<HTMLElement>(".dp-source-label .dp-quiet");
+            const name = row.querySelector<HTMLElement>(".dp-source-name");
+            assert.isNotNull(ratio, "the ratio is drawn");
+            assert.isNotNull(name);
+            if (ratio === null || name === null) {
+                return;
+            }
+            assert.match(ratio.textContent, /^\d+\/15$/);
+            assert.isAtMost(ratio.scrollWidth, ratio.clientWidth, "the ratio is whole");
+            assert.isAbove(ratio.getBoundingClientRect().width, 0);
+            // At least "deliver" of the name shows (about seven characters at 12 px).
+            assert.isAtLeast(name.clientWidth, 45, "the name is readable");
+            // The kind icon and the name share one line; only the count chips may wrap below.
+            const icon = row.querySelector<HTMLElement>(".dp-source-icon");
+            assert.isNotNull(icon);
+            const middle = (each: HTMLElement): number => {
+                const box = each.getBoundingClientRect();
+                return box.top + box.height / 2;
+            };
+            if (icon !== null) {
+                assert.isAtMost(Math.abs(middle(icon) - middle(name)), 4, "the icon is on the name's line");
+            }
+        });
     });
 });

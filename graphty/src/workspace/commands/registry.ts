@@ -12,7 +12,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { ColumnRef, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import type { ColumnRef, FeatureId, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { assertAppKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
@@ -85,6 +85,8 @@ export interface Command {
      * Keyboard shortcuts dialog does not list it and its keys stay the browser's.
      */
     readonly experiment?: boolean;
+    /** The experiment it belongs to: with that off the shortcuts list leaves it out too. */
+    readonly feature?: FeatureId;
     /** Does it. */
     readonly run: (ctx: CommandContext) => void | Promise<void>;
     /** Declared but not built: holds the id, drawn nowhere. */

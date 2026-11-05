@@ -79,11 +79,11 @@ describe("the Filters words", () => {
     it("names the cards that are on in the chip's name and tooltip", () => {
         assert.equal(
             chipName("9 of 22 nodes", ["weight is at least 4"]),
-            'Filter: 9 of 22 nodes, showing only "weight is at least 4"',
+            'Filter: 9 of 22 nodes, filtered by "weight is at least 4"',
         );
         assert.equal(
             chipName("9 of 22 nodes", ["weight is at least 4", "in the largest component"]),
-            'Filter: 9 of 22 nodes, showing only "weight is at least 4", "in the largest component"',
+            'Filter: 9 of 22 nodes, filtered by "weight is at least 4", "in the largest component"',
         );
     });
 });

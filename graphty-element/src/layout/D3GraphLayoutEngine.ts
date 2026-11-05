@@ -2,6 +2,8 @@ import type { NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
+    type ForceCollide,
+    forceCollide,
     type ForceLink,
     forceLink,
     forceManyBody,
@@ -14,12 +16,23 @@ import { z } from "zod";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import {
+    clusterByOption,
+    clusterCentroids,
+    clusterStrengthOption,
+    readCommunities,
+    sameCommunities,
+} from "./clusterForce";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { nodeGapOption } from "./nodeGapOptions";
 
 /**
  * Zod-based options schema for D3 Force Layout
  */
 const d3LayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
+    nodeGap: nodeGapOption,
     dim: {
         schema: z.number().int().min(2).max(3).default(3),
         meta: {
@@ -93,10 +106,19 @@ function isD3Node(n: unknown): n is D3Node {
     return false;
 }
 
+/** How many sweeps a run that has come to rest may spend parting overlapping nodes. */
+const MAX_FINAL_SWEEPS = 256;
+
 /** d3's own many-body strength, which every node that is not a following group keeps. */
 const DEFAULT_CHARGE = -30;
 
+/** The share of the way to its centroid a node's velocity takes per tick at strength 1, d3's own `forceX` default. */
+const CLUSTER_RATE = 0.1;
+
 const D3LayoutConfig = z.strictObject({
+    clusterBy: clusterByOption.schema,
+    clusterStrength: clusterStrengthOption.schema,
+    nodeGap: nodeGapOption.schema,
     dim: z.number().int().min(2).max(3).default(3),
     alphaMin: z.number().positive().default(0.1),
     alphaTarget: z.number().min(0).default(0),
@@ -162,6 +184,14 @@ export class D3GraphEngine extends LayoutEngine {
     d3VelocityDecay: number;
     /** 2 or 3: how many dimensions the simulation moves nodes in. A 2D one keeps every z at 0. */
     readonly dim: 2 | 3;
+    /** The space kept between nodes' drawn surfaces, or null to let them overlap. */
+    private readonly nodeGap: number | null;
+    /** d3's collision force, while `nodeGap` is set. */
+    private readonly collideForce: ForceCollide | null;
+    /** A node changed size, or the nodes changed, since the collision force read their radii. */
+    private radiiStale = true;
+    /** The sweeps of the run that has come to rest have been made. */
+    private collisionsSettled = false;
     nodeMapping = new Map<Node, D3Node>();
     /** The many-body force, kept so a group following its members can be given no charge. */
     private readonly chargeForce = forceManyBody();
@@ -171,6 +201,16 @@ export class D3GraphEngine extends LayoutEngine {
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
+    /** What `clusterBy` names, or null for no pull. */
+    private readonly clusterBy: string | null;
+    private readonly clusterStrength: number;
+    /** The last read of `clusterBy`, and each member's d3 node and community, in the same order. */
+    private communities = new Map<Node, number>();
+    private clusterNodes: D3Node[] = [];
+    private clusterOf: number[] = [];
+    private clusterCount = 0;
+    /** The nodes changed since `clusterBy` was read. */
+    private clustersStale = true;
 
     /**
      * Check if there are pending nodes or edges to be processed
@@ -193,6 +233,10 @@ export class D3GraphEngine extends LayoutEngine {
         this.d3AlphaDecay = opts.alphaDecay;
         this.d3VelocityDecay = opts.velocityDecay;
         this.dim = opts.dim === 2 ? 2 : 3;
+        this.clusterBy = opts.clusterBy;
+        this.clusterStrength = opts.clusterStrength;
+        this.nodeGap = opts.nodeGap;
+        this.collideForce = opts.nodeGap === null ? null : forceCollide();
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         this.linkForce = forceLink()
@@ -205,6 +249,15 @@ export class D3GraphEngine extends LayoutEngine {
             .force("charge", this.chargeForce)
             .force("center", forceCenter())
             .force("dagRadial", null)
+            .force(
+                "cluster",
+                opts.clusterBy === null
+                    ? null
+                    : (alpha) => {
+                          this.pullClusters(alpha);
+                      },
+            )
+            .force("collide", this.collideForce)
             .stop();
     }
 
@@ -266,7 +319,98 @@ export class D3GraphEngine extends LayoutEngine {
 
             // Clear reheat flag so we don't keep reheating every tick
             this.reheat = false;
+            this.clustersStale = true;
+            this.radiiStale = true;
+            this.collisionsSettled = false;
         }
+
+        if (this.radiiStale) {
+            this.readRadii();
+        }
+    }
+
+    /** Hands the collision force every node's reach plus half of `nodeGap`; a following group keeps nothing apart. */
+    private readRadii(): void {
+        this.radiiStale = false;
+        const { collideForce, nodeGap } = this;
+        if (collideForce === null || nodeGap === null) {
+            return;
+        }
+
+        const radii = new Map<NodeIdType, number>();
+        for (const node of this.nodeMapping.keys()) {
+            radii.set(node.id, this.isFollower(node.index) ? 0 : node.spacingRadius(this.dim === 2) + nodeGap / 2);
+        }
+
+        collideForce.radius((d) => radii.get((d as D3InputNode).id) ?? 0);
+    }
+
+    /**
+     * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size.
+     * @returns True when the frame loop has to start stepping this layout again.
+     */
+    override wakeForResize(): boolean {
+        if (this.nodeGap === null) {
+            return false;
+        }
+
+        this.radiiStale = true;
+        const settled = this.isSettled;
+        if (settled) {
+            this.d3ForceLayout.alpha(1);
+            this.collisionsSettled = false;
+        }
+
+        return settled;
+    }
+
+    /**
+     * Read `clusterBy` and note each member's d3 node.
+     * @returns True when the communities changed.
+     */
+    private readClusters(): boolean {
+        this.clustersStale = false;
+        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
+            this.isFollower(row),
+        );
+        const nodes = [...read.keys()].map((node) => this.nodeMapping.get(node) as D3Node);
+        const same = sameCommunities(read, this.communities);
+        this.communities = read;
+        this.clusterNodes = nodes;
+        this.clusterOf = [...read.values()];
+        this.clusterCount = new Set(this.clusterOf).size;
+        return !same;
+    }
+
+    /**
+     * The cluster force: every member's velocity moves toward its community's centroid, as d3's `forceX` toward a point.
+     * @param alpha - The simulation's current heat.
+     */
+    private pullClusters(alpha: number): void {
+        const { clusterNodes: nodes, clusterOf } = this;
+        const centroids = clusterCentroids(nodes, clusterOf, this.clusterCount, () => 1);
+        const rate = CLUSTER_RATE * this.clusterStrength * alpha;
+        nodes.forEach((node, member) => {
+            const at = 3 * clusterOf[member];
+            node.vx += (centroids[at] - node.x) * rate;
+            node.vy += (centroids[at + 1] - node.y) * rate;
+            if (this.dim === 3) {
+                node.vz += (centroids[at + 2] - node.z) * rate;
+            }
+        });
+    }
+
+    /**
+     * Read `clusterBy` again and start the simulation when the communities changed.
+     * @returns True when the simulation was woken.
+     */
+    override wakeForClusters(): boolean {
+        if (this.clusterBy === null || !this.readClusters()) {
+            return false;
+        }
+
+        this.d3ForceLayout.alpha(1);
+        return true;
     }
 
     /**
@@ -280,8 +424,52 @@ export class D3GraphEngine extends LayoutEngine {
      */
     step(): void {
         this.refresh();
+        if (this.clustersStale && this.clusterBy !== null) {
+            this.readClusters();
+        }
+
         this.d3ForceLayout.tick();
+        if (this.isSettled && !this.collisionsSettled) {
+            this.settleCollisions();
+        }
+
         this.publishPositions();
+    }
+
+    /**
+     * The sweeps of a run that has come to rest: d3 stops long before its collision force has parted a crowd, so that
+     * force alone runs on until nothing overlaps. It writes velocities, which are moved along here, as a tick would.
+     */
+    private settleCollisions(): void {
+        this.collisionsSettled = true;
+        const { collideForce } = this;
+        for (let sweep = 0; collideForce !== null && sweep < MAX_FINAL_SWEEPS; sweep++) {
+            collideForce(1);
+            let moved = false;
+            for (const d3node of this.nodeMapping.values()) {
+                moved = this.moveAlong(d3node) || moved;
+            }
+
+            if (!moved) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Moves a node by its velocity, as a tick would, and stops it. A fixed node stays.
+     * @param d3node - The node.
+     * @returns Whether it had a velocity.
+     */
+    private moveAlong(d3node: D3Node): boolean {
+        const moving = d3node.vx !== 0 || d3node.vy !== 0 || d3node.vz !== 0;
+        d3node.x += d3node.fx === undefined ? d3node.vx : 0;
+        d3node.y += d3node.fy === undefined ? d3node.vy : 0;
+        d3node.z += d3node.fz === undefined && this.dim === 3 ? d3node.vz : 0;
+        d3node.vx = 0;
+        d3node.vy = 0;
+        d3node.vz = 0;
+        return moving;
     }
 
     /**
@@ -510,6 +698,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
+        this.clustersStale = true;
         // removeEdge deletes the visited edge from this set, which Set iteration allows.
         for (const edge of this.edgesByNode.get(n.id) ?? []) {
             this.removeEdge(edge);

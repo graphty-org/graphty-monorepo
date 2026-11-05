@@ -578,7 +578,15 @@ function readLabelPosition(
     turn: number | null = null,
 ): void {
     const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
-    if (lr === null && lphi === null && fos === null && ownSize === null && !turn) {
+    const toMiddle = baselineToMiddle(get("font"));
+    if (
+        lr === null &&
+        lphi === null &&
+        fos === null &&
+        ownSize === null &&
+        !turn &&
+        toMiddle === PAJEK_BASELINE_TO_MIDDLE
+    ) {
         return;
     }
     const radius = lr === null ? PAJEK_LABEL_RADIUS : canonNumber(lr, at("labelPosition"));
@@ -587,7 +595,7 @@ function readLabelPosition(
     if (radius === null || angle === null || size === null) {
         return;
     }
-    const [x, y] = labelOffset(radius, angle, size, turn ?? 0);
+    const [x, y] = labelOffset(radius, angle, size, turn ?? 0, toMiddle);
     put("labelPosition", "center");
     put("labelOffsetX", x);
     put("labelOffsetY", y);
@@ -602,15 +610,16 @@ function readLabelPosition(
  * @param angle - `lphi`, degrees counterclockwise
  * @param size - the label's size
  * @param turn - the label's rotation, degrees clockwise
+ * @param toMiddle - how far above its baseline the label's middle is, per unit of its size (`baselineToMiddle`)
  * @returns the offset across and down
  */
-function labelOffset(radius: number, angle: number, size: number, turn = 0): [number, number] {
+function labelOffset(radius: number, angle: number, size: number, turn: number, toMiddle: number): [number, number] {
     if (radius === 0) {
         return [0, 0];
     }
     const t = (angle * Math.PI) / 180;
     const u = (turn * Math.PI) / 180;
-    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
+    const rise = toMiddle * size;
     const round = (v: number): number => Number(v.toFixed(9)) + 0;
     return [round(radius * Math.cos(t) + rise * Math.sin(u)), round(-radius * Math.sin(t) - rise * Math.cos(u))];
 }
@@ -629,6 +638,21 @@ const PAJEK_LABEL_SIZE = 15;
  * (Liberation Sans: 0.905 and 0.212), the face Pajek draws its labels in by default.
  */
 const PAJEK_BASELINE_TO_MIDDLE = 0.3465;
+
+/** The same of Courier (Liberation Mono: 0.833 and 0.3), which a label's `font` can ask for (`pajek-synth-vertices` v29). */
+const COURIER_BASELINE_TO_MIDDLE = 0.2665;
+
+/**
+ * How far above its baseline a label's middle is in a font, per unit of its size. ponytail: Arial and Courier are the
+ * faces measured in Pajek's drawings; add a face here when a sample draws a label in it.
+ * @param font - the label's font, as written (`Courier-Bold`) or read (`Courier, monospace`), or null
+ * @returns the distance
+ */
+function baselineToMiddle(font: unknown): number {
+    return typeof font === "string" && /^\s*courier/i.test(font)
+        ? COURIER_BASELINE_TO_MIDDLE
+        : PAJEK_BASELINE_TO_MIDDLE;
+}
 
 /**
  * One line's style: its color, width and pattern. Pajek draws an edge (undirected) twice as wide as an arc of the
@@ -831,7 +855,7 @@ function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null, direc
     const turn = (((direction ?? lineDirection(get, run, along + 0.5)) - la) % 360) + 360;
     // the baseline runs through the point; the words' middle is above it in the label's own turned frame
     const up = (turn * Math.PI) / 180;
-    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
+    const rise = baselineToMiddle(get("font")) * size;
     put("labelPosition", "center");
     put("labelOffsetX", round(along * run[0] + lr * Math.cos(t) + rise * Math.sin(up)));
     put("labelOffsetY", round(along * run[1] - lr * Math.sin(t) - rise * Math.cos(up)));
@@ -1765,7 +1789,7 @@ function polarOf(get: Get): [number, number] | null {
         return null;
     }
     const size = get("labelSize");
-    const up = y + PAJEK_BASELINE_TO_MIDDLE * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
+    const up = y + baselineToMiddle(get("labelFont")) * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
     const round = (v: number): number => Number(v.toFixed(6)) + 0;
     const lr = round(Math.hypot(x, up));
     return lr === 0 ? null : [lr, round(((((Math.atan2(-up, x) * 180) / Math.PI) % 360) + 360) % 360)];

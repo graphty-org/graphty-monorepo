@@ -56,6 +56,41 @@ served at `/?next`.
 - Standing: after a rule is adopted, read the gate code and the tool, not the rule.
 - Standing: fix by removing, not adding; one change per problem; words at rest never rise;
   rejected stays rejected without new evidence; never re-set a limit from data.
+- (2026-10-30) Tier 4 round 1 closed at its 1-round cap, bars 2, 3, 5, 6, 7 unmet. Before any
+  round 2: the study tool printed `tooltip: null` on hovers that open a popover, and four
+  participants trusted that line over the screenshot. A tool line that contradicts the picture
+  produced false findings and wrong turns. Fix the tool to report open popovers first.
+- (2026-10-30) Most severe open problem (sev 2): the join preview tags the wrong rows and marks
+  the unknown-end row "not in graph" though Join adds it. Fix the preview to show what Join will
+  do; no hint text.
+- (2026-10-30) Pattern to attack in every design: choices that arrive after the act with a
+  default already applied (unknown end decided after Join; a new filter card starting on Hide).
+  The planned "Select | Filter to | Filter out" rename keeps the subtractive default -- challenge
+  it, but note the default helped T66, so the evidence is order-dependent.
+- (2026-10-30) One fact drawn two ways (time set but column glyph says text; chip counts on
+  different bases under Hide and Select; place roles unmarked on headers) costs checks, not
+  wrong answers. One source of truth per fact.
+- (2026-10-30) Bar 6 fails on a layout clip, not a removal: the joined source row's ratio and
+  second file name are clipped. One layout fix covers both; "17 of 19 joined" beside 18 edges
+  also contradicts itself.
+- (2026-10-30) Bar 2's only false done rests on the answer key's definition, not the reader.
+  Second round in a row a bar failure came from the grading rule (tier 1: colorWord). Audit keys
+  and rules before counting.
+- (2026-10-30) Bar 3 is inflated by post-success checks and tool-caused hovers; graders counted
+  hovers inconsistently. Wrong turns must be counted before success only, with a written rule.
+- (2026-10-30) Bar 5 (axe critical: table's Nodes tab names a panel never rendered) is a real,
+  cheap, mechanical fix -- no study needed to confirm it.
+- (2026-10-29) Success-by-default and leading prompts carried over: still watch them. Fixes with
+  no task that re-runs them report "not re-tested", never "passed".
+- (2026-10-23) "+" menu one-per-kind: open watch item -- does a "48.85, 2.35" column find
+  "Coordinates"?
+- (2026-10-21) Avoidance is not comprehension; success saturates fast -- score cost and routes.
+- (2026-10-21) Every build defect needs a repro made the way a person would; tool artifacts
+  (synthetic wheel, storage quota, now tooltip:null) recur every round.
+- (2026-10-21) Rejected generality traps stay rejected: no synonyms, task words or domain cases
+  in the product.
+- (2026-10-20) Still owed: build-equivalence, half-folder gate, bars.mjs spoken/typing checks,
+  wording.mjs stem, score.mjs bar 4 start point.
 
 ## Priorities and values
 
@@ -115,6 +150,17 @@ served at `/?next`.
   re-walk test and the known defects a fix-or-keep call before the freeze. Reason: most bars could
   pass with the thing studied never exercised. Domains passed: every task has two, though T90 and
   T94 are both people networks; no change asked, since the wordings at stake meet yeast in T91, T93.
+- **2026-10-29, tier 4 criteria review (data management):** proposed 8 changes: freeze after the
+  R fixes and rewrite answers.md paths on that build (T67's path is still the table, against
+  "table view-only" and R9); reword T64 (stronger/farther), T65 (at least) and vary T60 B's
+  "web address"; T62 succeeds only on a changed kind, the time role alone is P; T63 needs a half
+  whose place the program does not designate, or grade the place as unverified; a coverage table
+  from every R decision to the task half that re-tests it (R2's re-test quotes "T65 B words" that
+  T65 B does not have; R15 asks "open the longest", T62 asks "most recently"); bar 4/6 audit
+  confirms only what it measures, approved surfaces listed, words at rest a counted bar; T65's
+  two halves are both people networks, move B to the gauges; cost and first-move measures for
+  returning users, T66 detour table lists its own success path, T68 reported per half. Reason:
+  each lets a bar pass while the thing studied was not exercised, or checks a build nobody froze.
 - **2026-10-23, menu sections (issue #3315, director ruled).** I pressed three points. (1)
   "Other" is a junk drawer (Keep positions, Map, Clusters, Treemap); accepted as the honest name
   for the catalog's `special` family and for plugins, since inventing a heading per row is worse.
@@ -182,6 +228,12 @@ served at `/?next`.
   ("stopped", T90) and five each of message, send, stop, step in the roster's briefing lines.
   Worked: recounting the key from the files (9, 7, 9, 7, T92 A's seven names all agree).
   Carried from Top of mind: a backlog row should not gate a round without a repro or a reach.
+- (2026-10-30) Tier 4 round 1: the two-skeptic settle worked again -- it caught a study-tool defect (tooltip:null on popovers), a grading-key false done and inflated wrong turns. Did not work: screening tasks for leading before the round (prompts still echoed success words) and a frozen build that had not built the decided source-row fix.
+
+- 2026-10-29 -- Grepping the app source for each prompt's key words (Fields.tsx "Higher weight
+  means" with "farther"; filterWords.ts "is at least") found echoes the task file's own word list
+  missed: the avoided list holds interface nouns, not option values or summary words. Worked:
+  cheap, one command. Owed: wording.mjs must read the frozen build's strings, not a hand list.
 - (2026-10-21) Did not work: a single studio round with frozen grading rules. The cap ended the
   tier with the bars failing on a grading-table artifact (gold vs yellow) and on backlog rows no
   session reached; the round could not distinguish product failure from rule failure. Worked: two
@@ -237,6 +289,9 @@ served at `/?next`.
   task), `--reopen`, `--shift-click`, node click by label; `tool/tier6.mjs`; tool README "Tier 6
   sessions" (REAL_GEMINI_COUNT); `ToolExecutor.ts` largePreview; `graphty/src/workspace/assistant/words.ts`
   line 155; `tool/files/*.graphml`; notes/researcher.md (2026-11-05) (2026-11-05)
+- tier4/{criteria,tasks,answers,roster,decided}.md (2026-10-29, first line `<sha>`), setups under
+  `rounds/tier-4/setups/`, `graphty/src/workspace/data-place/Fields.tsx:559`, `filterWords.ts:75`,
+  `words.ts:429`, `DataPlace.stories.tsx:153-159` (worktree head 68919794d2) (2026-10-29)
 - criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
   entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
   `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`

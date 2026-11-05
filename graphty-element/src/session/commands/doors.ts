@@ -1048,7 +1048,14 @@ const TIME_API: Readonly<Record<string, Door>> = {
                 op: "config.set",
                 values: {
                     data: {
-                        knownFields: { nodeTimePath: null, nodeTimeUnit: null, edgeTimePath: "t", edgeTimeUnit: null },
+                        knownFields: {
+                            nodeTimePath: null,
+                            nodeTimeUnit: null,
+                            nodeTimeParseZone: null,
+                            edgeTimePath: "t",
+                            edgeTimeUnit: null,
+                            edgeTimeParseZone: null,
+                        },
                     },
                 },
             },
@@ -1057,8 +1064,10 @@ const TIME_API: Readonly<Record<string, Door>> = {
     ready: READ,
     extent: READ,
     bins: READ,
+    spanOf: READ,
     changes: READ,
     current: READ,
+    committed: READ,
     // The window takes the step in use: with no data, the automatic step is a day.
     window: calls(
         [{ attribute: "data.t", from: 0, to: 1 }],
@@ -1465,6 +1474,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             autosaver: READ,
             features: exempt("Which experiments the page switches on; not part of the work a project saves."),
             enabledFeatures: READ,
+            refusedFeatures: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1892,11 +1902,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnFill: READ,
             drawnRadius: READ,
             layoutRadius: READ,
+            spacingRadius: READ,
             paintedColor: READ,
             borderReach: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
+            reachOutline: READ,
             outlineHalfExtents: READ,
             groupSizing: READ,
             wordedLabel: READ,
@@ -1906,6 +1918,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             syncXlabelPlace: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
+            drawnPosition: READ,
+            drawnWorldPosition: READ,
+            drawnWorldMatrix: READ,
+            drawnSourceMesh: RENDER,
+            drawnBoundingBox: READ,
+            drawnWorldScaling: READ,
+            drawnScene: RENDER,
+            isDrawnInFrustum: READ,
+            teardownMesh: RENDER,
         },
     },
     {
@@ -2155,6 +2176,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             scope: READ,
             scopeUser: READ,
             releaseDetachedScope: DERIVED,
+            // A run's results changed; a layout clustering by them moves, and rests in its own step.
+            clustersChanged: TRANSPORT,
         },
     },
     {
@@ -3393,6 +3416,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+            restoreWindow: calls(
+                [{ attribute: "data.t", from: 0, to: 1 }, false],
+                [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
+            ),
+            restorePlayback: calls(
+                [{ mode: "cumulative" }],
+                [{ op: "visibility.playback", playback: { mode: "cumulative" } }],
+            ),
+            holdsInstants: READ,
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,
@@ -3464,6 +3496,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // each start.
             setHoldMask: TRANSPORT,
             holdMask: READ,
+            // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
+            wakeForResize: TRANSPORT,
+            // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
+            clusterColumn: READ,
+            // A node's community changed, so a layout pulling communities together starts again.
+            wakeForClusters: TRANSPORT,
         },
     },
     {

@@ -220,6 +220,8 @@ export const ORACLE_TOLERANCES = {
     edgeWidthRatio: [0.9, 1.1],
     /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
     gradientAngleDeg: 15,
+    /** A radial gradient's middle within this fraction of its node's box. */
+    gradientCenter: 0.1,
     /**
      * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
      * oracle's, which a rounding on a small head moves by more than the ratio allows.
@@ -813,9 +815,15 @@ function headParts(heads: readonly PArrow[]): number {
         // a part of the same head is drawn in the head's color at about its size: a neighbor's head read onto this
         // end (a diamond of another color beside a Cytoscape desktop head) is not one
         const first = placed[0];
+        // a head's size is its longer side: a bar across the line is as long as a stroke is wide (yEd's crow's foot with
+        // a bar behind it, tines 12 long and a bar 16 wide and 1 deep)
+        const size = (q: PArrow): number => Math.max(q.length, q.width);
         const kin =
             first === undefined ||
-            (h.color === first.color && h.length <= 2 * first.length && first.length <= 2 * h.length);
+            // a hollow head's white fill has no color of its own (yEd's circle, its fill then its ring)
+            ((h.color === first.color || first.color === null) &&
+                size(h) <= 2 * size(first) &&
+                size(first) <= 2 * size(h));
         if (kin && placed.every(apart)) {
             placed.push(h);
         }
@@ -1297,7 +1305,7 @@ function runsBackwards(o: PGradient, g: PGradient, angles: { o: number | null; g
 
 /**
  * How far two gradients are from alike: one on each side or on neither; the same kind; their colors at five places
- * along them within the color tolerance; a linear one's direction within its tolerance.
+ * along them within the color tolerance; a linear one's direction and a radial one's middle within their tolerances.
  * @param o - the oracle's gradient, or null
  * @param g - graphty's, or null
  * @param angles - each linear gradient's direction as judged (in the oracle's frame, or against its edge's chord)
@@ -1338,7 +1346,12 @@ function gradientMissAsRun(
     const show = (x: PGradient | null, angle: number | null): unknown =>
         x === null
             ? null
-            : { kind: x.kind, angle: angle === null ? null : R(angle, 1), colors: RAMP_AT.map((t) => rampColor(x, t)) };
+            : {
+                  kind: x.kind,
+                  angle: angle === null ? null : R(angle, 1),
+                  colors: RAMP_AT.map((t) => rampColor(x, t)),
+                  ...(x.center === undefined ? {} : { center: x.center }),
+              };
     const out = { oracle: show(o, angles.o), graphty: show(g, angles.g) };
     if (o === null || g === null) {
         return { miss: (o === null) === (g === null) ? 0 : 1, ...out };
@@ -1355,6 +1368,8 @@ function gradientMissAsRun(
     if (o.kind === "linear" && angles.o !== null && angles.g !== null && (changes(o) || changes(g))) {
         miss += Math.max(0, Math.abs(turnOf(angles.g - angles.o)) - ORACLE_TOLERANCES.gradientAngleDeg) / 90;
     }
+    const [oc, gc] = [o.center ?? [0.5, 0.5], g.center ?? [0.5, 0.5]];
+    miss += Math.max(0, Math.hypot(oc[0] - gc[0], oc[1] - gc[1]) - ORACLE_TOLERANCES.gradientCenter);
     return { miss, ...out };
 }
 
@@ -1412,7 +1427,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
-    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
@@ -1453,7 +1468,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
-        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half); one no class names matches nothing",
+        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half, cross); one no class names matches nothing",
     "edge.arrowParts": "as many arrowhead parts in a row at each end",
     "edge.dashPeriod": `where both sides read a dash array: its period (a dash and a gap) and the share of it drawn, each ratio in [${ORACLE_TOLERANCES.dashRatio.join(", ")}]`,
     "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels; a break between the line and half an arrow on both sides or on neither`,
@@ -3369,9 +3384,18 @@ export function labelAnchor(t: PText, b: PBox): string {
  */
 export function lineAlign(t: PText): "start" | "middle" | "end" | null {
     // a table's cells side by side are read apart: a cell's lines overlap across, the cell beside them does not
-    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides
+    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides. A cell spanning two side by
+    // side is in neither column, so it says nothing of how either's lines align (dot-synth-nodes n_html3: A | B over
+    // a wide cell reads right-aligned or left-aligned by a pixel of where the two narrow cells fall)
+    const lines = t.lines ?? [];
+    const under = (wide: PBox, b: PBox): boolean => b !== wide && b.x0 < wide.x1 && b.x1 > wide.x0;
+    const sameRow = (a: PBox, b: PBox): boolean => a.y0 < b.y1 && b.y0 < a.y1;
+    const spans = (wide: PBox): boolean =>
+        lines.some(
+            (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
+        );
     const cells: PBox[][] = [];
-    for (const b of [...(t.lines ?? [])].sort((p, q) => p.x0 - q.x0)) {
+    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

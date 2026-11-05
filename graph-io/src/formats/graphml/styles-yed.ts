@@ -245,11 +245,25 @@ function activeRealizer(proxy: unknown): Realizer | null {
     return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
 }
 
-/** A shape a yEd configuration draws: a neutral shape, with its corners where it is a `polygon`. */
+/** A shape a yEd node type draws: a neutral shape, with what yEd draws differently from a plain one of it. */
 export interface YedOutline {
     readonly shape: string;
     /** The polygon's corners as neutral `shapePoints` (`x,y` fractions of the half sizes, y up). */
     readonly points?: string;
+    /** A rounded box's corner radius; `pill` rounds its short sides into half circles. */
+    readonly cornerRadius?: number | "pill";
+    /** The width over the height of the shape, drawn as large as fits in the middle of the node's box. */
+    readonly aspect?: number;
+    /** Lines drawn over it in its border's color, as neutral `shapeLines`. */
+    readonly lines?: string;
+    /** The line yEd draws round it, whatever the file sets; 0 draws none. */
+    readonly borderWidth?: number;
+    /** Whether yEd paints no fill in it. */
+    readonly hollow?: boolean;
+    /** Whether yEd paints its fill darker than the file's color. */
+    readonly darker?: boolean;
+    /** Whether yEd raises it, with Java's `fill3DRect`: light and dark strips of 1 px along its edge. */
+    readonly raised?: boolean;
 }
 
 /**
@@ -300,6 +314,22 @@ function pointText(x: number, y: number): string {
 
 const HALF_PI = Math.PI / 2;
 
+/**
+ * Points along a quadratic curve, as `x,y` text, both ends included.
+ * @param from - its start
+ * @param control - its control point
+ * @param to - its end
+ * @returns the points
+ */
+function curvePoints(from: [number, number], control: [number, number], to: [number, number]): string[] {
+    const steps = 8;
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const t = i / steps;
+        const at = (k: 0 | 1): number => (1 - t) ** 2 * from[k] + 2 * t * (1 - t) * control[k] + t ** 2 * to[k];
+        return pointText(at(0), at(1));
+    });
+}
+
 /** A cloud: a circle of bumps, stretched to the box. */
 const CLOUD = Array.from({ length: 72 }, (_, i) => {
     const t = (2 * Math.PI * i) / 72;
@@ -307,31 +337,34 @@ const CLOUD = Array.from({ length: 72 }, (_, i) => {
     return pointText(r * Math.cos(t), r * Math.sin(t));
 }).join(" ");
 
-/** A stadium: a box whose ends are half circles (a pill). */
-const STADIUM = [
-    ...arcPoints(0.5, 0, 0.5, 1, -HALF_PI, HALF_PI),
-    ...arcPoints(-0.5, 0, 0.5, 1, HALF_PI, 3 * HALF_PI),
-].join(" ");
+/** The curved right side of yEd's delay and display, bowing 0.16 of the half width past where it starts. */
+const YED_RIGHT_BULGE = curvePoints([0.84, -1], [1.16, 0], [0.84, 1]);
+
+/** yEd's old bevel nodes: boxes with corners of 3, or of 10 for the second and third. */
+const BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 3 };
+const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10 };
 
 /**
  * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
  * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`artifactOutline`). Left
- * out until a drawing by yEd itself shows them (ISSUES.md): the SBGN nucleic acid feature and perturbing agent, which
- * draw.io, the stand-in, draws as plain boxes.
+ * not drawn. The BPMN artifact's outline follows its `com.yworks.bpmn.type` style property (`genericOutline`). The
+ * corner radii, the shapes that keep their proportions in a box of another shape and the lines round them are as
+ * yEd 3.25 draws them (`yed-graphml-specimen-node-shapes-p2`, `-p3`).
  */
 const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["flowchart.process", { shape: "rectangle" }],
     ["flowchart.predefinedprocess", { shape: "rectangle" }],
     ["flowchart.internalstorage", { shape: "rectangle" }],
     ["flowchart.decision", { shape: "diamond" }],
-    ["flowchart.terminator", { shape: "round-rectangle" }],
+    ["flowchart.terminator", { shape: "round-rectangle", cornerRadius: "pill" }],
     ["flowchart.start1", { shape: "ellipse" }],
-    ["flowchart.start2", { shape: "ellipse" }],
-    ["flowchart.onpagereference", { shape: "ellipse" }],
-    ["flowchart.sequentialdata", { shape: "ellipse" }],
+    ["flowchart.start2", { shape: "ellipse", aspect: 1 }],
+    ["flowchart.onpagereference", { shape: "ellipse", aspect: 1 }],
+    ["flowchart.sequentialdata", { shape: "ellipse", aspect: 1 }],
+    // its bracket is not drawn
+    ["flowchart.annotation", { shape: "rectangle", borderWidth: 0 }],
     ["flowchart.data", { shape: "parallelogram" }],
     ["flowchart.preparation", { shape: "hexagon" }],
     ["flowchart.database", { shape: "other:database" }],
@@ -340,7 +373,7 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
     ["flowchart.manualinput", { shape: "polygon", points: "-1,-1 1,-1 1,1 -1,0.4" }],
     ["flowchart.card", { shape: "polygon", points: "-1,-1 1,-1 1,1 -0.6,1 -1,0.6" }],
     ["flowchart.manualoperation", { shape: "polygon", points: "-1,1 -0.7,-1 0.7,-1 1,1" }],
-    ["flowchart.offpagereference", { shape: "polygon", points: "-1,1 -1,0 0,-1 1,0 1,1" }],
+    ["flowchart.offpagereference", { shape: "polygon", points: "-1,1 -1,0 0,-1 1,0 1,1", aspect: 1 }],
     ["flowchart.usermessage", { shape: "polygon", points: "-1,1 -1,-1 0.6,-1 1,0 0.6,1" }],
     ["flowchart.networkmessage", { shape: "polygon", points: "-1,1 -0.6,0 -1,-1 1,-1 1,1" }],
     ["flowchart.document", { shape: "polygon", points: ["-1,1", ...wavePoints(-0.75, 0.2, -1, 1), "1,1"].join(" ") }],
@@ -351,15 +384,16 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
             points: [...wavePoints(-0.8, 0.2, -1, 1), ...wavePoints(0.8, 0.2, 1, -1)].join(" "),
         },
     ],
-    [
-        "flowchart.delay",
-        { shape: "polygon", points: ["-1,-1", ...arcPoints(0, 0, 1, 1, -HALF_PI, HALF_PI), "-1,1"].join(" ") },
-    ],
+    ["flowchart.delay", { shape: "polygon", points: ["-1,-1", ...YED_RIGHT_BULGE, "-1,1"].join(" ") }],
     [
         "flowchart.display",
         {
             shape: "polygon",
-            points: ["-1,0", "-0.6,-1", ...arcPoints(0.6, 0, 0.4, 1, -HALF_PI, HALF_PI), "-0.6,1"].join(" "),
+            points: [
+                ...curvePoints([-1, 0], [-0.84, -0.75], [-0.36, -1]),
+                ...YED_RIGHT_BULGE,
+                ...curvePoints([-0.36, 1], [-0.84, 0.75], [-1, 0]),
+            ].join(" "),
         },
     ],
     [
@@ -367,8 +401,8 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
         {
             shape: "polygon",
             points: [
-                ...arcPoints(1, 0, -0.2, 1, -HALF_PI, HALF_PI),
-                ...arcPoints(-0.8, 0, 0.2, 1, HALF_PI, 3 * HALF_PI),
+                ...curvePoints([1, -1], [0.68, 0], [1, 1]),
+                ...curvePoints([-0.84, 1], [-1.16, 0], [-0.84, -1]),
             ].join(" "),
         },
     ],
@@ -385,18 +419,40 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
     ["flowchart.cloud", { shape: "polygon", points: CLOUD }],
     ["entityrelationship.relationship", { shape: "diamond" }],
     ["entityrelationship.attribute", { shape: "ellipse" }],
-    ["bpmn.conversation", { shape: "hexagon" }],
+    ["entityrelationship.big_entity", { shape: "round-rectangle", cornerRadius: 4 }],
+    ["bpmn.activity", { shape: "round-rectangle", cornerRadius: 4 }],
+    ["bpmn.event", { shape: "ellipse", aspect: 1 }],
+    ["bpmn.gateway", { shape: "diamond", aspect: 1 }],
+    // a regular hexagon
+    ["bpmn.conversation", { shape: "hexagon", aspect: 2 / Math.sqrt(3) }],
+    ["bevelnode", BEVEL],
+    ["bevelnode2", ROUND_BEVEL],
+    ["bevelnode3", ROUND_BEVEL],
+    ["bevelnodewithshadow", BEVEL],
     ["sbgn.unspecifiedentity", { shape: "ellipse" }],
-    ["sbgn.simplechemical", { shape: "ellipse" }],
-    ["sbgn.emptyset", { shape: "ellipse" }],
-    ["sbgn.operator", { shape: "ellipse" }],
+    ["sbgn.simplechemical", { shape: "round-rectangle", cornerRadius: "pill" }],
+    ["sbgn.emptyset", { shape: "ellipse", aspect: 1 }],
+    ["sbgn.operator", { shape: "ellipse", aspect: 1 }],
     ["sbgn.macromolecule", { shape: "round-rectangle" }],
     ["sbgn.phenotype", { shape: "hexagon" }],
     ["sbgn.process", { shape: "rectangle" }],
     ["sbgn.submap", { shape: "rectangle" }],
     ["sbgn.unitofinformation", { shape: "rectangle" }],
-    ["sbgn.statevariable", { shape: "polygon", points: STADIUM }],
+    ["sbgn.statevariable", { shape: "round-rectangle", cornerRadius: "pill" }],
     ["sbgn.tag", { shape: "polygon", points: "-1,1 -1,-1 0.6,-1 1,0 0.6,1" }],
+    ["sbgn.perturbingagent", { shape: "polygon", points: "-1,1 1,1 0.679,0 1,-1 -1,-1 -0.679,0" }],
+    [
+        "sbgn.nucleicacidfeature",
+        {
+            shape: "polygon",
+            points: [
+                "-1,1",
+                "1,1",
+                ...arcPoints(0.571, -0.333, 0.429, 0.667, 0, -HALF_PI),
+                ...arcPoints(-0.571, -0.333, 0.429, 0.667, -HALF_PI, -Math.PI),
+            ].join(" "),
+        },
+    ],
 ]);
 
 /**
@@ -414,46 +470,201 @@ export function configurationOutline(configuration: string): YedOutline | null {
     return YED_CONFIGURATIONS.get(key) ?? null;
 }
 
+/** A BPMN message's flap: from the envelope's top corners to its middle. */
+const ENVELOPE_FLAP = "-1,1 0,0 1,1";
+
+/** How far inside a BPMN node's outline yEd draws the second line of a double one. */
+const BPMN_DOUBLE_LINE_INSET = 2.5;
+
 /**
- * The BPMN artifact's outline, by its `com.yworks.bpmn.type` style property, as yEd draws it (yEd Live's drawing of
- * `yed-live-graphml-specimen-node-shapes-p5`): a data object is a page with its top right corner folded, a data store
- * a cylinder. The message, group and annotation artifacts are not drawn as their outlines yet.
+ * One coordinate of a point inside the node: the fraction of its half side, less a length toward its middle.
+ * @param fraction - the fraction
+ * @param length - the length in from there, along the fraction's sign
+ * @returns the coordinate as `shapeLines` text
  */
-const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
-    ["artifact_type_data_object", { shape: "polygon", points: "-1,-1 1,-1 1,0.4 0.2,1 -1,1" }],
-    ["artifact_type_data_store", { shape: "other:database" }],
+function insetCoordinate(fraction: number, length: number): string {
+    const r = (v: number): number => Math.round(v * 1000) / 1000 + 0;
+    const by = r(-Math.sign(fraction) * length);
+    return `${String(r(fraction))}${by < 0 ? "" : "+"}${String(by)}`;
+}
+
+/** The second line of a BPMN event: a circle `BPMN_DOUBLE_LINE_INSET` inside the node's, closed. */
+const EVENT_DOUBLE_LINE = Array.from({ length: 49 }, (_, i) => {
+    const [c, s] = [Math.cos((2 * Math.PI * i) / 48), Math.sin((2 * Math.PI * i) / 48)];
+    const inset = BPMN_DOUBLE_LINE_INSET;
+    return `${insetCoordinate(c, Math.abs(c) * inset)},${insetCoordinate(s, Math.abs(s) * inset)}`;
+}).join(" ");
+
+/** The second line of a BPMN transaction: a box `BPMN_DOUBLE_LINE_INSET` inside the activity's, its corners of 4. */
+const TRANSACTION_DOUBLE_LINE = [
+    [1, 1],
+    [-1, 1],
+    [-1, -1],
+    [1, -1],
+]
+    .flatMap(([sx, sy], corner) => {
+        const start = (corner * Math.PI) / 2;
+        return Array.from({ length: 7 }, (_, i) => {
+            const t = start + (i * Math.PI) / 12;
+            const [x, y] = [Math.abs(Math.cos(t)), Math.abs(Math.sin(t))];
+            const toCenter = BPMN_DOUBLE_LINE_INSET + 4;
+            return `${insetCoordinate(sx, toCenter - 4 * x)},${insetCoordinate(sy, toCenter - 4 * y)}`;
+        });
+    })
+    .join(" ");
+
+/** The BPMN `characteristic` and `activityType` values yEd draws with a double line. */
+const BPMN_DOUBLE_LINES: ReadonlyMap<string, string> = new Map([
+    ["event_characteristic_intermediate_catching", EVENT_DOUBLE_LINE],
+    ["event_characteristic_intermediate_throwing", EVENT_DOUBLE_LINE],
+    ["event_characteristic_intermediate_boundary_interrupting", EVENT_DOUBLE_LINE],
+    ["event_characteristic_intermediate_boundary_non_interrupting", EVENT_DOUBLE_LINE],
+    ["activity_type_transaction", `${TRANSACTION_DOUBLE_LINE} ${TRANSACTION_DOUBLE_LINE.split(" ")[0]}`],
 ]);
 
 /**
- * The shape a yEd GraphML GenericNode draws: its configuration's (`configurationOutline`), or a BPMN artifact's by
- * its `com.yworks.bpmn.type` style property.
+ * The BPMN artifact's outline, by its `com.yworks.bpmn.type` style property, as yEd draws it
+ * (`yed-graphml-specimen-node-shapes-p5`): a data object is a page with its top right corner folded, a data store a
+ * cylinder, a group an empty rounded box, an annotation a box with no outline (its bracket is not drawn) and a message
+ * an envelope, a reply's darker. A box 36 x 44 draws an envelope 36 x 24; only that one
+ * size has been drawn, so that its proportions hold in a wide box too is unproven.
+ */
+export const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+    ["artifact_type_data_object", { shape: "polygon", points: "-1,-1 1,-1 1,0.4 0.2,1 -1,1" }],
+    ["artifact_type_data_store", { shape: "other:database" }],
+    ["artifact_type_group", { shape: "round-rectangle", cornerRadius: 4, hollow: true }],
+    ["artifact_type_annotation", { shape: "rectangle", borderWidth: 0 }],
+    ["artifact_type_request_message", { shape: "rectangle", aspect: 3 / 2, lines: ENVELOPE_FLAP }],
+    ["artifact_type_reply_message", { shape: "rectangle", aspect: 3 / 2, darker: true, lines: ENVELOPE_FLAP }],
+]);
+
+/** The BPMN `characteristic` and `activityType` values yEd draws with a line of 3, whatever the file's width. */
+const BPMN_HEAVY: ReadonlySet<string> = new Set(["event_characteristic_end", "activity_type_call_activity"]);
+
+/**
+ * A `com.yworks.bpmn.*` style property of a GenericNode.
+ * @param r - the realizer element
+ * @param name - the name after `com.yworks.bpmn.`
+ * @returns its value in lowercase, or undefined
+ */
+function bpmnProperty(r: unknown, name: string): string | undefined {
+    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
+    return treeAttr(
+        props.find((p) => treeAttr(p, "name") === `com.yworks.bpmn.${name}`),
+        "value",
+    )
+        ?.slice(0, MAX_STYLE_VALUE_LENGTH)
+        .toLowerCase();
+}
+
+/**
+ * The shape a yEd GraphML GenericNode draws: its configuration's (`configurationOutline`), a BPMN artifact's by its
+ * `com.yworks.bpmn.type` style property, with the heavy line of an end event or a call activity and the double line of
+ * an intermediate event or a transaction.
  * @param r - the GenericNode realizer element
- * @returns the shape, with its corners where it is a polygon, or null for a configuration not known here
+ * @returns the shape, or null for a configuration not known here
  */
 function genericOutline(r: unknown): YedOutline | null {
     const conf = treeAttr(r, "configuration") ?? "";
     const known = configurationOutline(conf);
-    if (known !== null || !/^com\.yworks\.bpmn\.artifact(\.withshadow)?$/i.test(conf)) {
-        return known;
+    if (known === null) {
+        const artifact = /^com\.yworks\.bpmn\.artifact(\.withshadow)?$/i.test(conf);
+        return artifact ? (BPMN_ARTIFACTS.get(bpmnProperty(r, "type") ?? "") ?? null) : null;
     }
-    const props = treeChildren(treeChild(r, "StyleProperties"), "Property");
-    const type = treeAttr(
-        props.find((p) => treeAttr(p, "name") === "com.yworks.bpmn.type"),
-        "value",
-    );
-    return type === undefined
-        ? null
-        : (BPMN_ARTIFACTS.get(type.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase()) ?? null);
+    const kinds = ["characteristic", "activityType"].map((name) => bpmnProperty(r, name) ?? "");
+    const lines = kinds.map((kind) => BPMN_DOUBLE_LINES.get(kind)).find((line) => line !== undefined);
+    return {
+        ...known,
+        ...(kinds.some((kind) => BPMN_HEAVY.has(kind)) ? { borderWidth: 3 } : {}),
+        ...(lines === undefined ? {} : { lines }),
+    };
+}
+
+/** yEd's ShapeNode types the common shape names do not hold, as yEd 3.25 draws them. */
+const YED_TYPES: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+    ["fatarrow", { shape: "polygon", points: "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0" }],
+    ["fatarrow2", { shape: "polygon", points: "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0" }],
+    ["triangle2", { shape: "polygon", points: "-1,1 1,1 0,-1" }],
+    ["rectangle3d", { shape: "rectangle", borderWidth: 0, raised: true }],
+]);
+
+/**
+ * The shape a yEd `type` draws, where the common shape names do not say. yEd 3.25 has no `hexagon2` or `octagon2` and
+ * draws what it draws for a type it does not know: a rectangle in GraphML and an ellipse in GML.
+ * @param type - the `y:Shape` type or the GML `type`
+ * @param unknown - the shape yEd draws for an unknown type in this format
+ * @returns the shape, or null where the common names hold
+ */
+export function typeOutline(type: unknown, unknown: string): YedOutline | null {
+    const key = typeof type === "string" ? type.trim().toLowerCase() : "";
+    return key === "hexagon2" || key === "octagon2" ? { shape: unknown } : (YED_TYPES.get(key) ?? null);
+}
+
+/**
+ * Writes what an outline draws. Reading the width and the height first lets an outline with proportions of its own
+ * replace them.
+ * @param outline - the outline
+ * @param width - the node's box width, or null
+ * @param height - its height, or null
+ * @param put - receives the values
+ */
+export function putOutline(outline: YedOutline, width: number | null, height: number | null, put: PutValue): void {
+    const { aspect, cornerRadius } = outline;
+    put("shape", outline.shape);
+    put("shapePoints", outline.points ?? null);
+    put("shapeLines", outline.lines ?? null);
+    put("borderWidth", outline.borderWidth ?? null);
+    put("fillOpacity", outline.hollow === true ? 0 : null);
+    put("cornerRadius", typeof cornerRadius === "number" ? cornerRadius : null);
+    if (width === null || height === null) {
+        return;
+    }
+    if (aspect !== undefined) {
+        const drawn = Math.min(width, height * aspect);
+        put("width", Math.round(drawn * 1000) / 1000);
+        put("height", Math.round((drawn / aspect) * 1000) / 1000);
+    }
+    if (cornerRadius === "pill") {
+        put("cornerRadius", Math.min(width, height) / 2);
+    }
+}
+
+/** The side of the corner yEd folds down from a UML note, whatever the note's size. */
+const NOTE_FOLD = 15;
+
+/**
+ * A UML note's outline: a box with a square out of its top right corner.
+ * @param width - the note's width
+ * @param height - its height
+ * @returns the outline
+ */
+function noteOutline(width: number, height: number): YedOutline {
+    const x = 1 - (2 * Math.min(NOTE_FOLD, width)) / width;
+    const y = 1 - (2 * Math.min(NOTE_FOLD, height)) / height;
+    const points = ["-1,1", pointText(x, 1), pointText(x, y), pointText(1, y), "1,-1", "-1,-1"];
+    return { shape: "polygon", points: points.join(" ") };
+}
+
+/**
+ * What a node realizer draws, where its kind says more than its `y:Shape`'s name.
+ * @param real - the realizer
+ * @param width - its width, or null
+ * @param height - its height, or null
+ * @returns the outline, or null where `realizerShape` says
+ */
+function realizerOutline(real: Realizer, width: number | null, height: number | null): YedOutline | null {
+    const shape = treeChild(real.r, "Shape");
+    if (shape !== undefined) {
+        return typeOutline(treeAttr(shape, "type"), "rectangle");
+    }
+    if (real.type === "GenericNode") {
+        return genericOutline(real.r);
+    }
+    return real.type === "UMLNoteNode" && width !== null && height !== null ? noteOutline(width, height) : null;
 }
 
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
 const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
-    // yEd's BPMN and entity-relationship palettes: a task is a rounded box, an event a circle, a
-    // gateway a diamond, an attribute an ellipse
-    ["bpmn.activity", "round-rectangle"],
-    ["bpmn.event", "ellipse"],
-    ["bpmn.gateway", "diamond"],
-    ["entityrelationship.attribute", "ellipse"],
     ["ellipse", "ellipse"],
     ["circle", "ellipse"],
     ["oval", "ellipse"],
@@ -858,12 +1069,7 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
         return canonEnum("shape", "rectangle", "yed", at("shape"));
     }
     if (real.type === "GenericNode") {
-        const conf = treeAttr(real.r, "configuration") ?? "";
-        const known = genericOutline(real.r);
-        if (known !== null) {
-            return known.shape;
-        }
-        const lower = conf.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+        const lower = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
             if (lower.includes(word)) {
                 return value;
@@ -883,6 +1089,15 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
 const YED_GRADIENT_ANGLE = 45;
 
 /**
+ * Whether a `y:Fill` paints nothing.
+ * @param fill - the `y:Fill`
+ * @returns true for no color or a transparent one
+ */
+function unfilled(fill: unknown): boolean {
+    return treeAttr(fill, "hasColor") === "false" || treeAttr(fill, "transparent") === "true";
+}
+
+/**
  * Reads a node realizer's fill: its color, and a gradient into `color2`. yEd paints no fill where the fill has no
  * color or is transparent.
  * @param real - the realizer
@@ -894,7 +1109,7 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
     if (fill === undefined) {
         return;
     }
-    if (treeAttr(fill, "hasColor") === "false" || treeAttr(fill, "transparent") === "true") {
+    if (unfilled(fill)) {
         noteAt(at("fill"), STYLE_ISSUE.NO_FILL, "transparent");
         put("fillOpacity", 0);
         return;
@@ -1019,8 +1234,9 @@ function yedResourceUrl(r: unknown): string | null {
 
 /**
  * The picture an image or SVG node realizer draws (`y:Image refid`, `y:SVGModel/y:SVGContent refid`), stretched over
- * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it:
- * whether yEd paints them under the picture waits for a drawing by yEd itself (ISSUES.md).
+ * the node's box, as yEd draws `y:ImageNode` and `y:SVGNode`. The realizer's own fill and border are kept beneath it,
+ * though yEd paints neither (`graphml-stm32-func`): draw.io, the stand-in for `yed-graphml-specimen-images-charts`,
+ * paints both, and that sheet waits for a drawing by yEd itself (ISSUES.md).
  * @param real - the realizer
  * @param resources - the graph's shared pictures
  * @param put - receives the values
@@ -1037,6 +1253,61 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
+}
+
+/**
+ * A color as Java's `Color.darker()` paints it: each channel at 0.7.
+ * @param hex - the `#rrggbb` color
+ * @returns the darker color
+ */
+function javaDarker(hex: string): string {
+    return hexOf(channelsOf(hex).map((c) => Math.floor(c * 0.7)));
+}
+
+/**
+ * A color as Java's `Color.brighter()` paints it: each channel over 0.7, a channel under 3 raised to 3 first, and black
+ * as `#030303`.
+ * @param hex - the `#rrggbb` color
+ * @returns the brighter color
+ */
+function javaBrighter(hex: string): string {
+    const channels = channelsOf(hex);
+    return channels.every((c) => c === 0)
+        ? "#030303"
+        : hexOf(channels.map((c) => Math.min(255, Math.floor((c > 0 && c < 3 ? 3 : c) / 0.7))));
+}
+
+/**
+ * The red, green and blue of a color.
+ * @param hex - the `#rrggbb` color
+ * @returns the three channels, 0 to 255
+ */
+function channelsOf(hex: string): number[] {
+    return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+}
+
+/**
+ * A color from its channels.
+ * @param channels - red, green and blue, 0 to 255
+ * @returns the `#rrggbb` color
+ */
+function hexOf(channels: number[]): string {
+    return `#${channels.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Writes the raised border Java's `fill3DRect` draws round a fill of this color: strips of 1 px in its `brighter()` and
+ * `darker()` colors, no line. No fill draws no strips.
+ * @param fill - the `#rrggbb` fill, or null
+ * @param put - receives the values
+ */
+export function putRaisedBorder(fill: string | null, put: PutValue): void {
+    put("borderWidth", 0);
+    if (fill !== null) {
+        put("raisedBorderWidth", 1);
+        put("raisedBorderLightColor", javaBrighter(fill));
+        put("raisedBorderDarkColor", javaDarker(fill));
+    }
 }
 
 /**
@@ -1060,12 +1331,23 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
         put("borderStyle", canonEnum("borderStyle", treeAttr(border, "type"), "yed", at("borderStyle")));
     }
     const geometry = treeChild(r, "Geometry");
-    put("width", canonNumber(treeAttr(geometry, "width"), at("width")));
-    put("height", canonNumber(treeAttr(geometry, "height"), at("height")));
-    put("shape", realizerShape(real, at));
-    const points = real.type === "GenericNode" ? genericOutline(r)?.points : undefined;
-    if (points !== undefined) {
-        put("shapePoints", points);
+    const width = canonNumber(treeAttr(geometry, "width"), at("width"));
+    const height = canonNumber(treeAttr(geometry, "height"), at("height"));
+    put("width", width);
+    put("height", height);
+    const outline = realizerOutline(real, width, height);
+    if (outline === null) {
+        put("shape", realizerShape(real, at));
+    } else {
+        putOutline(outline, width, height, put);
+    }
+    const fill = treeChild(r, "Fill");
+    const color = canonColor(treeAttr(fill, "color"), "yed", at("fill"))?.color ?? null;
+    if (outline?.darker === true) {
+        put("fill", color === null ? null : javaDarker(color));
+    }
+    if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
+        putRaisedBorder(unfilled(fill) ? null : color, put);
     }
     if (real.type === "TableNode") {
         readTable(real, put, at);
@@ -1074,6 +1356,46 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
         readPicture(real, resources, put);
     }
     readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
+}
+
+/**
+ * The width yEd draws a line of a given width: 0.5 and 1.5 both draw 1 wide (yed-graphml-specimen-arrows,
+ * yed-graphml-specimen-edges-lines), and whole widths as written. No other fraction has been drawn, so 2.5 stays as
+ * written until one has.
+ * @param width - the file's width
+ * @returns the drawn width
+ */
+export function yedDrawnWidth(width: number | null): number | null {
+    return width !== null && width > 0 && width < 2 ? 1 : width;
+}
+
+/**
+ * The arrows yEd draws at another size than the shape they read as, as fractions of its length and width
+ * (yed-graphml-specimen-arrows at line width 1): `short` is a standard head (12 x 10) drawn 8 x 12, and `concave` and
+ * `convex` are `plain`'s two arms (12 x 12) drawn 10 x 12 and 10 x 10.
+ */
+const YED_ARROW_SIZES: ReadonlyMap<unknown, { length: number; width?: number }> = new Map([
+    ["short", { length: 8 / 12, width: 12 / 10 }],
+    ["concave", { length: 10 / 12 }],
+    ["convex", { length: 10 / 12, width: 10 / 12 }],
+]);
+
+/**
+ * How long yEd draws an arrow as a fraction of its shape's length.
+ * @param arrow - the arrow's name in the file
+ * @returns the fraction, or null for the shape's own length
+ */
+export function yedArrowLength(arrow: unknown): number | null {
+    return YED_ARROW_SIZES.get(arrow)?.length ?? null;
+}
+
+/**
+ * How wide yEd draws an arrow as a fraction of its shape's width.
+ * @param arrow - the arrow's name in the file
+ * @returns the fraction, or null for the shape's own width
+ */
+export function yedArrowWidth(arrow: unknown): number | null {
+    return YED_ARROW_SIZES.get(arrow)?.width ?? null;
 }
 
 /**
@@ -1087,13 +1409,17 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
     const line = treeChild(r, "LineStyle");
     if (line !== undefined) {
         readColor(treeAttr(line, "color"), "color", "opacity", put, at);
-        put("width", canonNumber(treeAttr(line, "width"), at("width")));
+        put("width", yedDrawnWidth(canonNumber(treeAttr(line, "width"), at("width"))));
         put("lineStyle", canonEnum("lineStyle", treeAttr(line, "type"), "yed", at("lineStyle")));
     }
     const arrows = treeChild(r, "Arrows");
     if (arrows !== undefined) {
         put("sourceArrow", canonEnum("arrow", treeAttr(arrows, "source"), "yed", at("sourceArrow")));
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
+        put("sourceArrowLength", yedArrowLength(treeAttr(arrows, "source")));
+        put("targetArrowLength", yedArrowLength(treeAttr(arrows, "target")));
+        put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
+        put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
     }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {
@@ -1359,6 +1685,7 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["circle-open", "white_circle"],
     ["square", "skewed_dash"],
     ["crow", "crows_foot_many"],
+    ["other:open-vee", "plain"],
 ]);
 
 /** yEd's internal label model positions by neutral position: the center, and against a side or in a corner inside. */
@@ -1712,13 +2039,35 @@ interface GraphmlStyledExport {
 const GRAPHICS_TYPES: Readonly<Record<StyleTarget, string>> = { node: "nodegraphics", edge: "edgegraphics" };
 
 /**
- * A node's position from the graphics it had: a yEd realizer's `y:Geometry` x and y, or a yFiles 3 `y:RectD`'s.
+ * A corner's coordinate moved so a box written at another size keeps its center: a node's drawn size may be smaller
+ * than the box it had (a BPMN message in a 36 x 44 box draws 36 x 24).
+ * @param at - the coordinate as written
+ * @param had - the box's side as written
+ * @param now - the side the node is written with
+ * @returns the coordinate, as written when the side is the same
+ */
+function centeredOn(at: string, had: string | undefined, now: StyleValue | null): string {
+    const side = Number(had);
+    return typeof now === "number" && Number.isFinite(side) && side !== now
+        ? String(Number(at) + (side - now) / 2)
+        : at;
+}
+
+/**
+ * A node's position from the graphics it had: a yEd realizer's `y:Geometry` x and y, or a yFiles 3 `y:RectD`'s, moved
+ * to keep the box's center where the node is written at another size.
  * @param table - the node table
  * @param columns - its tree columns
  * @param i - the node
- * @returns the x and y as written, or null
+ * @param get - the node's values (its drawn width and height)
+ * @returns the x and y to write, or null
  */
-function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[], i: number): [string, string] | null {
+function keptPosition(
+    table: GraphSnapshot["nodes"],
+    columns: readonly string[],
+    i: number,
+    get: GetValue,
+): [string, string] | null {
     for (const name of columns) {
         const tree = plainCell(table.value(name, i));
         const real = realizerOf(tree, NODE_REALIZERS);
@@ -1726,7 +2075,10 @@ function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[],
         const x = treeAttr(geometry, real === null ? "X" : "x");
         const y = treeAttr(geometry, real === null ? "Y" : "y");
         if (x !== undefined && y !== undefined) {
-            return [x, y];
+            return [
+                centeredOn(x, treeAttr(geometry, real === null ? "Width" : "width"), get("width")),
+                centeredOn(y, treeAttr(geometry, real === null ? "Height" : "height"), get("height")),
+            ];
         }
     }
     return null;
@@ -1868,7 +2220,7 @@ export function graphmlStyledExport(
     const nodeTrees: (Tree | null)[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const get = getNode(i);
-        const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
+        const at = keptPosition(snapshot.nodes, nodeColumns, i, get) ?? columnPosition(snapshot, i, get);
         nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
     const boxes = nodeTrees.map((tree): WrittenBox => {

@@ -34,10 +34,10 @@ export interface CardField {
     readonly path: string;
     readonly on: Side;
     /**
-     * What kind of card it makes: the element's kind, `name` for the node id, or `source` for the
-     * load an element came from.
+     * What kind of card it makes: the element's kind, `name` for the node id, `source` for the
+     * load an element came from, or `date` for a column graphty-element says measures time.
      */
-    readonly kind: ReadableValueKind | "name" | "source";
+    readonly kind: ReadableValueKind | "name" | "source" | "date";
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
@@ -86,6 +86,15 @@ export type Card =
           readonly caseSensitive: boolean;
           /** The fixed list of node ids, for a name card's "Use the selected nodes". */
           readonly ids?: readonly string[];
+      }
+    | {
+          /** Instants, epoch milliseconds, both ends kept: the element's range leaf read `as: "time"`. */
+          readonly type: "date";
+          readonly key: string;
+          readonly field: CardField;
+          readonly match: "before" | "after" | "between" | Presence;
+          readonly min?: number;
+          readonly max?: number;
       }
     | {
           readonly type: "yes-no";
@@ -141,11 +150,17 @@ const sourceField = (side: Side): CardField => ({
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
+    const times = new Set(
+        session.data
+            .attributes()
+            .filter((each) => each.kind === side && each.measurement === "time")
+            .map((each) => each.path),
+    );
     const fields = session.data
         .readableValues()
         // A data column that only spells each node's id is the node id, listed once as Node id.
         .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
-        .map((value) => fieldOf(session, value));
+        .map((value) => fieldOf(session, value, times.has(value.path)));
     return session.data.sources().length >= 2 ? [...fields, sourceField(side)] : fields;
 }
 
@@ -153,22 +168,108 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
  * One readable value as a card field.
  * @param session - the element's session.
  * @param value - the value.
+ * @param time - graphty-element says the column measures time: a date card, with the span of the
+ * time field it is, as the table writes dates.
  * @returns the field.
  */
-function fieldOf(session: GraphSession, value: ReadableValue): CardField {
+function fieldOf(session: GraphSession, value: ReadableValue, time = false): CardField {
     if (value.path === "id") {
         return { path: "id", on: value.on, kind: "name", name: "Node id", group: "Structure" };
     }
     const groups: Record<ReadableValue["from"], FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
+    const span = time ? timeSpan(session, value.path) : undefined;
     return {
         path: value.path,
         on: value.on,
-        kind: value.kind,
+        kind: time && value.kind !== "number" ? "date" : value.kind,
         name: readableName(session, value).name,
         group: groups[value.from],
         ...(value.range === undefined ? {} : { range: value.range }),
-        ...withFact(valueFact(value)),
+        ...withFact(span ?? valueFact(value)),
     };
+}
+
+/**
+ * A time field's span in years, "1995 to 2018", when the path is the designated time field.
+ * @param session - the element's session.
+ * @param path - the column's path.
+ * @returns the words, or undefined for another column.
+ */
+function timeSpan(session: GraphSession, path: string): string | undefined {
+    const extent = session.time.extent();
+    const name = session.data.attributes().find((each) => each.path === path)?.name;
+    const { field } = session.time;
+    if (extent === null || name === undefined || (field?.nodes?.start !== name && field?.edges?.start !== name)) {
+        return undefined;
+    }
+    const [from, to] = [extent.from, extent.to].map((at) => new Date(at).getUTCFullYear());
+    return from === to ? String(from) : `${String(from)} to ${String(to)}`;
+}
+
+/** A day, in epoch milliseconds. */
+const DAY = 86_400_000;
+
+/** Text that names a whole year: "2005". */
+const YEAR_TEXT = /^\s*(\d{4})\s*$/u;
+
+/**
+ * The span typed text names: a year from its first instant to the next year's, a date to the next
+ * day's, an instant to itself. The session's time parser reads the text, so the card takes what a
+ * time field takes ("2005", "2005-03-01", "Mar 1, 2005").
+ * @param session - the element's session.
+ * @param text - the box's text.
+ * @returns the span's first instant and the first one after it, or null when the text names none.
+ */
+export function spanOf(session: GraphSession, text: string): { start: number; end: number } | null {
+    const year = YEAR_TEXT.exec(text);
+    if (year !== null) {
+        return { start: Date.UTC(Number(year[1]), 0, 1), end: Date.UTC(Number(year[1]) + 1, 0, 1) };
+    }
+    // A bare number is a year only at four digits: "2", "20" and "200" are a year still being typed.
+    const start = /^\s*[-+]?\d+(?:\.\d*)?\s*$/u.test(text) ? null : session.time.parse(text);
+    if (start === null) {
+        return null;
+    }
+    return { start, end: start % DAY === 0 ? start + DAY : start };
+}
+
+/** The table's way of writing a day, in UTC as the element's calendar is. */
+const DAY_WORDS = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" });
+
+/**
+ * A day as the table writes it.
+ * @param at - epoch milliseconds.
+ * @returns "May 12, 1998".
+ */
+export const dayWords = (at: number): string => DAY_WORDS.format(at);
+
+/**
+ * An instant as a date card writes it: a year when it starts one, a day when it starts one, else
+ * the date and time.
+ * @param at - epoch milliseconds.
+ * @returns "2005", "Jul 1, 2003", or an ISO date and time.
+ */
+export function startWords(at: number): string {
+    const date = new Date(at);
+    if (at % DAY !== 0) {
+        return date.toISOString();
+    }
+    return date.getUTCMonth() === 0 && date.getUTCDate() === 1 ? String(date.getUTCFullYear()) : DAY_WORDS.format(at);
+}
+
+/**
+ * The span that ends just before an instant, as a date card writes it: the year or the day before.
+ * @param at - the first instant after the span.
+ * @returns "2004", "Jun 30, 2003", or the instant itself.
+ */
+export function endWords(at: number): string {
+    const date = new Date(at);
+    if (at % DAY !== 0) {
+        return date.toISOString();
+    }
+    return date.getUTCMonth() === 0 && date.getUTCDate() === 1
+        ? String(date.getUTCFullYear() - 1)
+        : DAY_WORDS.format(at - DAY);
 }
 
 /**
@@ -216,6 +317,8 @@ export function newCard(field: CardField): Card {
             return { type: "category", key, field, match: "values", values: [], gaps: false };
         case "yes-no":
             return { type: "yes-no", key, field, match: "yes" };
+        case "date":
+            return { type: "date", key, field, match: "before" };
         case "source":
             return { type: "source", key, field, sources: [] };
         default:
@@ -249,6 +352,8 @@ export function leafOf(card: Card): RuleTree | null {
     switch (card.type) {
         case "number":
             return numberLeaf(card, path);
+        case "date":
+            return dateLeaf(card, path);
         case "category":
             return categoryLeaf(card, path);
         case "yes-no":
@@ -266,6 +371,25 @@ export function leafOf(card: Card): RuleTree | null {
 
 /** A card of one type. */
 type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
+
+/**
+ * A date card's leaf: its range compared as times, or null while it has neither end.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
+    if (card.min === undefined && card.max === undefined) {
+        return null;
+    }
+    return {
+        kind: "range",
+        attribute: path,
+        ...(card.min === undefined ? {} : { min: card.min }),
+        ...(card.max === undefined ? {} : { max: card.max }),
+        as: "time",
+    };
+}
 
 /**
  * A number card's leaf: its top N, or its range.
@@ -461,12 +585,8 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             const notField = not === undefined ? undefined : field(not);
             return notField === undefined ? elsewhere : presenceCard(notField, "absent");
         }
-        case "range": {
-            const f = field(leaf.attribute);
-            return f?.kind === "number"
-                ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
-                : elsewhere;
-        }
+        case "range":
+            return rangeCard(leaf, field(leaf.attribute), elsewhere);
         case "threshold":
             return thresholdCard(leaf, field, elsewhere);
         case "expression":
@@ -491,6 +611,47 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         default:
             return elsewhere;
     }
+}
+
+/**
+ * The card a range leaf draws: a date card for a range read as times, a number card for one read
+ * as numbers, else the fixed card.
+ * @param leaf - the range leaf.
+ * @param f - its field, if the kind has it.
+ * @param elsewhere - the fixed card.
+ * @returns the card.
+ */
+function rangeCard(leaf: Extract<RuleTree, { kind: "range" }>, f: CardField | undefined, elsewhere: Card): Card {
+    if (leaf.as === "time") {
+        return f?.kind === "date" ? dateCard(f, leaf.min, leaf.max) : elsewhere;
+    }
+    return f?.kind === "number"
+        ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
+        : elsewhere;
+}
+
+/**
+ * A date card from its leaf's bounds: Before with only an end, After with only a start.
+ * @param field - the date field.
+ * @param min - the leaf's first instant kept.
+ * @param max - the leaf's last instant kept.
+ * @returns the card.
+ */
+function dateCard(field: CardField, min: number | undefined, max: number | undefined): Card {
+    let match: "before" | "after" | "between" = "between";
+    if (min === undefined) {
+        match = "before";
+    } else if (max === undefined) {
+        match = "after";
+    }
+    return {
+        type: "date",
+        key: keyOf(field),
+        field,
+        match,
+        ...(min === undefined ? {} : { min }),
+        ...(max === undefined ? {} : { max }),
+    };
 }
 
 /** Finds the field a path names. */
@@ -748,6 +909,8 @@ export function cardWords(session: GraphSession, card: Card): string {
     switch (card.type) {
         case "number":
             return numberWords(session, card, name);
+        case "date":
+            return dateWords(card, name);
         case "category":
             return categoryWords(session, card, name, path);
         case "yes-no":
@@ -808,6 +971,23 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         return `${name} ${num(card.min)} or more`;
     }
     return card.max === undefined ? `${name}: any value` : `${name} up to ${num(card.max)}`;
+}
+
+/**
+ * A date card in words: "installed before 2005", "installed after Jul 1, 2003", "installed 1998 to
+ * 2004".
+ * @param card - the card, matching neither present nor absent.
+ * @param name - its field's name.
+ * @returns the words.
+ */
+function dateWords(card: CardOf<"date">, name: string): string {
+    if (card.min !== undefined && card.max !== undefined) {
+        return `${name} ${startWords(card.min)} to ${endWords(card.max + 1)}`;
+    }
+    if (card.min !== undefined) {
+        return `${name} after ${endWords(card.min)}`;
+    }
+    return card.max === undefined ? `${name}: type a date` : `${name} before ${startWords(card.max + 1)}`;
 }
 
 /**

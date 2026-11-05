@@ -173,7 +173,18 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["scalingFactor", "k", "iterations", "scale", "dim", "seed"],
+                [
+                    "clusterBy",
+                    "clusterStrength",
+                    "scalingFactor",
+                    "k",
+                    "iterations",
+                    "scale",
+                    "dim",
+                    "nodeGap",
+                    "nodeGapFront",
+                    "seed",
+                ],
             );
             assert.deepEqual(
                 options.filter((o) => o.type === "unknown"),
@@ -277,6 +288,7 @@ describe("optionsFromZod", () => {
                     "effect",
                     "border",
                     "outerBorder",
+                    "raisedBorder",
                     "underlay",
                     "overlay",
                     "image",

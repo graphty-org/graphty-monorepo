@@ -68,12 +68,18 @@ import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putOutline,
+    putRaisedBorder,
+    typeOutline,
     type ValueColumns,
     valueColumns,
     YED_ARROWS,
     YED_LINES,
     YED_SHAPES,
+    yedArrowLength,
+    yedArrowWidth,
     yedColor,
+    yedDrawnWidth,
     yedFontName,
     yedSpelled,
     yedValue,
@@ -539,15 +545,44 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         }
         put("shape", shape ?? null);
     } else if (g.type !== undefined) {
-        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         const outline = configurationOutline(g.customconfiguration);
-        put("shape", outline?.shape ?? null);
-        if (outline?.points !== undefined) {
-            put("shapePoints", outline.points);
+        if (outline !== null) {
+            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
         }
     }
+}
+
+/**
+ * Reads a node's `type`, by what yEd draws for it where the writer is yEd.
+ * @param g - the graphics record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readTypedShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const outline = writer.vocabulary === "yed" ? typeOutline(g.type, "ellipse") : null;
+    if (outline === null) {
+        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        return;
+    }
+    putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+    if (outline.raised === true) {
+        const fill = Number(g.hasFill) === 0 ? undefined : g.fill;
+        putRaisedBorder(canonColor(fill, writer.spelling, at("fill"))?.color ?? null, put);
+    }
+}
+
+/**
+ * A side of a node's box, for a shape drawn by its size.
+ * @param side - the `w` or `h` value
+ * @returns the number, or null when it is not one
+ */
+function boxSide(side: unknown): number | null {
+    const n = Number(side);
+    return side !== undefined && Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -748,7 +783,8 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     }
     readColor(g.fill, "color", "opacity", writer, put, at);
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
-    put("width", width === undefined ? null : canonNumber(width, at("width")));
+    const read = width === undefined ? null : canonNumber(width, at("width"));
+    put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
     put("lineStyle", strokeStyle(v === "ogdf" ? g.stipple : g.style, "lineStyle", writer, at("lineStyle")));
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("visible", false);
@@ -773,8 +809,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         if (ends === undefined) {
             noteAt(at("targetArrow"), STYLE_ISSUE.UNKNOWN_VALUE, g.arrow.slice(0, MAX_STYLE_VALUE_LENGTH));
         } else {
-            put("sourceArrow", ends[0]);
-            put("targetArrow", ends[1]);
+            // yEd draws the `arrow` key's heads as its standard head, 10 wide where its triangle is 12
+            const head = (end: string): string => (writer.tool === "yed" && end === "triangle" ? "vee" : end);
+            put("sourceArrow", head(ends[0]));
+            put("targetArrow", head(ends[1]));
         }
     }
     for (const [keys, property] of [
@@ -791,6 +829,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.tool === "yed") {
+            put(`${property}Length`, yedArrowLength(raw));
+            put(`${property}Width`, yedArrowWidth(raw));
+        }
     }
 }
 

@@ -214,7 +214,7 @@ function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set
         }
     };
     for (const node of nodes) {
-        add(node.mesh);
+        add(node.teardownMesh);
     }
 
     for (const edge of edges) {
@@ -297,6 +297,12 @@ export function laneStoreOf(manager: DataManager): LaneStore {
             return inputCountersOf(manager);
         },
         followRenumbering: (follower) => dataManagerInternals.followRenumbering(manager, follower),
+        get renumberCount() {
+            return dataManagerInternals.renumberCount(manager);
+        },
+        get lastRenumbering() {
+            return dataManagerInternals.lastRenumbering(manager);
+        },
     };
 }
 
@@ -331,6 +337,10 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** How many freezes renumbered rows; see `GraphStore.renumberCount`. */
+    renumberCount(manager: DataManager): number;
+    /** The last of them and its remaps; see `GraphStore.lastRenumbering`. */
+    lastRenumbering(manager: DataManager): GraphStore["lastRenumbering"];
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
     /**
@@ -382,6 +392,8 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.renumberCount = (manager) => manager.store.renumberCount;
+        dataManagerInternals.lastRenumbering = (manager) => manager.store.lastRenumbering;
         dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.lastEdit = (manager) => manager.lastEdit;
         dataManagerInternals.adoptNode = (manager, node) => {
@@ -1081,6 +1093,7 @@ export class DataManager implements Manager {
 
         if (element instanceof Node) {
             placeNodeRow(element, row);
+            this.nodeVersion++;
         } else {
             placeEdgeRow(element, row);
             if (row !== INVALID_INDEX) {
@@ -1455,6 +1468,8 @@ export class DataManager implements Manager {
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
             placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
         }
+
+        this.nodeVersion++;
     }
 
     /**

@@ -69,6 +69,8 @@ import {
     visibilityCycle,
 } from "../sets/dependencies";
 import { normalizeText, textMatcher } from "../text";
+import { numericBound, readTimeValue } from "../time/parse";
+import { isTimeZone } from "../time/zone";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -102,21 +104,39 @@ export interface TimeWindow {
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
      * window ends at it, so nodes follow their edges.
+     * @experimental timeline
+     * @beta
      */
     readonly nodes?: "all" | "ends";
     /**
      * Whether an element of a kind that carries the attribute, but has no usable value for it, is
      * kept: `"inside"` (the default) or `"outside"`.
+     * @experimental timeline
+     * @beta
      */
     readonly missing?: "inside" | "outside";
-    /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
+    /**
+     * How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end.
+     * @experimental timeline
+     * @beta
+     */
     readonly mode?: "sliding" | "cumulative";
+    /**
+     * The IANA zone `session.time`'s calendar steps and bins read in, such as `America/New_York`;
+     * left out, {@link TimePlayback.timeZone}. Hours are absolute; a day and longer follow the
+     * zone's clock, so a day across a clock change is 23 or 25 hours.
+     * @experimental timeline
+     * @beta
+     */
+    readonly timeZone?: string;
 }
 
 /**
  * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
  * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
  * new window. See {@link TimePlayback.results}.
+ * @experimental timeline
+ * @beta
  */
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
@@ -124,6 +144,8 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
  * How `session.time` moves windows, held with the designated field rather than on one window, so
  * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
  * optional; one left out reads its default.
+ * @experimental timeline
+ * @beta
  */
 export interface TimePlayback {
     /** What a window move does to finished runs over the visible graph; default `"stale"`. */
@@ -144,6 +166,8 @@ export interface TimePlayback {
      * export includes them.
      */
     readonly outside?: "hide" | "ghost";
+    /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
+    readonly timeZone?: string;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
@@ -217,6 +241,22 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
+    /**
+     * Whether a window's bounds are instants of a time column's parsed values rather than values
+     * to compare as they stand: with the timeline on, or read from a project that saved them so.
+     * @param window - The window.
+     * @returns True for instants. Absent, the answer is whether the timeline is on.
+     */
+    readonly holdsInstants?: (window: TimeWindow) => boolean;
+    /**
+     * The zone a window's text bounds read in. Absent, or undefined for an attribute, they read as
+     * `Date.parse` does.
+     * @param attribute - The window's attribute.
+     * @returns The zone, or undefined.
+     */
+    readonly boundZone?: (attribute: Path) => string | undefined;
     /**
      * The instants of a designated time column, parsed once. Absent, or null for a path or a
      * kind, a window parses each element's value itself.
@@ -582,6 +622,10 @@ function assertFilter(filter: RuleTree): void {
             assertBounds(filter.min, filter.max, filter.kind);
             assertNodesChoice(filter.nodes, filter.kind);
 
+            if (filter.as !== undefined && (filter.as as string) !== "time") {
+                throw malformed('A "range" filter\'s as is "time", or absent to compare numbers.', { as: filter.as });
+            }
+
             return;
         case "categories":
             assertPath(filter.attribute, filter.kind);
@@ -787,6 +831,15 @@ export function assertVisibility(
 }
 
 /**
+ * Whether a window asks for what only the timeline experiment applies.
+ * @param window - The window, or null for none.
+ * @returns True when it names `nodes: "ends"` or `missing: "outside"`.
+ */
+export function windowNeedsTimeline(window: TimeWindow | null): boolean {
+    return window?.nodes === "ends" || window?.missing === "outside";
+}
+
+/**
  * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
  * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
  * recorded rather than on every later evaluation.
@@ -797,6 +850,14 @@ export function assertVisibility(
  */
 export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | null, sources: FilterSources): void {
     assertVisibility(filter, window);
+    // With the timeline off a window's zone does nothing, so any value stays saved as it came.
+    if (window?.timeZone !== undefined && sources.timeline?.() !== false && !isTimeZone(window.timeZone)) {
+        throw malformed("A time window's timeZone is an IANA zone name, such as America/New_York.", {
+            field: "timeZone",
+            reason: "time-zone",
+            value: window.timeZone,
+        });
+    }
 
     const check = (each: RuleTree): void => {
         switch (each.kind) {
@@ -1106,9 +1167,36 @@ function compileAttribute(
     context: CompileContext,
     filter: Extract<RuleTree, { kind: "range" | "categories" }>,
 ): CompiledHalves {
+    if (filter.kind === "range" && filter.as === "time") {
+        return compileTimeRange(context, filter);
+    }
+
     const accept = filter.kind === "range" ? inRange(filter.min, filter.max) : inCategories(filter.values);
 
     return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept);
+}
+
+/**
+ * A `range` leaf with `as: "time"`: each value read as an instant. The designated time field's
+ * instants, parsed once by the timeline, are read where they exist, so the leaf and the timeline
+ * agree on every value; any other column is read by the session's time parser.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileTimeRange(context: CompileContext, filter: Extract<RuleTree, { kind: "range" }>): CompiledHalves {
+    const within = inRange(filter.min, filter.max);
+    const indexed = context.sources.instants?.(filter.attribute) ?? null;
+    const rowsOf = (parsed: TimeInstants | null | undefined): ((index: number) => unknown) | undefined =>
+        parsed === null || parsed === undefined
+            ? undefined
+            : (index) => (Number.isNaN(parsed.rows[index]) ? undefined : parsed.rows[index]);
+    const accept = (value: unknown): boolean => within(typeof value === "number" ? value : readTimeValue(value, "ms"));
+
+    return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept, {
+        node: rowsOf(indexed?.node),
+        edge: rowsOf(indexed?.edge),
+    });
 }
 
 /**
@@ -1140,6 +1228,9 @@ function compileText(context: CompileContext, filter: Extract<RuleTree, { kind: 
  * @param attribute - The value path.
  * @param nodes - Which nodes the leaf keeps when the value lives on edges.
  * @param accept - The test of one value.
+ * @param readers - Reads one element's value instead of the value source, per half.
+ * @param readers.node - Reads one node's value.
+ * @param readers.edge - Reads one edge's value.
  * @returns The halves.
  */
 function compileValueLeaf(
@@ -1148,12 +1239,13 @@ function compileValueLeaf(
     attribute: Path,
     nodes: AttributeLeafNodes | undefined,
     accept: (value: unknown) => boolean,
+    readers: { readonly node?: (index: number) => unknown; readonly edge?: (index: number) => unknown } = {},
 ): CompiledHalves {
     const { graph } = context;
     const values = valuesOf(context, kind);
     const mark = markFor(context, attribute);
-    const readNode = (index: number): unknown => values.nodeValue(index, attribute);
-    const readEdge = (index: number): unknown => values.edgeValue(index, attribute);
+    const readNode = readers.node ?? ((index: number): unknown => values.nodeValue(index, attribute));
+    const readEdge = readers.edge ?? ((index: number): unknown => values.edgeValue(index, attribute));
     const known = values.halvesOf?.(attribute);
     const onNodes = known?.node ?? carries(graph.nodeCount, readNode);
     const onEdges = known?.edge ?? carries(graph.edgeCount, readEdge);
@@ -1722,10 +1814,16 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const values = valuesOf(context, "window");
     const { graph } = context;
     const mark = markFor(context, window.attribute);
-    const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
-    const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
-    const missingInside = window.missing !== "outside";
-    const indexed = context.sources.instants?.(window.attribute) ?? null;
+    const zone = context.sources.boundZone?.(window.attribute);
+    const boundOf = (bound: number | string): number | null =>
+        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
+    const from = boundOf(window.from) ?? Number.NEGATIVE_INFINITY;
+    const to = boundOf(window.to) ?? Number.POSITIVE_INFINITY;
+    // With the timeline off a saved window's options stay saved and are not applied.
+    const timeline = context.sources.timeline?.() !== false;
+    const missingInside = !timeline || window.missing !== "outside";
+    const holdsInstants = context.sources.holdsInstants?.(window) ?? timeline;
+    const indexed = holdsInstants ? (context.sources.instants?.(window.attribute) ?? null) : null;
 
     /**
      * The test of one kind: whether its instant falls inside the half-open window. An element
@@ -1764,7 +1862,7 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (window.nodes === "ends" && edge !== null) {
+    if (timeline && window.nodes === "ends" && edge !== null) {
         // ponytail: counts an edge inside the window, not one that also passes the filter's edge
         // half, as the `ends` of a range leaf does; the design's rule ANDs both.
         const list = graph.edgeList();

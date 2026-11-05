@@ -175,7 +175,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= restoresStartingRows(path, value, same);
+            restore ||= restoresStartingRows(path, value, same, ctx.services.timeline?.() !== false);
         }
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once
@@ -191,9 +191,10 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
  * @param path - The key.
  * @param value - The value written (undefined to clear it).
  * @param same - Whether the write leaves the value the key already reads as.
+ * @param timeline - Whether the timeline experiment is on: off, a time field brings no Ghost row.
  * @returns True when the starting rows are to be restored.
  */
-function restoresStartingRows(path: string, value: unknown, same: boolean): boolean {
+function restoresStartingRows(path: string, value: unknown, same: boolean, timeline: boolean): boolean {
     if ((path === "startingRows" || path === "editableBase") && value === true) {
         return true;
     }
@@ -202,10 +203,8 @@ function restoresStartingRows(path: string, value: unknown, same: boolean): bool
     // clearing the pinned look the Pinned row. Only a change does: writing the value already
     // in effect (a project opened over the same settings) adds nothing, so a project read
     // into a cleared tree gets exactly the rows it saved.
-    return (
-        !same &&
-        (path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath" || path === "pinnedStyle")
-    );
+    const timeField = path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath";
+    return !same && ((timeField && timeline) || path === "pinnedStyle");
 }
 
 /**

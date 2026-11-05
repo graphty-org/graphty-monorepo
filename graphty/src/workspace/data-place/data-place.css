@@ -39,7 +39,7 @@
     align-items: center;
     gap: 4px;
     min-height: 28px;
-    padding-inline: 8px 4px;
+    padding-inline: 4px;
     border-radius: 4px;
 }
 
@@ -48,14 +48,19 @@
     background: var(--mantine-color-default-hover);
 }
 
+/* The name and a joined file's ratio keep a readable width (tier 4 bar 6: "d.." beside its chips);
+   when the count chips do not fit beside them they move to a second line, right aligned. Nothing
+   covers the chips, and the issue chip after the button never covers them either. */
 .dp-source-main {
     display: flex;
     flex: 1;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    min-width: 0;
-    padding: 0;
+    gap: 2px 6px;
+    /* Room inside the button, so its inset focus ring clears the text. */
+    padding: 2px 4px;
     border: 0;
+    border-radius: 4px;
     background: none;
     color: inherit;
     font: inherit;
@@ -70,50 +75,62 @@
     color: var(--mantine-color-dimmed);
 }
 
+.dp-source-label {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    gap: 6px;
+    width: 0;
+    /* Never wider than the button less its icon, so the icon and the name share the first line. */
+    min-width: min(calc(100% - 22px), 9em);
+}
+
 .dp-source-name {
     flex: 1 1 auto;
-    min-width: 4em;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* The counts give way before the name does. */
-.dp-source-main .dp-quiet {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+/* The approved join ratio ("17/19") is drawn whole; the name gives way first. */
+.dp-source-label .dp-quiet {
+    flex: none;
 }
 
 .dp-source-chips {
     display: inline-flex;
     flex: none;
     gap: 4px;
+    margin-inline-start: auto;
 }
 
 /*
- * Load more, Refresh and "..." take the chips' place on hover, on keyboard focus, while the row's
- * menu is open and while one of them runs, so they are never drawn over the chips. Folded to no
- * width rather than removed, so a keyboard and a screen reader still reach them.
+ * After the chips: Load more and Refresh, shown on hover, on keyboard focus, while the row's menu
+ * is open and while one of them runs, then "..." in a trailing slot that keeps its width at rest so
+ * the chips never move. Folded and hidden rather than removed, so a keyboard and a screen reader
+ * still reach them.
  */
 .dp-source-actions {
     display: inline-flex;
     flex: none;
     gap: 2px;
+}
+
+.dp-source-actions > :not(.dp-source-more) {
     max-width: 0;
     overflow: hidden;
     opacity: 0;
 }
 
-.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions {
+.dp-source-more {
+    opacity: 0;
+}
+
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions > * {
     max-width: none;
     overflow: visible;
     opacity: 1;
-}
-
-.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-chips {
-    display: none;
 }
 
 .dp-rename {
@@ -121,8 +138,9 @@
 }
 
 /* Fields: the load's name, then each side's rows under its node or edge chip. */
-.dp-fields-source {
-    padding: 4px 0;
+/* The per-load groups span the panel as the Fields section does, so their headers line up with it. */
+.dp-field-groups {
+    margin-inline: -16px -8px;
 }
 
 /* A side's header: its chip, and the "+" that adds a field, at the right end. */
@@ -151,14 +169,37 @@
     padding-inline-start: 18px;
 }
 
-/* The Filters section's cards (design/data/filter-cards.md section 5): a plain list, one card each. */
+/* The Filters section's cards (design/data/filter-cards.md section 5): a plain list, one card each,
+   at the section's own edges (the section pads the panel). */
 .dp-filters {
     margin: 0;
-    padding: 0 8px 0 16px;
+    padding: 0;
     list-style: none;
+}
+
+/* A card's header: its field's name takes the room, its count and remove button after it. */
+.dp-filter-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    font: inherit;
+    text-align: start;
+}
+
+/* A resting card's summary line, under its switches. */
+.dp-filter-summary {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: start;
 }
 
 /* An off card keeps its count and its values, dimmed. */
 .dp-filter[data-off] .dp-filter-body {
     opacity: 0.6;
+}
+
+/* The row's issues chip stays drawn on hover and focus: it is a door, not a count the actions replace. */
+.dp-source-issues {
+    flex: none;
 }

@@ -997,8 +997,9 @@ the level steps back up, never above the setting. Each step updates `graph.rende
 
 **Precision and limits.** `highp` everywhere; custom code within the WebGL2 minimums (16 vertex
 attributes, 16 texture units, 224 fragment uniform vectors, 15 varying vectors); every shader's
-source inline in Babylon's shader store, so iPad Safari never lazily imports a shader chunk; when a
-program is replaced (a parameter that needs a different program, the level-of-detail switch), the
+source inline, handed straight to the engine rather than through Babylon's shader store (a lazily
+loaded module may hold a second copy of Babylon, whose store the engine never reads), so iPad Safari
+never lazily imports a shader chunk; when a program is replaced (a parameter that needs a different program, the level-of-detail switch), the
 old one keeps drawing until the new one is ready. Presets are translated to WGSL at build time, so
 runtime translation runs only for pasted shaders.
 

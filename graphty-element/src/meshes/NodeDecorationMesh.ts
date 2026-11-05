@@ -26,9 +26,11 @@ import {
     clipToBox,
     type ColorPiece,
     databaseRim,
+    framedBand,
     imageBox,
     type PieceBox,
     pieSlices,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
@@ -74,6 +76,7 @@ export interface NodeDecorationOptions {
     readonly border?: NodeStyleConfig["border"];
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
+    readonly raisedBorder?: NodeStyleConfig["raisedBorder"];
     readonly chart?: NodeStyleConfig["chart"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
@@ -97,6 +100,7 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
+        (o.raisedBorder?.width ?? 0) > 0 ||
         o.chart?.values !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
@@ -118,6 +122,8 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
  * @param size - The node's size, when its shape gives none.
  * @param fill - The node's own mesh.
  * @param scene - The scene.
+ * @param onImageFailed - Told once per built picture when neither it nor its fallback loads, with the
+ * URL the style named and the one that failed last.
  * @returns The three instances.
  */
 export function createNodeDecorations(
@@ -127,6 +133,7 @@ export function createNodeDecorations(
     size: number,
     fill: AbstractMesh,
     scene: Scene,
+    onImageFailed?: (ref: string, failed: string) => void,
 ): { pieces: InstancedMesh | null; image: InstancedMesh | null; glyph: InstancedMesh | null } {
     if (!hasDecoration(o)) {
         return { pieces: null, image: null, glyph: null };
@@ -144,7 +151,9 @@ export function createNodeDecorations(
     const image =
         picture === undefined || (picture.src ?? "") === ""
             ? null
-            : cache.get(`node-image-${key}`, () => buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene));
+            : cache.get(`node-image-${key}`, () =>
+                  buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene, onImageFailed),
+              );
     const glyph =
         (o.glyph?.text ?? "") === ""
             ? null
@@ -329,11 +338,13 @@ type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean; r
  */
 function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; width: number; height: number }): Placed[] {
     // a band is the box it fills, cut to the node: its box for a reader is the band's own, as a clipped
-    // rectangle's is in an SVG
-    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) => {
-        const outline = clipToBox(face.outline, b.box);
-        return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
-    });
+    // rectangle's is in an SVG, and a framed band's strips each read as the whole band they make
+    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) =>
+        framedBand(o.stripes?.frame, b.box).flatMap((part) => {
+            const outline = clipToBox(face.outline, part);
+            return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
+        }),
+    );
     const rim =
         o.shape?.type === "database"
             ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))
@@ -351,6 +362,10 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         ...chartPieces(o.chart, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
         ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
+        ...raisedStrips(o.raisedBorder, face.width, face.height, scale).flatMap((s) => {
+            const outline = clipToBox(face.outline, s.box);
+            return outline.length < 3 ? [] : [{ ...s, outline }];
+        }),
     ];
 }
 
@@ -479,6 +494,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
  * @param scale - World units per unit of the style's lengths.
  * @param z - The z it is drawn at.
  * @param scene - The scene.
+ * @param onFailed - Told when neither the picture nor its fallback loads.
  * @returns The mesh.
  */
 function buildImage(
@@ -487,6 +503,7 @@ function buildImage(
     scale: number,
     z: number,
     scene: Scene,
+    onFailed?: (ref: string, failed: string) => void,
 ): Mesh {
     const mesh = new Mesh("node-image", scene);
     const mat = flatMaterial("node-image", scene);
@@ -537,12 +554,16 @@ function buildImage(
      * Load a picture as the material's texture: its own size shapes the mesh once it arrives; one that cannot be
      * loaded gives way to the next in line, and with none left draws nothing and holds no frame back.
      * @param sources - The URLs still to try, in order.
+     * @param failed - The URL that failed last, if one did.
      */
-    const load = (sources: readonly string[]): void => {
+    const load = (sources: readonly string[], failed?: string): void => {
         const [src, ...rest] = sources;
         if (src === undefined) {
             mat.diffuseTexture = null;
             shape(null);
+            if (failed !== undefined) {
+                onFailed?.(image.src ?? failed, failed);
+            }
             return;
         }
         const texture: Texture = new Texture(
@@ -557,7 +578,7 @@ function buildImage(
             },
             () => {
                 texture.dispose();
-                load(rest);
+                load(rest, src);
             },
             // Babylon.js reads a `data:` URL itself only in base64; any other (an SVG written out as text) it loads
             // as an image only when handed the URL as the picture's buffer

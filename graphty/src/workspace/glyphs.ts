@@ -29,6 +29,7 @@ import {
     CircleDot,
     CircleHelp,
     CircleSlash,
+    ClipboardPaste,
     Clock,
     Code,
     Columns3,
@@ -208,6 +209,7 @@ export const GLYPHS = {
     more: MoreHorizontal,
     rename: Pencil,
     duplicate: Copy,
+    paste: ClipboardPaste,
     // Pin a style row above or below the unpinned rows, and let it go.
     pinTop: ArrowUpToLine,
     pinBottom: ArrowDownToLine,

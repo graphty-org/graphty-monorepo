@@ -63,6 +63,7 @@ import type {
 } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { featureOff } from "../../features/resolve";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
 import type { VisibilityState } from "../project/state";
@@ -96,7 +97,16 @@ import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
-import { assertConditions, combinedRule, conditionsOfSteps, selectRule, stepsOf, wellFormed } from "./conditions";
+import {
+    assertConditions,
+    combinedRule,
+    conditionOf,
+    conditionsOfSteps,
+    selectRule,
+    selectsOverGraph,
+    stepsOf,
+    wellFormed,
+} from "./conditions";
 import {
     assertEvaluable,
     assertVisibility,
@@ -106,7 +116,9 @@ import {
     type RuleTree,
     runPass,
     type ScopeLeaf,
+    type TimePlayback,
     type TimeWindow,
+    windowNeedsTimeline,
 } from "./filter";
 import { type SlideCounts, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
@@ -182,9 +194,12 @@ export interface VisibilityChange extends FilterResult {
  * @beta
  */
 export interface FilterConditionMatches {
-    /** How many the rule matches over the whole graph. */
+    /**
+     * How many the rule matches over the whole graph, or, for a select condition that selects
+     * only within the picture, among what is drawn.
+     */
     readonly matched: number;
-    /** How many the graph holds. */
+    /** How many the graph holds, for every condition. */
     readonly total: number;
 }
 
@@ -192,6 +207,12 @@ export interface FilterConditionMatches {
  * What one filter condition's rule matches, as written, over the whole graph: the same whatever
  * its effect, whether it is on, and whatever the other conditions are, so a condition that is off
  * still says what switching it on would match.
+ *
+ * One exception: a select condition counts what it would select. Unless every select condition
+ * that is on (this one counted as on) reads `within: "graph"`, it selects only within the picture,
+ * so it counts its rule's matches among what is drawn, out of how many are drawn (the whole graph
+ * when nothing filters). That too holds whether it is on or off, and whatever order the
+ * conditions are in.
  * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
  * @beta
@@ -349,7 +370,8 @@ export interface VisibilityApi {
      * Select conditions hide nothing: whenever the select conditions change (one is added,
      * edited, switched on or off, or removed), or a keep or exclude condition changes while a
      * select condition is on, the selection becomes what every select condition that is on
-     * matches among the elements that are visible, replacing a selection the reader made; with
+     * matches among the elements that are visible (or over the whole graph, when every select
+     * condition that is on reads `within: "graph"`), replacing a selection the reader made; with
      * none on, nothing is selected. The result depends only on the set of conditions, never on
      * their order. A selection change the reader makes by hand (a `"user"` cause) switches every
      * select condition that is on off, in one undoable step, and keeps the reader's selection.
@@ -469,6 +491,27 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult>;
     /**
+     * Record a window read back from a project file, kept as saved whatever the session switched
+     * on, so a project saved with the timeline on survives being opened and saved with it off.
+     * @param window - The window.
+     * @param raw - Whether the file says its bounds are values to compare as they stand.
+     * @returns The run, which resolves with the counts.
+     */
+    restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult>;
+    /**
+     * Record timeline settings read back from a project file, or clear them, kept as saved
+     * whatever the session switched on.
+     * @param playback - The settings, or null.
+     * @returns Resolves once they are recorded.
+     */
+    restorePlayback(playback: TimePlayback | null): Promise<unknown>;
+    /**
+     * Whether a window's bounds are instants of a time column's parsed values.
+     * @param window - The window.
+     * @returns True with the timeline on, and for a window a project saved as instants.
+     */
+    holdsInstants(window: TimeWindow): boolean;
+    /**
      * Move the time window without recording it, writing only the rows whose membership changes:
      * the cursor `session.time` plays and drags. Recording the window afterwards (`setWindow`, or
      * a `visibility.window` command) evaluates it in full, which lands on the same masks.
@@ -505,6 +548,12 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
+}
+
+/** What is drawn, one mask per kind. */
+interface Drawn {
+    readonly nodes: ElementMask<NodeId>;
+    readonly edges: ElementMask<EdgeId>;
 }
 
 /** Visible nodes and edges. */
@@ -1011,17 +1060,30 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const passSources = (graph: GraphSnapshot): FilterSources => {
         const { scope, dependencies } = sources;
         if (scope === undefined) {
-            return sources;
+            return { ...sources, holdsInstants };
         }
 
         return {
             ...sources,
+            holdsInstants,
             scope: (spec): ScopeLeaf =>
                 dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
                     ? { nodes: makeMask(graph.nodeCount), edges: null }
                     : scope(spec),
         };
     };
+
+    /** The window a project restored as instants, as text: undo brings back a copy of it. */
+    let savedInstants: string | null = null;
+
+    /**
+     * Whether a window's bounds are instants. With the timeline off a window set live reads values
+     * as they stand, as it did before the timeline; only a saved one holds instants.
+     * @param window - The window.
+     * @returns True for instants.
+     */
+    const holdsInstants = (window: TimeWindow): boolean =>
+        sources.timeline?.() !== false || JSON.stringify(window) === savedInstants;
 
     /**
      * Write the whole membership into the masks from a filter and a window.
@@ -1204,6 +1266,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
     const ghostingNow = (): boolean =>
+        sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
 
@@ -1313,6 +1376,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The visibility ops of this dispatcher refuse what this session cannot evaluate.
     dispatcher.services.visibility = {
+        timeline: () => sources.timeline?.() !== false,
         check: (filter, window) => {
             assertEvaluable(filter, window, sources);
         },
@@ -1335,8 +1399,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             was.showContext === now.showContext &&
             JSON.stringify(combinedRule(was.filter, was.conditions)) ===
                 JSON.stringify(combinedRule(now.filter, now.conditions));
-        followSelectHistory(was.conditions, now.conditions);
+        // The masks first: a redo's selection is what the select conditions match among what the
+        // conditions it reached leave visible.
         sync();
+        followSelectHistory(was.conditions, now.conditions);
     });
 
     // The filter follows the sets it names: when one moves -- a set edit, its undo or redo, or an
@@ -1442,7 +1508,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             const rule = sources.admit === undefined ? shaped.rule : sources.admit(shaped.rule);
             assertVisibility(rule, null, sources.dependencies);
-            return Object.freeze({ id: shaped.id, on: shaped.on, effect: shaped.effect, rule });
+            return Object.freeze(conditionOf(shaped, rule));
         });
         assertConditions(list);
         return Object.freeze(list);
@@ -1481,7 +1547,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         compileVisibility(active.graph, rule, null, passSources(active.graph));
 
     /**
-     * The ids a select rule matches, over the whole graph; a kind it says nothing of has none.
+     * The ids a select rule matches among the visible elements, or over the whole graph when every
+     * select condition that is on reads `within: "graph"`; a kind it says nothing of has none.
      * @param conditions - The conditions whose select ones to read.
      * @returns The ids.
      */
@@ -1497,19 +1564,20 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // out (design/ui/framework/interaction-patterns.md, "When selected elements leave").
         const active = upToDate();
         const compiled = compiledOver(active, rule);
+        const whole = selectsOverGraph(conditions);
         const nodes: NodeId[] = [];
         const edges: EdgeId[] = [];
         const { node, edge } = compiled;
         for (let at = 0; node !== null && at < active.graph.nodeCount; at++) {
             const id = active.nodeSpace.idOf(at);
-            if (node(at) && nodeMaskValue.has(nodeMaskValue.indexOf(id))) {
+            if (node(at) && (whole || nodeMaskValue.has(nodeMaskValue.indexOf(id)))) {
                 nodes.push(id);
             }
         }
 
         for (let at = 0; edge !== null && at < active.graph.edgeCount; at++) {
             const id = active.edgeSpace.idOf(at);
-            if (edge(at) && edgeMaskValue.has(edgeMaskValue.indexOf(id))) {
+            if (edge(at) && (whole || edgeMaskValue.has(edgeMaskValue.indexOf(id)))) {
                 edges.push(id);
             }
         }
@@ -1663,27 +1731,38 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     } | null = null;
 
     /**
-     * What one rule matches, as written, over the whole graph.
+     * What one rule matches, as written, over the whole graph or only among what is drawn.
      * @param active - The frame.
      * @param rule - The rule.
+     * @param drawn - What is drawn, to count among; null for the whole graph.
      * @returns The count, without an id.
      */
-    const countRule = (active: VisibilityFrame, rule: RuleTree): Omit<FilterConditionCount, "id"> => {
+    const countRule = (
+        active: VisibilityFrame,
+        rule: RuleTree,
+        drawn: Drawn | null,
+    ): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
-        const tally = (test: ((index: number) => boolean) | null, total: number): FilterConditionMatches | null => {
+        const tally = (
+            test: ((index: number) => boolean) | null,
+            count: number,
+            among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
+        ): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
-            for (let at = 0; at < total; at++) {
-                matched += test(at) ? 1 : 0;
+            for (let at = 0; at < count; at++) {
+                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
             }
 
-            return Object.freeze({ matched, total });
+            // One basis for every condition: the whole graph's count, so a Select card and a Filter
+            // to card beside it are read against the same number.
+            return Object.freeze({ matched, total: count });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount);
-        const edges = tally(compiled.edge, active.graph.edgeCount);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -1701,7 +1780,22 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const conditions = conditionsNow();
         const bucket = countBucket;
-        const each = conditions.map((condition) => signatureOf(condition.rule));
+        // A select condition selects only among what is drawn unless every select condition that is
+        // on reads "graph" (selectsOverGraph), and its count follows the same predicate: among the
+        // live masks, synced by upToDate above, so their version is part of its key. An off one is
+        // judged as if it were switched on, so it says what switching it on would mark.
+        const inPicture = (condition: FilterCondition): boolean =>
+            condition.effect === "select" &&
+            !selectsOverGraph(
+                condition.on
+                    ? conditions
+                    : conditions.map((each) => (each === condition ? { ...each, on: true } : each)),
+            );
+        const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
+        const each = conditions.map((condition) => {
+            const own = signatureOf(condition.rule);
+            return own === null || !inPicture(condition) ? own : `${own}\n${pictureSignature}`;
+        });
         const signatures = JSON.stringify(each);
         if (
             countsMemo?.conditions === conditions &&
@@ -1721,8 +1815,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 // By id too, so a condition nothing changed hands back the same object.
                 const key =
                     signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
+                const drawn = inPicture(condition) ? { nodes: nodeMaskValue, edges: edgeMaskValue } : null;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule) });
+                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule, drawn) });
 
                 if (key !== null) {
                     kept.set(key, count);
@@ -1978,6 +2073,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
             assertVisibility(null, window);
+            if (sources.timeline?.() === false && windowNeedsTimeline(window)) {
+                throw featureOff("timeline", "visibility.window");
+            }
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
         },
@@ -2024,9 +2122,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ): Run<FilterResult> {
             const list = conditionsNow();
             const at = indexOfCondition(list, id);
-            const { on, effect, rule } = { ...list[at], ...change };
+            const merged = { ...list[at], ...change, id };
             return editConditions(
-                admitConditions(list.map((each, index) => (index === at ? { id, on, effect, rule } : each))),
+                admitConditions(list.map((each, index) => (index === at ? conditionOf(merged, merged.rule) : each))),
                 options,
             );
         },
@@ -2053,6 +2151,19 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 {},
             );
         },
+
+        restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult> {
+            assertVisibility(null, window);
+            savedInstants = raw ? null : JSON.stringify(window);
+
+            return edit({ op: "visibility.window", window }, ruleNow(), window, {});
+        },
+
+        restorePlayback(playback: TimePlayback | null): Promise<unknown> {
+            return dispatcher.dispatch({ op: "visibility.playback", playback });
+        },
+
+        holdsInstants,
 
         get rule(): RuleTree | null {
             return ruleNow();

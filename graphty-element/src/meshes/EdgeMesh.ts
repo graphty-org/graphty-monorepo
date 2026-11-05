@@ -28,6 +28,7 @@ import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
+import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
@@ -70,6 +71,7 @@ interface ArrowHeadOptions {
     opacity?: number; // Opacity 0-1 (default 1.0)
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
+    outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
 }
 
 /**
@@ -672,18 +674,36 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
+        // AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz
+        // and Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
+        // createPatternedLine) over the cap's length, which a batch's one geometry holds, so it is part of the key.
+        // Unset, the cap keeps its own thin frame.
+        const stroke =
+            options.outline !== undefined && options.outline > 0 && arrowType in FilledArrowRenderer.OPEN_OUTLINES
+                ? Math.round((options.outline / 40 / length) * 1000) / 1000
+                : undefined;
+        const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
+        const open = (): Mesh | null =>
+            stroke === undefined ? null : FilledArrowRenderer.createOpenOutline(arrowType, scene, stroke, breadth);
+
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
-                `2d|${arrowType}|${options.color}|${String(opacity)}${widthKey}`,
+                `2d|${arrowType}|${options.color}|${String(opacity)}${openKey}`,
                 () => {
+                    const outline = open();
+                    if (outline !== null) {
+                        outline.name = `arrow-2d-${arrowType}`;
+                        MaterialHelper.apply2DMaterial(outline, options.color, opacity, scene);
+                    }
                     const source = sided(
-                        widened(
-                            FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
-                            breadth,
-                        ),
+                        outline ??
+                            widened(
+                                FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                                breadth,
+                            ),
                         side,
                     );
                     source.visibility = opacity;
@@ -699,8 +719,8 @@ void main() {
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
         return FilledArrowRenderer.createArrowCap(
-            `${arrowType}${widthKey}`,
-            () => sided(widened(this.createArrowShape(arrowType, scene), breadth), side),
+            `${arrowType}${openKey}`,
+            () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
@@ -1189,6 +1209,12 @@ void main() {
                     lineStop: 2 / 3,
                 };
 
+            // yEd's cross and open arrows: the line runs on to where the strokes cross, to the arms' middle (its plain
+            // arrow's stops a third back from the tip, its concave arrow's two thirds)
+            case "cross":
+            case "open-vee":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0.5 };
+
             // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
             // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
             // under the vee
@@ -1215,6 +1241,8 @@ void main() {
             case "normal":
             case "tee":
             case "inverted-vee":
+            case "kite":
+            case "deltoid":
             case "crow":
             case "open-normal":
             case "open-diamond":

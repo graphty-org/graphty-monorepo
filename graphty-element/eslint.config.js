@@ -14,6 +14,7 @@ import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
 import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
+import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
 
 /** Prevent architectural violations - don't mutate layers directly. */
@@ -22,6 +23,8 @@ const LAYERS_MUTATION = {
         'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
     message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
 };
+
+const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
 
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
@@ -90,8 +93,29 @@ export default tseslint.config(
     // eslint-rules/node-position-funnel.mjs.
     {
         files: ["src/**/*.ts"],
-        plugins: { local: { rules: { "node-position-funnel": nodePositionFunnel } } },
+        plugins: { local },
         rules: { "local/node-position-funnel": "error" },
+    },
+
+    // ============================================
+    // NOTHING REACHES THROUGH A NODE TO ITS MESH
+    // ============================================
+    // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
+    // accessors. Edge.ts keeps its reads until getInterceptPoints works with no mesh. The other
+    // four files move in the two pull requests that follow this rule (#3247). The rule and its
+    // reasons: eslint-rules/node-mesh-funnel.mjs.
+    {
+        files: ["src/**/*.ts"],
+        ignores: [
+            "src/Node.ts",
+            "src/Edge.ts",
+            "src/NodeBehavior.ts",
+            "src/managers/LabelDeclutter.ts",
+            "src/managers/UpdateManager.ts",
+            "src/transitions/LayoutTransitionRunner.ts",
+        ],
+        plugins: { local },
+        rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },
 
     // ============================================

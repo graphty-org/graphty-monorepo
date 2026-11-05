@@ -10,6 +10,12 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-05) Tier 6 criteria review, 8 changes proposed, none applied (the Director freezes). The
+  main risk is false passes: a bar counted over sessions where its trap never fired (bar 5), a
+  recovery the prompt itself supplied (bar 4), a report that can be right after a reflex (bar 6).
+- (2026-11-05) Ask the doubt question after the first answer, never in the prompt. "How far can she
+  rely on it" asks for the caveat the bar measures. Grade trust on the first report; `Follow-up`
+  blocks work on any task (`real.mjs` line 293, the regex needs no change).
 - (2026-11-05) Tier 6 (the Assistant) is one quick user group: 6 tasks (T90 to T95), 12 sessions, 5
   personas, one round, then fixes. With one session per task half the bars count across the round;
   every bar comes from grades and expert findings, none from a script. Materials in `tier6/`.
@@ -27,28 +33,14 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 - (2026-10-21) A round at its ceiling (55 of 56 succeeded) cannot meet "no severity 3" bars on
   backlog items it never reaches. Next tier: tasks that route through every open severity 3, or
   bars that count only what the round can observe.
-- (2026-10-21) Top design insights, all severity 2: Graph inspector looked at first for node color
-  (9 sessions, 5 halves); new style lines start at the current value so adding one looks broken;
-  layer membership checked by eye; keyboard focus lost twice; one color table decides grades and
-  spoken names.
 - (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
   2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
-- (2026-10-21) Asked-color rule: `colorWord` returns CSS keyword "gold" for FFD700 before the hue
-  band. Decide between tiers whether a keyword inside the asked hue's band passes; never regrade.
-- (2026-10-21) `score.mjs` bar 4 takes the start page's demo as the start (printed 3, true median
-  6). Start = first steps line after the graph opens. Owed to the tool.
-- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
-  by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
-- (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
-  turn: 11 of 56 starts VOID. Starts run before the participant's turn.
 - (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
   Repro gesture defects with real-sized events before they count.
 - (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
   it jargon. Question 3 needs a measure that separates the two.
 - (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
   participant is one model. Read tasks and key for leading before spending sessions.
-- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only those criteria
-  preflight 4 names.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
   the screen and names the contradiction; never rewrite the key toward decided.md.
 - Expert counts are not user evidence; an expert-only severity 3 needs a repro under `repro/`.
@@ -88,6 +80,16 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 criteria review):** Proposed changes rather than editing `criteria.md`, as in
+  earlier tiers: the Director freezes. Checked before writing: every reference count recomputed from
+  the files (all match); all 14 prompts and follow-ups carry none of the avoided words; two- and
+  three-word overlap with the design's section 6 strings is function words only. Chose a three-way
+  persona move (T95 A to Grace, T95 B to Dev, T94 B to Maren) because it puts non-doubters on the
+  only task whose trap reliably fires and keeps every persona's count and the no-both-halves rule.
+  Asked for returning readers on T91 A and T94 A, because someone who has never seen the layer list
+  cannot miss it, so questions 1 and 3 had no possible answer. Kept T90 and T94 on people data and
+  asked only that the "two domains" sentence be made true: neither task's wording depends on domain.
 
 - **2026-11-05 (tier 6 materials):** Kept to 6 tasks by 2 halves, which is exactly the 12-session
   limit, rather than a seventh task on one half: every task then reaches two domains. Put the
@@ -145,6 +147,18 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (tier 6 criteria review) -- Worked: one script over tasks, roster and design
+  (`tmp/tier6-criteria-review/check.py`) for avoided words, phrase overlap and the reference counts;
+  it also caught the histories' send, stop, message and talk, which no earlier check read. Reading
+  `work.json` in the walk of T94: run list and layers matched start and end, so `look` plus
+  `work.json` covers "exactly as she made it". Asking of each bar "can it hold if the design failed?"
+  found more than asking if it is measurable. Did not work: a word list for leaks: "expired" sat in
+  the key string, outside every prompt-word check, so read literals too.
+- (2026-10-21, folded from Top of mind) `score.mjs` bar 4 took the start page's demo as the start; a
+  grade.md without the three header lines is silently dropped; `--start` inside a participant's turn
+  dies with the turn; backlog.md rows carry no severity; `colorWord` returns "gold" before the hue
+  band. Top tier 3 insight: Graph inspector looked at first for node color (9 sessions).
+
 - 2026-11-05 (tier 6 materials) -- Worked: walking each kind of task on the real build before writing
   its key (about 40 model calls), which found the approval's own words and the `look` hash that
   grades T94 with no script; computing every reference value from the files; `--brief` for all 12
@@ -187,6 +201,11 @@ logged). Their reasons, in short:
   runs; helper files at the scratchpad root; "Priming: none" lines written from prompts alone.
 
 ## Thinking
+
+- 2026-11-05 -- A bar's denominator should be the sessions where the thing could go wrong, not the
+  sessions that ran. A trap that never fires counts as a pass under "at most 1 of 4".
+- 2026-11-05 -- Reflex approval comes from repetition (research: catch rate falls after 50+ prompts).
+  A single card seen by an attentive simulated reader cannot show it; say so rather than score it.
 
 - 2026-10-21 -- A tool that measures "change from the start" must know where the start is: the
   start page's demo, the sample's defaults and the participant's first edit are three different

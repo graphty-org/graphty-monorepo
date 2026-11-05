@@ -12,34 +12,26 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-21) Tier 3 round 1 closed at the one-round cap, bars unmet, studio stopped. 55 of 56
-  succeeded: the round is at its ceiling. The signal is in cost, routes and confusion, not in
-  success; future rounds measure steps over the key and first door, and read tasks for leading.
-- (2026-10-21) First door for node color is wrong: 9 sessions on 5 halves opened the Graph
-  inspector's Style tab (canvas settings only) and recovered by matching the Everything count to
-  the node count. Fix by making that tab point at the layer that paints nodes, not by a hint.
-- (2026-10-21) A new style line that starts at the current value (Fill 6366F1, Width 8 with no
-  unit) reads as "it did nothing". A new line must start at a visibly different value or show
-  that it is now the source.
-- (2026-10-21) Checking a layer's members is by eye: Values lists ids, the table does not mark or
-  filter painted rows. A layer should be able to show its members in the table, by name.
-- (2026-10-21) The color-name table speaks "gold" for a plainly yellow fill and gives two groups
-  one spoken name. Spoken names are what screen-reader users get: they must follow hue first, and
-  graders must not grade with the same table the app speaks with.
-- (2026-10-21) Keyboard: inspector F6 stop shows no focus (WCAG 2.4.7); both "Samples" controls
-  drop focus; 30+ Tabs to a sample card. One persona, all succeeded; fix in compact-mantine and
-  the app shell, they are cheap and serve everyone.
-- (2026-10-21) Color entry accepts words but says nothing; picker swatches hold no common hues.
-- (2026-10-21) Avoiding the <<Layer>> token counted as understanding it. A bar must separate the
-  two before the token is called learnable.
-- (2026-10-21) Same-model participants cap what a round can find and the answer key may lead
-  graders. Before more sessions: blind the graders to the key's problem list.
+- (2026-11-05) Tier 6 (the Assistant) review, before any session: eight changes returned. The two
+  that matter most: first-time personas cannot answer "does anyone miss the layer list", and bars
+  5 and 6 are handed their pass by prompts that ask for doubt and for the count.
+- (2026-11-05) Tier 6 has no bar for a false number on screen, the one thing every earlier tier
+  guarded. A chip, approval or change line that disagrees with the records is the top risk.
+- (2026-11-05) A task's key or prompt can leak the cause of the failure it tests: a key named
+  "expired" hides a screen that says "the connection failed". Read setup values as prompt words.
+- (2026-11-05) An AI failure at setup says nothing about a failure mid-change. Inject one.
 - Top risk, every tier: a picture that looks right and answers wrong. Any such screen is severity 3.
-- Grade the user's goal from what ended on screen and in the style tree, not the key's route or a
+- Grade the user's goal from what ended on screen and in the records, not the key's route or a
   participant's rating. Simulated passes are weak; failures and scripted repros count.
+- A study near its ceiling signals through cost, routes and first door, not success; read tasks
+  for leading first (tier 3: 55 of 56).
 - A new task brings its route's screens into the scripted walk in the same change; task wording
-  never reuses the target's screen words.
+  never reuses the target's screen words. A bar can hold because nobody visited its screen.
 - Criteria prose asking for tool changes does not get built; ask for a gate refusal with an owner.
+- Same-model participants cap what a round can find, and the key may lead graders.
+- Open from tier 3: Graph inspector as first door for node color; a new style line at the current
+  value reads as "it did nothing"; members checked by eye; spoken color names follow hue first;
+  avoiding the <<Layer>> token is not understanding it.
 - No tours, hint panels or first-run aids; the same screens for everyone.
 - No product concept built around one task's wording ("cube" for Box) or one domain.
 
@@ -99,6 +91,21 @@ something, or change my mind. Summarize when it passes about 25 KB.
   how a newcomer learns.
 
 ## Decisions and reasons
+
+- **2026-11-05 (me, review of tier 6 criteria and tasks, before any session; no frozen build
+  named yet):** Eight changes. (1) T91 A, T94 A and T94 B become returning readers, from
+  `personas/returning-*.md`: a first-timer cannot miss a layer list. (2) T90 key renamed, "stopped
+  working" cut, and T93 B's "connected piece" reworded. (3) A one-off model failure mid-change on
+  T91 A; bar 4 no longer rests on setup. (4) "How sure", "how far" and "how many" move to
+  Follow-up blocks (real.mjs parses any task's); T93 A, T95 A, T95 B go to the readers likely to
+  trust; bar 6 needs `Card: read`. (5) New bar: every computed number on screen agrees with the
+  records. (6) Plant a wrong prose number on T92 A through the outgoing request, or report that the
+  design's first question went unanswered. (7) T94 B takes back two messages, and bar 7 checks data
+  as well as style. (8) The audit works from a list of states, bars 8 to 11 are rescored on the
+  fixed build, and bar 8 tests that typing lands. Reason: each is a pass the study would give
+  without the thing being true. Evidence: `tier6/roster.md`, `tasks.md`, `answers.md` T93;
+  `tool/tier6.mjs` geminiRouter; `real.mjs` taskWords and `styleChanges`; `design.md` section 12;
+  `assistant/Conversation.tsx` line 390; `AiController.ts` `rolledBack`.
 
 - **2026-10-20 (me, fifth review of tier 3 criteria and tasks; named build 3ef9e6c1ec, no
   session run):** Eight changes: refreeze on the post-golden commit and re-read every reference
@@ -182,19 +189,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
   sentence, Analyze headings, notices) are app work; missing facts behind them are element work.
 - 2026-10-02 (owner) -- First-time users first: load data (perhaps a sample), run algorithms,
   create styles, add labels. Tiered tasks adopted in round 8.
-- 2026-10-02 (studio, round 8) -- Label "+" with no label anywhere adds an empty label line and
-  opens its picker; "Show labels" only when a lower row sets a label. Reason: severity 4 trap.
-  Not deleted because it is a real element setting.
-- 2026-10-02 (studio, round 8) -- One find box, live as you type, over rows, elements (label, id,
-  value) and notes; a value hit offers "Select where <attribute> is <value> (n)". Reason: 0 of 12
-  on find-a-node; 5 of 6 typed a value and got "No match".
-- 2026-10-02 (studio, round 8) -- A node opens on its data tab; its degree selects its neighbors;
-  the neighborhood is listed by name and tie value. Reason: 12 of 12 wanted his data first; no
-  screen named neighbors. Rejected: a Connections list on the data tab (a second home).
-- 2026-10-02 (studio, round 8) -- Sample opens with nothing run. Reason: pre-run PageRank covered
-  newcomers' own results and gave them a legend they could not read.
-- 2026-10-02 (studio, round 8) -- Export > Data opens on the showing table, Nodes by default; the
-  table's export goes through the one Export dialog. Reason: "export the data" first click 10%.
+- 2026-10-02 (studio, round 8, folded 2026-11-05) -- Label "+" adds a line and opens its picker;
+  one live find box; a node opens on its data tab and its degree selects its neighbors; a sample
+  opens with nothing run; Export > Data opens on the showing table. Reason: each was a measured trap.
 - 2026-09-30 (owner) -- A run paints as soon as it finishes; runs may fight over color; the eye
   hides. "Measures don't paint on their own" was called a fatal flaw.
 - 2026-09-30 (owner) -- A label is an attribute picked in styling; the "+" starts empty; several
@@ -214,6 +211,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
   several outputs. Standard graph terms, explained by (i).
 
 ## Tried: worked / did not work
+
+- 2026-11-05 -- WORKED: a script over all 14 tier 6 prompts against the avoided list (no hit) and a
+  grep for each kept word's other uses, which found T93 B's "connected". A word check does not see
+  a value: the key `sk-study-expired-2025-key` passed it. Read the setup values too. Outcome of the
+  eight changes is unknown until the round runs.
 
 - 2026-10-21 -- TIER 3 ROUND 1 (frozen 758b8e8081). WORKED: Node | Edge layer list as the door
   (every session found it), Box via the Everything layer or a folder, Louvain grouping, the
@@ -269,6 +271,12 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Thinking
 
+- 2026-11-05 -- An instruction to doubt tests the instruction. Ask for confidence after the work,
+  as a follow-up, and record what the reader did before it. The same holds for a count: asking
+  for it in the prompt tells the reader to look.
+- 2026-11-05 -- Undo on the newest step only is a decision a one-change task can never stress.
+  Whoever regrets an AI change has usually done something since.
+
 - 2026-10-11 -- A returning user types what they remember (a number, a name). The find box must
   answer that literal input on any file, not only when the number happens to be a stored value.
   Watch round 5: T22 A on bus-stops, first move "10".
@@ -291,6 +299,9 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
+- Tier 6: `tier6/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md`, `decided.md`;
+  `design/ai/assistant-chat-research.md`; `tool/tier6.mjs`; `graphty/src/workspace/assistant/`
+  (2026-11-05).
 - `tier3/dry-run-r1-4.md`; `tmp/tier3-dryrun-analysis/` (main checkout); `tool/bars.mjs`
   WALKS3; `.claude/skills/design-studio/SKILL.md` on `chore/studio-convergence-rules` (2026-10-18).
 - `design/ui/studio/tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`; `../tool/bars.mjs`
@@ -298,29 +309,7 @@ something, or change my mind. Summarize when it passes about 25 KB.
   `graphty/src/workspace/style/words.ts` (LAYER_TOKEN, bindingTitle); `P/recipe-recipient.md`
   (2026-10-17).
 
-- `design/ui/studio/tier3/decide/user.md`; mock design `design/ui/style-panel-organization.md`
-  (branch `mock/style-panel`); `tmp/style-catalog/catalog.md`; element `catalog/types.ts`
-  (Selector, RuleTree, AttributeDescriptor), `session/styles/StylesApi.ts` (agreement, counts)
-  (2026-10-12).
-- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, `expert/*.md`; screenshots
-  `expert/figma/find/08.png`, `sessions/r4-s27/09.png`, `sessions/r4-s08/02.png`; code
-  `graphty/src/workspace/graph-place/FindBox.tsx` (ruleFromText, backtickSuggestion),
-  `graphty/src/workspace/table/TableDock.tsx:349`, `graphty-element/src/session/query.ts` (atLeastOf),
-  `graphty/src/workspace/canvas/legendWords.ts:336` (2026-10-11).
-- `design/ui/studio/tier2/rounds/round-3/decisions.md` (2026-10-11).
-
-- `design/ui/studio/tier2/rounds/round-1/` and `round-3/` insights, scores and expert walks
-  (2026-10-09, 2026-10-10).
-- `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
-  `tier1.md` (this worktree, 2026-10-06).
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md`, "Round 8"
-  (targets, decisions, considered and rejected).
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`, 2026-09-26 16:01 (the studio's
-  User Advocate role defined) and 18:45 (Figma expert added).
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_5285cd13-42b/` and
-  `wf_f793f987-53f/`, the User Advocate's own outputs, 2026-09-26 to 2026-09-28: top tasks
-  (agent-afe62ddf...), principles and "how novices are served" (agent-a0722d7f...), framework
-  revision, flows and journeys (agent-a7b8bc16...), styling and options (agent-a988315e...).
-  Extraction scripts: `design/ui/studio/tmp/user-notes/`.
-- `design/ui/studio/tmp/explore2-01.png` (real app, Florentine sample, 2026-10-06 smoke run).
+- Earlier, folded 2026-11-05: `tier3/decide/user.md`; `tier2/rounds/round-1`, `-3`, `-4` insights,
+  scores and expert walks; `digests/`; `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`,
+  2026-09-26 (the role defined) and its `wf_5285cd13-42b/`, `wf_f793f987-53f/` subagent outputs.
 - `CLAUDE.md` (Architectural Principles; graphty-element is neutral about presentation).

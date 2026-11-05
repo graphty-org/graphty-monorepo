@@ -16,6 +16,15 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-11-05, tier 6 the Assistant) A doubt bar that counts wrong claims reported measures the
+  model, not the reader: a right reply passes it with nobody checking. Count only sessions whose
+  screen held a wrong or unsupportable claim; none means not tested.
+- (2026-11-05) A wrong number needs no falsified reply: a selection left in the file narrows an
+  honest answer, and the scope line is the only tell. Plant state, not text.
+- (2026-11-05) A prompt that asks for the check ("how sure", "what you looked at", "how many")
+  cannot measure whether the check happens. Move it to a follow-up, which any task may have.
+- (2026-11-05) A first-time reader cannot miss a layer list they never met. To see the cost of a
+  docked chat, make them reach the real control: a by-hand tweak after the AI's change.
 - (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
   nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
   adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
@@ -27,19 +36,10 @@ served at `/?next`.
   median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
   routes and problems, and must screen tasks for leading before spending sessions -- the answer
   key names most problems the graders cite.
-- (2026-10-21) The round's only F came from the grading rule, not the reader: `colorWord` returns
-  a CSS keyword before hue, so FFD700 is "gold", not "yellow". Fix the rule (hue band set before
-  the round) and the shared table in compact-mantine, which also speaks those names aloud; never
-  add a per-task synonym.
-- (2026-10-21) Bar 5 fails only on two backlog severity 3 items (node Fill "+" one-node layer;
-  folder chain icon) that no or few sessions reached. A frozen rule counted them on 1 rating; ask
-  for a repro or a reach before a backlog row gates a round.
 - (2026-10-21) Best real findings, all severity 2: newcomers look for node color in the Graph
   inspector first (9 sessions); a new style line starts at the current value so it looks broken;
   layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
   hints: a new line should start at a visibly different value.
-- (2026-10-21) Keyboard: F6 stop with no focus ring (WCAG 2.4.7) and "Samples" dropping focus are
-  defects, fix them; the 30-Tab walk is cost, one persona only.
 - (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
   tell avoidance from comprehension is not measuring; demand a separating measure.
 - (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
@@ -105,6 +105,16 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 criteria review (the Assistant):** proposed 8 changes: T92 and T95 stop
+  ordering the doubt (questions to a follow-up, Dev on T92 A, Ruth on T91 A, bar 5 counts only
+  sessions with something to doubt); a colleague's selection as the planted wrong number; T91 adds
+  a by-hand tweak and T91, T94 use the returning persona files; T93 stops asking the count and bar 6
+  turns on `Card: read`; T90's key loses "expired", the prompt loses "stopped working", the
+  follow-up asks what they would keep back and what they would do with no key; T94 B makes two
+  changes; experts walk a state list and the Figma and visual walks get a bar; "done" gets a
+  re-walk test and the known defects a fix-or-keep call before the freeze. Reason: most bars could
+  pass with the thing studied never exercised. Domains passed: every task has two, though T90 and
+  T94 are both people networks; no change asked, since the wordings at stake meet yeast in T91, T93.
 - **2026-10-23, menu sections (issue #3315, director ruled).** I pressed three points. (1)
   "Other" is a junk drawer (Keep positions, Map, Clusters, Treemap); accepted as the honest name
   for the catalog's `special` family and for plugins, since inventing a heading per row is worse.
@@ -167,6 +177,11 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 -- Worked: a plain grep of the avoided words over the prompts and the briefing text
+  in place of wording.mjs, which needs a vocabulary.json no tier 6 walk writes. One prompt hit
+  ("stopped", T90) and five each of message, send, stop, step in the roster's briefing lines.
+  Worked: recounting the key from the files (9, 7, 9, 7, T92 A's seven names all agree).
+  Carried from Top of mind: a backlog row should not gate a round without a repro or a reach.
 - (2026-10-21) Did not work: a single studio round with frozen grading rules. The cap ended the
   tier with the bars failing on a grading-table artifact (gold vs yellow) and on backlog rows no
   session reached; the round could not distinguish product failure from rule failure. Worked: two
@@ -217,6 +232,11 @@ served at `/?next`.
 
 ## Sources
 
+- tier6 criteria, tasks, answers, roster, decided, design, connected-*.txt;
+  `design/ai/assistant-chat-research.md`; `tool/real.mjs` lines 293-300, 976 (follow-up for any
+  task), `--reopen`, `--shift-click`, node click by label; `tool/tier6.mjs`; tool README "Tier 6
+  sessions" (REAL_GEMINI_COUNT); `ToolExecutor.ts` largePreview; `graphty/src/workspace/assistant/words.ts`
+  line 155; `tool/files/*.graphml`; notes/researcher.md (2026-11-05) (2026-11-05)
 - criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
   entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
   `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`

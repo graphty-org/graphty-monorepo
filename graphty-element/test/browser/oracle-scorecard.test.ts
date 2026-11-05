@@ -24,7 +24,7 @@ import CI_SAMPLES from "./oracle-scorecard-samples.json";
 /**
  * The CI set: one or more samples per program whose comparison took under 3 s on the workstation
  * (the full run takes 2 to 26 s a sample): Cytoscape desktop (CX, CX2, XGMML, GML), Graphviz,
- * Gephi, draw.io standing in for yEd, Cytoscape.js, vis-network and Pajek. The list is a JSON file so CI's test job
+ * Gephi, yEd, Cytoscape.js, vis-network and Pajek. The list is a JSON file so CI's test job
  * can fetch exactly these oracles' pictures from Git LFS for the raster comparison (`.github/workflows/ci.yml`).
  */
 const CI_ORACLES: readonly string[] = CI_SAMPLES;

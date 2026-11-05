@@ -175,13 +175,18 @@ describe("label entries on the real element", () => {
         // Only what the entry sets is drawn: no size, look or position it does not set.
         assert.isNull(within(textList()).queryByRole("combobox", { name: /^Node label position/ }));
         assert.isNull(within(textList()).queryByRole("button", { name: "Node label size by attribute" }));
-        // "+" now offers Tooltip and the label's look, size and position, never a second label.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
+        // The list's "+" offers only kinds of text: Tooltip is all that is left, so it is no menu.
+        assert.isNull(
+            within(textList()).getByRole("button", { name: "Add to node text" }).getAttribute("aria-haspopup"),
+            "one kind left: the list's '+' adds it, with no menu of the label's settings",
+        );
+        // The label's look, size and position are its own: its own "+" lists them.
+        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node label" }));
         assert.deepEqual(
             (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-            ["Label look", "Label size", "Label position", "Tooltip"],
+            ["Look", "Size", "Position"],
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label look" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Look" }));
         await within(textList()).findByRole("combobox", { name: /^Node label look/ });
 
         // Picking a look applies it.
@@ -266,8 +271,8 @@ describe("label entries on the real element", () => {
         await waitFor(() => {
             assert.isDefined(writer(session, "node.label"));
         });
-        await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label size" }));
+        await userEvent.click(await within(textList()).findByRole("button", { name: "Add to node label" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
 
         await userEvent.click(await within(textList()).findByRole("button", { name: "Node label size by attribute" }));
         const list = await findValuePicker();

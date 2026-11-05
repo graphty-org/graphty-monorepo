@@ -37,6 +37,7 @@ import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
+import { insideFigure } from "./oracle/primitives";
 
 /**
  * What the graphty side cannot read off the drawn scene. A property here is scored "unmeasurable
@@ -303,8 +304,9 @@ const ellipsePoints = (b: ScreenBox): number[][] =>
 /**
  * Whether one screen box lies wholly under a node's outline: under its box for a shape that fills its box, else
  * under the ellipse its box holds. A shape with empty corners (a Pajek man's figure, a star) does not hide a node
- * drawn in a corner of its box (pajek-synth-vertices: man 24 beside man 32's arm, inside his box). ponytail: the
- * ellipse stands for every shape that is no rectangle; a small node under a diamond's or a triangle's corner of that
+ * drawn in a corner of its box (pajek-synth-vertices: man 24 beside man 32's arm, inside his box), so a figure with a
+ * dent covers what lies under its own outline (`DrawnNode.figure`). ponytail: the ellipse stands for every other
+ * shape that is no rectangle; a small node under a diamond's or a triangle's corner of that
  * ellipse is counted hidden although it shows. A round node is covered when its own outline is, not its box's corners:
  * a disc drawn just inside a bigger one shows nothing (json-graphology-synth n1 under n11).
  * @param node - the node that may be covered
@@ -331,6 +333,11 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
                   [inner.x0, inner.y1],
                   [inner.x1, inner.y1],
               ];
+    // a figure (Pajek's man) covers what lies under its own outline, its edges already in pixels
+    const { figure } = outer;
+    if (figure !== undefined) {
+        return corners.every(([x, y]) => insideFigure(figure, { cx: 0, cy: 0, w: 2, h: 2 }, [x, y], INSIDE_SLACK));
+    }
     return corners.every(([x, y]) => Math.hypot((x - cx) / (rx + INSIDE_SLACK), (y - cy) / (ry + INSIDE_SLACK)) <= 1);
 }
 

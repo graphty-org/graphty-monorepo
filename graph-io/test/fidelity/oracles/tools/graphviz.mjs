@@ -26,6 +26,8 @@ import { fileURLToPath } from "node:url";
 import console from "node:console";
 import process from "node:process";
 
+import { isYedDrawing } from "./own-drawing.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const repo = resolve(here, "../../../../..");
@@ -114,6 +116,9 @@ function withSansFallback(svg) {
 }
 
 function write(id, file, printed, fields, rasterEnv = "", path = id) {
+    if (isYedDrawing(oracles, path)) {
+        return;
+    }
     const bytes = readFileSync(join(testDir, file));
     const svg = withSansFallback(printed);
     const [, w, h] = /<svg width="([\d.]+)pt" height="([\d.]+)pt"/.exec(svg) ?? [];

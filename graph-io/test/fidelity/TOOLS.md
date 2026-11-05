@@ -22,9 +22,8 @@ yFiles code is used anywhere: yEd files are read from their own stored geometry.
 | Wine, xvfb-run                                                              | Wine 9.0                                | LGPL-2.1 (Wine), MIT (Xvfb)         | run Pajek headless                                                                                                                                                                                                         |
 | dvipsnam.def (LaTeX graphics bundle, `drivers.dtx`, the `dvipsnames` block) | 2026-05-29                              | LPPL-1.3c                           | dvips color names for Pajek, copied unmodified into `references/dvipsnam.def`                                                                                                                                              |
 
-Not used: the draw.io desktop CLI (its virtual display launch was not permitted here), and yEd and yEd Live, whose
-license forbids using them in an automated process. draw.io stands in for yEd until the yEd sheets are exported by
-hand (see "yEd's oracles" below).
+Not used: the draw.io desktop CLI (its virtual display launch was not permitted here). No script here drives yEd or
+yEd Live; their drawings are made as "yEd's oracles" below says.
 
 sigma.js draws label sizes in canvas px over positions it fits to the canvas, so its JSON scenes
 (`json-sigma-lesmis`, `json-graphology-synth`) are drawn on an 800 x 600 canvas, the one the browser
@@ -49,7 +48,7 @@ SVG carries no ids. One script per program makes them, from
 | `gephi.mjs`             | Gephi Toolkit 0.11.3                 | GEXF files through Gephi's Preview, one Preview setting per specimen page              |
 | `pajek.mjs`             | Pajek 6.02 under Wine                | Pajek files, one Draw window option per specimen page                                  |
 | `web/regenerate-web.sh` | Cytoscape.js, vis-network, sigma.js  | the JSON formats, each in headless Chromium with the pinned library (`web-oracle.mjs`) |
-| `drawio.mjs`            | draw.io 32.4.1                       | yEd and yEd Live GraphML (a stand-in for yEd)                                          |
+| `drawio.mjs`            | draw.io 32.4.1                       | a yEd GraphML sheet yEd refuses to open (a stand-in for yEd)                           |
 | `rasterize.mjs`         | resvg                                | the PNG of any oracle SVG, with the repository's pinned fonts                          |
 
 Each script's header says what it needs (a tool directory, an environment variable) and takes sample ids, or none
@@ -122,10 +121,11 @@ failures or unaccepted drops remain. Nobody edits a decimal or a list by hand.
 
 ## yEd's oracles
 
-yEd's license says it "may not be used as part of an automated process", so no script drives yEd or yEd Live. Every
-yEd GraphML and yEd Live GraphML oracle is draw.io's drawing, marked `standIn: true`, and the comparator holds stand-ins
-to their own recorded rates (`standInFloors` in `graphty-element/test/fidelity/oracle-floors.json`). To replace one with yEd's
-own drawing, open the file in yEd, use File > Export > SVG at the sheet's 1200 x 900 size, save it over the
-oracle's SVG, run `rasterize.mjs` on it, and set the oracle's `.oracle.json` to `program: "yEd"` with
-`standIn: false`. The files and the paths they go to are listed in `oracles/ISSUES.md`, "yEd sheets to export by
-hand".
+The yEd and yEd Live oracles are the programs' own drawings, made on 2026-11-04 by an AI agent operating each program's
+user interface at the owner's direction (43 yEd, 29 yEd Live). The programs and that agent's tools are not in this
+repository. Each `.oracle.json` says what was done, with every setting changed, in its `command`, and `regenerate` says
+how to make it again; `drawio.mjs`, `graphviz.mjs` and `cytoscape-desktop.mjs` skip these samples, so rerunning a
+stand-in tool cannot overwrite one. One oracle is still a stand-in, draw.io's drawing, because yEd refuses its file:
+`yed-graphml-specimen-images-charts`, held to its own recorded rates (`standInFloors` in
+`graphty-element/test/fidelity/oracle-floors.json`). The list is in `oracles/ISSUES.md`, "yEd's and yEd Live's own
+drawings".

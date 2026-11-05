@@ -1290,6 +1290,29 @@ const ROW_PAINTERS = new WeakMap<
     (stack: readonly CompiledLayer[], dirty: ReadonlySet<string>, edgeRows: readonly number[]) => Promise<void>
 >();
 
+/** Each element session's repaint after a graph pass, by dispatcher; see {@link repaintGraphPass}. */
+const GRAPH_REPAINTS = new WeakMap<
+    Dispatcher,
+    (dirty: ReadonlySet<string> | null, paintWhole: () => Promise<boolean>) => Promise<void>
+>();
+
+/**
+ * Bring the paint up to date after a graph pass, for a renderer: the rows the pass appended and
+ * edited when that is all that can look different (see `paintsRowAlone`), and otherwise the whole
+ * graph (issue #5893).
+ * @param session - A session this module built.
+ * @param dirty - The pass's dirty keys, or null when only a whole-graph paint will do.
+ * @param paintWhole - Paints the whole graph; resolves true when it did.
+ * @returns Settles once the paint is up to date.
+ */
+export async function repaintGraphPass(
+    session: GraphSession,
+    dirty: ReadonlySet<string> | null,
+    paintWhole: () => Promise<boolean>,
+): Promise<void> {
+    await GRAPH_REPAINTS.get(dispatcherOf(session))?.(dirty, paintWhole);
+}
+
 /**
  * Paint the nodes and edges a graph pass added, from the whole stack, and nothing else.
  *
@@ -2391,6 +2414,13 @@ function repaintAgainstCurrentData(
             return engine.repaintElements(stack, dirty, context);
         },
         repaintMoved: async (stack, moved, kept, dirty, context, still) => {
+            // Rows only appended: every index still names its element, and this pass repaints too
+            // few elements to rebuild the record of what each layer was applied to, which a layer
+            // needs to take its paint back once its selector matches nothing.
+            if (moved.node === null && moved.edge === null) {
+                indexedBy = readSnapshot();
+            }
+
             againstCurrentData();
 
             return engine.repaintMoved(stack, moved, kept, dirty, context, still);
@@ -3653,6 +3683,61 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // this kind, so a session nobody styled takes this path on every add.
     /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
     let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
+    /**
+     * The counts {@link paintedThrough} holds, as the graph stands now.
+     * @returns The renumber count and the row counts.
+     */
+    const rowsNow = (): { readonly renumbers: number; readonly nodes: number; readonly edges: number } => {
+        const graph = snapshot();
+        return {
+            renumbers: store.store.renumberCount ?? Number.NaN,
+            nodes: graph.nodeCount,
+            edges: graph.edgeCount,
+        };
+    };
+    /**
+     * Paint the rows nothing was carried to and the rows whose records changed, and nothing else,
+     * when no other element can look different.
+     * @param stack - The stack as it paints.
+     * @param dirty - The pass's dirty keys.
+     * @param followsRenumbering - Whether the caller can take rows that moved, or only rows appended.
+     * @returns True when it painted them; false leaves the paint to the caller.
+     */
+    const paintChangedRows = async (
+        stack: readonly CompiledLayer[],
+        dirty: ReadonlySet<string>,
+        followsRenumbering: boolean,
+    ): Promise<boolean> => {
+        const now = rowsNow();
+        const through = paintedThrough;
+        const moved = rowsMoved(through, now, store.store.lastRenumbering ?? null);
+        const followed = moved !== null && (followsRenumbering || (moved.node === null && moved.edge === null));
+        if (through === null || !followed || ![...dirty].every(changesRowsOnly) || !stack.every(paintsRowAlone)) {
+            return false;
+        }
+
+        const kept = { node: through.nodes, edge: through.edges };
+        const still = (): boolean => store.store.renumberCount === now.renumbers;
+        await painter.repaintMoved(stack, moved, kept, editedRows(snapshot(), dirty), RUNS_PASS, still);
+        // A freeze that renumbered the rows while the pass ran leaves the next pass to paint
+        // everything.
+        paintedThrough = still() ? now : null;
+        return true;
+    };
+    // The renderer's half of the same rule, for rows appended only: a pass that follows a
+    // renumbering forgets what each layer was applied to, and only a whole pass writes it back.
+    // ponytail: any encode or expression layer still repaints the whole graph on an add; an edge
+    // add could leave node layers that read no structure alone if a styled graph needs that.
+    GRAPH_REPAINTS.set(dispatcher, async (dirty, paintWhole) => {
+        const added = dirty?.has(NODES_ADDED) === true || dirty?.has(EDGES_ADDED) === true;
+        if (dirty !== null && added && (await paintChangedRows(styles.compiled(), dirty, false))) {
+            return;
+        }
+
+        const now = rowsNow();
+        const painted = await paintWhole();
+        paintedThrough = painted && store.store.renumberCount === now.renumbers ? now : null;
+    });
     ROW_PAINTERS.set(dispatcher, async (layers, dirty, edgeRows) => {
         const graph = snapshot();
         const rows = editedRows(graph, dirty);
@@ -3693,29 +3778,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return;
             }
 
-            const graph = snapshot();
-            const now = {
-                renumbers: store.store.renumberCount ?? Number.NaN,
-                nodes: graph.nodeCount,
-                edges: graph.edgeCount,
-            };
-            const moved = rowsMoved(paintedThrough, now, store.store.lastRenumbering ?? null);
-            if (
-                !recordsOnly &&
-                paintedThrough !== null &&
-                moved !== null &&
-                [...dirty].every(changesRowsOnly) &&
-                stack.every(paintsRowAlone)
-            ) {
-                const kept = { node: paintedThrough.nodes, edge: paintedThrough.edges };
-                const still = (): boolean => store.store.renumberCount === now.renumbers;
-                await painter.repaintMoved(stack, moved, kept, editedRows(graph, dirty), RUNS_PASS, still);
-                // A freeze that renumbered the rows while the pass ran leaves the next pass to
-                // paint everything.
-                paintedThrough = still() ? now : null;
+            if (!recordsOnly && (await paintChangedRows(stack, dirty, true))) {
                 return;
             }
 
+            const now = rowsNow();
             painter.invalidate();
             const edits = readers.map((entry) => ({ previous: entry, next: entry }));
             const fromIndex = stack.indexOf(readers[0]);
@@ -3871,12 +3938,21 @@ const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by
  * everything, a column's presence or named ids. Rows appended beside it change nothing it painted.
+ *
+ * A binding reads the whole column for its domain and can read a node's degree, which an added
+ * edge moves at both its ends; a `top` ranks a column; the other selectors can follow the
+ * structure or a set. A presence test at an edge's end reads another element's row, which the
+ * same pass may have edited. So a layer with any of those is not of this kind.
  * @param entry - The layer.
  * @returns True when it does.
  */
 function paintsRowAlone(entry: CompiledLayer): boolean {
     const { match } = entry.selector;
-    return entry.layer.encode === undefined && (match === "everything" || match === "has" || match === "ids");
+    return (
+        entry.layer.encode === undefined &&
+        (match === "everything" || match === "has" || match === "ids") &&
+        !entry.reads.some((path) => edgeEndPathOf(path) !== undefined)
+    );
 }
 
 /**

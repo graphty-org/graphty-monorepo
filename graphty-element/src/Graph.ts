@@ -1637,6 +1637,13 @@ export class Graph implements GraphContext {
             }
         });
 
+        // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
+        this.session.on("run:changed", ({ phase }) => {
+            if (phase === "end" || phase === "removed" || phase === "restored") {
+                this.layoutManager.clustersChanged();
+            }
+        });
+
         // Setup lifecycle manager
         const managers = (this.managers = new Map<string, Manager>([
             ["event", this.eventManager],

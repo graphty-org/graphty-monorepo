@@ -251,6 +251,8 @@ export const GRID_EXTENT_FLOOR = 1e-6;
 export const GRID_BBOX_MARGIN = 1.01;
 /** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
 export const GRID_SORT_BITS = 24;
+/** The value of `ClusterOptions.communities` for a row in no community: the twin of layout's NO_CLUSTER. */
+export const NO_CLUSTER = 0xffffffff;
 /** The collision force reads this many entries of a hash bucket: a crowd costs a bounded amount per node while it spreads. */
 export const COLLIDE_CELL_MAX = 256;
 /** The most hash buckets of the collision force, under GRID_SORT_BITS. */

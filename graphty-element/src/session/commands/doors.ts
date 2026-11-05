@@ -2130,6 +2130,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             scope: READ,
             scopeUser: READ,
             releaseDetachedScope: DERIVED,
+            // A run's results changed; a layout clustering by them moves, and rests in its own step.
+            clustersChanged: TRANSPORT,
         },
     },
     {
@@ -3432,6 +3434,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             holdMask: READ,
             // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
             wakeForResize: TRANSPORT,
+            // Reads a `clusterBy` path over the snapshot; the layout manager fills it in when it starts the engine.
+            clusterColumn: READ,
+            // A node's community changed, so a layout pulling communities together starts again.
+            wakeForClusters: TRANSPORT,
         },
     },
     {

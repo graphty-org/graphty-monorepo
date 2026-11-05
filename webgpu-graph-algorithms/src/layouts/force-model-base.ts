@@ -200,6 +200,8 @@ interface SharedResolved {
 
 /** The ForceModel members the three force models share; the model class supplies the rest (see the file header). */
 export abstract class ForceModelBase<E extends ExactStage> {
+    /** See ForceModel.afterAttraction. */
+    afterAttraction: ((pass: GPUComputePassEncoder, offset: number) => void) | null = null;
     /** See ForceModel.afterIntegrate. */
     afterIntegrate: ((pass: GPUComputePassEncoder) => void) | null = null;
     /** The stage names in dispatch order (the `upTo` vocabulary of recordIteration and debugRunStages). */
@@ -521,6 +523,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
         } else if (bound.fillForceBound !== null) {
             bound.fill.dispatch(pass, bound.fillForceBound, bound.fillPlan, [0]);
         }
+        this.afterAttraction?.(pass, offset);
     }
 
     /**

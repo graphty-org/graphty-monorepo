@@ -70,12 +70,19 @@ export function requestGpuContext(options?: BrowserGpuOptions): Promise<GpuConte
 
 /**
  * A context on a device someone else owns and draws with: the caps a device of our own would have, so the same
- * kernels are chosen, and no uncaptured-error sink, because that device's errors are the owner's.
+ * kernels are chosen, and no uncaptured-error sink, because that device's errors are the owner's. A browser
+ * whose device has no `adapterInfo` (Safari, Chromium before 132) leaves the adapter's names empty and the
+ * subgroup sizes 0, which the kernels floor to the smallest size any adapter has.
  * @param device - the device
  * @returns the context
  */
 function adoptDevice(device: GPUDevice): GpuContext {
-    const caps = captureCaps(device, device.adapterInfo, "browser", navigatorGpu()?.wgslLanguageFeatures ?? []);
+    const wgslFeatures = navigatorGpu()?.wgslLanguageFeatures ?? [];
+    const { adapterInfo } = device as { adapterInfo?: GPUAdapterInfo };
+    const caps =
+        adapterInfo === undefined
+            ? { runtime: "browser" as const, wgslFeatures: new Set<string>(wgslFeatures) }
+            : captureCaps(device, adapterInfo, "browser", wgslFeatures);
     return GpuContext.from(device, caps, { errorSink: false });
 }
 

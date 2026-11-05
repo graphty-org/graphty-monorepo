@@ -195,6 +195,19 @@ describe("the device a graph opens", () => {
         assert.strictEqual(devices(), 1);
     });
 
+    it("is one device on a browser whose device does not carry its adapter's info", async () => {
+        adapterSays("test-hardware");
+        vi.spyOn(GPUDevice.prototype, "adapterInfo", "get").mockReturnValue(undefined as unknown as GPUAdapterInfo);
+        const devices = countDevices();
+
+        const graph = await open();
+        assert.isNotNull(graph.acceleration.accelerator, graph.acceleration.status.reason ?? "");
+        await startLayout(graph);
+
+        assert.isTrue(layoutOf(graph).isAccelerated);
+        assert.strictEqual(devices(), 1);
+    });
+
     it("has every limit of the adapter when it is shared", async () => {
         adapterSays("test-hardware");
         const graph = await open();

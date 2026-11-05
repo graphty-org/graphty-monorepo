@@ -3728,7 +3728,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const graph = snapshot();
         const rows = editedRows(graph, dirty);
         if (stack.some(readsStructure)) {
-            rows.node.push(...endsOfEdgesFrom(graph, through.edges));
+            pushEndsOfEdgesFrom(rows.node, graph, through.edges);
         }
 
         await painter.repaintMoved(stack, moved, kept, rows, RUNS_PASS, still);
@@ -3999,18 +3999,16 @@ function readsStructure(entry: CompiledLayer): boolean {
 }
 
 /**
- * The node rows at the ends of the edges from one row on.
+ * Add the node rows at the ends of the edges from one row on, repeats included. Pushed one by one
+ * because an add can carry more edges than a call can take arguments.
+ * @param rows - Where they go.
  * @param graph - The snapshot.
  * @param from - The first edge row.
- * @returns The rows, repeats included.
  */
-function endsOfEdgesFrom(graph: GraphSnapshot, from: number): number[] {
-    const ends: number[] = [];
+function pushEndsOfEdgesFrom(rows: number[], graph: GraphSnapshot, from: number): void {
     for (let edge = from; edge < graph.edgeCount; edge++) {
-        ends.push(graph.edgeSource(edge), graph.edgeTarget(edge));
+        rows.push(graph.edgeSource(edge), graph.edgeTarget(edge));
     }
-
-    return ends;
 }
 
 /**

@@ -1902,13 +1902,35 @@ interface GraphmlStyledExport {
 const GRAPHICS_TYPES: Readonly<Record<StyleTarget, string>> = { node: "nodegraphics", edge: "edgegraphics" };
 
 /**
- * A node's position from the graphics it had: a yEd realizer's `y:Geometry` x and y, or a yFiles 3 `y:RectD`'s.
+ * A corner's coordinate moved so a box written at another size keeps its center: a node's drawn size may be smaller
+ * than the box it had (a BPMN message in a 36 x 44 box draws 36 x 24).
+ * @param at - the coordinate as written
+ * @param had - the box's side as written
+ * @param now - the side the node is written with
+ * @returns the coordinate, as written when the side is the same
+ */
+function centeredOn(at: string, had: string | undefined, now: StyleValue | null): string {
+    const side = Number(had);
+    return typeof now === "number" && Number.isFinite(side) && side !== now
+        ? String(Number(at) + (side - now) / 2)
+        : at;
+}
+
+/**
+ * A node's position from the graphics it had: a yEd realizer's `y:Geometry` x and y, or a yFiles 3 `y:RectD`'s, moved
+ * to keep the box's center where the node is written at another size.
  * @param table - the node table
  * @param columns - its tree columns
  * @param i - the node
- * @returns the x and y as written, or null
+ * @param get - the node's values (its drawn width and height)
+ * @returns the x and y to write, or null
  */
-function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[], i: number): [string, string] | null {
+function keptPosition(
+    table: GraphSnapshot["nodes"],
+    columns: readonly string[],
+    i: number,
+    get: GetValue,
+): [string, string] | null {
     for (const name of columns) {
         const tree = plainCell(table.value(name, i));
         const real = realizerOf(tree, NODE_REALIZERS);
@@ -1916,7 +1938,10 @@ function keptPosition(table: GraphSnapshot["nodes"], columns: readonly string[],
         const x = treeAttr(geometry, real === null ? "X" : "x");
         const y = treeAttr(geometry, real === null ? "Y" : "y");
         if (x !== undefined && y !== undefined) {
-            return [x, y];
+            return [
+                centeredOn(x, treeAttr(geometry, real === null ? "Width" : "width"), get("width")),
+                centeredOn(y, treeAttr(geometry, real === null ? "Height" : "height"), get("height")),
+            ];
         }
     }
     return null;
@@ -2058,7 +2083,7 @@ export function graphmlStyledExport(
     const nodeTrees: (Tree | null)[] = [];
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const get = getNode(i);
-        const at = keptPosition(snapshot.nodes, nodeColumns, i) ?? columnPosition(snapshot, i, get);
+        const at = keptPosition(snapshot.nodes, nodeColumns, i, get) ?? columnPosition(snapshot, i, get);
         nodeTrees.push(shapeNodeTree(get, at, approximateFor("node")));
     }
     const boxes = nodeTrees.map((tree): WrittenBox => {

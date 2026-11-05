@@ -646,6 +646,14 @@ describe("GraphML styles: yEd", () => {
             expect((await values(nodes, "fill")).slice(2)).toEqual(["#c8c8c8", "#8c8c8c"]);
         });
 
+        it("keeps a node's center when it is written at its drawn size", async () => {
+            const box = '<y:Geometry height="44" width="36" x="10" y="20"/>';
+            const message = generic("a", "bpmn.Artifact", prop("type", "ARTIFACT_TYPE_REQUEST_MESSAGE"), box);
+            const { snapshot, styles } = await load(`${YED_HEAD}${message}</graph></graphml>`);
+            const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+            expect(text).toContain('height="24" width="36" x="10" y="30"');
+        });
+
         it("draws a flowchart annotation with no outline round its box", async () => {
             expect(await values(generic("a", "flowchart.annotation"), "borderWidth")).toEqual([0]);
             expect(await values(generic("a", "flowchart.annotation"), "shape")).toEqual(["rectangle"]);

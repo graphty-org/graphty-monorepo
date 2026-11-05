@@ -19,11 +19,13 @@ import {
     clockAssignments,
     compileProblem,
     EDGE_CLOCK_FIELDS,
+    fragmentPrelude,
     prefixBody,
     renameIdentifiers,
     sampleProgram,
     uniformValueOf,
     unprefix,
+    VULKAN_GLSL_NAMES,
     WGSL_NAMES,
     wrappedLibrary,
     WRAPPER_LINE,
@@ -119,11 +121,41 @@ describe("the shader wrapper", () => {
         assert.include(wrappedLibrary(), "vec4 graphty_modf(vec4 x, out vec4 whole)");
     });
 
+    it("sends isnan, isinf and the inverse hyperbolics to helpers WebGPU alone compiles", () => {
+        assert.include(prefixBody("float f(vec2 x) { return isnan(x).x ? acosh(x.y) : 0.0; }", []), "graphty_isnan(x)");
+        const library = wrappedLibrary();
+        for (const name of ["isnan", "isinf", "acosh", "asinh", "atanh"]) {
+            assert.include(library, `#define graphty_${name} ${name}\n`.trimEnd());
+            assert.include(library, ` graphty_${name}(vec4 x)`);
+        }
+
+        assert.isBelow(library.indexOf("#ifdef WEBGPU"), library.indexOf("graphty_acosh(float x)"));
+        assert.isBelow(library.indexOf("graphty_acosh(float x)"), library.indexOf("#ifndef WEBGPU"));
+    });
+
+    it("renames a Vulkan GLSL keyword as a local and a field and leaves its calls alone", () => {
+        assert.strictEqual(
+            prefixBody("float image2D = s.atomic_uint + texture1D(1.0);", []),
+            "float graphty_u_image2D = s.graphty_u_atomic_uint + texture1D(1.0);",
+        );
+        assert.include(
+            prefixBody(
+                "vec4 shade(NodeInput n) { struct sample { float a; }; sample m = sample(1.0); return vec4(m.a); }",
+                [],
+            ),
+            "struct graphty_u_sample { float a; }; graphty_u_sample m = graphty_u_sample(1.0);",
+        );
+    });
+
+    it("asks WebGPU to let a derivative run in a branch, as GLSL does", () => {
+        assert.include(fragmentPrelude(), "#define DISABLE_UNIFORMITY_ANALYSIS\n");
+    });
+
     it("gives no input field a name it would rename, since a body's use of it would then miss", () => {
         const fields = [...GLSL_STRUCTS.matchAll(/^\s+\w+ (\w+);$/gm)].map((match) => match[1]);
         assert.isAbove(fields.length, 30);
         assert.deepEqual(
-            fields.filter((name) => WGSL_NAMES.has(name) && !GLSL_RESERVED.has(name)),
+            fields.filter((name) => VULKAN_GLSL_NAMES.has(name) || (WGSL_NAMES.has(name) && !GLSL_RESERVED.has(name))),
             [],
         );
     });

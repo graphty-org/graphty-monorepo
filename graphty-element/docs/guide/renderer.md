@@ -49,7 +49,9 @@ lose every frame the shader is part of: a `graph-error` event carries `E_SHADER_
 step that gave up in `error.details.stage` (`"compiler"`, `"translator"` or `"device"`) and what it
 said in `error.details.messages`. The translator says nothing the element can read, so its list is
 empty; the page's console holds its line. A shader passed to `defineShader` may use a name
-WGSL reserves, such as `pass`, `target` or `fn`: the element renames it for you.
+WGSL or the Vulkan GLSL compiler reserves, such as `pass`, `target`, `fn` or `image2D`: the element
+renames it for you. One thing still differs: a `const` at the top of a shader may not call `acosh`,
+`asinh`, `atanh`, `isnan` or `isinf` under WebGPU, so move it into the function that uses it.
 
 ## What differs under WebGPU
 

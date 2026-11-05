@@ -34,7 +34,7 @@ import {
     type ShaderParamDescriptor,
     type ShaderProblem,
 } from "../../catalog/shaders";
-import { GLSL_HELPERS, GLSL_STRUCTS } from "./glsl";
+import { GLSL_HELPERS, GLSL_STRUCTS, WEBGPU_BUILT_INS } from "./glsl";
 
 export { uniformValueOf } from "./nodeLayout";
 
@@ -75,7 +75,8 @@ const LIBRARY_PREFIX = "graphty_";
  *
  * The body's uses of these names are renamed `graphty_u_<name>`, except the GLSL keywords, which a body
  * cannot declare, and the calls and fields of a GLSL built-in function ({@link GLSL_FUNCTIONS}). `modf`
- * is not here because it is a library helper, which is renamed like every other (see `glsl.ts`).
+ * is not here because it is a library helper, which is renamed like every other (see `glsl.ts`). The
+ * same goes for the built-ins of `WEBGPU_BUILT_INS`, whose names stay here for a reader's own locals.
  */
 export const WGSL_NAMES: ReadonlySet<string> = new Set(
     // Keywords.
@@ -117,6 +118,26 @@ export const WGSL_NAMES: ReadonlySet<string> = new Set(
         "workgroupBarrier workgroupUniformLoad"
     ).split(" "),
 );
+
+/**
+ * The keywords of the Vulkan GLSL that WebGPU's compiler reads, which GLSL ES 3.00 leaves free or
+ * only reserves: every name of the kind that compiler refused as a local. They are renamed
+ * like {@link WGSL_NAMES}, fields too, but left alone where called: Babylon.js rewrites calls such as
+ * `texture2D(`, and a body's own function of one of these names is renamed by being declared.
+ */
+export const VULKAN_GLSL_NAMES: ReadonlySet<string> = new Set([
+    ...["texture", "itexture", "utexture", "image", "iimage", "uimage"].flatMap((kind) =>
+        ["1D", "2D", "3D", "Cube", "1DArray", "2DArray", "CubeArray", "2DRect", "Buffer", "2DMS", "2DMSArray"].map(
+            (shape) => kind + shape,
+        ),
+    ),
+    ...["", "i", "u"].flatMap((kind) => [`${kind}subpassInput`, `${kind}subpassInputMS`]),
+    ...["2", "3", "4", "2x2", "2x3", "2x4", "3x2", "3x3", "3x4", "4x2", "4x3", "4x4"].map((shape) => `dmat${shape}`),
+    ...(
+        "atomic_uint sample devicecoherent queuefamilycoherent workgroupcoherent subgroupcoherent nonprivate " +
+        "pervertexNV perprimitiveNV perviewNV"
+    ).split(" "),
+]);
 
 /** One token, as the checker's tokenizer reads it. */
 type Token = ReturnType<typeof tokenize>["tokens"][number];
@@ -323,7 +344,11 @@ let library: string | null = null;
 export function wrappedLibrary(): string {
     if (library === null) {
         const rename = new Map([...namesOfLibrary()].map((name) => [name, LIBRARY_PREFIX + name]));
-        library = `${renameIdentifiers(GLSL_STRUCTS, rename)}\n${renameIdentifiers(GLSL_HELPERS, rename)}`;
+        const builtIns = WEBGPU_BUILT_INS.map((name) => `#define ${LIBRARY_PREFIX}${name} ${name}`).join("\n");
+        library = `${renameIdentifiers(GLSL_STRUCTS, rename)}\n${renameIdentifiers(GLSL_HELPERS, rename)}
+#ifndef WEBGPU
+${builtIns}
+#endif`;
     }
 
     return library;
@@ -343,6 +368,12 @@ function wgslRenames(tokens: readonly Token[]): {
     const fields = new Set<string>();
     const calls = new Set<string>();
     for (const { kind, text } of tokens) {
+        if (kind === "id" && VULKAN_GLSL_NAMES.has(text)) {
+            rename.set(text, BODY_PREFIX + text);
+            fields.add(text);
+            calls.add(text);
+        }
+
         if (kind !== "id" || !WGSL_NAMES.has(text)) {
             continue;
         }
@@ -738,7 +769,10 @@ void main() {
  * @returns The GLSL.
  */
 export function fragmentPrelude(): string {
-    return `precision highp float;
+    // GLSL leaves a derivative in a branch undefined and draws; WGSL refuses the program. A body
+    // always runs behind the wrapper's own branches, so without this its first `fwidth` is refused.
+    return `#define DISABLE_UNIFORMITY_ANALYSIS
+precision highp float;
 precision highp int;
 uniform ${SCENE_BLOCK} {
 ${SCENE_MEMBERS.map((member) => `    vec4 ${member};`).join("\n")}

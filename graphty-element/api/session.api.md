@@ -450,6 +450,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    // @beta
     readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
@@ -1458,6 +1459,7 @@ export interface GraphSession {
     snapshot(): GraphSnapshot;
     readonly status: SessionStatus;
     readonly styles: StylesApi;
+    // @beta
     readonly time: TimeApi;
     transaction<T>(label: string, fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>, options?: TransactionOptions): Promise<T>;
     undo(): Promise<HistoryOutcome>;
@@ -1588,9 +1590,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -4767,6 +4778,7 @@ export interface RunScopeRecord {
         readonly revision: string;
     };
     readonly spec: Scope;
+    // @beta
     readonly window?: RunWindow | null;
 }
 
@@ -4792,7 +4804,7 @@ export type RunStyle = boolean | {
     readonly groupPalettes?: readonly PaletteId[];
 };
 
-// @public
+// @beta
 export interface RunWindow {
     readonly attribute: string;
     readonly edges: number;
@@ -5333,25 +5345,32 @@ export interface SessionEventMap {
     "style:batch-changed": StyleBatchChange;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
+    // @beta
     "time:end": {
         readonly window: TimeWindow | null;
     };
+    // @beta
     "time:field": {
         readonly field: TimeField | null;
     };
+    // @beta
     "time:pause": {
         readonly window: TimeWindow | null;
     };
+    // @beta
     "time:play": {
         readonly window: TimeWindow | null;
     };
+    // @beta
     "time:ready": {
         readonly field: TimeField | null;
     };
+    // @beta
     "time:rerun-failed": {
         readonly run: RunId;
         readonly error: CodedFact;
     };
+    // @beta
     "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
 }
@@ -5977,6 +5996,7 @@ export interface StaleNote {
     readonly ranOn: number;
     readonly reason: StaleReason;
     readonly scopeSpec: Scope;
+    // @beta
     readonly window?: CodedFact<"window-moved">;
 }
 
@@ -6287,6 +6307,7 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     readonly targetKind?: string | Endpoint | null;
     readonly time?: string | null;
+    // @beta
     readonly timeUnit?: TimeUnit | null;
     readonly weight?: string | null;
     readonly weightMeaning?: WeightMeaning["meaning"] | null;
@@ -6327,7 +6348,7 @@ export const TERMINAL_RUN_STATUSES: readonly RunStatus[];
 // @public
 export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
-// @public
+// @beta
 export interface TimeApi {
     readonly atEnd: boolean;
     readonly atStart: boolean;
@@ -6335,13 +6356,16 @@ export interface TimeApi {
     candidates(): readonly TimeCandidate[];
     changes(): TimeChanges;
     commit(): Promise<TimeStepEvent | null>;
+    readonly committed: TimeWindow | null;
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
     readonly interval: number;
     readonly mode: TimePlayMode;
     notices(): readonly CodedFact<TimeNoticeCode>[];
-    parse(text: string): number | null;
+    parse(text: string, options?: {
+        readonly timeZone?: string;
+    }): number | null;
     pause(): void;
     play(options?: TimePlayOptions): void;
     readonly playing: boolean;
@@ -6352,11 +6376,19 @@ export interface TimeApi {
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     readonly settings: TimeSettings;
+    spanOf(of: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
+    }): {
+        readonly from: number;
+        readonly to: number;
+    } | null;
     stepBy(count: number): Promise<TimeStepEvent>;
     window(window: TimeWindowInput | null): Run<FilterResult>;
 }
 
-// @public
+// @beta
 export interface TimeBin {
     // (undocumented)
     readonly edges: number;
@@ -6369,7 +6401,7 @@ export interface TimeBin {
     readonly step?: TimeStep;
 }
 
-// @public
+// @beta
 export interface TimeBinsOptions {
     readonly count?: number;
     readonly from?: number;
@@ -6381,10 +6413,11 @@ export interface TimeBinsOptions {
     };
     readonly scope?: "all" | "visible";
     readonly step?: TimeStep;
+    readonly timeZone?: string;
     readonly to?: number;
 }
 
-// @public
+// @beta
 export interface TimeCandidate {
     readonly column: string;
     readonly kind: "node" | "edge";
@@ -6393,7 +6426,7 @@ export interface TimeCandidate {
     readonly unit?: TimeUnit;
 }
 
-// @public
+// @beta
 export interface TimeChanges {
     // (undocumented)
     readonly entered: TimeIds;
@@ -6401,7 +6434,7 @@ export interface TimeChanges {
     readonly left: TimeIds;
 }
 
-// @public
+// @beta
 export interface TimeCountPair {
     // (undocumented)
     readonly edges: number;
@@ -6409,14 +6442,14 @@ export interface TimeCountPair {
     readonly nodes: number;
 }
 
-// @public
+// @beta
 export interface TimeCounts {
     readonly timed: number;
     readonly unparsed: number;
     readonly untimed: number;
 }
 
-// @public
+// @beta
 export interface TimeExtent {
     // (undocumented)
     readonly edges: TimeCounts;
@@ -6428,7 +6461,7 @@ export interface TimeExtent {
     readonly to: number;
 }
 
-// @public
+// @beta
 export interface TimeField {
     // (undocumented)
     readonly edges?: TimeSource;
@@ -6436,7 +6469,7 @@ export interface TimeField {
     readonly nodes?: TimeSource;
 }
 
-// @public
+// @beta
 export interface TimeFieldResult {
     // (undocumented)
     readonly edges?: TimeCounts;
@@ -6447,7 +6480,7 @@ export interface TimeFieldResult {
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
 
-// @public
+// @beta
 export interface TimeIds {
     // (undocumented)
     readonly edges: readonly EdgeId[];
@@ -6455,44 +6488,48 @@ export interface TimeIds {
     readonly nodes: readonly NodeId[];
 }
 
-// @public
+// @beta
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
 
-// @public
+// @beta
 export interface TimePlayback {
     readonly missing?: "inside" | "outside";
     readonly mode?: "sliding" | "cumulative";
     readonly outside?: "hide" | "ghost";
     readonly results?: TimeResultsPolicy;
     readonly step?: TimeStep | "auto";
+    readonly timeZone?: string;
 }
 
-// @public
+// @beta
 export type TimePlayMode = "sliding" | "cumulative";
 
-// @public
+// @beta
 export interface TimePlayOptions {
     readonly interval?: number;
     readonly loop?: boolean;
     readonly mode?: TimePlayMode;
     readonly motion?: "smooth" | "steps";
     readonly step?: TimeStep;
+    readonly timeZone?: string;
 }
 
-// @public
+// @beta
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
-// @public
+// @beta
 export interface TimeSettings {
     readonly missing: "inside" | "outside";
     readonly mode: TimePlayMode;
     readonly outside: "hide" | "ghost";
     readonly results: TimeResultsPolicy;
     readonly step: TimeStep | "auto";
+    readonly timeZone: string;
 }
 
-// @public
+// @beta
 export interface TimeSource {
+    readonly parseZone?: string;
     readonly start: Path;
     readonly unit?: TimeUnit;
 }
@@ -6500,7 +6537,7 @@ export interface TimeSource {
 // @public
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
 
-// @public
+// @beta
 export interface TimeStepEvent {
     readonly atEnd: boolean;
     readonly atStart: boolean;
@@ -6519,21 +6556,26 @@ export interface TimeStepEvent {
     readonly visible: TimeCountPair;
 }
 
-// @public
+// @beta
 export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 // @public
 export interface TimeWindow {
     readonly attribute: Path;
     readonly from: number | string;
+    // @beta
     readonly missing?: "inside" | "outside";
+    // @beta
     readonly mode?: "sliding" | "cumulative";
+    // @beta
     readonly nodes?: "all" | "ends";
     readonly step?: TimeStep;
+    // @beta
+    readonly timeZone?: string;
     readonly to: number | string;
 }
 
-// @public
+// @beta
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
     readonly attribute?: Path;
     readonly from?: number | string;

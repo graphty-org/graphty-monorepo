@@ -35,6 +35,7 @@
  * 5621-5665).
  */
 
+import { siteTimeline } from "../siteConfig";
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "./sampleGraphs";
 
 /** A tag pill on a sample row. The four the spec names, and no others. @public */
@@ -236,6 +237,8 @@ export interface StartSample {
     readonly url: string;
     /** Its picture, for a sample with no graph-samples dataset to take one from. */
     readonly picture?: string;
+    /** It is offered for watching change over time, so only with the timeline experiment on. */
+    readonly timed?: true;
 }
 
 /**
@@ -291,6 +294,7 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "615 nodes, 8,142 edges",
         url: `${import.meta.env.BASE_URL}samples/campus-contacts.json`,
         picture: `${import.meta.env.BASE_URL}samples/campus-contacts.webp`,
+        timed: true,
     },
     {
         id: "graph-research",
@@ -300,6 +304,7 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "549 nodes, 2,084 edges",
         url: `${import.meta.env.BASE_URL}samples/graph-research.json`,
         picture: `${import.meta.env.BASE_URL}samples/graph-research.webp`,
+        timed: true,
     },
     {
         id: "marvel-films",
@@ -309,6 +314,7 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "210 nodes, 582 edges",
         url: `${import.meta.env.BASE_URL}samples/marvel-films.json`,
         picture: `${import.meta.env.BASE_URL}samples/marvel-films.webp`,
+        timed: true,
     },
     {
         id: "paper-citations",
@@ -318,5 +324,14 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "159 nodes, 453 edges",
         url: `${import.meta.env.BASE_URL}samples/paper-citations.json`,
         picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
+        timed: true,
     },
 ];
+
+/**
+ * The samples this site offers: the timed ones only with the timeline experiment on.
+ * @returns the samples, in order.
+ */
+export function offeredSamples(): readonly StartSample[] {
+    return START_SAMPLES.filter((sample) => sample.timed !== true || siteTimeline());
+}

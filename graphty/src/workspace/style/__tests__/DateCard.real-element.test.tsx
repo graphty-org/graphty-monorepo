@@ -10,9 +10,10 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { REGISTRATIONS } from "../../registrations";
@@ -29,9 +30,10 @@ const BEFORE_2005: RuleTree = { kind: "range", attribute: "data.installed", max:
  * The workspace on a place, with the small graph whose nodes carry `installed`, typed as dates and
  * set as the time.
  * @param place - where it opens.
+ * @param timed - whether `installed` is set as the time; it needs the timeline experiment.
  * @returns the session.
  */
-async function openWithDates(place: "data" | "graph"): Promise<GraphSession> {
+async function openWithDates(place: "data" | "graph", timed = true): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Gauges", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     const session = await waitFor(() => {
@@ -48,7 +50,9 @@ async function openWithDates(place: "data" | "graph"): Promise<GraphSession> {
         ids.flatMap((id, at) => (at < INSTALLED.length ? [{ id, values: { installed: INSTALLED[at] } }] : [])),
     );
     await session.data.setType({ kind: "node", name: "installed" }, "date");
-    await session.time.setField({ nodes: { start: "installed" } });
+    if (timed) {
+        await session.time.setField({ nodes: { start: "installed" } });
+    }
     return session;
 }
 
@@ -70,6 +74,28 @@ async function typeBefore2005(card: HTMLElement): Promise<void> {
 describe("the date condition card", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
+    });
+
+    beforeEach(async () => {
+        await siteFeatures(["timeline"]);
+    });
+
+    it("with the timeline off: a typed date writes the filter", async () => {
+        await siteFeatures([]);
+        const session = await openWithDates("data", false);
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
+        const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
+        const card = await within(list).findByRole("group", { name: /^installed/ });
+        const box = within(card).getByRole("combobox", { name: "installed before, a date or a year" });
+        await userEvent.click(box);
+        await userEvent.keyboard("Jan 1, 2005{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(
+                session.visibility.conditions.map((each) => each.rule),
+                [BEFORE_2005],
+            );
+        });
     });
 
     it("in Filters: installed is listed as a date, and Before 2005 keeps the three put in before", async () => {

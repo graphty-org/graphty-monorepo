@@ -41,6 +41,8 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "counting-scatter": 4,
     "radix-hist": 2,
     "radix-scatter": 5,
+    "cluster-centroid": 4,
+    "cluster-pull": 4,
     "collide-cell-key": 3,
     "collide-gather": 6,
     "collide-apply": 2,

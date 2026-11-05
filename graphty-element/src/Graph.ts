@@ -423,8 +423,10 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
     config: new Set([
         "data.knownFields.nodeTimePath",
         "data.knownFields.nodeTimeUnit",
+        "data.knownFields.nodeTimeParseZone",
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
+        "data.knownFields.edgeTimeParseZone",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -538,31 +540,50 @@ interface Reservation {
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
+/** How the element's data-source pair loads; see {@link loadSourcePair}. */
+interface PairImport {
+    readonly coalesce: string;
+    readonly setup: boolean;
+    /**
+     * Whether a `"url"` pair finds its format. Otherwise the type is looked up like any other: a
+     * registered source of that name reads it, and with none the load fails as an unknown format.
+     */
+    readonly findsUrlFormat: boolean;
+    /** Told when a `"url"` pair's format could not be found, before any load ran to report it. */
+    readonly readFailed: (error: unknown) => void;
+}
+
 /** What the element's data-source pair adds to the import its load dispatches; see {@link loadSourcePair}. */
-const pairImports = new WeakMap<Graph, { readonly coalesce: string; readonly setup: boolean }>();
+const pairImports = new WeakMap<Graph, PairImport>();
 
 /**
  * Load the element's data-source pair through `addDataFromSource`, as every load goes, with what
  * only the pair has: a coalesce key, so the two halves assigned in one tick are one load, and
- * whether the page declared it at construction, which makes it the baseline. No entry point
- * exports it.
+ * whether the page declared it at construction, which makes it the baseline. A `"url"` type names
+ * no format, so when `how.findsUrlFormat` says so it goes through `loadFromUrl`, which finds it. No
+ * entry point exports it.
  * @param graph - The graph.
  * @param type - The data source type.
  * @param config - Its configuration.
- * @param how - The coalesce key, and whether it is setup.
+ * @param how - The coalesce key, whether it is setup, and how a `"url"` pair finds its format.
  * @param how.coalesce - The key two pair loads coalesce under while the first waits.
  * @param how.setup - Declared at construction.
+ * @param how.findsUrlFormat - Whether a `"url"` pair finds its format.
+ * @param how.readFailed - Told when a `"url"` pair's format could not be found.
  * @returns The load, as `addDataFromSource` returns it.
  */
 export function loadSourcePair(
     graph: Graph,
     type: string,
     config: object,
-    how: { readonly coalesce: string; readonly setup: boolean },
+    how: PairImport,
 ): Promise<{ loadId: number }> {
     pairImports.set(graph, how);
     try {
-        return graph.addDataFromSource(type, config, { replace: true });
+        const { url, ...options } = config as { url?: unknown } & Parameters<Graph["loadFromUrl"]>[1];
+        return how.findsUrlFormat && typeof url === "string"
+            ? graph.loadFromUrl(url, { ...options, replace: true })
+            : graph.addDataFromSource(type, config, { replace: true });
     } finally {
         pairImports.delete(graph);
     }
@@ -1613,6 +1634,13 @@ export class Graph implements GraphContext {
         this.session.on("set:changed", (change) => {
             if (change.change === "removed") {
                 this.layoutManager.releaseDetachedScope();
+            }
+        });
+
+        // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
+        this.session.on("run:changed", ({ phase }) => {
+            if (phase === "end" || phase === "removed" || phase === "restored") {
+                this.layoutManager.clustersChanged();
             }
         });
 
@@ -2878,12 +2906,19 @@ export class Graph implements GraphContext {
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
      * @param load.turn - Its place in the session's load line
+     * @param pair - What a pair load adds; set only for the call that made it, so a door that reads
+     *     first passes what it found before its first await
      * @returns The load's id
      */
-    private async loadReserved(type: string, opts: object, load: Reservation): Promise<{ loadId: number }> {
-        // Read before the first await: a pair load's extras are set only for the call that made it.
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: Reservation,
+        pair = pairImports.get(this),
+    ): Promise<{ loadId: number }> {
         const { turn, ...place } = load;
-        const extras = pairImports.get(this);
+        const { coalesce, setup } = pair ?? {};
+        const extras = pair === undefined ? {} : { coalesce, setup };
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
@@ -3026,10 +3061,14 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
+        const pair = pairImports.get(this);
         try {
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
-                : await this.urlFormat(url, load.generation);
+                : await this.urlFormat(url, load.generation).catch((error: unknown) => {
+                      pair?.readFailed(error);
+                      throw error;
+                  });
 
             // Merge graph config with explicit options (explicit options take precedence)
             // A key is only carried when there is something to say. `edgeSource: undefined` would
@@ -3055,10 +3094,10 @@ export class Graph implements GraphContext {
             // If we already fetched content for detection, pass it as data to avoid double-fetch
             // Otherwise pass URL and let DataSource handle the fetch
             if (fetchedContent !== undefined) {
-                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load, pair);
             }
 
-            return await this.loadReserved(format, { url, ...mergedOptions }, load);
+            return await this.loadReserved(format, { url, ...mergedOptions }, load, pair);
         } finally {
             this.leaveLine(load);
         }

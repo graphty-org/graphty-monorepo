@@ -93,19 +93,19 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -321,19 +321,19 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-unit"?: string;
     /**

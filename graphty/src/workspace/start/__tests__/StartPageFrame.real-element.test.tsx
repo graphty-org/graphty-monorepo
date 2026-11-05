@@ -12,17 +12,23 @@ import "@graphty/graphty-element";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
+import { afterEach, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { sampleTile } from "../../../test/samples-dialog";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The timeline is an experiment: this file's workspaces switch it on.
+beforeAll(async () => {
+    await siteFeatures(["timeline"]);
+});
 
 /**
  * Renders the start page and waits for its graph to load.

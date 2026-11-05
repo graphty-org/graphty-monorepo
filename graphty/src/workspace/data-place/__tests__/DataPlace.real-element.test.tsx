@@ -9,9 +9,10 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -175,6 +176,9 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
+        // Time is the timeline experiment's role: the list holds it only with the experiment on.
+        await siteFeatures(["timeline"]);
+        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));

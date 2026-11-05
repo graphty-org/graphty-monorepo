@@ -158,10 +158,26 @@ Trim is one GLSL include shared by line and cap shaders, with a TypeScript mirro
 | Edge                                 | Ends come from                                                            | Cached per edge       |
 | ------------------------------------ | ------------------------------------------------------------------------- | --------------------- |
 | Straight, no cap, gap or group       | Node centers                                                              | No                    |
-| Straight, round, box or ellipse end  | Closed form                                                               | No                    |
+| Straight, two round ends, or a box   | Closed form                                                               | No                    |
 | Straight, other shape                | Two floats from `rowRayHit`; bounding radius while moving, exact at rest  | Yes                   |
 | Bezier, arc, fan, loop, great circle | Shader evaluates pieces i-2 to i+3, then today's miter and ownership code | `t` range, run length |
 | File and layout routes               | Per-edge slice of a route texture                                         | `t` range, run length |
+
+As built (stage 6): `meshes/edgeTrim.ts` holds `EDGE_TRIM_GLSL`, a string a shader takes in by interpolation as it takes `edgeJoinShader.ts`, and
+`trimEnds`, its mirror. `Edge.trimInput` gives both their numbers. Only `test/browser/edge-trim-mirror.test.ts` reads them; it holds the mirror to
+`getInterceptPoints` on every node shape, in 2D and 3D, and the shader to the mirror through transform feedback on WebGL2, both within 1e-4.
+WebGPU was not run. Corrections to the table, from that test:
+
+- An ellipse is not a closed form. `surfaceReach`'s ellipse is 0.88 off on a line through depth, which meets the slab's face, and 0.003 off across
+  the view, which meets a facet. It takes two floats. A turned rectangle does too.
+- A round end is closed only across from another round end. Across from anything else today's ray meets the sphere's facets, so that end takes a
+  float as well, or it moves by up to the facet depth.
+- 1e-4 holds near the origin only: at y = 3000 a float's spacing is 2.4e-4, and the shader takes rows as floats, so the test moves each edge to the
+  origin before reading it back.
+- The first row is `Edge.bareEnd`, not `getInterceptPoints`: a line with no cap never asks for a surface, so the include does not cover it, and a
+  line with a gap and no cap leaves at `leaveNode`. Stage 16 needs both.
+- A group's end in the include knows a box and an ellipse only. A group is `round-rectangle` by default, whose outline only the mirror reads, so an
+  edge ending on such a group stays an object edge until something supplies that reach.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.

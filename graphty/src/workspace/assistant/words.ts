@@ -456,21 +456,12 @@ export function awayWords(title: string | null): string {
 }
 
 /**
- * Whether an effect is what a read found, or that it found nothing.
- * @param effect - the effect.
- * @returns true for a result.
- */
-export const isResult = (effect: AiEffect): boolean =>
-    effect.code === "AI_EFFECT_FOUND" || effect.code === "AI_EFFECT_EMPTY";
-
-/**
- * Whether an effect draws a change line: not a read, and not a selection of nothing.
+ * Whether an effect is a change to the graph a change line reports, not a read.
  * @param effect - the effect.
  * @returns true for a change.
  */
 export const isChange = (effect: AiEffect): boolean =>
-    !isResult(effect) &&
-    (effect.code !== "AI_EFFECT_SELECTION" || Number(effect.params.nodes ?? 0) + Number(effect.params.edges ?? 0) > 0);
+    effect.code !== "AI_EFFECT_FOUND" && effect.code !== "AI_EFFECT_EMPTY";
 
 /**
  * A style effect's line.
@@ -538,7 +529,7 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
         case "AI_EFFECT_DATA":
             return dataLine(params);
         case "AI_EFFECT_SELECTION":
-            return `Selected ${nodesAndEdges(Number(params.nodes ?? 0), Number(params.edges ?? 0))}`;
+            return `Selected ${counted(Number(params.nodes ?? 0), "node")}`;
         case "AI_EFFECT_VIEW":
             return "Moved the view";
         default:

@@ -530,6 +530,7 @@ const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
  * `session.time` behind its experiment. While it is off an action refuses with `E_FEATURE_OFF`
  * (the ones returning a promise read as a function that rejects, the rest throw when read) and a
  * read gives the answer it gives with nothing designated, so a consumer's display needs no check.
+ * `parse` stays open: it reads text and touches no timeline, and date conditions rely on it.
  * Asked per member, because an element's session settles its features only when it first renders.
  * @param api - The timeline.
  * @param on - Whether the experiment is on now.
@@ -551,13 +552,12 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         candidates: () => [],
         notices: () => [],
         changes: () => NO_CHANGES,
-        parse: () => null,
     };
     const gated = {} as TimeApi;
     for (const key of Object.keys(api) as (keyof TimeApi)[]) {
         Object.defineProperty(gated, key, {
             get: () => {
-                if (!on()) {
+                if (key !== "parse" && !on()) {
                     if (key in nothing) {
                         return nothing[key];
                     }

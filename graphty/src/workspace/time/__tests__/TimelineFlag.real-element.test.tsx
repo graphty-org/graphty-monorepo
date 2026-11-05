@@ -204,7 +204,7 @@ describe("the timeline's switch in the app", () => {
             assert.isAbove(session.data.statistics().edgeCount, 0);
         });
 
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(await dataPlace().findByRole("button", { name: "Add to node attributes" }));
         const offered = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
         assert.include(offered, "City");
         assert.notInclude(offered, "Time", "no Time in Fields");
@@ -215,8 +215,8 @@ describe("the timeline's switch in the app", () => {
         assert.isNull(screen.queryByRole("button", { name: /^Time: / }), "no header chip");
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Time window" }), "no Filters entry");
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
         await userEvent.keyboard("{Escape}");
 
         // The timeline's key does nothing.
@@ -241,16 +241,15 @@ describe("the timeline's switch in the app", () => {
         const session = await open();
         assert.deepEqual(session.features.enabled, ["timeline"]);
 
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(await dataPlace().findByRole("button", { name: "Add to edge attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
         await userEvent.click(await screen.findByRole("option", { name: "sent" }));
 
-        await screen.findByRole("region", { name: "Timeline" });
-        assert.deepEqual(session.time.field, { edges: { start: "sent" } });
         await screen.findByRole("button", { name: "Timeline" });
+        assert.deepEqual(session.time.field, { edges: { start: "sent" } });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findByRole("menuitem", { name: "Time window" });
+        await screen.findByRole("option", { name: "Time window" });
         await userEvent.keyboard("{Escape}");
 
         const commands = await timeCommands();
@@ -266,7 +265,7 @@ describe("the timeline's switch in the app", () => {
         assert.include(await headerRoles("node", "team"), "Time");
         await columnVerb("node", "team", "Details");
         await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
-        await screen.findByRole("menuitem", { name: "Set as time" });
+        await screen.findByRole("menuitem", { name: "Set in Data" });
     });
 
     it("offers no time role on the Data page with the experiment off", async () => {
@@ -294,8 +293,8 @@ describe("the timeline's switch in the app", () => {
         });
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Time window" }), "no Filters entry");
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Time window" }), "no Filters entry");
         await userEvent.keyboard("{Escape}");
 
         const commands = await timeCommands();
@@ -306,22 +305,22 @@ describe("the timeline's switch in the app", () => {
         await columnVerb("edge", "sent", "Details");
         await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
         await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Set as time" }), "no column verb");
+        assert.isNull(screen.queryByRole("menuitem", { name: "Set in Data" }), "no column verb");
     });
 
-    it("offers Set as time in the Overview with the experiment on", async () => {
+    it("offers Set in Data in the Overview with the experiment on", async () => {
         await siteFeatures(["timeline"]);
         await open("graph");
         const overview = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await overview.findByRole("button", { name: "Set as time" });
+        await overview.findByRole("button", { name: "Set in Data" });
     });
 
-    it("offers no Set as time in the Overview with the experiment off", async () => {
+    it("offers no Set in Data in the Overview with the experiment off", async () => {
         await siteFeatures([]);
         await open("graph");
         const overview = within(screen.getByRole("complementary", { name: "Inspector" }));
         await overview.findByText("Direction");
-        assert.isNull(overview.queryByRole("button", { name: "Set as time" }));
+        assert.isNull(overview.queryByRole("button", { name: "Set in Data" }));
     });
 
     it("shows nothing of a project saved with the timeline, and lets the reader clear its window", async () => {
@@ -356,6 +355,6 @@ describe("the timeline's switch in the app", () => {
         await waitFor(async () => {
             assert.include((await styleRows()).join(), "Ghost");
         });
-        await screen.findByRole("region", { name: "Timeline" });
+        await screen.findByRole("button", { name: "Timeline" });
     });
 });

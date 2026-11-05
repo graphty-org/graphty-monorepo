@@ -144,8 +144,13 @@ describe("session.time with the timeline off", () => {
         assert.deepEqual(time.candidates(), []);
         assert.deepEqual(time.notices(), []);
         assert.deepEqual(time.changes(), { entered: { nodes: [], edges: [] }, left: { nodes: [], edges: [] } });
-        assert.isNull(time.parse("2026-01-01"));
         await time.ready;
+    });
+
+    it("still reads text as an instant, as a date condition needs", () => {
+        const { time } = createGraphSession(OFF);
+        assert.strictEqual(time.parse("2026-01-02"), Date.UTC(2026, 0, 2));
+        assert.isNull(time.parse("not a date"));
     });
 
     it("throws from the actions that return no promise", () => {

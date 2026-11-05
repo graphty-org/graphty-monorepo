@@ -80,7 +80,7 @@ false, so a display needs no check. Its actions refuse with `E_FEATURE_OFF` (`de
 `{ feature, key }`): `play`, `pause`, `window`, `spanOf` and `committed` throw, while `setField`, `setSettings`, `stepBy`,
 `seek` and `commit` return a promise that rejects. Check
 `session.features.enabled.includes("timeline")` before an action, as above. A text column of dates
-does not measure time.
+does not measure time. `parse` works either way: it reads text as an instant.
 
 The four attributes change nothing with it off. `element.refusedFeatures` lists each one set to a
 value, as `{ code: "E_FEATURE_OFF", params: { feature, key } }` with `key` the property's name, and

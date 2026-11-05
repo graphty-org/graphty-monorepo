@@ -22,8 +22,8 @@ const BEFORE_2005: Extract<RuleTree, { kind: "range" }> = {
     as: "time",
 };
 
-async function gauges(rows: readonly object[] = GAUGES): Promise<GraphSession> {
-    const session = createGraphSession();
+async function gauges(rows: readonly object[] = GAUGES, features: readonly string[] = []): Promise<GraphSession> {
+    const session = createGraphSession({ features });
     await session.data.addNodes(rows.map((row) => ({ ...row })));
     return session;
 }
@@ -53,6 +53,7 @@ describe('a range leaf read "as" time', () => {
             GAUGES.map((row) =>
                 row.installed === undefined ? row : { ...row, installed: Number(row.installed.slice(0, 4)) },
             ),
+            ["timeline"],
         );
         await session.time.setField({ nodes: { start: "installed" } });
         await session.visibility.setConditions([{ effect: "keep", rule: BEFORE_2005 }]);

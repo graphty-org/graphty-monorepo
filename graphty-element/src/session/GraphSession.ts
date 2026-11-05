@@ -486,6 +486,19 @@ function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, tok
 }
 
 /**
+ * Whether a command does something only the timeline experiment applies. A project's own restore
+ * never does: it keeps what was saved.
+ * @param command - The command.
+ * @returns True for playback settings and a window that names the timeline's options.
+ */
+function needsTimeline(command: SessionCommand): boolean {
+    const asks =
+        command.op === "visibility.playback" ||
+        (command.op === "visibility.window" && windowNeedsTimeline(command.window));
+    return asks && command.restoring !== true;
+}
+
+/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -819,16 +832,7 @@ class Session implements ElementSession {
             options?: DispatchOptions,
         ) => Promise<void>,
     ): CommandOutcome<C> {
-        if (command.op === "visibility.playback" && command.restoring !== true && !this.timelineOn()) {
-            return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
-        }
-
-        if (
-            command.op === "visibility.window" &&
-            command.restoring !== true &&
-            !this.timelineOn() &&
-            windowNeedsTimeline(command.window)
-        ) {
+        if (needsTimeline(command) && !this.timelineOn()) {
             return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
         }
 

@@ -1,7 +1,8 @@
 /**
  * Where yEd draws a node's label, as measured in its own drawings (test/fidelity/oracles/gml-yed-pmodel.svg,
  * gml-synthetic-coverage.svg, graphml-libcitygml-mapping.svg): a label as tall as its node has its words at the node's
- * top, a GML label inside against a side is an inset in from it, and a `CroppingLabel` breaks at its node's width.
+ * top, a GML label inside against a side is an inset in from it and one beside a side a distance out from it, and a
+ * `CroppingLabel` breaks at its node's width.
  */
 
 import { describe, expect, it } from "vitest";
@@ -50,7 +51,7 @@ function graphml(labels: readonly string[]): string {
     const nodes = labels.map(
         (label, id) =>
             `<node id="n${String(id)}"><data key="d0"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
-            `<y:NodeLabel modelName="internal" modelPosition="c" x="5" y="5" width="20" height="17" ${label}>a</y:NodeLabel>` +
+            `<y:NodeLabel modelName="internal" x="5" y="5" width="20" height="17" ${label}>a</y:NodeLabel>` +
             `</y:ShapeNode></data></node>`,
     );
     return (
@@ -79,7 +80,31 @@ describe("yEd GML label places", () => {
             "gml",
             gml(['anchor "l"', 'anchor "br"', 'anchor "tl"', 'anchor "t"', 'anchor "e"']),
         );
-        expect(nodes("labelOffsetX")).toEqual([4, -4, 4, null, null]);
+        expect(nodes("labelOffsetX")).toEqual([4, -4, 4, null, 4]);
+        expect(nodes("labelOffsetY")).toEqual([null, -4, 4, 4, null]);
+    });
+
+    it("moves a label beside a side out from it, and one at a corner out to the side alone", async () => {
+        const nodes = await nodesOf(
+            "gml",
+            gml(['anchor "n"', 'anchor "s"', 'anchor "w"', 'anchor "se"', 'anchor "c"']),
+        );
+        expect(nodes("labelOffsetX")).toEqual([null, null, -4, 4, null]);
+        expect(nodes("labelOffsetY")).toEqual([-4, 4, null, null, null]);
+    });
+
+    it("holds a label inside its node against its side, and a label as wide as its node to the node's width", async () => {
+        const nodes = await nodesOf(
+            "gml",
+            gml([
+                'anchor "l"',
+                'autoSizePolicy "node_height" anchor "c"',
+                'autoSizePolicy "node_width" anchor "t"',
+                'anchor "c"',
+                'anchor "e"',
+            ]),
+        );
+        expect(nodes("labelBox")).toEqual(["words-at-side", "words-at-side", "target-width", null, null]);
     });
 });
 
@@ -95,6 +120,29 @@ describe("yEd GraphML label places", () => {
             ]),
         );
         expect(nodes("labelPosition")).toEqual(["inside-top", "inside-top", "center", "center"]);
+    });
+
+    it("holds a label inside its node against its side, and a header band to its node's width", async () => {
+        const nodes = await nodesOf(
+            "graphml",
+            graphml([
+                'modelPosition="l"',
+                'modelPosition="t" autoSizePolicy="node_width" alignment="right"',
+                'modelPosition="t" autoSizePolicy="node_width"',
+                'modelPosition="c"',
+            ]),
+        );
+        expect(nodes("labelBox")).toEqual(["words-at-side", "target-width", "target-width", null]);
+        expect(nodes("labelTextAlign")).toEqual([null, "right", null, null]);
+    });
+
+    it("reads a label sized to its node's width by the inset it stores down the node, not across it", async () => {
+        const nodes = await nodesOf(
+            "graphml",
+            graphml(['modelPosition="tl" autoSizePolicy="node_width"', 'modelPosition="tl"']),
+        );
+        expect(nodes("labelOffsetX")).toEqual([null, 5]);
+        expect(nodes("labelOffsetY")).toEqual([5, 5]);
     });
 
     it("breaks a CroppingLabel's words at its node's width, inside the label's padding", async () => {

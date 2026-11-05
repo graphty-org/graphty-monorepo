@@ -327,6 +327,8 @@ export interface PArrow {
      * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
      */
     partWay?: boolean;
+    /** graphty's cap stood back from its line's end by a stem: how far back is judged against the program's. */
+    standing?: boolean;
     /**
      * An end's arrowhead: the break between where its line stops and where the head itself first meets the line, as a
      * share of the head's length (0 where they meet). Cytoscape desktop runs the line on under its half arrows to where

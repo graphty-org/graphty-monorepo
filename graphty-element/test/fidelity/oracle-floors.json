@@ -24669,11 +24669,11 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.96,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.96,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -24685,8 +24685,8 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
-            "raster.edge": 0.92,
-            "raster.arrowhead": 0.92,
+            "raster.edge": 0.93,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.99
         },
         "gml-specimen-arrows-p2@matched": {
@@ -24715,11 +24715,11 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.96,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.96,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -24756,11 +24756,11 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.958,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.958,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -24773,7 +24773,7 @@
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.93,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.99
         },
         "gml-specimen-arrows-p3@matched": {
@@ -24802,11 +24802,11 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.958,
+            "edge.arrow": 0.988,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.958,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -27663,14 +27663,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 0.339,
             "edge.gradient": 1,
-            "edge.arrow": 0.928,
-            "edge.arrowShape": 0.898,
+            "edge.arrow": 0.932,
+            "edge.arrowShape": 0.966,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.886,
+            "edge.arrowFill": 0.955,
             "edge.arrowColor": 0.987,
             "edge.arrowLength": 0.989,
-            "edge.arrowWidth": 0.977,
+            "edge.arrowWidth": 0.978,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -27682,7 +27682,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.739,
+            "stray.present": 0.773,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -27738,14 +27738,14 @@
             "edge.dash": 1,
             "edge.dashPeriod": 0.339,
             "edge.gradient": 1,
-            "edge.arrow": 0.928,
-            "edge.arrowShape": 0.898,
+            "edge.arrow": 0.932,
+            "edge.arrowShape": 0.966,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.886,
+            "edge.arrowFill": 0.955,
             "edge.arrowColor": 0.987,
             "edge.arrowLength": 0.989,
-            "edge.arrowWidth": 0.977,
+            "edge.arrowWidth": 0.978,
             "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
@@ -27757,7 +27757,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.739,
+            "stray.present": 0.773,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -28962,10 +28962,10 @@
             "edge.dashPeriod": 0.333,
             "edge.gradient": 1,
             "edge.arrow": 0.975,
-            "edge.arrowShape": 0.933,
+            "edge.arrowShape": 0.95,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.966,
+            "edge.arrowFill": 0.983,
             "edge.arrowColor": 1,
             "edge.arrowLength": 0.966,
             "edge.arrowWidth": 0.966,
@@ -28978,8 +28978,8 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
-            "raster.edge": 0.9,
-            "raster.arrowhead": 0.93,
+            "raster.edge": 0.91,
+            "raster.arrowhead": 0.94,
             "raster.label": 0.93,
             "raster.canvas": 0.98
         },
@@ -29027,10 +29027,10 @@
             "edge.dashPeriod": 0.333,
             "edge.gradient": 1,
             "edge.arrow": 0.975,
-            "edge.arrowShape": 0.933,
+            "edge.arrowShape": 0.95,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.966,
+            "edge.arrowFill": 0.983,
             "edge.arrowColor": 1,
             "edge.arrowLength": 0.966,
             "edge.arrowWidth": 0.966,
@@ -29055,7 +29055,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 0.803,
             "node.stroke": 1,
-            "node.strokeWidth": 0.836,
+            "node.strokeWidth": 0.952,
             "node.strokeDash": 0.952,
             "label.present": 1,
             "label.text": 1,
@@ -29127,7 +29127,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 0.803,
             "node.stroke": 1,
-            "node.strokeWidth": 0.836,
+            "node.strokeWidth": 0.952,
             "node.strokeDash": 0.952,
             "label.present": 1,
             "label.text": 1,
@@ -39091,10 +39091,10 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.958,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.958,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -39107,7 +39107,7 @@
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.91,
-            "raster.arrowhead": 0.91,
+            "raster.arrowhead": 0.93,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-arrows@matched": {
@@ -39137,10 +39137,10 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.958,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
-            "edge.arrowFill": 0.958,
+            "edge.arrowFill": 1,
             "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
@@ -39715,7 +39715,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 0.889,
             "node.stroke": 1,
-            "node.strokeWidth": 0.973,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -39740,7 +39740,7 @@
             "node.fillOpacity": 1,
             "node.gradient": 0.889,
             "node.stroke": 1,
-            "node.strokeWidth": 0.973,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -56323,38 +56323,6 @@
                 "date": "2026-11-05"
             }
         },
-        "gml-specimen-arrows-p2": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.92,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
-            }
-        },
-        "gml-specimen-arrows-p2@matched": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.92,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
-            }
-        },
-        "gml-specimen-arrows-p3": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.917,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
-            }
-        },
-        "gml-specimen-arrows-p3@matched": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.917,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
-            }
-        },
         "gml-synthetic-coverage": {
             "node.gradient": {
                 "floor": 0.871,
@@ -56405,24 +56373,12 @@
                 "to": 0.794,
                 "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
                 "date": "2026-11-05"
-            },
-            "node.strokeWidth": {
-                "floor": 0.836,
-                "to": 0.825,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
             }
         },
         "graphml-synthetic-nodes@matched": {
             "node.gradient": {
                 "floor": 0.803,
                 "to": 0.794,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
-            "node.strokeWidth": {
-                "floor": 0.836,
-                "to": 0.825,
                 "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
                 "date": "2026-11-05"
             }
@@ -56583,22 +56539,6 @@
                 "to": 0.992,
                 "reason": "a half arrow on a patterned line ends a different distance from its line than Cytoscape's: graphty-element's sinewave stops short of the barb (432->450) and its separate-arrow pattern runs on to it where Cytoscape's stops short (402->387); they passed by accident while graphty-element left a 0.6 break before every half arrow (#5490)",
                 "date": "2026-11-01"
-            }
-        },
-        "yed-graphml-specimen-arrows": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.958,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
-            }
-        },
-        "yed-graphml-specimen-arrows@matched": {
-            "edge.arrowParts": {
-                "floor": 1,
-                "to": 0.958,
-                "reason": "new measurement (#5846): the comparator now reads yEd's and yEd Live's crow's foot, concave, convex, cross, kite, deltoid, dash and bar heads, which it took for nothing or for pieces of a node, so these ends are judged for the first time. Their sizes match yEd's now; what stays is yEd's skewed dash and white delta bar, a bar or circle yEd stands back from the line's end and graphty draws at the end, a crow's foot circle the comparator does not read at line width 2, and the two parallel edges n13->n14 and n22->n23 of graphml-synthetic-edges, paired the wrong way round so a bar is compared with a standard head",
-                "date": "2026-11-05"
             }
         },
         "yed-graphml-specimen-images-charts": {

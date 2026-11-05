@@ -238,17 +238,17 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 330 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 5 | 6 | 59 | 54% | 0% | 0 | 227 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 446 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 374 | 100% | 0% | 0 | 180 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 366 | 100% | 0% | 0 | 180 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 111 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
-| graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 328 | 87% | 0% | 0 | 100 | 0 |  |
+| graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 100 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 31 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
 | graphml/generated/ramp-with-exceptions.graphml.gz | ok | 1000 | 0 | 4 | 1 | 1551 | 63% | 0% | 1420 | 6000 | 0 | W_STYLE_RAMP_ROUNDED |
-| graphml/generated/scale-50.graphml | ok | 50 | 50 | 4 | 3 | 328 | 87% | 0% | 0 | 400 | 0 |  |
+| graphml/generated/scale-50.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
 | graphml/generated/scale-500.graphml.gz | ok | 500 | 500 | 4 | 4 | 3372 | 66% | 0% | 0 | 4000 | 0 |  |
 | graphml/generated/scale-5000.graphml.gz | ok | 5000 | 5000 | 4 | 4 | 34099 | 66% | 0% | 0 | 40000 | 0 |  |
-| graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 328 | 87% | 0% | 0 | 250 | 0 | W_STYLE_BLOCK_IGNORED |
-| graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 329 | 87% | 0% | 0 | 100 | 0 |  |
-| graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 328 | 87% | 0% | 0 | 261 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 250 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 327 | 87% | 0% | 0 | 100 | 0 |  |
+| graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 326 | 87% | 0% | 0 | 261 | 0 | W_STYLE_BLOCK_IGNORED |
 | graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 24 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
 | graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 8 | 4 | 770 | 0% | 0% | 2 | 18863 | 0 | W_STYLE_RAMP_ROUNDED |
 | graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 8 | 3 | 423 | 71% | 0% | 0 | 5136 | 0 |  |

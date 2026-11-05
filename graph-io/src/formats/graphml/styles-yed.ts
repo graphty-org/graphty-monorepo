@@ -1326,7 +1326,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
             put("borderWidth", 0);
         } else {
             readColor(treeAttr(border, "color"), "borderColor", null, put, at);
-            put("borderWidth", canonNumber(treeAttr(border, "width"), at("borderWidth")));
+            put("borderWidth", yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))));
         }
         put("borderStyle", canonEnum("borderStyle", treeAttr(border, "type"), "yed", at("borderStyle")));
     }
@@ -1359,14 +1359,14 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
 }
 
 /**
- * The width yEd draws a line of a given width: 0.5 and 1.5 both draw 1 wide (yed-graphml-specimen-arrows,
- * yed-graphml-specimen-edges-lines), and whole widths as written. No other fraction has been drawn, so 2.5 stays as
- * written until one has.
+ * The width yEd draws a line or a node's border of a given width: the whole pixels of it, at least 1. 0.2, 0.5, 1.5
+ * and 1.9 draw 1, 2.5 and 2.9 draw 2, 3.5 draws 3, 7.5 draws 7 (yEd 3.25.1's own SVG export of a sheet of each width,
+ * lines and borders alike; yed-graphml-specimen-arrows, yed-graphml-specimen-node-fills-borders).
  * @param width - the file's width
  * @returns the drawn width
  */
 export function yedDrawnWidth(width: number | null): number | null {
-    return width !== null && width > 0 && width < 2 ? 1 : width;
+    return width !== null && width > 0 ? Math.max(1, Math.floor(width)) : width;
 }
 
 /**
@@ -1684,6 +1684,7 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["circle", "circle"],
     ["circle-open", "white_circle"],
     ["square", "skewed_dash"],
+    ["other:skewed-dash", "skewed_dash"],
     ["crow", "crows_foot_many"],
     ["other:open-vee", "plain"],
 ]);

@@ -62,6 +62,11 @@ export const EdgeArrowTypes = z.enum([
     "deltoid",
     // a vee's two arms as strokes, nothing between them (yEd plain, concave and convex)
     "open-vee",
+    // one slanted stroke across the line, which runs on under it to the cap's tip (yEd skewed_dash)
+    "slash",
+    // a length of the line itself, as thick as the line whatever the cap's `width`: first in a row (`stack`), it stands
+    // the caps behind it back from the line's end with the line running on to the end (yEd's crow's foot bars, circles)
+    "stem",
 ]);
 
 const ArrowStyle = z.strictObject({

@@ -7,6 +7,7 @@
 import { AbstractEngine } from '@babylonjs/core';
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
+import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
@@ -4973,6 +4974,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnBoundingBox(): BoundingBox;
     get drawnFill(): string | null;
+    // @internal
+    get drawnGeneration(): number;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
@@ -4981,6 +4984,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    get drawnRootScale(): number;
     // @internal
     get drawnScale(): number;
     set drawnScale(scale: number);
@@ -4992,6 +4997,8 @@ class Node_2 implements ModelUser {
     drawnWorldMatrix(force?: boolean): Matrix;
     // @internal
     get drawnWorldPosition(): Vector3;
+    // @internal
+    get drawnWorldRadius(): number;
     // @internal
     get drawnWorldScaling(): Vector3;
     // @internal
@@ -5014,6 +5021,8 @@ class Node_2 implements ModelUser {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    // @internal
+    get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
@@ -5023,6 +5032,8 @@ class Node_2 implements ModelUser {
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
+    // @internal
+    makeDrawnPickable(actions: ActionManager): void;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal

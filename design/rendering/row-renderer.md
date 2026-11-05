@@ -240,6 +240,10 @@ Rules of sharing:
 - **A stale landing skips the copy** (a batch in flight across a reload).
 - The controller disposes before the engine: it is a lifecycle manager of its own, disposed after the layout and before the data and the
   render managers.
+  What it frees is read before any manager is disposed, because managers reading rows on the way out freeze a cleared graph's fresh store.
+- The controller's build waits for the renderer only when one is on its way: `Graph.init` has started, or a connected element has promised
+  it with `expectRenderer`. Accelerated work asked for before that, or on a graph asking for WebGL, gets a device of the accelerator's own
+  and finishes, even if the graph never opens. An accelerator built that early stays on its own device until a loss rebuilds it.
 
 **Frames and iterations.** A frame target is p99 on an unloaded card: with no layout at all, 5 of 8 runs at 100,000 rows showed p95 of 74-90
 ms against a p50 of 9-10 ms, while other sessions used the machine. Iterations per batch stay 1 up to 250,000 rows

@@ -86,8 +86,9 @@ async function open(policy: "auto" | "required" = "auto"): Promise<Graph> {
     graph.setRenderer("webgpu");
     graph.acceleration.setPolicy(policy);
     graph.acceleration.setMinNodes(0);
+    const initialized = graph.init();
     void graph.acceleration.start();
-    await graph.init();
+    await initialized;
     assert.strictEqual(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
     await graph.acceleration.ready();
     return graph;
@@ -176,6 +177,21 @@ describe("the device a graph opens", () => {
         await startLayout(graph);
 
         assert.isTrue(layoutOf(graph).isAccelerated);
+        assert.strictEqual(devices(), 1);
+    });
+
+    it("is one device for an element, which looks for its accelerator before it opens a renderer", async () => {
+        adapterSays("test-hardware");
+        const devices = countDevices();
+        const element = document.createElement("graphty-element");
+        element.renderer = "webgpu";
+        element.graph.acceleration.setMinNodes(0);
+        document.body.appendChild(element);
+        mounted.push({ graph: element.graph, container: element });
+
+        await element.graph.acceleration.ready();
+
+        assert.isNotNull(element.graph.acceleration.accelerator);
         assert.strictEqual(devices(), 1);
     });
 

@@ -851,12 +851,16 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
+    /** Set once {@link Graph.init} has started or been promised; an accelerator waits only then. */
+    #rendererExpected = false;
     /** Called when {@link Graph.init} has opened the renderer, or the graph is gone without one. */
     #rendererOpened: (() => void) | null = null;
     /** Settles with {@link Graph.#rendererOpened}. */
     readonly #whenRendererOpened = new Promise<void>((resolve) => {
         this.#rendererOpened = resolve;
     });
+    /** What shutdown has to free, set just before it disposes the managers. */
+    #releaseAcceleration: (() => void) | null = null;
     private readonly dataManager: DataManager;
     private readonly layoutManager: LayoutManager;
     private readonly statsManager: StatsManager;
@@ -1660,8 +1664,10 @@ export class Graph implements GraphContext {
                 "acceleration",
                 {
                     init: () => Promise.resolve(),
+                    // Null when a failed init rolls the managers back: only shutdown lets go.
                     dispose: () => {
-                        this.releaseAcceleration();
+                        this.#releaseAcceleration?.();
+                        this.#releaseAcceleration = null;
                     },
                 },
             ],
@@ -1805,21 +1811,28 @@ export class Graph implements GraphContext {
         // dispose -- nor the controller, which is handed to it and released below.
         this.session.dispose();
         this.#rendererOpened?.();
+        this.#releaseAcceleration = this.accelerationRelease();
 
         // Dispose all managers through lifecycle manager
         this.lifecycleManager.dispose();
     }
 
     /**
-     * Lets go of the accelerator, as a manager of its own: after the layout, whose running
-     * simulation would otherwise step on a dead context, and before the data and the render
-     * managers, because disposing the engine destroys a device the accelerator may share.
+     * Reads what the accelerator holds, before any manager is disposed, and returns the release
+     * of it. That runs as a manager of its own: after the layout, whose running simulation would
+     * otherwise step on a dead context, and before the data and the render managers, because
+     * disposing the engine destroys a device the accelerator may share.
+     * @returns Frees the resident snapshot and disposes the controller.
      */
-    private releaseAcceleration(): void {
-        // The undirected copy of the resident snapshot is looked up HERE, while the data manager
-        // still holds the store that cached it: disposing that manager replaces that store,
-        // and a lookup afterwards would build a fresh copy no accelerator had ever seen -- so the
-        // release would free nothing and the real buffers would leak. It is looked up only when
+    private accelerationRelease(): () => void {
+        // The resident snapshot is read HERE because the managers ahead of the release can read
+        // rows as they go, and on a cleared graph that freezes the fresh store: a snapshot no
+        // accelerator ever uploaded, which would become the resident one.
+        //
+        // Its undirected copy is looked up here too, while the data manager still holds the store
+        // that cached it: disposing that manager replaces that store, and a lookup afterwards
+        // would build a fresh copy no accelerator had ever seen -- so the release would free
+        // nothing and the real buffers would leak. It is looked up only when
         // there is an accelerator with a `release` to hand it to: deriving it is a full CSR
         // symmetrization of the whole edge list, and a graph that ran on the CPU must not pay for
         // one at teardown to feed a release that does nothing.
@@ -1837,14 +1850,16 @@ export class Graph implements GraphContext {
             console.warn("graphty: an undirected copy could not be derived for release", error);
         }
 
-        // The buffers go after the layout: disposing it is what stops the running simulation, so
-        // by now no simulation can be reading the snapshot whose device memory this frees.
-        this.releaseSnapshot(resident, residentUndirected);
-        this.#resident = null;
-        // Scoped runs' derived inputs go with it; one a run still holds goes when that run lets go.
-        peekDerivedInputs(this)?.dispose();
+        return () => {
+            // The buffers go after the layout: disposing it is what stops the running simulation,
+            // so by now no simulation can be reading the snapshot whose device memory this frees.
+            this.releaseSnapshot(resident, residentUndirected);
+            this.#resident = null;
+            // Scoped runs' derived inputs go with it; one a run still holds goes when it lets go.
+            peekDerivedInputs(this)?.dispose();
 
-        this.acceleration.dispose();
+            this.acceleration.dispose();
+        };
     }
 
     /**
@@ -2039,11 +2054,26 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Promises that {@link Graph.init} is on its way, so an accelerator looked for from now on
+     * waits for the device the renderer opens. Whoever calls this must call init or shut down.
+     * @internal
+     */
+    expectRenderer(): void {
+        this.#rendererExpected = true;
+    }
+
+    /**
      * The device the accelerator runs on, when it is the one drawn with. A device a loss has taken
-     * is never the answer: this waits for the engine to have the new one.
+     * is never the answer: this waits for the engine to have the new one. With no WebGPU renderer
+     * on its way nothing is waited for, since work asked for before an init that may never come
+     * must still finish. Such an accelerator keeps its own device, however the graph opens later.
      * @returns The device, or undefined for one of the accelerator's own.
      */
     private async deviceToShare(): Promise<unknown> {
+        if (this.#rendererRequest === "webgl" || !this.#rendererExpected) {
+            return undefined;
+        }
+
         await this.#whenRendererOpened;
         const { engine } = this;
         return engine instanceof RecoveringWebGPUEngine && engine.sharesDevice
@@ -2325,6 +2355,8 @@ export class Graph implements GraphContext {
         if (this.initialized) {
             return;
         }
+
+        this.expectRenderer();
 
         try {
             // The renderer is chosen before anything is drawn, and never again.

@@ -56,6 +56,7 @@ import {
     superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
+import { FEATURES_DECLARED } from "./features-on.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import {
     fingerprint,
@@ -111,12 +112,15 @@ const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
 const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
+/** A full run's jobs: a declared experiment adds the On shards (tools/features-on.mjs). */
+const FULL_RUN_JOBS = FEATURES_DECLARED ? 44 : 27;
+
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 27 jobs", () => {
+    it("runs every shard exactly once on a full run, in the expected number of jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 27);
+        assert.equal(include.length, FULL_RUN_JOBS);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -1195,7 +1199,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 27, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1313,7 +1317,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "27");
+        assert.equal(called.out["test-count"], String(FULL_RUN_JOBS));
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");

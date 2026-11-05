@@ -113,6 +113,39 @@ function uniqueId(prefix: string): string {
 }
 
 /**
+ * A conversation with its undone marks brought up to date with the history.
+ * @param record - The conversation.
+ * @param session - The session.
+ * @returns The new copy, or undefined when every mark is already true.
+ */
+function undoneMarked(record: ConversationRecord, session: GraphSession): ConversationRecord | undefined {
+    const { steps, position } = session.history;
+    const standing = new Set(steps.slice(0, position).map((step) => step.provenance.message));
+    const taken = new Set(steps.slice(position).map((step) => step.provenance.message));
+    let changed = false;
+    const messages = record.messages.map((message) => ({
+        ...message,
+        parts: message.parts.map((part) => {
+            const { provenance } = part.type === "text" ? part : { provenance: undefined };
+            if (part.type !== "text" || provenance === undefined) {
+                return part;
+            }
+
+            const undone = !standing.has(provenance);
+            // In neither list, its steps left the history: it stays as it was.
+            if ((undone && !taken.has(provenance)) || undone === (part.undone === true)) {
+                return part;
+            }
+
+            changed = true;
+            const { undone: _was, ...rest } = part;
+            return undone ? { ...rest, undone } : rest;
+        }),
+    }));
+    return changed ? { ...record, messages } : undefined;
+}
+
+/**
  * Whether one of a message's steps has been undone.
  * @param session - The session.
  * @param message - The message's number.
@@ -2406,6 +2439,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             });
             const reopened = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
             this.current = reopened ?? this.freshRecord();
+            await this.markOpenUndone(this.graph.getSession());
             if (failure !== undefined) {
                 this.emitChanged(failure);
             }
@@ -2459,51 +2493,58 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const found = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
         if (found !== undefined && found.id !== current.id) {
             this.current = found;
+            await this.markOpenUndone(this.graph.getSession());
             this.emitChanged();
             this.reopenPending(found);
         }
     }
 
     /**
-     * Record on the open conversation which of its messages are undone: a later edit drops undone
-     * steps from the history and a reload drops every step, so the history alone cannot say.
+     * Record which messages are undone: a later edit drops undone steps from the history and a reload
+     * drops every step, so the history alone cannot say. Undo works with any conversation showing, so
+     * while steps sit undone the saved ones are marked too, keeping their place in the list. One
+     * redone meanwhile is put right when it opens.
      * @param session - The session.
      * @returns When saved.
      */
     private async noteUndone(session: GraphSession): Promise<void> {
+        await this.markOpenUndone(session);
+        const { store, current } = this;
+        const { steps, position } = session.history;
+        if (this.disposed || store === undefined || current === undefined || position === steps.length) {
+            return;
+        }
+
+        try {
+            for (const record of await store.list(this.key())) {
+                const marked = record.id === current.id ? undefined : undoneMarked(record, session);
+                if (marked !== undefined) {
+                    await store.save(marked);
+                }
+            }
+        } catch (error) {
+            // A store reports its own write failures; the conversation reads as saved.
+            logger.warn("Undone message not saved", { error: toSafeError(error).name });
+        }
+    }
+
+    /**
+     * Bring the open conversation's undone marks up to date with the history.
+     * @param session - The session.
+     * @returns When saved.
+     */
+    private async markOpenUndone(session: GraphSession): Promise<void> {
         const { store, current } = this;
         if (this.disposed || store === undefined || current === undefined) {
             return;
         }
 
-        const { steps, position } = session.history;
-        const standing = new Set(steps.slice(0, position).map((step) => step.provenance.message));
-        const taken = new Set(steps.slice(position).map((step) => step.provenance.message));
-        let changed = false;
-        const messages = current.messages.map((message) => ({
-            ...message,
-            parts: message.parts.map((part) => {
-                const { provenance } = part.type === "text" ? part : { provenance: undefined };
-                if (part.type !== "text" || provenance === undefined) {
-                    return part;
-                }
-
-                const undone = !standing.has(provenance);
-                // In neither list, its steps left the history: it stays as it was.
-                if ((undone && !taken.has(provenance)) || undone === (part.undone === true)) {
-                    return part;
-                }
-
-                changed = true;
-                const { undone: _was, ...rest } = part;
-                return undone ? { ...rest, undone } : rest;
-            }),
-        }));
-        if (!changed) {
+        const marked = undoneMarked(current, session);
+        if (marked === undefined) {
             return;
         }
 
-        const record: ConversationRecord = { ...current, messages, updatedAt: new Date().toISOString() };
+        const record: ConversationRecord = { ...marked, updatedAt: new Date().toISOString() };
         this.current = record;
         try {
             this.current = await store.save(record);
@@ -2666,6 +2707,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         this.liveStale();
         // The last run's streamed words and tool calls were another conversation's.
         this.statusManager.reset();
+        await this.markOpenUndone(this.graph.getSession());
         this.emitChanged();
         this.reopenPending(record);
         return true;

@@ -140,6 +140,60 @@ describe("an undone message", () => {
         await drained(assistant);
         assert.isTrue(undoneOf(assistant));
     });
+
+    /**
+     * A painted conversation left for a new one, so another shows when the history moves.
+     * @returns The session, the assistant, its store and the left conversation's id.
+     */
+    async function leftConversation(): Promise<{
+        session: Awaited<ReturnType<typeof assistantSession>>;
+        assistant: ScriptedAssistant;
+        store: MemoryStore;
+        left: string;
+    }> {
+        const session = await assistantSession(undefined, ON);
+        const store = new MemoryStore();
+        const assistant = new ScriptedAssistant(session, { history: "memory", store });
+        await assistant.say("paint it", [PAINT]);
+        const left = assistant.controller.getConversation()?.id ?? "";
+        await assistant.controller.newConversation();
+        return { session, assistant, store, left };
+    }
+
+    it("says so when reopened, undone while another conversation showed", async () => {
+        const { session, assistant, left } = await leftConversation();
+        await session.undo();
+        await drained(assistant);
+        await assistant.controller.openConversation(left);
+        assert.isTrue(undoneOf(assistant));
+    });
+
+    it("says so when reopened after a later edit dropped its steps, and keeps its place", async () => {
+        const { session, assistant, store, left } = await leftConversation();
+        const before = (await store.load(left))?.updatedAt;
+        await session.undo();
+        await session.data.addNodes([{ id: "later" }]);
+        await drained(assistant);
+        assert.strictEqual((await store.load(left))?.updatedAt, before);
+
+        await assistant.controller.openConversation(left);
+        assert.isTrue(undoneOf(assistant));
+    });
+
+    it("stops saying so when reopened, redone while another conversation showed", async () => {
+        const session = await assistantSession(undefined, ON);
+        const assistant = new ScriptedAssistant(session, { history: "memory" });
+        await assistant.say("paint it", [PAINT]);
+        const left = assistant.controller.getConversation()?.id ?? "";
+        await session.undo();
+        await drained(assistant);
+        await assistant.controller.newConversation();
+        await session.redo();
+        await drained(assistant);
+
+        await assistant.controller.openConversation(left);
+        assert.isUndefined(undoneOf(assistant));
+    });
 });
 
 describe("a message bound to a selection", () => {

@@ -429,8 +429,8 @@ function neutralFill(opacity: number | undefined): Fill {
 /**
  * A gradient fill through `node.gradientColors`, or else from the node's colour into
  * `node.gradientColor`, placed by `node.gradientStops`; linear, running the way
- * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from the
- * middle. With one colour it is one stop, which `NodeMesh` paints flat.
+ * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from
+ * `node.gradientCenterX` / `node.gradientCenterY` (the middle, when unset) to `node.gradientRadius`. With one colour it is one stop, which `NodeMesh` paints flat.
  * @param from - The node's colour, where the ramp starts when no colour list is painted.
  * @param gradient - The gradient channels, as painted.
  * @param opacity - The node's opacity, when it has one.
@@ -447,8 +447,13 @@ function gradientFill(from: string, gradient: FillChannels, opacity: number | un
         ...(opacity === undefined ? {} : { opacity }),
     };
 
+    const circle = {
+        ...(gradient.centerX === undefined ? {} : { centerX: gradient.centerX }),
+        ...(gradient.centerY === undefined ? {} : { centerY: gradient.centerY }),
+        ...(gradient.radius === undefined ? {} : { radius: gradient.radius }),
+    };
     return gradient.kind === "radial"
-        ? { colorType: "radial-gradient", ...rest }
+        ? { colorType: "radial-gradient", ...rest, ...circle }
         : { colorType: "gradient", direction: gradient.direction ?? 0, ...rest };
 }
 
@@ -468,6 +473,12 @@ interface FillChannels {
     stops?: string;
     /** `node.gradientKind`: linear or radial. */
     kind?: string;
+    /** `node.gradientCenterX`: where a radial gradient's middle is across the node. */
+    centerX?: number;
+    /** `node.gradientCenterY`: where a radial gradient's middle is down the node. */
+    centerY?: number;
+    /** `node.gradientRadius`: how far a radial gradient reaches. */
+    radius?: number;
 }
 
 /** How each fill channel is read into {@link FillChannels}; every other channel is written into the style. */
@@ -492,6 +503,15 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
     },
     "node.gradientKind": (fill, value) => {
         fill.kind = typeof value === "string" ? value : undefined;
+    },
+    "node.gradientCenterX": (fill, value) => {
+        fill.centerX = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientCenterY": (fill, value) => {
+        fill.centerY = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientRadius": (fill, value) => {
+        fill.radius = typeof value === "number" ? value : undefined;
     },
 };
 

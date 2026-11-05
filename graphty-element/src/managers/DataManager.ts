@@ -297,6 +297,12 @@ export function laneStoreOf(manager: DataManager): LaneStore {
             return inputCountersOf(manager);
         },
         followRenumbering: (follower) => dataManagerInternals.followRenumbering(manager, follower),
+        get renumberCount() {
+            return dataManagerInternals.renumberCount(manager);
+        },
+        get lastRenumbering() {
+            return dataManagerInternals.lastRenumbering(manager);
+        },
     };
 }
 
@@ -331,6 +337,10 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** How many freezes renumbered rows; see `GraphStore.renumberCount`. */
+    renumberCount(manager: DataManager): number;
+    /** The last of them and its remaps; see `GraphStore.lastRenumbering`. */
+    lastRenumbering(manager: DataManager): GraphStore["lastRenumbering"];
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
     /**
@@ -382,6 +392,8 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.renumberCount = (manager) => manager.store.renumberCount;
+        dataManagerInternals.lastRenumbering = (manager) => manager.store.lastRenumbering;
         dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.lastEdit = (manager) => manager.lastEdit;
         dataManagerInternals.adoptNode = (manager, node) => {

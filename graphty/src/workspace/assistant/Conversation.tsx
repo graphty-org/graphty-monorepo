@@ -14,6 +14,7 @@ import {
     type EndWords,
     endWords,
     isChange,
+    isResult,
     providerName,
     runningWords,
     sendingWords,
@@ -248,9 +249,7 @@ function stepsOf(turn: Turn, status: AiStatus | null): readonly Step[] {
         reply.calls.map((call, index) => ({
             name: stepName(call.command, call.arguments),
             ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
-            ...(index === reply.calls.length - 1
-                ? { results: (reply.effects ?? []).filter((effect) => !isChange(effect)) }
-                : {}),
+            ...(index === reply.calls.length - 1 ? { results: (reply.effects ?? []).filter(isResult) } : {}),
         })),
     );
 }
@@ -322,24 +321,30 @@ function ReaderRows({ reader }: Readonly<{ reader: ReaderMessage }>): React.JSX.
 }
 
 /**
- * What a turn did: its changes, else what it found.
+ * What a turn did: its changes, and unless one of them changed the graph (a selection does not) what
+ * it found: its last result that found something, else its last empty one.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.effects - what its calls did
  * @param props.onMore - opens the turn's steps
- * @returns The rows, or nothing
+ * @returns The rows
  */
 function TurnEffects({
     turn,
     effects,
     onMore,
-}: Readonly<{ turn: Turn; effects: readonly AiEffect[]; onMore: () => void }>): React.JSX.Element | null {
+}: Readonly<{ turn: Turn; effects: readonly AiEffect[]; onMore: () => void }>): React.JSX.Element {
     const changes = effects.filter(isChange);
-    const result = effects.findLast((effect) => !isChange(effect));
-    if (changes.length > 0) {
-        return <ChangeRows changes={changes} provenance={turn.provenance} undone={turn.undone} onMore={onMore} />;
-    }
-    return result === undefined ? null : <ResultRow effect={result} table />;
+    const result = effects.findLast((effect) => effect.code === "AI_EFFECT_FOUND") ?? effects.findLast(isResult);
+    const changedGraph = changes.some((effect) => effect.code !== "AI_EFFECT_SELECTION");
+    return (
+        <>
+            {changes.length > 0 ? (
+                <ChangeRows changes={changes} provenance={turn.provenance} undone={turn.undone} onMore={onMore} />
+            ) : null}
+            {result === undefined || changedGraph ? null : <ResultRow effect={result} table />}
+        </>
+    );
 }
 
 /**

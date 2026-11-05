@@ -33,7 +33,17 @@
  */
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
+import type {
+    EdgeId,
+    EdgeReading,
+    ElementState,
+    NodeId,
+    Path,
+    Query,
+    RuleTree,
+    Scope,
+    TopTies,
+} from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
@@ -120,12 +130,6 @@ export type Selector =
           readonly invert?: boolean;
           readonly orSelected?: boolean;
       };
-
-/**
- * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
- * @since 3.26.0
- */
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
 
 /** Every element state, for a refusal that lists what was allowed. */
 const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
@@ -323,10 +327,10 @@ export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
  * ```
  * @param selector - Any selector.
  * @returns Its rule form: a `rule` selector as it is; `has` as "has a value" (a `text` leaf
- *     with an empty `regex`); `top` as a `threshold` leaf; an `expression` that compares a
+ *     with an empty `regex`); `top` as a `threshold` leaf; `state` as a `state` leaf; an `expression` that compares a
  *     `data.` or `results.` path with a number, a yes-or-no value or `null` (and `&&` of those)
  *     as the matching leaves. Undefined for a selector with no rule form (`everything`, `ids`,
- *     `member`, `state`, and any other expression), which an editor draws its own way. With
+ *     `member`, and any other expression), which an editor draws its own way. With
  *     `options.comparisons`, an expression is also read through `>=` and `<=` (a `range` leaf)
  *     and `>` (a `threshold` leaf's `above`) against a number, and through a bare column name,
  *     which a rule reads as that file column: `` donations >= `10000` `` is the range leaf on
@@ -354,6 +358,8 @@ export function selectorRule(
                     ...(selector.ties === undefined ? {} : { ties: selector.ties }),
                 },
             };
+        case "state":
+            return { match: "rule", where: { kind: "state", state: selector.state } };
         case "expression": {
             const where = expressionRule(selector.where, options.comparisons === true);
             return where === undefined ? undefined : { match: "rule", where };
@@ -361,6 +367,46 @@ export function selectorRule(
         default:
             return undefined;
     }
+}
+
+/**
+ * The states a rule reads, however deep: its `state` leaves, a union's steps included.
+ * @param rule - The rule.
+ * @returns The states, once each order of reading.
+ */
+function statesInRule(rule: RuleTree): ElementState[] {
+    switch (rule.kind) {
+        case "state":
+            return [rule.state];
+        case "all":
+        case "any":
+            return rule.of.flatMap(statesInRule);
+        case "not":
+            return statesInRule(rule.of);
+        case "union":
+            return rule.branches.flatMap((branch) => branch.steps.flatMap((step) => statesInRule(step.rule)));
+        default:
+            return [];
+    }
+}
+
+/**
+ * The states a selector reads, whichever way it is written: `{ match: "state" }`, or a rule with a
+ * `state` leaf in it however deep. A layer that reads none is about data, not about what a reader
+ * is doing.
+ *
+ * ```ts
+ * import { selectorStates } from "@graphty/graphty-element/session";
+ *
+ * selectorStates(layer.selector); // ["selected"] for a layer on the selection, however narrowed
+ * ```
+ * @param selector - Any selector.
+ * @returns The states it reads, each once.
+ * @since 3.36.0
+ */
+export function selectorStates(selector: Selector): readonly ElementState[] {
+    const rule = selectorRule(selector)?.where;
+    return rule === undefined ? [] : [...new Set(statesInRule(rule))];
 }
 
 /**

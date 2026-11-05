@@ -45,6 +45,7 @@ import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
 import type {
     AttributeLeafNodes,
     EdgeId,
+    ElementState,
     NodeId,
     Path,
     Query,
@@ -327,6 +328,15 @@ export interface FilterSources {
      */
     readonly focus?: () => NodeId | null;
     /**
+     * Whether an element is in a state now: what a `state` leaf reads. Absent refuses that leaf,
+     * as the visibility filter does, since it cannot follow the reader.
+     * @param state - Which state.
+     * @param target - Nodes or edges.
+     * @param index - The dense index.
+     * @returns True when it is.
+     */
+    readonly inState?: (state: ElementState, target: "node" | "edge", index: number) => boolean;
+    /**
      * Whether a union step can be evaluated now, or why it waits (its run is computing, needed,
      * paused, failed or stale), and the result a `measure` leaf reads. Absent refuses `measure`.
      */
@@ -431,6 +441,7 @@ const FILTER_KINDS = [
     "repeated-edge",
     "source",
     "edges",
+    "state",
     "member",
     "item",
     "threshold",
@@ -719,6 +730,7 @@ function assertFilter(filter: RuleTree): void {
         case "item":
         case "threshold":
         case "text":
+        case "state":
         case "hops":
         case "touching":
         case "nonempty":
@@ -958,6 +970,21 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                     throw unsupported("source", "a record of what each load supplied");
                 }
 
+                return;
+            case "state":
+                if (sources.inState === undefined) {
+                    throw unsupported("state", "a view that follows the reader");
+                }
+
+                return;
+            case "union":
+                // Its own leaves are checked as it is read; a state never can be here.
+                each.branches
+                    .flatMap((branch) => branch.steps)
+                    .filter((step) => ["state", "all", "any", "not"].includes(step.rule.kind))
+                    .forEach((step) => {
+                        check(step.rule);
+                    });
                 return;
             case "all":
             case "any":
@@ -1935,6 +1962,18 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
             return sourceTests(context, filter.sources, filter.side);
+        case "state": {
+            const { inState } = context.sources;
+            if (inState === undefined) {
+                throw unsupported("state", "a view that follows the reader");
+            }
+
+            const { state } = filter;
+            return {
+                node: (index) => inState(state, "node", index),
+                edge: (index) => inState(state, "edge", index),
+            };
+        }
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");

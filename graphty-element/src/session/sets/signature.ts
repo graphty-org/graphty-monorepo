@@ -7,6 +7,7 @@
  * The parts name the other inputs the definition reads, and nothing else:
  *
  * - `"visible"` and `"selection"`: the mask objects and their versions;
+ * - a `state` leaf: the session's state revision, which moves when any element's state does;
  * - `{ where }` and a rule over a query: the attribute revision of every top-level field its
  *   compiled paths read, and the execution token of every run whose results they read;
  * - `{ set }`: the identity of the saved record it names, or an explicit absent marker, and the
@@ -116,6 +117,7 @@ function partsFor(context: ResolveContext, memo: SignatureMemo | undefined): Map
         identityOf(storeOf(context)),
         context.snapshot.serial,
         context.tick.value,
+        context.stateRevision?.() ?? 0,
         context.saved === undefined ? 0 : identityOf(context.saved),
         context.sets === undefined ? 0 : identityOf(context.sets.list()),
     ].join(":");
@@ -309,6 +311,8 @@ function rulePart(
         case "repeated-edge":
             // Topology and ids: the serial and the key say it all.
             return "t";
+        case "state":
+            return `st${String(context.stateRevision?.() ?? "-")}`;
         case "source":
             // ponytail: what a load supplied moves with no revision to key it on, so it is never
             // cached; give provenance a revision if a source rule shows up hot.

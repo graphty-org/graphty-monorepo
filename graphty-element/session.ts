@@ -509,6 +509,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
 export type {
     BySizeLeaf,
+    ElementState,
     HopsLeaf,
     MeasureLeaf,
     MeasureTest,
@@ -517,6 +518,7 @@ export type {
     RuleSide,
     SameValueLeaf,
     SourceKey,
+    StateLeaf,
     StepReference,
     TextMatchMode,
     TouchingLeaf,
@@ -760,6 +762,7 @@ export {
     renamePaths,
     rulePath,
     selectorRule,
+    selectorStates,
 } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------

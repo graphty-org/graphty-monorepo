@@ -1278,10 +1278,11 @@ export type Selector =
      * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
      * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
-     * follows each change with no step.
+     * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
+     * `selectorRule` reads this selector as.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" | "ghosted" | "pinned" }
+    | { match: "state"; state: ElementState }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -2127,6 +2128,7 @@ export type RuleTree =
      */
     | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
+    | StateLeaf
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
      * set is read from its kept record, so removing a set never changes what a rule holds.
@@ -2220,6 +2222,28 @@ export type RuleTree =
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
+ * window, or pinned in place.
+ * @since 3.36.0
+ */
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+/**
+ * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
+ * written as a condition, so it sits beside others in an `all`, a `not` or a union step (Add, Keep,
+ * Except). Speaks nodes and edges, each half on its own: a selected edge stays held whether or not
+ * its ends are selected. `"hovered"` and `"pinned"` hold no edge. Live: a layer reading it repaints
+ * as the state moves, with no undo step, so a kept set or a visibility filter, which do not follow
+ * the reader, refuse it.
+ * @since 3.36.0
+ */
+export interface StateLeaf {
+    readonly kind: "state";
+    /** Which state. */
+    readonly state: ElementState;
+}
 
 /**
  * Whether an element with no value for a leaf's path (absent, NaN or infinite) passes the leaf.

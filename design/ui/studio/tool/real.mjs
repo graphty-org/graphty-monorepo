@@ -139,7 +139,9 @@ const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
 // REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
-const IDLE_MS = (Number(process.env.REAL_IDLE_SECONDS) || 15 * 60) * 1000;
+const MAX_IDLE_MS = 24 * 60 * 60 * 1000;
+const askedIdleMs = Number(process.env.REAL_IDLE_SECONDS) * 1000;
+const IDLE_MS = askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS ? askedIdleMs : 15 * 60 * 1000;
 
 // GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
 // graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
@@ -274,7 +276,7 @@ function sessionTask(dir, task, persona) {
 }
 const tasksText = (tier) => readFileSync(join(here, `../tier${tier ?? 2}`, "tasks.md"), "utf8");
 const sectionOf = (text, head) => {
-    const at = text.search(new RegExp(`^### ${head}\\.`, "m"));
+    const at = text.search(new RegExp(`^### ${reEscape(head)}\\.`, "m"));
     if (at < 0) return null;
     const rest = text.slice(at + 4);
     const end = rest.search(/^#{2,3} /m);
@@ -285,9 +287,11 @@ const oneLine = (t) => t.replace(/\s+/g, " ").trim();
 function taskWords(t) {
     const sec = sectionOf(tasksText(t.tier), t.task);
     if (!sec) return null;
-    const prompt = sec.match(new RegExp(`^- \\*\\*Prompt ${t.half}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"))?.[1];
+    const prompt = sec.match(
+        new RegExp(`^- \\*\\*Prompt ${reEscape(t.half)}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"),
+    )?.[1];
     const fu = sec.match(/^- \*\*Follow-up[\s\S]*?(?=^- \*\*|$(?![\s\S]))/m)?.[0];
-    const followUp = fu?.match(new RegExp(`^\\s+- ${t.half}: "([\\s\\S]*?)"`, "m"))?.[1];
+    const followUp = fu?.match(new RegExp(`^\\s+- ${reEscape(t.half)}: "([\\s\\S]*?)"`, "m"))?.[1];
     return { prompt: prompt && oneLine(prompt), followUp: followUp && oneLine(followUp) };
 }
 // Files nobody playing a participant may see. In round 1 a participant agent, sent to tasks.md to
@@ -394,7 +398,9 @@ async function brief(dir, task, persona) {
     // entry further down names an older build in backticks, and briefed participants onto it)
     const distLine = readFileSync(join(tierDir, "criteria.md"), "utf8").match(/served from `?([^`\s]+)`?/)?.[1];
     // the start: the plan's, or else the task's half in the roster's "Where each session starts"
-    const cell = roster.match(new RegExp(`^\\| ${t.task} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[t.half === "A" ? 1 : 2];
+    const cell = roster.match(new RegExp(`^\\| ${reEscape(t.task)} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[
+        t.half === "A" ? 1 : 2
+    ];
     const fromRoster = cell && (/empty/.test(cell) ? "empty" : `setup:${cell.replaceAll("`", "").trim()}`);
     const start = t.start ?? fromRoster ?? "<the start you were given>";
     const doc = [
@@ -668,7 +674,7 @@ function readinessDirs(rd) {
     if (!n) return dirs;
     const passes = new Set();
     for (const parent of [dirname(rd), walksOf(dirname(rd))].filter((p) => p && existsSync(p)))
-        for (const x of readdirSync(parent)) if (new RegExp(`^r${n}(?:d\\d+)?$`).test(x)) passes.add(x);
+        for (const x of readdirSync(parent)) if (new RegExp(`^r${reEscape(n)}(?:d\\d+)?$`).test(x)) passes.add(x);
     for (const x of [...passes].sort()) dirs.push(readinessOf(join(dirname(rd), x)));
     return [...new Set(dirs)];
 }
@@ -1197,7 +1203,8 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
-        const ms = s.idleMs || IDLE_MS;
+        // a setTimeout past 2^31 ms fires at once, so an out-of-range REAL_IDLE_SECONDS is ignored
+        const ms = s.idleMs > 0 && s.idleMs < MAX_IDLE_MS ? s.idleMs : IDLE_MS;
         idle = setTimeout(() => {
             console.log(`no step for ${ms / 1000} seconds; closing the session`);
             close();

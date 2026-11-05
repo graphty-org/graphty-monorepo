@@ -60,6 +60,9 @@ export interface ConversationSink {
     readonly status: AiStatusManager;
 }
 
+/** How much of one hand-written command's result is handed back to the model. */
+const COMMAND_RESULT_CAP = 8000;
+
 /** A result's code and its facts. */
 export interface Outcome {
     readonly code: AiResultCode;
@@ -148,6 +151,8 @@ export interface ToolBatch {
     readonly abort: AbortController;
     readonly sink: ConversationSink;
     readonly host: ToolHost;
+    /** A batch of hand-written commands: `runCommandBatch` runs it. */
+    readonly commands?: boolean;
 }
 
 /**
@@ -285,6 +290,10 @@ function finished(batch: ToolBatch, request: ToolCallRequest, result: CallResult
  * @throws {BatchThrew} When a command threw; the batch's transaction is rolled back.
  */
 export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
+    if (batch.commands === true) {
+        return runCommandBatch(batch);
+    }
+
     const { calls } = batch;
     const prepared = calls.map((request) => prepare(batch, request));
     const writes = prepared.some((call) => ("writes" in call ? call.writes : false));
@@ -552,6 +561,105 @@ function resultOf(outcome: ActionResult, call: PreparedCall): CallResult {
 }
 
 /**
+ * Run one command call: its arguments are checked here, as it is reached.
+ * @param batch - The batch.
+ * @param request - The call.
+ * @param tx - The transaction, handed to the command as `ctx.tx`.
+ * @returns Its result; `AI_TOOL_UNKNOWN` or `AI_TOOL_INVALID_ARGUMENTS` when it never ran.
+ */
+async function runCommandCall(batch: ToolBatch, request: ToolCallRequest, tx: TransactionScope): Promise<CallResult> {
+    const { name } = request;
+    const command = batch.registry.get(name);
+    if (command === undefined) {
+        const message = `Unknown command: ${name}. Command not found in registry.`;
+        return { success: false, message, code: "AI_TOOL_UNKNOWN", params: { tool: name }, writes: false };
+    }
+
+    const parsed = command.parameters.safeParse(request.arguments);
+    if (!parsed.success || request.invalidArguments === true) {
+        const reason = parsed.success ? "the arguments could not be read" : parsed.error.message;
+        const message = `Invalid arguments for ${name}: ${reason}`;
+        return { success: false, message, code: "AI_TOOL_INVALID_ARGUMENTS", params: { tool: name }, writes: false };
+    }
+
+    const args = parsed.data as Record<string, unknown>;
+    return runCommand(batch, { request, command, args, writes: false }, tx);
+}
+
+/**
+ * Report a command call's result: its data, else its message.
+ * @param batch - The batch.
+ * @param request - The call.
+ * @param result - Its result.
+ * @param shown - What the host is shown.
+ */
+function commandFinished(
+    batch: ToolBatch,
+    request: ToolCallRequest,
+    result: CallResult,
+    shown: Readonly<Record<string, unknown>>,
+): void {
+    batch.sink.status.updateToolCallStatus(request.name, result.success ? "complete" : "error", shown);
+    batch.sink.emit({ type: "ai-stream-tool-result", name: request.name, result: shown, success: result.success });
+}
+
+/**
+ * Run a batch of hand-written commands (`toolset: "commands"`) in order, each checked as it is
+ * reached, stopping at the first that fails. What ran before a failure commits, and a batch is
+ * never gated; only a command that throws rolls the batch and the message back.
+ * @param batch - The calls and where they run.
+ * @returns What the batch did.
+ * @throws {BatchThrew} When a command threw.
+ */
+async function runCommandBatch(batch: ToolBatch): Promise<BatchOutcome> {
+    const { abort, session } = batch;
+    return session.transaction(
+        batch.label,
+        async (tx, signal) => {
+            // The batch's abort (an undo while it runs) stops the model and every tool.
+            signal.addEventListener(
+                "abort",
+                () => {
+                    abort.abort(signal.reason);
+                },
+                { once: true },
+            );
+            const results: CallResult[] = [];
+            for (const request of batch.calls) {
+                // Cancelled, or undone while the message was going: no further tool runs.
+                abort.signal.throwIfAborted();
+                started(batch, request);
+                const tool = request.name;
+                let result: CallResult;
+                try {
+                    result = await runCommandCall(batch, request, tx);
+                } catch (error) {
+                    const text = error instanceof Error ? error.message : String(error);
+                    const failure = { code: "AI_TOOL_THREW", params: { tool } } as const;
+                    const message = `Error executing ${tool}: ${text}`;
+                    const threw: CallResult = { success: false, message, ...failure, writes: false };
+                    results.push(threw);
+                    commandFinished(batch, request, threw, { error: text });
+                    throw new BatchThrew({ results, failure, writes: false });
+                }
+
+                results.push(result);
+                commandFinished(batch, request, result, (result.data ?? { message: result.message }) as JsonObject);
+                if (!result.success) {
+                    const { code } = result;
+                    const never = code === "AI_TOOL_UNKNOWN" || code === "AI_TOOL_INVALID_ARGUMENTS";
+                    const failure: Outcome = { code: never ? code : "AI_TOOL_FAILED", params: { tool } };
+                    return { results, failure, writes: false, committed: true };
+                }
+            }
+
+            return { results, writes: false };
+        },
+        { provenance: { via: "assistant", message: batch.message.id }, after: batch.after },
+    );
+}
+
+/**
  * Run the calls in order in the batch's transaction; roll back on a failure or a hold.
  * @param batch - The batch.
  * @param ready - The calls.
@@ -784,6 +892,20 @@ async function runCommand(batch: ToolBatch, call: PreparedCall, tx: TransactionS
         params: own.params ?? (own.message === "" ? {} : { message: own.message }),
         writes: call.writes,
     };
+}
+
+/**
+ * What the model reads for one hand-written command's call: its success, message and data, as JSON.
+ * @param result - The call's result, or undefined for one that did not run because an earlier one failed.
+ * @returns The tool message's content.
+ */
+export function commandResultText(result: CallResult | undefined): string {
+    if (result === undefined) {
+        return JSON.stringify({ success: false, message: "Not run: an earlier tool call in this step failed." });
+    }
+
+    const content = JSON.stringify({ success: result.success, message: result.message, data: result.data });
+    return content.length > COMMAND_RESULT_CAP ? `${content.slice(0, COMMAND_RESULT_CAP)}... (truncated)` : content;
 }
 
 /**

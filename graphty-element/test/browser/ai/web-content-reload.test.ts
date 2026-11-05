@@ -105,6 +105,7 @@ describe("the web-content mark", () => {
         const registry = new CommandRegistry();
         installAssistantTools(registry, first.session);
         const researched = new AiController({
+            toolset: "generated",
             provider: { name: "scripted" } as never,
             commandRegistry: registry,
             graph: { getSession: () => first.session } as never,
@@ -119,7 +120,7 @@ describe("the web-content mark", () => {
 
         // A new element, on the mock provider, with no web tools: the saved research still marks it.
         const second = await place();
-        await second.enableAiControl({ provider: "mock", history });
+        await second.enableAiControl({ toolset: "generated", provider: "mock", history });
         const provider = second.getAiManager()?.getProvider() as MockLlmProvider;
         provider.setResponse("remove node e", {
             text: "",

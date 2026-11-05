@@ -104,7 +104,13 @@ async function mount(voice: AiVoiceOptions, handTracking = false): Promise<void>
     ]);
     await element.graph.setLayout("fixed", { dim: 3 });
     await operationQueueOf(element.graph).waitForCompletion();
-    await element.enableAiControl({ provider: "mock", voice, history: "memory", approvals: "writes" });
+    await element.enableAiControl({
+        toolset: "generated",
+        provider: "mock",
+        voice,
+        history: "memory",
+        approvals: "writes",
+    });
     element.addEventListener("ai-voice-start", () => {
         voiceStarts++;
     });

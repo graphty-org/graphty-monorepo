@@ -64,6 +64,7 @@ async function harness(
     const registry = new CommandRegistry();
     installAssistantTools(registry, session);
     const controller = new AiController({
+        toolset: "generated",
         provider: { name: "scripted" } as never,
         commandRegistry: registry,
         graph: { getSession: () => session } as unknown as CommandContext["graph"],

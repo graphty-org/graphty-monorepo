@@ -33,10 +33,12 @@ import type {
     TurnEvent,
     TurnRequest,
 } from "./engine/types";
+import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import {
     type BatchOutcome,
     BatchThrew,
     type CallResult,
+    commandResultText,
     type ConversationSink,
     type HeldBatch,
     knownToolName,
@@ -264,6 +266,11 @@ export interface ConversationRun {
     readonly model?: string;
     /** Which tools a turn offers; standard when absent. */
     readonly profile?: ToolProfile;
+    /**
+     * `"commands"`: the tool loop of the hand-written commands (`runCommandBatch`), each result
+     * shown to the model as `{ success, message, data }`. Default `"generated"`.
+     */
+    readonly toolset?: "commands" | "generated";
     /** How many tokens of history a turn is shown; the profile's default when absent. */
     readonly historyBudgetTokens?: number;
     /** The message's state; one with the default gate when absent. */
@@ -598,6 +605,8 @@ interface MessageTally {
     asked?: string;
     /** The tokens the message used: its own model turns and its helpers'. */
     usage: TokenUsage;
+    /** Commands' results: every one's message counts, an empty one too. */
+    readonly commands: boolean;
     /** The provider stopped a turn mid-search: `AI_PROVIDER_PAUSED`'s params. */
     paused?: AiResultParams;
 }
@@ -657,7 +666,7 @@ function combined(tally: MessageTally, llmText?: string): ExecutionResult {
 
     // Earlier failures the model got past do not fail the message; only an unresolved one does.
     const allSucceeded = failure === undefined;
-    const messages = results.map((r) => r.message).filter((message) => message !== "");
+    const messages = results.map((r) => r.message).filter((message) => tally.commands || message !== "");
     if (llmText) {
         messages.unshift(llmText);
     }
@@ -853,6 +862,7 @@ function appendCalls(
  * @param batch - What running them did.
  * @param cap - The most characters one result may take.
  * @param newId - Makes the message's id.
+ * @param commands - Whether these are commands' results, shown to the model as they are.
  * @returns The message added.
  */
 function appendResults(
@@ -861,6 +871,7 @@ function appendResults(
     batch: BatchOutcome,
     cap: number,
     newId: () => string,
+    commands: boolean,
 ): SavedMessage {
     const message: SavedMessage = {
         id: newId(),
@@ -874,10 +885,10 @@ function appendResults(
                     : modelView(result, call.name);
             return {
                 type: "tool-result" as const,
-                origin: "graph-data" as const,
+                origin: commands ? ("command" as const) : ("graph-data" as const),
                 callId: call.id,
                 ...outcome,
-                content: resultText(view, cap),
+                content: commands ? commandResultText(result) : resultText(view, cap),
             };
         }),
     };
@@ -988,6 +999,7 @@ function toolBatch(run: ConversationRun, calls: readonly ToolCallRequest[], stat
         after: latestStepOf(session, message),
         abort: run.abort,
         sink: run.sink,
+        commands: run.toolset === "commands",
         host: run.host ?? {
             emit: (event) => {
                 run.sink.emit(event);
@@ -1084,8 +1096,9 @@ async function tallyBatch(
         return;
     }
 
-    // The message's outcome is its last batch's: a failure a later batch got past is not the message's.
-    tally.failure = batch.failure;
+    // The message's outcome is its last batch's: a failure a later batch got past is not the
+    // message's. Among commands, any failure is, and the first one names it.
+    tally.failure = tally.commands ? (tally.failure ?? batch.failure) : batch.failure;
     if (batch.failure !== undefined) {
         if (batch.writes) {
             tally.pending = batch.failure;
@@ -1322,7 +1335,7 @@ function startLoop(run: ConversationRun): Loop {
     // Every tool result goes back to the model, which then calls more tools or answers. A model
     // that looks before it acts -- query, then view on what it found -- gets to act; asked only
     // once, it would stop after looking and the person would get nothing.
-    const tally: MessageTally = { results: [], committed: 0, usage: NO_USAGE };
+    const tally: MessageTally = { results: [], committed: 0, usage: NO_USAGE, commands: run.toolset === "commands" };
     const texts: string[] = [];
     return {
         run,
@@ -1447,7 +1460,7 @@ async function continueDecided(loop: Loop, decided: DecidedBatch): Promise<boole
     const approved = decided.approved === undefined ? state : { ...state, approved: decided.approved };
     const batch = await runBatch(run, [...calls], approved, loop.resultOf);
     await tallyBatch(tally, batch, run, callsMessage);
-    const added = appendResults(conversation, calls, batch, loop.cap, newId);
+    const added = appendResults(conversation, calls, batch, loop.cap, newId, tally.commands);
     loop.heldResults = batch.held === undefined ? undefined : added;
     return endHeld(loop);
 }
@@ -1497,7 +1510,8 @@ async function modelStep(loop: Loop, turn: number): Promise<boolean> {
     // enough: gemini-3.8-flash still answers it with a tool call and no text, so the ask also
     // says, in words, that it is time to answer. A held batch ends the tool turns too: a later
     // write would move the history under the request and make the reader's approval stale.
-    const answerOnly = turn > MAX_ASSISTANT_TOOL_TURNS || tally.held !== undefined;
+    const maxTurns = tally.commands ? MAX_TOOL_TURNS : MAX_ASSISTANT_TOOL_TURNS;
+    const answerOnly = turn > maxTurns || tally.held !== undefined;
     const offered =
         run.allTools === true ? run.tools.getAll() : turnTools(run.tools, loop.profile, run.conversation.messages);
     const said = await askModel(loop, offered, answerOnly);
@@ -1664,7 +1678,10 @@ async function runTurnCalls(loop: Loop, said: Said, offered: readonly GraphComma
     const batch: BatchOutcome =
         before.length === 0 ? { results: [], writes: false } : await runBatch(run, [...before], state, loop.resultOf);
     await tallyBatch(tally, batch, run, callsMessage);
-    let added = before.length === 0 ? undefined : appendResults(run.conversation, before, batch, loop.cap, newId);
+    let added =
+        before.length === 0
+            ? undefined
+            : appendResults(run.conversation, before, batch, loop.cap, newId, tally.commands);
     if (batch.held !== undefined) {
         // Held: the question is not asked, the helpers do not run, and the model reads it.
         loop.heldResults = added;

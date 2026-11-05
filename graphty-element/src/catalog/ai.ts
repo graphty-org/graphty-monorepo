@@ -556,7 +556,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   `"commands"`, `"provider"`, `"model"`, `"classifierModel"`, `"router"`) and why
  *   (`"unknown-command"`, `"unknown-agent"`, `"duplicate"`, `"reserved"`, `"empty"`,
  *   `"too-long"`, `"too-many"`, `"unsupported"`, `"threw"`, `"invalid-plan"`), for an unknown
- *   command, `command`, and for a reason past a limit, `limit`. Field `"tools"` with reason
+ *   command, `command`, and for a reason past a limit, `limit`. Reason
+ *   `"needs-generated-toolset"`: the field (`"toolProfile"`, `"gate"`, `"approvals"`, `"agents"`,
+ *   `"tools"`, `"instructions"`) is honored only under `toolset: "generated"`. Field `"tools"` with reason
  *   `"web-tools-with-writes"`: a helper given web tools may also run commands that change the
  *   graph, which web content must not drive; with reason `"unsupported"`: a helper given web tools
  *   beside any command, on a provider whose searching turn cannot also call commands (Google).

@@ -53,7 +53,6 @@ describe("AI Commands End-to-End", () => {
             nodes: DEFAULT_TEST_NODES,
             edges: DEFAULT_TEST_EDGES,
             enableAi: true,
-            legacyCommands: true,
         });
         ({ graph } = result);
     });
@@ -453,7 +452,9 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("bad");
 
             assert.strictEqual(result.success, false);
-            assert.strictEqual(result.code, "AI_TOOL_UNKNOWN");
+            assert.ok(
+                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
+            );
         });
 
         it("recovers after error and can execute new commands", async () => {
@@ -593,7 +594,6 @@ describe("AI Commands End-to-End", () => {
                 nodes: [{ id: "hub", label: "Hub", type: "hub" }, ...leaves],
                 edges: leaves.map((leaf) => ({ src: "hub", dst: leaf.id })),
                 enableAi: true,
-                legacyCommands: true,
             }));
 
             const result = await runAlgorithmCall({ namespace: "graphty", type: "degree" });

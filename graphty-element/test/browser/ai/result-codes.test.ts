@@ -140,11 +140,16 @@ describe("AI command result codes", () => {
      * @param graph - The graph, when not the session's.
      * @returns The controller.
      */
-    function assistant(provider: LlmProvider = mock, graph?: CommandContext["graph"]): AiController {
+    function assistant(
+        provider: LlmProvider = mock,
+        graph?: CommandContext["graph"],
+        toolset?: "generated",
+    ): AiController {
         return new AiController({
             provider,
             commandRegistry: registry,
             graph: graph ?? ({ getSession: () => session } as unknown as CommandContext["graph"]),
+            ...(toolset === undefined ? {} : { toolset }),
         });
     }
 
@@ -180,7 +185,7 @@ describe("AI command result codes", () => {
             const result = seen(await assistant().execute("go"));
             assert.isFalse(result.success, code);
             assert.strictEqual(result.code, code);
-            assert.strictEqual(result.params?.tool, tool);
+            assert.deepEqual(result.params, { tool });
         }
     });
 
@@ -265,7 +270,7 @@ describe("AI command result codes", () => {
             generateStream: () => Promise.reject(new Error("not used")),
             validateApiKey: () => Promise.resolve(true),
         };
-        const running = assistant(provider).execute("add x, then fail");
+        const running = assistant(provider, undefined, "generated").execute("add x, then fail");
         await asked;
         // The reader's own edit lands on top of the message's step while the model thinks.
         await session.data.addNodes([{ id: "reader" }]);

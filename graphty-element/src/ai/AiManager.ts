@@ -37,7 +37,8 @@ import {
 } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
-import { offeredName } from "./commands/CommandRegistry";
+import { BUILTIN_COMMANDS } from "./commands/builtin";
+import { heldName, reserveToolNames } from "./commands/CommandRegistry";
 import { defaultConversationKey } from "./conversation/scope";
 import type { AiConversationSnapshot, AiConversationSummary } from "./conversation/snapshot";
 import { engineFor } from "./engine/load";
@@ -45,7 +46,7 @@ import type { AiEngine } from "./engine/types";
 import { ApiKeyManager } from "./keys";
 import { createProvider, type ProviderType } from "./providers";
 import type { LlmProvider, ProviderOptions } from "./providers/types";
-import { checkAgents } from "./roles";
+import { checkAiConfig } from "./roles";
 import { SchemaManager } from "./schema";
 import { installAssistantTools } from "./tools/install";
 import type { AssistantGateLimits } from "./tools/types";
@@ -64,8 +65,12 @@ const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
 export interface KeyPersistenceConfig {
     /** Enable encrypted key persistence */
     enabled: boolean;
-    /** Encryption key for AES encryption (min 10 characters) */
-    encryptionKey: string;
+    /**
+     * Encryption key for AES encryption (min 10 characters). Default: a built-in key, public in
+     * this package's source, so keys saved with it are obscured, not encrypted.
+     * @experimental assistant
+     */
+    encryptionKey?: string;
     /** Storage backend (default: "localStorage") */
     storage?: "localStorage" | "sessionStorage";
     /** Storage key prefix (default: "@graphty-ai-keys") */
@@ -260,21 +265,35 @@ export interface AiManagerConfig {
      * default). While it is on, no `temperature` is sent.
      */
     thinkingBudgetTokens?: number;
-    /**
-     * Whether to register the assistant's own tools (default: true). They are generated from the
-     * element's catalog, so an algorithm, layout, format, palette or camera a plugin registers
-     * reaches the model with no further code.
-     */
+    /** Whether to register built-in commands (default: true) */
     registerBuiltinCommands?: boolean;
     /**
-     * Which tools a model is offered: `"standard"` (eleven core tools plus those a catalog search
-     * loads), `"small"` (four tools, for a model that breaks past a handful), or `"auto"` (the
-     * default: `"small"` for WebLLM, `"standard"` otherwise).
+     * What the model is offered. `"commands"` (the default): the hand-written commands
+     * (`queryGraph`, `setLayout`, ...), and a command's result reaches the model as
+     * `{ success, message, data }`. `"generated"`: tools generated from the element's catalog, so an
+     * algorithm, layout, format, palette or camera a plugin registers reaches the model with no
+     * further code; a result reaches the model as `{ code, params }`, what a message may change is
+     * limited by `gate`, and a consumer command named as a built-in tool is offered as `app_<name>`.
+     *
+     * `toolProfile`, `gate`, `approvals`, `agents`, `tools` and `instructions` apply only under
+     * `"generated"`: `enableAiControl` rejects them otherwise with an `AiConfigError`.
+     */
+    toolset?: "commands" | "generated";
+    /**
+     * Text added to the system prompt, under `toolset: "generated"`: what the host wants the model
+     * to do or never do.
+     * @experimental assistant
+     */
+    instructions?: string;
+    /**
+     * Under `toolset: "generated"`, which tools a model is offered: `"standard"` (eleven core tools
+     * plus those a catalog search loads), `"small"` (four tools, for a model that breaks past a
+     * handful), or `"auto"` (the default: `"small"` for WebLLM, `"standard"` otherwise).
      */
     toolProfile?: "standard" | "small" | "auto";
     /**
-     * The limits past which the assistant's changes are held for the reader's approval (the
-     * `ai-approval-requested` event, answered with `resolveAiApproval`), or `false` to run every
+     * Under `toolset: "generated"`, the limits past which the assistant's changes are held for the
+     * reader's approval (the `ai-approval-requested` event, answered with `resolveAiApproval`), or `false` to run every
      * change without asking. A host that handles no approval events never runs a held change.
      * Default `DEFAULT_ASSISTANT_GATE_LIMITS`.
      */
@@ -296,8 +315,8 @@ export interface AiManagerConfig {
      */
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
     /**
-     * Which of the assistant's calls the reader is asked about before they run: `"none"` (the
-     * default), `"writes"` (every call that changes the project), `{ ask: ["style"] }` (calls to
+     * Under `toolset: "generated"`, which of the assistant's calls the reader is asked about before
+     * they run: `"none"` (the default), `"writes"` (every call that changes the project), `{ ask: ["style"] }` (calls to
      * these tools) or `{ policy(call) { return "allow" | "ask" | "deny"; } }`, decided per call
      * from its tool, action, arguments and effect. An ask holds the batch (`ai-approval-requested`
      * with gate `"policy"`); a deny refuses it (`AI_TOOL_DENIED_BY_POLICY`). The `gate` limits
@@ -311,7 +330,8 @@ export interface AiManagerConfig {
      */
     questions?: boolean;
     /**
-     * Helpers the main model may hand parts of a message to: `[{ name, purpose, commands }]`, or
+     * Under `toolset: "generated"`, helpers the main model may hand parts of a message to:
+     * `[{ name, purpose, commands }]`, or
      * `{ roles }`. The model is offered a `delegate` tool naming them; each helper runs with only
      * its own commands (the assistant's tool names), on the assistant's provider or on its own
      * `provider` and `model`. Helpers that run at once may only read. `ai-agent-start` and
@@ -325,7 +345,7 @@ export interface AiManagerConfig {
      */
     apiKeys?: Partial<Record<AiProviderId, string>>;
     /**
-     * Tools beyond the assistant's own commands, each off by default: `{ webSearch: true }` lets
+     * Under `toolset: "generated"`, tools beyond the assistant's own, each off by default: `{ webSearch: true }` lets
      * the main model hand a search to a built-in read-only `research` helper, which alone runs it
      * at the provider (and the reader's key pays). A tool the provider and model cannot use is left
      * out and reported once on `ai-capability-unavailable`, or with `required: true` every command
@@ -456,10 +476,8 @@ export class AiManager {
             return;
         }
 
-        // Helpers that cannot run are rejected before anything is built.
-        if (config.agents !== undefined) {
-            checkAgents(config.agents, config.providerInstance?.name ?? config.provider);
-        }
+        // A configuration that cannot run is rejected before anything is built.
+        checkAiConfig(config);
 
         this.graph = graph;
         this.disposed = false;
@@ -467,7 +485,9 @@ export class AiManager {
         // Configure key persistence if specified (before setting API key)
         if (config.keyPersistence?.enabled) {
             this.apiKeyManager.enablePersistence({
-                encryptionKey: config.keyPersistence.encryptionKey,
+                ...(config.keyPersistence.encryptionKey === undefined
+                    ? {}
+                    : { encryptionKey: config.keyPersistence.encryptionKey }),
                 storage: config.keyPersistence.storage ?? "localStorage",
                 prefix: config.keyPersistence.prefix,
             });
@@ -496,23 +516,30 @@ export class AiManager {
             this.provider.configure({ ...this.providerOptions, apiKey: config.apiKey || undefined });
         }
 
+        const toolset = config.toolset ?? "commands";
+        if (toolset === "generated") {
+            reserveToolNames(this.commandRegistry);
+        }
+
         // Register built-in commands unless disabled
         if (config.registerBuiltinCommands !== false) {
-            this.registerBuiltinCommands();
+            this.registerBuiltinCommands(toolset);
         }
 
         // Initialize schema manager and set up data change listeners
         this.initializeSchemaManager();
 
-        // Create the controller. WebLLM's models break past a handful of tools.
+        // Create the controller. Among the generated tools, WebLLM's models break past a handful.
         const profile = config.toolProfile ?? "auto";
-        const smallModel = config.provider === "webllm";
+        const smallModel = toolset === "generated" && config.provider === "webllm";
         const history = historyFor(config.history, graph);
         this.controller = new AiController({
             provider: this.provider,
             commandRegistry: this.commandRegistry,
             graph: this.graph,
             schemaManager: this.schemaManager,
+            toolset,
+            ...(config.instructions === undefined ? {} : { instructions: config.instructions }),
             toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile,
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
@@ -844,9 +871,14 @@ export class AiManager {
 
     /**
      * Register built-in commands for graph control.
+     * @param toolset - Which: the hand-written commands, or the generated tools.
      */
-    private registerBuiltinCommands(): void {
-        if (this.graph) {
+    private registerBuiltinCommands(toolset: "commands" | "generated"): void {
+        if (toolset === "commands") {
+            for (const command of BUILTIN_COMMANDS) {
+                this.registerCommand(command);
+            }
+        } else if (this.graph) {
             installAssistantTools(this.commandRegistry, this.graph.getSession());
         }
     }
@@ -863,8 +895,8 @@ export class AiManager {
      * @param command - The command to register
      */
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void {
-        // A name the assistant's own tools hold is offered to the model as app_<name>.
-        if (!this.commandRegistry.has(offeredName(command.name))) {
+        // Beside the generated tools, a name they hold is offered to the model as app_<name>.
+        if (!this.commandRegistry.has(heldName(this.commandRegistry, command.name))) {
             this.commandRegistry.register(command);
         }
     }

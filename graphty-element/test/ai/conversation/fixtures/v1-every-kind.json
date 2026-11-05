@@ -83,8 +83,8 @@
                 {
                     "callId": "t2",
                     "code": "AI_TOOL_NOT_RUN",
-                    "content": "{\"code\":\"AI_TOOL_NOT_RUN\",\"params\":{\"tool\":\"setStyle\"}}",
-                    "origin": "graph-data",
+                    "content": "{\"success\":false,\"message\":\"Not run: an earlier tool call in this step failed.\"}",
+                    "origin": "command",
                     "params": {
                         "tool": "setStyle"
                     },

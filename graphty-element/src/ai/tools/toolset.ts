@@ -576,7 +576,7 @@ function buildIndex(
         ...consumer.map((command) => ({
             kind: "tool" as const,
             name: command.name,
-            plainName: command.name,
+            plainName: command.plainName ?? command.name,
             summary: command.description,
             tool: command.name,
             words: [...((command as { keywords?: readonly string[] }).keywords ?? [])],

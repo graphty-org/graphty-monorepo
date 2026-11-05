@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { ASSISTANT_TOOLS, type AssistantToolProfile } from "../../catalog/assistant";
 import type { GraphSession } from "../../session/types";
-import type { CommandRegistry } from "../commands/CommandRegistry";
+import { type CommandRegistry, reserveToolNames } from "../commands/CommandRegistry";
 import type { GraphCommand } from "../commands/types";
 import { text } from "./fields";
 import { suggest } from "./search";
@@ -67,7 +67,7 @@ function wrap(command: GraphCommand): AssistantTool {
     };
     return new AssistantTool({
         name: command.name,
-        plainName: command.name,
+        plainName: command.plainName ?? command.name,
         core: false,
         description: command.description,
         example: {},
@@ -195,6 +195,7 @@ const builtFrom = new WeakMap<CommandRegistry, string>();
  * @param session - The session whose catalog they offer.
  */
 export function installAssistantTools(registry: CommandRegistry, session: Pick<GraphSession, "catalog">): void {
+    reserveToolNames(registry);
     const consumer = registry.getAll().filter((command) => !isAssistantTool(command));
     const key = `${catalogKey(catalogView(session))}|${JSON.stringify(consumer.map((command) => [command.name, command.description]))}`;
     if (builtFrom.get(registry) === key) {

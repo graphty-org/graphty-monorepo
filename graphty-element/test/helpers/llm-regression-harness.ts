@@ -479,6 +479,7 @@ export class LlmRegressionTestHarness {
             provider,
             commandRegistry,
             graph,
+            toolset: "generated",
             toolProfile: process.env.LLM_REGRESSION_TOOL_PROFILE === "small" ? "small" : "standard",
             ...(options.history === undefined ? {} : { history: options.history }),
             ...(options.approvals === undefined ? {} : { approvals: options.approvals }),

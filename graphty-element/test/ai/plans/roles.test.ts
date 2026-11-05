@@ -112,6 +112,7 @@ describe("checkAgents", () => {
         assert.throws(
             () =>
                 new AiController({
+                    toolset: "generated",
                     provider: { name: "google" } as never,
                     commandRegistry: new CommandRegistry(),
                     graph: {} as never,

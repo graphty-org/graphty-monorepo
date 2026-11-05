@@ -168,6 +168,7 @@ async function speakToAssistant(clip: string, pointing?: AiPointing) {
     const registry = new CommandRegistry();
     installAssistantTools(registry, session);
     const controller = new AiController({
+        toolset: "generated",
         provider: { name: "google" } as never,
         commandRegistry: registry,
         graph: { getSession: () => session } as unknown as CommandContext["graph"],

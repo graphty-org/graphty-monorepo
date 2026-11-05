@@ -853,6 +853,7 @@ export interface ElementSet {
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 

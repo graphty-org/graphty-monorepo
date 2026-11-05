@@ -155,6 +155,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "name",
     "technicalName",
     "plainName",
+    // the reader's own first message, their data, never the element's words (AiConversationSummary)
+    "firstWords",
     // machine values: versions, hashes, timestamps, paths, media types, colors
     "revision",
     "digest",

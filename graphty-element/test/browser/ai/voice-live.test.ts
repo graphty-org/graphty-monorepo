@@ -125,7 +125,12 @@ beforeEach(async () => {
     element.style.cssText = "display:block;width:400px;height:300px";
     document.body.appendChild(element);
     await element.waitForSettled();
-    await element.enableAiControl({ provider: "google", apiKey: "page-test-key", voice: { mode: "live" } });
+    await element.enableAiControl({
+        toolset: "generated",
+        provider: "google",
+        apiKey: "page-test-key",
+        voice: { mode: "live" },
+    });
     element.addEventListener("ai-voice-start", (event) => {
         starts.push((event as CustomEvent).detail);
     });

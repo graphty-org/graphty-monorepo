@@ -21,6 +21,35 @@ export function offeredName(name: string): string {
     return RESERVED.has(name) ? `app_${name}` : name;
 }
 
+/** The registries that hold the assistant's names apart for its generated tools. */
+const reserving = new WeakSet<CommandRegistry>();
+
+/**
+ * The name a registry holds a command by: `offeredName`'s on a registry of the generated tools,
+ * else the command's own.
+ * @param registry - The registry.
+ * @param name - The command's name.
+ * @returns The name.
+ */
+export function heldName(registry: CommandRegistry, name: string): string {
+    return reserving.has(registry) ? offeredName(name) : name;
+}
+
+/**
+ * Hold the assistant's tool names apart in a registry (`toolset: "generated"`): a consumer command
+ * named as one of its tools moves to `app_<name>`, now and when it is registered later.
+ * @param registry - The registry.
+ */
+export function reserveToolNames(registry: CommandRegistry): void {
+    reserving.add(registry);
+    for (const command of registry.getAll()) {
+        if (!isAssistantTool(command) && offeredName(command.name) !== command.name) {
+            registry.unregister(command.name);
+            registry.register(command);
+        }
+    }
+}
+
 /** Commands registered under another name, by the name the consumer gave them. */
 const renamedFrom = new WeakMap<GraphCommand, string>();
 
@@ -46,9 +75,10 @@ export class CommandRegistry {
     private readonly commands = new Map<string, GraphCommand>();
 
     /**
-     * Register a new command. A command named as one of the assistant's own tools
-     * (`ASSISTANT_TOOLS`) is held, and offered to the model, as `app_<name>`, so a tool added in
-     * a later release never displaces a command already written.
+     * Register a new command. Beside the generated tools (`toolset: "generated"`), a command
+     * named as one of the assistant's own tools (`ASSISTANT_TOOLS`) is held, and offered to the
+     * model, as `app_<name>`, so a tool added in a later release never displaces a command already
+     * written.
      * @param command - The command to register
      * @throws Error if a command with the same name is already registered
      */
@@ -64,7 +94,7 @@ export class CommandRegistry {
             return;
         }
 
-        const name = offeredName(command.name);
+        const name = heldName(this, command.name);
         if (this.commands.has(name)) {
             throw new Error(`Command "${name}" is already registered`);
         }

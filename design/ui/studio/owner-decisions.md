@@ -4,6 +4,33 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-04 -- Decided by the team: the assistant's tools are a choice, and four small additions (graphty-element)
+
+Landing the Assistant changes nothing for a consumer of graphty-element that does not ask for it.
+
+- `AiManagerConfig.toolset?: "commands" | "generated"`, default `"commands"`: the hand-written
+  commands, each result read as `{ success, message, data }`, five tool rounds, a batch that keeps
+  what ran before a failure, and no gate, exactly as before. `"generated"` is the catalog's tools.
+  An option, not an experiment, since a change to existing behavior is never a flag; the app passes
+  `"generated"`. `toolProfile`, `gate`, `approvals`, `agents`, `tools` and `instructions` apply only
+  under `"generated"`, and `enableAiControl` rejects them otherwise (`AiConfigError`, reason
+  `"needs-generated-toolset"`): `approvals` left unread would run writes unasked. `agents` joins
+  the list because a helper's commands can only name the generated tools.
+- `AiManagerConfig.instructions?: string`, text added to the system prompt.
+  `@experimental assistant`.
+- `GraphCommand.plainName?: string`, the name an application may show for an extension tool, default
+  its `name`. Built-in tools already carry theirs in `ASSISTANT_TOOLS`. `@experimental assistant`.
+- `AiConversationSummary.firstWords: string | null`, the reader's own first message, on the
+  plain-string allowlist because it is the reader's data. `@experimental assistant`.
+- `KeyPersistenceConfig.encryptionKey` is optional, with the built-in key `ApiKeyManager` already
+  defaults to. `@experimental assistant`.
+- `EnabledFeatures.has(id)`, the gate features.md names, not enumerable so the object stays plain
+  data for a comparison or an event's detail.
+- `Message.readerText?: string`: the reader's own words on a message that also carries facts. The
+  mock provider matches it when present, so with no facts it matches `content` as before.
+- A saved tool result's `origin` takes `"command"`, the marker that a model reads the result as it
+  is, in no envelope.
+
 ## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
 
 Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one

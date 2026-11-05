@@ -230,16 +230,16 @@
         "webpack": "^5.111.1"
     },
     "peerDependencies": {
-        "@ai-sdk/anthropic": "*",
-        "@ai-sdk/google": "*",
-        "@ai-sdk/openai": "*",
+        "@ai-sdk/anthropic": "^2.0.50",
+        "@ai-sdk/google": "^2.0.44",
+        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@babylonjs/loaders": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
-        "ai": "*",
+        "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0",
         "neo4j-driver": "^5.0.0"

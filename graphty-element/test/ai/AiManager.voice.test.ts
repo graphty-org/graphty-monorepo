@@ -61,7 +61,7 @@ async function manager(
     }
 
     const ai = createAiManager();
-    ai.init(graph, { ...config, provider, providerInstance: instance });
+    ai.init(graph, { toolset: "generated", ...config, provider, providerInstance: instance });
     return { ai, chat, emitted, session };
 }
 

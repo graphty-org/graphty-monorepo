@@ -14,6 +14,11 @@ export interface Message {
     toolCallId?: string;
     /** Tool calls made by the assistant (for assistant role) */
     toolCalls?: ToolCall[];
+    /**
+     * The reader's own words, on a user message whose `content` also carries facts about the graph
+     * (`toolset: "generated"`). Absent when `content` is the reader's words alone.
+     */
+    readerText?: string;
 }
 
 /**

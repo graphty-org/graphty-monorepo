@@ -97,12 +97,16 @@ export function textOf(parts: readonly SavedPart[]): string {
 
 /**
  * A tool result as a model is shown it: in an envelope, since it carries labels, notes and values
- * read from the graph, or a helper's answer drawn from the web. Every engine sends tool results
- * through this.
+ * read from the graph, or a helper's answer drawn from the web; a command's under the default
+ * toolset goes as it is. Every engine sends tool results through this.
  * @param part - The result.
  * @returns Its text.
  */
 export function toolResultText(part: Extract<SavedPart, { type: "tool-result" }>): string {
+    if (part.origin === "command") {
+        return part.content;
+    }
+
     return part.origin === "web" ? webContent(part.content) : graphData(part.content);
 }
 

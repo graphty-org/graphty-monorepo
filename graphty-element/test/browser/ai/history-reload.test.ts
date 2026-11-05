@@ -38,7 +38,7 @@ async function mount(id: string, database: string): Promise<Graphty> {
     document.body.appendChild(element);
     mounted.push(element);
     await element.waitForSettled();
-    await element.enableAiControl({ provider: "mock", history: { store: "browser", database } });
+    await element.enableAiControl({ toolset: "generated", provider: "mock", history: { store: "browser", database } });
     return element;
 }
 

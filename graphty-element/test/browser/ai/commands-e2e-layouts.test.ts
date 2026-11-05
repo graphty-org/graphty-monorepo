@@ -57,7 +57,6 @@ describe("AI Layout Commands - All Layout Types", () => {
                 { src: "D", dst: "E" },
             ],
             enableAi: true,
-            legacyCommands: true,
         });
         ({ graph } = result);
     });

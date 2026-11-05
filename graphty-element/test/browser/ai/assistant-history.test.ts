@@ -31,12 +31,7 @@ describe("an assistant message under undo", () => {
     let graph: Graph;
 
     beforeEach(async () => {
-        ({ graph } = await createE2EGraph({
-            nodes: DEFAULT_TEST_NODES,
-            edges: DEFAULT_TEST_EDGES,
-            enableAi: true,
-            legacyCommands: true,
-        }));
+        ({ graph } = await createE2EGraph({ nodes: DEFAULT_TEST_NODES, edges: DEFAULT_TEST_EDGES, enableAi: true }));
         await graph.waitForSettled();
     });
 

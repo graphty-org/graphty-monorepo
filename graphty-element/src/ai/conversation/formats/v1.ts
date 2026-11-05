@@ -66,10 +66,11 @@ const toolCallPart = z.strictObject({
 const toolResultPart = z.strictObject({
     type: z.literal("tool-result"),
     /**
-     * `graph-data` for what a tool returned; `reader` for the reader's answer to a question; `web`
-     * for a helper's answer drawn from the web.
+     * `graph-data` for what a tool returned; `command` for what a command returned under the
+     * default toolset, which the model reads as it is, in no envelope; `reader` for the reader's
+     * answer to a question; `web` for a helper's answer drawn from the web.
      */
-    origin: z.enum(["graph-data", "reader", "web"]),
+    origin: z.enum(["graph-data", "command", "reader", "web"]),
     callId: id,
     code: resultCode,
     params: resultParams,

@@ -112,6 +112,7 @@ class Harness {
     ) {
         installAssistantTools(this.registry, session);
         this.controller = new AiController({
+            toolset: "generated",
             provider: { name: "scripted" } as never,
             commandRegistry: this.registry,
             graph: { getSession: () => session } as unknown as CommandContext["graph"],

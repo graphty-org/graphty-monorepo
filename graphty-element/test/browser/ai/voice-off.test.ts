@@ -71,7 +71,7 @@ const NONE = { path: "none", status: "unavailable", code: "AI_NOT_ENABLED", para
 describe("an assistant without voice", () => {
     it("emits no voice event for a typed command", async () => {
         const { element, events } = await mount();
-        await element.enableAiControl({ provider: "mock" });
+        await element.enableAiControl({ toolset: "generated", provider: "mock" });
         await element.aiCommand("hello");
 
         const types = [...new Set(events.map(([type]) => type))].sort();
@@ -84,7 +84,7 @@ describe("an assistant without voice", () => {
 
     it("ends a press at once with AI_NOT_ENABLED, ignores a release and a stop, and reports no voice", async () => {
         const { element, events } = await mount();
-        await element.enableAiControl({ provider: "mock" });
+        await element.enableAiControl({ toolset: "generated", provider: "mock" });
         element.aiTalk(true);
         element.aiTalk(false);
         element.stopAiSpeech();

@@ -64,6 +64,7 @@ async function place(
     const provider = new QueuedProvider();
     provider.queue.push(...responses);
     await element.enableAiControl({
+        toolset: "generated",
         provider: "mock",
         providerInstance: provider,
         questions: true,

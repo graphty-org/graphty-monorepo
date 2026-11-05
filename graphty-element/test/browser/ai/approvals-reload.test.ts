@@ -52,6 +52,7 @@ async function place(id: string): Promise<Graphty> {
  */
 async function enable(element: Graphty, database: string, key?: string): Promise<void> {
     await element.enableAiControl({
+        toolset: "generated",
         provider: "mock",
         approvals: "writes",
         history: { store: "browser", database, ...(key === undefined ? {} : { key }) },

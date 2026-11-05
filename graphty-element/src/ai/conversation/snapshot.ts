@@ -105,6 +105,12 @@ export interface AiConversationSummary {
     readonly messageCount: number;
     /** How many things wait on the reader. */
     readonly pendingCount: number;
+    /**
+     * The reader's own first message, or null before there is one: the reader's data, for a list
+     * of conversations to title it by.
+     * @experimental assistant
+     */
+    readonly firstWords: string | null;
 }
 
 /**
@@ -386,5 +392,23 @@ export function conversationSummary(record: ConversationRecord): AiConversationS
         updatedAt: record.updatedAt,
         messageCount: snapshotMessages(record.messages).length,
         pendingCount: record.pending.length,
+        firstWords: firstWordsOf(record),
     };
+}
+
+/**
+ * The reader's first message.
+ * @param record - The conversation.
+ * @returns Its text, or null when the reader has said nothing.
+ */
+function firstWordsOf(record: ConversationRecord): string | null {
+    for (const message of record.messages) {
+        for (const part of message.parts) {
+            if (part.type === "text" && part.origin === "reader") {
+                return part.text;
+            }
+        }
+    }
+
+    return null;
 }

@@ -34,6 +34,44 @@ console.log(result.llmText); // the model's answer, in the model's words
 `result.code` is a code, never a sentence: your page decides what to tell the reader. The words in
 `result.llmText` are the model's own.
 
+## Choosing the tools
+
+The quick start above offers the model the element's hand-written commands (`queryGraph`,
+`setLayout`, `findAndStyleNodes` and the rest). That is the default, and it needs no option.
+
+`toolset: "generated"` offers tools generated from the element's catalog instead, so the model
+reaches every algorithm, layout, format, palette and camera, the ones a plugin registers included
+([What the assistant can do](./javascript-api#what-the-assistant-can-do)):
+
+```typescript
+await element.enableAiControl({ provider: "google", apiKey: myKey, toolset: "generated" });
+```
+
+|                                   | `"commands"` (default)          | `"generated"`                                        |
+| --------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| `getCommandRegistry()` holds      | The hand-written commands       | The generated tools (`ASSISTANT_TOOLS`)              |
+| A tool's result reaches the model | As `{ success, message, data }` | As `{ code, params }`, marked as data from the graph |
+| A command named like a built-in   | Keeps its name                  | Is offered as `app_<name>`                           |
+| WebLLM                            | Is offered every command        | Is offered four tools                                |
+| Tool rounds in one message        | 5                               | 8                                                    |
+| A tool fails in a batch           | What ran before it stands       | The whole batch rolls back                           |
+
+These options apply only under `"generated"`, and `enableAiControl` rejects them otherwise with an
+`AiConfigError` (reason `"needs-generated-toolset"`): `toolProfile`, `gate`, `approvals`, `agents`,
+`tools` and `instructions`. Everything else in this guide (`history`, `questions`, `voice`) works
+with either.
+
+`instructions` adds your own text to the system prompt:
+
+```typescript
+await element.enableAiControl({
+    provider: "google",
+    apiKey: myKey,
+    toolset: "generated",
+    instructions: "Never name a color or a position in an answer.",
+});
+```
+
 ### Model options
 
 Each is optional, and left out it is the provider's own default:
@@ -101,6 +139,7 @@ element.addEventListener("ai-approval-requested", (e) => {
 element.addEventListener("ai-pending-resolved", () => card.replaceChildren());
 
 await element.enableAiControl({
+    toolset: "generated",
     provider: "google",
     apiKey: myKey,
     history: "browser", // remember the conversation, also after a reload
@@ -176,6 +215,7 @@ as a whole.
 
 ```typescript
 await element.enableAiControl({
+    toolset: "generated",
     provider: "google",
     apiKey: myKey,
     approvals: {
@@ -391,6 +431,7 @@ element.addEventListener("ai-agent-start", (e) => console.log("started", e.detai
 element.addEventListener("ai-agent-end", (e) => console.log("ended", e.detail.agent, e.detail.code));
 
 await element.enableAiControl({
+    toolset: "generated",
     provider: "google",
     apiKey: myKey,
     agents: [
@@ -427,6 +468,7 @@ A role (`AiAgentRole`, from `@graphty/graphty-element/ai`) is
 
 ```typescript
 await element.enableAiControl({
+    toolset: "generated",
     provider: "google",
     apiKey: googleKey,
     apiKeys: { anthropic: anthropicKey }, // the keys of the providers helpers run on
@@ -458,7 +500,7 @@ names one):
 import { AiConfigError } from "@graphty/graphty-element/ai";
 
 try {
-    await element.enableAiControl({ provider: "google", apiKey: myKey, agents: myRoles });
+    await element.enableAiControl({ toolset: "generated", provider: "google", apiKey: myKey, agents: myRoles });
 } catch (error) {
     if (error instanceof AiConfigError) {
         console.log(error.code, error.params.agent, error.params.field, error.params.reason);
@@ -568,7 +610,7 @@ element.addEventListener("ai-hosted-tool-result", (e) => {
     }
 });
 
-await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { webSearch: true } });
+await element.enableAiControl({ toolset: "generated", provider: "google", apiKey: myKey, tools: { webSearch: true } });
 
 const result = await element.aiCommand("Search the web for the year the Eiffel Tower opened");
 console.log(result.code, result.llmText); // "AI_COMPLETED", and an answer drawn from the web
@@ -594,6 +636,7 @@ search on OpenAI, Anthropic and Google; web pages on Anthropic and Google; code 
 
 ```typescript
 await element.enableAiControl({
+    toolset: "generated",
     provider: "anthropic",
     apiKey: myKey,
     tools: {
@@ -718,6 +761,7 @@ A helper of your own may have web tools too, in its `tools` (an `AiToolOptions`)
 
 ```typescript
 await element.enableAiControl({
+    toolset: "generated",
     provider: "anthropic",
     apiKey: myKey,
     agents: [
@@ -752,6 +796,7 @@ read web content, the assistant does not change the graph on that content's say-
 
 ```typescript
 await element.enableAiControl({
+    toolset: "generated",
     provider: "google",
     apiKey: myKey,
     tools: { webSearch: true, webContentWrites: "ask" },
@@ -780,7 +825,7 @@ TypeScript or JavaScript, to compute what the assistant's tools do not give dire
 degree", "how many nodes have a label longer than 20 characters"):
 
 ```typescript
-await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { inPageCode: true } });
+await element.enableAiControl({ toolset: "generated", provider: "google", apiKey: myKey, tools: { inPageCode: true } });
 
 const result = await element.aiCommand("Use code to compute the average degree of the graph");
 console.log(result.llmText); // the model's answer, from the program's value

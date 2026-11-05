@@ -33,6 +33,7 @@ describe("AiManager model options", () => {
         } as unknown as Graph;
         const ai = createAiManager();
         ai.init(graph, {
+            toolset: "generated",
             provider: "google",
             apiKey: "AIza-test-key-0123",
             model: "gemini-3.1-pro-preview",

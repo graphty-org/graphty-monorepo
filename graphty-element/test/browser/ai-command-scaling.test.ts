@@ -58,8 +58,8 @@ async function mount(size: number): Promise<Graphty> {
         toolCalls: [
             {
                 id: "1",
-                name: "style",
-                arguments: { action: "add", where: "all", values: { "node.color": "#ff0000" } },
+                name: "findAndStyleNodes",
+                arguments: { selector: "", style: { color: "#ff0000" }, layerName: "red" },
             },
         ],
     });
@@ -89,18 +89,11 @@ interface Case {
 }
 
 /**
- * Send the command once, so there is a last command to retry, and take its layer away again: the
- * assistant refuses a second layer over the same target, so the retry has one to add.
+ * Send the command once, so there is a last command to retry.
  * @param element - The element.
  */
 async function sendOnce(element: Graphty): Promise<void> {
     assert.isTrue((await element.aiCommand(COMMAND)).success);
-    await settled(element);
-    const session = element.graph.getSession();
-    for (const layer of session.styles.list().filter((each) => each.source.by === "plugin")) {
-        await session.styles.remove(layer.id);
-    }
-
     await settled(element);
 }
 

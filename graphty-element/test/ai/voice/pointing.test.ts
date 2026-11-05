@@ -78,6 +78,7 @@ describe("a spoken message carries what was pointed at", () => {
         installAssistantTools(registry, session);
         let finished = 0;
         const controller = new AiController({
+            toolset: "generated",
             provider: { name: "scripted" } as never,
             commandRegistry: registry,
             graph: { getSession: () => session } as unknown as CommandContext["graph"],

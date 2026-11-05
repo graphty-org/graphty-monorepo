@@ -57,7 +57,6 @@ export type {
 } from "./AiManager";
 export { AiManager, createAiManager } from "./AiManager";
 
-/* eslint-disable @typescript-eslint/no-deprecated -- still published until the next major release for consumers that register the hand-written commands themselves */
 // Commands
 export {
     // Capture commands (Phase 7)
@@ -86,7 +85,6 @@ export {
     setLayout,
     zoomToNodes,
 } from "./commands";
-/* eslint-enable @typescript-eslint/no-deprecated */
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./commands/types";
 
 // Providers

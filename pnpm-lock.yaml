@@ -828,13 +828,13 @@ importers:
   graphty-element:
     dependencies:
       '@ai-sdk/anthropic':
-        specifier: '*'
+        specifier: ^2.0.50
         version: 2.0.108(zod@4.6.7)
       '@ai-sdk/google':
-        specifier: '*'
+        specifier: ^2.0.44
         version: 2.0.101(zod@4.6.7)
       '@ai-sdk/openai':
-        specifier: '*'
+        specifier: ^2.0.74
         version: 2.0.133(zod@4.6.7)
       '@graphty/algorithms':
         specifier: workspace:^
@@ -855,7 +855,7 @@ importers:
         specifier: '>=0.2.0'
         version: 0.2.85
       ai:
-        specifier: '*'
+        specifier: ^5.0.104
         version: 5.0.271(zod@4.6.7)
       babylonjs-map:
         specifier: workspace:^

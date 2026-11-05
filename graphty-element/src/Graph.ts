@@ -8018,11 +8018,10 @@ export class Graph implements GraphContext {
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
         const generation = ++this.aiGeneration;
-        // Helpers that cannot run reject before anything is built, and the current assistant stays.
-        if (config.agents !== undefined) {
-            const { checkAgents } = await import("./ai/roles");
-            checkAgents(config.agents, config.providerInstance?.name ?? config.provider);
-        }
+        // A configuration that cannot run rejects before anything is built, and the current
+        // assistant stays.
+        const { checkAiConfig } = await import("./ai/roles");
+        checkAiConfig(config);
 
         // Dynamically import to avoid loading AI code when not needed
         const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");

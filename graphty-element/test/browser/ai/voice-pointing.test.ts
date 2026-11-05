@@ -56,7 +56,7 @@ beforeEach(async () => {
     await element.setViewMode("2d");
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    await element.enableAiControl({ provider: "mock", voice: {}, history: "memory" });
+    await element.enableAiControl({ toolset: "generated", provider: "mock", voice: {}, history: "memory" });
     finished = 0;
     hovered = [];
     element.addEventListener("graphty-node-hover", (event) => {
@@ -147,7 +147,12 @@ describe("pointing while talk is held", () => {
     });
 
     it("voice.holdKey: a key held on the focused graph talks while the mouse points", async () => {
-        await element.enableAiControl({ provider: "mock", voice: { holdKey: "v" }, history: "memory" });
+        await element.enableAiControl({
+            toolset: "generated",
+            provider: "mock",
+            voice: { holdKey: "v" },
+            history: "memory",
+        });
         // One real click on empty canvas focuses the graph.
         await click(element, { x: 200, y: 280 });
         await userEvent.keyboard("{v>}");

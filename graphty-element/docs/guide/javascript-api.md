@@ -591,10 +591,20 @@ message's earlier changes were taken back with it.
 
 ### What the assistant can do
 
-The assistant reaches everything the element can do: every algorithm, layout, file format,
-palette, scale, style channel and camera view in the catalog, the ones a plugin registers included.
-It does not get one tool per method. It gets eleven tools, each a family of actions, and finds the
-rest by searching the catalog:
+By default the assistant is offered the hand-written commands (`queryGraph`, `findNodes`, `setLayout`,
+`findAndStyleNodes` and the rest), and `getCommandRegistry().getAll()` lists them. To reach everything
+the element can do instead, ask for the generated tools:
+
+```typescript
+await graph.enableAiControl({ provider: "anthropic", apiKey, toolset: "generated" });
+```
+
+The rest of this section describes `toolset: "generated"`.
+[Choosing the tools](./ai-assistant#choosing-the-tools) compares the two.
+
+It reaches every algorithm, layout, file format, palette, scale, style channel and camera view in
+the catalog, the ones a plugin registers included. It does not get one tool per method. It gets
+eleven tools, each a family of actions, and finds the rest by searching the catalog:
 
 | Tool            | What it does                                                                   |
 | --------------- | ------------------------------------------------------------------------------ |
@@ -620,7 +630,7 @@ instead (`catalog`, `query`, `undo`, and `call`, which calls any other tool by n
 default for WebLLM; choose it for any provider with `toolProfile`:
 
 ```typescript
-await graph.enableAiControl({ provider: "google", apiKey, toolProfile: "small" }); // "standard", "small", or "auto"
+await graph.enableAiControl({ toolset: "generated", provider: "google", apiKey, toolProfile: "small" }); // "standard", "small", or "auto"
 ```
 
 Every call is checked before it runs, the calls the model makes at once run together or not at
@@ -646,6 +656,7 @@ graph.on("ai-approval-requested", async ({ request }) => {
 });
 
 await graph.enableAiControl({
+    toolset: "generated",
     provider: "anthropic",
     apiKey,
     gate: { removeNodes: 200 }, // hold a message that removes 200 or more nodes
@@ -676,8 +687,9 @@ graph.on("ai-export-ready", ({ format, data }) => {
 
 #### Your own commands
 
-A command you register is offered beside the built-in tools. Say what it does to the project and
-how the model finds it, and return a code rather than a sentence:
+A command you register is offered beside the built-in commands or tools. Under the default toolset
+the model reads its `{ success, message, data }`. Under `toolset: "generated"`, say what it does to
+the project and how the model finds it, and return a code rather than a sentence:
 
 ```typescript
 import { z } from "zod";
@@ -690,6 +702,7 @@ graph.getAiManager()?.registerCommand({
     effect: "write", // the default; "read" adds no undo step and is never held
     load: "on-demand", // offered once a catalog search finds it, instead of on every turn
     keywords: ["mark", "label"],
+    plainName: "Tag nodes", // the name an application may show for it; default: its name
     async execute(_graph, params, ctx) {
         const { ids, tag } = params as { ids: string[]; tag: string };
         await ctx!.tx.data.updateNodes(ids.map((id) => ({ id, values: { tag } })));
@@ -704,10 +717,6 @@ grow in a minor release) keeps working: the model is offered it as `app_<name>`.
 `assistantReach()` from `@graphty/graphty-element/extend` tells a plugin's own test whether what it
 registered reaches the assistant: an option no schema can carry, an entry with no description, an
 algorithm class with no descriptor, a command named like a built-in tool.
-
-The commands earlier releases registered by default (`queryGraph`, `setLayout`,
-`findAndStyleNodes` and the rest) are still exported and still work when you register them
-yourself; they are deprecated and are removed in the next major release.
 
 ### Remembering API Keys
 

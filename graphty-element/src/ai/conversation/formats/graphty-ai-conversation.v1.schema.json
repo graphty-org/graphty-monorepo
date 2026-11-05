@@ -167,6 +167,7 @@
                                         "origin": {
                                             "enum": [
                                                 "graph-data",
+                                                "command",
                                                 "reader",
                                                 "web"
                                             ],
@@ -420,6 +421,7 @@
                                                                         "origin": {
                                                                             "enum": [
                                                                                 "graph-data",
+                                                                                "command",
                                                                                 "reader",
                                                                                 "web"
                                                                             ],

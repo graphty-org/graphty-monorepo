@@ -16,7 +16,12 @@ describe("the generated tools on a rendered graph", () => {
     let graph: Graph;
 
     beforeEach(async () => {
-        ({ graph } = await createE2EGraph({ nodes: DEFAULT_TEST_NODES, edges: DEFAULT_TEST_EDGES, enableAi: true }));
+        ({ graph } = await createE2EGraph({
+            nodes: DEFAULT_TEST_NODES,
+            edges: DEFAULT_TEST_EDGES,
+            enableAi: true,
+            toolset: "generated",
+        }));
     });
 
     afterEach(() => {

@@ -39,6 +39,7 @@ export async function twoHelpers(myKey: string, log: HTMLElement): Promise<Execu
     });
 
     await element.enableAiControl({
+        toolset: "generated",
         provider: "google",
         apiKey: myKey,
         agents: [
@@ -77,6 +78,7 @@ export async function plannedHelpers(googleKey: string, anthropicKey: string): P
 
     try {
         await element.enableAiControl({
+            toolset: "generated",
             provider: "google",
             apiKey: googleKey,
             apiKeys: { anthropic: anthropicKey },
@@ -91,6 +93,7 @@ export async function plannedHelpers(googleKey: string, anthropicKey: string): P
     }
 
     await element.enableAiControl({
+        toolset: "generated",
         provider: "google",
         apiKey: googleKey,
         agents: { roles, router: "classifier", classifierModel: "gemini-3.8-flash" },

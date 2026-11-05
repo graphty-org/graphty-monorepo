@@ -133,6 +133,7 @@ export class Harness {
         this.controller = new AiController({
             provider: driver.provider ?? ({ name: "scripted" } as never),
             commandRegistry: this.registry,
+            toolset: "generated",
             graph: { getSession: () => session } as unknown as CommandContext["graph"],
             emitEvent: (event: AiEvent) => this.events.push(event),
             ...options,

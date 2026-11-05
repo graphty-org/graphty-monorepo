@@ -25,11 +25,21 @@ describe("AiManager", () => {
     });
 
     describe("initialization", () => {
-        it("initializes with the generated tools", () => {
+        it("initializes with built-in commands", () => {
             const commands = manager.getRegisteredCommands();
+            assert.ok(commands.includes("queryGraph"), "should include queryGraph command");
+            assert.ok(commands.includes("setLayout"), "should include setLayout command");
+            assert.ok(commands.includes("setImmersiveMode"), "should include setImmersiveMode command");
+        });
+
+        it("initializes with the generated tools under toolset: generated", () => {
+            const generated = new AiManager();
+            generated.init(mockGraph, { provider: "mock", toolset: "generated" });
+            const commands = generated.getRegisteredCommands();
             assert.ok(commands.includes("query"), "should include the query tool");
             assert.ok(commands.includes("layout"), "should include the layout tool");
             assert.ok(commands.includes("immersive"), "should include the immersive tool");
+            generated.dispose();
         });
 
         it("initializes with mock provider", () => {

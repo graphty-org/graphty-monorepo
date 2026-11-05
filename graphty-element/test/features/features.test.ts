@@ -46,7 +46,7 @@ describe("resolveFeatures", () => {
 
     it("skips entries that are not strings instead of throwing", () => {
         const fromUntypedCaller = ["timeline", 7, null] as unknown as string[];
-        assert.deepEqual(resolveFeatures(fromUntypedCaller), { enabled: ["timeline"], unknown: [] });
+        assert.deepEqual({ ...resolveFeatures(fromUntypedCaller) }, { enabled: ["timeline"], unknown: [] });
     });
 
     it("turns on every declared experiment for all", () => {

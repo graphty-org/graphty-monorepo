@@ -38,7 +38,12 @@ export async function searchTheWeb(myKey: string, list: HTMLUListElement): Promi
         }
     });
 
-    await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { webSearch: true } });
+    await element.enableAiControl({
+        toolset: "generated",
+        provider: "google",
+        apiKey: myKey,
+        tools: { webSearch: true },
+    });
     return element.aiCommand("Search the web for the year the Eiffel Tower opened");
 }
 
@@ -107,6 +112,7 @@ export async function advancedTools(myKey: string): Promise<AiCapabilityStatus |
     });
 
     await element.enableAiControl({
+        toolset: "generated",
         provider: "anthropic",
         apiKey: myKey,
         tools: {
@@ -147,6 +153,11 @@ export async function runCode(myKey: string): Promise<boolean> {
         return false;
     }
 
-    await element.enableAiControl({ provider: "google", apiKey: myKey, tools: { inPageCode: true } });
+    await element.enableAiControl({
+        toolset: "generated",
+        provider: "google",
+        apiKey: myKey,
+        tools: { inPageCode: true },
+    });
     return element.getAiCapabilities()?.tools["in-page-code"] === "available";
 }

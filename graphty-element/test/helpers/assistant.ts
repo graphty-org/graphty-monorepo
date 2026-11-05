@@ -157,6 +157,7 @@ export class ScriptedAssistant {
         this.controller = new AiController({
             provider: { name: "scripted" } as never,
             commandRegistry: this.registry,
+            toolset: "generated",
             graph,
             emitEvent: (event: AiEvent) => this.events.push(event),
             ...(options.gate === undefined ? {} : { gate: options.gate }),

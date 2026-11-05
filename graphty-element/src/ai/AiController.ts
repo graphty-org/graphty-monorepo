@@ -512,6 +512,16 @@ export interface AiControllerOptions {
     /** Optional schema manager for data schema in prompts */
     schemaManager?: SchemaManager | null;
     /**
+     * What the model is offered and how it reads results: `"commands"`, the registry's commands,
+     * each result as `{ success, message, data }`, under no gate; `"generated"`, the generated
+     * tools. Default `"generated"` when the registry holds them (`installAssistantTools`), else
+     * `"commands"`. `toolProfile`, `gate`, `approvals`, `tools` and `instructions` apply only to
+     * `"generated"`.
+     */
+    toolset?: "commands" | "generated";
+    /** Text added to the system prompt, under `"generated"`. */
+    instructions?: string;
+    /**
      * Which tools a model is offered when the registry holds the generated ones: `"standard"` (the
      * core tools plus those a catalog search loads) or `"small"` (catalog, query, call and undo,
      * for a model that breaks past a handful of tools). Default `"standard"`.
@@ -620,6 +630,9 @@ export class AiController {
     private readonly apiKeys: Partial<Record<AiProviderId, string>>;
     private readonly policy: MessageState["policy"];
     private readonly profile: "standard" | "small";
+    private readonly toolset: "commands" | "generated";
+    /** Text added to the system prompt, after a line break; empty for none. */
+    private readonly instructions: string;
     private readonly gate: Readonly<AssistantGateLimits> | false;
     private readonly allowImportUrl: ((url: URL) => boolean) | undefined;
     /** Runs the assistant started, which it may cancel without asking. */
@@ -676,10 +689,14 @@ export class AiController {
         this.statusManager = new AiStatusManager();
         this.schemaManager = options.schemaManager ?? null;
         this.emitEvent = options.emitEvent;
-        this.profile = options.toolProfile ?? "standard";
-        this.gate = options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
+        this.toolset = options.toolset ?? (hasAssistantTools(options.commandRegistry) ? "generated" : "commands");
+        const generated = this.toolset === "generated";
+        this.instructions = generated && options.instructions !== undefined ? `\n${options.instructions}` : "";
+        this.profile = generated ? (options.toolProfile ?? "standard") : "standard";
+        this.gate =
+            !generated || options.gate === false ? false : { ...DEFAULT_ASSISTANT_GATE_LIMITS, ...options.gate };
         this.allowImportUrl = options.allowImportUrl;
-        this.policy = policyOf(options.approvals);
+        this.policy = generated ? policyOf(options.approvals) : undefined;
         this.asks = options.questions === true;
         this.model = options.model ?? defaultModelOf(options.provider.name);
         const consumerRoles = options.agents === undefined ? [] : rolesOf(options.agents);
@@ -1119,6 +1136,7 @@ export class AiController {
             abort: abortController,
             sink: { emit, status: this.statusManager },
             profile: this.profile,
+            toolset: this.toolset,
             state: {
                 id: message,
                 gate: this.gate,
@@ -1178,7 +1196,7 @@ export class AiController {
         }
 
         let { result } = error;
-        if (remaining > 0) {
+        if (remaining > 0 && this.toolset === "generated") {
             result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
@@ -2117,7 +2135,7 @@ export class AiController {
             const consumer = this.commandRegistry
                 .getAll()
                 .filter((command) => !isAssistantTool(command) && (command.load ?? "always") === "always");
-            return assistantInstructions(this.profile, consumer) + this.helpersInstructions();
+            return assistantInstructions(this.profile, consumer) + this.instructions + this.helpersInstructions();
         }
 
         const commands = this.commandRegistry.getAll();
@@ -2129,7 +2147,7 @@ export class AiController {
 Available commands:
 ${commandDescriptions}
 ${schemaSection}
-When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.${this.helpersInstructions()}`;
+When the user asks you to perform an action, use the appropriate tool. If no tool is needed, respond conversationally.${this.instructions}${this.helpersInstructions()}`;
     }
 
     /**

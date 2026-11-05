@@ -15,6 +15,7 @@ import {
     MAX_AGENTS,
     rolesOf,
 } from "./agents";
+import type { AiManagerConfig } from "./AiManager";
 import { hostedToolLimits } from "./engine/types";
 import { asksWebTools, RESEARCH } from "./tools/hosted";
 
@@ -40,6 +41,28 @@ const KNOWN_COMMANDS: ReadonlySet<string> = new Set(
 const HELPER_PROVIDERS: ReadonlySet<string> = new Set(
     AI_PROVIDER_DESCRIPTORS.filter((provider) => !provider.runsLocally).map((provider) => provider.id),
 );
+
+/** The settings that only the generated tools honor. */
+const GENERATED_ONLY = ["toolProfile", "gate", "approvals", "agents", "tools", "instructions"] as const;
+
+/**
+ * Check an assistant's configuration before anything is built.
+ * @param config - The configuration.
+ * @throws {AiConfigError} What `checkAgents` throws, or, under the default toolset, on a setting
+ *   only `toolset: "generated"` honors: left unread, `approvals` would run writes unasked.
+ */
+export function checkAiConfig(config: AiManagerConfig): void {
+    if (config.agents !== undefined) {
+        checkAgents(config.agents, config.providerInstance?.name ?? config.provider);
+    }
+
+    if (config.toolset !== "generated") {
+        const field = GENERATED_ONLY.find((name) => config[name] !== undefined);
+        if (field !== undefined) {
+            throw new AiConfigError({ field, reason: "needs-generated-toolset" });
+        }
+    }
+}
 
 /**
  * Check a helper configuration.

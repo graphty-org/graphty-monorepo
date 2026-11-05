@@ -41,7 +41,7 @@ describe("enableAiControl, superseded", () => {
     it("a disable while an enable is still loading leaves the assistant off", async () => {
         const element = await mount();
 
-        const enabling = element.enableAiControl({ provider: "mock" });
+        const enabling = element.enableAiControl({ toolset: "generated", provider: "mock" });
         element.disableAiControl();
         await enabling;
 
@@ -55,8 +55,8 @@ describe("enableAiControl, superseded", () => {
 
         // The first names a helper, which it checks in a module of its own first: the second,
         // started after it, gets to build before it.
-        const first = element.enableAiControl({ provider: "mock", agents: [COUNTER] });
-        const second = element.enableAiControl({ provider: "mock", history: "memory" });
+        const first = element.enableAiControl({ toolset: "generated", provider: "mock", agents: [COUNTER] });
+        const second = element.enableAiControl({ toolset: "generated", provider: "mock", history: "memory" });
         await Promise.all([first, second]);
 
         const result = await element.aiCommand("hello");

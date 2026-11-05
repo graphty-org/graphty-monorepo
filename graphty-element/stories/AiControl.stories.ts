@@ -1666,11 +1666,16 @@ function assistantPage(
             if (Array.isArray(scripted)) {
                 const queued = new QueuedProvider();
                 queued.queue.push(...(scripted as readonly ScriptedResponse[]));
-                await element.enableAiControl({ provider: "mock", providerInstance: queued, ...config });
+                await element.enableAiControl({
+                    provider: "mock",
+                    providerInstance: queued,
+                    toolset: "generated",
+                    ...config,
+                });
                 return;
             }
 
-            await element.enableAiControl({ provider: "mock", ...config });
+            await element.enableAiControl({ provider: "mock", toolset: "generated", ...config });
             const provider = element.getAiManager()?.getProvider() as MockLlmProvider;
             if (engine !== undefined) {
                 registerProviderApiEngine(provider, () => engine);
@@ -2207,14 +2212,9 @@ async function speak(canvasElement: HTMLElement, utterance: string): Promise<str
     // One user for the whole press, so the release lets go of the button the press holds.
     const user = userEvent.setup();
     await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
-    await waitFor(
-        () => {
-            need(
-                canvasElement.querySelector("#voice-status")?.textContent === utterance,
-                `"${utterance}" was not heard`,
-            );
-        },
-    );
+    await waitFor(() => {
+        need(canvasElement.querySelector("#voice-status")?.textContent === utterance, `"${utterance}" was not heard`);
+    });
     await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
     return ended;
 }
@@ -2384,14 +2384,12 @@ export const LiveVoice: Story = {
         await holds(talk !== null, "the page has no talk button");
         const user = userEvent.setup();
         await user.pointer({ keys: "[MouseLeft>]", target: talk as HTMLButtonElement });
-        await waitFor(
-            () => {
-                need(
-                    canvasElement.querySelector("#voice-status")?.textContent === "Listening (live)",
-                    "the press did not start a live conversation",
-                );
-            },
+        await waitFor(() => {
+            need(
+                canvasElement.querySelector("#voice-status")?.textContent === "Listening (live)",
+                "the press did not start a live conversation",
             );
+        });
         await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
 
         await waitFor(() => {

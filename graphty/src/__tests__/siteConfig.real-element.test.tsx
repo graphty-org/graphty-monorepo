@@ -75,7 +75,7 @@ describe("site.json", () => {
 
         const element = await mountElement();
         assert.deepEqual(element.features, []);
-        assert.deepEqual(element.enabledFeatures, { enabled: [], unknown: [] });
+        assert.deepEqual({ ...element.enabledFeatures }, { enabled: [], unknown: [] });
         assert.isNull(screen.queryByLabelText(/^Site: /));
     });
 

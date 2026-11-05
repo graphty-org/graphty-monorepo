@@ -10,17 +10,6 @@ import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/t
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 import { createMessageGraph } from "../helpers/message-graph";
 
-/**
- * A tool result as the model was sent it, out of its graph-data envelope.
- * @param content - The tool message's content.
- * @returns The result.
- */
-function resultOf(content: string | undefined): unknown {
-    const text = content ?? "";
-    assert.isTrue(text.startsWith("<graph-data>\n") && text.endsWith("\n</graph-data>"), text);
-    return JSON.parse(text.slice("<graph-data>\n".length, -"\n</graph-data>".length));
-}
-
 describe("AiController", () => {
     let controller: AiController;
     let mockProvider: MockLlmProvider;
@@ -169,7 +158,9 @@ describe("AiController", () => {
 
             const result = await controller.execute("unknown command");
             assert.strictEqual(result.success, false);
-            assert.strictEqual(result.code, "AI_TOOL_UNKNOWN");
+            assert.ok(
+                result.message.toLowerCase().includes("unknown") || result.message.toLowerCase().includes("not found"),
+            );
         });
 
         it("handles command execution failure", async () => {
@@ -213,7 +204,7 @@ describe("AiController", () => {
 
             const result = await controller.execute("make it throw");
             assert.strictEqual(result.success, false);
-            assert.strictEqual(result.code, "AI_TOOL_THREW");
+            assert.ok(result.message.toLowerCase().includes("error"));
         });
     });
 
@@ -285,11 +276,9 @@ describe("AiController", () => {
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
             assert.strictEqual(second.at(-1)?.toolCallId, "t1");
-            // A command with no code of its own shows the model its message, as params.message,
-            // inside the envelope that marks it as data from the graph.
-            assert.deepStrictEqual(resultOf(second.at(-1)?.content), {
-                code: "AI_OK",
-                params: { message: "look servers" },
+            assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
+                success: true,
+                message: "look servers",
                 data: { seen: "servers" },
             });
             assert.strictEqual(result.success, true);
@@ -322,10 +311,7 @@ describe("AiController", () => {
 
             await multi.execute("do it");
 
-            assert.strictEqual(
-                (resultOf(provider.asks[1].at(-1)?.content) as { code?: string }).code,
-                "AI_TOOL_FAILED",
-            );
+            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").success, false);
             assert.deepStrictEqual(fixed, ["b"]);
         });
 
@@ -351,30 +337,30 @@ describe("AiController", () => {
                 toolMessages.map((message) => message.toolCallId),
                 ["t1", "t2"],
             );
-            assert.include(toolMessages[1].content, "AI_TOOL_NOT_RUN");
+            assert.include(toolMessages[1].content, "Not run");
         });
 
-        it("stops running tools after eight turns, then asks for a text answer only", async () => {
+        it("stops running tools after five turns, then asks for a text answer only", async () => {
             const ran = registerEcho("again");
             const forever = { text: "", toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }] };
             const answer = {
                 text: "I looked at the data; what should change?",
                 toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }],
             };
-            const provider = scriptedProvider([...Array.from({ length: 8 }, () => forever), answer, forever]);
+            const provider = scriptedProvider([...Array.from({ length: 5 }, () => forever), answer, forever]);
             const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
 
             const result = await multi.execute("loop");
 
-            assert.strictEqual(provider.asks.length, 9);
-            assert.deepStrictEqual(provider.choices, [...Array.from({ length: 8 }, () => "auto"), "none"]);
+            assert.strictEqual(provider.asks.length, 6);
+            assert.deepStrictEqual(provider.choices, ["auto", "auto", "auto", "auto", "auto", "none"]);
             // only the answer-only ask ends with the request to answer, and it is not kept in the history
             const lasts = provider.asks.map((ask) => ask.at(-1));
-            assert.strictEqual(lasts[8]?.role, "user");
-            assert.include(lasts[8]?.content, "No more tools can run");
-            assert.ok(lasts.slice(0, 8).every((m) => !m?.content.includes("No more tools can run")));
+            assert.strictEqual(lasts[5]?.role, "user");
+            assert.include(lasts[5]?.content, "No more tools can run");
+            assert.ok(lasts.slice(0, 5).every((m) => !m?.content.includes("No more tools can run")));
             // the answer-only ask's tool call, from a provider that ignored toolChoice, does not run
-            assert.strictEqual(ran.length, 8);
+            assert.strictEqual(ran.length, 5);
             assert.strictEqual(result.success, true);
             assert.strictEqual(result.llmText, "I looked at the data; what should change?");
         });

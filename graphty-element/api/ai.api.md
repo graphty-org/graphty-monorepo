@@ -246,6 +246,7 @@ export interface AiControllerOptions {
     gate?: Partial<AssistantGateLimits> | false;
     graph: CommandContext["graph"];
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    instructions?: string;
     model?: string;
     provider: LlmProvider;
     questions?: boolean;
@@ -253,6 +254,7 @@ export interface AiControllerOptions {
     secrets?: () => readonly string[];
     toolProfile?: "standard" | "small";
     tools?: AiToolOptions;
+    toolset?: "commands" | "generated";
 }
 
 // @public
@@ -295,6 +297,7 @@ export interface AiConversationSnapshot {
 export interface AiConversationSummary {
     readonly createdAt: string;
     readonly dataKey: string | null;
+    readonly firstWords: string | null;
     readonly id: string;
     readonly key: string;
     readonly messageCount: number;
@@ -385,6 +388,7 @@ export interface AiManagerConfig {
     approvals?: AiApprovalsSetting;
     gate?: Partial<AssistantGateLimits> | false;
     history?: "none" | "memory" | "browser" | AiHistoryOptions;
+    instructions?: string;
     keyPersistence?: KeyPersistenceConfig;
     model?: string;
     provider: ProviderType;
@@ -396,6 +400,7 @@ export interface AiManagerConfig {
     thinkingBudgetTokens?: number;
     toolProfile?: "standard" | "small" | "auto";
     tools?: AiToolOptions;
+    toolset?: "commands" | "generated";
     voice?: AiVoiceOptions;
 }
 
@@ -670,13 +675,13 @@ export interface AttributeHistogramBin {
     range: string;
 }
 
-// @public @deprecated
+// @public
 export const captureScreenshot: GraphCommand;
 
-// @public @deprecated
+// @public
 export const captureVideo: GraphCommand;
 
-// @public @deprecated
+// @public
 export const clearStyles: GraphCommand;
 
 // @public
@@ -732,7 +737,7 @@ export function createWebLlmProvider(): Promise<LlmProvider>;
 // @public
 export const DEFAULT_ASSISTANT_GATE_LIMITS: Readonly<AssistantGateLimits>;
 
-// @public @deprecated
+// @public
 export const describeProperty: GraphCommand;
 
 // @public
@@ -743,13 +748,13 @@ export interface ExecutionResult extends CommandResult {
     usage?: AiTokenUsage;
 }
 
-// @public @deprecated
+// @public
 export const findAndStyleEdges: GraphCommand;
 
-// @public @deprecated
+// @public
 export const findAndStyleNodes: GraphCommand;
 
-// @public @deprecated
+// @public
 export const findNodes: GraphCommand;
 
 // @public
@@ -768,6 +773,7 @@ export interface GraphCommand {
     readonly load?: "always" | "on-demand";
     readonly name: string;
     readonly parameters: z.ZodType;
+    readonly plainName?: string;
 }
 
 // @public
@@ -795,12 +801,12 @@ export interface InputOptions {
 // @public
 export interface KeyPersistenceConfig {
     enabled: boolean;
-    encryptionKey: string;
+    encryptionKey?: string;
     prefix?: string;
     storage?: "localStorage" | "sessionStorage";
 }
 
-// @public @deprecated
+// @public
 export const listAlgorithms: GraphCommand;
 
 // @public
@@ -843,6 +849,7 @@ export const MAX_HELPERS_PER_TURN = 4;
 // @public
 export interface Message {
     content: string;
+    readerText?: string;
     role: "system" | "user" | "assistant" | "tool";
     toolCallId?: string;
     toolCalls?: ToolCall[];
@@ -934,13 +941,13 @@ export interface ProviderOptions {
 // @public
 export type ProviderType = AiProviderId;
 
-// @public @deprecated
+// @public
 export const queryGraph: GraphCommand;
 
-// @public @deprecated
+// @public
 export const runAlgorithm: GraphCommand;
 
-// @public @deprecated
+// @public
 export const sampleData: GraphCommand;
 
 // @public
@@ -976,16 +983,16 @@ export interface SchemaSummary {
     nodeProperties: PropertySummary[];
 }
 
-// @public @deprecated
+// @public
 export const setCameraPosition: GraphCommand;
 
-// @public @deprecated
+// @public
 export const setDimension: GraphCommand;
 
-// @public @deprecated
+// @public
 export const setImmersiveMode: GraphCommand;
 
-// @public @deprecated
+// @public
 export const setLayout: GraphCommand;
 
 // @public
@@ -1115,7 +1122,7 @@ export interface WebLlmProviderOptions {
     initializeOnFirstUse?: boolean;
 }
 
-// @public @deprecated
+// @public
 export const zoomToNodes: GraphCommand;
 
 // (No @packageDocumentation comment for this package)

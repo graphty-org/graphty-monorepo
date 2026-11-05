@@ -80,8 +80,17 @@ function toProviderMessages(request: TurnRequest, systemWithTools: boolean): Mes
 function toProviderMessage(message: SavedMessage): Message[] {
     const text = textOf(message.parts);
     switch (message.role) {
-        case "user":
-            return [{ role: "user", content: text }];
+        case "user": {
+            const readerText = message.parts.flatMap((part) =>
+                part.type === "text" && part.origin === "reader" ? [part.text] : [],
+            );
+            const facts = message.parts.some((part) => part.origin === "graph-data");
+            return [
+                facts
+                    ? { role: "user", content: text, readerText: readerText.join("\n") }
+                    : { role: "user", content: text },
+            ];
+        }
         case "assistant": {
             const toolCalls = message.parts.flatMap((part) =>
                 part.type === "tool-call"

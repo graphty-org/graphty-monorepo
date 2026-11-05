@@ -152,6 +152,7 @@ describe.skipIf(skipIfNoApiKey())("a spoken command on a real model", () => {
                 finished = resolve;
             });
             const controller = new AiController({
+                toolset: "generated",
                 provider: { name: getLlmRegressionProvider() } as never,
                 commandRegistry: registry,
                 graph: { getSession: () => session } as unknown as CommandContext["graph"],
@@ -230,6 +231,7 @@ describe.skipIf(skipIfNoApiKey())("pointing while talking on a real model", () =
             finished = resolve;
         });
         const controller = new AiController({
+            toolset: "generated",
             provider: { name: getLlmRegressionProvider() } as never,
             commandRegistry: registry,
             graph: { getSession: () => session } as unknown as CommandContext["graph"],

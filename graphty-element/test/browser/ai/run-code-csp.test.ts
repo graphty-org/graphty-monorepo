@@ -41,7 +41,11 @@ async function assistant(required: boolean): Promise<{ element: Graphty; reporte
             reported.push(`${event.tool}:${event.code}:${String(event.params.tool)}`);
         }
     });
-    await element.enableAiControl({ provider: "mock", tools: { inPageCode: required ? { required } : true } });
+    await element.enableAiControl({
+        toolset: "generated",
+        provider: "mock",
+        tools: { inPageCode: required ? { required } : true },
+    });
     return { element, reported };
 }
 

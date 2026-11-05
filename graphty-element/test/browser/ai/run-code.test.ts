@@ -66,6 +66,7 @@ describe("run_code in the page", () => {
         const registry = new CommandRegistry();
         installAssistantTools(registry, element.session);
         const controller = new AiController({
+            toolset: "generated",
             provider: { name: "scripted" } as never,
             commandRegistry: registry,
             graph: { getSession: () => element.session } as never,

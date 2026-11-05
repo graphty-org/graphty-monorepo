@@ -22,7 +22,12 @@ describe("question buttons a page draws", () => {
     beforeEach(async () => {
         ({ graph } = await createE2EGraph({ nodes: DEFAULT_TEST_NODES, edges: DEFAULT_TEST_EDGES, enableAi: false }));
         provider = new QueuedProvider();
-        await graph.enableAiControl({ provider: "mock", providerInstance: provider, questions: true });
+        await graph.enableAiControl({
+            toolset: "generated",
+            provider: "mock",
+            providerInstance: provider,
+            questions: true,
+        });
         answered = undefined;
         panel = document.createElement("div");
         document.body.appendChild(panel);

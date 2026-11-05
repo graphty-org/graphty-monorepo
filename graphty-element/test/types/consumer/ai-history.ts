@@ -51,6 +51,7 @@ export async function rememberAndAsk(myKey: string, card: HTMLElement): Promise<
     });
 
     await element.enableAiControl({
+        toolset: "generated",
         provider: "google",
         apiKey: myKey,
         history: "browser",
@@ -79,6 +80,7 @@ export async function policyAndEdits(myKey: string, request: AiApprovalRequest):
     }
 
     await element.enableAiControl({
+        toolset: "generated",
         provider: "google",
         apiKey: myKey,
         history: { store: "browser", key: "sales-dashboard", dataKey: "q3-accounts", budgetTokens: 16000 },

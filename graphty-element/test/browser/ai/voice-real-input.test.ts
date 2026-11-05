@@ -57,7 +57,7 @@ beforeEach(async () => {
     element.style.cssText = "display:block;width:400px;height:300px";
     document.body.appendChild(element);
     await element.waitForSettled();
-    await element.enableAiControl({ provider: "mock", voice: {} });
+    await element.enableAiControl({ toolset: "generated", provider: "mock", voice: {} });
     commands = [];
     element.addEventListener("ai-command-start", (event) => {
         commands.push((event as CustomEvent<{ input: string }>).detail.input);

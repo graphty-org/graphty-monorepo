@@ -114,7 +114,6 @@ export type {
 
 // AI Commands
 export type { CommandContext, CommandExample, CommandResult, GraphCommand } from "./src/ai/index";
-/* eslint-disable @typescript-eslint/no-deprecated -- still published until the next major release for consumers that register the hand-written commands themselves */
 export {
     captureScreenshot,
     captureVideo,
@@ -134,7 +133,6 @@ export {
     setLayout,
     zoomToNodes,
 } from "./src/ai/index";
-/* eslint-enable @typescript-eslint/no-deprecated */
 
 // AI Providers
 export type {

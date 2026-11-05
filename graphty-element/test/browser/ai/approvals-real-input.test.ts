@@ -21,7 +21,7 @@ describe("approval buttons a page draws", () => {
 
     beforeEach(async () => {
         ({ graph } = await createE2EGraph({ nodes: DEFAULT_TEST_NODES, edges: DEFAULT_TEST_EDGES, enableAi: false }));
-        await graph.enableAiControl({ provider: "mock", approvals: "writes" });
+        await graph.enableAiControl({ toolset: "generated", provider: "mock", approvals: "writes" });
         decided = undefined;
         panel = document.createElement("div");
         document.body.appendChild(panel);

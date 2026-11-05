@@ -487,6 +487,8 @@ export interface TimeApi {
 /** What `session.time` reads from the rest of the session. */
 export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
     /**
@@ -521,6 +523,12 @@ export interface KnownTimeFields {
 export interface TimeInternals {
     /** Parsed instants per row for a designated path, which the window reads instead of parsing. */
     instants(path: Path): { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
+    /**
+     * The zone a window's text bounds read in, when its attribute is the designated column.
+     * @param attribute - The window's attribute.
+     * @returns The zone, or undefined for any other column.
+     */
+    boundZone(attribute: Path): string | undefined;
     /** A run's scope digest that a `results: "keep"` window move accepted as current. */
     acceptedDigest(id: RunId, ranOn: string): string | undefined;
     /** The window a `results: "keep"` move accepted a run in, as a window key. */
@@ -1355,7 +1363,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             throw badZone("timeZone", zone);
         }
 
-        return zone;
+        return indexNow()?.unit === "year" ? UTC_ZONE : zone;
     };
 
     /**
@@ -1365,8 +1373,25 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const parseZoneNow = (): string => {
         const field = fieldNow();
 
-        return (field?.edges ?? field?.nodes)?.parseZone ?? UTC_ZONE;
+        return indexNow()?.unit === "year" ? UTC_ZONE : ((field?.edges ?? field?.nodes)?.parseZone ?? UTC_ZONE);
     };
+
+    /**
+     * The zone a window's text bounds read in: the field's, over the designated column.
+     * @param attribute - The window's attribute.
+     * @returns The zone, or undefined for any other column.
+     */
+    const boundZone = (attribute: Path): string | undefined =>
+        indexNow()?.path === columnOf(attribute) ? parseZoneNow() : undefined;
+
+    /**
+     * One bound of a window as a number.
+     * @param window - The window.
+     * @param side - Which bound.
+     * @returns The number.
+     */
+    const boundOf = (window: TimeWindow, side: "from" | "to"): number =>
+        numericBound(window[side], boundZone(window.attribute));
 
     /**
      * The step `"auto"` stands for: the calendar step closest to a twentieth of the data's span,
@@ -1461,7 +1486,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
         const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
         const timeZone = zoneOf(input.timeZone);
-        const parseZone = parseZoneNow();
+        const parseZone = boundZone(attribute);
 
         return Object.freeze({
             ...input,
@@ -1532,8 +1557,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         return window.mode === "cumulative"
-            ? addSteps(numericBound(window.to), stepOf(window), -1, zoneOf(undefined, window)) <= extent.from
-            : numericBound(window.from) <= extent.from;
+            ? addSteps(boundOf(window, "to"), stepOf(window), -1, zoneOf(undefined, window)) <= extent.from
+            : boundOf(window, "from") <= extent.from;
     };
 
     /**
@@ -1544,7 +1569,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const isLast = (window: TimeWindow): boolean => {
         const extent = extentNow();
 
-        return extent === null || numericBound(window.to) >= extent.to;
+        return extent === null || boundOf(window, "to") >= extent.to;
     };
 
     /**
@@ -1556,8 +1581,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const advanced = (window: TimeWindow, direction: 1 | -1): TimeWindow => {
         const step = stepOf(window);
         const zone = zoneOf(undefined, window);
-        const from = numericBound(window.from);
-        const to = numericBound(window.to);
+        const from = boundOf(window, "from");
+        const to = boundOf(window, "to");
         if (window.mode === "cumulative") {
             const start = extentNow()?.from ?? from;
             const end = addSteps(to, step, direction, zone);
@@ -1585,9 +1610,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const step = stepOf(window);
         const zone = zoneOf(undefined, window);
         const anchor =
-            window.mode === "cumulative"
-                ? addSteps(numericBound(window.to), step, -1, zone)
-                : numericBound(window.from);
+            window.mode === "cumulative" ? addSteps(boundOf(window, "to"), step, -1, zone) : boundOf(window, "from");
         const first = alignAt(extent.from, step, zone);
         if (!isCalendarStep(step)) {
             return Math.round((anchor - first) / step);
@@ -1696,8 +1719,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             counts === undefined ? 0 : counts.untimed + counts.unparsed;
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
-            from: window === null ? Number.NEGATIVE_INFINITY : numericBound(window.from),
-            to: window === null ? Number.POSITIVE_INFINITY : numericBound(window.to),
+            from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window, "from"),
+            to: window === null ? Number.POSITIVE_INFINITY : boundOf(window, "to"),
             visible: Object.freeze({ nodes: n.visible, edges: e.visible }),
             entered: Object.freeze({ nodes: n.entered, edges: e.entered }),
             left: Object.freeze({ nodes: n.left, edges: e.left }),
@@ -1808,8 +1831,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const { summary } = visibility;
         const event: TimeStepEvent = Object.freeze({
             index: stepIndexOf(next),
-            from: numericBound(next.from),
-            to: numericBound(next.to),
+            from: boundOf(next, "from"),
+            to: boundOf(next, "to"),
             visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
             entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
             left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
@@ -1846,15 +1869,15 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         const step = stepOf(at);
         const mode = at.mode ?? "sliding";
-        const head = numericBound(at.to);
+        const head = boundOf(at, "to");
         const by = ((addSteps(head, step, 1, zoneOf(undefined, at)) - head) * elapsed) / interval;
         const bounds = { step, mode, ...zoned(at.timeZone) };
         const end = numericBound(lastWindow(bounds).to);
         let next: TimeWindow =
             mode === "cumulative"
                 ? Object.freeze({ ...at, to: head + by })
-                : Object.freeze({ ...at, from: numericBound(at.from) + by, to: head + by });
-        if (numericBound(next.to) >= end) {
+                : Object.freeze({ ...at, from: boundOf(at, "from") + by, to: head + by });
+        if (boundOf(next, "to") >= end) {
             if (!loop) {
                 const last = lastWindow(bounds);
                 slideTo(last, "play");
@@ -2057,10 +2080,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const windowUnder = (current: TimeWindow, next: TimeSettings, newZone: string | undefined): TimeWindow => {
         const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
         const extent = extentNow() as TimeExtent;
-        const from = numericBound(current.from);
-        const to = numericBound(current.to);
+        const from = boundOf(current, "from");
+        const to = boundOf(current, "to");
         const was = zoneOf(undefined, current);
-        const zone = newZone ?? was;
+        const zone = zoneOf(newZone, current);
         const resized = step !== current.step || (zone !== was && isCalendarStep(step));
         const { timeZone: _timeZone, ...unzoned } = current;
         let window: TimeWindow = Object.freeze({
@@ -2276,8 +2299,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
-            const zone = options.timeZone ?? parseZoneNow();
-            if (!isTimeZone(zone)) {
+            // With the timeline off parse stays open, and reads as it did before zones.
+            const zone = sources.timeline?.() === false ? undefined : (options.timeZone ?? parseZoneNow());
+            if (zone !== undefined && !isTimeZone(zone)) {
                 throw badZone("timeZone", zone);
             }
 
@@ -2589,8 +2613,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             const current = cursor ?? visibility.window ?? firstWindow();
-            const from = numericBound(current.from);
-            const to = numericBound(current.to);
+            const from = boundOf(current, "from");
+            const to = boundOf(current, "to");
             const next =
                 current.mode === "cumulative"
                     ? Object.freeze({ ...current, from, to: Math.max(instant, from) })
@@ -2622,6 +2646,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     const internals: TimeInternals = {
+        boundZone,
+
         instants(path: Path) {
             const built = indexNow();
             if (built?.path !== columnOf(path)) {
@@ -2671,8 +2697,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                             ? ""
                             : windowKey({
                                   attribute: window.attribute,
-                                  from: numericBound(window.from),
-                                  to: numericBound(window.to),
+                                  from: boundOf(window, "from"),
+                                  to: boundOf(window, "to"),
                               });
                     for (const run of movedRuns().filter((each) => !staleBefore.has(each.id))) {
                         accepted.set(run.id, {

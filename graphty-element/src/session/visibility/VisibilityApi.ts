@@ -1376,6 +1376,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The visibility ops of this dispatcher refuse what this session cannot evaluate.
     dispatcher.services.visibility = {
+        timeline: () => sources.timeline?.() !== false,
         check: (filter, window) => {
             assertEvaluable(filter, window, sources);
         },

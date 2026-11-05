@@ -180,6 +180,7 @@ import {
 import { paintingOf } from "./styles/StylesApi";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
+import { isTimeZone } from "./time/zone";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -2504,14 +2505,20 @@ export function createElementSession(
 /**
  * A time window's attribute and numeric bounds, for comparing two windows.
  * @param window - The window, or null.
+ * @param zoneOf - The zone a window's text bounds read in.
  * @returns The bounds, or null for no window.
  */
 function windowBoundsOf(
     window: TimeWindow | null,
+    zoneOf: (attribute: string) => string | undefined,
 ): { readonly attribute: string; readonly from: number; readonly to: number } | null {
-    return window === null
-        ? null
-        : { attribute: window.attribute, from: numericBound(window.from), to: numericBound(window.to) };
+    if (window === null) {
+        return null;
+    }
+
+    const zone = zoneOf(window.attribute);
+
+    return { attribute: window.attribute, from: numericBound(window.from, zone), to: numericBound(window.to, zone) };
 }
 
 function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
@@ -2899,12 +2906,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
     let timeInternals: TimeInternals | null = null;
     const timeline = (): TimeInternals | null => (timelineOn() ? timeInternals : null);
+    const boundZone = (attribute: Path): string | undefined => timeline()?.boundZone(attribute);
     /** Told when the reader changes the selection by hand: the select conditions switch off. */
     let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
+        boundZone,
         timeline: timelineOn,
         components,
         dispatcher,
@@ -3001,7 +3010,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             const data = dataNow();
             // A run over the visible graph records the time window it was computed in.
-            const bounds = spec === "visible" && timelineOn() ? windowBoundsOf(visibility.window) : undefined;
+            const bounds =
+                spec === "visible" && timelineOn() ? windowBoundsOf(visibility.window, boundZone) : undefined;
             const summary = bounds === undefined || bounds === null ? null : visibility.summary;
             const window =
                 bounds === undefined
@@ -3021,7 +3031,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         defaultWeight: () => data.weightKey(),
         acceptedDigest: (id: RunId, ranOn: string) => timeline()?.acceptedDigest(id, ranOn),
         timeline: timelineOn,
-        windowNow: () => windowBoundsOf(visibility.window),
+        windowNow: () => windowBoundsOf(visibility.window, boundZone),
         acceptedWindow: (id: RunId) => timeline()?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
@@ -3149,8 +3159,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
+    const readableZone = (zone: string | null | undefined): string | null =>
+        timelineOn() && isTimeZone(zone) ? zone : null;
     const time = createTimeApi({
         snapshot,
+        timeline: timelineOn,
         token: () => dispatcher.state.graph.token,
         dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
@@ -3159,11 +3172,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return {
                 nodeTimePath: known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
-                // A saved zone stays saved with the timeline off, and is not read.
-                nodeTimeParseZone: timelineOn() ? (known.nodeTimeParseZone ?? null) : null,
+                // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
+                nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
-                edgeTimeParseZone: timelineOn() ? (known.edgeTimeParseZone ?? null) : null,
+                edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
             };
         },
         declarations: () => dispatcher.state.attributes,

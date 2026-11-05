@@ -38,6 +38,12 @@ const ISO =
 /** A plain decimal number written as text, such as a CSV cell holding an epoch. */
 const NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 
+/**
+ * Text that says its own zone, as `Date.parse` reads one: a zone name, or an offset after a clock
+ * time (a dash after a date is no offset: `01-15-2026`).
+ */
+const OWN_ZONE = /(?<![a-z])(?:Z|UTC?|GMT|[ECMP][SD]T)(?![a-z])|:\d{2}(?:\.\d+)?\s*(?:[ap]m\s*)?[+-]\d{1,2}/i;
+
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
 
@@ -187,14 +193,24 @@ function zoneUnder(unit: TimeUnit, zone: string): string {
 }
 
 /**
- * Text only `Date.parse` understands, in a zone. Text naming its own zone cannot take the suffix
- * and reads as it says.
+ * Whether text only `Date.parse` understands says its own zone. `Date.parse` skips parentheses, so
+ * a zone named in them says nothing.
+ * @param text - The text.
+ * @returns True when the text says its zone.
+ */
+function namesOwnZone(text: string): boolean {
+    return OWN_ZONE.test(text.replaceAll(/\([^)]*\)/g, ""));
+}
+
+/**
+ * Text only `Date.parse` understands, in a zone. Text saying its own zone reads as it says: an
+ * added `UTC` would win over it.
  * @param text - The text.
  * @param zone - The zone.
  * @returns The instant, NaN when it names none.
  */
 function looseIn(text: string, zone: string): number {
-    const wall = Date.parse(`${text} UTC`);
+    const wall = namesOwnZone(text) ? Number.NaN : Date.parse(`${text} UTC`);
 
     return Number.isNaN(wall) ? Date.parse(text) : instantOfWall(wall, zone);
 }
@@ -260,20 +276,21 @@ export function readInstant(
  * zone, as the time field reads date-times.
  * @param value - The value, or typed text.
  * @param unit - How numbers are read.
- * @param timeZone - The zone text with no offset reads in.
+ * @param timeZone - The zone text with no offset reads in. Absent, text reads in UTC, and loose
+ *     text saying its own zone does too.
  * @returns Epoch milliseconds (or the ordinal value), or null when it names no instant.
  */
-export function readTimeValue(value: unknown, unit: TimeUnit, timeZone: string = UTC_ZONE): number | null {
+export function readTimeValue(value: unknown, unit: TimeUnit, timeZone?: string): number | null {
     const text = typeof value === "string" ? value.trim() : value;
     const reading = readInstant(text, unit, timeZone);
     if (reading.how === "strict") {
         return reading.at;
     }
 
-    if (typeof text === "string" && text !== "") {
+    if (typeof text === "string" && text !== "" && (timeZone === undefined || !namesOwnZone(text))) {
         const utc = Date.parse(`${text} UTC`);
         if (!Number.isNaN(utc)) {
-            return instantOfWall(utc, zoneUnder(unit, timeZone));
+            return instantOfWall(utc, zoneUnder(unit, timeZone ?? UTC_ZONE));
         }
     }
 

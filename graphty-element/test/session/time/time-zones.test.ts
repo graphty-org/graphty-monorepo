@@ -17,6 +17,8 @@ const LOS_ANGELES = "America/Los_Angeles";
 /** Clocks here went forward at midnight, so some days have no 00:00. */
 const HAVANA = "America/Havana";
 const APIA = "Pacific/Apia";
+/** A name no engine knows as a zone. */
+const BAD_ZONE = "Mars/Olympus";
 const HOUR = 3_600_000;
 const OFF = { features: [] };
 
@@ -42,6 +44,10 @@ async function edgesAt(
 
     return session;
 }
+
+/** Four clock times over two days, and the first of those days as text bounds. */
+const DAY_ROWS = ["2026-01-15T00:00:00", "2026-01-15T03:00:00", "2026-01-15T08:00:00", "2026-01-16T02:00:00"];
+const DAY_WINDOW = { attribute: "at", from: "2026-01-15", to: "2026-01-16" };
 
 /** A half year of instants, a few hours apart from midnight in several zones. */
 const SPREAD = Array.from({ length: 180 }, (_, day) => Date.UTC(2026, 0, 1 + day, (day * 7) % 24));
@@ -285,6 +291,55 @@ describe("reading text in a zone", () => {
         session.dispose();
     });
 
+    it("keeps a year column's calendar steps and bins in UTC whatever the zone", async () => {
+        const session = await edgesAt([1995, 2001]);
+        await session.time.setField({ edges: { start: "at", unit: "year" } });
+        const bins = session.time.bins({ step: "year", timeZone: LOS_ANGELES }) ?? [];
+        assert.strictEqual(bins[0].start, Date.UTC(1995, 0, 1));
+        assert.strictEqual(bins[0].edges, 1);
+
+        await session.time.setSettings({ step: "year", timeZone: LOS_ANGELES });
+        const moved = await session.time.stepBy(1);
+        assert.strictEqual(moved.from, Date.UTC(1995, 0, 1));
+        assert.strictEqual(moved.to, Date.UTC(1996, 0, 1));
+        session.dispose();
+    });
+
+    it("reads a window's text bounds on a year column in UTC, as parse does", async () => {
+        const session = await edgesAt([1995, 2001]);
+        await session.time.setField({ edges: { start: "at", unit: "year", parseZone: LOS_ANGELES } });
+        await session.time.window({ from: "1995-01-01", to: "1995-02-01" });
+        assert.strictEqual(session.time.current?.from, session.time.parse("1995-01-01"));
+        assert.deepEqual([...session.visibility.edgeMask()], [1, 0]);
+        session.dispose();
+    });
+
+    it("leaves loose text that says its own zone alone, in the column and in parse", async () => {
+        const said: readonly (readonly [string, number])[] = [
+            ["Jan 15, 2026 12:00 +0100", Date.UTC(2026, 0, 15, 11)],
+            ["Jan 15, 2026 12:00 GMT+0100 (CET)", Date.UTC(2026, 0, 15, 11)],
+            ["Thu, 15 Jan 2026 12:00:00 GMT", Date.UTC(2026, 0, 15, 12)],
+            ["Jan 15, 2026 12:00 PST", Date.UTC(2026, 0, 15, 20)],
+            ["2026-01-15 12:00 +01:00", Date.UTC(2026, 0, 15, 11)],
+        ];
+        const session = await edgesAt(said.map(([text]) => text));
+        await session.time.setField({ edges: { start: "at", parseZone: KOLKATA } });
+        for (const [text, at] of said) {
+            assert.strictEqual(readInstant(text, "ms", KOLKATA).at, at, text);
+            assert.strictEqual(session.time.parse(text), at, text);
+        }
+
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 11));
+        session.dispose();
+    });
+
+    it("reads a dashed date, a note in parentheses and a loose time as text with no zone", () => {
+        const noon = Date.UTC(2026, 0, 15, 6, 30);
+        assert.strictEqual(readInstant("01-15-2026 12:00", "ms", KOLKATA).at, noon);
+        assert.strictEqual(readInstant("Jan 15, 2026 12:00 (GMT)", "ms", KOLKATA).at, noon);
+        assert.strictEqual(readInstant("Jan 15, 2026 12:00 pm", "ms", KOLKATA).at, noon);
+    });
+
     it("reads a date in the zone a caller names, and keeps reading in parseZone without one", async () => {
         const session = await edgesAt(["2026-01-15T12:00:00"]);
         await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });
@@ -298,6 +353,19 @@ describe("reading text in a zone", () => {
         await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });
         await session.time.window({ from: "2026-02-01", to: "2026-03-01", timeZone: KOLKATA });
         assert.strictEqual(session.time.current?.from, Date.UTC(2026, 1, 1, 5));
+        session.dispose();
+    });
+
+    it("reads text bounds set through visibility.setWindow in the field's zone, for the mask and the steps", async () => {
+        const session = await edgesAt(DAY_ROWS);
+        await session.time.setField({ edges: { start: "at", parseZone: KOLKATA } });
+        await session.visibility.setWindow(DAY_WINDOW);
+        assert.deepEqual([...session.visibility.edgeMask()], [1, 1, 1, 0]);
+
+        await session.visibility.setWindow({ ...DAY_WINDOW, step: "day", timeZone: KOLKATA });
+        const moved = await session.time.stepBy(1);
+        assert.strictEqual(moved.from, Date.UTC(2026, 0, 15, 18, 30));
+        assert.deepEqual([...session.visibility.edgeMask()], [0, 0, 0, 1]);
         session.dispose();
     });
 
@@ -353,6 +421,18 @@ describe("what is saved", () => {
         reopened.dispose();
     });
 
+    it("keeps a saved parseZone this engine cannot read, and reads the column in UTC", async () => {
+        const session = await edgesAt(["2026-01-15T12:00:00"]);
+        await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });
+        const { text } = await session.project.save();
+        const reopened = createGraphSession();
+        await reopened.project.open(text.replaceAll(NEW_YORK, BAD_ZONE));
+        assert.strictEqual(reopened.config.data.knownFields.edgeTimeParseZone, BAD_ZONE);
+        assert.strictEqual(reopened.time.extent()?.from, Date.UTC(2026, 0, 15, 12));
+        session.dispose();
+        reopened.dispose();
+    });
+
     it("keeps UTC out of the file: a default setting is no setting", async () => {
         const session = await edgesAt(SPREAD);
         await session.time.setField({ edges: { start: "at" } });
@@ -385,5 +465,77 @@ describe("with the timeline off", () => {
         assert.strictEqual(session.config.data.knownFields.edgeTimeParseZone, KOLKATA);
         assert.strictEqual(session.time.parse("2026-01-15T12:00:00"), Date.UTC(2026, 0, 15, 12));
         session.dispose();
+    });
+
+    it("does not read a saved parseZone on nodes either", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "a", at: "2026-01-15T12:00:00" }], edges: [] }) },
+        });
+        await session.time.setField({ nodes: { start: "at", parseZone: KOLKATA } });
+        const from = Date.UTC(2026, 0, 15, 11);
+        await session.visibility.setWindow({ attribute: "at", from, to: from + 2 * HOUR });
+        assert.deepEqual([...session.visibility.nodeMask()], [0]);
+        const { text } = await session.project.save();
+        const reopened = createGraphSession(OFF);
+        await reopened.project.open(text);
+        assert.strictEqual(reopened.config.data.knownFields.nodeTimeParseZone, KOLKATA);
+        assert.strictEqual(reopened.time.parse("2026-01-15T12:00:00"), Date.UTC(2026, 0, 15, 12));
+        assert.deepEqual([...reopened.visibility.nodeMask()], [1]);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("reads parse as before: a passed timeZone, good or bad, changes nothing", async () => {
+        const session = await edgesAt(SPREAD, OFF);
+        const plain = session.time.parse("2026-03-08");
+        assert.strictEqual(plain, Date.UTC(2026, 2, 8));
+        assert.strictEqual(session.time.parse("2026-03-08", { timeZone: KOLKATA }), plain);
+        assert.strictEqual(session.time.parse("2026-03-08", { timeZone: BAD_ZONE }), plain);
+        session.dispose();
+    });
+
+    it("reads a window's text bounds as before, in whatever zone the field saved", async () => {
+        const plain = await edgesAt(DAY_ROWS, OFF);
+        const zoned = await edgesAt(DAY_ROWS, OFF);
+        await zoned.config.set({ data: { knownFields: { edgeTimePath: "at", edgeTimeParseZone: KOLKATA } } });
+        await plain.visibility.setWindow(DAY_WINDOW);
+        await zoned.visibility.setWindow(DAY_WINDOW);
+        assert.deepEqual([...zoned.visibility.edgeMask()], [...plain.visibility.edgeMask()]);
+        plain.dispose();
+        zoned.dispose();
+    });
+
+    it("saves and opens a project with every zone it holds unchanged, even a bad one", async () => {
+        const session = await edgesAt(SPREAD, OFF);
+        await session.config.set({
+            data: { knownFields: { nodeTimeParseZone: KOLKATA, edgeTimeParseZone: BAD_ZONE, edgeTimePath: "at" } },
+        });
+        await session.visibility.setWindow({ attribute: "at", from: SPREAD[0], to: SPREAD[30], timeZone: BAD_ZONE });
+        const { text } = await session.project.save();
+        const reopened = createGraphSession(OFF);
+        await reopened.project.open(text);
+        const { knownFields } = reopened.config.data;
+        assert.strictEqual(knownFields.edgeTimePath, "at");
+        assert.strictEqual(knownFields.nodeTimeParseZone, KOLKATA);
+        assert.strictEqual(knownFields.edgeTimeParseZone, BAD_ZONE);
+        assert.strictEqual(reopened.visibility.window?.timeZone, BAD_ZONE);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("keeps a saved playback whole when its zone is one this engine cannot read", async () => {
+        const session = await edgesAt(SPREAD);
+        await session.time.setField({ edges: { start: "at" } });
+        await session.time.setSettings({ step: "day", outside: "ghost", timeZone: NEW_YORK });
+        const { text } = await session.project.save();
+        const reopened = createGraphSession(OFF);
+        await reopened.project.open(text.replaceAll(NEW_YORK, BAD_ZONE));
+        const saved = await reopened.project.save();
+        assert.include(saved.text, BAD_ZONE);
+        assert.include(saved.text, '"outside":"ghost"');
+        session.dispose();
+        reopened.dispose();
     });
 });

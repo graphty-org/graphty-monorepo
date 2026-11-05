@@ -69,7 +69,7 @@ import {
     visibilityCycle,
 } from "../sets/dependencies";
 import { normalizeText, textMatcher } from "../text";
-import { readTimeValue } from "../time/parse";
+import { numericBound, readTimeValue } from "../time/parse";
 import { isTimeZone } from "../time/zone";
 
 // ---------------------------------------------------------------------------------------------
@@ -250,6 +250,13 @@ export interface FilterSources {
      * @returns True for instants. Absent, the answer is whether the timeline is on.
      */
     readonly holdsInstants?: (window: TimeWindow) => boolean;
+    /**
+     * The zone a window's text bounds read in. Absent, or undefined for an attribute, they read as
+     * `Date.parse` does.
+     * @param attribute - The window's attribute.
+     * @returns The zone, or undefined.
+     */
+    readonly boundZone?: (attribute: Path) => string | undefined;
     /**
      * The instants of a designated time column, parsed once. Absent, or null for a path or a
      * kind, a window parses each element's value itself.
@@ -1807,8 +1814,11 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const values = valuesOf(context, "window");
     const { graph } = context;
     const mark = markFor(context, window.attribute);
-    const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
-    const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const zone = context.sources.boundZone?.(window.attribute);
+    const boundOf = (bound: number | string): number | null =>
+        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
+    const from = boundOf(window.from) ?? Number.NEGATIVE_INFINITY;
+    const to = boundOf(window.to) ?? Number.POSITIVE_INFINITY;
     // With the timeline off a saved window's options stay saved and are not applied.
     const timeline = context.sources.timeline?.() !== false;
     const missingInside = !timeline || window.missing !== "outside";

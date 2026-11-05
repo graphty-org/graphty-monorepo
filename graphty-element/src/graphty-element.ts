@@ -52,7 +52,7 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import { type EnabledFeatures, featureOff } from "./features/resolve";
+import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -837,6 +837,7 @@ export class Graphty extends LitElement {
             this.#setTimeField(name, value);
         }
         this.#heldTimeFields.clear();
+        this.#releaseUrlPair?.();
         this.dispatchEvent(
             new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
         );
@@ -1708,7 +1709,7 @@ export class Graphty extends LitElement {
             // configuration as assigned, so re-assigning the same type re-assigns that pair.
             const loaded = this.#loadedPair;
             const config =
-                loaded?.type === value && this.#source().type === value
+                loaded?.type === value && this.#pairType() === value
                     ? loaded.config
                     : (this.#source().config ?? this.#assigned.config);
             this.#importSource({ type: value, config });
@@ -1737,7 +1738,7 @@ export class Graphty extends LitElement {
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
         const oldValue = this.dataSourceConfig;
         if (value !== undefined && value !== null) {
-            this.#importSource({ type: this.#source().type ?? this.#assigned.type, config: value });
+            this.#importSource({ type: this.#pairType() ?? this.#assigned.type, config: value });
         }
 
         this.requestUpdate("dataSourceConfig", oldValue);
@@ -1811,13 +1812,32 @@ export class Graphty extends LitElement {
         // A pair whose load has not settled -- waiting behind autosave or behind a load asked for
         // earlier that is still reading, or still reading itself -- is not in the graph yet, and
         // may not even be dispatched: the pair as assigned is the one a half assigned now pairs with.
-        if (this.#pairQueued || this.#pairLoads > 0) {
+        if (this.#pairQueued || this.#pairLoads > 0 || this.#releaseUrlPair !== undefined) {
             return this.#assigned;
         }
 
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const pending = dispatcher.pendingCommand(ELEMENT_SOURCE) as { source: ImportSource } | undefined;
-        return pending?.source ?? (dispatcher.state.graph.values.get(SOURCE_VALUE) as ImportSource | undefined) ?? {};
+        return pending?.source ?? this.#graphSource() ?? {};
+    }
+
+    /**
+     * The source the graph records.
+     * @returns Its description, or undefined when it records none.
+     */
+    #graphSource(): ImportSource | undefined {
+        const { values } = dispatcherOf(this.#graph.getSession()).state.graph;
+        return values.get(SOURCE_VALUE) as ImportSource | undefined;
+    }
+
+    /**
+     * The type a half assigned now pairs with: the source's, but `"url"` for a graph a `"url"` pair
+     * loaded, whose source records the format that was found.
+     * @returns The type; undefined when none is set.
+     */
+    #pairType(): string | undefined {
+        const source = this.#source();
+        return source === this.#urlPairSource ? "url" : source.type;
     }
 
     /**
@@ -1877,6 +1897,66 @@ export class Graphty extends LitElement {
             return Promise.resolve();
         }
 
+        return this.#settingUp && this.#readsUrl(source) ? this.#holdUrlPair(setup) : this.#joinLoadLine(source, setup);
+    }
+
+    /**
+     * Whether a pair is a URL for the element to find the format of, rather than a type to look up.
+     * @param source - The pair.
+     * @returns True for `"url"` with a URL, when no source of any kind is registered under that name.
+     */
+    #readsUrl(source: ImportSource): boolean {
+        return (
+            source.type === "url" &&
+            typeof source.config?.url === "string" &&
+            Graphty.#sourceIdOf("url") === null &&
+            !DataSource.getRegisteredTypes().includes("url")
+        );
+    }
+
+    /**
+     * Keep a `"url"` pair out of the load line until the first update, when `features` is settled
+     * and says whether the element finds the format. An element nobody connected in this tick and
+     * that asks for no timeline will not get there: its pair loads now, as an unknown format.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the pair's load ran or failed.
+     */
+    #holdUrlPair(setup: boolean): Promise<void> {
+        this.#heldUrlPair ??= new Promise<void>((resolve) => {
+            this.#releaseUrlPair = () => {
+                this.#releaseUrlPair = undefined;
+                this.#heldUrlPair = undefined;
+                const { type, config } = this.#assigned;
+                // Nothing to load when clearData dropped the pair, or another type replaced it.
+                resolve(
+                    type === "url" && config !== undefined ? this.#joinLoadLine({ type, config }, setup) : undefined,
+                );
+            };
+            queueMicrotask(() => {
+                if (!this.isConnected && !resolveFeatures(this.#featuresValue).enabled.includes("timeline")) {
+                    this.#releaseUrlPair?.();
+                }
+            });
+        });
+        return this.#heldUrlPair;
+    }
+
+    /** The `"url"` pair load waiting for the first update; see {@link #holdUrlPair}. */
+    #heldUrlPair: Promise<void> | undefined;
+
+    /** Runs the held `"url"` pair's load; set only while one is held. */
+    #releaseUrlPair: (() => void) | undefined;
+
+    /** What the graph recorded for the last `"url"` pair it loaded; see {@link #pairType}. */
+    #urlPairSource: ImportSource | undefined;
+
+    /**
+     * Take a pair's place in the load line, and load it when its turn comes.
+     * @param source - The pair.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the load ran or failed.
+     */
+    #joinLoadLine(source: ImportSource, setup: boolean): Promise<void> {
         const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
         this.#pairNext = { source, setup, clears: line.clears };
         if (this.#pairWaiting !== undefined) {
@@ -1964,18 +2044,17 @@ export class Graphty extends LitElement {
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
-                findsUrlFormat: async () => {
-                    await this.updateComplete;
-                    return (
-                        this.session.features.enabled.includes("timeline") &&
-                        !DataSource.getRegisteredTypes().includes("url")
-                    );
-                },
+                findsUrlFormat:
+                    !this.#settingUp && this.#readsUrl(source) && this.session.features.enabled.includes("timeline"),
                 readFailed: (error) => {
                     this.#reportLoadFailure(error);
                 },
             }).then(
-                () => undefined,
+                () => {
+                    if (type === "url") {
+                        this.#urlPairSource = this.#graphSource();
+                    }
+                },
                 () => {
                     // A failed pair was not loaded, so assigning it again retries it. The load
                     // reported the failure on the data-loading channel before it rejected.

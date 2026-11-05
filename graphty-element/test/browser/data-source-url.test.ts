@@ -83,6 +83,21 @@ describe('data-source="url"', () => {
         assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
     });
 
+    it("waits for an element that asks for the timeline to connect", async () => {
+        const made = document.createElement("graphty-element");
+        made.features = ["timeline"];
+        made.dataSource = "url";
+        made.dataSourceConfig = { url: URL.createObjectURL(new Blob(["source,target\na,b\n"])) };
+        await made.session.data.addNodes([{ id: "before" }]);
+        const loaded = new Promise((resolve) => {
+            made.addEventListener("data-loaded", resolve, { once: true });
+        });
+        document.body.appendChild(made);
+        mounted = made;
+        await loaded;
+        assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
+    });
+
     it("is an unknown format with the timeline off: the load fails, nothing is read or loaded", async () => {
         const read = vi.spyOn(globalThis, "fetch");
         const made = elementOn("source,target\na,b\n", []);
@@ -104,5 +119,48 @@ describe('data-source="url"', () => {
         assert.strictEqual(read.mock.calls.length, 0);
         assert.strictEqual(made.session.visibility.summary.totalEdges, 0);
         read.mockRestore();
+    });
+
+    it("fails as an unknown format on an element never connected, and keeps nothing waiting", async () => {
+        const made = document.createElement("graphty-element");
+        made.features = [];
+        const ended = new Promise<ProgressChange>((resolve) => {
+            made.session.on("progress:changed", (change) => {
+                if (change.task === "load" && change.phase === "end" && change.source?.url !== undefined) {
+                    resolve(change);
+                }
+            });
+        });
+        made.dataSource = "url";
+        made.dataSourceConfig = { url: "not-fetched.csv" };
+        const end = await ended;
+        assert.strictEqual(end.error?.code, "E_UNKNOWN_FORMAT");
+        await made.session.data.addNodes([{ id: "after" }]);
+        assert.isFalse(made.isConnected);
+        assert.strictEqual(made.session.visibility.summary.totalNodes, 1);
+        // Connected only so the afterEach's removal disposes its engine.
+        document.body.appendChild(made);
+        mounted = made;
+    });
+
+    it("loads a new file when the URL changes, whatever format the last one was", async () => {
+        const made = elementOn("source,target\na,b\nb,c\n");
+        await new Promise((resolve) => {
+            made.addEventListener("data-loaded", resolve, { once: true });
+        });
+        // The source reads as the format found once the load has settled, which follows data-loaded.
+        await vi.waitFor(() => {
+            assert.strictEqual(made.dataSource, "csv");
+        });
+        const graphml = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph edgedefault="directed">
+            <node id="x"/><node id="y"/><node id="z"/><node id="w"/>
+            <edge source="x" target="y"/></graph></graphml>`;
+        const loaded = new Promise((resolve) => {
+            made.addEventListener("data-loaded", resolve, { once: true });
+        });
+        made.dataSourceConfig = { url: URL.createObjectURL(new Blob([graphml])) };
+        await loaded;
+        assert.strictEqual(made.session.visibility.summary.totalNodes, 4);
+        assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
     });
 });

@@ -434,15 +434,16 @@ export interface TimeApi {
     /**
      * Move the window by whole steps (negative goes back), stopping at the first and the last
      * window. With no window, a step forward opens the first window and a step back the last.
-     * One undoable step.
+     * Undoable; window moves made in quick succession merge into one step, as a drag does.
      * @param count - How many steps.
      * @returns What the move did.
      */
     stepBy(count: number): Promise<TimeStepEvent>;
     /**
      * Move the window to start at an instant (sliding) or end there (cumulative), or to the first
-     * or the last window. One undoable step; with `commit: false` it moves only the cursor, for a
-     * window being dragged, until {@link TimeApi.commit} records it.
+     * or the last window. Undoable; window moves made in quick succession merge into one step, as
+     * a drag does. With `commit: false` it moves only the cursor, for a window being dragged,
+     * until {@link TimeApi.commit} records it.
      * @param instant - Epoch milliseconds or an ordinal value, `"start"` or `"end"`.
      * @param options - `commit: false` to move the cursor only.
      * @param options.commit - Whether the move is recorded; default true.

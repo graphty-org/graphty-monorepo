@@ -530,23 +530,22 @@ interface PairImport {
     readonly coalesce: string;
     readonly setup: boolean;
     /**
-     * Whether a `"url"` pair finds its format. Asked once the page's attributes are in, since a
-     * pair can load before `features` is set. Otherwise the type is looked up like any other: a
+     * Whether a `"url"` pair finds its format. Otherwise the type is looked up like any other: a
      * registered source of that name reads it, and with none the load fails as an unknown format.
      */
-    readonly findsUrlFormat: () => Promise<boolean>;
+    readonly findsUrlFormat: boolean;
     /** Told when a `"url"` pair's format could not be found, before any load ran to report it. */
     readonly readFailed: (error: unknown) => void;
 }
 
 /** What the element's data-source pair adds to the import its load dispatches; see {@link loadSourcePair}. */
-const pairImports = new WeakMap<Graph, PairImport & { readonly config: object }>();
+const pairImports = new WeakMap<Graph, PairImport>();
 
 /**
  * Load the element's data-source pair through `addDataFromSource`, as every load goes, with what
  * only the pair has: a coalesce key, so the two halves assigned in one tick are one load, and
  * whether the page declared it at construction, which makes it the baseline. A `"url"` type names
- * no format, so it goes through `loadFromUrl`, which finds it when `how.findsUrlFormat` says so. No
+ * no format, so when `how.findsUrlFormat` says so it goes through `loadFromUrl`, which finds it. No
  * entry point exports it.
  * @param graph - The graph.
  * @param type - The data source type.
@@ -564,10 +563,10 @@ export function loadSourcePair(
     config: object,
     how: PairImport,
 ): Promise<{ loadId: number }> {
-    pairImports.set(graph, { ...how, config });
+    pairImports.set(graph, how);
     try {
         const { url, ...options } = config as { url?: unknown } & Parameters<Graph["loadFromUrl"]>[1];
-        return type === "url" && typeof url === "string"
+        return how.findsUrlFormat && typeof url === "string"
             ? graph.loadFromUrl(url, { ...options, replace: true })
             : graph.addDataFromSource(type, config, { replace: true });
     } finally {
@@ -3017,10 +3016,6 @@ export class Graph implements GraphContext {
         const load = this.reserveLoad(options?.replace);
         const pair = pairImports.get(this);
         try {
-            if (pair !== undefined && !(await pair.findsUrlFormat())) {
-                return await this.loadReserved("url", pair.config, load, pair);
-            }
-
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
                 : await this.urlFormat(url, load.generation).catch((error: unknown) => {

@@ -113,6 +113,60 @@ describe("time.spanOf", () => {
     });
 });
 
+describe("undoing window moves", () => {
+    /**
+     * Two edges three days apart, on a history clock the test drives.
+     * @param now - The clock.
+     * @returns The session.
+     */
+    function fourDays(now: () => number): Harness {
+        const harness = makeSession({ internals: { now } });
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", sent: "2026-01-01" },
+                { src: "b", dst: "c", sent: "2026-01-04" },
+            ],
+        );
+        return harness;
+    }
+
+    it("merges moves made in quick succession into one step, and commit records its own", async () => {
+        let now = 0;
+        const harness = fourDays(() => now);
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        now += 60_000;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        await time.stepBy(1);
+        await time.seek("end");
+        await time.seek(T0 + DAY, { commit: false });
+        await time.commit();
+
+        await harness.session.undo();
+        assert.notStrictEqual(time.current?.from, T0 + DAY, "commit was its own step");
+        assert.isNotNull(time.current);
+        await harness.session.undo();
+        assert.isNull(time.current, "the moves before it were one step");
+        harness.session.dispose();
+    });
+
+    it("keeps moves apart in time as their own steps", async () => {
+        let now = 0;
+        const harness = fourDays(() => now);
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        now += 60_000;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        now += 60_000;
+        await time.stepBy(1);
+
+        await harness.session.undo();
+        assert.strictEqual(time.current?.from, T0);
+        harness.session.dispose();
+    });
+});
+
 describe("time.committed", () => {
     it("holds the recorded window while a slide moves the current one", async () => {
         const harness = emails();

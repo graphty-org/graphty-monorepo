@@ -69,5 +69,19 @@ describe('a source registered as "url"', () => {
             assert.strictEqual(made.session.visibility.summary.totalEdges, 1);
             assert.deepEqual(UrlSource.configs, [{ url: "not-fetched" }]);
         });
+
+        it(`reads the pair on an element never connected, with features [${features.join()}]`, async () => {
+            UrlSource.configs = [];
+            const made = document.createElement("graphty-element");
+            made.features = features;
+            made.dataSource = "url";
+            made.dataSourceConfig = { url: "not-fetched" };
+            await made.session.data.addNodes([{ id: "after" }]);
+            assert.deepEqual(UrlSource.configs, [{ url: "not-fetched" }]);
+            assert.strictEqual(made.session.visibility.summary.totalNodes, 3);
+            // Connected only so the afterEach's removal disposes its engine.
+            document.body.appendChild(made);
+            mounted = made;
+        });
     }
 });

@@ -74,6 +74,16 @@ function defaultStableFrameTimeoutMs(): number {
 }
 
 /**
+ * Whether a shader module's code can be drawn with. Which type `code` has depends on the WebGPU
+ * types a compilation sees: Babylon's also allow SPIR-V, which is binary and not looked into.
+ * @param code - The module's code.
+ * @returns False for WGSL with no entry point.
+ */
+function hasEntryPoint(code: string | Uint32Array): boolean {
+    return typeof code !== "string" || /@(?:vertex|fragment|compute)\b/.test(code);
+}
+
+/**
  * How much one `zoomStep` moves the camera: a fifth nearer or further, the smallest change that
  * reads as a change on a graph of any size.
  */
@@ -2146,7 +2156,7 @@ export class Graph implements GraphContext {
                 const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
                 if (errors.length > 0) {
                     this.reportRefusedShader("device", errors);
-                } else if (!/@(?:vertex|fragment|compute)\b/.test(descriptor.code)) {
+                } else if (!hasEntryPoint(descriptor.code)) {
                     this.reportRefusedShader("translator", []);
                 }
             });

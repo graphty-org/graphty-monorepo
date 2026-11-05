@@ -235,5 +235,6 @@ dry run twice. The owner is told why, once.
     - T95: both halves have an id column; a question from the model has a `Trap fired:` rule; the
       refusal example is one this build gave; a left-behind run is no step; a chip under a claim from
       memory is not support.
-- 2026-11-05: the study moved to build 3549e11129 from build 8fa33aa786 (served from
-  `.study-builds/tier6-r1-8fa33aa786`), which holds the fixes made since that freeze.
+- 2026-11-05: the study moved from build 8fa33aa786 (served from
+  `.study-builds/tier6-r1-8fa33aa786`) to build 3549e11129, which holds the fixes made since that
+  freeze.

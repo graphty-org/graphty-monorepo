@@ -261,10 +261,10 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 6 | 3 | 39 | 54% | 0% | 0 | 40 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 5 | 1 | 12 | 67% | 0% | 0 | 11 | 0 |  |
 | graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 5 | 2 | 17 | 100% | 24% | 0 | 48 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 7 | 100% | 0% | 0 | 9 | 0 |  |
+| graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 9 | 0 |  |
 | graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 29 | 0 |  |
 | graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 154 | 56% | 3% | 0 | 160 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 46 | 59% | 0% | 0 | 24 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 45 | 58% | 0% | 0 | 24 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 7 | 5 | 444 | 76% | 3% | 0 | 746 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 4 | 1 | 80 | 63% | 0% | 0 | 119 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 1812 | 0 | W_STYLE_NO_FILL |

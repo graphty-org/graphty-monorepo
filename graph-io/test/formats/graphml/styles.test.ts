@@ -785,6 +785,16 @@ describe("GraphML styles: yFiles 3", () => {
         expect(String(read("shapeLines")).split(" ")[0]).toBe("-1+2.000,1-3.000");
     });
 
+    it("draws no line in a bevel whose border has no color", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(join(CORPUS, "yed-genericnode/awslabs__aws-c-io__slots.graphml")),
+        );
+        const lines = resolveStyles(styles, "node", "shapeLines", snapshot);
+        const paint = resolveStyles(styles, "node", "fillGradientColors", snapshot);
+        expect(paint.filter((p) => p !== null).length).toBeGreaterThan(0);
+        expect(lines.filter((l) => l !== null)).toEqual([]);
+    });
+
     it("keeps a display's curves their length at any width", () => {
         const points = (width: number): string => {
             const put: Record<string, unknown> = {};

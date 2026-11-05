@@ -1416,13 +1416,16 @@ export function putBevelLine(radius: number, inset: number, put: PutValue): void
  * @param outline - its outline
  * @param color - its `#rrggbb` fill, or null for none
  * @param inset - how far in its line runs
+ * @param lined - whether its border has a color: with none it draws no line
  * @param put - receives the values
  */
-function putBevel(outline: YedOutline, color: string | null, inset: number, put: PutValue): void {
+function putBevel(outline: YedOutline, color: string | null, inset: number, lined: boolean, put: PutValue): void {
     if (color !== null) {
         putBevelPaint(color, put);
     }
-    putBevelLine(Number(outline.cornerRadius), inset, put);
+    if (lined) {
+        putBevelLine(Number(outline.cornerRadius), inset, put);
+    }
 }
 
 /**
@@ -1440,13 +1443,14 @@ export function putPanelPaint(color: string, put: PutValue): void {
 }
 
 /**
- * Whether a border's color has no alpha at all (`#FFFFFF00`, graphml-stm32-func), which yEd draws as no line.
- * @param raw - the color
- * @param at - the sites
- * @returns true for a fully transparent color
+ * Whether a `y:BorderStyle` draws a line: not with no color, nor with a color of no alpha at all (`#FFFFFF00`,
+ * graphml-stm32-func).
+ * @param border - the `y:BorderStyle`, if any
+ * @returns true for a line
  */
-function seeThrough(raw: unknown, at: SiteOf): boolean {
-    return canonColor(raw, "yed", at("borderColor"))?.alpha === 0;
+function hasLine(border: unknown): boolean {
+    const color = treeAttr(border, "color");
+    return treeAttr(border, "hasColor") !== "false" && !/^#[0-9a-f]{6}00$/i.test(String(color));
 }
 
 /**
@@ -1459,11 +1463,11 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
     if (border === undefined) {
         return;
     }
-    if (treeAttr(border, "hasColor") === "false" || seeThrough(treeAttr(border, "color"), at)) {
-        put("borderWidth", 0);
-    } else {
+    if (hasLine(border)) {
         readColor(treeAttr(border, "color"), "borderColor", null, put, at);
         put("borderWidth", yedDrawnWidth(canonNumber(treeAttr(border, "width"), at("borderWidth"))));
+    } else {
+        put("borderWidth", 0);
     }
     put("borderStyle", canonEnum("borderStyle", treeAttr(border, "type"), "yed", at("borderStyle")));
 }
@@ -1478,7 +1482,8 @@ function readBorder(border: unknown, put: PutValue, at: SiteOf): void {
 function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: ReadonlyMap<string, string>): void {
     const { r } = real;
     readFill(real, put, at);
-    readBorder(treeChild(r, "BorderStyle"), put, at);
+    const border = treeChild(r, "BorderStyle");
+    readBorder(border, put, at);
     const geometry = treeChild(r, "Geometry");
     const width = canonNumber(treeAttr(geometry, "width"), at("width"));
     const height = canonNumber(treeAttr(geometry, "height"), at("height"));
@@ -1499,7 +1504,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
         putRaisedBorder(unfilled(fill) ? null : color, put);
     }
     if (outline?.bevelInset !== undefined) {
-        putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, put);
+        putBevel(outline, unfilled(fill) ? null : color, outline.bevelInset, hasLine(border), put);
     }
     if (real.type === "TableNode") {
         readTable(real, put, at);

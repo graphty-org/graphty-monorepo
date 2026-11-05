@@ -476,11 +476,13 @@ function putRounded(radius: string | undefined, fallback: number, put: PutValue,
  * @param at - the sites
  */
 function readBevelStyle(style: StyleObject, color: string | null, put: PutValue, at: SiteOf): void {
-    if (color !== null) {
-        putBevelPaint(color, put);
-        put("borderColor", color);
-    }
+    put("borderWidth", 0);
     putRounded(treeAttr(style.e, "radius"), BEVEL_RADIUS, put, at);
+    if (color === null) {
+        return;
+    }
+    putBevelPaint(color, put);
+    put("borderColor", color);
     const size = (name: string, fallback: number): number =>
         canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
     putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);

@@ -107,7 +107,15 @@ watch.end();
 
 Reasons are codes, never sentences: `test-unset`, `no-reference`, `one-node-only`, `computing`,
 `run-needed`, `stale`, `run-paused`, `run-failed`, `waits-for`, `input-empty`, `reference-empty`,
-`frozen-from`. Every scope in a reading (`input`, `members`, `result`) is one
+`frozen-from`.
+
+A step is inert (`test-unset`) only while its test asks for nothing: an empty pick, empty text, a
+by-size with no count. A range with neither bound is a test, the one a slider with both handles at
+the ends shows: every element with a measured value passes. A `measure` with no `test` reads the
+same way, so `{ kind: "measure", algorithm: "betweenness", field: "value" }` adds every node once
+its run finishes, with no bounds to fill in first.
+
+Every scope in a reading (`input`, `members`, `result`) is one
 `selection.apply`, `scope.count` and `sets.create` accept.
 
 `scope.asUnion(rule, { side, within })` turns a flat rule (a leaf, an `all` of leaves and `not`s,

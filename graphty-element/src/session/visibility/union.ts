@@ -252,8 +252,9 @@ function onSide(
 }
 
 /**
- * Why a step's rule is not yet a test: an untouched range, an empty pick, empty text, a missing
- * reference. Read on the step's own rule, which is one card.
+ * Why a step's rule is not yet a test: an empty pick, empty text, an empty count, a missing
+ * reference. A range with neither bound, and a measure with no test, are tests: every element
+ * with a measured value. Read on the step's own rule, which is one card.
  * @param rule - The step's rule.
  * @returns The inert reason, or null.
  */
@@ -261,7 +262,11 @@ export function inertReason(rule: RuleTree): CodedFact | null {
     const loose = rule as unknown as Readonly<Record<string, unknown>>;
     switch (rule.kind) {
         case "range":
+            // A range with neither bound is what a slider with both handles at the ends shows:
+            // every element with a measured value. It is a test, never an unset one.
+            return null;
         case "by-size":
+            // An empty count box asks for nothing yet.
             return loose.min === undefined && loose.max === undefined && loose.top === undefined
                 ? { code: "test-unset", params: {} }
                 : null;
@@ -278,8 +283,9 @@ export function inertReason(rule: RuleTree): CodedFact | null {
         case "same-value":
             return rule.as === undefined ? { code: "no-reference", params: {} } : null;
         case "measure":
+            // No test: every element the result measures, as an unbounded range does.
             return rule.test === undefined
-                ? { code: "test-unset", params: {} }
+                ? null
                 : inertReason({
                       ...rule.test,
                       attribute: "data.x",
@@ -461,10 +467,11 @@ function readBranch(
 
         const inert = inertReason(step.rule);
         if (inert !== null) {
-            // A measure with no test yet still asks for its run (under the run limits), so a
-            // picker can show the values its test will be set from. It stays inert either way,
-            // and says why its values are not there yet while the run computes or waits for Run.
-            if (step.rule.kind === "measure" && step.rule.test === undefined) {
+            // A measure whose test is not set yet (an empty pick) still asks for its run (under the
+            // run limits), so a picker can show the values its test will be set from. It stays
+            // inert either way, and says why its values are not there yet while the run computes
+            // or waits for Run.
+            if (step.rule.kind === "measure") {
                 const gate = fold.env.gate?.(step, frameOf(step, input, fold)) ?? null;
                 if (gate?.state === "pending") {
                     return { ...idle, state: "inert", reason: gate.reason };

@@ -1279,6 +1279,7 @@ export type Filter = RuleTree;
 export interface FilterCondition {
     readonly effect: FilterEffect;
     readonly id: string;
+    readonly name?: string;
     readonly on: boolean;
     readonly rule: RuleTree;
     readonly within?: FilterSelectWithin;

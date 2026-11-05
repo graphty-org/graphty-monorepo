@@ -148,11 +148,11 @@ describe("the union leaf", () => {
         assert.deepEqual(onlyA, aAlone);
     });
 
-    it("an untouched range is inert: it changes nothing whatever its verb", async () => {
+    it("a range with neither bound passes every measured value whatever its verb", async () => {
         const session = await lesMis();
-        const untouched: RuleTree = { kind: "range", attribute: "graphty.degree" };
-        assert.deepEqual(await nodesOf(session, one("all", [{ op: "keep", rule: untouched }])), [...IDS].sort());
-        assert.deepEqual(await nodesOf(session, one("none", [{ op: "add", rule: untouched }])), []);
+        const unbounded: RuleTree = { kind: "range", attribute: "graphty.degree" };
+        assert.deepEqual(await nodesOf(session, one("all", [{ op: "keep", rule: unbounded }])), [...IDS].sort());
+        assert.deepEqual(await nodesOf(session, one("none", [{ op: "add", rule: unbounded }])), [...IDS].sort());
     });
 
     it("swapping two Keep steps on the base changes nothing", async () => {

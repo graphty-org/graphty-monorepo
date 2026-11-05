@@ -223,7 +223,10 @@ describe("a branches view that draws what is drawn already", () => {
                 {
                     ...branch,
                     name: "Renamed",
-                    steps: [...branch.steps, { op: "keep", rule: { kind: "range", attribute: "data.x" } as never }],
+                    steps: [
+                        ...branch.steps,
+                        { op: "keep", rule: { kind: "categories", attribute: "data.x", values: [] } as never },
+                    ],
                 },
             ],
         };

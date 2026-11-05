@@ -2251,7 +2251,8 @@ const MEASURE_RUN = "graphty:measure";
 
 /**
  * A `measure` leaf: its test put to the field of the result the session holds for its algorithm,
- * params and base. The test is compiled as the leaf it is the body of, over that result.
+ * params and base. The test is compiled as the leaf it is the body of, over that result; with no
+ * test, every element the field measures passes.
  * @param context - The compile context.
  * @param leaf - The leaf.
  * @returns The halves the field lives on; nothing while the result is missing.
@@ -2264,7 +2265,7 @@ function compileMeasure(context: CompileContext, leaf: Extract<RuleTree, { kind:
     }
 
     const result = steps.result(leaf, context.step);
-    if (result === undefined || leaf.test === undefined) {
+    if (result === undefined) {
         return NOTHING;
     }
 
@@ -2276,6 +2277,14 @@ function compileMeasure(context: CompileContext, leaf: Extract<RuleTree, { kind:
             result: (run) => (run === MEASURE_RUN ? result : context.sources.result?.(run)),
         },
     };
+    if (leaf.test === undefined) {
+        // No test: every element the field holds a measured value for.
+        const readers = pathReaders(inner, path, "measure");
+        const half = (read: ((index: number) => unknown) | null): ElementTest | null =>
+            read === null ? null : (index) => isMeasured(read(index));
+        return { node: half(readers.node), edge: half(readers.edge) };
+    }
+
     const test = leaf.test as unknown as Readonly<Record<string, unknown>> & { readonly kind: string };
     switch (test.kind) {
         case "range":

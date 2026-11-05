@@ -55,7 +55,8 @@ export type BranchState = "ready" | "pending" | "off";
 /**
  * Why a step is inert or pending, or a note on an applied one.
  *
- * Inert: `test-unset` (an untouched range, an empty pick, empty text, no test), `no-reference`,
+ * Inert: `test-unset` (an empty pick, empty text, an empty count; a range with neither bound and
+ * a measure with no test are tests, passing every measured element), `no-reference`,
  * `one-node-only` (a one-node option bound to several nodes; `params.option`). Pending:
  * `computing`, `run-needed` and `stale` (`params.estimateMs`), `run-paused`, `run-failed`
  * (`params.error`, an error code), `waits-for` (`params.step`, the step waited on). Applied:

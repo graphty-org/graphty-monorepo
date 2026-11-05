@@ -56,7 +56,7 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
     for (const condition of conditions as unknown[]) {
         if (!wellFormed(condition)) {
             throw bad(
-                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture" }.',
+                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture", name?: a string }.',
                 { condition },
             );
         }
@@ -72,14 +72,21 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
 }
 
 /**
- * A condition's own fields with a new rule: `within` only when it was given.
+ * A condition's own fields with a new rule: `within` and `name` only when they were given.
  * @param condition - The condition.
  * @param rule - Its rule.
  * @returns The condition, unfrozen.
  */
 export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterCondition {
-    const { id, on, effect, within } = condition;
-    return within === undefined ? { id, on, effect, rule } : { id, on, effect, rule, within };
+    const { id, on, effect, within, name } = condition;
+    return {
+        id,
+        on,
+        effect,
+        rule,
+        ...(within === undefined ? {} : { within }),
+        ...(name === undefined ? {} : { name }),
+    };
 }
 
 /**
@@ -99,7 +106,7 @@ export function selectsOverGraph(conditions: readonly FilterCondition[]): boolea
  * @returns True when it is.
  */
 export function wellFormed(condition: unknown): condition is FilterCondition {
-    const { id, on, effect, rule, within } = (condition ?? {}) as Partial<FilterCondition>;
+    const { id, on, effect, rule, within, name } = (condition ?? {}) as Partial<FilterCondition>;
     return (
         typeof id === "string" &&
         id !== "" &&
@@ -107,7 +114,8 @@ export function wellFormed(condition: unknown): condition is FilterCondition {
         knownEffect(effect) &&
         typeof rule === "object" &&
         rule !== null &&
-        (within === undefined || within === "graph" || within === "picture")
+        (within === undefined || within === "graph" || within === "picture") &&
+        (name === undefined || typeof name === "string")
     );
 }
 

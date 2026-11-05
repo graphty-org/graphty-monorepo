@@ -2416,7 +2416,7 @@ export interface MeasureLeaf {
     readonly bind?: Readonly<Record<string, StepReference>>;
     /** The result field to test. */
     readonly field: string;
-    /** The test. Absent, the step is inert (`test-unset`). */
+    /** The test. Absent, every element the field measures passes, as a range with neither bound does. */
     readonly test?: MeasureTest;
     /**
      * The scope of the session run the step reads, as that run's `scope.spec` gives it: a step
@@ -2501,6 +2501,13 @@ export interface FilterCondition {
      * @since 3.33.0
      */
     readonly within?: FilterSelectWithin;
+    /**
+     * The condition's name, as the reader typed it; absent, an application names it from its rule.
+     * The element never reads it: it is kept, saved and restored with the condition, and a change
+     * to it alone is one undo step (`updateCondition(id, { name })`).
+     * @since 3.36.0
+     */
+    readonly name?: string;
 }
 
 /**

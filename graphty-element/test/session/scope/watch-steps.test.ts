@@ -196,13 +196,32 @@ describe("watchSteps", () => {
         }
     });
 
-    it("an untouched step reads inert with test-unset and changes no count", async () => {
+    it("a range with neither bound passes every measured element, as its slider shows", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {
             kind: "union",
             side: "nodes",
             within: "graph",
-            branches: [{ start: "all", steps: [{ op: "keep", rule: { kind: "range", attribute: "graphty.degree" } }] }],
+            branches: [{ start: "none", steps: [{ op: "add", rule: { kind: "range", attribute: "graphty.degree" } }] }],
+        };
+        const { current } = session.scope.watchSteps(rule, () => undefined);
+        const [step] = current.branches[0].steps;
+        assert.strictEqual(step.state, "applied");
+        assert.strictEqual(current.total.count, IDS.length, "every node has a degree");
+    });
+
+    it("an empty pick reads inert with test-unset and changes no count", async () => {
+        const session = await lesMis();
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [{ op: "keep", rule: { kind: "categories", attribute: "graphty.degree", values: [] } }],
+                },
+            ],
         };
         const { current } = session.scope.watchSteps(rule, () => undefined);
         const [step] = current.branches[0].steps;
@@ -420,7 +439,7 @@ describe("measure steps and runs", () => {
         assert.deepEqual(executions.sizes, [IDS.length]);
     });
 
-    it("a measure step keeps its run when its test goes from none to an untouched one, and keeps its mode", async () => {
+    it("a measure step keeps its run when its test goes from none to an unbounded one, and keeps its mode", async () => {
         const executions: Executions = { sizes: [], hold: false };
         const session = await lesMis(executions);
         const { test: _test, ...untested } = TOP_BY_MEASURE;
@@ -432,10 +451,7 @@ describe("measure steps and runs", () => {
         });
         const ran = await new Promise<StepsReading>((resolve) => {
             const each = session.scope.watchSteps(ruleWith({ op: "keep", rule: untested }), (reading) => {
-                if (
-                    reading.branches[0].steps[0].run !== null &&
-                    reading.branches[0].steps[0].reason?.code === "test-unset"
-                ) {
+                if (reading.branches[0].steps[0].run !== null && reading.branches[0].steps[0].state === "applied") {
                     each.end();
                     resolve(reading);
                 }
@@ -443,10 +459,10 @@ describe("measure steps and runs", () => {
         });
         const { run } = ran.branches[0].steps[0];
         assert.isNotNull(run);
-        // An untouched range: still inert, still the same run, and the step's mode is kept as given.
+        // An unbounded range: applied, the same run, and the step's mode is kept as given.
         const step = { op: "keep" as const, mode: "top", rule: { ...untested, test: { kind: "range" as const } } };
         const watch = session.scope.watchSteps(ruleWith(step), () => undefined);
-        assert.strictEqual(watch.current.branches[0].steps[0].reason?.code, "test-unset");
+        assert.strictEqual(watch.current.branches[0].steps[0].state, "applied");
         assert.strictEqual(watch.current.branches[0].steps[0].run, run);
         watch.end();
         assert.deepEqual(executions.sizes, [IDS.length], "never computed again");
@@ -562,7 +578,7 @@ describe("measure steps and runs", () => {
         watch.end();
     });
 
-    it("a measure with no test yet stays inert but starts its run, so a picker can show its values", async () => {
+    it("a measure with no test starts its run and, once it finishes, adds every measured element", async () => {
         const executions: Executions = { sizes: [], hold: false };
         const session = await lesMis(executions);
         const untested: RuleTree = { kind: "measure", algorithm: "degree", field: "value" };
@@ -570,11 +586,77 @@ describe("measure steps and runs", () => {
             kind: "union",
             side: "nodes",
             within: "graph",
-            branches: [{ start: "all", steps: [{ op: "keep", rule: untested }] }],
+            branches: [{ start: "none", steps: [{ op: "add", rule: untested }] }],
         };
         const ran = await new Promise<StepsReading>((resolve) => {
             const each = session.scope.watchSteps(rule, (reading) => {
-                // While its run computes it says so; once the values are there, it waits for a test.
+                const [first] = reading.branches[0].steps;
+                if (first.run !== null && first.state === "applied") {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        assert.strictEqual(ran.total.count, IDS.length, "no brush moved, and every measured node is added");
+        assert.strictEqual(session.runs.list().length, 1);
+        assert.deepEqual(executions.sizes, [IDS.length]);
+    });
+
+    it("a measure with an unbounded range test adds every measured element once its run finishes", async () => {
+        const session = await lesMis();
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "none",
+                    steps: [
+                        {
+                            op: "add",
+                            rule: { kind: "measure", algorithm: "degree", field: "value", test: { kind: "range" } },
+                        },
+                    ],
+                },
+            ],
+        };
+        const ran = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0].steps[0].state === "applied") {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        assert.strictEqual(ran.total.count, IDS.length);
+    });
+
+    it("a measure with an empty pick stays inert but starts its run, so a picker can show its values", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [
+                        {
+                            op: "keep",
+                            rule: {
+                                kind: "measure",
+                                algorithm: "degree",
+                                field: "value",
+                                test: { kind: "categories", values: [] },
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+        const ran = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
                 const [first] = reading.branches[0].steps;
                 if (first.run !== null && first.reason?.code !== "computing") {
                     each.end();
@@ -586,7 +668,6 @@ describe("measure steps and runs", () => {
         assert.strictEqual(step.state, "inert");
         assert.strictEqual(step.reason?.code, "test-unset");
         assert.strictEqual(ran.total.count, IDS.length, "an inert step changes nothing");
-        assert.strictEqual(session.runs.list().length, 1);
         assert.deepEqual(executions.sizes, [IDS.length]);
     });
 
@@ -646,7 +727,7 @@ describe("measure steps and runs", () => {
                 },
             ],
         };
-        // The step stays inert (no test) the whole time: only its values change, and that is news.
+        // The step has no test, so it passes every value it measures: its values arriving is news.
         const heard = await new Promise<StepsReading>((resolve) => {
             const each = session.scope.watchSteps(rule, (reading) => {
                 if (reading.branches[0].steps[1].values !== null) {
@@ -656,7 +737,7 @@ describe("measure steps and runs", () => {
             });
         });
         const step = heard.branches[0].steps[1];
-        assert.strictEqual(step.state, "inert");
+        assert.strictEqual(step.state, "applied");
         assert.strictEqual(step.values?.kind, "numeric");
         assert.strictEqual(step.values?.of, staff);
         assert.strictEqual(step.values?.missing, 0);
@@ -761,7 +842,7 @@ describe("measure steps and runs", () => {
 
     it("a keep or exclude condition whose steps have no test yet removes nothing", async () => {
         const session = await lesMis();
-        const untested: RuleTree = { kind: "range", attribute: "graphty.degree" };
+        const untested: RuleTree = { kind: "categories", attribute: "data.role", values: [] };
         for (const start of ["none", "all"] as const) {
             for (const effect of ["keep", "exclude"] as const) {
                 const { id } = await session.visibility.addCondition({
@@ -839,7 +920,7 @@ describe("measure steps and runs", () => {
         executions.release?.();
     });
 
-    it("a measure with no test says Run or Computing while its values are not there, never No test", async () => {
+    it("a measure with no test waits for Run or Computing while its values are not there, never No test", async () => {
         const executions: Executions = { sizes: [], hold: true };
         const session = await lesMis(executions);
         session.scope.setOptions({ askAboveMs: 0 });
@@ -854,7 +935,7 @@ describe("measure steps and runs", () => {
             () => undefined,
         ).current;
         const [step] = session.scope.watchSteps(rule, () => undefined).current.branches[0].steps;
-        assert.strictEqual(step.state, "inert", "it changes nothing yet");
+        assert.strictEqual(step.state, "pending", "it waits for its run");
         assert.strictEqual(step.reason?.code, "run-needed");
         const computing = await nextReading(session, rule, () => {
             session.scope.allowRun(rule, step.id);

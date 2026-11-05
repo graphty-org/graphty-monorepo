@@ -237,6 +237,10 @@ export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[] =
     ["half-barb", "Half barb", '<path d="M2 12h20 M21 12l-8-6"/>'],
     ["half-barb-flipped", "Half barb, flipped", '<path d="M2 12h20 M21 12l-8 6"/>'],
     ["inverted-vee", "Inverted vee", `<path d="M2 12h12"/><path d="M22 7l-8 5 8 5-3-5z" ${FILL}/>`],
+    ["cross", "Cross", '<path d="M2 12h16 M14 8l8 8 M22 8l-8 8"/>'],
+    ["kite", "Kite", `<path d="M2 12h12"/><path d="M22 12l-6-4-4 4 4 4z" ${FILL}/>`],
+    ["deltoid", "Deltoid", `<path d="M2 12h14"/><path d="M22 12q-3-1-7-6 1 6 0 12 4-5 7-6z" ${FILL}/>`],
+    ["open-vee", "Open vee", '<path d="M2 12h16 M14 7l8 5-8 5"/>'],
 ]);
 
 /**

@@ -177,3 +177,99 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
         expect(edge("sourceArrow", "source-ellipse")).toBe("circle");
     });
 });
+
+describe("yEd Live GraphML: BPMN and UML node styles, as yEd Live 8.5.16 draws them", () => {
+    it("draws an activity as a box with corners of 6, its line by its activity type", async () => {
+        const { node } = await sheet("specimen-node-shapes-p4.graphml");
+        expect(node("shape", "default")).toBe("round-rectangle");
+        expect(node("cornerRadius", "default")).toBe(6);
+        expect(node("fill", "default")).toBe("#fafafa");
+        expect(node("borderColor", "default")).toBe("#00008b");
+        expect(node("borderWidth", "default")).toBe(1);
+        expect(node("fill", "bpmn-activity-background")).toBe("#ff0000");
+        expect(node("borderColor", "bpmn-activity-outline")).toBe("#ff0000");
+        expect(node("borderWidth", "bpmn-activity-activity-type-call-activity")).toBe(3);
+        expect(node("borderStyle", "bpmn-activity-activity-type-event-sub-process")).toBe("dotted");
+    });
+
+    it("draws an event as a circle, a gateway as a diamond, a conversation as a hexagon", async () => {
+        const { node } = await sheet("specimen-node-shapes-p5.graphml");
+        expect(node("shape", "default")).toBe("ellipse");
+        expect(node("fill", "default")).toBe("#fafafa");
+        expect(node("borderColor", "default")).toBe("#008000");
+        expect(node("borderWidth", "bpmn-event-characteristic-end")).toBe(3);
+        expect(node("borderStyle", "bpmn-event-characteristic-sub-process-non-interrupting")).toBe("dashed");
+        expect(node("borderStyle", "bpmn-event-characteristic-boundary-non-interrupting")).toBe("dashed");
+        expect(node("shape", "bpmn-gateway-background")).toBe("diamond");
+        expect(node("fill", "bpmn-gateway-background")).toBe("#ff0000");
+        expect(node("shape", "bpmn-conversation-outline")).toBe("hexagon");
+        expect(node("borderColor", "bpmn-conversation-outline")).toBe("#ff0000");
+        expect(node("borderWidth", "bpmn-conversation-type-calling-collaboration")).toBe(3);
+    });
+
+    it("draws a data object as a folded page, a data store as a cylinder, an annotation with no outline", async () => {
+        const { node } = await sheet("specimen-node-shapes-p5.graphml");
+        expect(node("shape", "bpmn-data-object-background")).toBe("polygon");
+        expect(typeof node("shapePoints", "bpmn-data-object-background")).toBe("string");
+        expect(node("shape", "bpmn-data-store-background")).toBe("other:database");
+        expect(node("shape", "bpmn-annotation-background")).toBe("rectangle");
+        expect(node("fill", "bpmn-annotation-background")).toBe("#ff0000");
+        expect(node("borderWidth", "bpmn-annotation-background")).toBe(0);
+    });
+
+    it("draws a choreography as a box with corners of 6, a BPMN group with corners of 3 and a dash-dot line", async () => {
+        const { node } = await sheet("specimen-node-shapes-p6.graphml");
+        expect(node("shape", "default")).toBe("round-rectangle");
+        expect(node("cornerRadius", "default")).toBe(6);
+        expect(node("borderColor", "default")).toBe("#006400");
+        expect(node("borderWidth", "bpmn-choreography-type-call")).toBe(3);
+        expect(node("cornerRadius", "bpmn-group-background")).toBe(3);
+        expect(node("fill", "bpmn-group-background")).toBe("#ff0000");
+        expect(node("borderStyle", "bpmn-group-background")).toBe("dash-dot");
+    });
+
+    it("draws a UML class as a rounded box outlined in its fill, its name in white at the top", async () => {
+        const { node } = await sheet("specimen-node-shapes-p7.graphml");
+        expect(node("shape", "uml-fill")).toBe("round-rectangle");
+        expect(node("cornerRadius", "uml-fill")).toBe(10);
+        expect(node("fill", "uml-fill")).toBe("#607d8b");
+        expect(node("borderColor", "uml-fill")).toBe("#607d8b");
+        expect(node("borderWidth", "uml-fill")).toBe(2);
+        expect(node("label", "uml-fill")).toBe("Cls");
+        expect(node("labelColor", "uml-fill")).toBe("#ffffff");
+        expect(node("labelPosition", "uml-fill")).toBe("inside-top");
+    });
+});
+
+describe("yEd Live GraphML: a group's panel and tab band", () => {
+    it("fills the panel and frames it in the tab's color, deeper on the tab's side", async () => {
+        const { node } = await sheet("specimen-groups.graphml");
+        expect(node("fill", "default")).toBe("#ffffff");
+        expect(node("stripeColors", "default")).toBe("#aaaaaa");
+        expect(node("stripeFrame", "default")).toBe("0.275 0.026667 0.05 0.026667");
+        expect(node("stripeColors", "tab-position-bottom")).toBe("#c8c8c8");
+        expect(node("stripeFrame", "tab-position-bottom")).toBe("0.05 0.026667 0.275 0.026667");
+        expect(node("stripeFrame", "tab-position-left-leading")).toBe("0.05 0.026667 0.05 0.146667");
+        expect(node("stripeFrame", "tab-position-right")).toBe("0.05 0.146667 0.05 0.026667");
+        expect(node("stripeColors", "tab-position-none")).toBeNull();
+        expect(node("stripeFrame", "tab-position-none")).toBeNull();
+    });
+
+    it("reads tabHeight, and contentAreaFill with its alpha", async () => {
+        const p2 = await sheet("specimen-groups-p2.graphml");
+        expect(p2.node("fill", "content-area-fill")).toBe("#ffffcc");
+        const p3 = await sheet("specimen-groups-p3.graphml");
+        expect(p3.node("stripeFrame", "tab-height-30")).toBe("0.425 0.026667 0.05 0.026667");
+        expect(p3.node("fillOpacity", "render-transparent-content")).toBeCloseTo(0.502, 3);
+        // a collapsed group has no panel: its face is the tab
+        expect(p3.node("fill", "group-collapsed")).toBe("#c8c8c8");
+        expect(p3.node("stripeFrame", "group-collapsed")).toBeNull();
+    });
+});
+
+describe("yEd Live GraphML: a node label with no layout parameter", () => {
+    it("sits below the node, as yEd Live draws it", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("labelPosition", "default")).toBe("bottom");
+    });
+});

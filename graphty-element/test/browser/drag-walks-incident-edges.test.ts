@@ -22,6 +22,17 @@ const DEGREE = 3;
 /** How many moves of the pointer are counted. */
 const MOVES = 8;
 
+/**
+ * One layout of each way an engine hands over its edges: `fixed` an array of its own, `d3` too,
+ * `ngraph` (the default) an iterator over a map, `forceatlas2` the store's own iterator.
+ */
+const LAYOUT_OPTIONS: Record<string, Record<string, unknown>> = {
+    fixed: { dim: 3 },
+    d3: {},
+    ngraph: { seed: 7 },
+    forceatlas2: { seed: 7 },
+};
+
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -34,9 +45,10 @@ afterEach(() => {
  * A mounted element with node `t` at the origin joined to three of `size - 1` nodes that make a
  * path around a ring far from it, drawn.
  * @param size - The node count.
+ * @param layout - The layout it is arranged by, run until it settles.
  * @returns The element.
  */
-async function mounted(size: number): Promise<Graphty> {
+async function mounted(size: number, layout: string): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -56,7 +68,7 @@ async function mounted(size: number): Promise<Graphty> {
         ...ring.slice(0, DEGREE).map(({ id }) => ({ src: "t", dst: id })),
         ...ring.slice(1).map(({ id }, at) => ({ src: ring[at].id, dst: id })),
     ]);
-    await element.graph.setLayout("fixed", { dim: 3 });
+    await element.graph.setLayout(layout, LAYOUT_OPTIONS[layout]);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
     return element;
@@ -66,10 +78,14 @@ async function mounted(size: number): Promise<Graphty> {
  * Drag node `t` with the real mouse, counting edge visits and frames once the drag is under way
  * (the press selects and the first move pins the node, and either repaint walks every edge once).
  * @param size - The node count.
+ * @param layout - The layout it is arranged by.
  * @returns The edge visits, the frames they were made on, and how far the dragged edge's middle moved.
  */
-async function dragCounted(size: number): Promise<{ visits: number; frames: number; followed: number }> {
-    const element = await mounted(size);
+async function dragCounted(
+    size: number,
+    layout: string,
+): Promise<{ visits: number; frames: number; followed: number }> {
+    const element = await mounted(size, layout);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
     const { x, y } = position;
@@ -110,13 +126,16 @@ async function dragCounted(size: number): Promise<{ visits: number; frames: numb
 }
 
 describe("a drag", () => {
-    it("visits only the dragged node's edges, at any graph size", async () => {
-        for (const size of SIZES) {
-            const { visits, frames, followed } = await dragCounted(size);
-            const message = `${String(visits)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
-            assert.isAbove(visits, 0, message);
-            assert.isAtMost(visits, frames * DEGREE, message);
-            assert.isAbove(followed, 0, "the dragged node's edge followed it");
-        }
-    });
+    it.each(Object.keys(LAYOUT_OPTIONS))(
+        "visits only the dragged node's edges, at any graph size, on %s",
+        async (layout) => {
+            for (const size of SIZES) {
+                const { visits, frames, followed } = await dragCounted(size, layout);
+                const message = `${String(visits)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
+                assert.isAbove(visits, 0, message);
+                assert.isAtMost(visits, frames * DEGREE, message);
+                assert.isAbove(followed, 0, "the dragged node's edge followed it");
+            }
+        },
+    );
 });

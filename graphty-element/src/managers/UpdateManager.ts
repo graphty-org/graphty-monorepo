@@ -2417,15 +2417,16 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
-        // be the million-edge walk this method exists to avoid. A layout engine that hands back
-        // something that is not an array cannot be counted cheaply, so it always walks. One removed
-        // and one added leave the count alone, and fan out their neighbours just the same.
+        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // added, which leave a count alone. An engine's array is counted as well, for an engine
+        // that takes an edge up after the store told it: read off the array's own length, since
+        // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
+        // engine that hands back an iterator has to hold every edge the moment it is told.
         const { edges } = this.layoutManager;
         const edgeCount = Array.isArray(edges) ? edges.length : -1;
         const { edgeVersion } = this.dataManager;
 
-        if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
+        if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
             this.lastWalkedEdgeCount = edgeCount;
             this.lastWalkedEdgeVersion = edgeVersion;
             this.sceneChanged = true;

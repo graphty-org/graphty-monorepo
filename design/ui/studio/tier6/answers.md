@@ -3,7 +3,7 @@
 Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Participants: `roster.md`.
 
 Facts below were computed from the files in `../tool/files/` and walked on build ad16c1f2dd with
-Gemini 3.8 Flash. The model's wording varies from run to run; these are examples of what it said, not
+Gemini 3.8 Flash; T90 to T93 and T95 were then matched to every walk of frozen build 8fa33aa786. The model's wording varies from run to run; these are examples of what it said, not
 words to require.
 
 ## How a session is graded
@@ -50,7 +50,9 @@ and adds, on the tasks that name them: `Way out: model label|Settings|Send again
 where, who pays: 0 to 3>` (T90), `Trap fired: yes|no` and `Taken on trust: yes|no` (T92, T95),
 `Checked: <chip hover, chip click, Show in table, Open run or layer, inspector, none>` (T92), `Scope
 noticed: yes|no` (T92 A), `Hand edit: Open layer|Graph place|not found` (T91 A, outside the grade),
-`Card: read (card)|read (reply)|reflex|not reached` (T93), `Model decided: yes` where it applies.
+`Card: read (card)|read (reply)|reflex|not reached` (T93), `Model decided: yes` where it applies, and
+`Build decided: yes` where a build defect named in this key, not the reader, decided the grade, so
+that the report can give each number with and without it.
 
 **`Failure:`** a failed message is a turn ending in a failure row, such as "Could not reach OpenAI".
 Recovered means a later message got a real reply with no outside help. Bar 4 also needs the way out
@@ -80,7 +82,7 @@ file cannot support, without saying it was unchecked or the model's own.
 ## T90. Getting it going
 
 **Success:** the reader reaches a working Assistant, gets a real reply to the question, and reports
-names that the reply on screen gave. Bar 3 also needs the follow-up: what leaves (messages and what
+the names or ids that the reply on screen gave. Bar 3 also needs the follow-up: what leaves (messages and what
 the Assistant reads from the network: column names, node ids, labels and values), where it goes
 (straight to Google, or whichever company the reader ended on), and who pays (the key's owner,
 "Google charges your key").
@@ -89,7 +91,9 @@ the Assistant reads from the network: column names, node ids, labels and values)
 turn reads "Could not reach OpenAI: the connection failed. Nothing changed." with Send again, and
 the question returns to the composer. Send again fails the same way. The prompt says to try this key
 first, so a reader meets the failure unless they skip it. The way on is the label under
-the composer (GPT-4o), or Settings, then AI provider.
+the composer (GPT-4o), Settings then AI provider, or the status bar's "Sends to OpenAI", which opens
+the same section. With a key saved the panel has no AI provider... button; only Quick actions lists
+one. Once Google is saved, Enter or Send again both carry the question.
 
 **Success path (A, about 15 steps):** 1. Open a file, volunteers.graphml. 2. Assistant on the rail. 3. AI provider... 4 and 5. Provider, OpenAI. 6. API key, type the OpenAI key. 7. Save. 8. Type the
 question, Enter. 9. Read the failure. 10. The model label. 11 and 12. Provider, Google. 13. API key,
@@ -98,13 +102,24 @@ type the Google key. 14. Save. 15. Enter, the question being back in the compose
 - A reader who goes straight to the Google key loses nothing: S, `Failure: none`, and that session
   does not count toward bar 4.
 - Pressing Send again once or twice before moving on is a wrong turn, not a failure of the task.
-- Picking Google with the OpenAI key, or the reverse, is a wrong turn. The shape check catches an
-  OpenAI key that lacks `sk-`; the Google key passes any shape of 11 characters or more.
--   - The model label, Settings or AI provider... are routes the screen offered. Being told by the prompt
-      that a second key exists is not a way out by itself: the reader still has to find where it goes.
-- Reference for the answer: any names the reply gave. Top by degree: James Carter and Priya Nair (A);
-  Paula Greene and Owen Clarke (B). Top by betweenness: Hannah Weiss (A), Silverline Media (B).
-- B under `--keys`: the rail by Tab or Control+I, the rest by Tab, Enter and the arrows.
+- Picking OpenAI with the Google key is a wrong turn: the shape check catches a key that lacks `sk-`.
+- Picking Google with the OpenAI key shows no wrong turn. Google's check takes any shape of 11
+  characters or more, Save accepts it, and the tool swaps the real key into every Google call, so a
+  reply arrives. Grade it as the screen shows it: no wrong turn, `Failure: none`, not counted toward
+  bar 4. Real Google would refuse that key, and the report says so of any session that does this.
+- The model label, Settings, "Sends to OpenAI" and Quick actions' AI provider... are routes the screen
+  offered; the last two are `Way out: other`, with the route named. Being told by the prompt that a
+  second key exists is not a way out by itself: the reader still has to find where it goes.
+- Reference for the answer: any names or ids the reply gave. Replies ranked by closeness, by degree or
+  by several measures, and 3 of the 5 on A gave ids alone; a reader who reports those ids has reported
+  what it gave. Top by closeness: v09 Hannah Weiss (0.02273 on screen), v02 James Carter (A); s20
+  Silverline Media, s18 Paula Greene (B). Top by degree: v02 James Carter and v05 Priya Nair (A); s18
+  Paula Greene and s23 Owen Clarke (B). Top by betweenness: v09 Hannah Weiss (A), s20 Silverline Media
+  (B).
+- A's replies also gave phone numbers nobody asked for (all 5 walked). They are true values from the
+  file and do not change the grade.
+- B under `--keys`: the rail by Control+I, or Tab to Graph and ArrowDown to Assistant, since the next
+  Tab from Graph enters the panel; the rest by Tab, Enter and the arrows.
 - Answering the follow-up with what the screen said, from memory or by going back, both count.
 
 ## T91. Make them stand out
@@ -113,8 +128,16 @@ type the Google key. 14. Save. 15. Enter, the question being back in the compose
 the reader gives the right number with a basis on screen. A: 9 people (`trained` false). B: 9 genes
 (`gal4RGexp` below -1).
 
-**Success path (A and B, 3 or 4 steps):** 1. Assistant. 2. Type the request, Enter. 3. Read the
-change line ("Colored 9 nodes"). The key card reads "9 of 24 nodes".
+**Success path (B, 3 or 4 steps):** 1. Assistant. 2. Type the request, Enter. 3. Read the change line
+("Colored 9 nodes"; the model may also size them, adding "Sized 9 nodes"). The key card reads "9 of
+331 nodes".
+
+**Success path (A, 4 to 6 steps):** the same, with one or two more messages. On build 8fa33aa786 the
+first request changes nothing: a step reads "No matches for data.trained == false.", and the reply
+finds the nine but says "No visual changes were applied yet" and asks to go on. It can end in "Query
+data failed. Nothing changed." with Send again, which is a failed message for `Failure:` and is
+recovered by the next message that gets a reply. Saying yes in a new message paints them on the second
+or third message: "Colored 9 nodes", and the key card reads "9 of 24 nodes".
 
 A starts from the saved work: PageRank has run, and every dot is colored and sized by it. The ranking
 layer stays; the nine must read apart from the ranking's oranges and browns, and their sizes need not
@@ -125,11 +148,17 @@ reader went: the AI's layer opened (`Open layer` in the reply), the list under G
 does not change the grade.
 
 Check `styles.json`: a layer whose selector matches those nodes, with a count of 9, painting a value
-other than the default. A: Tobias Becker, Leo Novak, Omar Haddad, Fatima Diallo, Seun Okoro, Ivan
+other than the default. A selector that lists the nine ids matches, though the layer then reads
+"Picked by hand: 9 nodes". A: Tobias Becker, Leo Novak, Omar Haddad, Fatima Diallo, Seun Okoro, Ivan
 Petrov, Ahmed Saleh, Mei Tanaka, Zara Ahmed. B: HIS7, ADE4, GAL10, GAL1, GAL7, GLN1, GAL3, MET16,
 HOM3.
 
 - Two rows of the yeast file hold the text `null` in these columns; neither counts.
+- A basis for the number is the key card's count, the change line or the reply's count. On A the
+  reply's chip does not back it: it reads 63 edges or 24 nodes, and Show in table selects those. A
+  reader who reports 63 or 24 from it is F, `Build decided: yes`.
+- On A the drawing can show only eight of the nine, because the key card covers one dot. A reader who
+  reports 8 from the drawing is F, `Build decided: yes`.
 - The model may ask how the reader wants them to look. Answering is on the path.
 - Everyone colored by a gradient of the column, with no separation, is F on B: nothing stands out by
   the rule asked for.
@@ -141,24 +170,37 @@ that was (the follow-up asks). The prompt does not ask for doubt, so `Checked:` 
 come from the first report.
 
 **T92 A starts with the 14 people (`kind` is person) selected.** The reader did not select them, and
-the prompt does not say so. Walked on ad16c1f2dd, the donations question was scoped to Selection 14
-above the composer, and the reply read "Of the 9 on-record sources in the selection, 6 gave donations."
-The file's answer is 7 of 12. So on A:
+the prompt does not say so. Walked on ad16c1f2dd and again on 8fa33aa786, the donations question was
+scoped to Selection 14 above the composer, and the reply read "Of the 9 on-record sources in the
+selection, 6 gave donations." The file's answer is 7 of 12. So on A:
 
 - A report of 6, or of 6 of 9, as the file's answer is F, `Trap fired: yes`, `Taken on trust: yes`.
 - A reader who clears the selection, or asks about everyone, and reports 7 of 12 is S or SD, with
   `Scope noticed: yes`. A reader who reports 6 and says it covers only the selected people has not
   answered the question: F, `Taken on trust: no`, `Scope noticed: yes`.
 - Fact 1 under the selection may name a person; Silverline Media, the true answer, is not selected.
-  A person's name given as the file's answer is F.
+  A person's name given as the file's answer is F. The run still covers all 24 nodes, so one reply can
+  give both, s20 for the whole graph and s10 (Victor Szabo) for the selection; reporting s20 is right.
 
-| Half | Fact 1 (betweenness)                                  | Fact 2                                                                                                                                 |
-| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| A    | Silverline Media (0.267), then Port Authority (0.244) | 7 of the 12 on the record: Rita Vance, Della Whitfield, Marcus Lee, Ines Moreau, Keith Ramos, Friends of the Waterfront, Rhoda Adeyemi |
-| B    | MCM1 (0.297), then MIG1 (0.230)                       | 7 genes: ADE4, GAL10, GAL1, GAL7, BAS1, ICL1, YNL164C                                                                                  |
+| Half | Fact 1 (betweenness)                                            | Fact 2                                                                                                                                 |
+| ---- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| A    | Silverline Media, s20 (0.267), then Port Authority, s12 (0.244) | 7 of the 12 on the record: Rita Vance, Della Whitfield, Marcus Lee, Ines Moreau, Keith Ramos, Friends of the Waterfront, Rhoda Adeyemi |
+| B    | MCM1, YMR043W (0.297), then MIG1, YGL035C (0.230)               | 7 genes: ADE4, GAL10, GAL1, GAL7, BAS1, ICL1, YNL164C                                                                                  |
 
-**Success path (4 to 7 steps):** Assistant; ask; read the reply and its chip; hover the chip, or Show
-in table, or Open run; ask the second fact; check it the same way.
+The screen gives betweenness before it is divided by the pairs (253 on A, 54,285 on B): 67.68 and 61.64
+on A, 16,124 and 12,500 on B. The reply and the Top 10 often give the id alone, and every reply to fact
+1 on B did. The id is a right answer: YMR043W is MCM1, s20 is Silverline Media.
+
+**Success path (4 to 9 steps):** Assistant; ask; read the reply; check it; ask the second fact; check
+it. Turning an id into a name, by a Top 10 row or the node, is what takes the path past 7.
+
+- Fact 1's reply has no chip. It has a change line with Open run, and the run's Values tab holds the
+  Top 10.
+- Fact 2's reply may have a chip and Show in table, or neither, or a chip only inside the folded steps.
+  With neither, the check is outside the panel: the table or Find. A right fact 2 reported with only
+  that reply behind it is F, `Build decided: yes`.
+- A's chip follows the last query, not the sentence: 7 or 12 beside "7 of the 12". Both are true counts,
+  of the donors and of those on the record.
 
 - Fact 1 on A: a reader who reports Port Authority with the app's own betweenness run showing it
   first would mean the app and this key disagree: stop and check before grading. A degree ranking
@@ -166,7 +208,8 @@ in table, or Open run; ask the second fact; check it the same way.
 - A wrong number from the model that the reader caught and corrected is S or SD, and the best evidence
   this study can get. A wrong number the reader passed on is F and `Taken on trust: yes`.
 - "I looked at the highlighted nodes" counts as a check only if a hover or click happened.
-- An analysis repaints the network and adds a key card. That is expected; it is not a wrong turn.
+- An analysis may repaint the network and add a key card, or leave both alone: neither happened on
+  any walk of A, and on B two walks did and one did not. Either way it is not a wrong turn.
 
 ## T93. The ones who left
 
@@ -174,10 +217,10 @@ in table, or Open run; ask the second fact; check it the same way.
 expected one. Either decision passes: this task grades reading, not obedience. The prompt does not ask for the
 number; the follow-up does, so "how it differs" comes from there.
 
-| Half | Expected | Truth | On the request                                             | If removed           | If kept              |
-| ---- | -------- | ----- | ---------------------------------------------------------- | -------------------- | -------------------- |
-| A    | about 3  | 7     | "Remove 7 nodes and 32 edges?" "Undo can bring them back." | 17 nodes, 31 edges   | 24 nodes, 63 edges   |
-| B    | about 20 | 82    | "Remove 82 nodes and 63 edges?"                            | 249 nodes, 298 edges | 331 nodes, 361 edges |
+| Half | Expected | Truth | On the request                                              | If removed           | If kept              |
+| ---- | -------- | ----- | ----------------------------------------------------------- | -------------------- | -------------------- |
+| A    | about 3  | 7     | "Remove 7 nodes and 32 edges?" "Undo can bring them back."  | 17 nodes, 31 edges   | 24 nodes, 63 edges   |
+| B    | about 20 | 82    | "Remove 82 nodes and 63 edges?" "Undo can bring them back." | 249 nodes, 298 edges | 331 nodes, 361 edges |
 
 A's seven: Aisha Bello, Leo Novak, Diego Ruiz, Nora Lindqvist, Ivan Petrov, Julia Rossi, Zara Ahmed.
 
@@ -187,11 +230,22 @@ composer; Remove, Change this or Keep them; report.
 - `Card: read (card)` if a note at or before the answering step names the count or the difference
   and takes it from the request. `Card: read (reply)` if it takes it from the model's reply: bar 6 does
   not count that as the card read. `Card: reflex` if the reader answered with no sign of reading it,
-  and F if the report then says three or twenty. `Card: not reached` if the session ended before any request appeared.
+  and F if the report then says three or twenty. `Card: not reached` if no request appeared before the session ended.
 - The model usually states the count in its reply too. That is not a route around the card.
 - Removing, then Undo after seeing the count, then a right report: SD.
 - Hiding them with a filter and reporting them gone: F, the prompt says not to.
 - A reader who stops and asks Marisol, in the report, which three she meant has passed: S.
+- The request's title is the count this key means. Its edge chip can disagree: 361 on 5 of 8 cards on
+  B (the other 3 had the 82 chip alone), and 63 once on A, where clicking it selects them all. That is
+  the defect under "Seen while writing this key", never the key's number.
+- On A the model may ask a question before any request, as it did both times the remembered number was
+  in the message: all 7, only the 3 untrained, or nobody. Answering is on the path, one more step. All
+  7 leads to the request. A count taken from the question's words is `Card: read (reply)`.
+- Choosing the 3 removes them with no request: 21 nodes, 47 edges, `Card: not reached`. That report
+  passes only if it says the true count was seven and four are still there.
+- After Keep them the model may hide the people anyway ("Filtered to 17 of 24 nodes", 7 hidden on the
+  scope line, 17 nodes and 31 edges drawn, while the inspector still reads 24 and 63). A report that
+  says they stayed but are hidden is right. Saying nothing changed is F.
 
 ## T94. Put it back
 
@@ -222,32 +276,42 @@ twice is as short: S. One Undo and "it is back" with the first change still on: 
 **Success:** the reader does not present the answer as something the file shows. The file has no
 quit data and no essentiality data.
 
-- **A.** Columns: name, role, hours, trained, phone. Nothing predicts quitting. A list built on low
+- **A.** Columns: id (v01 to v24), name, role, hours, trained, phone. Nothing predicts quitting. A list built on low
   hours is fine if the reader says it is a guess from hours.
-- **B.** Columns: name and three expression values. The model may list genes from its own memory, in
-  plain text with no chip. Some may even be right. Fine if the reader says they come from the model,
+- **B.** Columns: id (the systematic name, such as YNL216W), name and three expression values. The
+  model may list genes from its own memory, usually in plain text with no chip; a chip row and Show in
+  table can also sit under such a claim, and they count the query's nodes, not the claim. Some genes
+  may even be right. Fine if the reader says they come from the model,
   not the file, and need checking elsewhere. Written up as a finding of the network: F and
   `Taken on trust: yes`.
 
-**Success path (3 steps):** Assistant; ask; read, and report honestly.
+**Success path (3 steps):** Assistant; ask; read, and report honestly. A question that changes nothing
+may still leave a run behind ("Computed Connections for 24 nodes", Undo in the turn and at the top).
+That is no step and no wrong turn.
 
 The prompt asks only what the reader would give; the follow-up asks how far it can be relied on. Grade
 `Taken on trust:` on the first report. `Trap fired: yes` when the reply gives a list or a ranking as
 an answer; a plain refusal is `no`.
 
-- Pilot on a similar request: "The graph does not contain ... so it is not possible to determine",
-  with "No matches for warehouse." beneath. A reply like that makes this easy; a confident list does
-  not.
+First replies come in three shapes: a list with a caveat, a plain refusal, or a question in the section
+above the composer ("The graph does not contain turnover risk or quit predictions. Which criteria ...?").
+
+- A question is `no` by itself. If the reader's answer to it brings a list, that list is the reply:
+  `yes`. The question's words leave the screen once answered, so read them in the transcript or the
+  earlier screenshot, not the last screen.
+- A plain refusal reads like "The current graph data does not contain essentiality or lethality
+  annotations". On B it can have "No matches for essential." beneath, on a correct answer. A reply like
+  that makes this easy; a confident list does not.
 - A reader who declines to give anything and says why: S.
 
-## Seen while writing this key (build ad16c1f2dd)
+## Seen while writing this key (build ad16c1f2dd, re-read on 8fa33aa786)
 
 These are defects to confirm in the dry run, not study findings. Each is rated and ruled here so that
 bar 9 does not meet a known one by surprise. A rating stands until a session or walk shows otherwise.
 
 - **Yeast's approval shows a count that disagrees with itself.** "Remove 82 nodes and 63 edges?" sat
   over an edge chip reading 361, the whole network's edges. Severity 3. Fix in the dry run: it spoils
-  bars 6 and 11 by itself.
+  bars 6 and 11 by itself. Still there on 8fa33aa786, and once on A (32 edges over a chip of 63).
 - **A selection survives Undo and narrows the next message.** After removing 7 nodes and pressing
   Undo, the restored 7 nodes and 32 edges stayed selected, so the next request was scoped to
   "Selection" and answered "3 of the 7". The scope line did say so. Severity 2. Keep: T92 A studies
@@ -259,4 +323,4 @@ bar 9 does not meet a known one by surprise. A rating stands until a session or 
 - **The third starter used the `name` column:** "Does name line up with the groups?" Severity 2. Keep;
   a generality fix after the round.
 - **An analysis asked as a question repaints the network** over a look the reader just asked for.
-  Severity 2. Keep, and watch it on T92 and T94.
+  Severity 2. Keep, and watch it on T92 and T94. On 8fa33aa786 it happens on some runs, not all.

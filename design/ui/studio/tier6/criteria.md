@@ -214,3 +214,24 @@ dry run twice. The owner is told why, once.
       sources in the selection, 6 gave donations", where the file's answer is 7 of 12.
 - 2026-11-05, the first freeze: no build was named before this one, so the first line moves from its
   placeholder to round r1's build 8fa33aa786, which holds master merged in. No bar changed.
+- 2026-11-05, before the round's first session: `answers.md` now matches the walks of frozen build
+  8fa33aa786 on T90 to T93 and T95. No bar and no prompt changed; `tasks.md` is untouched.
+    - All: a `Build decided: yes` line marks a session a known build defect decided, because the
+      measures ask for numbers with and without one and no grade line carried it.
+    - T90: names or ids both count, because 3 of 5 replies on A gave ids; closeness joins the
+      references, because replies ranked by it; the status bar's chip and Quick actions join the ways
+      out, and the panel's AI provider... button is gone once a key is saved; Google with the OpenAI key
+      is no wrong turn, because Save accepts it and the tool's key swap brings a reply; the keyboard
+      route to the rail is Control+I or ArrowDown, not Tab.
+    - T91: B's key card reads 9 of 331; A's path takes one or two more messages, because the first
+      request changes nothing; a selector listing the nine ids matches; the chip on A and the drawing's
+      eight dots are named as no basis.
+    - T92: ids count as answers; the on-screen betweenness values sit beside the key's; the path runs
+      to 9 steps and says where each check really is; a repaint is no longer expected; the plant is
+      confirmed on this build.
+    - T93: B's request also says Undo can bring them back; the title, not the edge chip, is the count;
+      the model's question before the request, the 3-person choice (21 nodes, 47 edges) and a filter
+      after Keep them each have a grading line.
+    - T95: both halves have an id column; a question from the model has a `Trap fired:` rule; the
+      refusal example is one this build gave; a left-behind run is no step; a chip under a claim from
+      memory is not support.

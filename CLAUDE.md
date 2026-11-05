@@ -274,8 +274,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   with a selector on the result); dimming what it did not select is the reader's choice, never in
   `suggestedStyles`. Full rules and why: graphty-element/CLAUDE.md, "Algorithm Styles".
 - There are no special layers (owner, 2026-11-05: "any layer may be deleted or modified in any way. there are NO
-  SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: a style on a selection, hover,
-  selection and pin being calculated values. No layer gets its own behavior, controls, wording or protection, and
+  SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: each is
+  a style on a calculated value (hovered, selected, pinned). No layer gets its own behavior, controls, wording or protection, and
   code never branches on a layer's name, template or kind. A node left out of every shown layer is hidden.
   Default layers are data written once when a project is created. Issue #5905 tracks removing the existing
   exceptions.

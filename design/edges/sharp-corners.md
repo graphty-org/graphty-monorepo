@@ -195,6 +195,26 @@ neighbours and the 3D camera's perspective (issues #3096 and #3114):
   rasterizer drew (it snaps corners to a sub-pixel grid). Only a pixel no shape covers by that much
   -- where two edges cross, or the line's anti-aliased edge -- is tested at the edges themselves.
 
+### Corners the two pieces share exactly
+
+The rule above splits a pixel by its centre, and a `discard` throws away all of a pixel's samples.
+The element draws with multisampling on, so a pixel on the boundary between two pieces has samples
+in both: the piece that does not own its centre discarded the samples only it covered, the pixel
+was left part covered, and a light line crossed the curve at every join of its up to 64 pieces
+(issue #5799). WebGL has no per-sample discard, so no per-pixel rule can fix that.
+
+So where it can, a corner is not split by a rule at all: both pieces end at the corner's miter
+line, the line through its two miter points, and the side vertices at that end sit on those points
+(the join's triangles fold away to the centre). Both pieces compute the two points from the same
+three corners and the same half width with the same arithmetic, so their triangles share one exact
+edge and the rasterizer splits every pixel on it by sample, with nothing lost and nothing drawn
+twice. Neither piece then tests the other, or the piece beyond it, for ownership. A corner is
+shared this way when it is within the miter limit and its miter reaches along each piece no
+further than half the shorter one, which keeps every piece a convex quadrilateral. Every corner of
+a curve and of a gentle bend qualifies, so they discard nothing; the clipped join and the ownership
+rule remain for sharper corners and short pieces. A piece's distance along the edge is unchanged,
+so dashes still follow the route.
+
 `graphty-element/test/browser/edge-corner-joins-3d.test.ts` draws each piece of a bent edge on its
 own, from the slot the batch wrote for it, at bends from 150 to 35 degrees and U-turns with a short
 middle, as the camera turns from straight on to 80 degrees: no pixel is drawn by two pieces, and
@@ -339,6 +359,10 @@ inputs against the instance it stands for. A GPU keeps the instances, where expa
 `GRAPHTY_BROWSER_GPU=nvidia` for the card).
 
 ## Known limits
+
+- **A sharp corner can still show a faint line under anti-aliasing.** Past the miter limit, or
+  where a piece is shorter than its miter needs, the pieces still split the overlap by the
+  ownership rule, and a pixel on that split loses the samples of the piece that discards it.
 
 - **Pieces three apart can overlap.** A piece reads the pieces two away, not three, so two pieces
   in a row shorter than the line is wide can let the pieces either side of them overlap, and a

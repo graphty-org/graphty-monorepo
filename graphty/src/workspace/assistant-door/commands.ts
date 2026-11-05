@@ -37,7 +37,35 @@ export function closeAssistant(store: WorkspaceStore): void {
     });
 }
 
-/** The Assistant's one command: Mod+I goes to the composer, and in the composer closes. */
+/**
+ * Whether the Assistant is the open place.
+ * @param store - the workspace store.
+ * @returns true when it is.
+ */
+function assistantShown(store: WorkspaceStore): boolean {
+    const { page, place } = store.get();
+    return page === "panels" && place === "assistant";
+}
+
+/**
+ * Sends the reader to the composer, opening the panel if needed and noting where they came from.
+ * @param store - the workspace store.
+ */
+export function goToComposer(store: WorkspaceStore): void {
+    const { page, place, assistantFrom, composerCalls } = store.get();
+    const open = assistantShown(store);
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const from = open ? (assistantFrom ?? HOME) : { page, place, focus: null };
+    const inPanel = open && active?.closest(".ws-left") !== null && active !== null;
+    store.set({
+        page: "panels",
+        place: "assistant",
+        assistantFrom: { ...from, focus: inPanel ? from.focus : active },
+        composerCalls: composerCalls + 1,
+    });
+}
+
+/** The Assistant's commands: Mod+I goes to the composer, and in the composer closes; AI provider... */
 export const registration = defineRegistration({
     owner: "assistant-door",
     commands: [
@@ -49,21 +77,21 @@ export const registration = defineRegistration({
             shown: ({ element }) => assistantOn(element) === true,
             experiment: true,
             run: ({ workspace }) => {
-                const { page, place, assistantFrom, composerCalls } = workspace.get();
-                const open = page === "panels" && place === "assistant";
-                const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-                const inside = (selector: string): boolean => open && (active?.closest(selector) ?? null) !== null;
-                if (inside(COMPOSER)) {
+                if (assistantShown(workspace) && document.activeElement?.closest(COMPOSER)) {
                     closeAssistant(workspace);
-                    return;
+                } else {
+                    goToComposer(workspace);
                 }
-                const from = open ? (assistantFrom ?? HOME) : { page, place, focus: null };
-                workspace.set({
-                    page: "panels",
-                    place: "assistant",
-                    assistantFrom: { ...from, focus: inside(".ws-left") ? from.focus : active },
-                    composerCalls: composerCalls + 1,
-                });
+            },
+        },
+        {
+            id: "settings.assistant",
+            label: "AI provider...",
+            group: "Settings and help",
+            shown: ({ element }) => assistantOn(element) === true,
+            experiment: true,
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "settings:assistant" });
             },
         },
     ],

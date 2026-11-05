@@ -96,9 +96,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             store.set({ inspected: null });
         }
     }, [place, store]);
-    // A note being written is about this project's graph: another project drops it.
+    // A note or a message being written is about this project's graph: another project drops it.
     useEffect(() => {
-        store.set({ noteDraft: null });
+        store.set({ noteDraft: null, assistantDraft: "", assistantEnded: null });
     }, [projectId, store]);
 
     return (

@@ -14,6 +14,7 @@ import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { writeAssistantChoice } from "../provider";
 
 /** The experiment on, as a site.json that lists it. */
 const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
@@ -33,10 +34,10 @@ async function open(state: Partial<WorkspaceState> = {}): Promise<WorkspaceStore
 }
 
 /**
- * The composer's region, once the panel's code has loaded.
- * @returns the region.
+ * The composer, once the panel's code has loaded.
+ * @returns the field.
  */
-const composer = (): Promise<HTMLElement> => screen.findByRole("group", { name: "Message the assistant" });
+const composer = (): Promise<HTMLElement> => screen.findByRole("textbox", { name: "Message the assistant" });
 
 /**
  * Waits for focus to rest on an element.
@@ -62,10 +63,13 @@ describe("the Assistant with its experiment on", () => {
         resetSiteConfig();
         await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
+        // The mock provider needs no key, so these reach the composer with nothing to set up.
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
     });
 
     afterEach(() => {
         resetSiteConfig();
+        writeAssistantChoice(null);
     });
 
     it("sits after Graph on the rail, and in Quick actions and Keyboard shortcuts", async () => {

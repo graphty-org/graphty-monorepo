@@ -84,6 +84,15 @@ export interface WorkspaceState {
     } | null;
     /** How many times something sent the reader to the Assistant's composer: each one focuses it. */
     readonly composerCalls: number;
+    /** What the reader is typing to the Assistant, kept while its panel is away. */
+    readonly assistantDraft: string;
+    /** How many times the element's assistant was set up: the panel listens to the newest. */
+    readonly assistantLinks: number;
+    /** How the last message ended, when the conversation cannot say: nothing reached it. */
+    readonly assistantEnded: {
+        readonly code: string;
+        readonly params: Readonly<Record<string, string | number>>;
+    } | null;
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
@@ -246,6 +255,9 @@ const INITIAL: WorkspaceState = {
     assistantWidth: null,
     assistantFrom: null,
     composerCalls: 0,
+    assistantDraft: "",
+    assistantLinks: 0,
+    assistantEnded: null,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,

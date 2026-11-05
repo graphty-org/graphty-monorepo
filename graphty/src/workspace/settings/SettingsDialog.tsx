@@ -13,6 +13,8 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { AI_PROVIDER_SECTION, AiProviderPage } from "../assistant-door/AssistantPlace";
+import { assistantOn } from "../assistant-door/commands";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
@@ -35,7 +37,7 @@ const SECTIONS = [
     { id: "performance", name: "Performance" },
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]["id"];
+type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
 
 /**
  * General: Theme (the app's chrome only), Number format and Import styles from files.
@@ -210,14 +212,22 @@ function Performance(): React.JSX.Element {
  * @returns The dialog
  */
 export function SettingsDialog(): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const dialog = useWorkspaceState((state) => state.dialog);
     const opened = dialog === "settings" || (dialog?.startsWith("settings:") ?? false);
     const asked = dialog?.split(":")[1];
-    const section: SectionId = SECTIONS.find((s) => s.id === asked)?.id ?? "general";
+    const sections = assistantOn(element) === true ? [...SECTIONS, AI_PROVIDER_SECTION] : SECTIONS;
+    const section: SectionId = sections.find((s) => s.id === asked)?.id ?? "general";
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // Saving a provider sends focus to the composer, not back to what opened Settings.
+    const [toComposer, setToComposer] = useState(false);
+    useEffect(() => {
+        if (opened) {
+            setToComposer(false);
+        }
+    }, [opened]);
 
     // The single-key choice is the reader's, kept in this browser; the key map reads it from
     // the workspace state, which starts with it on.
@@ -229,13 +239,14 @@ export function SettingsDialog(): React.JSX.Element {
 
     // Opened from the start page (no project open), it takes the page's look: start.css.
     const onStart = useWorkspaceState((state) => state.project === null);
-    const title = SECTIONS.find((s) => s.id === section)?.name ?? "";
+    const title = sections.find((s) => s.id === section)?.name ?? "";
     return (
         <Modal
             opened={opened}
             onClose={close}
             title="Settings"
             size="lg"
+            returnFocus={!toComposer}
             withOverlay={onStart ? true : undefined}
             overlayProps={onStart ? { color: "#0a0c12", backgroundOpacity: 0.45 } : undefined}
             radius={onStart ? 16 : undefined}
@@ -244,7 +255,7 @@ export function SettingsDialog(): React.JSX.Element {
             <div className="ws-dialog-columns">
                 <PageList
                     label="Settings sections"
-                    items={SECTIONS}
+                    items={sections}
                     current={section}
                     onCurrentChange={(id) => {
                         store.set({ dialog: `settings:${id}` });
@@ -258,6 +269,13 @@ export function SettingsDialog(): React.JSX.Element {
                     {section === "privacy" ? <Privacy /> : null}
                     {section === "accessibility" ? <Accessibility /> : null}
                     {section === "performance" ? <Performance /> : null}
+                    {section === AI_PROVIDER_SECTION.id ? (
+                        <AiProviderPage
+                            onSaved={() => {
+                                setToComposer(true);
+                            }}
+                        />
+                    ) : null}
                 </section>
             </div>
             <ModalFooter>

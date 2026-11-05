@@ -8,7 +8,7 @@
  * defaults go beneath the file's own values; igraph and unknown writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
- * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `outline`, `fontSize`, `fontName`,
+ * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
  * `fontStyle`) replace every style key any reader here reads, inside the records the graph already has, so positions,
  * bends and other keys stay. The `graphty.styles` block and the per-element values its rules read are keys too,
  * named by the GML writer's rule for names that are not GML keys (`graphty_styles`, `graphty_style_node_<key>`).
@@ -1613,7 +1613,6 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelItalic",
         "labelPosition",
         "labelBackground",
-        "labelBorderColor",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1633,7 +1632,6 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelWeight",
         "labelItalic",
         "labelBackground",
-        "labelBorderColor",
     ] as const),
     block: "native",
 });
@@ -1788,10 +1786,6 @@ function labelGraphics(get: Get): Rec | null {
     const background = get("labelBackground");
     if (typeof background === "string") {
         lg.fill = background.toUpperCase();
-    }
-    const border = get("labelBorderColor");
-    if (typeof border === "string") {
-        lg.outline = border.toUpperCase();
     }
     const size = get("labelSize");
     if (typeof size === "number") {

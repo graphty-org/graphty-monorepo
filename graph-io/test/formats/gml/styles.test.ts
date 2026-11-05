@@ -432,7 +432,7 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
     });
 
-    it("reads a yEd label's fill and outline as its box and writes them back, on nodes and edges alike", async () => {
+    it("reads a yEd label's fill and outline as its box and keeps them through a save, on nodes and edges alike", async () => {
         const label = 'LabelGraphics [ text "A" fill "#EBEBEB" outline "#FF0000" ]';
         const { snapshot, styles } = await load(
             `Creator "yFiles"\ngraph [ node [ id 1 ${label} ] node [ id 2 LabelGraphics [ text "B" ] ] edge [ source 1 target 2 ${label} ] ]`,
@@ -442,7 +442,12 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "node", "labelBorderWidth", snapshot)).toEqual([1, null]);
         expect(resolveStyles(styles, "edge", "labelBackground", snapshot)).toEqual(["#ebebeb"]);
         const text = await registry.exportGraphToString(snapshot, "gml", { styles });
-        expect(text.match(/LabelGraphics \[[^\]]*fill "#EBEBEB"[^\]]*outline "#FF0000"/g)).toHaveLength(2);
+        expect(text.match(/LabelGraphics \[[^\]]*fill "#EBEBEB"/g)).toHaveLength(2);
+        // yEd's outline is a one-pixel line, so a border is carried by the styles block, whatever its width
+        expect(text).not.toMatch(/LabelGraphics \[[^\]]*outline/);
+        const back = await load(text);
+        expect(resolveStyles(back.styles, "node", "labelBorderColor", back.snapshot)).toEqual(["#ff0000", null]);
+        expect(resolveStyles(back.styles, "node", "labelBorderWidth", back.snapshot)).toEqual([1, null]);
     });
 
     it("reads yEd's inside anchors (t, b, l, r, tl, ...) as inside places and n, s, e, w, nw, ... as outside", async () => {

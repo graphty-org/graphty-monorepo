@@ -125,3 +125,7 @@ design/githerd/
 /design/webgpu/webgpu-acceleration-plan.md
 /graphty/docs/decisions/G12.md
 /webgpu-graph-algorithms/docs/research/draft-B.md
+
+# Local output of the benchmark harness (prettier reads only the root ignore files)
+benchmarks/compare/builds/
+benchmarks/compare/profiles/

@@ -1144,21 +1144,8 @@ export class UpdateManager implements Manager {
             }
         }
 
-        // The edges of a node this frame resized measure again and are placed this frame. While a
-        // load holds the draw they wait for their own paint, or for the walk that ends the repaint.
         if (resized.size > 0) {
-            this.sceneChanged = true;
-            const incident = this.edgesByNode();
-            const place = !this.dataManager.drawHeld;
-
-            for (const node of resized) {
-                for (const edge of incident.get(node) ?? []) {
-                    edge.invalidatePositionCache();
-                    if (place) {
-                        this.edgesToPlace.push(edge);
-                    }
-                }
-            }
+            this.remeasureEdgesOf(resized);
         }
 
         // A repaint can change how a node is drawn in ways that move where its edges stop without
@@ -1168,6 +1155,26 @@ export class UpdateManager implements Manager {
         if (!painter.hasPendingNodes) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };
+        }
+    }
+
+    /**
+     * Make the edges of resized nodes measure again, and place them this frame. While a load holds
+     * the draw they wait for their own paint, or for the walk that ends the repaint.
+     * @param resized - The nodes this frame resized.
+     */
+    private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+        this.sceneChanged = true;
+        const incident = this.edgesByNode();
+        const place = !this.dataManager.drawHeld;
+
+        for (const node of resized) {
+            for (const edge of incident.get(node) ?? []) {
+                edge.invalidatePositionCache();
+                if (place) {
+                    this.edgesToPlace.push(edge);
+                }
+            }
         }
     }
 

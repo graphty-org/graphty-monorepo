@@ -525,7 +525,11 @@ export class AiManager {
                 this.apiKeyManager.setKey(config.provider, config.apiKey);
             }
 
-            this.provider.configure({ ...this.providerOptions, apiKey: config.apiKey || undefined });
+            // A key given here wins; with none, the one storage brought back is the provider's key.
+            this.provider.configure({
+                ...this.providerOptions,
+                apiKey: config.apiKey || this.apiKeyManager.getKey(config.provider),
+            });
         }
 
         const toolset = config.toolset ?? "commands";

@@ -154,6 +154,20 @@ describe("effects", () => {
         assert.strictEqual(style.params.hidden, 1);
     });
 
+    it("records how long each call ran, with the experiment on and not with it off", async () => {
+        const durations = async (features?: readonly string[]): Promise<(number | undefined)[]> => {
+            const session = await assistantSession(undefined, features);
+            const assistant = new ScriptedAssistant(session, { history: "memory" });
+            await assistant.say("what is here?", [{ tool: "query", args: { action: "overview" } }]);
+            return (assistant.controller.getConversation()?.messages ?? []).flatMap((message) =>
+                message.role === "assistant" ? message.calls.map((call) => call.durationMs) : [],
+            );
+        };
+        const [on] = await durations(ON);
+        assert.isAtLeast(on ?? -1, 0);
+        assert.deepEqual(await durations(), [undefined]);
+    });
+
     it("an empty read is an effect naming what was searched", async () => {
         const session = await assistantSession(undefined, ON);
         const assistant = new ScriptedAssistant(session, { history: "memory" });

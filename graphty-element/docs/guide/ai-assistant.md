@@ -462,6 +462,8 @@ when its rule finds nothing any more, the count is zero. Effects are kept in sav
 
 An approval's `preview.ids` stops at ten; a `large` change's `preview.target` covers all of it.
 
+Each call of a message also says how long it ran, in milliseconds, as `call.durationMs`.
+
 ### Peek
 
 `selection.peek(target)` points at some elements for a moment: a neutral halo, drawn by a style layer

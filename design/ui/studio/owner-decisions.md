@@ -56,6 +56,14 @@ Landing the Assistant changes nothing for a consumer of graphty-element that doe
   the list because a helper's commands can only name the generated tools.
 - `AiManagerConfig.instructions?: string`, text added to the system prompt.
   `@experimental assistant`.
+- `ApiKeyManager.forgetKey(provider)`: removes a provider's key from memory and from both
+  storages. `removeKey` reaches only the storage in use, so a key moved between them, or left by an
+  earlier page, stayed behind. `@experimental assistant`.
+- `AiCallRecord.durationMs?: number`, how long a call ran, saved on its tool result, under the
+  generated tools with the experiment on. `@experimental assistant`.
+- A fix, not a new option: `enableAiControl` with `keyPersistence` and no `apiKey` now hands the key
+  storage brought back to the provider. It restored the key into the key store and never told the
+  provider, so a fresh element answered `AI_KEY_MISSING` with the key sitting in storage.
 - `GraphCommand.plainName?: string`, the name an application may show for an extension tool, default
   its `name`. Built-in tools already carry theirs in `ASSISTANT_TOOLS`. `@experimental assistant`.
 - `AiConversationSummary.firstWords: string | null`, the reader's own first message, on the

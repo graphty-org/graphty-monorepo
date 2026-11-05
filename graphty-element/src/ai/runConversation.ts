@@ -893,6 +893,7 @@ function appendResults(
                 ...outcome,
                 content: commands ? commandResultText(result) : resultText(view, cap),
                 ...(effects === undefined || effects.length === 0 ? {} : { effects }),
+                ...(stood && result?.durationMs !== undefined ? { durationMs: result.durationMs } : {}),
             };
         }),
     };

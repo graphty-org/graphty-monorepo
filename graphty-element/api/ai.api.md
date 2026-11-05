@@ -176,6 +176,7 @@ export interface AiCallRecord {
     readonly arguments: Readonly<Record<string, unknown>>;
     readonly code: AiResultCode;
     readonly command: string;
+    readonly durationMs?: number;
     readonly params: AiResultParams;
 }
 
@@ -642,6 +643,7 @@ export class ApiKeyManager {
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
+    forgetKey(provider: ProviderType): void;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;

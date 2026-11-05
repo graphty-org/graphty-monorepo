@@ -11,6 +11,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { Graphty } from "../../../index.js";
 import type { AiManagerConfig } from "../../../src/ai/AiManager";
 import { MockLlmProvider } from "../../../src/ai/providers/MockLlmProvider";
+import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 
 const KEY = "sk-test-0123456789abcdefghij";
 const PREFIX = "@graphty-test-fresh-element";
@@ -89,6 +90,22 @@ describe("a fresh element per project", () => {
         await second.enableAiControl({ toolset: "generated", provider: "openai", keyPersistence: REMEMBER });
 
         assert.strictEqual(second.graph.getApiKeyManager()?.getKey("openai"), KEY);
+    });
+
+    it("hands the key from storage to the provider, so a message needs no retyping", async () => {
+        const first = await mount();
+        made.push(first);
+        await first.enableAiControl({ provider: "openai", apiKey: KEY, keyPersistence: REMEMBER });
+        first.disableAiControl();
+        first.remove();
+
+        const configure = vi.spyOn(VercelAiProvider.prototype, "configure");
+        const second = await mount();
+        made.push(second);
+        await second.enableAiControl({ provider: "openai", keyPersistence: REMEMBER });
+
+        assert.strictEqual(configure.mock.lastCall?.[0].apiKey, KEY);
+        configure.mockRestore();
     });
 
     it("ends a run in progress on the old element with AI_DISPOSED", async () => {

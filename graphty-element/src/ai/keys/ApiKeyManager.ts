@@ -279,6 +279,33 @@ export class ApiKeyManager {
     }
 
     /**
+     * Remove a provider's key from memory and from both storages, wherever an earlier page or
+     * another `storage` setting left it. {@link removeKey} reaches only the storage in use. The
+     * other providers' keys stay where they are.
+     * @experimental assistant
+     * @param provider - The provider type
+     */
+    forgetKey(provider: ProviderType): void {
+        this.keys.delete(provider);
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const { encryptionKey, prefix } = this.persistenceConfig ?? {
+            encryptionKey: DEFAULT_ENCRYPTION_KEY,
+            prefix: this.prefix,
+        };
+        for (const storage of ["localStorage", "sessionStorage"] as const) {
+            const store = this.openStorage({ encryptionKey, storage, prefix });
+            const stored = readKeys(store);
+            if (stored !== null && provider in stored) {
+                const { [provider]: _forgotten, ...kept } = stored;
+                store.setItem(KEYS_ITEM, kept);
+            }
+        }
+    }
+
+    /**
      * Read a named item another namespace of the credential store keeps beside the keys, under the
      * same persistence and encryption (`CredentialStore` keeps the network-source credentials
      * here). In memory when persistence is off.

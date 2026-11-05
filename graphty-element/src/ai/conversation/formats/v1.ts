@@ -109,6 +109,8 @@ const toolResultPart = z.strictObject({
     content: z.string().max(TOOL_RESULT_MAX_CHARS),
     /** What the call did, for an application to word. */
     effects: z.array(effectSchema).optional(),
+    /** How long the call ran, in milliseconds. */
+    durationMs: z.number().int().nonnegative().optional(),
 });
 
 const reasoningPart = z.strictObject({

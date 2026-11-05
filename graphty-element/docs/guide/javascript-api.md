@@ -736,6 +736,8 @@ keys.setDefaultProvider("anthropic"); // saved with the keys
 const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
+
+keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
 ```
 
 With no argument, `enablePersistence()` uses a built-in key, and that key is public in the

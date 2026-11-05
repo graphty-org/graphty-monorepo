@@ -28,6 +28,12 @@ export interface AiCallRecord {
     readonly code: AiResultCode;
     /** The facts behind the code. */
     readonly params: AiResultParams;
+    /**
+     * How long it ran, in milliseconds, under the generated tools with the `assistant` experiment
+     * on; absent for a call that did not run.
+     * @experimental assistant
+     */
+    readonly durationMs?: number;
 }
 
 /** A page a tool the provider ran (a web search, reading a web page) found or read. */
@@ -181,7 +187,7 @@ function snapshotMessages(
 }
 
 /** A call's outcome, as a reader sees it. */
-type CallOutcome = { code: AiResultCode; params: AiResultParams };
+type CallOutcome = { code: AiResultCode; params: AiResultParams; durationMs?: number };
 
 /**
  * Each call's outcome: its tool result, or `AI_QUESTION_ASKED` for a question still waiting.
@@ -199,7 +205,11 @@ function callOutcomes(messages: readonly SavedMessage[], pending: readonly Saved
 
     for (const part of messages.flatMap((message) => message.parts)) {
         if (part.type === "tool-result") {
-            outcomes.set(part.callId, { code: part.code as AiResultCode, params: { ...part.params } });
+            outcomes.set(part.callId, {
+                code: part.code as AiResultCode,
+                params: { ...part.params },
+                ...(part.durationMs === undefined ? {} : { durationMs: part.durationMs }),
+            });
         }
     }
 

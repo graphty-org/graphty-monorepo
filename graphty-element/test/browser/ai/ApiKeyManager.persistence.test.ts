@@ -26,6 +26,28 @@ describe("ApiKeyManager Persistence", () => {
         sessionStorage.clear();
     });
 
+    describe("forgetKey", () => {
+        it("removes one provider's key from both storages and leaves the others", () => {
+            const inTab = new ApiKeyManager({ prefix: testPrefix });
+            inTab.enablePersistence({ storage: "sessionStorage", prefix: testPrefix });
+            inTab.setKey("google", "tab-key-long-enough");
+            const onDevice = new ApiKeyManager({ prefix: testPrefix });
+            onDevice.enablePersistence({ storage: "localStorage", prefix: testPrefix });
+            onDevice.setKey("google", "device-key-long-enough");
+            onDevice.setKey("openai", "sk-other-key-long-enough");
+
+            onDevice.forgetKey("google");
+
+            assert.isFalse(onDevice.hasKey("google"));
+            for (const storage of ["localStorage", "sessionStorage"] as const) {
+                const fresh = new ApiKeyManager({ prefix: testPrefix });
+                fresh.enablePersistence({ storage, prefix: testPrefix });
+                assert.isFalse(fresh.hasKey("google"), storage);
+            }
+            assert.isTrue(new ApiKeyManager({ prefix: testPrefix }).hasKey("openai"));
+        });
+    });
+
     describe("enablePersistence", () => {
         it("enables persistence with encryption key", () => {
             const manager = new ApiKeyManager();

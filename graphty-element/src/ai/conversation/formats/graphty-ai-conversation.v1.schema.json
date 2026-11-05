@@ -208,6 +208,11 @@
                                             "maxLength": 8000,
                                             "type": "string"
                                         },
+                                        "durationMs": {
+                                            "maximum": 9007199254740991,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                        },
                                         "effects": {
                                             "items": {
                                                 "additionalProperties": false,
@@ -665,6 +670,11 @@
                                                                         "content": {
                                                                             "maxLength": 8000,
                                                                             "type": "string"
+                                                                        },
+                                                                        "durationMs": {
+                                                                            "maximum": 9007199254740991,
+                                                                            "minimum": 0,
+                                                                            "type": "integer"
                                                                         },
                                                                         "effects": {
                                                                             "items": {

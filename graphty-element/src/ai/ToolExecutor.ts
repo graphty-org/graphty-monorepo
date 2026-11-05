@@ -85,6 +85,8 @@ export interface CallResult extends CommandResult {
     readonly settle?: NonNullable<ActionResult["settle"]>;
     /** What it did, while the message records effects. */
     readonly effects?: readonly AiEffect[];
+    /** How long it ran in milliseconds, while the message records effects. */
+    readonly durationMs?: number;
     /** The elements a write names (`ActionResult.target`). */
     readonly target?: AiTarget;
 }
@@ -504,8 +506,15 @@ async function settleLast(
     const results = outcome.results.slice(0, -1);
     let result: CallResult;
     try {
+        const waited = performance.now();
         const settled = await pending.settle(contextOf(batch));
-        result = { ...resultOf(settled, call), ...(await evidenceOf(batch, call, settled)) };
+        result = {
+            ...resultOf(settled, call),
+            ...(await evidenceOf(batch, call, settled)),
+            ...(pending.durationMs === undefined
+                ? {}
+                : { durationMs: pending.durationMs + Math.round(performance.now() - waited) }),
+        };
     } catch (error) {
         const refusal = asRefusal(error);
         if (!(refusal instanceof ToolRefusal)) {
@@ -859,6 +868,23 @@ function failureOf(result: CallResult, tool: string): Outcome {
  * @throws {GateHold} When the action held itself for approval.
  */
 async function runOne(batch: ToolBatch, call: PreparedCall, tx: TransactionScope, last = false): Promise<CallResult> {
+    const started = performance.now();
+    const result = await runCall(batch, call, tx, last);
+    return batch.message.evidence === true
+        ? { ...result, durationMs: Math.round(performance.now() - started) }
+        : result;
+}
+
+/**
+ * Run one prepared call, untimed.
+ * @param batch - The batch.
+ * @param call - The call.
+ * @param tx - Where it writes.
+ * @param last - Whether it is the batch's last call.
+ * @returns Its result.
+ * @throws {GateHold} When the action held itself for approval.
+ */
+async function runCall(batch: ToolBatch, call: PreparedCall, tx: TransactionScope, last: boolean): Promise<CallResult> {
     logger.debug("Executing command", { name: call.command.name });
     started(batch, call.request);
     const result =

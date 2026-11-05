@@ -694,38 +694,42 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
 }
 
 /**
- * Take up to `limit` indices out of a pending set, oldest first.
- * @param pending - The set.
- * @param limit - The most to take.
- * @returns The indices taken.
+ * The rows waiting to be drawn, taken oldest first.
+ *
+ * ONE ITERATOR ACROSS THE BATCHES. A Set keeps the entries it deleted as holes until it next
+ * rehashes, and a fresh iterator steps over all of them, so starting one for each batch made
+ * taking a million rows a batch at a time quadratic. A running iterator stays past the holes, and
+ * still reaches rows added after it started.
  */
-function takeFrom(pending: Set<number>, limit: number): readonly number[] {
-    if (pending.size === 0) {
-        return NOTHING;
-    }
+class PendingRows extends Set<number> {
+    private cursor: Iterator<number> | null = null;
 
-    if (pending.size <= limit) {
-        const taken = [...pending];
-        pending.clear();
+    /**
+     * Take up to `limit` rows.
+     * @param limit - The most to take.
+     * @returns The rows taken, which leave the set.
+     */
+    take(limit: number): readonly number[] {
+        if (this.size === 0) {
+            return NOTHING;
+        }
+
+        const taken: number[] = [];
+        this.cursor ??= this.values();
+
+        while (taken.length < limit && this.size > 0) {
+            const next = this.cursor.next();
+
+            if (next.done === true) {
+                this.cursor = this.values();
+            } else {
+                taken.push(next.value);
+                this.delete(next.value);
+            }
+        }
 
         return taken;
     }
-
-    const taken: number[] = [];
-
-    for (const index of pending) {
-        if (taken.length >= limit) {
-            break;
-        }
-
-        taken.push(index);
-    }
-
-    for (const index of taken) {
-        pending.delete(index);
-    }
-
-    return taken;
 }
 
 /**
@@ -841,10 +845,10 @@ export class StylePainter {
     private paint: ElementPaint | null = null;
 
     /** The nodes whose paint the renderer has not applied yet. */
-    private readonly pendingNodes = new Set<number>();
+    private readonly pendingNodes = new PendingRows();
 
     /** The edges whose paint the renderer has not applied yet. */
-    private readonly pendingEdges = new Set<number>();
+    private readonly pendingEdges = new PendingRows();
 
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
@@ -982,7 +986,7 @@ export class StylePainter {
      * @returns Their dense indices, which leave the set.
      */
     takeNodes(limit = Number.POSITIVE_INFINITY): readonly number[] {
-        return takeFrom(this.pendingNodes, limit);
+        return this.pendingNodes.take(limit);
     }
 
     /**
@@ -991,7 +995,7 @@ export class StylePainter {
      * @returns Their dense indices, which leave the set.
      */
     takeEdges(limit = Number.POSITIVE_INFINITY): readonly number[] {
-        return takeFrom(this.pendingEdges, limit);
+        return this.pendingEdges.take(limit);
     }
 
     /**

@@ -1081,6 +1081,7 @@ export class DataManager implements Manager {
 
         if (element instanceof Node) {
             placeNodeRow(element, row);
+            this.nodeVersion++;
         } else {
             placeEdgeRow(element, row);
             if (row !== INVALID_INDEX) {

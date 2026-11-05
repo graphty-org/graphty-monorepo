@@ -12,6 +12,7 @@ import type { F32, NodeId, NodeMask } from "@graphty/graph-format";
 // and the option type tests keep resolving them from here (W1b, Task M5b-T2).
 export type {
     ClusterOptions,
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

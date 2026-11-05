@@ -253,6 +253,12 @@ export const GRID_BBOX_MARGIN = 1.01;
 export const GRID_SORT_BITS = 24;
 /** The value of `ClusterOptions.communities` for a row in no community: the twin of layout's NO_CLUSTER. */
 export const NO_CLUSTER = 0xffffffff;
+/** The collision force reads this many entries of a hash bucket: a crowd costs a bounded amount per node while it spreads. */
+export const COLLIDE_CELL_MAX = 256;
+/** The most hash buckets of the collision force, under GRID_SORT_BITS. */
+export const COLLIDE_MAX_BUCKETS = 2 ** 22;
+/** The collision sweeps of a settling simulation's last batch: the GPU twin of layout's COLLISION_FINAL_SWEEPS. */
+export const COLLIDE_FINAL_SWEEPS = 256;
 /** Design 8.4 (P8 PD-7): traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
 export const MAX_LEVELS_PER_SUBMIT = 32;
 /** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */

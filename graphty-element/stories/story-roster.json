@@ -106,6 +106,7 @@
         "Layout/2D::KamadaKawai",
         "Layout/2D::KamadaKawaiWeighted",
         "Layout/2D::Multipartite",
+        "Layout/2D::NodeGap",
         "Layout/2D::Planar",
         "Layout/2D::Random",
         "Layout/2D::Shell",

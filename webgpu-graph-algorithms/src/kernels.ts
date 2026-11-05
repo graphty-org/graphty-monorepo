@@ -49,6 +49,9 @@ import { closenessLevelWgsl } from "./wgsl/closeness-level.wgsl.js";
 import { closenessRowsumWgsl } from "./wgsl/closeness-rowsum.wgsl.js";
 import { clusterCentroidWgsl } from "./wgsl/cluster-centroid.wgsl.js";
 import { clusterPullWgsl } from "./wgsl/cluster-pull.wgsl.js";
+import { collideApplyWgsl } from "./wgsl/collide-apply.wgsl.js";
+import { collideCellKeyWgsl } from "./wgsl/collide-cell-key.wgsl.js";
+import { collideGatherWgsl } from "./wgsl/collide-gather.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { cooEmitWgsl } from "./wgsl/coo-emit.wgsl.js";
 import { cooScatterWgsl } from "./wgsl/coo-scatter.wgsl.js";
@@ -129,6 +132,9 @@ export type KernelId =
     | "grid-near-field"
     | "cluster-centroid"
     | "cluster-pull"
+    | "collide-cell-key"
+    | "collide-gather"
+    | "collide-apply"
     | "compact-scatter"
     | "dedupe-claim"
     | "dedupe-filter"
@@ -208,6 +214,18 @@ export const FILL_PARAMS: UniformBlock = UniformBlock.define("FillParams", [
     ["value", "u32"],
     ["mode", "u32"],
     ["pad0", "u32"],
+]);
+
+/** `CollideParams` (uniform, 32 B; the collision force, issue #3256): `n` @0, `dim` @4 (2 for a flat collision), `hashMask` @8 (the bucket count less one), `cellMax` @12 (how far a bucket is read), `invCell` @16 (one over the cell width in layout units), `radiusScale` @20 (what turns a radius into layout units). */
+export const COLLIDE_PARAMS: UniformBlock = UniformBlock.define("CollideParams", [
+    ["n", "u32"],
+    ["dim", "u32"],
+    ["hashMask", "u32"],
+    ["cellMax", "u32"],
+    ["invCell", "f32"],
+    ["radiusScale", "f32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
 ]);
 
 /** `Fa2Params` (uniform, 144 B; spec 7.3): the per-iteration ForceAtlas2 parameters -- `n` @0, `dim` @4, `flags` @8 (bit 0 = FA2_FLAG_FIRST), `tierStart` @12, `tierEnd` @16, `iterationIndex` @20, `seed` @24, `nearMax` @28, `scalingRatio` @32, `gravity` @36, `jitterTolerance` @40, `scale` @44, `center` @48 (xyz, w 0), `settleThreshold` @64, `extentFactor` @68, `gridMax` @72, `levels` @76, `arcBase` @80 / `arcEnd` @84 (the bound arc window of K2, 0 and arcCount in the layout), `accumulate` @88 (1 combines into `force`: the windowed pattern), `hiEnd` @92 / `midEnd` @124 (the degreeOrder tier boundaries, PD-7; both 0 without a permutation); the P5 model fields (PD-3): `frK` @96 (the FR optimal distance), `temperature` @100 (the FR temperature of this iteration), `springLength` @104, `springCoefficient` @108, `coulomb` @112 (ngraph's `gravity`, negative repels), `dragCoefficient` @116, `timeStep` @120; `settleFloor` @128 (the absolute bound on the mean displacement of a settled iteration, in layout units: issue #97); `live` @132 (n less the inert rows, what K1 and K4 divide by: `setInert`, issue #3075); `clusterStrength` @136, `clusterCount` @140 (the cluster force, issue #3257); 144 B. */
@@ -1137,6 +1155,62 @@ const CLUSTER_PULL: KernelEntry = {
     phase: "P4",
 };
 
+/** `collide-cell-key` (the collision force, issue #3256): every node's spatial hash and its own index, for the sort. */
+const COLLIDE_CELL_KEY: KernelEntry = {
+    id: "collide-cell-key",
+    body: collideCellKeyWgsl,
+    entryPoint: "collide_cell_key",
+    bindings: [
+        decl(1, 0, "pos", "storage-ro", "array<vec4f>"),
+        decl(1, 1, "cellKey", "storage", "array<u32>"),
+        decl(1, 2, "cellVal", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "CollideParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COLLIDE_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P4",
+};
+
+/** `collide-gather` (the collision force, issue #3256): per free node, the summed pushes out of the nodes it overlaps. */
+const COLLIDE_GATHER: KernelEntry = {
+    id: "collide-gather",
+    body: collideGatherWgsl,
+    entryPoint: "collide_gather",
+    bindings: [
+        decl(1, 0, "pos", "storage-ro", "array<vec4f>"),
+        decl(1, 1, "radii", "storage-ro", "array<f32>"),
+        decl(1, 2, "sortedIdx", "storage-ro", "array<u32>"),
+        decl(1, 3, "cellStart", "storage-ro", "array<u32>"),
+        decl(1, 4, "fixedMask", "storage-ro", "array<u32>"),
+        decl(1, 5, "moves", "storage", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "CollideParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COLLIDE_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P4",
+};
+
+/** `collide-apply` (the collision force, issue #3256): adds the gathered moves to the positions. */
+const COLLIDE_APPLY: KernelEntry = {
+    id: "collide-apply",
+    body: collideApplyWgsl,
+    entryPoint: "collide_apply",
+    bindings: [
+        decl(1, 0, "pos", "storage", "array<vec4f>"),
+        decl(1, 1, "moves", "storage-ro", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "CollideParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COLLIDE_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P4",
+};
+
 /** `grid-centroid` (G4, spec 7.7; P4-T9, PD-13): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
@@ -1958,6 +2032,9 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "grid-near-field": GRID_NEAR_FIELD,
     "cluster-centroid": CLUSTER_CENTROID,
     "cluster-pull": CLUSTER_PULL,
+    "collide-cell-key": COLLIDE_CELL_KEY,
+    "collide-gather": COLLIDE_GATHER,
+    "collide-apply": COLLIDE_APPLY,
     "compact-scatter": COMPACT_SCATTER,
     "dedupe-claim": DEDUPE_CLAIM,
     "dedupe-filter": DEDUPE_FILTER,

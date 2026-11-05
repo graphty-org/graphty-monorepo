@@ -16,6 +16,7 @@ export { Lcg, seedPositions } from "./seed.js";
 export { toLayoutSnapshot } from "./snapshot.js";
 export type {
     ClusterOptions,
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

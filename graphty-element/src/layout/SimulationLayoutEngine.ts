@@ -230,6 +230,30 @@ export function measureEnvelope(
 }
 
 /**
+ * How much of its published disc or ball an arrangement may fill with `nodeGap` nodes: an arrangement fitted to a fixed
+ * radius cannot hold more nodes than fit in it, so a graph too big for `scalingFactor` is published wider instead.
+ */
+const NODE_GAP_FILL = 0.5;
+
+/**
+ * The radius a disc or ball needs to hold nodes of these radii at {@link NODE_GAP_FILL}.
+ *
+ * Left out, a collision in a graph too big for its radius is a runaway: it pushes the arrangement wider, the refit
+ * shrinks the map to match, which grows every radius in simulation units, which pushes the arrangement wider.
+ * @param radii - One radius per node, in scene units.
+ * @param dimensions - 2 for a disc, 3 for a ball.
+ * @returns The radius, in scene units.
+ */
+export function packedRadius(radii: F32, dimensions: 2 | 3): number {
+    let volume = 0;
+    for (const radius of radii) {
+        volume += radius ** dimensions;
+    }
+
+    return (volume / NODE_GAP_FILL) ** (1 / dimensions);
+}
+
+/**
  * The scene-unit point an arrangement is published around.
  * @param centre - Whatever the options carry, in the layout package's `ArrayLike` form.
  * @returns The three components, defaulting to the origin.
@@ -283,6 +307,10 @@ export interface SimulationEngineOptions extends CommonLayoutOptions, Omit<Simul
     readonly clusterBy?: string | null;
     /** How hard a community is pulled together. */
     readonly clusterStrength?: number;
+    /** The space kept between nodes' drawn surfaces, in scene units; null or absent keeps nodes as points. */
+    readonly nodeGap?: number | null;
+    /** Whether `nodeGap` is measured across x and y only. */
+    readonly nodeGapFront?: boolean;
     /** Iterations each `step()` submits, or null for the automatic rule re-applied at every load. */
     readonly iterationsPerStep: number | null;
     /** `behavior.layout.stepMultiplier`, which the automatic rule starts from. */
@@ -444,6 +472,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** The last read of `clusterBy`. */
     #communities: ReadonlyMap<Node, number> = new Map();
+
+    /** One radius per row in scene units, gap included, while `nodeGap` is set; see `#collisionRadii`. */
+    #radii: F32 | null = null;
+
+    /** A node changed size, or a load renumbered the rows, since `#radii` was read. */
+    #radiiStale = true;
+
+    /** {@link packedRadius} of `#radii`. */
+    #packedRadius = 0;
 
     /**
      * Every batch promise this bridge has already attached a handler to.
@@ -1164,7 +1201,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#fixedRows.size === 0
                 ? null
                 : (row: number): boolean => (this.#fixedRows.has(row) && store.isPlaced(row)) || this.isFollower(row);
-        const measured = measureEnvelope(simPositions, snapshot.nodeCount, this.#options.scalingFactor, held);
+        const radii = this.#collisionRadii(snapshot.nodeCount);
+        const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
+        const measured = measureEnvelope(simPositions, snapshot.nodeCount, radius, held);
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
         // graph every row of which is held publishes nothing, but the next `setNodePosition` still
@@ -1176,6 +1215,86 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#simCentre[1] = measured.centre[1];
             this.#simCentre[2] = measured.centre[2];
         }
+
+        if (radii !== null) {
+            this.#setCollision(radii, this.#envelopeScale);
+        }
+    }
+
+    /**
+     * One radius per row: the node's reach plus half of `nodeGap`, so two of them add up to what a pair keeps.
+     * A group following its members encloses them and is kept apart from nothing.
+     * @param nodeCount - The loaded snapshot's node count.
+     * @returns The radii, or null when `nodeGap` is unset.
+     */
+    #collisionRadii(nodeCount: number): F32 | null {
+        const gap = this.#options.nodeGap ?? null;
+        if (gap === null) {
+            return null;
+        }
+
+        if (this.#radii?.length === nodeCount && !this.#radiiStale) {
+            return this.#radii;
+        }
+
+        const dimensions =
+            this.#options.nodeGapFront === true ? 2 : (this.#options.model.dim ?? this.#options.dim ?? 3);
+        const radii = new Float32Array(nodeCount);
+        for (const node of this.nodes) {
+            if (this.#hasRow(node.index) && !this.isFollower(node.index)) {
+                radii[node.index] = node.spacingRadius(dimensions === 2) + gap / 2;
+            }
+        }
+
+        this.#radii = radii;
+        this.#radiiStale = false;
+        this.#packedRadius = packedRadius(radii, dimensions);
+        return radii;
+    }
+
+    /**
+     * Tells the simulation what to keep apart, in its own units: a scene unit is 1 / `envelopeScale` of them.
+     * @param radii - The radii, in scene units.
+     * @param envelopeScale - What a simulation unit is multiplied by to reach the scene.
+     */
+    #setCollision(radii: F32, envelopeScale: number): void {
+        const simulation = this.#simulation;
+        try {
+            simulation?.setCollision?.({
+                radii,
+                scale: 1 / envelopeScale,
+                flat: this.#options.nodeGapFront === true,
+            });
+        } catch (error) {
+            if (simulation !== null) {
+                this.#onError(error, simulation);
+            }
+        }
+    }
+
+    /**
+     * Start the layout again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size. A
+     * running layout reads the new sizes at its next publish.
+     * @returns True when the frame loop has to start stepping this layout again.
+     */
+    override wakeForResize(): boolean {
+        if ((this.#options.nodeGap ?? null) === null) {
+            return false;
+        }
+
+        this.#radiiStale = true;
+        const snapshot = this.#snapshot;
+        if (snapshot === null || this.#simulation === null || !this.isSettled) {
+            return false;
+        }
+
+        const radii = this.#collisionRadii(snapshot.nodeCount);
+        if (radii !== null) {
+            this.#setCollision(radii, this.#envelopeScale);
+        }
+
+        this.reheat();
+        return !this.isSettled;
     }
 
     /**
@@ -1275,6 +1394,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#applyInert(simulation, nodeCount);
         this.#applyClusters(simulation, nodeCount);
+        this.#applyCollision(nodeCount);
     }
 
     /**
@@ -1329,6 +1449,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.replaceSimulation();
         return true;
+    }
+
+    /**
+     * Tells a simulation that has just been loaded what to keep apart.
+     *
+     * AFTER EVERY LOAD, because a freeze renumbers the rows. Fitted to the arrangement as it stands: the map the last
+     * publish left means nothing to a simulation that has not published yet, whose own units may be far from the
+     * scene's.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyCollision(nodeCount: number): void {
+        this.#radiiStale = true;
+        const radii = this.#collisionRadii(nodeCount);
+        const simPositions = this.#simPositions;
+        if (radii !== null && simPositions !== null) {
+            const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
+            const { placed, scale } = measureEnvelope(simPositions, nodeCount, radius);
+            this.#setCollision(radii, placed > 0 ? scale : this.#envelopeScale);
+        }
     }
 
     /**
@@ -1503,6 +1642,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             stepMultiplier: _base,
             clusterBy: _clusterBy,
             clusterStrength: _clusterStrength,
+            nodeGap: _gap,
+            nodeGapFront: _front,
             ...common
         } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };

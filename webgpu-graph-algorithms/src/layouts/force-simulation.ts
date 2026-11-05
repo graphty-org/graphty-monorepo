@@ -42,8 +42,14 @@ import {
     type RunOptions,
 } from "../types/layout.js";
 import { type Binding } from "../types/memory.js";
-import { type ClusterOptions, type CommonLayoutOptions, type SimulationOptions } from "../types/options.js";
+import {
+    type ClusterOptions,
+    type CollisionOptions,
+    type CommonLayoutOptions,
+    type SimulationOptions,
+} from "../types/options.js";
 import { ClusterStage } from "./clusters.js";
+import { CollisionStage, type CollisionUpdate } from "./collision.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -125,6 +131,8 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     readonly stages: readonly string[];
     /** Recorded after every attraction, in its pass, on either tier: the cluster force, or null. */
     afterAttraction?: ((pass: GPUComputePassEncoder, offset: number) => void) | null;
+    /** Recorded after every integrate, in its pass, on either tier: the collision force, or null. */
+    afterIntegrate?: ((pass: GPUComputePassEncoder) => void) | null;
     readonly params: UniformBlock;
     readonly state: UniformBlock;
     readonly trace: UniformBlock;
@@ -539,6 +547,8 @@ interface PendingBatch {
     sceneOffset: number;
     stateOffset: number;
     profile: ReadbackRequest | null;
+    /** Whether this batch carried the collision's settling sweeps. */
+    sweptCollision: boolean;
 }
 
 /**
@@ -571,6 +581,7 @@ function createPending(k: number, generation: number): PendingBatch {
         sceneOffset: 0,
         stateOffset: 0,
         profile: null,
+        sweptCollision: false,
     };
 }
 
@@ -744,6 +755,16 @@ export class ForceSimulation<
     private clusters: { readonly communities: Uint32Array<ArrayBuffer>; readonly strength: number } | null = null;
     private clusterStage: ClusterStage | null = null;
     private clustersDirty = false;
+
+    /** What setCollision() set, the stage running it once compiled, and whether the upload is behind. */
+    private collision: CollisionUpdate | null = null;
+    private collisionStage: CollisionStage | null = null;
+    private collisionDirty = false;
+    private collisionRadiiDirty = false;
+    /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
+    private collisionOwed = false;
+    /** The settling sweeps have landed since the last load or reheat. */
+    private collisionSwept = false;
     private iterationsSubmitted = 0;
     private iterationsDoneValue = 0;
     private settledCountValue = 0;
@@ -1053,7 +1074,10 @@ export class ForceSimulation<
             this.fixedDirty = false;
             this.inertWords = null;
             this.clusters = null;
+            this.collision = null;
         }
+        this.collisionOwed = false;
+        this.collisionSwept = false;
         this.liveValue = n - this.inertCount();
         if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
@@ -1331,6 +1355,47 @@ export class ForceSimulation<
     }
 
     /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision): the radii are copied and uploaded before the next
+     * batch, which waits for the stage's compile the first time. Never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision === null) {
+            this.collision = null;
+            this.dropCollisionStage();
+            this.settledValue = this.computeSettled();
+            return;
+        }
+        const { radii, scale = 1, flat = false } = collision;
+        if (radii.length !== this.n) {
+            throw invalidArgument("radii", radii.length, this.n, "setCollision: one radius per node");
+        }
+        if (!Number.isFinite(scale) || scale <= 0) {
+            throw invalidArgument("scale", scale, "a finite number > 0", "setCollision: scale must be finite and > 0");
+        }
+        if (radii.some((radius) => !Number.isFinite(radius) || radius < 0)) {
+            throw invalidArgument(
+                "radii",
+                "a bad radius",
+                "finite and >= 0",
+                "setCollision: every radius must be finite and >= 0",
+            );
+        }
+        const same = this.collision?.radii.every((radius, i) => radius === radii[i]) === true;
+        this.collision = { radii: new Float32Array(radii), radiusScale: scale / this.scale, flat };
+        this.collisionDirty = true;
+        this.collisionRadiiDirty ||= !same;
+        const { resources } = this;
+        if (this.collisionStage === null && resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindCollision(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
      * Writes a scene-unit position (spec 7.12): into the owner's array at once, into the device (layout units, z 0
      * in 2D, 12 bytes at 16 i, queue-ordered before the next submit), into the override list keyed by the last
      * submitted batch id, then reheat(). PLAN DECISION 18: non-finite coordinates are E_INVALID_ARGUMENT.
@@ -1388,6 +1453,8 @@ export class ForceSimulation<
         this.iterationsDoneValue = 0;
         this.settledCountValue = 0;
         this.reheatedAfterBatchId = this.lastSubmittedBatchIdValue;
+        this.collisionOwed = false;
+        this.collisionSwept = false;
         this.writer.set("settledCount", 0);
         this.model.onReheat(this.writer);
         this.settledValue = this.computeSettled();
@@ -1527,6 +1594,8 @@ export class ForceSimulation<
         }
         this.flushStateWrites(buffers.state);
         this.flushClusters();
+        const stage = this.flushCollision();
+        const sweeping = stage !== null && this.collisionOwed;
         const first = this.ring.reserve(k);
         for (let i = 0; i < k; i++) {
             const flags = i === 0 && this.firstPending ? FA2_FLAG_FIRST : 0;
@@ -1537,6 +1606,7 @@ export class ForceSimulation<
         const beforeEpilogue = this.lastIterationStage();
         for (let i = 0; i < k; i++) {
             // the last iteration records every stage (toScene included); the others stop before the epilogue
+            stage?.settling(sweeping && i === k - 1);
             this.model.recordIteration(batch, first + i, this.tierValue, i === k - 1 ? undefined : beforeEpilogue);
         }
         batch.endPass();
@@ -1550,6 +1620,7 @@ export class ForceSimulation<
         record.sceneOffset = scene.offset;
         record.stateOffset = state.offset;
         record.profile = profile;
+        record.sweptCollision = sweeping;
         record.startedAt = performance.now();
         this.lastSubmittedBatchIdValue = submitted.id;
         this.iterationsSubmitted += k;
@@ -1598,6 +1669,7 @@ export class ForceSimulation<
             this.iterationsDoneValue += k;
             // PLAN DECISION 21: a batch in flight at reheat() carries the pre-reheat settle counter
             this.settledCountValue = record.id <= this.reheatedAfterBatchId ? 0 : settledCount;
+            this.collisionSwept ||= record.sweptCollision && record.id > this.reheatedAfterBatchId;
             this.settledValue = this.computeSettled();
             record.resolve();
         } catch (err) {
@@ -1841,11 +1913,13 @@ export class ForceSimulation<
         if (this.stateValue !== "loaded") {
             return false;
         }
-        return (
+        const done =
             this.n === 0 ||
             this.iterationsDoneValue >= this.iterationBudget() ||
-            this.settledCountValue >= this.settleWindow()
-        );
+            this.settledCountValue >= this.settleWindow();
+        // the run is over, but the forces may have left pairs overlapping: one more batch carries the settling sweeps
+        this.collisionOwed = done && this.n > 0 && this.collision !== null && !this.collisionSwept;
+        return done && !this.collisionOwed;
     }
 
     // ---------------------------------------------------------------- private: buffers, upload, bind
@@ -1963,6 +2037,7 @@ export class ForceSimulation<
         this.buffers = null;
         this.resources = null;
         this.dropClusterStage();
+        this.dropCollisionStage();
         const doomed = [buffers.positions, buffers.scene, buffers.fixed, buffers.partials, buffers.state];
         for (const { buffer } of buffers.model.values()) {
             doomed.push(buffer);
@@ -2268,6 +2343,7 @@ export class ForceSimulation<
         }
         await this.model.bind(resources, overrides);
         await this.bindClusters(resources, generation);
+        await this.bindCollision(resources, generation);
     }
 
     /**
@@ -2309,6 +2385,57 @@ export class ForceSimulation<
         if (stage !== null) {
             this.clusterStage = null;
             this.model.afterAttraction = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
+    }
+
+    /**
+     * Compiles and attaches the collision stage when a collision is set and none runs; a load or a setCollision(null)
+     * that overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindCollision(resources: ModelResources, generation: number): Promise<void> {
+        if (this.collision === null || this.collisionStage !== null) {
+            return;
+        }
+        const wanted = (): boolean =>
+            this.stateValue === "loaded" && generation === this.generationValue && this.collision !== null;
+        const stage = await CollisionStage.create(resources);
+        if (!wanted()) {
+            stage.dispose();
+            return;
+        }
+        this.collisionStage = stage;
+        this.collisionDirty = true;
+        this.collisionRadiiDirty = true;
+        this.model.afterIntegrate = (pass: GPUComputePassEncoder): void => {
+            stage.record(pass);
+        };
+    }
+
+    /**
+     * Uploads a changed collision before a batch records.
+     * @returns the running stage, or null
+     */
+    private flushCollision(): CollisionStage | null {
+        const { collision, collisionStage } = this;
+        if (collision !== null && collisionStage !== null && this.collisionDirty) {
+            collisionStage.update(collision, this.collisionRadiiDirty);
+            this.collisionDirty = false;
+            this.collisionRadiiDirty = false;
+        }
+        return collisionStage;
+    }
+
+    /** Detaches the collision stage; its buffers return to the pool once the batches reading them are done. */
+    private dropCollisionStage(): void {
+        const stage = this.collisionStage;
+        if (stage !== null) {
+            this.collisionStage = null;
+            this.model.afterIntegrate = null;
             this.afterInFlight(() => {
                 stage.dispose();
             });

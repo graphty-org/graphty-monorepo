@@ -36,6 +36,7 @@ import type { LabelResultLike, PageRankOptions, PageRankResultLike } from "@grap
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 import {
     type ClusterOptions,
+    type CollisionOptions,
     createSimulation,
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
@@ -216,6 +217,9 @@ export class FakeSimulation implements LayoutSimulation {
     /** What `setClusters` last set, or null. */
     clusters: ClusterOptions | null = null;
 
+    /** What `setCollision` last set, or null. */
+    collision: CollisionOptions | null = null;
+
     readonly #calls: FakeAcceleratorCalls;
     readonly #moveBy: number;
     readonly #settleAfter: number;
@@ -387,6 +391,16 @@ export class FakeSimulation implements LayoutSimulation {
         this.#assertLive("setClusters");
         this.clusters = clusters;
         this.#inner?.setClusters?.(clusters);
+    }
+
+    /**
+     * Records what is kept apart, for a test to read, and hands it to the CPU simulation of a `computes: "layout"` batch.
+     * @param collision - What the element set.
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.#assertLive("setCollision");
+        this.collision = collision;
+        this.#inner?.setCollision?.(collision);
     }
 
     /**

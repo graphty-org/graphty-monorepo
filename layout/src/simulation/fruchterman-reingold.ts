@@ -35,6 +35,7 @@
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 
 import { addClusterPull, type ClusterField, clusterField } from "./clusters.js";
+import { assertCollision, collide, settleCollisions } from "./collision.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -45,7 +46,7 @@ import {
 } from "./constants.js";
 import { kickDir } from "./forceatlas2.js";
 import { seedPositions } from "./seed.js";
-import type { ClusterOptions, FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
+import type { ClusterOptions, CollisionOptions, FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
 
 /** The legacy loop's starting temperature (fruchterman-reingold.ts line 81; design 7.20). */
 const FR_START_TEMPERATURE = 0.1;
@@ -130,6 +131,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     private inert: U32 | null = null;
     /** What setClusters() set, or null. */
     private clusters: ClusterField | null = null;
+
+    /** What setCollision() set, or null. */
+    private collision: CollisionOptions | null = null;
 
     /** The optimal distance k of this load (the option, else 1 / sqrt(n); 0 and NaN count as no option). */
     private k = 0;
@@ -301,6 +305,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             this.displacement = new Float64Array(3 * n);
             this.inert = null;
             this.clusters = null;
+            this.collision = null;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;
@@ -356,6 +361,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             ran++;
             this.iterationsDoneValue++;
             this.settledValue = this.computeSettled();
+        }
+        if (this.settledValue && this.collision !== null) {
+            settleCollisions(this.positions, this.n, this.dim, this.collision, this.scale, this.fixed, this.inert);
         }
         this.writeBack();
     }
@@ -420,6 +428,18 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
     }
 
     /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision). Copied; never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision !== null) {
+            assertCollision(collision, this.n);
+        }
+        this.collision = collision === null ? null : { ...collision, radii: collision.radii.slice() };
+    }
+
+    /**
      * A drag (design 7.12): writes the scene position into the owner's array at once and into the internal layout
      * position `(v - center) / scale` (z forced to 0 in 2D), then reheat().
      * @param index - the node index (< n)
@@ -481,6 +501,7 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
         this.fixed = null;
         this.inert = null;
         this.clusters = null;
+        this.collision = null;
     }
 
     // ---------------------------------------------------------------- the loop body
@@ -501,6 +522,9 @@ export class FruchtermanReingoldSimulation implements LayoutSimulation {
             addClusterPull(this.clusters, this.positions, mass, this.displacement, this.k);
         }
         this.moveAndFold();
+        if (this.collision !== null) {
+            collide(this.positions, this.n, this.dim, this.collision, this.scale, this.fixed, this.inert);
+        }
     }
 
     /**

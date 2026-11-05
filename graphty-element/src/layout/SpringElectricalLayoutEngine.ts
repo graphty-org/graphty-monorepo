@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { clusterByOption, clusterStrengthOption } from "./clusterForce";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -87,6 +88,8 @@ const springElectricalLayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
         schema: z.number().nullable().default(null),
         meta: {

@@ -3,7 +3,7 @@
  *
  * Two opt-in settings, both off by default:
  *
- * - `ngraph`'s `nodeGap` keeps every two nodes at least their drawn radii plus the gap apart, read
+ * - the force layouts' `nodeGap` keeps every two nodes at least their drawn radii plus the gap apart, read
  *   from each node's drawn size -- including a size a style gives the nodes after the layout
  *   came to rest. Off, nodes styled large overlap where the force layout puts them close.
  * - `layoutBehavior.labels.avoidNodesAndEdges` moves a label from the place its style puts it to
@@ -243,6 +243,92 @@ describe("ngraph's nodeGap keeps drawn nodes apart", () => {
         await settle(g);
 
         assert.deepEqual(overlappingPairs(g), []);
+    });
+});
+
+/** A graph too dense for its nodes: every node pulled toward a shared core, large enough to cover each other. */
+function dense(): { nodes: { id: string }[]; edges: { src: string; dst: string }[] } {
+    const nodes = Array.from({ length: 60 }, (_, i) => ({ id: `n${String(i)}` }));
+    const edges = nodes.flatMap((n, i) => [
+        { src: n.id, dst: nodes[(i + 1) % 60].id },
+        { src: n.id, dst: nodes[(i * 7 + 3) % 60].id },
+    ]);
+    return { nodes, edges };
+}
+
+const DENSE_SIZE = 16;
+
+describe.each([
+    ["spring", { seed: 7 }],
+    ["forceatlas2", { seed: 7 }],
+    ["d3", {}],
+])("%s's nodeGap keeps drawn nodes apart", (layout, options) => {
+    async function laidOut(size: number, gap: Record<string, unknown>, dim: 2 | 3 = 2, shape?: string): Promise<Graph> {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, size, shape);
+        await g.setLayout(layout, { ...options, dim, ...gap });
+        await settle(g);
+        return g;
+    }
+
+    it("lets large nodes overlap when nodeGap is unset, which is the default", async () => {
+        assert.isAbove(
+            overlappingPairs(await laidOut(DENSE_SIZE, {})).length,
+            0,
+            "the setup must reproduce the overlap",
+        );
+    });
+
+    it("draws no node inside another with nodeGap set", async () => {
+        assert.deepEqual(overlappingPairs(await laidOut(DENSE_SIZE, { nodeGap: 1 })), []);
+    });
+
+    it("keeps them apart in 3D too", async () => {
+        assert.deepEqual(overlappingPairs(await laidOut(DENSE_SIZE, { nodeGap: 1 }, 3)), []);
+    });
+
+    it("keeps box nodes apart at their corners", async () => {
+        assert.deepEqual(overlappingBoxes(await laidOut(DENSE_SIZE, { nodeGap: 1 }, 2, "box")), []);
+    });
+
+    it("moves nodes apart again when a style makes them larger after the layout came to rest", async () => {
+        const g = await laidOut(1, { nodeGap: 1 });
+        assert.isTrue(g.getLayoutManager().isSettled);
+
+        await sizeEveryNode(g, DENSE_SIZE);
+        assert.isFalse(g.getLayoutManager().isSettled, "a node that grew wakes the layout");
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
+});
+
+describe.each([["spring"], ["forceatlas2"]])("%s's nodeGap in a graph too big for its radius", (layout) => {
+    it("publishes the graph wider instead of leaving its nodes on top of each other", async () => {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, 60);
+        await g.setLayout(layout, { seed: 7, dim: 2, nodeGap: 1 });
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
+
+    it("keeps them apart as seen from the front with nodeGapFront", async () => {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, DENSE_SIZE);
+        await g.setLayout(layout, { seed: 7, dim: 3, nodeGap: 1, nodeGapFront: true });
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g, true), []);
     });
 });
 

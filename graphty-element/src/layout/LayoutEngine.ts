@@ -485,6 +485,16 @@ export abstract class LayoutEngine {
     abstract get isSettled(): boolean;
 
     /**
+     * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
+     * a node that grew after the layout came to rest may now cover another.
+     * @returns True when the frame loop has to start stepping this layout again.
+     * @internal
+     */
+    wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
      * Add multiple nodes to the layout engine
      * @param nodes - Array of nodes to add
      */

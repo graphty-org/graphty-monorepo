@@ -6337,6 +6337,7 @@ export interface TimeApi {
     candidates(): readonly TimeCandidate[];
     changes(): TimeChanges;
     commit(): Promise<TimeStepEvent | null>;
+    readonly committed: TimeWindow | null;
     readonly current: TimeWindow | null;
     extent(): TimeExtent | null;
     readonly field: TimeField | null;
@@ -6354,6 +6355,14 @@ export interface TimeApi {
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     readonly settings: TimeSettings;
+    spanOf(of: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
+    }): {
+        readonly from: number;
+        readonly to: number;
+    } | null;
     stepBy(count: number): Promise<TimeStepEvent>;
     window(window: TimeWindowInput | null): Run<FilterResult>;
 }

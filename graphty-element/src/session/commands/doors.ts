@@ -1055,8 +1055,10 @@ const TIME_API: Readonly<Record<string, Door>> = {
     ready: READ,
     extent: READ,
     bins: READ,
+    spanOf: READ,
     changes: READ,
     current: READ,
+    committed: READ,
     // The window takes the step in use: with no data, the automatic step is a day.
     window: calls(
         [{ attribute: "data.t", from: 0, to: 1 }],

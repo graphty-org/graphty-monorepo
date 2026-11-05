@@ -56,6 +56,84 @@ function bruteNodes(harness: Harness, from: number, to: number): string[] {
     return [...kept].sort();
 }
 
+describe("time.spanOf", () => {
+    /**
+     * Brute force: the half-open span of the rows' `sent` values.
+     * @param harness - The session.
+     * @param edgeRows - The edge rows.
+     * @returns The span, or null when none has a time.
+     */
+    function bruteSpan(harness: Harness, edgeRows: readonly number[]): { from: number; to: number } | null {
+        const times = edgeRows.flatMap((row) => {
+            const value = harness.edgeAttributes.get(row)?.sent;
+            return value === undefined ? [] : [readInstant(value, "ms").at];
+        });
+        return times.length === 0 ? null : { from: Math.min(...times), to: Math.max(...times) + 1 };
+    }
+
+    it("spans the given edges, and the edges at the given nodes with incident", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        const edges = [...harness.session.visibility.edges];
+        assert.deepEqual(time.spanOf({ edges: [edges[1], edges[2]] }), bruteSpan(harness, [1, 2]));
+        assert.deepEqual(time.spanOf({ nodes: ["c"], incident: true }), bruteSpan(harness, [1, 2]));
+        assert.deepEqual(time.spanOf({ nodes: ["a"], edges: [edges[3]], incident: true }), bruteSpan(harness, [0, 3]));
+    });
+
+    it("is null for elements with no time, and with nothing designated", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        assert.isNull(time.spanOf({ nodes: ["c"], incident: true }));
+        await time.setField({ edges: { start: "sent" } });
+        assert.isNull(time.spanOf({ nodes: ["c"] }), "nodes carry no time without incident");
+        assert.isNull(time.spanOf({ nodes: ["f"], incident: true }), "f's only edge has no time");
+        assert.isNull(time.spanOf({ nodes: ["nobody"], incident: true }));
+        assert.isNull(time.spanOf({}));
+    });
+
+    it("spans nodes on a field of node time", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a", born: 1850 }, { id: "b", born: 1900 }, { id: "c", born: 1990 }, { id: "d" }]);
+        const { time } = harness.session;
+        await time.setField({ nodes: { start: "born", unit: "ordinal" } });
+        assert.deepEqual(time.spanOf({ nodes: ["a", "b", "d"] }), { from: 1850, to: 1901 });
+        assert.isNull(time.spanOf({ nodes: ["d"] }));
+    });
+
+    it("gives a span the window takes as it is", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        const span = time.spanOf({ nodes: ["c"], incident: true });
+        assert.isNotNull(span);
+        await time.window(span);
+        assert.strictEqual(time.current?.from, T0 + DAY);
+        assert.strictEqual(time.current?.to, T0 + 2 * DAY + 1);
+    });
+});
+
+describe("time.committed", () => {
+    it("holds the recorded window while a slide moves the current one", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        const before = time.committed;
+        assert.isNull(before);
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const recorded = harness.session.visibility.window;
+        assert.strictEqual(time.committed, recorded);
+
+        await time.seek(T0 + 2 * DAY, { commit: false });
+        assert.strictEqual(time.current?.from, T0 + 2 * DAY);
+        assert.strictEqual(time.committed, recorded);
+
+        await time.commit();
+        assert.strictEqual(time.committed?.from, T0 + 2 * DAY);
+        assert.strictEqual(time.committed, harness.session.visibility.window);
+    });
+});
+
 describe("reading instants", () => {
     it("reads strict ISO 8601 in UTC, including zone-less date-times and expanded years", () => {
         assert.strictEqual(readInstant("2026-01-02T00:00:00", "ms").at, T0 + DAY);

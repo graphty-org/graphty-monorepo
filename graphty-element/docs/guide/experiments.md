@@ -53,7 +53,8 @@ shipped.
 ### `timeline`
 
 Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
-attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`.
+attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`. See
+[Timeline](./timeline).
 
 ```html
 <graphty-element features="timeline" edge-time-path="sent"></graphty-element>
@@ -76,7 +77,7 @@ column from code.
 With it off, reading `session.time` answers as it does with no time field: `field` and `current` are
 null, `extent()` and `bins()` return null, `candidates()` returns an empty list and `playing` is
 false, so a display needs no check. Its actions refuse with `E_FEATURE_OFF` (`details` carry
-`{ feature, key }`): `play`, `pause` and `window` throw, while `setField`, `setSettings`, `stepBy`,
+`{ feature, key }`): `play`, `pause`, `window`, `spanOf` and `committed` throw, while `setField`, `setSettings`, `stepBy`,
 `seek` and `commit` return a promise that rejects. Check
 `session.features.enabled.includes("timeline")` before an action, as above. A text column of dates
 does not measure time.

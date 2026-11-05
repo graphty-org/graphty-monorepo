@@ -1964,6 +1964,9 @@ export class Graphty extends LitElement {
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
+                readFailed: (error) => {
+                    this.#reportLoadFailure(error);
+                },
             }).then(
                 () => undefined,
                 () => {

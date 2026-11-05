@@ -368,12 +368,33 @@ export interface TimeApi {
      */
     bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
     /**
+     * The time span of the given elements, half-open, ready to pass to {@link TimeApi.window}. With
+     * `incident`, the edges at the given nodes count too, as in {@link TimeBinsOptions.of}.
+     * @param of - The elements, such as `session.selection`'s `nodes` and `edges`.
+     * @param of.nodes - The nodes.
+     * @param of.edges - The edges.
+     * @param of.incident - Whether the edges at the given nodes count too.
+     * @returns The span, `to` just past the last instant; null when none of them has a time.
+     * @throws `E_FEATURE_OFF` with the experiment off.
+     */
+    spanOf(of: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+        readonly incident?: boolean;
+    }): { readonly from: number; readonly to: number } | null;
+    /**
      * The ids that entered and left the visible graph on the last move made through this API.
      * @returns The ids; empty before the first move.
      */
     changes(): TimeChanges;
     /** The window in force (`visibility.window`). Its `step` is the step in use, also under `"auto"`. */
     readonly current: TimeWindow | null;
+    /**
+     * The window history and the project file hold (`visibility.window`). It stays put while a play
+     * or a `seek` with `commit: false` moves {@link TimeApi.current}. Reading it with the experiment
+     * off throws `E_FEATURE_OFF`.
+     */
+    readonly committed: TimeWindow | null;
     /** Whether the window is the first one: a step back would leave the data. False with no window. */
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
@@ -489,6 +510,9 @@ export interface TimeInternals {
     /** Stop playback for good. */
     dispose(): void;
 }
+
+/** The elements a question names: the given ones, and with `incident` the edges at the given nodes. */
+type TimeElements = NonNullable<TimeBinsOptions["of"]>;
 
 /** The members of `session.time` that return a promise, so refuse by rejecting it. */
 const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
@@ -1725,21 +1749,15 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Which rows a histogram counts: the given elements, the visible ones, or all (null).
+     * The rows of the elements a question names.
      * @param kind - Nodes or edges.
-     * @param options - The histogram's options.
-     * @returns The test, or null to count every row.
+     * @param of - The elements.
+     * @returns The rows; an id the graph does not hold is left out.
      */
-    const rowFilter = (kind: "node" | "edge", options: TimeBinsOptions): ((row: number) => boolean) | null => {
-        const visibleMask = (): Uint8Array => (kind === "node" ? visibility.nodeMask() : visibility.edgeMask());
-        const mask = options.scope === "visible" ? visibleMask() : null;
-        if (options.of === undefined) {
-            return mask === null ? null : (row) => mask[row] === 1;
-        }
-
+    const rowsOf = (kind: "node" | "edge", of: TimeElements): Set<number> => {
         const graph = sources.snapshot();
         const space = edgeSpaceOf(graph);
-        const ids: readonly (NodeId | EdgeId)[] = (kind === "node" ? options.of.nodes : options.of.edges) ?? [];
+        const ids: readonly (NodeId | EdgeId)[] = (kind === "node" ? of.nodes : of.edges) ?? [];
         const rows = new Set<number>();
         for (const id of ids) {
             const row = kind === "node" ? graph.ids.indexOf(id) : space.indexOf(String(id));
@@ -1748,9 +1766,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
-        if (kind === "edge" && options.of.incident === true) {
+        if (kind === "edge" && of.incident === true) {
             const ends = new Set<number>();
-            for (const id of options.of.nodes ?? []) {
+            for (const id of of.nodes ?? []) {
                 const row = graph.ids.indexOf(id);
                 if (row !== INVALID_INDEX) {
                     ends.add(row);
@@ -1766,6 +1784,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        return rows;
+    };
+
+    /**
+     * Which rows a histogram counts: the given elements, the visible ones, or all (null).
+     * @param kind - Nodes or edges.
+     * @param options - The histogram's options.
+     * @returns The test, or null to count every row.
+     */
+    const rowFilter = (kind: "node" | "edge", options: TimeBinsOptions): ((row: number) => boolean) | null => {
+        const visibleMask = (): Uint8Array => (kind === "node" ? visibility.nodeMask() : visibility.edgeMask());
+        const mask = options.scope === "visible" ? visibleMask() : null;
+        if (options.of === undefined) {
+            return mask === null ? null : (row) => mask[row] === 1;
+        }
+
+        const rows = rowsOf(kind, options.of);
         return (row) => rows.has(row) && (mask === null || mask[row] === 1);
     };
 
@@ -2107,12 +2142,36 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             );
         },
 
+        spanOf(of: TimeElements): { readonly from: number; readonly to: number } | null {
+            const built = indexNow();
+            let from = Number.POSITIVE_INFINITY;
+            let last = Number.NEGATIVE_INFINITY;
+            for (const kind of ["node", "edge"] as const) {
+                const parsed = built?.[kind];
+                if (parsed !== null && parsed !== undefined) {
+                    for (const row of rowsOf(kind, of)) {
+                        const at = parsed.rows[row];
+                        if (!Number.isNaN(at)) {
+                            from = Math.min(from, at);
+                            last = Math.max(last, at);
+                        }
+                    }
+                }
+            }
+
+            return from > last ? null : Object.freeze({ from, to: last + 1 });
+        },
+
         changes(): TimeChanges {
             return lastChanges?.() ?? NO_CHANGES;
         },
 
         get current() {
             return cursor ?? visibility.window;
+        },
+
+        get committed() {
+            return visibility.window;
         },
 
         get atStart() {

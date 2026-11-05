@@ -150,7 +150,7 @@ describe("session.time with the timeline off", () => {
 
     it("throws from the actions that return no promise", () => {
         const { time } = createGraphSession(OFF);
-        for (const member of ["play", "pause", "window"]) {
+        for (const member of ["play", "pause", "window", "spanOf", "committed"]) {
             const error = thrownBy(() => time[member as keyof typeof time]);
             assert.instanceOf(error, GraphtyError, member);
             assert.strictEqual(error.code, "E_FEATURE_OFF");

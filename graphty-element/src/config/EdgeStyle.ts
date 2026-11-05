@@ -74,6 +74,13 @@ const ArrowStyle = z.strictObject({
      */
     side: z.enum(["left", "right"]).optional(),
     /**
+     * How thick an open cap's outline is drawn (open-normal, open-diamond, open-dot, open-inverted, open-box), in the
+     * line's own width units (`line.width`): set it to the line's width to stroke the cap with the line's pen, as
+     * Graphviz and Cytoscape.js do. Unset or 0, the cap keeps its own thin frame. Other cap types ignore it. The
+     * outline is never drawn more than half way to the shape's middle, so the cap always reads as open.
+     */
+    outlineWidth: z.number().nonnegative().optional(),
+    /**
      * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
      * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the
      * cap sits on it, pointing the way the line goes at that end.
@@ -90,7 +97,8 @@ const ArrowStyle = z.strictObject({
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
      * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
-     * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
+     * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
+     * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
      * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
      * row there too.
      */
@@ -199,6 +207,28 @@ const LineStyle = z.strictObject({
     wavePeriod: z.number().nonnegative().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
+    /**
+     * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
+     * `linkVisibilityDistanceRange`): a line of `start` pixels or fewer draws at its `opacity`, one of
+     * `end` or more at that times `fade.opacity`, and one between at a value between. No `end` draws
+     * no fade; `start` defaults to 0 and `opacity` to 0.25. A faded line does not animate. The line
+     * alone fades, not its arrowheads or bands, and a line drawn as separate pattern elements or as
+     * a gradient does not fade.
+     */
+    fade: z
+        .strictObject({
+            start: z.number().nonnegative().optional(),
+            end: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * `false` draws the line without alpha blending (cosmos.gl's `linkBlending`), which costs less
+     * on a dense graph and keeps overlapping lines from muddying: every pixel it covers is its
+     * color at full strength, so `opacity` and `fade` have no effect and a line under a pixel wide is
+     * drawn at full strength. Unset or `true`, the line blends.
+     */
+    blending: z.boolean().optional(),
     /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the

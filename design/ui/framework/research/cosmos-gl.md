@@ -515,8 +515,9 @@ Labels were not part of the section 8 measurement, so this item rests on section
 - Two guards cosmos.gl added after bugs: check that graphty's kernels kick nodes at identical
   positions apart and clamp per-tick movement. graphty already uses `lowbias32` hashing and
   integer-indexed storage buffers, which avoid cosmos.gl's texture-addressing bug.
-- A collision force for the force-simulation layouts, like d3's `forceCollide`. ForceAtlas2
-  already prevents overlap.
+- A collision force for the force-simulation layouts, like d3's `forceCollide`. Fact: graphty-element
+  added it as the `nodeGap` option of every force layout; ForceAtlas2 had none, its `nodeSize` being
+  deferred, so it treated nodes as points.
 - A cluster force with centroids computed on the GPU, pulling together the communities an
   algorithm found.
 

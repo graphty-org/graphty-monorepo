@@ -44,12 +44,13 @@ function katzStep(
     alpha: number,
     beta: number,
 ): number {
+    const { rowPtr, colIdx } = rev;
     let maxDiff = 0;
     for (let v = 0; v < next.length; v++) {
         let sum = 0;
-        const end = rev.rowPtr[v + 1];
-        for (let a = rev.rowPtr[v]; a < end; a++) {
-            sum += cur[rev.colIdx[a]] * (weights === null ? 1 : weights[a]);
+        const end = rowPtr[v + 1];
+        for (let a = rowPtr[v]; a < end; a++) {
+            sum += cur[colIdx[a]] * (weights === null ? 1 : weights[a]);
         }
         next[v] = alpha * sum + beta;
         const diff = Math.abs(next[v] - cur[v]);

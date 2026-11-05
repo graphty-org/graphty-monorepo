@@ -517,7 +517,14 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
+    "node.gradientCenterX": "Gradient center x",
+    "node.gradientCenterY": "Gradient center y",
+    "node.gradientRadius": "Gradient radius",
     "edge.minScreenWidth": "Min screen width",
+    "edge.fadeEnd": "Fade end",
+    "edge.fadeStart": "Fade start",
+    "edge.fadeOpacity": "Fade opacity",
+    "edge.blending": "Blending",
     "edge.outlineColor": "Outline color",
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
@@ -539,6 +546,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Target end side",
+    "edge.arrowHeadOutlineWidth": "Target end outline width",
     "edge.arrowHeadGap": "Target end gap",
     "edge.arrowHeadStack": "Target end stack",
     "edge.arrowHeadImage": "Target end image",
@@ -551,6 +559,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetX": "Label at target end offset x",
     "edge.arrowHeadTextOffsetY": "Label at target end offset y",
     "edge.arrowTailSide": "Source end side",
+    "edge.arrowTailOutlineWidth": "Source end outline width",
     "edge.arrowTailGap": "Source end gap",
     "edge.arrowTailStack": "Source end stack",
     "edge.arrowTailImage": "Source end image",
@@ -566,6 +575,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadSize": "Arrow middle head size",
     "edge.arrowMiddleHeadWidth": "Arrow middle head width",
     "edge.arrowMiddleHeadSide": "Arrow middle head side",
+    "edge.arrowMiddleHeadOutlineWidth": "Arrow middle head outline width",
     "edge.arrowMiddleHeadPosition": "Arrow middle head position",
     "edge.arrowMiddleHeadColor": "Arrow middle head color",
     "edge.arrowMiddleHeadOpacity": "Arrow middle head opacity",
@@ -574,6 +584,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailSize": "Arrow middle tail size",
     "edge.arrowMiddleTailWidth": "Arrow middle tail width",
     "edge.arrowMiddleTailSide": "Arrow middle tail side",
+    "edge.arrowMiddleTailOutlineWidth": "Arrow middle tail outline width",
     "edge.arrowMiddleTailPosition": "Arrow middle tail position",
     "edge.arrowMiddleTailColor": "Arrow middle tail color",
     "edge.arrowMiddleTailOpacity": "Arrow middle tail opacity",
@@ -636,6 +647,23 @@ export function isPercent(descriptor: ChannelDescriptor): boolean {
  */
 export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
+}
+
+/**
+ * A style's setting named on its own line under the style's row, where the style is already said:
+ * "Size" under Halo for "Halo size", "Count" under Pattern for "Pattern count".
+ * @param style - the style's channel (graphty-element's `modifies`).
+ * @param setting - the setting's channel.
+ * @returns the words.
+ */
+export function settingWord(style: Channel, setting: Channel): string {
+    const prefix = `${channelWord(style)} `;
+    const word = channelWord(setting);
+    if (!word.startsWith(prefix)) {
+        return word;
+    }
+    const rest = word.slice(prefix.length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
 /**

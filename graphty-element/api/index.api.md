@@ -1235,6 +1235,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
@@ -1308,6 +1309,9 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+                centerX: z.ZodOptional<z.ZodNumber>;
+                centerY: z.ZodOptional<z.ZodNumber>;
+                radius: z.ZodOptional<z.ZodNumber>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1490,6 +1494,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
@@ -1563,6 +1568,9 @@ export const EdgeStyle: z.ZodObject<{
                 colorType: z.ZodLiteral<"radial-gradient">;
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+                centerX: z.ZodOptional<z.ZodNumber>;
+                centerY: z.ZodOptional<z.ZodNumber>;
+                radius: z.ZodOptional<z.ZodNumber>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
             backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1749,6 +1757,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1792,6 +1801,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -1819,6 +1829,12 @@ export const EdgeStyle: z.ZodObject<{
         wavePeriod: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
+        fade: z.ZodOptional<z.ZodObject<{
+            start: z.ZodOptional<z.ZodNumber>;
+            end: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        blending: z.ZodOptional<z.ZodBoolean>;
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             width: z.ZodOptional<z.ZodNumber>;
@@ -1954,6 +1970,9 @@ export const EdgeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -2163,6 +2182,9 @@ export const EdgeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -4118,7 +4140,11 @@ export type GraphtyErrorCode =
 * A model a project file embeds does not match the digest the file records for it (or its id,
 * for an unnamed asset), so it was not added. `params.id`.
 */
-| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
+| "E_MODEL_DIGEST_MISMATCH"
+/**
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+*/
+| "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -4657,6 +4683,8 @@ export abstract class LayoutEngine {
     get type(): string;
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
+    // @internal
+    wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
 }
@@ -4930,6 +4958,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
+    // @internal
     refitPicture(): void;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
@@ -4952,6 +4982,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
     // @internal
@@ -5296,6 +5328,9 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
@@ -5653,6 +5688,9 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -5862,6 +5900,9 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -6071,6 +6112,9 @@ export const NodeStyle: z.ZodObject<{
             colorType: z.ZodLiteral<"radial-gradient">;
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         backgroundOpacity: z.ZodOptional<z.ZodNumber>;
@@ -6838,6 +6882,9 @@ export const RichTextStyle: z.ZodObject<{
         colorType: z.ZodLiteral<"radial-gradient">;
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+        centerX: z.ZodOptional<z.ZodNumber>;
+        centerY: z.ZodOptional<z.ZodNumber>;
+        radius: z.ZodOptional<z.ZodNumber>;
         opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
     backgroundOpacity: z.ZodOptional<z.ZodNumber>;

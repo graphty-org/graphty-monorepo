@@ -21,6 +21,7 @@
 
 import type { CameraState } from "../../camera/types";
 import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
@@ -116,7 +117,7 @@ function sameValue(left: unknown, right: unknown): boolean {
         return left.length === right.length && left.every((member, at) => sameValue(member, right[at]));
     }
 
-    if (!isPlainRecord(left) || !isPlainRecord(right)) {
+    if (!isPlainObject(left) || !isPlainObject(right)) {
         return false;
     }
 
@@ -125,20 +126,6 @@ function sameValue(left: unknown, right: unknown): boolean {
         keys.length === Object.keys(right).length &&
         keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
     );
-}
-
-/**
- * Whether a value is a plain object: `{...}` or one made with a null prototype.
- * @param value - The value.
- * @returns True when it is.
- */
-function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-
-    const proto: unknown = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
 }
 
 /**

@@ -125,6 +125,7 @@ const NOT_ALGORITHMS = new Set([
     "groupsById",
     "pathIds",
     "scoresById",
+    "mulberry32",
 ]);
 
 describe("ALGORITHMS", () => {

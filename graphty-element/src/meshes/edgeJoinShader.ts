@@ -10,7 +10,10 @@
  * ends, plus the outer half of the join at each corner it shares: a miter, clipped flat past the
  * miter limit (SVG 2's `miter-clip`) and where it would reach past the shorter of the two pieces,
  * so a corner's point shrinks smoothly as the bend sharpens on screen rather than jumping to a
- * bevel. A straight edge has no neighbours (its previous point is its start, its next point is its
+ * bevel. At a corner within the miter limit whose pieces are long enough, both pieces instead end
+ * at the corner's miter line and share that edge exactly (see `miterAt`), so neither discards
+ * anything there and a curve is one seamless line under anti-aliasing (issue #5799). A straight
+ * edge has no neighbours (its previous point is its start, its next point is its
  * end), so it draws exactly the rectangle it always drew.
  *
  * NO PIXEL IS DRAWN TWICE. Pieces overlap on the inside of a bend, and past a piece shorter than
@@ -30,6 +33,10 @@
  * state stamps), and one more dynamic value beside the corners: the whole edge's length, so a
  * piece knows how far along the edge it is. A batch without either define is the plain line,
  * reading exactly the attributes it always read.
+ *
+ * FADING LONG EDGES (`EDGE_FADE`, line.fade). A widened batch knows the whole edge's length, so the
+ * vertex shader folds a fade by its length on screen into the coverage every fragment already
+ * multiplies its alpha by. `EDGE_OPAQUE` (line.blending false) writes every fragment at alpha 1.
  *
  * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
  * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
@@ -124,7 +131,7 @@ varying vec4 vNbB;
 varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
-varying vec2 vFar;
+varying vec3 vFar;
 
 #ifdef EDGE_WIDENED
 attribute float runTotal;
@@ -141,6 +148,12 @@ varying vec4 vEdgeParams;
 varying vec4 vEdgeMeta;
 varying vec4 vEdgeTimes;
 varying float vEdgeTotal;
+#endif
+
+#ifdef EDGE_FADE
+// In CSS pixels on screen: where the fade starts and ends, then what it multiplies the opacity by
+// at its end.
+uniform vec3 edgeFade;
 #endif
 
 const float EPS = 1e-4;
@@ -210,6 +223,39 @@ void cornerAt(vec2 q0, vec2 p, vec2 q1, out vec2 dIn, out vec2 dOut, out vec2 t,
     t = sl > 1e-6 ? s / sl : dIn;
 }
 
+// Whether the two pieces at a corner end at its miter line -- the line through the two miter
+// points -- and so share that edge exactly (issue #5799): within the miter limit, and no further
+// along either piece than half the shorter is long, so each piece stays a convex quadrilateral.
+// tip is the miter point on the +n side (the other is -tip). Both pieces compute it from the same
+// three corners and the same half width with this same arithmetic, so their triangles meet along
+// one edge, and the rasterizer splits every pixel on it between them by sample: nothing lost under
+// anti-aliasing, nothing drawn twice. A straight run's corner is its square end (tip = n * hw).
+bool miterAt(vec2 dIn, vec2 dOut, float lenIn, float lenOut, float hw, out vec2 tip) {
+    vec2 sum = perpOf(dIn) + perpOf(dOut);
+    float sl = length(sum);
+    float cosH = max(sl * 0.5, 1e-6);
+    float sinH = sqrt(max(0.0, 1.0 - cosH * cosH));
+    tip = sl > 1e-6 ? sum / sl * hw / cosH : vec2(0.0);
+    return sl > 1e-6 && 1.0 / cosH <= miterLimit && hw * sinH / cosH <= 0.5 * min(lenIn, lenOut);
+}
+
+// The point, offset from the corner p, where the side s (+1 or -1) of the piece from q0 meets the
+// same side of the piece to q1, each piece a trapezoid of half widths w0 to w and w to w1 (under
+// perspective its sides are not parallel to its centre line). Where the two sides run parallel
+// (a straight run) it is the miter point. Both pieces call it with the same arguments.
+vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, vec2 dOut, float s, vec2 tip) {
+    vec2 a = s * perpOf(dIn) * w;
+    vec2 ea = a - (q0 - p + s * perpOf(dIn) * w0);
+    vec2 b = s * perpOf(dOut) * w;
+    vec2 eb = q1 - p + s * perpOf(dOut) * w1 - b;
+    float den = ea.x * eb.y - ea.y * eb.x;
+    if (abs(den) <= 1e-4 * length(ea) * length(eb)) {
+        return s * tip;
+    }
+    vec2 ab = b - a;
+    return a + ea * ((ab.x * eb.y - ab.y * eb.x) / den);
+}
+
 void main() {
     bool atB = position.x > 0.5;
     float side = position.y;
@@ -254,6 +300,9 @@ void main() {
 #endif
     float hwA = drawnHalfWidth(rawA);
     float hwB = drawnHalfWidth(rawB);
+    vec2 tipA; vec2 tipB;
+    bool miterA = joinedA && miterAt(inA, outA, lenInA, lenOutA, hwA, tipA);
+    bool miterB = joinedB && miterAt(inB, outB, lenInB, lenOutB, hwB, tipB);
 
     // The neighbours' far ends, at the widths they are drawn, and the pieces two away.
 #ifdef EDGE_WIDENED
@@ -263,12 +312,30 @@ void main() {
 #endif
     float hwPrevFar = drawnHalfWidthAt(pPrev, (run.x - length(pA - pPrev)) * perTotal);
     float hwNextFar = drawnHalfWidthAt(pNext, (run.x + length(pB - pA) + length(pNext - pB)) * perTotal);
-    vec4 linePrev2 = lineOf(toPx(clipOf(pPrev2)), sPrev);
-    vec4 lineNext2 = lineOf(sNext, toPx(clipOf(pNext2)));
+    vec2 sPrev2 = toPx(clipOf(pPrev2));
+    vec2 sNext2 = toPx(clipOf(pNext2));
+    vec4 linePrev2 = lineOf(sPrev2, sPrev);
+    vec4 lineNext2 = lineOf(sNext, sNext2);
     float backPrev2 = run.x - length(pA - pPrev) - length(pPrev - pPrev2);
     float aheadNext2 = run.x + length(pB - pA) + length(pNext - pB) + length(pNext2 - pNext);
-    // The far ends of the pieces two away.
-    vFar = vec2(drawnHalfWidthAt(pPrev2, backPrev2 * perTotal), drawnHalfWidthAt(pNext2, aheadNext2 * perTotal));
+    // Whether the neighbours' far corners are shared miter lines too: then the piece two away
+    // cannot reach this one.
+    vec2 i2; vec2 o2; vec2 t2; float li2; float lo2; vec2 tip2;
+    cornerAt(sPrev2, sPrev, sA, i2, o2, t2, li2, lo2);
+    bool miterPrev = miterA && li2 > EPS && miterAt(i2, o2, li2, lo2, hwPrevFar, tip2);
+    cornerAt(sB, sNext, sNext2, i2, o2, t2, li2, lo2);
+    bool miterNext = miterB && lo2 > EPS && miterAt(i2, o2, li2, lo2, hwNextFar, tip2);
+    // Each corner: 0 the clipped join, 1 a shared miter line, 2 a shared miter line past a
+    // neighbour whose other corner is one too.
+    float cornerA = miterPrev ? 2.0 : miterA ? 1.0 : 0.0;
+    float cornerB = miterNext ? 2.0 : miterB ? 1.0 : 0.0;
+    // Both corners in one float (cornerA + 3 cornerB), so the widened batch stays within the 15
+    // varying rows WebGL2 guarantees.
+    vFar = vec3(
+        drawnHalfWidthAt(pPrev2, backPrev2 * perTotal),
+        drawnHalfWidthAt(pNext2, aheadNext2 * perTotal),
+        cornerA + 3.0 * cornerB
+    );
 
     vec4 cP = atB ? cB : cA;
     vec2 sP = atB ? sB : sA;
@@ -277,7 +344,41 @@ void main() {
     bool joined = atB ? joinedB : joinedA;
 
     vec2 off = side * n * hw;
+    bool onMiterLine = atB ? miterB : miterA;
     if (lenOwn <= EPS) {
+        off = vec2(0.0);
+    } else if (onMiterLine && !joinVertex && side != 0.0) {
+        // A side vertex on the corner's shared miter line. The two pieces at the corner must put
+        // it at exactly the same clip position, or pixel centres on the line fall to neither (or
+        // both), so it is computed on one path for either end from the three points around the
+        // corner, selected first: both pieces run the same arithmetic on the same values.
+        // ponytail: a tapered edge's widths come from distances summed in two ways, so its corners
+        // can differ in the last bit; add a per-corner width attribute if that ever shows.
+        vec3 q0 = atB ? pA : pPrev;
+        vec3 q = atB ? pB : pA;
+        vec3 q1 = atB ? pNext : pB;
+        float lenQ = length(q - q0);
+        float along = atB ? run.x + length(pB - pA) : run.x;
+        vec4 cq = clipOf(q);
+        vec2 k0 = toPx(clipOf(q0));
+        vec2 k = toPx(cq);
+        vec2 k1 = toPx(clipOf(q1));
+        vec2 dIn; vec2 dOut; vec2 t; float lenIn; float lenOut;
+        cornerAt(k0, k, k1, dIn, dOut, t, lenIn, lenOut);
+        float w = drawnHalfWidthAt(q, along * perTotal);
+        vec2 tip;
+        miterAt(dIn, dOut, lenIn, lenOut, w, tip);
+        vec2 meet = sideMeet(
+            k0, drawnHalfWidthAt(q0, (along - lenQ) * perTotal),
+            k, w,
+            k1, drawnHalfWidthAt(q1, (along + length(q1 - q)) * perTotal),
+            dIn, dOut, side, tip
+        );
+        cP = cq;
+        sP = k;
+        off = meet;
+    } else if (onMiterLine) {
+        // The join's triangles fold away to the centre.
         off = vec2(0.0);
     } else if (joinVertex && joined) {
         vec2 dIn = atB ? inB : inA;
@@ -329,6 +430,13 @@ void main() {
     // The coverage is under 1 for a hairline; the last is the own centre line's offset, which the
     // pieces two away compute the same way.
     vWidth = vec4(hwA, hwB, raw > 0.0 && raw < 0.5 ? raw * 2.0 : 1.0, lineOf(sA, sB).z);
+#ifdef EDGE_FADE
+    // The whole edge on screen: its length at this piece's pixels per world unit, which is the
+    // exact length of a straight edge.
+    float edgePx = worldOwn > EPS ? total * lenOwn / worldOwn : lenOwn;
+    float faded = clamp((edgePx - edgeFade.x) / max(edgeFade.y - edgeFade.x, EPS), 0.0, 1.0);
+    vWidth.z *= mix(1.0, edgeFade.z, faded);
+#endif
 }
 `;
 
@@ -356,7 +464,7 @@ varying vec4 vNbB;
 varying vec4 vPrev2;
 varying vec4 vNext2;
 varying vec4 vWidth;
-varying vec2 vFar;
+varying vec3 vFar;
 
 #ifdef EDGE_WIDENED
 varying vec4 vEdgeColorA;
@@ -465,6 +573,21 @@ void main() {
     bool inPrev = false;
     bool inNext = false;
     bool inNext2 = false;
+    // Past a corner the two pieces end at its shared miter line (vFar.z), they do not
+    // overlap, and the rasterizer splits the pixels on that line by sample: neither tests the
+    // other, nor the piece beyond it, for ownership, so neither discards a pixel the other cannot
+    // fully draw. A curve's corners all are, so a solid curve discards nothing (issue #5799). A
+    // dash still reads the neighbours: each piece draws its side of the miter line where either
+    // piece's dash covers it, so the two halves of the inside overlap make the union they did.
+    float corners = floor(vFar.z + 0.5);
+    float cornerB = floor((corners + 0.5) / 3.0);
+    float cornerA = corners - 3.0 * cornerB;
+    bool sharedA = cornerA > 0.5;
+    bool sharedB = cornerB > 0.5;
+    // The piece two away can still overlap this one unless the neighbour between is shared at
+    // both its corners (a U whose middle is short, say).
+    bool clearPrev2 = cornerA > 1.5;
+    bool clearNext2 = cornerB > 1.5;
     for (int pass = 0; pass < 2; pass++) {
         float mm = pass == 0 ? m : 0.0;
         bool joinPrev = inJoin(u2, -back2, -vNbA.xy, vPrev2.w, vNbA.z, vEndB.z, mm);
@@ -475,11 +598,11 @@ void main() {
         inPrev = inPiece(uA, vNbA.xy, vNbA.z, vWidth.x, vEndB.z, mm);
         inNext = inPiece(uB, vNbB.xy, vNbB.z, vWidth.y, vEndB.w, mm);
         inNext2 = inPiece(uN2, ahead2, vNext2.w, vEndB.w, vFar.y, mm);
-        bool byPrev2 = inPrev2 || joinPrev;
-        bool byPrev = inPrev || joinPrev || joinA;
+        bool byPrev2 = !clearPrev2 && (inPrev2 || joinPrev);
+        bool byPrev = !sharedA && (inPrev || joinPrev || joinA);
         bool byOwn = inPiece(uA, vOwn.zw, lenOwn, vWidth.x, vWidth.y, mm) || joinA || joinB;
-        bool byNext = inNext || joinB || joinNext;
-        bool byNext2 = inNext2 || joinNext;
+        bool byNext = !sharedB && (inNext || joinB || joinNext);
+        bool byNext2 = !clearNext2 && (inNext2 || joinNext);
 
         if (byPrev2 || byPrev || byOwn || byNext || byNext2) {
             // Distances within TIE of each other are a tie, so two pieces along the same line (a
@@ -541,6 +664,9 @@ void main() {
     gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal * pxPerWorld, 2.0 * hwLine, vWidth.z);
 #else
     gl_FragColor = vec4(color, opacity * vWidth.z);
+#endif
+#ifdef EDGE_OPAQUE
+    gl_FragColor.a = 1.0;
 #endif
 }
 `;

@@ -12,6 +12,7 @@ import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     dashClassOf,
+    dented,
     isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
@@ -28,6 +29,8 @@ const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "poly
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/** Points a curved figure's outline is sampled to (`Prim.fine`): a few to a pixel round a node. */
+const FIGURE_SAMPLES = 512;
 /** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
 const PATH_SAMPLES = 128;
 
@@ -908,6 +911,116 @@ function inUndrawnBranch(el: Element): boolean {
     return false;
 }
 
+/** What is defined for later use or not drawn at all, not drawn where it stands. */
+const NOT_DRAWN = "defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata";
+
+/** Marks the `<g>` that stands where a `<use>` stood. */
+const STAMPED = "data-oracle-stamped";
+
+/**
+ * Puts what each drawn `<use>` draws in its place: a `<g>` with the `<use>`'s attributes around a copy of what it names,
+ * so the copy is read like any drawn element, through the `<use>`'s transform and with what it inherits (yEd Live draws
+ * every arrowhead so, from one path in `<defs>`). A `<symbol>` becomes the `<svg>` the specification makes of it
+ * (draw.io's pictures). A `<use>` in a `<defs>` waits for what uses it, and nested ones are put in place on later turns.
+ * @param root - the SVG, in the page
+ */
+function expandUses(root: SVGSVGElement): void {
+    const svgElement = (name: string): SVGElement => document.createElementNS("http://www.w3.org/2000/svg", name);
+    // a `<use>` cycle draws nothing and would grow here for ever
+    for (let turn = 0; turn < 8; turn++) {
+        const uses = [...root.querySelectorAll("use")].filter((u) => u.closest(NOT_DRAWN) === null);
+        if (uses.length === 0) {
+            return;
+        }
+        for (const use of uses) {
+            const href = use.getAttribute("href") ?? use.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+            const named = href?.startsWith("#") ? root.querySelector(`[id="${CSS.escape(href.slice(1))}"]`) : null;
+            if (named === null) {
+                use.remove();
+                continue;
+            }
+            const [x, y] = [use.getAttribute("x") ?? "0", use.getAttribute("y") ?? "0"];
+            const placed = svgElement("g");
+            placed.setAttribute(STAMPED, "");
+            for (const { name, value } of use.attributes) {
+                if (!["x", "y", "width", "height", "href", "xlink:href"].includes(name)) {
+                    placed.setAttribute(name, value);
+                }
+            }
+            placed.setAttribute("transform", `${use.getAttribute("transform") ?? ""} translate(${x} ${y})`);
+            const copy = named.cloneNode(true) as Element;
+            copy.removeAttribute("id");
+            if (copy.localName === "symbol") {
+                const inner = svgElement("svg");
+                inner.append(...copy.childNodes);
+                for (const name of ["viewBox", "preserveAspectRatio"]) {
+                    const value = copy.getAttribute(name);
+                    if (value !== null) {
+                        inner.setAttribute(name, value);
+                    }
+                }
+                inner.setAttribute("width", use.getAttribute("width") ?? "100%");
+                inner.setAttribute("height", use.getAttribute("height") ?? "100%");
+                placed.append(inner);
+            } else {
+                placed.append(copy);
+            }
+            use.replaceWith(placed);
+        }
+    }
+}
+
+/**
+ * A base64 picture's address as the page reads it back: without the breaks written across its lines, whether as white
+ * space or, in yEd's SVGs, as `&#10;` (the page has turned that into white space by then).
+ * @param href - the address, as written or as read
+ * @returns the address, unbroken
+ */
+export const unbrokenHref = (href: string): string => href.replace(/&#1[03];|\s+/g, "");
+
+/**
+ * The PNGs an SVG file embeds, by their unbroken addresses.
+ * @param svg - the file's text
+ * @returns the addresses
+ */
+export function embeddedPngs(svg: string): Set<string> {
+    return new Set((svg.match(/data:image\/png;base64,[^"']+/gi) ?? []).map(unbrokenHref));
+}
+
+/**
+ * Whether a path's subpaths enclose any area.
+ * @param d - the path data
+ * @returns whether they do, or null for a path with a curve, not reckoned here
+ */
+function encloses(d: string): boolean | null {
+    const parts = d.split(/(?=[Mm])/).map((s) => straightPathVertices(s));
+    if (parts.includes(null)) {
+        return null;
+    }
+    return parts.some((q) =>
+        (q ?? []).some(([x, y], i, all) => {
+            const [a, b] = [all[i + 1] ?? all[0], all[0]];
+            return Math.abs((a[0] - b[0]) * (y - b[1]) - (a[1] - b[1]) * (x - b[0])) > 1e-6;
+        }),
+    );
+}
+
+/**
+ * The fill of the panel a yFiles group lays over its tab, which leaves the tab showing as a band round it. The group's
+ * outline carries it too: a tab with a hole for a see-through panel is read as a painted outline, and makes no group.
+ * @param el - the element read
+ * @param root - the SVG
+ * @param opacities - the group opacities read so far
+ * @param m - the element's matrix to the root's pixels
+ * @returns the panel's fill, or null for anything but a tab or outline with a filled panel
+ */
+function panelFillOf(el: Element, root: Element, opacities: Map<Element, number>, m: DOMMatrix): PFill | null {
+    const panel = el.matches(".yfiles-group-node-tab, .yfiles-group-node-stroke")
+        ? el.parentElement?.querySelector<SVGGraphicsElement>(".yfiles-group-node-content")
+        : null;
+    return panel ? fillOf(panel, getComputedStyle(panel), groupOpacity(panel, root, opacities), root, m) : null;
+}
+
 /** The SVG primitives of a document, in document order. */
 export interface SvgPrimitives {
     width: number;
@@ -940,6 +1053,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
     host.appendChild(root);
     document.body.appendChild(host);
     try {
+        expandUses(root);
         const rect = root.getBoundingClientRect();
         const rootM = root.getScreenCTM();
         // the root's own CTM includes its viewBox; the frame we want is its rendered box
@@ -965,9 +1079,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 continue;
             }
             // #PajekSig: the spider logo Pajek adds to every SVG export, not part of the network
-            if (
-                el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata, #PajekSig") !== null
-            ) {
+            if (el.closest(`${NOT_DRAWN}, #PajekSig`) !== null) {
+                continue;
+            }
+            // yFiles (yEd Live) lays a group's panel over its tab: read with the tab (`panelFillOf`), not a box of its own
+            if (el.matches(".yfiles-group-node-content") && el.parentElement?.querySelector(".yfiles-group-node-tab")) {
                 continue;
             }
             if (inUndrawnBranch(el)) {
@@ -1026,14 +1142,21 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             }
             if (tag === "image") {
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
-                const pixels = href === null ? undefined : pictures.get(href.replace(/\s+/g, ""));
+                const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
+                const b = el.getBBox();
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, el.getBBox()),
+                    box: boxThrough(m, b),
+                    quad: [
+                        at(m, b.x, b.y),
+                        at(m, b.x + b.width, b.y),
+                        at(m, b.x + b.width, b.y + b.height),
+                        at(m, b.x, b.y + b.height),
+                    ],
                     points: [],
                     closed: true,
                     corners: 4,
@@ -1071,6 +1194,12 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
             }
+            // yEd fills a bar arrowhead's line there and back before stroking it: a fill with nothing inside paints
+            // nothing, and the stroke after it stays next to its line (`index` is what says what follows a line)
+            if (stroke === null && d !== "" && encloses(d) === false) {
+                index = i;
+                continue;
+            }
             // a filled shape with no area and no stroke paints nothing (Gephi writes an arrowhead of arrow.size 0 as
             // a polyline of three equal points), nor does a stroked one with butt caps (SVG 1.1 section 11.4: a
             // zero-length subpath draws a cap only when it is round or square; Graphviz writes an arrowsize=0 head as a
@@ -1086,7 +1215,18 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 continue;
             }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
-            const closed = isClosed(el, points) || fill !== null || outlineOfFill;
+            // and what a `<use>` stamps is a shape however it is drawn, no line of a route: an open stroke (yEd Live's
+            // open and cross arrowheads) is its line there and back, an outline with nothing inside
+            const stamped = el.closest(`[${STAMPED}]`) !== null;
+            if (stamped && open) {
+                points = [...points, ...points.slice(0, -1).reverse()];
+            }
+            const closed = isClosed(el, points) || fill !== null || outlineOfFill || stamped;
+            // a curved figure with a dent (Pajek's man) read again finely, its corners where it draws them (`figureOf`)
+            const fine =
+                closed && points.length === SAMPLES && dented(points)
+                    ? geometryPoints(el as SVGGeometryElement, m, FIGURE_SAMPLES)
+                    : undefined;
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
@@ -1104,12 +1244,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 };
                 fill = null;
             }
+            const panel = panelFillOf(el, root, opacities, m);
             prims.push({
                 index: i,
                 tag: painted === null ? tag : PAINTED_OUTLINE,
                 kind: closed ? "shape" : "path",
                 box: painted?.box ?? boxOfPoints(points),
                 points,
+                ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
                 fill: closed ? fill : null,
@@ -1122,6 +1264,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
+                ...(panel === null ? {} : { panel }),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

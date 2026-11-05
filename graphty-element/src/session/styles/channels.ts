@@ -450,6 +450,9 @@ export interface ChannelValues {
     "node.gradientColors": string;
     "node.gradientStops": string;
     "node.gradientKind": NodeGradientKindValue;
+    "node.gradientCenterX": number;
+    "node.gradientCenterY": number;
+    "node.gradientRadius": number;
     "node.image": string;
     "node.imageFallback": string;
     "node.imageFit": NodeImageFitValue;
@@ -518,6 +521,10 @@ export interface ChannelValues {
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
+    "edge.fadeStart": number;
+    "edge.fadeEnd": number;
+    "edge.fadeOpacity": number;
+    "edge.blending": boolean;
     "edge.opacity": number;
     "edge.bandColor": ColorValue;
     "edge.bandWidth": number;
@@ -563,6 +570,7 @@ export interface ChannelValues {
     "edge.arrowHeadSize": number;
     "edge.arrowHeadWidth": number;
     "edge.arrowHeadSide": "left" | "right";
+    "edge.arrowHeadOutlineWidth": number;
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadGap": number;
     "edge.arrowHeadStack": string;
@@ -585,6 +593,7 @@ export interface ChannelValues {
     "edge.arrowTailSize": number;
     "edge.arrowTailWidth": number;
     "edge.arrowTailSide": "left" | "right";
+    "edge.arrowTailOutlineWidth": number;
     "edge.arrowTailPosition": number;
     "edge.arrowTailGap": number;
     "edge.arrowTailStack": string;
@@ -607,6 +616,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadSize": number;
     "edge.arrowMiddleHeadWidth": number;
     "edge.arrowMiddleHeadSide": "left" | "right";
+    "edge.arrowMiddleHeadOutlineWidth": number;
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
@@ -615,6 +625,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTailSize": number;
     "edge.arrowMiddleTailWidth": number;
     "edge.arrowMiddleTailSide": "left" | "right";
+    "edge.arrowMiddleTailOutlineWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
@@ -1001,6 +1012,13 @@ const NODE_GRADIENT_CAVEAT =
     '`node.gradientKind` "linear" runs it the way `node.gradientDirection` says; "radial" runs it out ' +
     "from the node's middle to its edge. Each distinct gradient is its own source mesh and ramp texture.";
 
+const NODE_GRADIENT_CIRCLE_CAVEAT =
+    'Places a radial gradient fill (`node.gradientKind` "radial"): `node.gradientCenterX` and ' +
+    "`node.gradientCenterY` are where its middle is, fractions of the node's box from its left side " +
+    "and its top (unset: 0.5, the node's middle), and `node.gradientRadius` how far its last stop " +
+    "reaches from there, in halves of the node's side (unset: 1, its edge); past it the last color " +
+    "goes on. A linear gradient or a flat fill ignores them.";
+
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
@@ -1126,7 +1144,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1190,6 +1208,20 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
                 "looking along the line toward the cap's tip. Unset, the whole cap.",
         },
         {
+            ...id("OutlineWidth"),
+            plainName: `Arrow ${end} Outline Width`,
+            shortName: `${end} outline width`,
+            group: "arrows",
+            default: 0,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.outlineWidth`,
+            renderable: true,
+            caveat:
+                "How thick an open cap's outline is drawn, in the line's own width units: the line's width strokes " +
+                "it with the line's pen. Unset or 0, the cap's own thin frame. Only open caps draw it.",
+        },
+        {
             ...id("Position"),
             plainName: `Arrow ${end} Position`,
             shortName: `${end} position`,
@@ -1226,7 +1258,8 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             caveat:
                 "More caps drawn in a row behind this one, nearest first, each from where the one before it ends; " +
                 "the line stops at the last. Cap types separated by spaces, each optionally followed by :left or " +
-                ":right, then * and its size, then x and its width: `dot normal`, `open-diamond:left*1.2`. " +
+                ":right, then * and its size, then x and its width, then o and its outline width: `dot normal`, " +
+                "`open-diamond:left*1.2`. " +
                 "Unset, the cap alone.",
         },
         {
@@ -1399,7 +1432,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
@@ -3622,7 +3655,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
             "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
-            "`padding`, `rule` (a line on its left) and a `table` of its own in place of `lines`; a line `align`. " +
+            "`padding`, `rule` (a line on its left), `hidden` (keeps its room, draws nothing) and a `table` of its own in place " +
+            "of `lines`; a line `align`. " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
@@ -3792,6 +3826,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_GRADIENT_CAVEAT,
     },
+    "node.gradientCenterX": {
+        channel: "node.gradientCenterX",
+        target: "node",
+        plainName: "Node Gradient Center X",
+        shortName: "Gradient center x",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerX",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientCenterY": {
+        channel: "node.gradientCenterY",
+        target: "node",
+        plainName: "Node Gradient Center Y",
+        shortName: "Gradient center y",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerY",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientRadius": {
+        channel: "node.gradientRadius",
+        target: "node",
+        plainName: "Node Gradient Radius",
+        shortName: "Gradient radius",
+        group: "color",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "texture.color.radius",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
     "node.model": {
         channel: "node.model",
         target: "node",
@@ -3941,6 +4012,65 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         max: 1,
         stylePath: "line.opacity",
         renderable: true,
+    },
+    "edge.fadeEnd": {
+        channel: "edge.fadeEnd",
+        target: "edge",
+        plainName: "Edge Fade End",
+        shortName: "Fade end",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fade.end",
+        renderable: true,
+        caveat:
+            "Fades the line with its length on screen, as cosmos.gl's `linkVisibilityDistanceRange` does: a " +
+            "line this many CSS pixels long or longer draws at `edge.fadeOpacity` times its opacity. Unset, " +
+            "no line fades. A faded line does not animate. The line alone fades, not its arrowheads or bands, " +
+            "and a line drawn as separate pattern elements (a straight dash, dot, star, diamond, box, " +
+            "dash-dot, zigzag or sinewave) or as a gradient does not fade.",
+    },
+    "edge.fadeStart": {
+        channel: "edge.fadeStart",
+        target: "edge",
+        plainName: "Edge Fade Start",
+        default: 0,
+        shortName: "Fade start",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fade.start",
+        renderable: true,
+        caveat: "A line this many CSS pixels long or shorter does not fade. Needs `edge.fadeEnd`.",
+    },
+    "edge.fadeOpacity": {
+        channel: "edge.fadeOpacity",
+        target: "edge",
+        plainName: "Edge Fade Opacity",
+        default: 0.25,
+        shortName: "Fade opacity",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "line.fade.opacity",
+        renderable: true,
+        caveat: "What the longest lines' opacity is multiplied by: 0 fades them out. Needs `edge.fadeEnd`.",
+    },
+    "edge.blending": {
+        channel: "edge.blending",
+        target: "edge",
+        plainName: "Edge Blending",
+        default: true,
+        shortName: "Blending",
+        group: "line",
+        accepts: "boolean",
+        stylePath: "line.blending",
+        renderable: true,
+        caveat:
+            "False draws the line without alpha blending, as cosmos.gl's `linkBlending` does: cheaper on a " +
+            "dense graph, and overlapping lines do not muddy. Every pixel the line covers is its color at " +
+            "full strength, so `edge.opacity` and the fade channels have no effect on it.",
     },
     "edge.bandColor": {
         channel: "edge.bandColor",
@@ -4684,6 +4814,8 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["edge.bandWidth", "edge.bandColor"],
     ["edge.bandOpacity", "edge.bandColor"],
     ["edge.patternCount", "edge.style"],
+    ["edge.fadeStart", "edge.fadeEnd"],
+    ["edge.fadeOpacity", "edge.fadeEnd"],
     ...(["Head", "Tail"] as const).flatMap((end) => [
         ...["Size", "Color", "Opacity"].map((suffix): [string, Channel] => [
             `edge.arrow${end}${suffix}`,

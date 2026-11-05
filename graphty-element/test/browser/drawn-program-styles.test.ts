@@ -312,7 +312,7 @@ describe("a half arrow's line and barb (#5490)", () => {
     });
 });
 
-describe("an open cap's outline (#4253)", () => {
+describe("an open cap's outline width (#5800)", () => {
     /**
      * How thick the drawn frame of an open box is across its line, in pixels: its outer side less its inner side.
      * @returns the frame's thickness
@@ -325,12 +325,13 @@ describe("an open cap's outline (#4253)", () => {
     }
 
     test.each([1, 2])(
-        "open-box is outlined as thick as its line (width %s) and in its color, whatever its size",
+        "open-box with an outline width of its line's (%s) is outlined as thick as its line, whatever its size",
         async (width) => {
             for (const size of [2, 4]) {
                 await oneEdge({
                     "edge.arrowHead": "open-box",
                     "edge.arrowHeadSize": size,
+                    "edge.arrowHeadOutlineWidth": width,
                     "edge.width": width,
                     "edge.color": "#123456",
                 });
@@ -344,6 +345,18 @@ describe("an open cap's outline (#4253)", () => {
             }
         },
     );
+
+    test("unset, open-box keeps its own frame, a share of the cap's size", async () => {
+        const frames: number[] = [];
+        for (const size of [2, 4]) {
+            await oneEdge({ "edge.arrowHead": "open-box", "edge.arrowHeadSize": size, "edge.width": 1 });
+            frames.push(boxFrame());
+            assert(graph);
+            graph.dispose();
+            container?.remove();
+        }
+        assert.closeTo(frames[1], 2 * frames[0], 1);
+    });
 });
 
 describe("a vee turned round, vis-network's crow (#5491)", () => {

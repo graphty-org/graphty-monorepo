@@ -79,3 +79,28 @@
     inset: var(--sel-preview-inset, 0);
     height: auto;
 }
+
+/* The sidebar title row's Edit is drawn on hover or focus, over the row's end, so the name keeps
+   the row's width at rest (the row itself opens the workspace too). */
+.sel-rest-inline .sel-title-row {
+    position: relative;
+}
+
+.sel-rest-inline .sel-title-row [data-edit] {
+    position: absolute;
+    inset-inline-end: 4px;
+    background: var(--cm-bg);
+    opacity: 0;
+}
+
+.sel-rest-inline .sel-title-row:hover [data-edit],
+.sel-rest-inline .sel-title-row:focus-within [data-edit],
+.sel-rest-inline .sel-title-row [data-edit]:focus-visible {
+    opacity: 1;
+}
+
+/* Edit takes the count's place, never half of it: the count goes while Edit is drawn. */
+.sel-rest-inline .sel-title-row:hover .sel-count,
+.sel-rest-inline .sel-title-row:focus-within .sel-count {
+    visibility: hidden;
+}

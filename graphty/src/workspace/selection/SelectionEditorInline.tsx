@@ -1259,7 +1259,7 @@ export function SelectionEditorInline({
                     {!ws && !editing && (
                         <Button
                             size="compact-xs"
-                            variant="default"
+                            variant="subtle"
                             data-edit=""
                             aria-label={`Edit ${name}`}
                             onClick={() => {
@@ -2045,7 +2045,13 @@ export function SelectionEditorInline({
             : null;
 
     return (
-        <Stack ref={box} gap={0} className="sel-editor sel-rest" data-host={host} data-open={open ? "" : undefined}>
+        <Stack
+            ref={box}
+            gap={0}
+            className="sel-editor sel-rest sel-rest-inline"
+            data-host={host}
+            data-open={open ? "" : undefined}
+        >
             {outline("rest")}
             {workspace}
         </Stack>

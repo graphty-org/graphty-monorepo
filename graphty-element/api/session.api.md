@@ -5437,6 +5437,7 @@ export interface SessionDataApi {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
     readonly store: SessionGraphStore;
+    structureValue(id: NodeId_2, path: Path): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;

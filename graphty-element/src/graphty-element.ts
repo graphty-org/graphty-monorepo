@@ -4800,6 +4800,28 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that borrows the view and hands it back calls
+     * `zoomToFit()` instead of restoring what it read.
+     * @returns True while the element's own framing is under way.
+     * @example
+     * ```typescript
+     * const framing = element.framing;
+     * const camera = element.getCameraState();
+     * // ... the canvas is used for something else, then:
+     * if (framing) {
+     *     element.zoomToFit();
+     * } else {
+     *     await element.setCameraState(camera);
+     * }
+     * ```
+     */
+    get framing(): boolean {
+        return this.#graph.framing;
+    }
+
+    /**
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be

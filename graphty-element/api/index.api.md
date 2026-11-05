@@ -2688,6 +2688,7 @@ export class Graph implements GraphContext {
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    get framing(): boolean;
     getAcceleration(): AccelerationController;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
@@ -3189,6 +3190,7 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    get framing(): boolean;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
     getApiKeyManager(): ApiKeyManager | null;

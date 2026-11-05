@@ -2833,7 +2833,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return {
             execution: executionOf(run),
-            fields: result.fields,
+            // The run's own fields: they carry what the catalogue declares (a field's unstable names).
+            fields: runs.get(run)?.fields ?? result.fields,
             nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
             edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
         };

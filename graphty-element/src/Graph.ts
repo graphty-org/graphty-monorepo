@@ -4165,6 +4165,20 @@ export class Graph implements GraphContext {
         this.updateManager.enableZoomToFit(true);
     }
 
+    /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that puts the camera back later frames again instead.
+     * @returns True while the element's own framing is under way.
+     */
+    get framing(): boolean {
+        return (
+            this.#autoFrame &&
+            !this.#cameraPlaced &&
+            !(this.updateManager.zoomToFitCompleted && this.layoutManager.isSettled)
+        );
+    }
+
     // GraphContext implementation methods
 
     /**

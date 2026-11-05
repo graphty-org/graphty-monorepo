@@ -1351,6 +1351,17 @@ export interface SessionDataApi {
      * @since 3.35.0
      */
     structureValues(): readonly StructureValue[];
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     * @example
+     * const degree = session.data.structureValue("Valjean", "graphty.degree");
+     */
+    structureValue(id: NodeId, path: Path): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *

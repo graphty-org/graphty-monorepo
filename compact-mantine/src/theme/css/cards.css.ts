@@ -52,6 +52,12 @@ const css = `
 .cm-card-icon:hover { color: var(--cm-text); background: color-mix(in srgb, var(--cm-text) 8%, transparent); }
 .cm-card-icon:focus-visible, .cm-card-name:focus-visible { outline: 1px solid var(--cm-border-selected); }
 .cm-card-grip { cursor: grab; touch-action: none; }
+/* At rest a card's header holds its name and what it says: the grip and the x come with the pointer
+   or the keyboard, and stay where a pointer cannot hover. */
+@media (hover: hover) {
+    .cm-card:not(:hover, :focus-within) .cm-card-grip,
+    .cm-card:not(:hover, :focus-within) [data-card-remove] { opacity: 0; }
+}
 .cm-card[data-dragging] .cm-card-grip { cursor: grabbing; }
 .cm-card[data-folded] .cm-card-fold svg { transform: rotate(-90deg); }
 .cm-card-chit {
@@ -64,6 +70,9 @@ const css = `
 .cm-card-head > .cm-card-name,
 .cm-card-head > .cm-card-title,
 .cm-card-head > .mantine-TextInput-root { flex: 0 1 auto; min-width: 24px; }
+/* Folded, a long title leaves the summary its share of the line. */
+.cm-card[data-folded] .cm-card-head > .cm-card-name,
+.cm-card[data-folded] .cm-card-head > .cm-card-title { max-width: 40%; }
 .cm-card-name {
     display: inline-flex;
     min-width: 0;

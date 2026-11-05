@@ -3760,6 +3760,18 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    structureValue(id: NodeId, path: Path): number | undefined {
+        const snapshot = this.current();
+        return snapshot.ids.has(id) ? structureValuesOf(snapshot, path)?.[snapshot.ids.indexOf(id)] : undefined;
+    }
+
+    /**
      * Every value a rule or a binding can read: the node id, the data columns and the fields
      * finished runs published per element.
      * @returns the values, the node id first, then the data columns, then each run's fields

@@ -391,6 +391,26 @@ describe("a project saved with the timeline on, opened with it off", () => {
         assert.strictEqual(session.visibility.summary.visibleNodes, 4, "the option stays saved and is not applied");
     });
 
+    it("reads a saved window's column on a kind the field does not time", async () => {
+        const saved = createGraphSession({ ...ON, runs: { execute } });
+        await saved.data.addNodes([
+            { id: "a", at: 1000 },
+            { id: "b", at: 1000 },
+            { id: "c", at: 9000 },
+            { id: "d", at: 9000 },
+        ]);
+        await saved.data.addEdges([
+            { source: "a", target: "b", at: 1000 },
+            { source: "c", target: "d", at: 9000 },
+        ]);
+        await saved.time.setField({ edges: { start: "at", unit: "ms" } });
+        await saved.time.window({ from: 0, to: 5000, nodes: "all" });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open(text);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 2);
+    });
+
     it("keeps its time field, its settings and its Ghost row, and draws no ghosts", async () => {
         const saved = await loaded(ON);
         await saved.config.set({ startingRows: true });

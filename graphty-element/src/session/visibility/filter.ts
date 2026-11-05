@@ -375,6 +375,12 @@ export interface CompiledVisibility {
      * @returns The unresolved paths, without duplicates.
      */
     unresolvedPaths(): readonly Path[];
+    /**
+     * The filter on its own, the window aside: tests a reader can walk without compiling the filter
+     * again, and {@link CompiledVisibility.unresolvedPaths} for the paths the filter names. Null
+     * with no filter.
+     */
+    readonly filter: Omit<CompiledVisibility, "filter"> | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1815,6 +1821,29 @@ export function windowBounds(window: TimeWindow, sources: FilterSources): readon
 }
 
 /**
+ * Whether a window reads a kind's own records: a kind no index holds that carries the column under
+ * the window's name, which `compileWindow` tests like any other value.
+ * @param graph - The snapshot.
+ * @param window - The window.
+ * @param sources - Where the values and the index are read.
+ * @returns True when an index alone cannot say what the window keeps.
+ */
+export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sources: FilterSources): boolean {
+    const { values } = sources;
+    const indexed = sources.instants?.(window.attribute) ?? null;
+    if (values === undefined) {
+        return false;
+    }
+
+    return (
+        ((indexed?.node ?? null) === null &&
+            carries(graph.nodeCount, (index) => values.nodeValue(index, window.attribute))) ||
+        ((indexed?.edge ?? null) === null &&
+            carries(graph.edgeCount, (index) => values.edgeValue(index, window.attribute)))
+    );
+}
+
+/**
  * Compile a time window into its node half and its edge half.
  *
  * Both halves read the SAME attribute path and share one mark, so a window on `data.timestamp`
@@ -1871,16 +1900,8 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
         return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));
     };
 
-    // The designated field names which kinds it times: the other kind has no time, whatever its
-    // records hold under the same name.
-    const silent = (parsed: TimeInstants | null | undefined): boolean =>
-        timeline && indexed !== null && parsed === null;
-    const edge = silent(indexed?.edge)
-        ? null
-        : half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
-    let node = silent(indexed?.node)
-        ? null
-        : half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
+    const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
+    let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
     if (timeline && window.nodes === "ends" && edge !== null) {
         const list = graph.edgeList();
@@ -1897,6 +1918,28 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
     }
 
     return { node, edge };
+}
+
+/**
+ * A test that answers each row once: a filter under a window, whose answers a slide reads again.
+ * @param test - The test, or null.
+ * @param count - How many rows.
+ * @returns The same test, remembering.
+ */
+function remembered(test: ElementTest | null, count: number): ElementTest | null {
+    if (test === null) {
+        return null;
+    }
+
+    const answers = new Uint8Array(count);
+
+    return (index) => {
+        if (answers[index] === 0) {
+            answers[index] = test(index) ? 1 : 2;
+        }
+
+        return answers[index] === 1;
+    };
 }
 
 /**
@@ -1933,11 +1976,31 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
-    const filtering = filter === null ? null : compileOne(filter, context);
+    const compiledFilter = filter === null ? null : compileOne(filter, context);
+    const filtering =
+        window === null || compiledFilter === null
+            ? compiledFilter
+            : {
+                  node: remembered(compiledFilter.node, graph.nodeCount),
+                  edge: remembered(compiledFilter.edge, graph.edgeCount),
+              };
 
     if (filtering !== null) {
         halves.push(filtering);
     }
+
+    const filterPaths = [...context.marks.keys()];
+    const unresolved = (paths: Iterable<Path>): readonly Path[] => {
+        const found = new Set(context.unresolvedQueries);
+
+        for (const path of paths) {
+            if (context.marks.get(path)?.seen === false) {
+                found.add(path);
+            }
+        }
+
+        return Object.freeze([...found]);
+    };
 
     if (window !== null) {
         halves.push(compileWindow(window, context, filtering?.edge ?? null));
@@ -1960,17 +2023,11 @@ export function compileVisibility(
     return {
         node: folded.node,
         edge: folded.edge,
-        unresolvedPaths(): readonly Path[] {
-            const unresolved = new Set(context.unresolvedQueries);
-
-            for (const [path, mark] of context.marks) {
-                if (!mark.seen) {
-                    unresolved.add(path);
-                }
-            }
-
-            return Object.freeze([...unresolved]);
-        },
+        unresolvedPaths: () => unresolved(context.marks.keys()),
+        filter:
+            filtering === null
+                ? null
+                : { node: filtering.node, edge: filtering.edge, unresolvedPaths: () => unresolved(filterPaths) },
     };
 }
 

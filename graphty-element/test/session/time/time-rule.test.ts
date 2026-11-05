@@ -1,12 +1,18 @@
 /**
  * The window's rule held by every way of moving it: after any step, jump, undo or redo the masks
- * equal a brute-force scan of design/data/timeline-attribute.md section 2.4, and `time.changes()`
- * equals a brute-force diff. A hand-passed window keeps what it gave before, and a `stepBy` costs
+ * equal a brute-force scan of design/data/timeline-attribute.md section 2.4, after a move through
+ * `session.time` its `changes()` equals a brute-force diff, and undo and redo leave `changes()` as
+ * the last such move left it. A hand-passed window keeps what it gave before, and a `stepBy` costs
  * the rows it crossed, not the graph.
  */
-import { assert, beforeAll, describe, it } from "vitest";
+import type { GraphSnapshot } from "@graphty/graph-format";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 
+import { createGraphSession } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
+import { dispatcherOf } from "../../../src/session/GraphSession";
+import { createRunResult } from "../../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { edgeSpaceOf } from "../../../src/session/scope/index";
 import type { TimeField } from "../../../src/session/time/TimeApi";
 import { timeIndexCounters } from "../../../src/session/time/timeIndex";
@@ -209,20 +215,22 @@ describe("the window's rule", () => {
             const { session } = harness;
             const { time, visibility } = session;
             await time.setField(test.field);
-            if (test.filtered) {
-                await visibility.setSteps([
-                    {
-                        id: "kept",
-                        on: true,
-                        rule: {
-                            kind: "all",
-                            of: [
-                                { kind: "categories", attribute: "data.kind", values: ["leaf"], nodes: "all" },
-                                { kind: "edges", where: "heavy == `true`" },
-                            ],
-                        },
+            const keep = [
+                {
+                    id: "kept",
+                    on: true,
+                    rule: {
+                        kind: "all",
+                        of: [
+                            { kind: "categories", attribute: "data.kind", values: ["leaf"], nodes: "all" },
+                            { kind: "edges", where: "heavy == `true`" },
+                        ],
                     },
-                ]);
+                },
+            ] as const;
+            let now = test;
+            if (test.filtered) {
+                await visibility.setSteps(keep);
             }
 
             await time.window({
@@ -239,7 +247,7 @@ describe("the window's rule", () => {
                 return window === null ? null : { from: Number(window.from), to: Number(window.to) };
             };
             const check = (what: string): void => {
-                assert.deepEqual(masks(harness), bruteForce(test, harness, rows, bounds()), what);
+                assert.deepEqual(masks(harness), bruteForce(now, harness, rows, bounds()), what);
             };
 
             check("the first window");
@@ -250,17 +258,26 @@ describe("the window's rule", () => {
                     await time.stepBy(next() < 0.5 ? 1 : -1);
                 } else if (roll < 0.7) {
                     await time.seek(Math.floor(next() * SPAN));
-                } else if (roll < 0.85) {
+                } else if (roll < 0.8) {
                     await time.window({
                         ...(visibility.window ?? {}),
                         from: Math.floor(next() * SPAN),
                         to: Math.floor(next() * SPAN) + SPAN,
                     });
+                } else if (roll < 0.9) {
+                    now = { ...now, filtered: !now.filtered };
+                    await visibility.setSteps(now.filtered ? keep : []);
+                    check(`the filter in round ${String(round)}`);
+                    continue;
                 } else {
+                    const left = time.changes();
                     await session.undo();
+                    now = { ...now, filtered: visibility.steps.length > 0 };
                     check(`undo in round ${String(round)}`);
                     await session.redo();
+                    now = { ...now, filtered: visibility.steps.length > 0 };
                     check(`redo in round ${String(round)}`);
+                    assert.strictEqual(time.changes(), left, "the last move through session.time");
                     continue;
                 }
 
@@ -295,19 +312,36 @@ describe("the window's rule", () => {
         harness.session.dispose();
     });
 
-    it("leaves a kind the field does not time alone, though it holds the column's name", async () => {
+    it("reads a kind the field does not time by name, moved or passed by hand", async () => {
         const harness = makeSession({ directed: true });
         harness.add(
             [
-                { id: "a", t: 5 },
-                { id: "b", t: 5 },
+                { id: "a", t: 1000 },
+                { id: "b", t: 1000 },
+                { id: "c", t: 9000 },
+                { id: "d", t: 9000 },
             ],
-            [{ src: "a", dst: "b", t: 500 }],
+            [
+                { src: "a", dst: "b", t: 1000 },
+                { src: "b", dst: "c", t: 2000 },
+                { src: "c", dst: "d", t: 9000 },
+            ],
         );
         const { time, visibility } = harness.session;
-        await time.setField({ nodes: { start: "t" } });
-        await time.window({ from: 0, to: 10 });
-        assert.deepEqual([...visibility.edgeMask()], [1]);
+        await time.setField({ edges: { start: "t", unit: "ms" } });
+        await visibility.setWindow({ attribute: "data.t", from: 0, to: 5000 });
+        assert.deepEqual([...visibility.nodeMask()], [1, 1, 0, 0], "a node's own record still counts");
+        assert.deepEqual([...visibility.edgeMask()], [1, 0, 0]);
+
+        const { jumps } = slideCounters;
+        const { full } = slideCounters;
+        await time.window({ from: 5000, to: 10_000, step: 1000, nodes: "all" });
+        await time.stepBy(-1);
+        await time.stepBy(1);
+        assert.deepEqual([...visibility.nodeMask()], [0, 0, 1, 1], "the same rule as a move");
+        assert.deepEqual([...visibility.edgeMask()], [0, 0, 1]);
+        assert.isAbove(slideCounters.full, full + 2, "every move reads the records in a full pass");
+        assert.strictEqual(slideCounters.jumps, jumps);
         harness.session.dispose();
     });
 
@@ -334,7 +368,7 @@ describe("the window's rule", () => {
         harness.session.dispose();
     });
 
-    it("rolls a slide back when the recording fails, and evaluates a window the slide did not reach", async () => {
+    it("puts the recorded window back when the recording fails", async () => {
         const harness = makeSession({ directed: true });
         harness.add(
             [{ id: "a" }, { id: "b" }],
@@ -343,22 +377,356 @@ describe("the window's rule", () => {
                 { src: "a", dst: "b", t: 15 },
             ],
         );
-        const { time, visibility } = harness.session;
+        const { session } = harness;
+        const { time, visibility } = session;
         await time.setField({ edges: { start: "t" } });
         await time.window({ from: 0, to: 10, step: 10 });
-        await time.seek(10, { commit: false });
-        assert.deepEqual([...visibility.edgeMask()], [0, 1]);
-        // Same bounds as the slide but another `nodes`: the masks are not that window's.
-        await visibility.setWindow({
-            ...(visibility.window ?? { attribute: "data.t" }),
-            from: 10,
-            to: 20,
-            nodes: "all",
-        });
-        assert.deepEqual([...visibility.edgeMask()], [0, 1]);
-        assert.deepEqual([...visibility.nodeMask()], [1, 1]);
+        const recorded = [...visibility.edgeMask()];
+        assert.deepEqual(recorded, [1, 0]);
+
+        const refusal = new Error("refused");
+        const dispatch = vi.spyOn(dispatcherOf(session), "dispatch");
+        for (const move of [() => time.stepBy(1), () => time.window({ from: 10, to: 20, step: 10 })]) {
+            dispatch.mockRejectedValueOnce(refusal);
+            const failed = await Promise.resolve(move()).then(
+                () => null,
+                (error: unknown) => error,
+            );
+            assert.include(String(failed), "refused");
+            assert.strictEqual(visibility.window?.from, 0);
+            assert.deepEqual([...visibility.edgeMask()], recorded);
+        }
+
+        dispatch.mockRestore();
         harness.session.dispose();
     });
+
+    it("keeps a run's result the same as a full pass when the masks are adopted", async () => {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            [
+                { id: "a", t: 5 },
+                { id: "b", t: 5 },
+                { id: "c", t: 20 },
+            ],
+            [{ src: "a", dst: "b", w: 1 }],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({ nodes: { start: "t" } });
+        await visibility.set({ kind: "range", attribute: "data.w", min: 0, max: 2 });
+        const gap = await time.window({ from: 15, to: 25, step: 10 });
+        assert.deepEqual(gap.unresolvedPaths, ["data.w"], "no edge got past its ends");
+
+        const adopted = await time.window({ from: 0, to: 10, step: 10 });
+        assert.strictEqual(adopted.visible.edges, 1);
+        const full = await visibility.setWindow({ attribute: "data.t", from: 0, to: 11 });
+        assert.deepEqual(adopted.unresolvedPaths, full.unresolvedPaths);
+        harness.session.dispose();
+    });
+});
+
+describe("what a slide's masks are compared against", () => {
+    /**
+     * Two edges inside the slide's window and out of it, one node pair per edge so `nodes` shows,
+     * and one edge with no time.
+     * @returns The session, slid to [10, 20) over a recorded [0, 10).
+     */
+    async function slid(): Promise<Harness> {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => ({ id })),
+            [
+                { src: "a", dst: "b", t: 5, u: 15 },
+                { src: "c", dst: "d", t: 15, u: 5 },
+                { src: "e", dst: "f", t: 25, u: 5 },
+                { src: "g", dst: "h", u: 5 },
+            ],
+        );
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "t" } });
+        await time.window({ from: 0, to: 10, step: 10, missing: "outside" });
+        await time.seek(10, { commit: false });
+        return harness;
+    }
+
+    const SLID = { attribute: "data.t", from: 10, to: 20, step: 10, nodes: "ends", missing: "outside" } as const;
+
+    /**
+     * Assert the masks.
+     * @param harness - The session.
+     * @param nodes - The nodes that show, as letters.
+     * @param edges - The edges that show.
+     */
+    function shows(harness: Harness, nodes: string, edges: number[]): void {
+        const { visibility } = harness.session;
+        const letters = "abcdefgh".split("");
+        assert.strictEqual(letters.filter((_, row) => visibility.nodeMask()[row] === 1).join(""), nodes);
+        assert.deepEqual([...visibility.edgeMask()], edges);
+    }
+
+    it("adopts the window it slid to", async () => {
+        const harness = await slid();
+        shows(harness, "cd", [0, 1, 0, 0]);
+        const { full } = slideCounters;
+        await harness.session.visibility.setWindow(SLID);
+        assert.strictEqual(slideCounters.full, full, "no pass");
+        shows(harness, "cd", [0, 1, 0, 0]);
+        harness.session.dispose();
+    });
+
+    for (const [part, change, nodes, edges] of [
+        ["start", { from: 0 }, "abcd", [1, 1, 0, 0]],
+        ["end", { to: 30 }, "cdef", [0, 1, 1, 0]],
+        ["nodes", { nodes: "all" }, "abcdefgh", [0, 1, 0, 0]],
+        ["missing", { missing: "inside" }, "cdgh", [0, 1, 0, 1]],
+        ["attribute", { attribute: "data.u" }, "ab", [1, 0, 0, 0]],
+    ] as const) {
+        it(`evaluates a window with another ${part}`, async () => {
+            const harness = await slid();
+            await harness.session.visibility.setWindow({ ...SLID, ...change });
+            shows(harness, nodes, [...edges]);
+            harness.session.dispose();
+        });
+    }
+
+    /**
+     * Slide onto the window the project records, so only what the masks were read from can differ.
+     * @returns The session.
+     */
+    async function onRecorded(): Promise<Harness> {
+        const harness = await slid();
+        const { time } = harness.session;
+        await time.commit();
+        await time.seek(10, { commit: false });
+        return harness;
+    }
+
+    it("evaluates when the filter changed", async () => {
+        const harness = await onRecorded();
+        const { time, visibility } = harness.session;
+        await visibility.set({ kind: "member", of: { nodes: ["c", "d"] } });
+        await time.seek(10, { commit: false });
+        shows(harness, "cd", [0, 1, 0, 0]);
+        await visibility.set({ kind: "member", of: { nodes: ["a"] } });
+        shows(harness, "", [0, 0, 0, 0]);
+        harness.session.dispose();
+    });
+
+    it("evaluates when what the filter reads changed", async () => {
+        const harness = await slid();
+        const { session } = harness;
+        await session.time.commit();
+        const set = session.sets.create({ kind: "fixed", nodes: ["c", "d"], reading: "induced" }, { name: "Kept" });
+        await session.visibility.set({ kind: "member", of: { set } });
+        await session.time.seek(10, { commit: false });
+        shows(harness, "cd", [0, 1, 0, 0]);
+        session.sets.redefine(set, { kind: "fixed", nodes: ["a"], reading: "induced" });
+        shows(harness, "", [0, 0, 0, 0]);
+        session.dispose();
+    });
+
+    it("evaluates when the data changed", async () => {
+        const harness = await onRecorded();
+        harness.add([], [{ src: "e", dst: "f", t: 12 }]);
+        shows(harness, "cdef", [0, 1, 0, 0, 1]);
+        harness.session.dispose();
+    });
+});
+
+describe("a slide whose filter's inputs change", () => {
+    it("follows a redefined set, though the masks were empty", async () => {
+        const harness = makeSession({ directed: true });
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", t: 5 },
+                { src: "b", dst: "c", t: 15 },
+            ],
+        );
+        const { session } = harness;
+        const { time, visibility } = session;
+        await time.setField({ edges: { start: "t" } });
+        const set = session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Kept" });
+        await visibility.set({ kind: "member", of: { set } });
+        await time.window({ from: 100, to: 110, step: 10, nodes: "ends" });
+        await time.stepBy(1);
+        assert.strictEqual(visibility.summary.visibleNodes, 0);
+
+        session.sets.redefine(set, { kind: "fixed", nodes: ["b", "c"], reading: "induced" });
+        await time.seek(10);
+        assert.deepEqual([...visibility.nodeMask()], [0, 1, 1]);
+        assert.deepEqual([...visibility.edgeMask()], [0, 1]);
+        session.dispose();
+    });
+
+    it("follows a run read again, though the masks were empty", async () => {
+        let scores = new Map([
+            ["c", 5],
+            ["d", 5],
+        ]);
+        const harness: Harness = makeSession({
+            directed: true,
+            runs: { execute: (context) => Promise.resolve(scored(context, harness.store.getSnapshot(), scores)) },
+        });
+        harness.add([
+            { id: "a", t: 0 },
+            { id: "b", t: 0 },
+            { id: "c", t: 100 },
+            { id: "d", t: 100 },
+        ]);
+        const { session } = harness;
+        const { time, visibility } = session;
+        await time.setField({ nodes: { start: "t" } });
+        await session.runs.start("degree", {}, { as: "score", style: false });
+        await visibility.set({ kind: "expression", where: "results.score.value > `1`" });
+        await time.window({ from: 50, to: 60, step: 10 });
+        await time.stepBy(1);
+        assert.strictEqual(visibility.summary.visibleNodes, 0);
+
+        scores = new Map();
+        await session.runs.get("score")?.rerun();
+        await time.seek(100);
+        assert.deepEqual([...visibility.nodeMask()], [0, 0, 0, 0]);
+        session.dispose();
+    });
+});
+
+/**
+ * A fake run that publishes each node's score.
+ * @param context - The run.
+ * @param graph - The graph when the run starts.
+ * @param scores - The scores by id.
+ * @returns Its outcome.
+ */
+function scored(context: RunExecutionContext, graph: GraphSnapshot, scores: ReadonlyMap<string, number>): RunOutcome {
+    const ids = Array.from({ length: graph.nodeCount }, (_, row) => graph.ids.idOf(row));
+    return {
+        result: createRunResult({
+            runId: context.runId,
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "value",
+                    technicalName: "value",
+                    kind: "node",
+                    type: "number",
+                    path: `results.${context.runId}.value`,
+                },
+            ],
+            measured: { nodes: graph.nodeCount, edges: graph.edgeCount },
+            nodes: ids.map((id) => ({ id, values: { value: scores.get(String(id)) ?? 0 } })),
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "fake", facts: [], notes: [] },
+            durationMs: 1,
+        }),
+    };
+}
+
+describe("a window over a graph that changes between moves", () => {
+    for (const seed of [11, 12, 13, 14]) {
+        it(`holds after removals and a run read again: seed ${String(seed)}`, async () => {
+            const next = random(seed);
+            const pick = (count: number): number => Math.floor(next() * count);
+            let scores = new Map<string, number>();
+            const session = createGraphSession({
+                features: ["timeline"],
+                runs: { execute: (context) => Promise.resolve(scored(context, session.snapshot(), scores)) },
+            });
+            const nodes = new Map(Array.from({ length: 30 }, (_, at) => [`n${String(at)}`, pick(SPAN)]));
+            /** Each edge's time by its ends, one edge per pair of ends. */
+            const edges = new Map<string, number>();
+            while (edges.size < 90) {
+                edges.set(`n${String(pick(30))}>n${String(pick(30))}`, pick(SPAN));
+            }
+
+            const reroll = (): void => {
+                scores = new Map([...nodes.keys()].map((id) => [id, next() < 0.7 ? 5 : 0]));
+            };
+            reroll();
+            await session.data.addNodes([...nodes].map(([id, t]) => ({ id, t })));
+            await session.data.addEdges(
+                [...edges].map(([ends, t]) => {
+                    const [source, target] = ends.split(">");
+                    return { source, target, t };
+                }),
+            );
+            await session.time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
+            await session.runs.start("degree", {}, { as: "score", style: false });
+            await session.visibility.set({ kind: "expression", where: "results.score.value > `1`" });
+            await session.time.window({ from: 300, to: 500, step: 25, nodes: "ends" });
+
+            const check = (what: string): void => {
+                const graph = session.snapshot();
+                const { window } = session.visibility;
+                const inside = (t: number | undefined): boolean =>
+                    t !== undefined && t >= Number(window?.from) && t < Number(window?.to);
+                const ends = new Set([...edges].flatMap(([key, t]) => (inside(t) ? key.split(">") : [])));
+                const shows = (id: string): boolean =>
+                    (scores.get(id) ?? 0) > 1 && inside(nodes.get(id)) && ends.has(id);
+                const nodeMask = session.visibility.nodeMask();
+                const edgeMask = session.visibility.edgeMask();
+                assert.strictEqual(graph.nodeCount, nodes.size, what);
+                assert.strictEqual(graph.edgeCount, edges.size, what);
+                for (let row = 0; row < graph.nodeCount; row++) {
+                    const id = String(graph.ids.idOf(row));
+                    assert.strictEqual(nodeMask[row] === 1, shows(id), `${what}: node ${id}`);
+                }
+
+                for (let row = 0; row < graph.edgeCount; row++) {
+                    const source = String(graph.ids.idOf(graph.edgeSource(row)));
+                    const target = String(graph.ids.idOf(graph.edgeTarget(row)));
+                    const key = `${source}>${target}`;
+                    assert.strictEqual(
+                        edgeMask[row] === 1,
+                        inside(edges.get(key)) && shows(source) && shows(target),
+                        `${what}: edge ${key}`,
+                    );
+                }
+            };
+            const removeEdge = async (key: string): Promise<void> => {
+                const graph = session.snapshot();
+                const space = edgeSpaceOf(graph);
+                const [source, target] = key.split(">");
+                const row = Array.from({ length: graph.edgeCount }, (_, at) => at).find(
+                    (at) =>
+                        String(graph.ids.idOf(graph.edgeSource(at))) === source &&
+                        String(graph.ids.idOf(graph.edgeTarget(at))) === target,
+                );
+                assert.isDefined(row);
+                edges.delete(key);
+                await session.data.removeEdges([space.idOf(row)]);
+            };
+
+            check("the first window");
+            for (let round = 0; round < 30; round++) {
+                const roll = next();
+                if (roll < 0.35) {
+                    await session.time.stepBy(next() < 0.5 ? 1 : -1);
+                } else if (roll < 0.6) {
+                    await session.time.seek(pick(SPAN));
+                } else if (roll < 0.75) {
+                    reroll();
+                    await session.runs.get("score")?.rerun();
+                } else if (roll < 0.9) {
+                    await removeEdge([...edges.keys()][pick(edges.size)]);
+                } else {
+                    const id = [...nodes.keys()][pick(nodes.size)];
+                    nodes.delete(id);
+                    for (const key of [...edges.keys()]) {
+                        if (key.split(">").includes(id)) {
+                            edges.delete(key);
+                        }
+                    }
+
+                    await session.data.removeNodes([id]);
+                }
+
+                check(`round ${String(round)}`);
+            }
+
+            session.dispose();
+        });
+    }
 });
 
 describe("the work of a move", () => {
@@ -393,9 +761,38 @@ describe("the work of a move", () => {
                 await harness.session.time.seek(30);
                 assert.strictEqual(slideCounters.full, full, "no evaluate");
                 assert.strictEqual(slideCounters.jumps, jumps, "no jump");
+                assert.isAbove(slideCounters.rows, rows, "and the rows it visited were counted");
                 return slideCounters.rows - rows;
             },
             { sizes: [2_000, 8_000], growth: "constant", counter: "rows a stepBy visits" },
+        );
+    });
+
+    it("a node-timed stepBy visits the rows it crossed and runs no full pass", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const harness = makeSession({ directed: true });
+                harness.add(
+                    Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}`, w: at })),
+                    Array.from({ length: size }, (_, at) => ({
+                        src: `n${String(at)}`,
+                        dst: `n${String((at + 1) % size)}`,
+                    })),
+                );
+                const { time } = harness.session;
+                await time.setField({ nodes: { start: "w" } });
+                await time.window({ from: 0, to: 40, step: 7 });
+                await time.stepBy(1);
+                const { full, jumps } = slideCounters;
+                const { rows } = slideCounters;
+                await time.stepBy(1);
+                await time.stepBy(1);
+                assert.strictEqual(slideCounters.full, full, "no evaluate");
+                assert.strictEqual(slideCounters.jumps, jumps, "no jump");
+                assert.isAbove(slideCounters.rows, rows, "and the rows it visited were counted");
+                return slideCounters.rows - rows;
+            },
+            { sizes: [2_000, 8_000], growth: "constant", counter: "rows a node-timed stepBy visits" },
         );
     });
 
@@ -426,6 +823,32 @@ describe("the work of a move", () => {
         await time.stepBy(-1);
         assert.strictEqual(slideCounters.jumps, jumps + 1, "one node crossed, 200 edges to test");
         assert.strictEqual(visibility.summary.visibleNodes, 1);
+        harness.session.dispose();
+    });
+
+    it("a hub leaving takes the window's edges with it, scanning those and not its degree", async () => {
+        const harness = makeSession({ directed: true });
+        const near = ["n0", "n1", "n2"].map((id) => ({ id, t: 25 }));
+        const far = Array.from({ length: 200 }, (_, at) => ({ id: `f${String(at)}`, t: 1000 }));
+        harness.add(
+            [{ id: "hub", t: 15 }, ...near, ...far],
+            [
+                ...near.map(({ id }) => ({ src: "hub", dst: id, t: 25 })),
+                ...far.map(({ id }) => ({ src: "hub", dst: id, t: 1000 })),
+                { src: "n0", dst: "n1", t: 25 },
+            ],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
+        await time.window({ from: 10, to: 30, step: 10, nodes: "all", missing: "outside" });
+        assert.strictEqual(visibility.summary.visibleEdges, 4, "the hub's three, and one between leaves");
+
+        const { scans, jumps } = slideCounters;
+        await time.stepBy(1);
+        assert.strictEqual(slideCounters.scans, scans + 1);
+        assert.strictEqual(slideCounters.jumps, jumps);
+        assert.strictEqual(visibility.summary.visibleNodes, 3);
+        assert.strictEqual(visibility.summary.visibleEdges, 1, "the hub's edges went with it");
         harness.session.dispose();
     });
 
@@ -465,10 +888,10 @@ describe("bins of what passes the filter", () => {
         harness.add(
             [{ id: "a" }, { id: "b" }, { id: "c", gone: "yes" }],
             [
-                { src: "a", dst: "b", t: 0, heavy: true },
-                { src: "a", dst: "b", t: 10, heavy: false },
-                { src: "a", dst: "b", t: 20, heavy: true },
-                { src: "b", dst: "c", t: 30, heavy: true },
+                { src: "a", dst: "b", t: 0, u: 0, heavy: true },
+                { src: "a", dst: "b", t: 10, u: 10, heavy: false },
+                { src: "a", dst: "b", t: 20, u: 30, heavy: true },
+                { src: "b", dst: "c", t: 30, u: 20, heavy: true },
             ],
         );
         await harness.session.time.setField({ edges: { start: "t", unit: "ms" } });
@@ -490,6 +913,23 @@ describe("bins of what passes the filter", () => {
         assert.deepEqual(counts(), [1, 0, 1, 0]);
         await time.window({ from: 0, to: 10, step: 10 });
         assert.deepEqual(counts(), [1, 0, 1, 0], "the window does not narrow it");
+        harness.session.dispose();
+    });
+
+    it("follows the bins asked for, the column and the data", async () => {
+        const harness = await filtered();
+        const { time } = harness.session;
+        const edgesBy = (step: number): number[] =>
+            (time.bins({ step, scope: "visible" }) ?? []).map((bin) => bin.edges);
+        assert.deepEqual(edgesBy(10), [1, 0, 1, 0]);
+        assert.deepEqual(edgesBy(20), [1, 1]);
+        assert.deepEqual(edgesBy(10), [1, 0, 1, 0]);
+
+        await time.setField({ edges: { start: "u", unit: "ms" } });
+        assert.deepEqual(edgesBy(10), [1, 0, 0, 1]);
+
+        harness.add([], [{ src: "a", dst: "b", t: 2, u: 12, heavy: true }]);
+        assert.deepEqual(edgesBy(10), [1, 1, 0, 1]);
         harness.session.dispose();
     });
 

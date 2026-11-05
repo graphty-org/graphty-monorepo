@@ -120,8 +120,9 @@ import {
     type TimeWindow,
     windowBounds,
     windowNeedsTimeline,
+    windowReadsRecords,
 } from "./filter";
-import { bytesOf, type FilterBytes, type SlideCounts, WindowSlider } from "./slide";
+import { bytesOf, type FilterBytes, slideCounters, type SlideCounts, type SlideTarget, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
 
 // ---------------------------------------------------------------------------------------------
@@ -950,8 +951,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let slid = false;
     /** What the last slide wrote the masks from, so recording that window can adopt them. */
     let slidTo: (MaskTag & { readonly snapshot: GraphSnapshot; readonly window: TimeWindow }) | null = null;
+    /** The last pass's filter tests, and the filter, graph and inputs they were compiled from. */
+    let lastCompiled: { readonly key: readonly unknown[]; readonly filter: CompiledVisibility["filter"] } | null = null;
     /** What the filter alone keeps, and the filter, graph and inputs it was read from. */
-    let filterCache: { readonly key: readonly unknown[]; readonly bytes: FilterBytes } | null = null;
+    let filterCache: {
+        readonly key: readonly unknown[];
+        readonly bytes: FilterBytes;
+        /** The paths no row answered, once the bytes are read. */
+        unresolved: readonly Path[];
+        /** {@link FilterBytes} with an edge also needing both its ends, once a reader asked. */
+        passing: FilterBytes | null;
+    } | null = null;
 
     /**
      * The frame to answer from, rebuilt when the snapshot moves.
@@ -1112,6 +1122,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param window - The window, or null.
      */
     const evaluate = (graph: GraphSnapshot, filter: RuleTree | null, window: TimeWindow | null): void => {
+        slideCounters.full++;
         nodeMaskValue.grow(graph.nodeCount);
         edgeMaskValue.grow(graph.edgeCount);
         nodeMaskValue.clear();
@@ -1128,6 +1139,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
+        lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
     };
 
     /**
@@ -1151,6 +1163,25 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * A filter's tests: the last pass's when they fit, since compiling walks both kinds.
+     * @param graph - The snapshot.
+     * @param rule - The filter.
+     * @param key - The filter, graph and inputs.
+     * @returns The tests, or null with no filter.
+     */
+    const filterTests = (
+        graph: GraphSnapshot,
+        rule: RuleTree | null,
+        key: readonly unknown[],
+    ): CompiledVisibility["filter"] => {
+        if (lastCompiled !== null && sameInputs(lastCompiled.key, key)) {
+            return lastCompiled.filter;
+        }
+
+        return rule === null ? null : compileVisibility(graph, rule, null, passSources(graph)).filter;
+    };
+
+    /**
      * What the filter alone keeps, read once per filter, graph and inputs.
      * @param graph - The snapshot.
      * @returns The bytes.
@@ -1166,11 +1197,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         let read: FilterBytes | null = null;
         const tested = (): FilterBytes => {
             if (read === null) {
-                const compiled = rule === null ? null : compileVisibility(graph, rule, null, passSources(graph));
+                const compiled = filterTests(graph, rule, key);
                 read = {
                     nodes: bytesOf(compiled?.node ?? null, graph.nodeCount),
                     edges: bytesOf(compiled?.edge ?? null, graph.edgeCount),
                 };
+                entry.unresolved = compiled?.unresolvedPaths() ?? NO_PATHS;
+                lastCompiled = null;
             }
 
             return read;
@@ -1183,9 +1216,49 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 return tested().edges;
             },
         };
-        filterCache = { key, bytes };
+        const entry = { key, bytes, unresolved: NO_PATHS, passing: null };
+        filterCache = entry;
 
         return bytes;
+    };
+
+    /**
+     * What every filter leaves showing, the window aside: read once per filter, graph and inputs.
+     * @param graph - The snapshot.
+     * @returns The bytes.
+     */
+    const passingOf = (graph: GraphSnapshot): FilterBytes => {
+        const { nodes, edges } = filterBytesOf(graph);
+        const entry = filterCache;
+        if (entry === null || nodes === null) {
+            return { nodes, edges };
+        }
+
+        if (entry.passing === null) {
+            const { src, dst } = graph.edgeList();
+            const out = new Uint8Array(graph.edgeCount);
+            for (let row = 0; row < out.length; row++) {
+                out[row] = (edges === null ? 1 : edges[row]) & nodes[src[row]] & nodes[dst[row]];
+            }
+
+            entry.passing = { nodes, edges: out };
+        }
+
+        return entry.passing;
+    };
+
+    /**
+     * The paths a slide's masks leave unresolved. A full pass tests an edge only past its ends, so
+     * what it sees depends on the window; a slide has read every row of the filter, which does not.
+     * @param window - The window.
+     * @param instants - The window's index.
+     * @returns The filter's unresolved paths, and the window's own when no row holds a time.
+     */
+    const unresolvedOfSlide = (window: TimeWindow, instants: SlideTarget["instants"]): readonly Path[] => {
+        const filterPaths = filterCache?.unresolved ?? NO_PATHS;
+        const timed = (instants?.node?.timed ?? 0) + (instants?.edge?.timed ?? 0);
+
+        return timed > 0 || filterPaths.includes(window.attribute) ? filterPaths : [...filterPaths, window.attribute];
     };
 
     /**
@@ -2294,21 +2367,31 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 snapshot: active.graph,
             };
 
+            const startedAt = performance.now();
+            const instants = sources.instants?.(window.attribute) ?? null;
+            let passed = false;
             const counts = slider.move(
                 {
                     graph: active.graph,
-                    filter: [filter, rule, active.graph],
+                    filter: [filter, rule, active.graph, ...inputsFor(rule, null)],
                     nodes: nodeMaskValue,
                     edges: edgeMaskValue,
                     filterBytes: () => filterBytesOf(active.graph),
                     bounds: (moved) => windowBounds(moved, sources),
                     evaluate: (moved) => {
+                        passed = true;
                         evaluate(active.graph, rule, moved);
                     },
-                    instants: sources.instants?.(window.attribute) ?? null,
+                    readsRecords: (moved) => windowReadsRecords(active.graph, moved, sources),
+                    instants,
                 },
                 window,
             );
+            lastDurationMs = Math.round(performance.now() - startedAt);
+            if (!passed) {
+                unresolvedValue = unresolvedOfSlide(window, instants);
+            }
+
             sources.onSlide?.();
 
             return counts;
@@ -2330,18 +2413,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 return { nodes: nodeMaskValue.bytes(), edges: edgeMaskValue.bytes() };
             }
 
-            const { nodes, edges } = filterBytesOf(active.graph);
-            if (nodes === null) {
-                return { nodes, edges };
-            }
-
-            const { src, dst } = active.graph.edgeList();
-            const out = new Uint8Array(active.graph.edgeCount);
-            for (let row = 0; row < out.length; row++) {
-                out[row] = (edges === null ? 1 : edges[row]) & nodes[src[row]] & nodes[dst[row]];
-            }
-
-            return { nodes, edges: out };
+            return passingOf(active.graph);
         },
 
         previewSteps(steps: readonly FilterStep[]): StepCounts {

@@ -50,7 +50,7 @@ const MUTATORS = [
     "subtract",
     "symmetricDifference",
     "load",
-    "assign",
+    "rewrite",
 ] as const;
 
 /**
@@ -447,25 +447,23 @@ export class ElementMask<TId> {
     }
 
     /**
-     * Rewrite the membership in one version bump: what a time window's jump does, where a bump per
-     * row would cost more than the rows. The row count stays.
-     * @param bytes - One byte per row, `1` for a member.
-     * @param size - How many members that makes, which the caller counted as it wrote them.
-     * @param rows - The rows that differ, and only those are written; null to write them all.
+     * Write rows straight into the backing array, in one version bump for all of them: a time
+     * window's move, where a bump per row would cost more than the rows. The bytes are lent for
+     * this call only, so the staleness contract holds.
+     * @param write - Writes `1` or `0` into rows below {@link ElementMask.count}, and lists the
+     *     rows it took in and out of the set, each once.
+     * @returns What `write` returned.
      */
-    assign(bytes: U8, size: number, rows: ArrayLike<number> | null): void {
-        if (rows === null) {
-            this.array.set(bytes.subarray(0, this.rows));
-        } else if (rows.length === 0) {
-            return;
-        } else {
-            for (let at = 0; at < rows.length; at++) {
-                this.array[rows[at]] = bytes[rows[at]];
-            }
+    rewrite<TRows extends { readonly entered: ArrayLike<number>; readonly left: ArrayLike<number> }>(
+        write: (bytes: U8) => TRows,
+    ): TRows {
+        const rows = write(this.array);
+        if (rows.entered.length + rows.left.length > 0) {
+            this.members += rows.entered.length - rows.left.length;
+            this.bump();
         }
 
-        this.members = size;
-        this.bump();
+        return rows;
     }
 
     /**

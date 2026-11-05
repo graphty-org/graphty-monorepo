@@ -3141,10 +3141,10 @@ export function compareOracle(
             return { ...s, matched };
         });
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
-    // a picture graphty draws over a node's face is drawn where the program draws one as part of a node
+    // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => n.pictures ?? []),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];

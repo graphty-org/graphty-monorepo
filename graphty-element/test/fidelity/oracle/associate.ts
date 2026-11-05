@@ -428,10 +428,15 @@ function nodeFrom(
             ? null
             : { color: painted.gradient.stops[0]?.color ?? "#000000", opacity: 1, gradient: painted.gradient };
     const pictures = shapes.filter((s) => s.kind === "image" && s !== painted).map((s) => s.box);
+    const faces =
+        piecesFirst(sorted) === null
+            ? []
+            : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
     const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
+        ...(faces.length > 0 ? { faces } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
@@ -3587,15 +3592,23 @@ export function associate(
             .filter((a) => a.kind === "shape")
             .map((a) => boxOfPoints([at(a.box.x0, a.box.y0), at(a.box.x1, a.box.y1)]));
     };
-    const labelled = [
+    const labelled: { t: PText | null; n?: PNode; group?: PBox }[] = [
         ...nodeList.map((n) => ({ t: n.label, n })),
-        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label, n: undefined })),
-        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, n: undefined })),
-    ].filter((x): x is { t: PText; n: PNode | undefined } => x.t !== null && x.t.sizePx > 0);
-    for (const { t, n } of labelled) {
+        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label })),
+        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, group: g.box })),
+    ];
+    for (const { t, n, group } of labelled) {
+        if (t === null || !(t.sizePx > 0)) {
+            continue;
+        }
         const framed = guideAnnotations(n, t);
         const backs = free()
-            .filter((p) => p.kind === "shape" && backsText(p, t) && !framed.some((b) => boxIoU(b, p.box) >= 0.5))
+            .filter(
+                (p) =>
+                    p.kind === "shape" &&
+                    (backsText(p, t) || (group !== undefined && bandsGroup(p, t, group))) &&
+                    !framed.some((b) => boxIoU(b, p.box) >= 0.5),
+            )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
         const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
@@ -3651,6 +3664,9 @@ export function associate(
     };
 }
 
+/** The share of a group's side a band behind its label runs: a rounded group's band stops short of its outline. */
+const BAND_OF_GROUP = 0.9;
+
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
  * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
@@ -3673,6 +3689,23 @@ function backsText(p: Prim, t: PText): boolean {
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/**
+ * Whether a shape is the band a group's label is drawn on: a filled box behind the words that runs the group's whole
+ * width, or height for a label down its side, and reaches past the words the other way no further than a label's
+ * background does (yEd's `autoSizePolicy="node_width"`: graphml-galaxy-lcms-workflow's green band under "Preprocessing").
+ * @param p - the shape
+ * @param t - the label
+ * @param group - the group's box
+ * @returns true for the group's label band
+ */
+export function bandsGroup(p: Prim, t: PText, group: PBox): boolean {
+    const reach = Math.max(2 * t.sizePx, 4);
+    const b = p.box;
+    const across = bw(b) >= BAND_OF_GROUP * bw(group) && b.y0 >= t.box.y0 - reach && b.y1 <= t.box.y1 + reach;
+    const down = bh(b) >= BAND_OF_GROUP * bh(group) && b.x0 >= t.box.x0 - reach && b.x1 <= t.box.x1 + reach;
+    return p.fill !== null && inside([cx(t.box), cy(t.box)], b) && (across || down);
 }
 
 /** Intersection over union of two boxes. */

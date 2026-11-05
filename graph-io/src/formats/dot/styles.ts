@@ -3325,7 +3325,8 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const arrow = (value: string, property: string): string => {
         const parts = get(`${property}Parts`);
         if (typeof parts === "string") {
-            return arrowName(`${value}${sideSuffix(get(`${property}Side`))} ${parts}`, property, approximate);
+            const side = sideSuffix(get(`${property}Side`));
+            return arrowName(`${value}${side} ${parts}`, property, approximate);
         }
         if (value === "half") {
             approximate(property, value);

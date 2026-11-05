@@ -1,4 +1,4 @@
-The study runs on build 3549e11129 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d1-3549e11129
+The study runs on build 48879618c4 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d1-48879618c4
 
 Frozen on 2026-11-05 for the tier 6 rounds.
 
@@ -253,3 +253,6 @@ dry run twice. The owner is told why, once.
     - T95: a question's words stay in the turn, as `decided.md` settles; a chip under a claim is on
       either half; a shown run can be missing from `work.json`, and a dead Open run is no wrong turn; a
       refusal may offer a proxy list.
+- 2026-11-05: the study moves from build 3549e11129 (`.study-builds/tier6-r1d1-3549e11129`) to build
+  48879618c4 (`.study-builds/tier6-r1d1-48879618c4`). No bar changed, and no commit between the two
+  touches `graphty`, `graphty-element` or `compact-mantine`.

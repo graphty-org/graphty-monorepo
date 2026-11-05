@@ -141,7 +141,7 @@ const ARROWS: Aliases = {
     "diamond-open": ["diamond-open", "odiamond", "white-diamond", "ediamond", "open-diamond"],
     circle: ["circle", "dot", "transparent-circle", "white-circle-inverted"],
     "circle-open": ["circle-open", "odot", "white-circle", "open-circle"],
-    square: ["square", "box", "skewed-dash"],
+    square: ["square", "box"],
     // An X-shaped "cross" (yEd, yFiles) is not a crow's foot: it stays other:cross.
     crow: ["crow", "crows-foot", "crows-foot-many"],
     half: ["half", "half-top-arrow", "half-open", "lnormal", "rnormal", "halfopen"],
@@ -235,13 +235,14 @@ const GRAPHVIZ: Partial<Record<StyleEnumKind, Aliases>> = {
  * yEd's (yFiles for Java's) STANDARD arrow is "a triangle with impressed bottom side", a notched arrow; its DELTA is the
  * plain triangle (https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html). Measured in its own drawing
  * (graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg): PLAIN, CONCAVE and CONVEX are two stroked arms with
- * nothing between them, SHORT is notched like STANDARD, and TRANSPARENT_CIRCLE is a ring.
+ * nothing between them, SHORT is notched like STANDARD, TRANSPARENT_CIRCLE is a ring, and SKEWED_DASH one slanted stroke.
  */
 const YED: Partial<Record<StyleEnumKind, Aliases>> = {
     arrow: {
         vee: ["standard", "short"],
         "other:open-vee": ["plain", "concave", "convex"],
         "circle-open": ["transparent-circle"],
+        "other:skewed-dash": ["skewed-dash"],
     },
 };
 

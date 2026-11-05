@@ -278,6 +278,7 @@ const YED_ARROWHEAD: ToolArrowhead = {
         "other:dash": { length: 1 / 12, aspect: 8 },
         "other:cross": { length: 8 / 12, aspect: 1 },
         "other:open-vee": { length: 1, aspect: 1 },
+        "other:skewed-dash": { length: 8 / 12, aspect: 1 },
         "other:white_delta_bar": { length: 16 / 12, aspect: 12 / 16 },
     },
     source: `${MEASURED}yed-graphml-specimen-arrows.svg, yed-graphml-specimen-edges-lines.svg: widths 1, 2, 3, 5 and 8 draw the standard head 12, 13.5, 15, 18 and 22.5 long, 10, 11.25, 12.5, 15 and 18.75 wide)`,

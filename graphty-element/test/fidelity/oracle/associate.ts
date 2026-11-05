@@ -1650,8 +1650,12 @@ export function arrowheadEdge(
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
     // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
+    // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
+    // spans its middle (gml-synthetic-coverage, 29->40).
+    const armsOnly = p.closed && p.points.length > 2 && areaCentroid(p.points) === null;
     if (
         !lineEnd &&
+        !armsOnly &&
         nodes.some(
             (n) =>
                 inside([n.cx, n.cy], p.box) ||
@@ -1763,7 +1767,14 @@ export function arrowheadEdge(
                   ["source", "target"],
               )) ??
         pointed ??
-        (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
+        // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
+        // short line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2), where a
+        // middle cap, however it is set on the middle, covers it
+        (held ||
+        middle === null ||
+        (ends !== null && (ends.d < middle.d || toBox(pointAlong(middle.e.points, 0.5), p.box) > 1))
+            ? ends
+            : middle);
     if (best === null) {
         return null;
     }

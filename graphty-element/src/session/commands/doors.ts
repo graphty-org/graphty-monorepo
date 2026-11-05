@@ -2036,6 +2036,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // The store's own snapshot, whose coordinate columns are the lane.
             getSnapshot: LANE,
             undirected: READ,
+            nodeAtRow: READ,
             positions: LANE,
             seededNodeCount: READ,
             directionSettledBy: READ,

@@ -346,11 +346,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isDefined(capBatch);
         assert.isNotNull(capBatch);
         const uploads: string[] = [];
-        const upload = capBatch.thinInstanceBufferUpdated.bind(capBatch);
-        capBatch.thinInstanceBufferUpdated = (kind: string): void => {
-            uploads.push(kind);
-            upload(kind);
-        };
+        for (const kind of ["arrowColor", "arrowSize"]) {
+            const buffer = capBatch.getVertexBuffer(kind)?.getWrapperBuffer();
+            assert.isDefined(buffer, `${kind} is a buffer of the batch`);
+            const upload = buffer.updateDirectly.bind(buffer);
+            buffer.updateDirectly = (...args): void => {
+                uploads.push(kind);
+                upload(...args);
+            };
+        }
 
         await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
         await frame();

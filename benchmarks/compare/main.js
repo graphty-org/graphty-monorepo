@@ -120,6 +120,13 @@ const B = {
         await lib.resetCamera?.();
         return stats(intervals(st));
     },
+    // A node moved each frame the way a drag does, straight onto its mesh; cosmos.gl has no drag here.
+    async drag(frames = 60) {
+        if (!lib.moveNode) return null;
+        const st = await lib.frames(frames + 1, (i) => lib.moveNode(i));
+        await lib.settle();
+        return stats(intervals(st));
+    },
     async orbitDebug(frames) {
         const cam = lib.el?.graph.getCameraState();
         const t = [];
@@ -390,6 +397,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
         if (onFrame) onFrame();
     });
     let cam0 = null;
+    let moved = null;
     const a = {
         el,
         describe: () => ({
@@ -467,6 +475,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 await raf();
             }
             return stamps.slice(0, count);
+        },
+        moveNode(i) {
+            moved ??= graph.getNode(0)?.mesh ?? null;
+            if (moved) moved.position.x += 0.05 * Math.sin(i / 5 + 1);
         },
         moveCamera(i) {
             cam0 ??= graph.getCameraState();

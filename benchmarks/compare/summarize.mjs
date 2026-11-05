@@ -46,6 +46,7 @@ const METRICS = [
     ["Ready", (r) => r.load?.readyMs && r.load.readyMs / 1000, null, "s"],
     ["Still frame", (r) => r.still?.serial?.median, (r) => r.still?.serial?.p95, "ms", (r) => r.still?.serial?.p99],
     ["Moving frame", (r) => r.orbit?.median, (r) => r.orbit?.p95, "ms", (r) => r.orbit?.p99],
+    ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
     ["Hover", hoverMed, null, "ms"],
     ["JavaScript heap", (r) => r.memory?.usedMB, null, "MB"],
     ["Renderer and GPU processes", rss, null, "MB"],

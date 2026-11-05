@@ -214,7 +214,7 @@ function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set
         }
     };
     for (const node of nodes) {
-        add(node.mesh);
+        add(node.teardownMesh);
     }
 
     for (const edge of edges) {

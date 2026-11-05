@@ -209,9 +209,29 @@ which the agreement test lists. `"objects"` answers do not change.
 | Press, release, `elementAt`, `groupOutlineAt` | Row scan, typed edge scan | Row scan, typed edge scan | Row scan                     |
 | `screenToWorld`                               | Row scan                  | Row scan                  | Row scan                     |
 
-A transition click scans the lane, which already holds the destination. Batched rows' expand clicks and `hoverCursor` go through
+A transition click scans `rowBounds` inside `atLayout`, whose move through the mesh funnel puts each row at its destination and whole size
+for the length of the pick. Batched rows' expand clicks and `hoverCursor` go through
 `NodePointerRoster`. Under `"batched"` the shared `ActionManager` is built at the first object row; until then Babylon's move pick does not
 run, and any consumer action turns it back on.
+
+As built (stage 5): every pick lives in `render/PickService.ts`. The twelve sites are `pickAsDrawn`, `pickNodeId`, `alongRay`, the pointer
+predicates, the close-label hover, `screenToWorld`, the edge pick, the XR drag start, and their callers on press, release, background click
+and `elementAt`. `groupOutlineAt` is a 2D test in `RenderManager` and stays there; `Edge.ts`'s own ray waits for stage 7. `RowScan` exists once
+`Graph.openRowTable` runs, so `"objects"` graphs take the old path unchanged. With a table open, a press runs the scan in shadow beside
+`scene.pick` and counts differences (`shadow.differ`); a pick during a transition and an XR ray take the merged answer. `screenToWorld`
+stays on `scene.pick` until a row has no mesh. The narrow phase places rows under `graph-root`: the walk takes the ray into the root's space,
+and each candidate's matrix is multiplied by the root's, so an XR gesture changes nothing. Four things differ from the text above:
+
+- A row's per-axis scale comes from `Node.drawnScaling`, read for candidates only. `rowExtent` holds one scale and one spare float, and a
+  group's box is stretched, so the row with no `Node` (stage 30) needs a place for two more floats. The source likewise comes from
+  `node.drawnSourceMesh`; `MeshCache.sourceFor(name, creator)` is the half of `get` that makes no instance, there for rows with no mesh.
+- Models stay on `scene.pick`: `createModelInstance` tests only the box, on the instance, which the source's triangles cannot reproduce.
+  `Node.drawnByRowScan` is false for them and the scan leaves them to the mesh pick. Every other kind passed: all 52 bodied shapes in both
+  views, hidden rows, non-uniform size, `shape.rotation`, custom shapes, mixed rows, rig cameras, a turned and scaled root, NullEngine.
+- Row order equals `scene.meshes` order after a load, but not after a restyle: a rebuilt mesh goes to the end of `scene.meshes`. On an exact
+  tie `scene.pick` then answers the other row, and the scan keeps the lower row, the section 9 rule. Only a pick on an open table can
+  see this, and a batched row has no place in `scene.meshes` to lose.
+- An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

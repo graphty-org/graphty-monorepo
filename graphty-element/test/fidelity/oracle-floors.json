@@ -26349,7 +26349,7 @@
             "raster.nodeOutline": 0.96,
             "raster.label": 0.94,
             "raster.canvas": 0.99,
-            "label.backgroundBox": 0.333
+            "label.backgroundBox": 1
         },
         "gml-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -26386,7 +26386,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "label.backgroundBox": 0.333
+            "label.backgroundBox": 1
         },
         "gml-specimen-labels-p3": {
             "node.present": 1,
@@ -26410,7 +26410,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.969,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -26449,7 +26449,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.969,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -27648,11 +27648,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.852,
+            "label.offset": 0.951,
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.877,
+            "label.anchor": 0.938,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -27700,7 +27700,7 @@
             "raster.label": 0.83,
             "raster.canvas": 0.98,
             "stray.extra": 1,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "gml-synthetic-coverage@matched": {
             "node.present": 1,
@@ -27724,11 +27724,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.852,
+            "label.offset": 0.951,
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.877,
+            "label.anchor": 0.938,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -27770,7 +27770,7 @@
             "frame.zoom": 1,
             "background": 1,
             "stray.extra": 1,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "gml-visualgraph-tree30": {
             "node.present": 1,
@@ -28162,11 +28162,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.align": 0.333,
+            "label.align": 1,
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.476,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.179,
@@ -28235,11 +28235,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.align": 0.333,
+            "label.align": 1,
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.476,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.179,
@@ -28298,11 +28298,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.922,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.882,
+            "label.anchor": 0.922,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28361,11 +28361,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.922,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.882,
+            "label.anchor": 0.922,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28469,7 +28469,7 @@
             "raster.arrowhead": 0.9,
             "raster.label": 0.91,
             "raster.canvas": 0.98,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "graphml-magiclantern-architecture@matched": {
             "node.present": 1,
@@ -28538,7 +28538,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "graphml-open-archaeo": {
             "node.present": 1,
@@ -28610,7 +28610,7 @@
             "raster.arrowhead": 0.93,
             "raster.label": 0.96,
             "raster.canvas": 0.98,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "graphml-open-archaeo@matched": {
             "node.present": 1,
@@ -28676,7 +28676,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 1
         },
         "graphml-scala-collection-mutable": {
             "node.present": 1,
@@ -29078,14 +29078,14 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.779,
+            "label.offset": 0.926,
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.824,
+            "label.anchor": 0.941,
             "label.outline": 1,
             "label.background": 0.971,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 0.875,
             "label.backgroundBorder": 0.971,
             "edge.present": 1,
             "edge.extra": 0.958,
@@ -29150,14 +29150,14 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.779,
+            "label.offset": 0.926,
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.824,
+            "label.anchor": 0.941,
             "label.outline": 1,
             "label.background": 0.971,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 0.875,
             "label.backgroundBorder": 0.971,
             "edge.present": 1,
             "edge.extra": 0.958,
@@ -29226,7 +29226,7 @@
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 0.571,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -29302,7 +29302,7 @@
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 0.571,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39431,7 +39431,7 @@
             "raster.nodeOutline": 0.96,
             "raster.label": 0.82,
             "raster.canvas": 0.98,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 0.333
         },
         "yed-graphml-specimen-groups-p2": {
             "node.present": 1,
@@ -39576,7 +39576,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "label.backgroundBox": 0
+            "label.backgroundBox": 0.333
         },
         "yed-graphml-specimen-labels": {
             "node.present": 1,
@@ -39608,7 +39608,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.977,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -39642,7 +39642,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.818,
+            "label.offset": 0.939,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -39681,7 +39681,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.818,
+            "label.offset": 0.939,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -39724,7 +39724,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.977,
-            "label.backgroundBox": 0,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -56587,6 +56587,22 @@
                 "to": 0.75,
                 "reason": "first judgment of this sheet after the yEd references changed (2026-11-04, #3109): yEd refuses the file, so these are draw.io's stand-in drawing judged by the corrected comparator, not yEd's; followed up in #5792",
                 "date": "2026-11-04"
+            }
+        },
+        "yed-graphml-specimen-labels": {
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.977,
+                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
+                "date": "2026-11-05"
+            }
+        },
+        "yed-graphml-specimen-labels@matched": {
+            "label.anchor": {
+                "floor": 1,
+                "to": 0.977,
+                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
+                "date": "2026-11-05"
             }
         }
     }

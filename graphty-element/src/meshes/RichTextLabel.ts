@@ -1168,15 +1168,16 @@ export class RichTextLabel {
      * on a plane of that width. The letters keep their size.
      * ponytail: a new texture each time the target's width changes; a group's box only tells its label when it has
      * changed by a step (`Node.drawAsGroup`), so paint the band with a nine-slice if one ever follows every frame.
-     * @param target - The mesh the label is attached to.
+     * @param target - What the label is attached to; a point has no width to reach across.
      * @param bounds - The target's bounds, in its own frame.
      * @param bounds.min - Their lower corner.
      * @param bounds.max - Their upper corner.
      */
-    private spanTarget(target: AbstractMesh, bounds: { min: Vector3; max: Vector3 }): void {
+    private spanTarget(target: RichTextLabelOptions["attachTo"], bounds: { min: Vector3; max: Vector3 }): void {
         const { mesh } = this;
         const planeHeight = this.lineHeightInWorld() * this.heightInLines;
-        if (this.options.box !== "target-width" || mesh === null || planeHeight <= 0) {
+        const spans = this.options.box === "target-width" && target instanceof AbstractMesh;
+        if (!spans || mesh === null || planeHeight <= 0) {
             return;
         }
 
@@ -2025,9 +2026,7 @@ export class RichTextLabel {
             return;
         }
 
-        if (target instanceof AbstractMesh) {
-            this.spanTarget(target, bounds);
-        }
+        this.spanTarget(target, bounds);
 
         // Measured before a pointer is re-aimed below, as it always has been.
         const labelHeight = this.lineHeightInWorld() * this.heightInLines;

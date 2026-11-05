@@ -4,8 +4,8 @@
  * does in the program that made it. Only values a primary source states are here; every value names its source.
  */
 
-import type { EdgeStyleValues, GraphStyleValues, NodeStyleValues, StyleArrowShape, StyleTool } from "./types.js";
 import { YED_LABEL_PADDING } from "./canon/yed-label.js";
+import type { EdgeStyleValues, GraphStyleValues, NodeStyleValues, StyleArrowShape, StyleTool } from "./types.js";
 
 /**
  * One default value and where it is stated.

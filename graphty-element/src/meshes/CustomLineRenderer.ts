@@ -59,11 +59,16 @@ export interface JoinedLineOptions {
      */
     widened?: boolean;
     /**
-     * A shader drawn on the line (`EDGE_SHADED`): the shader-store name of its fragment stage (the
+     * A shader drawn on the line (`EDGE_SHADED`): its name, the text of its fragment stage (the
      * join fragment with the shader runtime's definitions after it) and what that declares.
      * Implies `widened`.
+     *
+     * The text goes to Babylon inline, never through a shader store: the module that writes it
+     * loads lazily, and on a page where that gave it a second copy of Babylon, its store is not
+     * the one this module's material reads (issue #5894).
      */
     program?: {
+        readonly name: string;
         readonly fragment: string;
         readonly uniforms: readonly string[];
         readonly samplers: readonly string[];
@@ -430,7 +435,9 @@ void main(void) {
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,
-            { vertex: "edgeJoin", fragment: program?.fragment ?? "edgeJoin" },
+            program === undefined
+                ? { vertex: "edgeJoin", fragment: "edgeJoin" }
+                : { vertex: "edgeJoin", fragmentSource: program.fragment, spectorName: program.name },
             {
                 attributes: [
                     "position",

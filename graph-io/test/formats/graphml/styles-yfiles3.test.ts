@@ -329,4 +329,16 @@ describe("yEd Live GraphML: a node label with no layout parameter", () => {
         const { node } = await sheet("specimen-labels.graphml");
         expect(node("labelPosition", "default")).toBe("bottom");
     });
+
+    it("reads a label style's box: its fill, its stroke and how far it stands off the words", async () => {
+        const labels = (await sheet("specimen-labels.graphml")).node;
+        expect(labels("labelBackground", "background-fill")).toBe("#ffff99");
+        expect(labels("labelPadding", "background-fill")).toBe(0);
+        expect(labels("labelPadding", "padding-6")).toBe(6);
+        expect(labels("labelBorderColor", "background-stroke")).toBe("#ff0000");
+        expect(labels("labelBorderWidth", "background-stroke")).toBe(1);
+        expect((await sheet("specimen-labels-p3.graphml")).node("labelPadding", "v2-insets-8")).toBe(8);
+        // a label with no box keeps the default padding
+        expect(labels("labelPadding", "cap-background-fill")).toBeNull();
+    });
 });

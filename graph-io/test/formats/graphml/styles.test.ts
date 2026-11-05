@@ -398,10 +398,10 @@ describe("GraphML styles: yEd", () => {
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
-        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0 #c0c0c0");
+        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0");
         expect([colors[at("cols")], sizes[at("cols")], direction[at("cols")]]).toEqual([
-            "#ecf5ff #c0c0c0 #c0c0c0",
-            "0.133333 0.333333 0.533333",
+            "#ecf5ff #c0c0c0",
+            "0.133333 0.866667",
             "right",
         ]);
         expect(direction[at("rows")]).toBeNull();

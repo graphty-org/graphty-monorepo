@@ -743,6 +743,7 @@ export class DataManager implements Manager {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
+            loading: () => this.ingest.settling,
             apply: (mutation, draft, after) => {
                 if (mutation.kind === "remove-nodes") {
                     hooks.removing(mutation.ids, []);

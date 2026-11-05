@@ -120,6 +120,13 @@ const B = {
         await lib.resetCamera?.();
         return stats(intervals(st));
     },
+    // A node moved each frame the way a drag does, straight onto its mesh; cosmos.gl has no drag here.
+    async drag(frames = 60) {
+        if (!lib.moveNode) return null;
+        const st = await lib.frames(frames + 1, (i) => lib.moveNode(i));
+        await lib.settle();
+        return stats(intervals(st));
+    },
     async orbitDebug(frames) {
         const cam = lib.el?.graph.getCameraState();
         const t = [];
@@ -334,6 +341,47 @@ async function cosmosAdapter({ dpr }) {
 }
 
 // ---------------------------------------------------------------- graphty-element
+// One repack of every row and its upload, finished on the card, with the frame loop stopped.
+// Opened only here so that no earlier stage pays for tables nothing draws from yet. By now the
+// meshes are behind the lane, and a row drawn off its lane is held out of the repack until the
+// funnel lands it back, so every node is updated once first; `rowsCopied` is how many rows each
+// timed flush really changed, which is what says the repack did the work the time is for.
+async function measureRepack(graph, eng) {
+    if (!graph.openRowTable) return undefined;
+    const table = graph.openRowTable();
+    for (const node of graph.getNodes()) node.update();
+    const gl = graph.engine?._gl;
+    table.flush();
+    const repack = [];
+    const copied = [];
+    const sent = table.uploadedBytes;
+    for (let i = 0; i < 10; i++) {
+        await eng.stepAsync(1);
+        eng.publishPositions();
+        const before = table.rowPosition.slice();
+        const t = now();
+        table.flush();
+        gl?.finish();
+        repack.push(now() - t);
+        copied.push(changedRows(before, table.rowPosition, table.rows));
+    }
+    return {
+        ...stats(repack),
+        rows: table.rows,
+        rowsCopied: Math.min(...copied),
+        bytes: (table.uploadedBytes - sent) / 10,
+    };
+}
+
+function changedRows(before, after, rows) {
+    let changed = 0;
+    for (let row = 0; row < rows; row++) {
+        const i = row * 4;
+        if (before[i] !== after[i] || before[i + 1] !== after[i + 1] || before[i + 2] !== after[i + 2]) changed++;
+    }
+    return changed;
+}
+
 async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -390,6 +438,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
         if (onFrame) onFrame();
     });
     let cam0 = null;
+    let moved = null;
     const a = {
         el,
         describe: () => ({
@@ -467,6 +516,10 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 await raf();
             }
             return stamps.slice(0, count);
+        },
+        moveNode(i) {
+            moved ??= graph.getNode(0)?.mesh ?? null;
+            if (moved) moved.position.x += 0.05 * Math.sin(i / 5 + 1);
         },
         moveCamera(i) {
             cam0 ??= graph.getCameraState();
@@ -573,6 +626,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                     undrawn.push(now() - t);
                 }
                 out.stepUndrawn = stats(undrawn);
+                out.repackUpload = await measureRepack(graph, eng);
             } else {
                 const single = [];
                 const budget = now() + 20000;

@@ -199,7 +199,7 @@ Tool values are elements drawn with the writing program's default.
 | gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 7 | 5 | 160 | 0% | 0% | 196 | 3901 | 0 | W_STYLE_RAMP_ROUNDED |
 | gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 6 | 5 | 26 | 100% | 0% | 0 | 367 | 0 |  |
 | gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 7 | 4 | 1060 | 0% | 0% | 1148 | 38603 | 0 | W_STYLE_RAMP_ROUNDED |
-| gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 55 | 36% | 4% | 0 | 522 | 0 |  |
+| gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 55 | 36% | 4% | 0 | 486 | 0 |  |
 | gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 7 | 5 | 0 | - | - | 0 | 17919 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 1124 | 0 |  |
@@ -207,7 +207,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 755 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 470 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 230 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 734 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 734 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 353 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 1170 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
@@ -233,7 +233,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
 | graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 143 | 59% | 10% | 0 | 275 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 8 | 5 | 108 | 74% | 12% | 0 | 279 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 108 | 74% | 12% | 0 | 279 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 6 | 143 | 59% | 2% | 0 | 207 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 330 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 5 | 6 | 59 | 54% | 0% | 0 | 227 | 0 | W_STYLE_NO_FILL |

@@ -8,7 +8,7 @@
  * defaults go beneath the file's own values; igraph and unknown writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
- * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fontSize`, `fontName`,
+ * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
  * `fontStyle`) replace every style key any reader here reads, inside the records the graph already has, so positions,
  * bends and other keys stay. The `graphty.styles` block and the per-element values its rules read are keys too,
  * named by the GML writer's rule for names that are not GML keys (`graphty_styles`, `graphty_style_node_<key>`).
@@ -28,6 +28,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { YED_INSIDE_INSET, yedLabelFillsNodeHeight } from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
@@ -938,18 +939,72 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
-    if (lg.fill !== undefined && yedLabel) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
+    if (yedLabel) {
+        readYedLabelBox(lg, writer, put, at);
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
-    if (node && lg.anchor !== undefined) {
+    if (node) {
+        readLabelPlace(lg, writer.tool === "yed", put, at);
+    }
+}
+
+/**
+ * Reads where a node's label is drawn: its `anchor`, and for yEd where its label box puts the words. A label as tall
+ * as its node (`autoSizePolicy`) fills the node, with the words at the box's top; a label inside against the left or
+ * right side is its model's inset in from that side. GML stores no label box to read these from, unlike yEd's GraphML
+ * (`readInsideInset`). The top and bottom take no inset: graphty-element
+ * centers a label too tall for its node, and an offset from there would carry it past the node's middle.
+ * @param lg - the label record
+ * @param yed - whether yEd wrote the file
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelPlace(lg: Rec, yed: boolean, put: Put, at: At): void {
+    let place: string | null | undefined;
+    if (lg.anchor !== undefined) {
         const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
-        const known = GML_ANCHORS.get(anchor);
-        if (known === undefined) {
+        place = GML_ANCHORS.get(anchor) ?? null;
+        if (place === null) {
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
-        put("labelPosition", known ?? null);
+        put("labelPosition", place);
+    }
+    if (!yed) {
+        return;
+    }
+    const policy = scalarText(lg.autoSizePolicy, at("labelPosition"))?.trim();
+    if ((place === undefined || place === "center") && yedLabelFillsNodeHeight(policy)) {
+        put("labelPosition", "inside-top");
+    } else if (place?.startsWith("inside-") === true) {
+        put("labelOffsetX", sideSign(place) * YED_INSIDE_INSET || null);
+    }
+}
+
+/**
+ * Which way a label inside against a side is moved in from it, across the node.
+ * @param place - the inside position
+ * @returns 1 from the left side, -1 from the right, or 0 where it names neither
+ */
+function sideSign(place: string): number {
+    if (place.includes("left")) {
+        return 1;
+    }
+    return place.includes("right") ? -1 : 0;
+}
+
+/**
+ * Reads the box yEd draws behind a label's words: its `fill`, and its `outline`, a one-pixel line round the box.
+ * @param lg - the label record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYedLabelBox(lg: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(lg.fill, "labelBackground", null, writer, put, at);
+    if (lg.outline !== undefined) {
+        readColor(lg.outline, "labelBorderColor", null, writer, put, at);
+        put("labelBorderWidth", 1);
     }
 }
 
@@ -1597,6 +1652,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelWeight",
         "labelItalic",
         "labelPosition",
+        "labelBackground",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1615,6 +1671,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelBackground",
     ] as const),
     block: "native",
 });
@@ -1651,7 +1708,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
+    label: new Set(["text", "color", "fill", "outline", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1765,6 +1822,10 @@ function labelGraphics(get: Get): Rec | null {
     const color = get("labelColor");
     if (typeof color === "string") {
         lg.color = color.toUpperCase();
+    }
+    const background = get("labelBackground");
+    if (typeof background === "string") {
+        lg.fill = background.toUpperCase();
     }
     const size = get("labelSize");
     if (typeof size === "number") {

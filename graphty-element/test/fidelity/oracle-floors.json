@@ -3623,7 +3623,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.965,
-            "stray.extra": 0.943,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -3691,7 +3691,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.965,
-            "stray.extra": 0.943,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6926,7 +6926,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.965,
-            "stray.extra": 0.943,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -6994,7 +6994,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.965,
-            "stray.extra": 0.943,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11088,7 +11088,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.941,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -11156,7 +11156,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 1,
-            "stray.extra": 0.941,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -15931,7 +15931,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.extra": 0.413,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -15972,7 +15972,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.extra": 0.413,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -17427,7 +17427,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "stray.present": 0,
-            "stray.extra": 0.143,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -17491,7 +17491,7 @@
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "stray.present": 0,
-            "stray.extra": 0.143,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -25262,7 +25262,7 @@
             "label.alongLine": 0.667,
             "label.offLine": 0.167,
             "label.outline": 1,
-            "label.background": 0.967,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -25284,7 +25284,8 @@
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.86,
             "raster.label": 0.82,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 1
         },
         "gml-specimen-edge-labels-p2@matched": {
             "node.present": 1,
@@ -25314,7 +25315,7 @@
             "label.alongLine": 0.667,
             "label.offLine": 0.167,
             "label.outline": 1,
-            "label.background": 0.967,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -25331,7 +25332,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 1
         },
         "gml-specimen-edge-labels-p3": {
             "node.present": 1,
@@ -26036,7 +26038,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.1,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -26066,7 +26068,8 @@
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.89,
             "raster.label": 0.81,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 1
         },
         "gml-specimen-groups-p2": {
             "node.present": 1,
@@ -26211,7 +26214,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.1,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -26236,7 +26239,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 1
         },
         "gml-specimen-images-charts": {
             "node.present": 1,
@@ -26328,23 +26332,24 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.921,
+            "label.offset": 0.974,
             "label.opacity": 1,
             "label.family": 0.947,
             "label.lines": 1,
             "label.align": 0.5,
-            "label.anchor": 0.921,
+            "label.anchor": 0.974,
             "label.outline": 1,
-            "label.background": 0.947,
-            "label.backgroundBorder": 0.947,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.96,
-            "raster.label": 0.92,
-            "raster.canvas": 0.99
+            "raster.label": 0.94,
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 0.333
         },
         "gml-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -26368,19 +26373,20 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.921,
+            "label.offset": 0.974,
             "label.opacity": 1,
             "label.family": 0.947,
             "label.lines": 1,
             "label.align": 0.5,
-            "label.anchor": 0.921,
+            "label.anchor": 0.974,
             "label.outline": 1,
-            "label.background": 0.947,
-            "label.backgroundBorder": 0.947,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0.333
         },
         "gml-specimen-labels-p3": {
             "node.present": 1,
@@ -26404,7 +26410,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.844,
+            "label.offset": 0.969,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -26418,7 +26424,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
-            "raster.label": 0.85,
+            "raster.label": 0.86,
             "raster.canvas": 0.99
         },
         "gml-specimen-labels-p3@matched": {
@@ -26443,7 +26449,7 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.844,
+            "label.offset": 0.969,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
@@ -27642,15 +27648,15 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.704,
+            "label.offset": 0.852,
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.815,
+            "label.anchor": 0.877,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
-            "label.background": 0.966,
+            "label.background": 0.989,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
@@ -27687,13 +27693,14 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.92,
+            "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.91,
             "raster.arrowhead": 0.9,
             "raster.label": 0.83,
             "raster.canvas": 0.98,
-            "stray.extra": 1
+            "stray.extra": 1,
+            "label.backgroundBox": 0
         },
         "gml-synthetic-coverage@matched": {
             "node.present": 1,
@@ -27717,15 +27724,15 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.704,
+            "label.offset": 0.852,
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.815,
+            "label.anchor": 0.877,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
-            "label.background": 0.966,
+            "label.background": 0.989,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.988,
@@ -27762,7 +27769,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "stray.extra": 1
+            "stray.extra": 1,
+            "label.backgroundBox": 0
         },
         "gml-visualgraph-tree30": {
             "node.present": 1,
@@ -27900,11 +27908,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.944,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -27931,11 +27939,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.85,
-            "raster.nodeOutline": 0.87,
+            "raster.nodeBody": 0.91,
+            "raster.nodeOutline": 0.88,
             "raster.edge": 0.8,
-            "raster.arrowhead": 0.88,
-            "raster.label": 0.79,
+            "raster.arrowhead": 0.89,
+            "raster.label": 0.84,
             "raster.canvas": 0.98
         },
         "gml-yed-pmodel@matched": {
@@ -27960,11 +27968,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.944,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28157,7 +28165,7 @@
             "label.align": 0.333,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.333,
+            "label.background": 0.476,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -28188,7 +28196,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.08,
+            "stray.present": 0.091,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28230,7 +28238,7 @@
             "label.align": 0.333,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.333,
+            "label.background": 0.476,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -28261,7 +28269,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.08,
+            "stray.present": 0.091,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28290,11 +28298,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.902,
+            "label.offset": 0.922,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.882,
-            "label.anchor": 0.863,
+            "label.lines": 1,
+            "label.anchor": 0.882,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28324,11 +28332,12 @@
             "background": 1,
             "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.95,
-            "raster.edge": 0.9,
-            "raster.arrowhead": 0.94,
-            "raster.label": 0.9,
-            "raster.canvas": 0.98,
-            "stray.extra": 1
+            "raster.edge": 0.93,
+            "raster.arrowhead": 0.95,
+            "raster.label": 0.91,
+            "raster.canvas": 0.99,
+            "stray.extra": 1,
+            "label.align": 1
         },
         "graphml-libcitygml-mapping@matched": {
             "node.present": 1,
@@ -28352,11 +28361,11 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.902,
+            "label.offset": 0.922,
             "label.opacity": 1,
             "label.family": 1,
-            "label.lines": 0.882,
-            "label.anchor": 0.863,
+            "label.lines": 1,
+            "label.anchor": 0.882,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28384,7 +28393,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "stray.extra": 1
+            "stray.extra": 1,
+            "label.align": 1
         },
         "graphml-magiclantern-architecture": {
             "node.present": 1,
@@ -28417,7 +28427,7 @@
             "label.alongLine": 0.667,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.923,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -28458,7 +28468,8 @@
             "raster.edge": 0.83,
             "raster.arrowhead": 0.9,
             "raster.label": 0.91,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "label.backgroundBox": 0
         },
         "graphml-magiclantern-architecture@matched": {
             "node.present": 1,
@@ -28491,7 +28502,7 @@
             "label.alongLine": 0.667,
             "label.offLine": 0,
             "label.outline": 1,
-            "label.background": 0.923,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -28526,7 +28537,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0
         },
         "graphml-open-archaeo": {
             "node.present": 1,
@@ -28556,7 +28568,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.857,
+            "label.background": 0.98,
             "label.backgroundBorder": 1,
             "edge.present": 0.981,
             "edge.extra": 0.981,
@@ -28586,7 +28598,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.455,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -28597,7 +28609,8 @@
             "raster.edge": 0.89,
             "raster.arrowhead": 0.93,
             "raster.label": 0.96,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "label.backgroundBox": 0
         },
         "graphml-open-archaeo@matched": {
             "node.present": 1,
@@ -28627,7 +28640,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.857,
+            "label.background": 0.98,
             "label.backgroundBorder": 1,
             "edge.present": 0.981,
             "edge.extra": 0.981,
@@ -28657,12 +28670,13 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.455,
+            "stray.present": 1,
             "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0
         },
         "graphml-scala-collection-mutable": {
             "node.present": 1,
@@ -29070,7 +29084,7 @@
             "label.lines": 1,
             "label.anchor": 0.824,
             "label.outline": 1,
-            "label.background": 0.941,
+            "label.background": 0.971,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 0.971,
             "edge.present": 1,
@@ -29101,8 +29115,8 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.333,
-            "stray.extra": 0.6,
+            "stray.present": 0.368,
+            "stray.extra": 0.8,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -29142,7 +29156,7 @@
             "label.lines": 1,
             "label.anchor": 0.824,
             "label.outline": 1,
-            "label.background": 0.941,
+            "label.background": 0.971,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 0.971,
             "edge.present": 1,
@@ -29173,8 +29187,8 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.333,
-            "stray.extra": 0.6,
+            "stray.present": 0.368,
+            "stray.extra": 0.8,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -29211,7 +29225,7 @@
             "label.alongLine": 0.333,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.897,
+            "label.background": 1,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -29287,7 +29301,7 @@
             "label.alongLine": 0.333,
             "label.offLine": 1,
             "label.outline": 1,
-            "label.background": 0.897,
+            "label.background": 1,
             "label.backgroundBox": 0,
             "label.backgroundBorder": 1,
             "edge.present": 1,
@@ -31951,7 +31965,8 @@
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-arrows-p2": {
             "node.present": 1,
@@ -31996,7 +32011,8 @@
             "raster.edge": 0.93,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-arrows-p2@matched": {
             "node.present": 1,
@@ -32036,7 +32052,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-arrows-p3": {
             "node.present": 1,
@@ -32082,7 +32099,8 @@
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-arrows-p3@matched": {
             "node.present": 1,
@@ -32122,7 +32140,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-arrows@matched": {
             "node.present": 1,
@@ -32162,7 +32181,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 1
         },
         "pajek-specimen-edge-labels": {
             "node.present": 1,
@@ -32408,7 +32428,8 @@
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0
         },
         "pajek-specimen-edges-lines-p2": {
             "node.present": 1,
@@ -32540,7 +32561,8 @@
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0
         },
         "pajek-specimen-edges-lines-p3@matched": {
             "node.present": 1,
@@ -32580,7 +32602,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0
         },
         "pajek-specimen-edges-lines-p4": {
             "node.present": 1,
@@ -32792,7 +32815,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0
         },
         "pajek-specimen-labels": {
             "node.present": 1,
@@ -33551,7 +33575,8 @@
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.88,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0.875
         },
         "pajek-synth-lines@matched": {
             "node.present": 1,
@@ -33605,7 +33630,8 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "edge.dashPeriod": 0.875
         },
         "pajek-synth-vertices": {
             "node.present": 1,
@@ -34048,7 +34074,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.2,
+            "edge.dashPeriod": 0.4,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -34255,7 +34281,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.2,
+            "edge.dashPeriod": 0.4,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -38725,7 +38751,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.964,
-            "stray.extra": 0.941,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -38793,7 +38819,7 @@
             "group.present": 1,
             "group.box": 1,
             "stray.present": 0.964,
-            "stray.extra": 0.941,
+            "stray.extra": 0.971,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39384,7 +39410,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.286,
+            "label.background": 0.929,
             "label.backgroundBorder": 1,
             "group.present": 0.9,
             "group.extra": 0.75,
@@ -39395,8 +39421,8 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.118,
-            "stray.extra": 0,
+            "stray.present": 0.286,
+            "stray.extra": 0.778,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39404,7 +39430,8 @@
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.96,
             "raster.label": 0.82,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "label.backgroundBox": 0
         },
         "yed-graphml-specimen-groups-p2": {
             "node.present": 1,
@@ -39434,7 +39461,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.846,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "group.present": 1,
             "group.extra": 1,
@@ -39446,7 +39473,7 @@
             "group.strokeDash": 1,
             "group.label": 1,
             "stray.present": 0,
-            "stray.extra": 0,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39454,7 +39481,8 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.99,
             "raster.label": 0.83,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 0
         },
         "yed-graphml-specimen-groups-p2@matched": {
             "node.present": 1,
@@ -39484,7 +39512,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.846,
+            "label.background": 1,
             "label.backgroundBorder": 1,
             "group.present": 1,
             "group.extra": 1,
@@ -39496,11 +39524,12 @@
             "group.strokeDash": 1,
             "group.label": 1,
             "stray.present": 0,
-            "stray.extra": 0,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0
         },
         "yed-graphml-specimen-groups@matched": {
             "node.present": 1,
@@ -39530,7 +39559,7 @@
             "label.lines": 1,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.286,
+            "label.background": 0.929,
             "label.backgroundBorder": 1,
             "group.present": 0.9,
             "group.extra": 0.75,
@@ -39541,12 +39570,13 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.118,
-            "stray.extra": 0,
+            "stray.present": 0.286,
+            "stray.extra": 0.778,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0
         },
         "yed-graphml-specimen-labels": {
             "node.present": 1,
@@ -39570,12 +39600,12 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.977,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 0.953,
-            "label.lines": 0.977,
+            "label.lines": 1,
             "label.align": 0.5,
-            "label.anchor": 0.977,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.977,
             "label.backgroundBox": 0,
@@ -39686,12 +39716,12 @@
             "label.style": 1,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.977,
+            "label.offset": 1,
             "label.opacity": 1,
             "label.family": 0.953,
-            "label.lines": 0.977,
+            "label.lines": 1,
             "label.align": 0.5,
-            "label.anchor": 0.977,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 0.977,
             "label.backgroundBox": 0,
@@ -40306,8 +40336,8 @@
             "label.alongLine": 0.78,
             "label.offLine": 0.146,
             "label.outline": 1,
-            "label.background": 0.976,
-            "label.backgroundBorder": 0.976,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
@@ -40337,7 +40367,8 @@
             "raster.edge": 0.9,
             "raster.arrowhead": 0.95,
             "raster.label": 0.83,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 0.5
         },
         "yed-live-graphml-specimen-edge-labels-p2": {
             "node.present": 1,
@@ -40480,8 +40511,8 @@
             "label.alongLine": 0.78,
             "label.offLine": 0.146,
             "label.outline": 1,
-            "label.background": 0.976,
-            "label.backgroundBorder": 0.976,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 1,
@@ -40505,7 +40536,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0.5
         },
         "yed-live-graphml-specimen-edges-lines": {
             "node.present": 1,
@@ -41214,8 +41246,8 @@
             "label.align": 0.5,
             "label.anchor": 0.96,
             "label.outline": 1,
-            "label.background": 0.86,
-            "label.backgroundBorder": 0.88,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -41223,8 +41255,9 @@
             "background": 1,
             "raster.nodeBody": 0.94,
             "raster.nodeOutline": 0.95,
-            "raster.label": 0.91,
-            "raster.canvas": 0.99
+            "raster.label": 0.92,
+            "raster.canvas": 0.99,
+            "label.backgroundBox": 0.25
         },
         "yed-live-graphml-specimen-labels-p2": {
             "node.present": 1,
@@ -41324,15 +41357,15 @@
             "label.style": 0.958,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.896,
+            "label.offset": 0.917,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
             "label.align": 0.333,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.875,
-            "label.backgroundBorder": 0.896,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "stray.present": 0.4,
             "frame.mirror": 1,
             "frame.rotation": 1,
@@ -41341,7 +41374,8 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.94,
             "raster.label": 0.88,
-            "raster.canvas": 0.97
+            "raster.canvas": 0.97,
+            "label.backgroundBox": 0.429
         },
         "yed-live-graphml-specimen-labels-p3@matched": {
             "node.present": 1,
@@ -41365,20 +41399,21 @@
             "label.style": 0.958,
             "label.color": 1,
             "label.rotation": 1,
-            "label.offset": 0.896,
+            "label.offset": 0.917,
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
             "label.align": 0.333,
             "label.anchor": 1,
             "label.outline": 1,
-            "label.background": 0.875,
-            "label.backgroundBorder": 0.896,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "stray.present": 0.4,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0.429
         },
         "yed-live-graphml-specimen-labels-p4": {
             "node.present": 1,
@@ -41559,13 +41594,14 @@
             "label.align": 0.5,
             "label.anchor": 0.96,
             "label.outline": 1,
-            "label.background": 0.86,
-            "label.backgroundBorder": 0.88,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "label.backgroundBox": 0.25
         },
         "yed-live-graphml-specimen-mappings-bypass": {
             "node.present": 1,
@@ -56269,22 +56305,6 @@
                 "to": 0.93,
                 "reason": "drawing, left to fix: at Graphviz's own node places c7_3->c0_4 passed on master and fails once HTML-like edge and cluster labels go to Graphviz as HTML; the 2026-11-04 labelled self-loop record lists it among the dot routes that follow from dot's placement around those loops (#5253)",
                 "date": "2026-11-05"
-            }
-        },
-        "dot-synth-nodes": {
-            "stray.extra": {
-                "floor": 0.143,
-                "to": 0,
-                "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "dot-synth-nodes@matched": {
-            "stray.extra": {
-                "floor": 0.143,
-                "to": 0,
-                "reason": "the same elements fail, fewer are judged: label.align judges n_html3 alone among 2 nodes now (6 before #5246 and #5308, 2 after #5314), already a known failure (#4524, #5243); stray.extra's six annotation shapes failed before too and #5308 took off the one that passed (7 judged, 6 now); @matched edge.route rose from 0.611 to 0.741 over the same merges, past a 0.75 one state measured (#5282) (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "gexf-hsk-chars": {

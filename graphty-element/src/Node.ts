@@ -61,6 +61,7 @@ import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
 import { CHANNEL_DESCRIPTORS, drawnUses, toColorValue } from "./session/styles/channels";
@@ -278,6 +279,9 @@ const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
 /** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
 const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
+
+/** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
+const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
 
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
@@ -1170,6 +1174,7 @@ export class Node implements ModelUser {
         const before = stretch.clone();
         stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
+        this.rowTable?.measure(this);
         if (
             this.border !== this.groupBorder ||
             !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
@@ -1261,6 +1266,7 @@ export class Node implements ModelUser {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.mesh.position.set(x, y, z);
+        this.rowTable?.place(this.row, x, y, z);
         this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
@@ -1351,6 +1357,44 @@ export class Node implements ModelUser {
      */
     set drawnScale(scale: number) {
         this.mesh.scaling.setAll(scale);
+        this.rowTable?.measure(this);
+    }
+
+    /**
+     * Draw the node shrunk, part of the way through a particle transition.
+     * @param scale - The scale to draw it at.
+     * @param whole - Its scale when it is not shrunk.
+     * @internal
+     */
+    drawShrunk(scale: number, whole: number): void {
+        this.rowTable?.shrink(this.row, whole === 0 ? 1 : scale / whole);
+        this.drawnScale = scale;
+    }
+
+    /**
+     * The radius of the sphere around the node's place that holds its whole mesh, in graph-root's
+     * space. The mesh's own bounding sphere need not be centered on that place: a tetrahedron's
+     * is not.
+     * @returns The radius.
+     * @internal
+     */
+    get drawnBoundingRadius(): number {
+        if (this.mesh.isDisposed()) {
+            return 0;
+        }
+
+        const { boundingSphere } = this.mesh.getBoundingInfo();
+        const { x, y, z } = this.mesh.scaling;
+        const reach = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+        return (boundingSphere.center.length() + boundingSphere.radius) * reach;
+    }
+
+    /**
+     * The graph's row table.
+     * @returns The table, or null when nothing has opened it.
+     */
+    private get rowTable(): RowTable | null {
+        return this.context.getRowTable?.() ?? null;
     }
 
     /**
@@ -1438,6 +1482,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+        this.rowTable?.measure(this);
     }
 
     /**
@@ -1521,6 +1566,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+        this.rowTable?.measure(this);
     }
 
     /**
@@ -2315,6 +2361,7 @@ export class Node implements ModelUser {
         }
 
         this.disposed = true;
+        this.rowTable?.drop(this.row);
 
         if (this.dragHandler) {
             this.dragHandler.dispose();
@@ -2452,6 +2499,7 @@ export class Node implements ModelUser {
 
         const state = this.getRenderState();
         const drawn = state === "visible";
+        this.rowTable?.hide(this.row, !drawn);
 
         if (!this.mesh.isDisposed()) {
             this.mesh.setEnabled(drawn);
@@ -2803,6 +2851,21 @@ export class Node implements ModelUser {
      */
     get surfaceIsBox(): boolean {
         return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * Whether a line meets this node's mesh exactly where it leaves the box of
+     * {@link drawnHalfExtents}, so arithmetic can stand in for a ray: a box or a rectangle left unturned. Not an ellipse:
+     * its mesh is a slab of facets, a line through depth meets the face, and across the view it is 0.003 short.
+     * @returns True for such a node.
+     * @internal
+     */
+    get surfaceIsClosedForm(): boolean {
+        return (
+            this.drawnModel === null &&
+            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
+            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
+        );
     }
 
     /**

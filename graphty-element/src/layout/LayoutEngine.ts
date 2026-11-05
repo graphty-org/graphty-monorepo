@@ -503,6 +503,10 @@ export abstract class LayoutEngine {
     protected abstract unpin(n: Node): void;
     // properties
     abstract get nodes(): Iterable<Node>;
+    /**
+     * Every edge the engine holds. An engine that takes an edge up later than it is told must
+     * return an array: the frame loop notices that edge by the array's length.
+     */
     abstract get edges(): Iterable<Edge>;
     abstract get isSettled(): boolean;
 

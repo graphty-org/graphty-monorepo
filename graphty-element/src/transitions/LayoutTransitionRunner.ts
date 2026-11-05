@@ -35,6 +35,8 @@ export interface TransitionSubject {
     readonly drawnPosition: Vec3;
     /** A particle transition shrinks the node while its cloud is in flight. */
     drawnScale: number;
+    /** Draw it at `scale`, part of its `whole` size: a particle transition's shrink. */
+    drawShrunk(scale: number, whole: number): void;
     drawnWorldMatrix(force?: boolean): unknown;
     readonly drawnRadius: number;
     readonly paintedColor: { r: number; g: number; b: number; a: number } | null;
@@ -429,7 +431,7 @@ export class LayoutTransitionRunner {
         mover.drawn.z = drawn.z;
         mover.travel = t >= 1 ? 1 : travelOf(mover, t);
         if (state.transition.descriptor.drawable === "particles") {
-            node.drawnScale = this.hold === undefined ? drawnScale(mover) : mover.scale;
+            node.drawShrunk(this.hold === undefined ? drawnScale(mover) : mover.scale, mover.scale);
         }
 
         return drawn;
@@ -560,7 +562,7 @@ export class LayoutTransitionRunner {
     end(): void {
         if (this.state?.transition.descriptor.drawable === "particles") {
             for (const [node, mover] of this.state.movers) {
-                node.drawnScale = mover.scale;
+                node.drawShrunk(mover.scale, mover.scale);
             }
         }
 

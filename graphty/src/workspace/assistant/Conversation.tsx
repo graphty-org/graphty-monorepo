@@ -283,7 +283,126 @@ interface TurnViewProps {
 }
 
 /**
- * One turn: You, then Assistant with its steps, its prose and how it ended. Prose is text, never HTML.
+ * What a turn's reply says: what streams while it runs, and for a run that ended before its words
+ * were saved; else what was saved.
+ * @param turn - the turn.
+ * @param status - the status, on the newest turn.
+ * @returns the text.
+ */
+function proseOf(turn: Turn, status: AiStatus | null): string {
+    const said = turn.replies
+        .map((reply) => reply.text)
+        .filter((text) => text !== "")
+        .join("\n");
+    return isRunning(status) || said === "" ? (status?.streamedText ?? said) : said;
+}
+
+/**
+ * What the reader said.
+ * @param props - Component props
+ * @param props.reader - the message
+ * @returns The rows
+ */
+function ReaderRows({ reader }: Readonly<{ reader: ReaderMessage }>): React.JSX.Element {
+    return (
+        <>
+            <h3 className="ws-assistant-who">
+                {reader.via === "voice" ? WORDS["assistant.turn.you-spoken"] : WORDS["assistant.turn.you"]}
+            </h3>
+            <Text size="sm" className="ws-assistant-prose">
+                {reader.text}
+            </Text>
+        </>
+    );
+}
+
+/**
+ * What a turn did: its changes, else what it found.
+ * @param props - Component props
+ * @param props.turn - the turn
+ * @param props.effects - what its calls did
+ * @param props.onMore - opens the turn's steps
+ * @returns The rows, or nothing
+ */
+function TurnEffects({
+    turn,
+    effects,
+    onMore,
+}: Readonly<{ turn: Turn; effects: readonly AiEffect[]; onMore: () => void }>): React.JSX.Element | null {
+    const changes = effects.filter(isChange);
+    const result = effects.findLast((effect) => !isChange(effect));
+    if (changes.length > 0) {
+        return <ChangeRows changes={changes} provenance={turn.provenance} undone={turn.undone} onMore={onMore} />;
+    }
+    return result === undefined ? null : <ResultRow effect={result} table />;
+}
+
+/**
+ * The Assistant's half of a turn: its steps, its prose, what it did and how it ended. Prose is text,
+ * never HTML.
+ * @param props - Component props
+ * @param props.turn - the turn
+ * @param props.status - the status, on the newest turn
+ * @param props.provider - the provider's id
+ * @param props.late - whether the working line shows
+ * @param props.onAgain - sends a message again, on the newest turn
+ * @returns The rows, or nothing with nothing to show
+ */
+function ReplyRows({ turn, status, provider, late, onAgain }: Readonly<TurnViewProps>): React.JSX.Element | null {
+    const lastEnded = useWorkspaceState((state) => state.assistantEnded);
+    const [stepsOpen, setStepsOpen] = useState(false);
+    const running = isRunning(status);
+    const prose = proseOf(turn, status);
+    const steps = stepsOf(turn, status);
+    const effects = running ? [] : turn.replies.flatMap((reply) => reply.effects ?? []);
+    const ended = endingOf(turn, status, lastEnded);
+    const words = running || ended === undefined ? null : endWords(ended.code, ended.params, provider, false);
+    const { reader } = turn;
+    if (!running && prose === "" && steps.length === 0 && words === null) {
+        return null;
+    }
+    return (
+        <>
+            <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
+            <Steps
+                steps={steps}
+                open={stepsOpen}
+                onToggle={() => {
+                    setStepsOpen(!stepsOpen);
+                }}
+            />
+            {prose === "" ? null : (
+                <Text size="sm" className="ws-assistant-prose">
+                    {prose}
+                </Text>
+            )}
+            {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
+            <TurnEffects
+                turn={turn}
+                effects={effects}
+                onMore={() => {
+                    setStepsOpen(true);
+                }}
+            />
+            {words === null ? null : (
+                <EndRow
+                    words={words}
+                    unchanged={!effects.some(isChange)}
+                    onAgain={
+                        onAgain === null || reader === null
+                            ? null
+                            : () => {
+                                  onAgain(reader);
+                              }
+                    }
+                />
+            )}
+        </>
+    );
+}
+
+/**
+ * One turn: You, then Assistant.
  * @param props - Component props
  * @param props.turn - the turn
  * @param props.status - the status, on the newest turn
@@ -292,77 +411,12 @@ interface TurnViewProps {
  * @param props.onAgain - sends a message again, on the newest turn
  * @returns The turn
  */
-function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewProps>): React.JSX.Element {
-    const lastEnded = useWorkspaceState((state) => state.assistantEnded);
-    const [stepsOpen, setStepsOpen] = useState(false);
-    const running = isRunning(status);
-    const said = turn.replies
-        .map((reply) => reply.text)
-        .filter((text) => text !== "")
-        .join("\n");
-    // A run in progress, and a run that ended before its words were saved, show what streamed.
-    const prose = running || said === "" ? (status?.streamedText ?? said) : said;
-    const steps = stepsOf(turn, status);
-    const effects = running ? [] : turn.replies.flatMap((reply) => reply.effects ?? []);
-    const changes = effects.filter(isChange);
-    const result = effects.findLast((effect) => !isChange(effect));
-    const ended = endingOf(turn, status, lastEnded);
-    const words = running || ended === undefined ? null : endWords(ended.code, ended.params, provider, false);
-    const { reader } = turn;
+function TurnView(props: Readonly<TurnViewProps>): React.JSX.Element {
+    const { reader } = props.turn;
     return (
         <div className="ws-assistant-turn">
-            {reader === null ? null : (
-                <>
-                    <h3 className="ws-assistant-who">
-                        {reader.via === "voice" ? WORDS["assistant.turn.you-spoken"] : WORDS["assistant.turn.you"]}
-                    </h3>
-                    <Text size="sm" className="ws-assistant-prose">
-                        {reader.text}
-                    </Text>
-                </>
-            )}
-            {running || prose !== "" || steps.length > 0 || words !== null ? (
-                <>
-                    <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
-                    <Steps
-                        steps={steps}
-                        open={stepsOpen}
-                        onToggle={() => {
-                            setStepsOpen(!stepsOpen);
-                        }}
-                    />
-                    {prose === "" ? null : (
-                        <Text size="sm" className="ws-assistant-prose">
-                            {prose}
-                        </Text>
-                    )}
-                    {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
-                    {changes.length > 0 ? (
-                        <ChangeRows
-                            changes={changes}
-                            provenance={turn.provenance}
-                            undone={turn.undone}
-                            onMore={() => {
-                                setStepsOpen(true);
-                            }}
-                        />
-                    ) : null}
-                    {changes.length === 0 && result !== undefined ? <ResultRow effect={result} table /> : null}
-                    {words === null ? null : (
-                        <EndRow
-                            words={words}
-                            unchanged={changes.length === 0}
-                            onAgain={
-                                onAgain === null || reader === null
-                                    ? null
-                                    : () => {
-                                          onAgain(reader);
-                                      }
-                            }
-                        />
-                    )}
-                </>
-            ) : null}
+            {reader === null ? null : <ReaderRows reader={reader} />}
+            <ReplyRows {...props} />
         </div>
     );
 }

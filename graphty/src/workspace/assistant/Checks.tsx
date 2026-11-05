@@ -153,7 +153,7 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
     };
     return (
         <Group gap={4} justify="space-between">
-            <div // NOSONAR(S6819,S6847): one Tab stop with arrows inside, the roving pattern; a fieldset would bring its own frame
+            <div // NOSONAR(S6819): one Tab stop with arrows inside, the roving pattern; a fieldset would bring its own frame
                 ref={group}
                 role="group"
                 aria-label={WORDS["assistant.chips.name"]}

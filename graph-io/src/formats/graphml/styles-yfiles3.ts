@@ -487,6 +487,19 @@ function readBevelStyle(style: StyleObject, color: string | null, put: PutValue,
 }
 
 /**
+ * Reads a PanelNodeStyle: a box in its paint.
+ * @param color - its `#rrggbb` color, or null
+ * @param put - receives the values
+ */
+function readPanelStyle(color: string | null, put: PutValue): void {
+    put("borderWidth", 0);
+    if (color !== null) {
+        putPanelPaint(color, put);
+    }
+    put("shape", "rectangle");
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
@@ -511,15 +524,9 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
         case "BevelNodeStyle":
             readBevelStyle(style, fill(prop(style, "color") ?? BLACK), put, at);
             return true;
-        case "PanelNodeStyle": {
-            const color = fill(prop(style, "color") ?? BLACK);
-            put("borderWidth", 0);
-            if (color !== null) {
-                putPanelPaint(color, put);
-            }
-            put("shape", "rectangle");
+        case "PanelNodeStyle":
+            readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
-        }
         case "ShinyPlateNodeStyle": {
             fill(prop(style, "fill") ?? BLACK);
             const stroke = prop(style, "stroke");

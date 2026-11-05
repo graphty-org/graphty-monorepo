@@ -1457,7 +1457,7 @@ export class Graphty extends LitElement {
     }
 
     /** The time attributes set before the first render, when the experiments are not settled yet. */
-    #heldTimeFields = new Map<string, string | undefined>();
+    readonly #heldTimeFields = new Map<string, string | undefined>();
 
     /**
      * A time attribute as set: held until the first render, else the setting in effect.

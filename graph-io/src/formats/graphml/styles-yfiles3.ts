@@ -469,6 +469,24 @@ function putRounded(radius: string | undefined, fallback: number, put: PutValue,
 }
 
 /**
+ * Reads a BevelNodeStyle: its paint, its corners and the line inside its edge.
+ * @param style - the style
+ * @param color - its `#rrggbb` color, or null
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBevelStyle(style: StyleObject, color: string | null, put: PutValue, at: SiteOf): void {
+    if (color !== null) {
+        putBevelPaint(color, put);
+        put("borderColor", color);
+    }
+    putRounded(treeAttr(style.e, "radius"), BEVEL_RADIUS, put, at);
+    const size = (name: string, fallback: number): number =>
+        canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
+    putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
  * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
@@ -490,18 +508,9 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
             : (canonColor(paint.raw, paint.dialect, at("fill"))?.color ?? null);
     };
     switch (style.tag) {
-        case "BevelNodeStyle": {
-            const color = fill(prop(style, "color") ?? BLACK);
-            if (color !== null) {
-                putBevelPaint(color, put);
-                put("borderColor", color);
-            }
-            putRounded(treeAttr(style.e, "radius"), BEVEL_RADIUS, put, at);
-            const size = (name: string, fallback: number): number =>
-                canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
-            putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+        case "BevelNodeStyle":
+            readBevelStyle(style, fill(prop(style, "color") ?? BLACK), put, at);
             return true;
-        }
         case "PanelNodeStyle": {
             const color = fill(prop(style, "color") ?? BLACK);
             put("borderWidth", 0);
@@ -732,6 +741,25 @@ function putStroke(stroke: Stroke | typeof NULL | null, put: PutValue, at: SiteO
 }
 
 /**
+ * Writes a node style's outline: its shape, its corners, and a RectangleNodeStyle's corner size.
+ * @param style - the style
+ * @param size - the node's size
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putStyleOutline(style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const sized = sizedOutline(style, size, at);
+    put("shape", sized === null ? nodeShapeOf(style, at) : "polygon");
+    const points = sized ?? SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
+    if (points !== undefined) {
+        put("shapePoints", points);
+    }
+    if (style.tag === "RectangleNodeStyle" && sized === null) {
+        put("cornerRadius", rectangleCorner(style, size, at));
+    }
+}
+
+/**
  * Reads a node style.
  * @param refs - the references
  * @param data - the `<data>` content of the NodeStyle key
@@ -773,15 +801,7 @@ function readNodeStyle(
         at,
     );
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
-    const sized = sizedOutline(style, size, at);
-    put("shape", sized === null ? nodeShapeOf(style, at) : "polygon");
-    const points = sized ?? SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
-    if (points !== undefined) {
-        put("shapePoints", points);
-    }
-    if (style.tag === "RectangleNodeStyle" && sized === null) {
-        put("cornerRadius", rectangleCorner(style, size, at));
-    }
+    putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);

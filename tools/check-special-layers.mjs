@@ -74,26 +74,37 @@ const rowsOf = (section, baseline) =>
     new Map((baseline[section] ?? []).map((row) => [rowKey(section, row), row.count ?? 1]));
 
 /**
+ * What is wrong with one row.
+ * @param section - the section's name
+ * @param row - the row
+ * @returns the failure messages
+ */
+function rowProblems(section, row) {
+    const key = rowKey(section, row);
+    const problems = [];
+    if (SECTIONS[section].some((field) => !row[field])) problems.push(`${section}: "${key}" is incomplete`);
+    if (!row.reason?.trim()) problems.push(`${section}: "${key}" has no reason`);
+    if (row.issue !== ISSUE) problems.push(`${section}: "${key}" must name ${ISSUE}`);
+    if (section === "lint" && (row.count ?? 0) <= 0) problems.push(`${section}: "${key}" has no count`);
+    return problems;
+}
+
+/**
  * Rows that do not say what they are or why.
  * @param baseline - the baseline
  * @returns the failure messages
  */
 function malformed(baseline) {
-    const problems = [];
-    for (const section of Object.keys(SECTIONS)) {
-        if (!Array.isArray(baseline[section])) problems.push(`${BASELINE}: section ${section} is missing`);
-        const seen = new Set();
-        for (const row of baseline[section] ?? []) {
-            const key = rowKey(section, row);
-            if (seen.has(key)) problems.push(`${section}: "${key}" is listed twice`);
-            seen.add(key);
-            if (SECTIONS[section].some((field) => !row[field])) problems.push(`${section}: "${key}" is incomplete`);
-            if (!row.reason?.trim()) problems.push(`${section}: "${key}" has no reason`);
-            if (row.issue !== ISSUE) problems.push(`${section}: "${key}" must name ${ISSUE}`);
-            if (section === "lint" && !(row.count > 0)) problems.push(`${section}: "${key}" has no count`);
-        }
-    }
-    return problems;
+    return Object.keys(SECTIONS).flatMap((section) => {
+        const rows = baseline[section];
+        if (!Array.isArray(rows)) return [`${BASELINE}: section ${section} is missing`];
+        const keys = rows.map((row) => rowKey(section, row));
+        const repeated = keys.filter((key, at) => keys.indexOf(key) !== at);
+        return [
+            ...rows.flatMap((row) => rowProblems(section, row)),
+            ...repeated.map((key) => `${section}: "${key}" is listed twice`),
+        ];
+    });
 }
 
 /**

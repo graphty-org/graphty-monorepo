@@ -369,26 +369,32 @@ const SPECIAL_CODE = /"(E_(?:[A-Z]+_)*(?:PROTECT[A-Z]*|SYSTEM|BUILT_?IN|OWNE[DR]
 const PROPERTY_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??:/;
 
 /**
+ * What one line of a declaration marks as special.
+ * @param name - the declaration's name
+ * @param line - the line
+ * @returns its marks
+ */
+function lineMarks(name, line) {
+    const layerType = LAYER_TYPE.test(name);
+    const property = PROPERTY_NAME.exec(line)?.[1];
+    // A property naming a layer or row is judged on any type (`protectedLayers` on a config).
+    const marked = property && SPECIAL_MARK.test(property) && (layerType || /layer|row/i.test(property));
+    const literals = layerType ? [...line.matchAll(/"([A-Za-z_-]+)"/g)].map((match) => match[1]) : [];
+    return [
+        ...(marked ? [`${name}.${property}`] : []),
+        ...literals.filter((literal) => SPECIAL_MARK.test(literal)).map((literal) => `${name}."${literal}"`),
+    ];
+}
+
+/**
  * Everything in a report that marks a style layer as special.
  * @param text - the report
  * @returns `Type.property`, `Type."literal"` and `"E_CODE"` entries
  */
 export function specialLayerMarks(text) {
-    const found = new Set([...text.matchAll(SPECIAL_CODE)].map((match) => `"${match[1]}"`));
-    for (const [name, lines] of parseReport(text)) {
-        const layerType = LAYER_TYPE.test(name);
-        for (const line of lines) {
-            const property = PROPERTY_NAME.exec(line)?.[1];
-            // A property naming a layer or row is judged on any type (`protectedLayers` on a config).
-            if (property && SPECIAL_MARK.test(property) && (layerType || /layer|row/i.test(property)))
-                found.add(`${name}.${property}`);
-            if (!layerType) continue;
-            for (const [, literal] of line.matchAll(/"([A-Za-z_-]+)"/g)) {
-                if (SPECIAL_MARK.test(literal)) found.add(`${name}."${literal}"`);
-            }
-        }
-    }
-    return found;
+    const codes = [...text.matchAll(SPECIAL_CODE)].map((match) => `"${match[1]}"`);
+    const declared = [...parseReport(text)].flatMap(([name, lines]) => lines.flatMap((line) => lineMarks(name, line)));
+    return new Set([...codes, ...declared]);
 }
 
 /**

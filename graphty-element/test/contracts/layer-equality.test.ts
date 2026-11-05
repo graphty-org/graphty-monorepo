@@ -74,6 +74,7 @@ async function startingRowsOn(): Promise<GraphSession> {
 
 /** A template somebody wrote: a node layer and an edge layer. */
 const WRITTEN_TEMPLATE: StyleDocument = {
+    version: 1,
     layers: [
         { name: "Template nodes", target: "node", selector: { match: "everything" }, set: { "node.color": "#123456" } },
         { name: "Template edges", target: "edge", selector: { match: "everything" }, set: { "edge.color": "#654321" } },

@@ -165,7 +165,7 @@ export function createRule(readBaseline) {
              * @param {any} node - the identifier.
              */
             const named = (node) => {
-                if (SPECIAL_NAME.test(node.name) && !/^Import/.test(node.parent?.type ?? "")) {
+                if (SPECIAL_NAME.test(node.name) && !String(node.parent?.type).startsWith("Import")) {
                     note("named", node.name, node);
                 }
             };

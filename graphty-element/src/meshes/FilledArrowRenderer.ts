@@ -121,6 +121,35 @@ function frame(outline: readonly (readonly [number, number])[], t: number): [num
     ]);
 }
 
+/**
+ * A mesh of convex pieces in the XZ plane, each fanned from its first corner.
+ * @param name - The mesh's name.
+ * @param pieces - The pieces' corners, in order.
+ * @param scene - Babylon.js scene
+ * @returns The mesh.
+ */
+function piecesMesh(name: string, pieces: readonly (readonly (readonly [number, number])[])[], scene: Scene): Mesh {
+    const mesh = new Mesh(name, scene);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (const piece of pieces) {
+        const first = positions.length / 3;
+        for (const [x, z] of piece) {
+            positions.push(x, 0, z);
+        }
+        for (let i = 1; i + 1 < piece.length; i++) {
+            indices.push(first, first + i, first + i + 1);
+        }
+    }
+
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    vertexData.applyToMesh(mesh);
+
+    return mesh;
+}
+
 /** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
 const CROSS_DELTA = {
     delta: [
@@ -1133,26 +1162,66 @@ void main() {
      * @returns The mesh, in the XZ plane like every other arrow.
      */
     static createPolygonArrow(type: string, scene: Scene): Mesh {
-        const pieces = this.POLYGON_ARROWS[type]();
-        const mesh = new Mesh(`filled-${type}-arrow`, scene);
-        const positions: number[] = [];
-        const indices: number[] = [];
-        for (const piece of pieces) {
-            const first = positions.length / 3;
-            for (const [x, z] of piece) {
-                positions.push(x, 0, z);
-            }
-            for (let i = 1; i + 1 < piece.length; i++) {
-                indices.push(first, first + i, first + i + 1);
-            }
-        }
+        return piecesMesh(`filled-${type}-arrow`, this.POLYGON_ARROWS[type](), scene);
+    }
 
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.applyToMesh(mesh);
+    /**
+     * The open caps' outlines, used when a cap's `outlineWidth` is set, in the cap's frame (tip at the origin, back
+     * along -x) before its width (`ArrowStyle.width`) is applied:
+     *
+     * - "open-normal": the triangle's outline (Graphviz's onormal, Cytoscape.js's hollow triangle).
+     * - "open-diamond": the diamond's outline (odiamond).
+     * - "open-dot": the dot's ring, centred on the origin (odot).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
+     * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
+     *
+     * Unset, an open cap keeps its own thin frame (`createOpenNormal` and the rest); set, {@link createOpenOutline}
+     * frames the outline at that thickness, as Graphviz and Cytoscape.js stroke an open arrow with the edge's own pen.
+     */
+    static readonly OPEN_OUTLINES: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
+        "open-normal": [
+            [0, 0],
+            [-1, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-diamond": [
+            [0, 0],
+            [-0.5, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+            [-0.5, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-dot": arc(0, 0.5, 0, 0, 2 * Math.PI).slice(1, -1),
+        "open-inverted": [
+            [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+        ],
+        "open-box": rect(-1, 0, 0.5),
+    };
 
-        return mesh;
+    /**
+     * Build one of {@link OPEN_OUTLINES}: its outline widened, then drawn as a frame `stroke` thick inside it. The frame
+     * is never more than half the way to the shape's middle, so the shape always reads as open.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @param stroke - How thick the frame is, in the cap's own lengths (its outline width over the cap's length).
+     * @param breadth - How wide the cap is across its line, as a multiple of its own (`ArrowStyle.width`).
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createOpenOutline(type: string, scene: Scene, stroke: number, breadth = 1): Mesh {
+        const outline = this.OPEN_OUTLINES[type].map(([x, z]) => [x, z * breadth] as [number, number]);
+        // how far the middle (the corners' mean) is from the nearest side
+        const [cx, cz] = outline.reduce(
+            ([x, z], [px, pz]) => [x + px / outline.length, z + pz / outline.length],
+            [0, 0],
+        );
+        const inner = Math.min(
+            ...outline.map(([x, z], i) => {
+                const [x1, z1] = outline[(i + 1) % outline.length];
+                return Math.abs((x1 - x) * (cz - z) - (z1 - z) * (cx - x)) / Math.hypot(x1 - x, z1 - z);
+            }),
+        );
+        return piecesMesh(`filled-${type}-arrow`, frame(outline, Math.min(stroke, inner / 2)), scene);
     }
 
     /**

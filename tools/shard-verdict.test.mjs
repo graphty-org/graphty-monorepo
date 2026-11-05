@@ -86,7 +86,7 @@ describe("what each CI shard command is expected to produce", () => {
     it("expects vitest's blob report where a command asks for one", () => {
         const cmd = (name) => SHARDS.find((s) => s.shard === name)["test-command"];
         assert.deepEqual(expectedReports(cmd("graphty-element-browser-3")), [
-            "graphty-element/.vitest-reports/blob-3-5.json",
+            "graphty-element/.vitest-reports/blob-3-8.json",
         ]);
         assert.deepEqual(expectedReports(cmd("graphty-element-default")), [
             "graphty-element/.vitest-reports/blob.json",

@@ -19,6 +19,8 @@ import {
     bandPaintedAsFill,
     boxOfPoints,
     compareIds,
+    figureOf,
+    insideFigure,
     PAINTED_OUTLINE,
     type PaintedBand,
     type PArrow,
@@ -435,6 +437,12 @@ function nodeFrom(
     };
     if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
         slantedOutlines.set(node, outline.points);
+    }
+    // a figure with a dent (Pajek's man): its lines are cut, and what it hides judged, at its own outline
+    const figure =
+        outline?.closed === true && shape !== null ? figureOf(outline.fine ?? outline.points, node) : undefined;
+    if (figure !== undefined) {
+        node.figure = figure;
     }
     return node;
 }
@@ -892,6 +900,10 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
         ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
+    // a bar drawn as a stroke across the line (yEd's dash and t_shape) is solid, as long as its stroke is wide
+    if (arrow.shape === "tee" && p.stroke !== null && arrow.length < p.stroke.width) {
+        return { ...arrow, length: p.stroke.width, filled: true, color: p.stroke.color };
+    }
     // half an arrow drawn as a thin strip is one open stroked barb (Cytoscape desktop's HALF_TOP), not a filled wedge
     return arrow.shape === "half" && arrow.filled && strokedBarb(p.points) ? { ...arrow, filled: false } : arrow;
 }
@@ -1283,18 +1295,21 @@ function thinnest(pts: readonly Pt[]): number {
  * Whether a shape is the end of a line, painted in the line's own color and no wider than the line however it is turned
  * (Cytoscape desktop closes a line under a diamond head with a notched square, which is 1.4 widths across its box when
  * the line runs at 45 degrees): it is the line, not one of its arrowheads. A head of that color and box is wider than
- * the line, and stays a head.
+ * the line, or points away from the line's end (yEd Live's 8 x 6 head on a 5 px line, as thin as the line across its
+ * slanted sides), and stays a head.
  * @param p - the shape
  * @param e - the line
+ * @param end - the end of the line nearest the shape
  * @returns true for the line's end
  */
-function lineEndPiece(p: Prim, e: Pick<PEdge, "stroke">): boolean {
+function lineEndPiece(p: Prim, e: Pick<PEdge, "stroke">, end: Pt): boolean {
     const size = lineCapSize(e);
     return (
         p.fill !== null &&
         p.fill.color === e.stroke?.color &&
         Math.max(bw(p.box), bh(p.box)) <= Math.SQRT2 * size &&
-        thinnest(p.points) <= size
+        thinnest(p.points) <= size &&
+        pointedAxis(p.points, end) === null
     );
 }
 
@@ -1918,6 +1933,9 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
  * stopping a piece short of its base (cys-syn-mappings 408->414: 6 px, 192->204: 3 px).
  */
 const OWN_HEAD_REACH = 8;
+
+/** The most of the sheet's longer side an arrowhead spans. */
+const HEAD_MOST = 0.5;
 
 /** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
 type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
@@ -2677,7 +2695,7 @@ export function associate(
         const dot = lineCapSize(p);
         let caps = 0;
         for (let q = byIndex.get(p.index + 1); q !== undefined && caps < 2; q = byIndex.get(q.index + 1)) {
-            const end = lineEndPiece(q, p);
+            const end = lineEndPiece(q, p, toBox(a, q.box) <= toBox(b, q.box) ? a : b);
             if (!end && !headSet.has(q)) {
                 break;
             }
@@ -2687,8 +2705,14 @@ export function associate(
         const reach = Math.max(OWN_HEAD_REACH, Number.isFinite(swing) ? swing : 0);
         const by = (end: Pt, other: Pt): Prim[] =>
             // by its outline: a half arrow leaning off its line has a box nearer the far end, if the line is short
-            // (cx-syn-mappings 408->414: a 33 px line under a 86 px barb)
-            after.filter((h) => toBox(end, h.box) <= reach && toOutline(end, h.points) < toOutline(other, h.points));
+            // (cx-syn-mappings 408->414: a 33 px line under a 86 px barb); a shape along the whole line, at both its ends,
+            // caps neither (yEd's framed line, its frame drawn after the band)
+            after.filter(
+                (h) =>
+                    toBox(end, h.box) <= reach &&
+                    toOutline(end, h.points) < toOutline(other, h.points) &&
+                    (toBox(end, h.box) < toBox(other, h.box) || toOutline(other, h.points) > reach),
+            );
         return [by(a, b), by(b, a)];
     };
     const ownCaps = new Map<Prim, { e: PEdge; end: "source" | "target" }>();
@@ -2964,6 +2988,8 @@ export function associate(
         if (
             (p.kind !== "shape" && !picture) ||
             p.lettering === true ||
+            // a group's title bar across the sheet by an end (graphml-cla-checker-graph) is no head of any line
+            Math.max(bw(p.box), bh(p.box)) > HEAD_MOST * Math.max(width, height) ||
             annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
             noteHeads.has(p) ||
             wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
@@ -3001,7 +3027,8 @@ export function associate(
         }
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
-        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) && !lineEndPiece(p, best.e)) {
+        const lineEnd = best.end === "source" ? best.e.points[0] : best.e.points[best.e.points.length - 1];
+        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) && !lineEndPiece(p, best.e, lineEnd)) {
             const arrow = arrowFrom(p, best.e.points, best.end, canvas);
             // Cytoscape.js erases the canvas under a translucent edge's arrowhead before it paints it (cytoscape.js
             // 3.34.3 `drawArrowhead`: the same shape filled white under `destination-out`, which the SVG replay records
@@ -3241,6 +3268,16 @@ export function associate(
         e.label = mergeTexts(picked);
     }
 
+    // ---- labels drawn as glyph outlines: rows of lettering inside a node's box with no label of its own are its label,
+    // inside the smallest node that holds them (yEd's HTML labels, graphml-libcitygml-mapping)
+    for (const n of [...nodeList].sort((a, b) => a.w * a.h - b.w * b.h)) {
+        const rows = free().filter((p) => p.lettering === true && within(p.box, nodeBox(n)));
+        if (n.label === null && rows.length > 0) {
+            rows.forEach(take);
+            n.label = glyphLabel(rows);
+        }
+    }
+
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
     // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
     // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
@@ -3257,6 +3294,7 @@ export function associate(
             take(p);
             twin.fill ??= p.fill;
             twin.stroke ??= p.stroke;
+            twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
@@ -3278,6 +3316,7 @@ export function associate(
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,
+                ...(p.panel === undefined ? {} : { panel: p.panel }),
                 label: null,
                 members: members.map((n) => n.id),
             });
@@ -3410,6 +3449,42 @@ function boxIoU(a: PBox, b: PBox): number {
     const inter = w > 0 && h > 0 ? w * h : 0;
     const union = area(a) + area(b) - inter;
     return union > 0 ? inter / union : 0;
+}
+
+/**
+ * A label from rows of lettering: where it was drawn and in what color, with no words. A row drawn twice (a halo under
+ * its letters) is one line.
+ * @param rows - the rows
+ * @returns the label
+ */
+function glyphLabel(rows: readonly Prim[]): PText {
+    const lines = rows
+        .filter((p, i) => rows.findIndex((q) => sameBox(q.box, p.box)) === i)
+        .map((p) => p.box)
+        .sort((a, b) => a.y0 - b.y0);
+    const box = boxOfPoints(
+        lines.flatMap((b): Pt[] => [
+            [b.x0, b.y0],
+            [b.x1, b.y1],
+        ]),
+    );
+    const fill = rows.find((p) => p.fill !== null)?.fill ?? null;
+    return {
+        content: "",
+        x: cx(box),
+        y: cy(box),
+        box,
+        sizePx: lines.reduce((s, b) => s + bh(b), 0) / lines.length,
+        family: "",
+        weight: 400,
+        style: "normal",
+        anchor: "middle",
+        rotation: 0,
+        color: fill?.color ?? "#000000",
+        opacity: fill?.opacity ?? 1,
+        lines,
+        glyphs: true,
+    };
 }
 
 /**
@@ -4534,9 +4609,38 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         shown.has(b.id) &&
         boxWithin(boxOf(a), boxOf(b), slack) &&
         boxWithin(boxOf(b), boxOf(a), slack);
+    // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
+    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
+    // point round a round node's outline
+    const underFigure = (n: PNode, c: PNode): boolean => {
+        if (c.figure === undefined) {
+            return true;
+        }
+        const b = boxOf(n);
+        const [mx, my, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+        const points: Pt[] =
+            n.shape === "ellipse"
+                ? Array.from({ length: 16 }, (_, k) => [
+                      mx + rx * Math.cos((k * Math.PI) / 8),
+                      my + ry * Math.sin((k * Math.PI) / 8),
+                  ])
+                : [
+                      [b.x0, b.y0],
+                      [b.x1, b.y0],
+                      [b.x0, b.y1],
+                      [b.x1, b.y1],
+                  ];
+        const reach = slack + (c.stroke?.width ?? 0) / 2;
+        return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
+    };
     for (const n of scene.nodes) {
         const over = covers.filter(
-            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack) && !twins(n, c.n),
+            (c) =>
+                c.n !== n &&
+                c.order > (n.order ?? Infinity) &&
+                boxWithin(boxOf(n), c.box, slack) &&
+                underFigure(n, c.n) &&
+                !twins(n, c.n),
         );
         if (over.length > 0) {
             coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);

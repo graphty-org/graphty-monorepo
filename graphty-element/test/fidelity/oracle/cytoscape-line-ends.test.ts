@@ -193,6 +193,67 @@ describe("the shapes drawn with a line", () => {
         );
     });
 
+    it("keeps a small pointed head as thin as a wide line across its slanted sides", () => {
+        // yEd Live's 8 x 6 head on a 5 px line: 5.6 thick and within the box a line-wide square has at 45 degrees
+        const edge = readEdge(
+            [
+                ["s", 100, 300, 20],
+                ["t", 500, 300, 20],
+            ],
+            [
+                stroked(
+                    [
+                        [120, 300],
+                        [472, 300],
+                    ],
+                    5,
+                ),
+                filled(
+                    [
+                        [480, 300],
+                        [472, 303],
+                        [472, 297],
+                        [480, 300],
+                    ],
+                    INK,
+                ),
+            ],
+        );
+        assert.deepEqual(
+            edge?.arrows.map((a) => [a.end, a.shape]),
+            [["target", "triangle"]],
+        );
+    });
+
+    it("takes no group title bar across the sheet for a head", () => {
+        const edge = readEdge(
+            [
+                ["s", 100, 300, 20],
+                ["t", 500, 300, 20],
+            ],
+            [
+                stroked(
+                    [
+                        [120, 300],
+                        [480, 300],
+                    ],
+                    1,
+                ),
+                filled(
+                    [
+                        [10, 301],
+                        [790, 301],
+                        [790, 305],
+                        [10, 305],
+                        [10, 301],
+                    ],
+                    OTHER,
+                ),
+            ],
+        );
+        assert.deepEqual(edge?.arrows, []);
+    });
+
     it("keeps a line's own head at its end when it lies over a small node's center", () => {
         const edge = readEdge(
             [

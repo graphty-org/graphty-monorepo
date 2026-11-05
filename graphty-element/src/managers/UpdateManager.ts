@@ -2360,13 +2360,7 @@ export class UpdateManager implements Manager {
                 edge.update();
             }
         } else {
-            // An edge between two moved nodes is visited twice; the second visit finds it placed.
-            for (const node of walk === false ? [] : walk) {
-                for (const id of this.dataManager.incidentEdgeIds(node)) {
-                    this.dataManager.edges.get(id)?.update();
-                }
-            }
-
+            this.updateEdgesOf(walk === false ? [] : walk);
             for (const edge of this.edgesToPlace) {
                 edge.update();
             }
@@ -2375,6 +2369,19 @@ export class UpdateManager implements Manager {
         this.edgesToPlace = [];
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Update the edges at some nodes. An edge between two of them is visited twice; the second
+     * visit finds it placed.
+     * @param nodes - The nodes.
+     */
+    private updateEdgesOf(nodes: readonly Node[]): void {
+        for (const node of nodes) {
+            for (const id of this.dataManager.incidentEdgeIds(node)) {
+                this.dataManager.edges.get(id)?.update();
+            }
+        }
     }
 
     /**
@@ -2484,14 +2491,23 @@ export class UpdateManager implements Manager {
             }
         }
 
-        if (!unseen) {
-            if (moved.length === 0) {
-                return false;
-            }
-
-            return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+        if (unseen) {
+            this.noteEveryNode(highest);
+            return true;
         }
 
+        if (moved.length === 0) {
+            return false;
+        }
+
+        return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Note where every node sits, making room for nodes never seen.
+     * @param highest - The highest node index.
+     */
+    private noteEveryNode(highest: number): void {
         if ((highest + 1) * 3 > this.lastNodePositions.length) {
             const grown = new Float64Array(Math.max((highest + 1) * 3, this.lastNodePositions.length * 2, 96));
             grown.set(this.lastNodePositions);
@@ -2512,8 +2528,6 @@ export class UpdateManager implements Manager {
             this.lastNodePositions[at + 1] = position.y;
             this.lastNodePositions[at + 2] = position.z;
         }
-
-        return true;
     }
 
     /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */

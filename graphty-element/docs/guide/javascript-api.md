@@ -421,7 +421,9 @@ await selection.apply({ text: "type:person" }); // data.type is "person", ignori
 await selection.apply({ text: "=data.weight > `5`" }); // a leading = is an expression, as below
 
 // An expression, in the same language a style layer selector uses. It selects edges as well
-// as nodes, and reports on `unresolvedPaths` any path nothing in the graph answers.
+// as nodes, and reports on `unresolvedPaths` any path nothing in the graph answers. A rule about
+// a column only nodes carry selects no edge, even a test like data.phone == `null`, and the same
+// the other way round.
 const delta = await selection.apply({ where: "data.type == 'server'" });
 
 // Either one can be narrowed to a scope, such as what is currently visible.

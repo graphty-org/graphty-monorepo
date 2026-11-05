@@ -475,9 +475,11 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
-     * The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
-     * legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
-     * turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+     * leaves empty. Reported as `graph-error`.
      */
     | "E_SHADER_REFUSED"
     /**

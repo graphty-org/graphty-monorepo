@@ -14,6 +14,7 @@ import {
     Camera,
     CubicEase,
     EasingFunction,
+    type Effect,
     Engine,
     type InstancedMesh,
     type Nullable,
@@ -70,6 +71,16 @@ const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 function defaultStableFrameTimeoutMs(): number {
     const guard = (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: unknown }).__GRAPHTY_WAIT_GUARD_MS__;
     return typeof guard === "number" && guard > 0 ? guard : DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+}
+
+/**
+ * Whether a shader module's code can be drawn with. Which type `code` has depends on the WebGPU
+ * types a compilation sees: Babylon's also allow SPIR-V, which is binary and not looked into.
+ * @param code - The module's code.
+ * @returns False for WGSL with no entry point.
+ */
+function hasEntryPoint(code: string | Uint32Array): boolean {
+    return typeof code !== "string" || /@(?:vertex|fragment|compute)\b/.test(code);
 }
 
 /**
@@ -2079,6 +2090,7 @@ export class Graph implements GraphContext {
         }
 
         this.watchShaderModules(opened);
+        this.watchShaderCompiles(opened);
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
@@ -2127,9 +2139,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the WebGPU device refuses. Nothing else would: creating the module does not
-     * throw and Babylon never asks how it went, the pipeline built from it is invalid, and the
-     * frame's whole command buffer is rejected, so the canvas stays blank with no failed call.
+     * Reports a shader the WebGPU device refuses or the translator loses. Nothing else would:
+     * creating the module does not throw and Babylon never asks how it went, the pipeline built
+     * from it is invalid, and the frame's whole command buffer is rejected, so the canvas stays
+     * blank with no failed call. The translator stops at a built-in it does not handle and returns
+     * the WGSL it has so far, which the device accepts and which holds no entry point.
      * ponytail: a device Babylon opens after a device loss is not watched; it compiles the same shaders.
      * @param engine - The engine whose device compiles the graph's shaders.
      */
@@ -2141,7 +2155,9 @@ export class Graph implements GraphContext {
             void module.getCompilationInfo().then(({ messages }) => {
                 const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
                 if (errors.length > 0) {
-                    this.reportRefusedShader(errors);
+                    this.reportRefusedShader("device", errors);
+                } else if (!hasEntryPoint(descriptor.code)) {
+                    this.reportRefusedShader("translator", []);
                 }
             });
             return module;
@@ -2149,20 +2165,53 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Stops claiming to draw and says why.
-     * @param messages - What the device said about the shader.
+     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
+     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
+     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
+     * synchronous failure would have told it, and everything listening to it hears as it does
+     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * @param engine - The engine that compiles the graph's shaders.
      */
-    private reportRefusedShader(messages: readonly string[]): void {
+    private watchShaderCompiles(engine: WebGPUEngine): void {
+        const prepare = engine._preparePipelineContextAsync.bind(engine);
+        engine._preparePipelineContextAsync = async (context, ...rest) => {
+            try {
+                await prepare(context, ...rest);
+            } catch (error) {
+                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
+                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
+                if (failed === undefined) {
+                    this.reportRefusedShader("compiler", [String(error)]);
+                } else {
+                    (
+                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
+                    )._processCompilationErrors(error);
+                }
+            }
+        };
+        engine.onEffectErrorObservable.add(({ effect, errors }) => {
+            if (!effect.onError) {
+                this.reportRefusedShader("compiler", [errors]);
+            }
+        });
+    }
+
+    /**
+     * Stops claiming to draw and says why.
+     * @param stage - Which step gave up on the shader.
+     * @param messages - What it said; the translator says nothing the element can read.
+     */
+    private reportRefusedShader(stage: "compiler" | "translator" | "device", messages: readonly string[]): void {
         if (this.#rendererStatus !== null) {
             this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
         }
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU device refused a shader, so nothing is drawn: ${messages.join("; ")}`,
+            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
-            details: { messages },
+            details: { stage, messages },
         });
         this.eventManager.emitGraphError(this, error, "other");
     }

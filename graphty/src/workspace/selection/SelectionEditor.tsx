@@ -248,7 +248,9 @@ export function SelectionEditor({
     // (the approved prototype); nothing is written until a card has a value, and a workspace left
     // with no value keeps All.
     const converted = open && isEmptyAll(given);
-    const reading = useSteps(session, converted ? asNone(given) : given);
+    // That empty card's All nodes, chosen on its start button: nothing is written, so the card remembers it.
+    const [startsAll, setStartsAll] = useState(false);
+    const reading = useSteps(session, converted && !startsAll ? asNone(given) : given);
     // Whether the host holds a rule now: what it was given, read as the element holds it.
     const hostHolds = (held: UnionLeaf): boolean =>
         converted ? isEmptyAll(held) : JSON.stringify(held) === JSON.stringify(reading.rule);
@@ -484,6 +486,7 @@ export function SelectionEditor({
         setSelected(null);
         setAdding(null);
         setKeepShape(false);
+        setStartsAll(false);
         endVisit(goes ? "cancel" : how);
         if (goes) {
             say("Filter not added");
@@ -1864,6 +1867,10 @@ export function SelectionEditor({
                                     className="sel-card-start"
                                     data-start={branch.start}
                                     onClick={() => {
+                                        if (converted) {
+                                            setStartsAll(!startsAll);
+                                            return;
+                                        }
                                         onChange(
                                             editBranch(rule, branchId, {
                                                 start: branch.start === "all" ? "none" : "all",
@@ -2083,9 +2090,7 @@ export function SelectionEditor({
         const target = event.target as HTMLElement;
         if (
             // A list, a menu or a card's settings closes itself on Escape: never the workspace too.
-            target.closest(
-                "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown",
-            ) !== null ||
+            target.closest(SELF_CLOSING) !== null ||
             // An open Advanced is the disclosure Escape closes below, not a list that closes itself.
             target.matches("[aria-expanded=true]:not(.sel-advanced)") ||
             "expanded" in target.dataset
@@ -2118,6 +2123,30 @@ export function SelectionEditor({
         }
         closeAfterPaint("cancel");
     };
+
+    // A press on the drawing or on empty space leaves focus outside the modal's box, where wsKeys
+    // never hears Escape: the Cancel button still says Esc, so the workspace hears it there too.
+    const cancelLater = useRef(closeAfterPaint);
+    cancelLater.current = closeAfterPaint;
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+        const keys = (event: KeyboardEvent): void => {
+            const target = event.target as HTMLElement;
+            if (
+                event.key === "Escape" &&
+                !event.defaultPrevented &&
+                target.closest(`.sel-ws, ${SELF_CLOSING}`) === null
+            ) {
+                cancelLater.current("cancel");
+            }
+        };
+        document.addEventListener("keydown", keys);
+        return () => {
+            document.removeEventListener("keydown", keys);
+        };
+    }, [open]);
 
     // Tab past the workspace's last control goes to its header (Done, Cancel, Clear), never on to
     // the status bar: the workspace is drawn last in the page, so the header is otherwise far back.
@@ -2311,6 +2340,10 @@ function isEmptyAll(rule: UnionLeaf): boolean {
 function asNone(rule: UnionLeaf): UnionLeaf {
     return { ...rule, branches: rule.branches.map((branch) => ({ ...branch, start: "none" as const })) };
 }
+
+/** What closes itself on Escape: a list, a menu or a card's settings, never the workspace with it. */
+const SELF_CLOSING =
+    "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown";
 
 /** Where focus goes once a value is picked: the test's first control, when it is drawn. */
 const TEST_FOCUS: readonly string[] = [

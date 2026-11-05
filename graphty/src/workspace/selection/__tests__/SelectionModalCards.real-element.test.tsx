@@ -531,6 +531,49 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
     });
 });
 
+describe("the start button of an empty card", () => {
+    it("takes All nodes before the first value, and the value then narrows All", async () => {
+        const { session, layer } = await openLayer();
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        const modal = await screen.findByRole("dialog", { name: /Which nodes/ });
+        await userEvent.click(within(modal).getByRole("button", { name: "No nodes" }));
+        await within(modal).findByRole("button", { name: "All nodes" });
+        await waitFor(() => {
+            assert.strictEqual(modal.querySelector(".sel-ws-head .sel-count")?.textContent, "77 of 77");
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: "Value" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Isolated" }));
+        await within(modal).findByRole("button", { name: "All nodes" });
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+            const held = session.styles.list().find((each) => each.id === layer.id)?.selector;
+            const where = (held as { where?: UnionLeaf } | undefined)?.where;
+            assert.strictEqual(where?.branches[0]?.start, "all");
+            assert.strictEqual(where?.branches[0]?.steps[0]?.op, "keep");
+        });
+    });
+});
+
+describe("Escape on the workspace, wherever focus was left", () => {
+    it("cancels after a press on the drawing or on the title bar's empty space", async () => {
+        await openLayer();
+        for (const spot of [".sel-ws-preview", ".sel-ws-head"]) {
+            await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+            await screen.findByRole("dialog", { name: /Which nodes/ });
+            const box = document.querySelector(spot);
+            if (box === null) {
+                throw new Error(`no ${spot}`);
+            }
+            await userEvent.click(box, { position: { x: 300, y: 8 }, force: true });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(document.querySelector(".sel-ws"), "the button says Esc, so Esc cancels");
+            });
+        }
+    });
+});
+
 describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)", () => {
     it("a new layer shows Edit on Which nodes and Which edges with no hover, and each opens the modal", async () => {
         await openLayer();

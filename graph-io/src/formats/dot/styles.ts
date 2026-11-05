@@ -126,6 +126,8 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "targetArrow",
         "sourceArrowParts",
         "targetArrowParts",
+        "sourceArrowSide",
+        "targetArrowSide",
         "sourceArrowColor",
         "targetArrowColor",
         "arrowSize",
@@ -144,17 +146,6 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
     graph: Object.freeze(["background", "rotation"] as const),
     block: "native",
 });
-
-/**
- * The properties the writer reads: what it writes natively, and an edge's arrow sides, which it writes only inside an
- * arrow name of several shapes (`lteeoldiamond`); a lone shape's side stays in the block.
- * @param target - nodes or edges
- * @returns the properties
- */
-function writerReads(target: StyleTarget): readonly string[] {
-    const written = DOT_STYLE_CAPABILITIES[target];
-    return target === "edge" ? [...written, "sourceArrowSide", "targetArrowSide"] : written;
-}
 
 /** The style column holding the name each node shows when it has no label (Graphviz's `\N`). */
 const NAME_KEY = "name";
@@ -2375,6 +2366,12 @@ export function readEdgeArrow(end: "target" | "source", raw: string | null, on: 
     }
 }
 
+/** The shapes of Graphviz's arrow grammar (arrows.c), as a regular expression's alternatives. */
+const GRAPHVIZ_ARROW_SHAPES = "normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve";
+
+/** The first shape of an arrow name, with its modifiers. */
+const GRAPHVIZ_ARROW_SHAPE = new RegExp(`^([olr]{0,3})(${GRAPHVIZ_ARROW_SHAPES})`);
+
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
 
@@ -2443,7 +2440,7 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
     const shapes: GraphvizArrowShape[] = [];
     // arrows.c reads at most NUMB_OF_ARROWHEADS (4) shapes, a `none` among them, and ignores the rest
     for (let slot = 0; rest.length > 0 && slot < 4; slot++) {
-        const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
+        const m = GRAPHVIZ_ARROW_SHAPE.exec(rest);
         if (m === null) {
             return shapes.length === 0 ? null : shapes;
         }
@@ -2840,8 +2837,8 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * The Graphviz arrows a name of several shapes is made of: every neutral arrow that has one. A shape outside this table
- * would make the whole name one Graphviz does not know. The element draws `icurve` as its open half circle.
+ * The Graphviz arrows a name is made of: every neutral arrow that has one. A shape outside this table would make the
+ * whole name one Graphviz does not know. The element draws `icurve` as its open half circle.
  */
 const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
     ...ARROWS,
@@ -2852,6 +2849,11 @@ const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
 
 /** The most shapes a Graphviz arrow name holds (arrows.c's NUMB_OF_ARROWHEADS). */
 const MAX_ARROW_NAME_SHAPES = 4;
+
+/** An `other:` arrow whose name Graphviz reads: up to four shapes in its grammar, or one of its synonyms. */
+const GRAPHVIZ_OTHER_ARROW_NAME = new RegExp(
+    `^other:((?:[olr]{0,3}(?:${GRAPHVIZ_ARROW_SHAPES})){1,${String(MAX_ARROW_NAME_SHAPES)}}|ediamond|open|halfopen|empty|invempty)$`,
+);
 
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
 const STROKES: ReadonlyMap<string, string> = new Map([
@@ -3307,7 +3309,7 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const tail = typeof source === "string" && source !== "none";
     const head = typeof target === "string" && target !== "none";
     const plain = directed
-        ? head && !tail && target === "triangle" && get("targetArrowParts") === null
+        ? head && !tail && target === "triangle" && get("targetArrowParts") === null && get("targetArrowSide") === null
         : !head && !tail;
     if (plain || (source === null && target === null)) {
         return;
@@ -3324,8 +3326,8 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     // the neutral half arrow, one barb, is nearest to the left half of Graphviz's triangle, which reads back as that
     const arrow = (value: string, property: string): string => {
         const parts = get(`${property}Parts`);
+        const side = sideSuffix(get(`${property}Side`));
         if (typeof parts === "string") {
-            const side = sideSuffix(get(`${property}Side`));
             return arrowName(`${value}${side} ${parts}`, property, approximate);
         }
         if (value === "half") {
@@ -3333,7 +3335,15 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
             approximate(`${property}Side`, value);
             return "lnormal";
         }
-        return spelled(ARROWS, value, "normal", property, approximate);
+        // an `other:` name Graphviz reads, though no neutral arrow has it, is written as it is, with no side
+        const kept = ARROW_NAME_SHAPES.has(value) ? undefined : GRAPHVIZ_OTHER_ARROW_NAME.exec(value)?.[1];
+        if (kept === undefined) {
+            return arrowName(`${value}${side}`, property, approximate);
+        }
+        if (side !== "") {
+            approximate(`${property}Side`, value);
+        }
+        return kept;
     };
     if (head) {
         out.set("arrowhead", arrow(target, "targetArrow"));
@@ -3344,7 +3354,7 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
 }
 
 /**
- * A side as a `targetArrowParts` word writes it after its shape.
+ * A side as an arrow word writes it after its shape.
  * @param side - the side, or null for the whole shape
  * @returns the suffix
  */
@@ -3353,9 +3363,9 @@ function sideSuffix(side: StyleValue | null): string {
 }
 
 /**
- * The Graphviz name of an arrow of several shapes, nearest the node first, each with an `l` or `r` before it for the
- * side it keeps: the inverse of graphvizArrows(). A shape Graphviz has no name for and any past the fourth are left out,
- * so the name stays one Graphviz reads.
+ * The Graphviz name of an arrow of one shape or several, nearest the node first, each with an `l` or `r` before it for
+ * the side it keeps: the inverse of graphvizArrows(). A shape Graphviz has no name for and any past the fourth are left
+ * out, so the name stays one Graphviz reads, and a name with no shape left is its plain arrow.
  * @param shapes - the shapes as `targetArrowParts` writes them, separated by spaces
  * @param property - the property, for the approximation note
  * @param approximate - records approximations
@@ -3403,7 +3413,7 @@ function exactFromBlock(
         values: read[target],
         properties:
             target === "node" ? [...DOT_STYLE_CAPABILITIES.node, ...LABEL_PADDINGS] : DOT_STYLE_CAPABILITIES[target],
-        writes: writerReads(target),
+        writes: DOT_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
             const raw: Attr = (name) => cellText(target === "node" ? snapshot.nodes : snapshot.edges, name, i);
             const back = writtenAndReadBack(target, i, want, { cx, raw }, notes);
@@ -3608,7 +3618,7 @@ function attributeColumns(
     w: AttributeWrite,
 ): Map<string, (Written | null)[]> {
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-    const get = elementValues((t, p) => input.picture(t, p as never), target, writerReads(target));
+    const get = elementValues((t, p) => input.picture(t, p as never), target, DOT_STYLE_CAPABILITIES[target]);
     const columns = new Map<string, (Written | null)[]>();
     for (let i = 0; i < n; i++) {
         const attrs =

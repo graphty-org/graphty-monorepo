@@ -10,6 +10,7 @@ import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 
 /**
  * Zod-based options schema for NGraph Force Layout. The defaults are ngraph.forcelayout's own,
@@ -76,27 +77,8 @@ const ngraphLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    nodeGap: {
-        schema: z.number().min(0).nullable().default(null),
-        meta: {
-            label: "Node Gap",
-            description:
-                "Keep at least this much space between two nodes' drawn surfaces, measured from each " +
-                "node's drawn size. Unset (null), nodes may be drawn over each other",
-            step: 0.5,
-            advanced: true,
-        },
-    },
-    nodeGapFront: {
-        schema: z.boolean().default(false),
-        meta: {
-            label: "Node Gap From the Front",
-            description:
-                "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node " +
-                "is drawn over another in the starting view even when one is behind the other",
-            advanced: true,
-        },
-    },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
         schema: z.number().int().positive().nullable().default(null),
         meta: {
@@ -563,7 +545,7 @@ export class NGraphEngine extends LayoutEngine {
      * apart by that size: a node that grew after the layout came to rest may now cover another.
      * @returns True when the simulation was woken.
      */
-    wakeForResize(): boolean {
+    override wakeForResize(): boolean {
         if (this.nodeGap === null || !this._settled) {
             return false;
         }

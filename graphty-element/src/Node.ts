@@ -25,7 +25,6 @@ import { drawnText } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
-import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -1889,7 +1888,7 @@ export class Node implements ModelUser {
         const engine = this.context.getLayoutManager().layoutEngine;
         // Once the frame loop has seen it settle it stops stepping it, so a woken layout is
         // started again too; otherwise it stays unsettled and nothing ever pushes the nodes apart.
-        if (engine instanceof NGraphEngine && engine.wakeForResize()) {
+        if (engine?.wakeForResize() === true) {
             this.context.getLayoutManager().running = true;
         }
 
@@ -2513,6 +2512,22 @@ export class Node implements ModelUser {
      */
     get layoutRadius(): number {
         return this.surfaceRadius + this.sceneBorderReach;
+    }
+
+    /**
+     * The radius of a sphere holding the whole node, for a layout that keeps nodes apart as spheres: a shape that is not
+     * round reaches furthest at its corners, past {@link Node.layoutRadius}, its largest half-extent.
+     * @param flat - Whether depth does not count: a 2D layout, or one measured from the front.
+     * @returns The radius.
+     * @internal
+     */
+    spacingRadius(flat: boolean): number {
+        if (this.roundRadius !== null) {
+            return this.layoutRadius;
+        }
+
+        const { x, y, z } = this.drawnHalfExtents;
+        return Math.hypot(x, y, flat ? 0 : z);
     }
 
     /**

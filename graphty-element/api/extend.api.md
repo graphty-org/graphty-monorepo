@@ -1976,6 +1976,8 @@ export abstract class LayoutEngine {
     get type(): string;
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
+    // @internal
+    wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema_2;
 }
@@ -2148,6 +2150,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
     // @internal

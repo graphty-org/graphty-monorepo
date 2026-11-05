@@ -12,6 +12,7 @@ import type { SimulationType } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -92,6 +93,8 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
         schema: z.number().nullable().default(null),
         meta: {

@@ -8,8 +8,8 @@
  * carries the loaders and their shaders, is imported here on first use and never before.
  */
 
-import type { AssetContainer } from "@babylonjs/core/assetContainer";
-import type { Scene } from "@babylonjs/core/scene";
+import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { CodedFact } from "../session/shared";
 import { guardRequests, REFUSED } from "./requestGuard";

@@ -286,8 +286,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // attraction pushes away from the neighbour instead of towards it (row_force_dense: karate reaches no
             // degree of 32, so every check in this suite folds through TIER 0)
             name: "attraction-sign-flipped",
-            find: "total = total + d * mag;",
-            replace: "total = total - d * mag;",
+            find: "total = total + d * select(",
+            replace: "total = total - d * select(",
             minFactor: 10,
             test: INSPECT_TEST,
         },
@@ -329,8 +329,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // oldForce never stored: iteration 2's swing becomes m |F| instead of m |F - F_old| (paper mode)
             name: "store-old-skipped",
-            find: "if (SWING_MODE == 0u) { store_old(i, f); }",
-            replace: "if (SWING_MODE == 2u) { store_old(i, f); }",
+            find: "if (SWING_MODE == 0u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
+            replace: "if (SWING_MODE == 2u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
             minFactor: 10,
             test: TRACE_TEST,
         },

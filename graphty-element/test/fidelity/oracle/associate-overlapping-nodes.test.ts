@@ -90,6 +90,52 @@ describe("small nodes drawn almost on one another", () => {
         assert.strictEqual(p?.stroke?.color, "#000000");
         assert.approximately(p?.w ?? 0, 2.8, 0.05);
     });
+
+    it("reads two boxes of one size stacked a little under a box's height apart as two nodes", () => {
+        // cx2-wp1449-tlr: WikiPathways labels 137067 and 137010, two 45.7 x 10.5 boxes about 9.6 px apart, within the twin
+        // distance (0.2 of the size and half a pixel), were read as one node and its outline; the other was lost
+        const box = (x: number, y: number, w: number, h: number): Pt[] => [
+            [x - w / 2, y - h / 2],
+            [x + w / 2, y - h / 2],
+            [x + w / 2, y + h / 2],
+            [x - w / 2, y + h / 2],
+        ];
+        const STACK: [string, number, number][] = [
+            ["s", 200, 300],
+            ["t", 200, 309.5],
+        ];
+        const rect = (id: string, x: number, y: number): PNode => ({
+            ...node([id, x, y, 45.7]),
+            shape: "rect",
+            h: 10.5,
+        });
+        const stacked: PScene = {
+            ...guide,
+            nodes: [...guide.nodes.slice(0, 6), ...STACK.map(([id, x, y]) => rect(id, x, y))],
+        };
+        // each drawn as Cytoscape desktop draws a node: its fill, then its outline on the same spot
+        const shapes: Prim[] = [
+            ...prims.slice(0, 6),
+            ...STACK.flatMap(([, x, y], i): Prim[] => {
+                const points = box(x, y, 45.7, 10.5);
+                const fill: Prim = { ...prims[0], index: 6 + 2 * i, box: boxOfPoints(points), corners: 4, points };
+                const outline: Prim = {
+                    ...fill,
+                    index: 7 + 2 * i,
+                    fill: null,
+                    stroke: { color: "#000000", opacity: 1, width: 0.585, dash: null, dashClass: "solid" },
+                };
+                return [fill, outline];
+            }),
+        ];
+        const o = associate(shapes, 600, 400, stacked).scene;
+        for (const [id, , y] of STACK) {
+            const n = o.nodes.find((m) => m.id === id);
+            assert.isDefined(n, id);
+            assert.approximately(n?.h ?? 0, 10.5, 0.05, `${id} height`);
+            assert.approximately(n?.cy ?? 0, y, 0.05, `${id} middle`);
+        }
+    });
 });
 
 describe("two nodes of one name drawn close together", () => {

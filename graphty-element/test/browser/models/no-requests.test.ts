@@ -15,14 +15,14 @@
 
 import "../../../src/graphty-element";
 
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
-import { Engine } from "@babylonjs/core/Engines/engine";
-import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
-import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags";
-import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Scene } from "@babylonjs/core/scene";
+import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
+import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader.js";
+import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
+import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
@@ -359,7 +359,7 @@ describe("the model chunk", () => {
 
     it("refuses Babylon's CDN while a model loads, and only then", async () => {
         const { loadModelContainer } = await import("../../../src/models/chunk");
-        const { Tools } = await import("@babylonjs/core/Misc/tools");
+        const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const cdn = "https://assets.babylonjs.com/environments/backgroundGround.png";
         const mtlUrl = blobUrl(`newmtl paint\nmap_Kd ${cdn}\n`, "text/plain");

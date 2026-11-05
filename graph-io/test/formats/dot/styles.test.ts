@@ -375,6 +375,36 @@ two", fontsize=20]; c [margin="0.5,0.25"]; d [margin=0.1]; p [shape=plain];
         expect((await load("digraph { a -> b }")).styles.styles.graph.background).toBe("#ffffff");
         expect((await load("digraph { bgcolor=red; a -> b }")).styles.styles.graph.background).toBe("#ff0000");
     });
+
+    it("turns the drawing a quarter turn counterclockwise for rotate=90, landscape and a landscape orientation", async () => {
+        const rotation = async (attrs: string): Promise<unknown> =>
+            (await load(`digraph { ${attrs} a -> b }`)).styles.styles.graph.rotation;
+        expect(await rotation("rotate=90;")).toBe(90);
+        expect(await rotation("landscape=true;")).toBe(90);
+        expect(await rotation("orientation=landscape;")).toBe(90);
+        expect(await rotation("orientation=L;")).toBe(90);
+        // Graphviz turns only for 90, and reads rotate before orientation and orientation before landscape
+        expect(await rotation("rotate=45;")).toBeUndefined();
+        expect(await rotation("rotate=0; landscape=true;")).toBeUndefined();
+        expect(await rotation("orientation=portrait; landscape=true;")).toBeUndefined();
+        expect(await rotation("landscape=false;")).toBeUndefined();
+        expect(await rotation("")).toBeUndefined();
+    });
+
+    it("writes the drawing's quarter turn back as rotate=90, in place of landscape or a landscape orientation", async () => {
+        for (const attrs of ["landscape=true;", "orientation=landscape;", "rotate=90;"]) {
+            const { snapshot, styles } = await load(`digraph { ${attrs} a -> b }`);
+            const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+            expect(text).toMatch(/\brotate="?90"?/);
+            expect(text).not.toMatch(/landscape|orientation/);
+            expect((await load(text)).styles.styles.graph.rotation).toBe(90);
+        }
+        const upright = await load("digraph { rotate=90; a -> b }");
+        const { rotation: _turn, ...unturned } = upright.styles.styles.graph;
+        const styles = { ...upright.styles, styles: { ...upright.styles.styles, graph: unturned } };
+        const text = await registry.exportGraphToString(upright.snapshot, "dot", { styles });
+        expect(text).not.toMatch(/rotate/);
+    });
 });
 
 describe("DOT styles: what Graphviz draws beyond the attributes", () => {
@@ -623,11 +653,9 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         const polygonPoints = byId(polygon, polygonSnapshot, "shapePoints");
         expect(points.get("h")).toBe(polygonPoints.get("h"));
         expect(points.get("e")).toBe(polygonPoints.get("e"));
-        // box3d as dot -Tjson draws it at 0.75 by 0.5 inch: a box with its back edge 4 points up and right
-        expect(points.get("b")).toBe("1,1 -0.851852,1 -1,0.777778 -1,-1 0.851852,-1 1,-0.777778");
-        expect(byId(styles, snapshot, "shapeLines").get("b")).toBe(
-            "0.851852,0.777778 -1,0.777778; 0.851852,0.777778 0.851852,-1; 0.851852,0.777778 1,1",
-        );
+        // box3d as dot -Tjson draws it: a box with its back edge 4 points up and right, 4 points whatever its size
+        expect(points.get("b")).toBe("1,1 -1+4,1 -1,1-4 -1,-1 1-4,-1 1,-1+4");
+        expect(byId(styles, snapshot, "shapeLines").get("b")).toBe("1-4,1-4 -1,1-4; 1-4,1-4 1-4,-1; 1-4,1-4 1,1");
         // a decorated box holds its label exactly, as a box does; a polygon holds it inside its ellipse
         const fit = byId(styles, snapshot, "labelFit");
         expect(["h", "b", "c"].map((id) => fit.get(id))).toEqual(["inside", "bounds", "bounds"]);
@@ -650,14 +678,14 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             p [shape=promoter]; a [shape=assembly]; u [shape=underline];
         }`);
         const get = (property: string, id: string): unknown => byId(styles, snapshot, property).get(id);
+        // each piece a fraction of the half width or height plus a length in points, so it keeps its size when the
+        // node grows to hold its label
         expect(get("shapePoints", "p")).toBe(
-            "0.25,1 -0.5,1 -0.5,0 -0.166667,0 -0.166667,0.666667 0.25,0.666667 0.25,0.5 0.916667,0.833333 0.25,1.16667",
+            "0.25,0+18 -0.5,0+18 -0.5,0 -0.5+6,0 -0.5+6,0+12 0.25,0+12 0.25,0+9 0.25+12,0+15 0.25,0+21",
         );
         expect(get("shapePointsStretch", "p")).toBe(false);
         expect(get("shapeLines", "p")).toBe("-1,0 1,0");
-        expect(get("shapeParts", "a")).toBe(
-            "-0.666667,-0.416667 0.666667,-0.416667 0.666667,-0.0833333 -0.666667,-0.0833333",
-        );
+        expect(get("shapeParts", "a")).toBe("0-12,0-7.5 0+12,0-7.5 0+12,0-1.5 0-12,0-1.5");
         expect(get("borderWidth", "u")).toBe(0);
         expect(get("shapeLineWidth", "u")).toBe(2);
         expect(get("shapeLines", "u")).toBe("-1,-1 1,-1");
@@ -671,10 +699,90 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }
     });
 
-    it("reads an edge's xlabel as its label when it has none, and notes one it cannot carry beside a label", async () => {
+    it("draws a glyph's pieces at their sizes in points from the node's sides, whatever size the node grows to", async () => {
+        // Graphviz's five-prime overhang: a bar 24 points long against the left side, its lower bar 12 points in
+        const { snapshot, styles } = await load(`digraph { f [shape=fivepoverhang, label="a long label"]; }`);
+        const get = (property: string): unknown => byId(styles, snapshot, property).get("f");
+        expect(get("shapePoints")).toBe("-1,0+1.5 -1+24,0+1.5 -1+24,0+7.5 -1,0+7.5");
+        expect(get("shapeParts")).toBe("-1+12,0-7.5 -1+24,0-7.5 -1+24,0-1.5 -1+12,0-1.5");
+        expect(get("shapeLines")).toBe("-1+24,0 1,0");
+        // it holds its label as a box, as Graphviz's four-sided glyphs do
+        expect(get("labelFit")).toBe("bounds");
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        expect(text).toMatch(/\bf\s*\[[^\]]*shape=fivepoverhang\b/);
+    });
+
+    it("reads an edge's xlabel as its label when it has none, and as its xlabel beside a label", async () => {
         const { snapshot, styles } = await load('digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x"] }');
         expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
-        expect(codes(styles)).toContain("W_STYLE_NOT_CARRIED");
+        expect(drawn(styles, snapshot, "edge", "xlabel")).toEqual([null, "x"]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
+    });
+
+    it("carries a node's xlabel, and its stored xlp as an offset from the node's stored center", async () => {
+        const { snapshot, styles } = await load(
+            'graph { a [xlabel="ext \\N"]; b [xlabel="x", pos="376,95!", xlp="402,121"]; c [xlabel="y", xlp="1,2"] }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["ext a", "x", "y"]);
+        // right 26 points and up 26 points (DOT's y grows upward, the offset's downward)
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetX")).toEqual([null, 26, null]);
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetY")).toEqual([null, -26, null]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
+    });
+
+    it("leaves out an xlabel Graphviz left out under forcelabels=false: no xlp where Graphviz placed the others", async () => {
+        const file = (force: string): string =>
+            `graph { graph [forcelabels=${force}]; a [xlabel="kept", pos="0,0!", xlp="-40,30"]; b [xlabel="dropped", pos="100,0!"] }`;
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "node", "xlabel")).toEqual(["kept", null]);
+        // forcelabels=true (the default) always places it, so a missing xlp says nothing
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "node", "xlabel")).toEqual(["kept", "dropped"]);
+    });
+
+    it("leaves out, under forcelabels=false, an xlabel against its node's corner that would cover another placed node", async () => {
+        // c's 0.5 inch box puts its corner at (-18, 18); its label runs left and up from there, over d but not e
+        const { snapshot, styles } = await load(
+            "graph { graph [forcelabels=false]; node [width=0.5, height=0.5, fixedsize=true]; " +
+                'c [xlabel="a long external label", pos="0,0!"]; d [width=0.1, height=0.1, pos="-30,25!"]; ' +
+                'e [xlabel="ext", pos="300,0!"]; f [pos="300,-60!"] }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual([null, null, "ext", null]);
+    });
+
+    it("keeps every xlabel under forcelabels=false when some node has no stored position (the layout decides)", async () => {
+        const { snapshot, styles } = await load(
+            'graph { graph [forcelabels=false]; c [xlabel="a long external label", pos="0,0!"]; d [pos="-30,25!"]; g }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["a long external label", null, null]);
+    });
+
+    it("leaves out an edge xlabel Graphviz left out under forcelabels=false: no xlp where Graphviz placed others", async () => {
+        const file = (force: string): string =>
+            `digraph { graph [forcelabels=${force}]; a [pos="0,0!"]; b [pos="100,0!"]; c [pos="200,0!"]; ` +
+            `a -> b [label="m", xlabel="kept", xlp="50,20"]; b -> c [label="n", xlabel="dropped"]; a -> c [xlabel="alone"] }`;
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "xlabel")).toEqual(["kept", null, null]);
+        // an xlabel with no label is drawn as the label: left out, there is none
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "label")).toEqual(["m", "n", null]);
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "edge", "xlabel")).toEqual(["kept", "dropped", null]);
+        expect(drawn(forced.styles, forced.snapshot, "edge", "label")).toEqual(["m", "n", "alone"]);
+    });
+
+    it("leaves out, under forcelabels=false, the edge labels an xdot file draws no ops for", async () => {
+        // Graphviz writes an lp, head_lp and tail_lp even for a label it left out, at no place it drew
+        const file = (force: string): string =>
+            `digraph { graph [forcelabels=${force}]; a [pos="0,0!"]; b [pos="100,0!"]; ` +
+            'a -> b [_draw_="c 7 -#000000 B 4 0 0 30 0 70 0 100 0 ", label="m", lp="0,0", headlabel="h", head_lp="0,0", ' +
+            'taillabel="t", tail_lp="10,10", _tldraw_="F 14 11 -Times-Roman c 7 -#000000 T 10 6 0 4 1 -t "] }';
+        const crowded = await load(file("false"));
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "label")).toEqual([null]);
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "targetLabel")).toEqual([null]);
+        expect(drawn(crowded.styles, crowded.snapshot, "edge", "sourceLabel")).toEqual(["t"]);
+        const forced = await load(file("true"));
+        expect(drawn(forced.styles, forced.snapshot, "edge", "label")).toEqual(["m"]);
+        expect(drawn(forced.styles, forced.snapshot, "edge", "targetLabel")).toEqual(["h"]);
     });
 });
 

@@ -22,6 +22,16 @@ import {
 } from "./edgeJoinShader";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
+/** A line's fade by its length on screen, in CSS pixels; see `line.fade`. */
+export interface EdgeFade {
+    /** The length up to which the line does not fade. */
+    readonly start: number;
+    /** The length from which it draws at `opacity` times its own. */
+    readonly end: number;
+    /** What the fade multiplies the line's opacity by at `end`. */
+    readonly opacity: number;
+}
+
 /** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
@@ -34,6 +44,13 @@ export interface JoinedLineOptions {
     worldWidth?: boolean;
     /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
     minScreenWidth?: number;
+    /**
+     * Fade by the edge's length on screen (`line.fade`, `EDGE_FADE`), read from the whole edge's
+     * length, which only a widened batch carries; so it implies `widened`.
+     */
+    fade?: EdgeFade | undefined;
+    /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
+    opaque?: boolean | undefined;
     /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
     /**
@@ -54,6 +71,22 @@ export interface JoinedLineOptions {
     };
     /** How it blends: straight alpha over (the default), premultiplied over, or added. */
     blend?: "combine" | "premultiplied" | "add";
+}
+
+/**
+ * The defines the join shader is compiled with for one look.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The defines.
+ */
+function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string[] {
+    return [
+        ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
+        ...(widened ? ["#define EDGE_WIDENED"] : []),
+        ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
+        ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
+        ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+    ];
 }
 
 interface LineGeometry {
@@ -390,13 +423,10 @@ void main(void) {
         vertexData.indices = [...JOIN_TEMPLATE_INDICES];
         vertexData.applyToMesh(mesh);
 
-        const { program } = options;
-        const widened = options.widened === true || program !== undefined;
-        const defines = [
-            ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
-            ...(widened ? ["#define EDGE_WIDENED"] : []),
-            ...(program === undefined ? [] : ["#define EDGE_SHADED"]),
-        ];
+        const { program, fade } = options;
+        const opaque = options.opaque === true;
+        const widened = options.widened === true || program !== undefined || fade !== undefined;
+        const defines = joinedLineDefines(options, widened);
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,
@@ -404,10 +434,12 @@ void main(void) {
             {
                 attributes: [
                     "position",
+                    "pPrev2",
                     "pPrev",
                     "pA",
                     "pB",
                     "pNext",
+                    "pNext2",
                     "run",
                     ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
                 ],
@@ -416,6 +448,7 @@ void main(void) {
                     "viewProjection",
                     "projection",
                     "resolution",
+                    "fragmentSize",
                     "width",
                     "minWidth",
                     "miterLimit",
@@ -423,17 +456,39 @@ void main(void) {
                     "opacity",
                     "pattern",
                     ...(widened ? ["edgeReach"] : []),
+                    ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),
                 ],
                 samplers: [...(program?.samplers ?? [])],
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
-                ...(program === undefined ? {} : { needAlphaBlending: true }),
+                // A faded line is translucent whatever its opacity: in the opaque pass it would
+                // write depth, and hide what is drawn behind it after it.
+                ...((program === undefined && fade === undefined) || opaque ? {} : { needAlphaBlending: true }),
             },
         );
         if (widened) {
             material.setFloat("edgeReach", 1);
         }
+
+        if (fade !== undefined) {
+            material.setVector3("edgeFade", new Vector3(fade.start, fade.end, fade.opacity));
+        }
+
+        // The pixels the viewport being drawn holds, read as each draw binds -- the canvas, a
+        // capture's larger target or one eye's half -- so the fragment shader can snap to the
+        // pixel it draws (edgeJoinShader). Set on the effect just bound, which a ShaderMaterial
+        // keeps on the submesh, not on the material, where a value would reach the shader one
+        // draw late.
+        material.onBindObservable.add((drawn) => {
+            const engine = scene.getEngine();
+            const viewport = scene.activeCamera?.viewport;
+            drawn.subMeshes[0]?.effect?.setFloat2(
+                "fragmentSize",
+                engine.getRenderWidth() * (viewport?.width ?? 1),
+                engine.getRenderHeight() * (viewport?.height ?? 1),
+            );
+        });
 
         const opacity = options.opacity ?? 1;
         const colorObj = Color3.FromHexString(options.color);
@@ -457,12 +512,15 @@ void main(void) {
 
         // A translucent line is drawn in the transparent pass, as every line renderer before this
         // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
-        if (opacity < 1) {
+        if (opacity < 1 && !opaque) {
             mesh.visibility = opacity;
         }
 
         mesh.alwaysSelectAsActiveMesh = true;
-        this.blendInPlace(mesh, options.blend);
+        if (!opaque) {
+            this.blendInPlace(mesh, options.blend);
+        }
+
         mesh.metadata = {
             joinedLine: true,
             pattern: pattern

@@ -26,7 +26,8 @@
 # again) or answer each one in the Proof and open with `tools/pr-open.sh --review-answered`. Exit 1: refused
 # or failed (no Proof, no issue, nothing to review, no verdict from the review).
 #   --reuse    accepted for old callers; a branch is reviewed ONCE (owner, 2026-10-26): when it already has a
-#              report, that report is used whatever the branch changed since. --again reviews it once more.
+#              clean report, that report is used whatever the branch changed since; a report with blocking
+#              findings is used only for the change it reviewed. --again reviews it once more.
 #   --dry-run  print the prompt it would send and exit, calling nothing and writing nothing
 set -euo pipefail
 
@@ -91,12 +92,18 @@ finish() {
     exit 0
 }
 # One review per branch (owner, 2026-10-26): every fix used to change the patch id and start a full new review,
-# about 40% of all token use. An existing report stands for the branch unless --again asks for another.
-# A report that answers test-integrity findings stands only for the head it answered them on.
+# about 40% of all token use. An existing clean report stands for the branch unless --again asks for another.
+# A report with blocking findings stands only for the change it reviewed (its patch id, line 1): after a fix
+# the current change is reviewed again, with the old report as context, so a finding already fixed is never
+# reported as blocking (#4201). A report that answers test-integrity findings stands only for its head.
+earlier=""
 if [ "$again" = 0 ] && [ "$dry" = 0 ] && [ -f "$report" ] &&
     { [ "${#findings[@]}" = 0 ] || grep -qxF -- "$integrity_marker" "$report"; }; then
     n=$(verdict "$report")
-    [ -z "$n" ] || finish "$n"
+    if [ "$n" = 0 ] || { [ -n "$n" ] && [ "$(head -n 1 "$report")" = "$marker" ]; }; then
+        finish "$n"
+    fi
+    [ -z "$n" ] || earlier=$(cat "$report")
 fi
 
 issue_text=$(gh issue view "$issue" --json title,body --jq '"\(.title)\n\n\(.body)"' 2>/dev/null) ||
@@ -144,6 +151,13 @@ EOF
         echo
         for i in "${!findings[@]}"; do echo "$((i + 1)). ${findings[$i]}"; done
         echo
+    fi
+    if [ -n "$earlier" ]; then
+        echo "===== EARLIER REVIEW (of an older version of this change; context only) ====="
+        echo "This review ran on an earlier commit of the branch, which may have fixed its findings since. Do not"
+        echo "repeat a finding because it is listed here: report it only when the DIFF below still has it."
+        echo
+        printf '%s\n\n' "$earlier"
     fi
     echo "===== DIFF (git diff $base...HEAD) ====="
     # Data and generated files (design records, sample datasets, lockfiles) are named, never inlined; a diff

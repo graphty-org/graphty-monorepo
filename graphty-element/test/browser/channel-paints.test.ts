@@ -118,6 +118,15 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+    // An external label's place and look change only an external label there is: its words switch it on.
+    "node.xlabelStyle": { "node.xlabel": "OUT" },
+    "node.xlabelLocation": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetX": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetY": { "node.xlabel": "OUT" },
+    "edge.xlabelStyle": { "edge.xlabel": "OUT" },
+    "edge.xlabelLocation": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetX": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetY": { "edge.xlabel": "OUT" },
 };
 
 /** How wide the canvas is. */
@@ -191,6 +200,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             // and its further texts a JSON list of points and words
             if (descriptor.channel === "node.shapeTexts") {
                 return '[[0, 0, "CHANNEL PROBE WORDS"]]';
+            }
+            // and its table label rows of cells
+            if (descriptor.channel === "node.labelTable") {
+                return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":

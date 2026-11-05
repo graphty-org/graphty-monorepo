@@ -8,7 +8,7 @@ import { useDirection } from "../utils/rtl";
 import { ToggleIconButton } from "./buttons";
 import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { SwapGlyph, UnitField } from "./GradientEditor";
-import { HISTOGRAM_AXIS_INSET, HistogramRow } from "./rows/ChartRow";
+import { ChartValueTable, HISTOGRAM_AXIS_INSET, HistogramRow } from "./rows/ChartRow";
 import { FieldRow } from "./rows/FieldRow";
 import { PanelField } from "./rows/PanelField";
 import { ResetButton } from "./rows/TrailingSlot";
@@ -635,6 +635,9 @@ export function RampEditor({
                     bins={bins.map((bin) => ({ label: bin.label, count: bin.count, paint: bin.paint }))}
                     minLabel={format(min)}
                     maxLabel={format(max)}
+                    // The table of every bin's count is read after the controls (below), never
+                    // between the editor's name and its first handle.
+                    valueTable={false}
                 />
                 <Box
                     aria-hidden={clamp === undefined ? true : undefined}
@@ -845,6 +848,16 @@ export function RampEditor({
                         onMidpointChange?.(value),
                     )}
             </Box>
+
+            <ChartValueTable
+                caption={label}
+                rows={bins.map((bin, index) => ({
+                    id: `${bin.label}-${String(index)}`,
+                    header: bin.label,
+                    value: numbers.format(bin.count),
+                }))}
+                testId="histogram-values"
+            />
         </Box>
     );
 }

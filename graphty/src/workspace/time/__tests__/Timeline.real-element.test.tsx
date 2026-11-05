@@ -10,12 +10,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, TimeStepEvent } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -313,7 +313,12 @@ describe("the timeline on the real element", () => {
         const chip = await screen.findByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
-        await userEvent.click(screen.getByRole("button", { name: "Clear the time window" }));
+        // The window's two icon controls say their names on hover, whatever the window's state.
+        const apply = dataPlace().getByRole("checkbox", { name: "Apply the time window" });
+        assert.equal(await tooltipOf(apply), "Apply the time window");
+        const clear = screen.getByRole("button", { name: "Clear the time window" });
+        assert.equal(await tooltipOf(clear), "Clear the time window");
+        await userEvent.click(clear);
         await waitFor(() => {
             assert.isNull(session.time.current);
         });

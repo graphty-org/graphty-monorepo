@@ -73,6 +73,7 @@ describe("Automatic Layout Updates", () => {
                     autoRotate: 0,
                     fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                     fitBounds: "box",
+                    refitOnResize: false,
                 },
                 expand: {
                     trigger: "none",

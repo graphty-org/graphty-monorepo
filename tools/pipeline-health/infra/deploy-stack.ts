@@ -7,7 +7,12 @@ import type { Construct } from "constructs";
 /** The CodeBuild project the collector starts when master's tools/pipeline-health changes. */
 export const DEPLOY_PROJECT = "graphty-health-deploy";
 
-/** The CDK bootstrap roles (default qualifier) the build may assume, and nothing else. */
+/**
+ * The CDK bootstrap roles (default qualifier) the build may assume, and nothing else.
+ * @param account - the AWS account id
+ * @param region - the AWS Region
+ * @returns the role ARNs
+ */
 export function bootstrapRoleArns(account: string, region: string): string[] {
     return ["deploy", "file-publishing", "lookup"].map(
         (kind) => `arn:aws:iam::${account}:role/cdk-hnb659fds-${kind}-role-${account}-${region}`,
@@ -51,6 +56,12 @@ const BUILDSPEC = {
  * public repository at that commit. No GitHub connection or webhook is involved.
  */
 export class DeployStack extends Stack {
+    /**
+     * The CodeBuild project, its role and its log group.
+     * @param scope - the parent construct
+     * @param id - the stack's id
+     * @param props - the stack's props
+     */
     constructor(scope: Construct, id: string, props: StackProps) {
         super(scope, id, props);
         const { account, region } = this;

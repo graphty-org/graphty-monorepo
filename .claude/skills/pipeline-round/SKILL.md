@@ -176,13 +176,18 @@ red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt,
 newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
 own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
 
-- **Before asking the owner,** open the live review page (servherd `visual-review-v3`, `serve --candidate next`) in
-  your own browser tab and confirm it lists `master candidate <sha>` for H with its change count. If it does not, that
-  is a defect to fix (on 2026-10-28 the page hid the candidate for 16 hours; #4390), never a reason to ask. Then one
-  `ACTION NEEDED` line with the one full URL: the server's tokenized URL from its log plus `&target=master`.
+- **Before asking the owner,** open his proofroom review page (servherd `proofroom-review`, cwd
+  `.worktrees/proofroom-review`; command in CLAUDE.md, "Visual review") in your own browser tab and confirm it lists
+  `master candidate <sha10>` for H with its change count. If it does not, that is a defect to fix (on 2026-10-28 the
+  page hid the candidate for 16 hours; #4390), never a reason to ask. Then one `ACTION NEEDED` line with the one full
+  URL: the server's tokenized URL from its log line `proofroom: open https://...#token=...` plus `&change=master`.
+  Never link the old page (servherd `visual-review-v3`).
 - **After the owner's Finish** (a pull request from `visual/approve-<sha>`): arm its auto-merge
-  (`gh pr merge <n> --auto --merge`). Never merge master into it or update its branch: the promotion refuses an
-  approval that is not H plus accept-only commits (`tools/channel/resume.mjs`). Red on a cause master already fixed:
+  (`gh pr merge <n> --auto --merge`). Never merge master into it or update its branch by hand: the promotion refuses an
+  approval that is not H plus accept-only commits (`tools/channel/resume.mjs`). The one exception is a Build failing
+  "Check that merging keeps the signed baselines tree" because master holds the approval of an earlier head of the
+  same hold (it was approved, fixed forward, approved again): run `node tools/channel/approval-update.mjs <branch>`,
+  which merges master and keeps the signed tree, so no new review is needed (#5410); it refuses any other case. Red on a cause master already fixed:
   re-run the failed jobs (`gh run rerun <id> --failed`); to re-trigger PR Integrity, edit the description (fetch the
   body, append a line, write it back; never overwrite it).
 - **The promotion:** its merge's master build runs `release-due`, which dispatches `release.yml` in mode

@@ -283,6 +283,54 @@ export const WidthAndHeight: Story = {
     },
 };
 
+/** Solids and flat shapes stretched along x, y and z, each as a multiple of its size. */
+const STRETCH_NODES = grid(
+    [
+        { id: "box wide", shape: "box", width: 3, height: 1, depth: 1 },
+        { id: "box tall", shape: "box", width: 1, height: 3, depth: 1 },
+        { id: "box deep", shape: "box", width: 1, height: 1, depth: 3 },
+        { id: "sphere flat", shape: "sphere", width: 2, height: 0.5, depth: 2 },
+        { id: "rectangle wide", shape: "rectangle", width: 3, height: 1, depth: 0.2 },
+        { id: "ellipse tall", shape: "ellipse", width: 1, height: 2.5, depth: 0.2 },
+    ],
+    3,
+    6,
+);
+
+/**
+ * Boxes, a sphere and flat shapes stretched along x, y and z in a 3D view. `node.relativeExtents`
+ * reads each axis as a multiple of `node.size`, so a size change keeps the stretch.
+ */
+export const RelativeExtentsIn3D: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Node RelativeExtentsIn3D");
+
+        await assertViewMode(scene, "3d");
+        await assertGraphLoaded(scene, { nodes: STRETCH_NODES.length, edges: 0 });
+
+        const deep = scene.graph.getNode("box deep")?.mesh.getBoundingInfo().boundingBox.extendSize;
+        await holds(
+            deep !== undefined && deep.z > 2.5 * deep.x,
+            "Styles/Node RelativeExtentsIn3D: the deep box is three times as deep as it is wide",
+        );
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.color": "#63B3ED", "node.relativeExtents": true },
+            nodeEncode: {
+                "node.shape": { by: "data.shape", scale: "passthrough" },
+                "node.width": { by: "data.width", scale: "passthrough" },
+                "node.height": { by: "data.height", scale: "passthrough" },
+                "node.depth": { by: "data.depth", scale: "passthrough" },
+                "node.label": { by: "data.id", scale: "passthrough" },
+            },
+        }),
+        nodeData: STRETCH_NODES,
+        edgeData: [],
+    },
+};
+
 /**
  * Nodes that grow to hold their labels, as Graphviz and vis-network draw them: one row per way of
  * fitting, each with a short, a middling and a long label.

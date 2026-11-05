@@ -7,7 +7,6 @@ import {
     dirtyKey,
     floorTo,
     HOUR,
-    type JobItem,
     rollKey,
     type Step,
     STEP_MS,
@@ -18,7 +17,7 @@ import { putRaw } from "../../src/model/raw.js";
 import { LEASE_KEY, LEASE_MS, loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { refold } from "../../src/recompute.js";
-import { job, MIN, obs, run, T0 } from "./helpers.js";
+import { job, MIN, obs, pr, run, T0 } from "./helpers.js";
 
 const rand = (seed: number) => () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
 const dayStart = floorTo(T0, "1d");
@@ -100,6 +99,26 @@ describe("rollups", () => {
         expect(((await store.get(rollKey("ci.runner_wait", "1d", old))) as unknown as Bucket).n).toBe(5);
     });
 
+    it("merge ratio leaves a pull request still open (in CI) out, and counts it once it settles (#5400)", async () => {
+        const store = new MemoryStore();
+        const at = (n: number) => T0 - (60 - n * 5) * MIN;
+        const prs = [
+            pr(1, { createdAt: at(1), mergedAt: at(5) }),
+            pr(2, { createdAt: at(2), mergedAt: at(6) }),
+            pr(3, { createdAt: at(3), closedAt: at(7) }),
+            pr(4, { createdAt: at(4) }),
+            pr(5, { createdAt: at(5) }),
+        ];
+        await putRaw(store, prs, T0);
+        await recompute(store, T0);
+        expect((await windowValue(store, "pr.merge_ratio", "1h", T0)).total).toMatchObject({ n: 3, sum: 2 });
+
+        const later = T0 + 10 * MIN;
+        await putRaw(store, [{ ...prs[3], mergedAt: T0 + 5 * MIN }], later);
+        await recompute(store, later);
+        expect((await windowValue(store, "pr.merge_ratio", "1h", T0)).total).toMatchObject({ n: 4, sum: 3 });
+    });
+
     it("keeps stocks as the newest value and the peak, per bucket and merged", async () => {
         const store = new MemoryStore();
         await putRaw(
@@ -110,6 +129,27 @@ describe("rollups", () => {
         await recompute(store, T0);
         const w = await windowValue(store, "pr.open", "1h", T0);
         expect(w.total).toMatchObject({ last: 12, max: 30 });
+    });
+
+    it("counts slice cost readings only from saturated cycles, also ones stored before the rule (#5681)", async () => {
+        const store = new MemoryStore();
+        const quiet = T0 - 9 * MIN;
+        const full = T0 - 4 * MIN;
+        await putRaw(
+            store,
+            [
+                obs("ci.saturated_ms", 0, quiet),
+                obs("slices.queue_wait_min", 9, quiet),
+                obs("slices.contended_min", 5, quiet),
+                obs("ci.saturated_ms", 5 * MIN, full),
+                obs("slices.queue_wait_min", 3, full),
+                obs("slices.contended_min", 2, full),
+            ],
+            T0,
+        );
+        await recompute(store, T0);
+        expect((await windowValue(store, "slices.queue_wait_min", "1h", T0)).total).toMatchObject({ sum: 3 });
+        expect((await windowValue(store, "slices.contended_min", "1h", T0)).total).toMatchObject({ sum: 2 });
     });
 
     it("reads windows as twelve 5m, twenty-four 15m and twenty-four 1h buckets", async () => {
@@ -193,7 +233,7 @@ describe("folds by the stored run (#5053)", () => {
         const store = new MemoryStore();
         const r = run(7, { event: "push", branch: "master" });
         const { load: _load, ...noLoad } = job(70, { runId: 7, startedAt: T0 - 30 * MIN, completedAt: T0 - 20 * MIN });
-        await putRaw(store, [r, noLoad as JobItem], T0);
+        await putRaw(store, [r, noLoad], T0);
         await recompute(store, T0);
         const [b] = (await loadSeries(store, "ci.runner_minutes", "1d", floorTo(T0, "1d"), T0, T0)).values();
         expect(b?.dims?.master?.sum).toBe(10);

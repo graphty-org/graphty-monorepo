@@ -5,17 +5,18 @@
 //   PAGE#<page>#<range>                      GET /v1/page/<page>?range=<range>            (overview too)
 //   PAGE#<page>/<section>#<range>[#<kind>]   GET /v1/page/<page>/<section>?range=<range>[&kind=<kind>]
 
-import type { PageId, Range, SlowRange } from "../../web/src/contract.js";
+import type { IssueRange, PageId, Range, SlowRange } from "../../web/src/contract.js";
 import type { Key } from "../model/store.js";
 
 export type ViewRoute =
     | { kind: "status" }
-    | { kind: "page"; page: PageId; range: Range | SlowRange }
+    | { kind: "page"; page: PageId; range: Range | SlowRange | IssueRange }
     | { kind: "section"; page: Exclude<PageId, "overview">; section: string; range: SlowRange; runKind?: string };
 
 /**
  * The item key of one view, the same route union apiPath() takes (without the drill-downs, which read raw items).
- * @param r
+ * @param r - the view to key: status, a whole page, or one section of a page
+ * @returns the partition and sort key the view's item is stored under
  */
 export function viewKey(r: ViewRoute): Key {
     switch (r.kind) {
@@ -24,8 +25,10 @@ export function viewKey(r: ViewRoute): Key {
         case "page":
             return { pk: `PAGE#${r.page}#${r.range}`, sk: "-" };
         case "section": {
-            const kind = r.runKind ? "#" + r.runKind : "";
+            const kind = r.runKind ? `#${r.runKind}` : "";
             return { pk: `PAGE#${r.page}/${r.section}#${r.range}${kind}`, sk: "-" };
         }
+        default:
+            throw new Error(`unknown view route ${JSON.stringify(r satisfies never)}`);
     }
 }

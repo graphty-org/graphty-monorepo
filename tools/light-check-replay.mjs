@@ -5,7 +5,7 @@
  * (packBins() in tools/test-select.mjs; design/ci/channels-pipeline/merging.md sections 4.1 and 4.2).
  *
  * Each record is one change. Its selected test files, grouped by shard family, are packed into bins of at
- * most 8 minutes; the bins run in parallel, so the change's test time is its longest bin, and its run time
+ * most BIN_LIMIT_MS (4 minutes); the bins run in parallel, so the change's test time is its longest bin, and its run time
  * that plus the setup before the tests (checkout and install, the plan, Build). Each record gets the budget
  * key its pull request would have:
  *   run:ci.yml:pr-wide     a global input changed, or graphty-element's source did (another package's shard is
@@ -174,7 +174,7 @@ export function summarize(rows) {
  */
 export const markdown = (table) =>
     [
-        "| key | records | p50 min | p90 min | p50 bins | p90 bins | records with a bin over 8 min |",
+        "| key | records | p50 min | p90 min | p50 bins | p90 bins | records with a bin over the limit |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ...table.map(
             (t) => `| \`${t.key}\` | ${t.n} | ${t.p50} | ${t.p90} | ${t.bins50} | ${t.bins90} | ${t.overLimit} |`,

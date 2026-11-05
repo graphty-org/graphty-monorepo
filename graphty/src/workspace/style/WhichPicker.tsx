@@ -2,6 +2,7 @@ import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     Autocomplete,
+    Badge,
     Button,
     Checkbox,
     CloseButton,
@@ -517,6 +518,13 @@ function WhichRow({
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
+    // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
+    const none =
+        held === undefined &&
+        rows.length === 1 &&
+        shown.length > 0 &&
+        session.styles.counts(rows[0].layer.id).matched === 0;
+    const together = none && !Object.values(counts).includes(0);
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
@@ -531,7 +539,12 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
+                aria-label={[
+                    `Which ${NOUN[side].many}`,
+                    head,
+                    none ? `no ${NOUN[side].one} matches` : "",
+                    ...(shown.length === 0 ? [empty] : spoken),
+                ]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -547,6 +560,7 @@ function WhichRow({
                     <Text size="xs" c="dimmed" span ml="auto">
                         {head}
                     </Text>
+                    {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
                     {shown.length === 0 ? (
@@ -664,9 +678,24 @@ function Chip({
             <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
                 {words}
                 {/* Named, so a count never reads as a second copy of a number in the words; kept on one line. */}
-                {count === undefined ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === undefined || count === 0 ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === 0 && <NoneBadge side={side} />}
             </span>
         </Tooltip>
+    );
+}
+
+/**
+ * The warning a condition, or a layer's conditions together, leave when nothing matches: a 0 badge.
+ * @param props - Component props
+ * @param props.side - nodes or edges
+ * @returns The badge
+ */
+function NoneBadge({ side }: Readonly<{ side: Side }>): React.JSX.Element {
+    return (
+        <Badge component="span" color="yellow" variant="light" aria-label={`No ${NOUN[side].one} matches`} ml={4}>
+            0
+        </Badge>
     );
 }
 
@@ -1057,6 +1086,19 @@ function isDoneKey(event: React.KeyboardEvent): boolean {
         event.target instanceof HTMLElement &&
         event.target.matches("[data-enter-done]:not([aria-invalid=true])")
     );
+}
+
+/**
+ * Enter on an unticked value ticks it, as a pick does, and keeps the cards open; Enter on a ticked
+ * value is Done (`isDoneKey`). A check box takes no Enter of its own, so without this the first
+ * Enter closed the cards with nothing ticked.
+ * @param event - the key, on the value's check box.
+ */
+function tickOnEnter(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.currentTarget.checked) {
+        event.preventDefault();
+        event.currentTarget.click();
+    }
 }
 
 /** The notice a layer's refused rule leaves. */
@@ -1579,6 +1621,8 @@ export function CardBody({
         case "yes-no":
             return (
                 <MatchSelect
+                    // Its choices are the values themselves (Yes, No), so it is named for them.
+                    label={`${card.field.name} is`}
                     name={card.field.name}
                     value={blank ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
@@ -1631,6 +1675,7 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
+ * @param props.label - its accessible name, when it is not "<name>: how to match"
  * @param props.value - the chosen value, or null while none is
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
@@ -1638,11 +1683,13 @@ function fixedText(leaf: RuleTree): string {
  */
 function MatchSelect({
     name,
+    label,
     value,
     data,
     onChange,
 }: Readonly<{
     name: string;
+    label?: string;
     value: string | null;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
@@ -1662,7 +1709,7 @@ function MatchSelect({
             ref={input}
             size="xs"
             // Named for what it chooses beside the card's column; the select says its own value.
-            aria-label={`${name}: how to match`}
+            aria-label={label ?? `${name}: how to match`}
             allowDeselect={false}
             data={[...data]}
             value={value}
@@ -2149,6 +2196,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`${each.label}, ${many(each.count, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.values.includes(each.value)}
                                 onChange={(event) => {
                                     toggle(each.value, event.currentTarget.checked);
@@ -2160,6 +2208,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`(no value), ${many(counts.missing, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.gaps}
                                 onChange={(event) => {
                                     onChange({ ...card, gaps: event.currentTarget.checked });
@@ -2215,6 +2264,7 @@ function SourceCard({
                     size="xs"
                     label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
                     data-enter-done
+                    onKeyDown={tickOnEnter}
                     checked={card.sources.includes(load.key)}
                     onChange={(event) => {
                         const on = event.currentTarget.checked;

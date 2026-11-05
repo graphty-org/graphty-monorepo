@@ -142,6 +142,42 @@ describe("edge ends where nodes crowd", () => {
         assert.deepEqual(pairs(associate(prims, 1200, 900, g).scene), ["myc-pcna", "myc-slc"]);
     });
 
+    it("gives a line that runs through one triangle to the one just past it, not to the one it ran through", () => {
+        // xgmml-aracne-mycccnd1: MYC's line to -151 runs through -165, whose apex touches -151's base; it ends there,
+        // about a pixel from each, and was read as a second line to -165
+        const { prims, add } = drawing();
+        const triangle = (cx: number, cy: number, s: number): Pt[] =>
+            evenly([
+                [cx, cy - s / 2],
+                [cx + s / 2, cy + s / 2],
+                [cx - s / 2, cy + s / 2],
+            ]);
+        add({ tag: "ellipse", points: disc(601.4, 318.4, 14.3) });
+        add({ points: triangle(634.7, 166.5, 28.7), corners: 3 });
+        add({ points: triangle(630.5, 194.8, 28.7), corners: 3 });
+        add(
+            line([
+                [604.6, 303.7],
+                [631.4, 181.6],
+            ]),
+        );
+        add(
+            line([
+                [604.8, 303.7],
+                [627.0, 209.9],
+            ]),
+        );
+        const g = guide(
+            [
+                node("myc", 601.4, 318.4),
+                node("t151", 634.7, 166.5, 28.7, 28.7, "triangle"),
+                node("t165", 630.5, 194.8, 28.7, 28.7, "triangle"),
+            ],
+            [edge("e1", "myc", "t151"), edge("e2", "myc", "t165")],
+        );
+        assert.deepEqual(pairs(associate(prims, 1200, 900, g).scene), ["myc-t151", "myc-t165"]);
+    });
+
     it("ends a line at a group's own outline, a padding out from its one member", () => {
         const { prims, add } = drawing();
         add({ tag: "ellipse", points: disc(400, 400, 20) });

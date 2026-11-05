@@ -16,17 +16,17 @@ import {
     VertexBuffer,
     VertexData,
 } from "@babylonjs/core";
-import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
+import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder.js";
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
-import { FilledArrowRenderer, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -376,7 +376,7 @@ void main() {
             {
                 width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
                 color: options.color,
-                opacity: style.line?.opacity ?? 1,
+                opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
                 patternCount: style.line?.patternCount, // undefined means follow the spacing rule
                 wave: this.waveOf(style),
@@ -423,6 +423,38 @@ void main() {
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
+     * The fade a style asks its line to be drawn with. A line that does not blend has none.
+     * @param style - The style.
+     * @returns The fade, or undefined for none.
+     */
+    static fadeOf(style: EdgeStyleConfig | null): EdgeFade | undefined {
+        const { fade, blending } = style?.line ?? {};
+        if (fade?.end === undefined || blending === false) {
+            return undefined;
+        }
+
+        return { start: fade.start ?? 0, end: fade.end, opacity: fade.opacity ?? 0.25 };
+    }
+
+    /**
+     * The opacity a style's line is drawn at: its own, or full strength when it does not blend.
+     * @param style - The style.
+     * @returns The opacity.
+     */
+    static opacityOf(style: EdgeStyleConfig): number {
+        return this.drawsOpaque(style) ? 1 : (style.line?.opacity ?? 1);
+    }
+
+    /**
+     * Whether a style's line is drawn without alpha blending.
+     * @param style - The style.
+     * @returns True for `line.blending` false.
+     */
+    static drawsOpaque(style: EdgeStyleConfig): boolean {
+        return style.line?.blending === false;
     }
 
     /**
@@ -473,6 +505,10 @@ void main() {
         const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
+        // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
+        // which is not one, does not fade.
+        const fade = widened ? this.fadeOf(style) : undefined;
+        const opaque = this.drawsOpaque(style);
 
         if (this.drawsAsPattern(style, loop)) {
             return null;
@@ -493,10 +529,12 @@ void main() {
                         {
                             width,
                             color: options.color,
-                            opacity: style.line?.opacity ?? 1,
+                            opacity: this.opacityOf(style),
                             worldWidth: true,
                             widened,
                             minScreenWidth: style.line?.minScreenWidth,
+                            fade,
+                            opaque,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -521,10 +559,11 @@ void main() {
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
-                        style.line?.opacity ?? 1,
+                        this.opacityOf(style),
                         scene,
                         widened,
                         style.line?.minScreenWidth,
+                        { fade, opaque },
                     ),
                 scene,
             );
@@ -814,9 +853,11 @@ void main() {
                 {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
-                    opacity: style.line?.opacity,
+                    opacity: this.opacityOf(style),
                     widened,
                     minScreenWidth: style.line?.minScreenWidth,
+                    fade: widened ? this.fadeOf(style) : undefined,
+                    opaque: this.drawsOpaque(style),
                 },
                 scene,
             );
@@ -1159,11 +1200,21 @@ void main() {
                     lineStop: EdgeMesh.veeLineStop(cap),
                 };
 
+            // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
+            // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
+            // meets it 0.4 of the cap back from the tip, the half barb's stroke its own length back
+            case "half-open":
+            case "half-open-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_OPEN_MEETS };
+            case "half-barb":
+            case "half-barb-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_BARB };
+
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin
             case "normal":
             case "tee":
-            case "half-open":
+            case "inverted-vee":
             case "crow":
             case "open-normal":
             case "open-diamond":
@@ -1175,7 +1226,6 @@ void main() {
             case "triangle-tee":
             case "triangle-cross":
             case "circle-triangle":
-            case "half-open-flipped":
             case "open-box":
             case "open-inverted":
             case "image":

@@ -164,6 +164,7 @@ function ReadoutEntry({
                     placement="top"
                     alignment="start"
                     header={{ variant: "title", title: "Time window" }}
+                    closeLabel="Close Time window"
                 >
                     <Popout.Content>
                         <form

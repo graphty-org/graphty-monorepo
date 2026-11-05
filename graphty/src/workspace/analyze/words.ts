@@ -13,6 +13,7 @@ import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@g
 
 import { findTreeRow } from "../graph-place/rows";
 import { count, formatNumber } from "../inspector/words";
+import { formatCount } from "../settings/numberFormat";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -652,6 +653,22 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
 }
 
 /**
+ * The status line for a finished ranking run, naming who ranks first from the element's summary:
+ * "Degree finished: Valjean ranks first, 36". Null for a run whose summary ranks nothing.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null.
+ */
+export function topAnnouncement(session: GraphSession, run: Run, name: string): string | null {
+    const top = run.result?.summary().top[0];
+    if (top === undefined) {
+        return null;
+    }
+    return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/**
  * The status line for a finished grouping run, from its result and the layers it made: "Louvain
  * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"
  * when no folder holds its layers).
@@ -687,7 +704,7 @@ export function runRefusalWords(estimate: CostEstimate): string {
             return "Needs edge weights";
         case "algorithm.needs-connected":
             return typeof params.pieces === "number"
-                ? `Needs a connected graph; this one is in ${params.pieces.toLocaleString("en-US")} pieces`
+                ? `Needs a connected graph; this one is in ${formatCount(params.pieces)} pieces`
                 : "Needs a connected graph";
         case "algorithm.needs-accelerator":
             return "Needs a graphics card this browser does not offer";

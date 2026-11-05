@@ -3,11 +3,8 @@
  * element: its groups, its tiles with the start page's pictures and their sizes as chips, its
  * search and its group filter. `open-doors.real-element.test.tsx` loads the fixtures from it.
  */
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
-
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
 import { render, screen, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -62,6 +59,26 @@ describe("the Samples dialog", () => {
         assert.include(tile(dialog, "Les Miserables").textContent, "77");
         assert.include(tile(dialog, "Gene Ontology (go-basic)").textContent, "1.4 MB");
         assert.include(tile(dialog, "auth-log.csv").textContent, "400 rows");
+    });
+
+    it("shows a picture that loads for every graph, dataset and generator, as the start page does", async () => {
+        const dialog = await openSamples();
+
+        const tiles = ["Graphs", "Datasets", "Generated"].flatMap((group) =>
+            within(within(dialog).getByRole("region", { name: group })).getAllByRole("button"),
+        );
+        assert.isNotEmpty(tiles);
+        const missing = tiles.filter((each) => each.querySelector("img") === null).map((each) => each.textContent);
+        assert.deepEqual(missing, [], "tiles with no picture");
+        const broken: string[] = [];
+        for (const each of tiles) {
+            const src = each.querySelector("img")?.src ?? "";
+            const response = await fetch(src);
+            if (!response.ok || !(response.headers.get("content-type") ?? "").startsWith("image/")) {
+                broken.push(`${each.textContent}: ${src}`);
+            }
+        }
+        assert.deepEqual(broken, [], "pictures that do not load");
     });
 
     it("narrows to what the search box names, and to one group", async () => {

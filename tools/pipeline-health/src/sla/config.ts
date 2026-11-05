@@ -7,8 +7,9 @@ export type Op = "<" | "<=" | ">" | ">=" | "=";
 export type Threshold = [Op, number];
 
 /**
- * 1h: judged on the last hour. 1h+6h: red only when the 6 h value is past red too. now: a state. slow: weeks,
- * never sets a state. info: shown, not judged until it has fired on real data.
+ * 1h: judged on the last hour. 1h+6h: red only when the 6 h value is past red too. now: a state. slow: weeks
+ * (7 or 28 days), judged like the others but with no 5-minute history or episodes. info: shown, not judged until it
+ * has fired on real data.
  */
 export type MemberWindow = "1h" | "1h+6h" | "now" | "slow" | "info";
 

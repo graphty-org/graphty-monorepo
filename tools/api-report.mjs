@@ -154,6 +154,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "at",
     "startedAt",
     "path",
+    // the location a file's relative picture paths resolve against (FileStyleOptions, #5307)
+    "imageBaseUrl",
     "mediaType",
     "color",
     // the hex color the background is drawn in (SessionConfig.backgroundColor)

@@ -64,6 +64,19 @@ test("an object React wrote as an attribute is reported once, by property name",
     assert.include(String(reports[0][0]), "nodeData");
 });
 
+test("every object property written as an attribute is reported, autosaveOptions included", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await upgradeAfter((node) => {
+        node.setAttribute("autosaveoptions", "[object Object]");
+        node.setAttribute("fitinsets", "[object Object]");
+    });
+
+    const reported = error.mock.calls.map((args) => String(args[0])).filter((text) => text.includes("[object Object]"));
+    assert.isTrue(reported.some((text) => text.includes("received autosaveOptions")));
+    assert.isTrue(reported.some((text) => text.includes("received fitInsets")));
+});
+
 test("nodeData assigned as a property before the upgrade still loads", async () => {
     const el = await upgradeAfter((node) => {
         (node as unknown as { nodeData: unknown }).nodeData = [{ id: "a" }, { id: "b" }];

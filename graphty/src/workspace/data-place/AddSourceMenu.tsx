@@ -1,4 +1,5 @@
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { TargetTooltip } from "@graphty/compact-mantine";
+import { ActionIcon, Menu, Text } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -31,11 +32,11 @@ export function AddSourceMenu(): React.JSX.Element | null {
     return (
         <Menu position="bottom-end" returnFocus={false}>
             <Menu.Target>
-                <Tooltip label="Add source">
+                <TargetTooltip label="Add source">
                     <ActionIcon variant="subtle" size="sm" aria-label="Add source">
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 {doors.map((door) => (

@@ -304,6 +304,32 @@ describe("Graphviz layouts in the element", () => {
         assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
     });
 
+    it("keeps a DOT file's nodes apart when its styles are not drawn (issue #5293)", async () => {
+        // Without the file's styles the element draws its own node size, not the size Graphviz gives the file's
+        // nodes, so Graphviz must lay the nodes out at that drawn size or they land on top of each other.
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "dot",
+                config: {
+                    data: "digraph { layout=dot; rankdir=LR; start -> parse -> check -> plan -> run -> report; check -> report; parse -> report }",
+                },
+            },
+            { layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const ids = ["start", "parse", "check", "plan", "run", "report"];
+        for (const [i, a] of ids.entries()) {
+            for (const b of ids.slice(i + 1)) {
+                const gap = Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y);
+                const width = (graph.getNode(a)?.drawnRadius ?? 0) + (graph.getNode(b)?.drawnRadius ?? 0);
+                assert.isAtLeast(gap, width, `${a} and ${b} overlap`);
+            }
+        }
+    });
+
     it("hands Graphviz the styled node sizes when no frame is drawn between the load and its layout", async () => {
         // A node's mesh takes its styled size when a frame draws the paint, and a load starts its
         // recommended layout in the same step as its styles. Hold every frame back from the load
@@ -478,6 +504,79 @@ describe("Graphviz layouts in the element", () => {
         const off = ((label?.x ?? 0) - a.x) * (b.y - a.y) - ((label?.y ?? 0) - a.y) * (b.x - a.x);
         // y grows upward: a negative turn from a -> b is to its right
         assert.isBelow(off / length / length, -0.1, "right of the line going from a to b");
+    });
+
+    it("draws a DOT edge's xlabel, headlabel and taillabel where dot put them (issue #5273)", async () => {
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: 'digraph { a -> b [xlabel="outside", headlabel="H", taillabel="T"] }' } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const edge = [...graph.getDataManager().edges.values()][0];
+        const laid = graph.getLayoutManager().layoutEngine?.getEdgePosition(edge);
+        const [a, b] = [at("a"), at("b")];
+        /**
+         * Where a place given along and across the edge is.
+         * @param place - the place, from the layout
+         * @param name - which label
+         * @returns the point
+         */
+        const point = (place: readonly [number, number] | undefined, name: string): { x: number; y: number } => {
+            assert.isDefined(place, `Graphviz placed the ${name}`);
+            const [along, across] = place ?? [Number.NaN, Number.NaN];
+            return {
+                x: a.x + along * (b.x - a.x) - across * (b.y - a.y),
+                y: a.y + along * (b.y - a.y) + across * (b.x - a.x),
+            };
+        };
+        const drawn = [
+            ["external label", edge.label, point(laid?.labelAt, "external label")],
+            ["head label", edge.arrowHeadText, point(laid?.headLabelAt, "head label")],
+            ["tail label", edge.arrowTailText, point(laid?.tailLabelAt, "tail label")],
+        ] as const;
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        for (const [name, label, want] of drawn) {
+            const position = label?.labelMesh?.position;
+            assert.isDefined(position, `the ${name} is drawn`);
+            assert.closeTo(position?.x ?? Number.NaN, want.x, 0.02 * length, `the ${name} centered where dot put it`);
+            assert.closeTo(position?.y ?? Number.NaN, want.y, 0.02 * length, `the ${name} centered where dot put it`);
+        }
+    });
+
+    it("draws a DOT edge's label at lp and its xlabel beside it at xlp (issue #5288)", async () => {
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: 'digraph { a -> b [label="inside", xlabel="outside"] }' } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edge = [...graph.getDataManager().edges.values()][0];
+        const laid = graph.getLayoutManager().layoutEngine?.getEdgePosition(edge);
+        const [a, b] = [at("a"), at("b")];
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        const drawn = [
+            ["label", edge.label, laid?.labelAt],
+            ["external label", edge.xlabelLabel, laid?.xlabelAt],
+        ] as const;
+        for (const [name, label, place] of drawn) {
+            assert.isDefined(place, `Graphviz placed the ${name}`);
+            const [along, across] = place ?? [Number.NaN, Number.NaN];
+            const want = {
+                x: a.x + along * (b.x - a.x) - across * (b.y - a.y),
+                y: a.y + along * (b.y - a.y) + across * (b.x - a.x),
+            };
+            const position = label?.labelMesh?.position;
+            assert.isDefined(position, `the ${name} is drawn`);
+            assert.closeTo(position?.x ?? Number.NaN, want.x, 0.02 * length, `the ${name} centered where dot put it`);
+            assert.closeTo(position?.y ?? Number.NaN, want.y, 0.02 * length, `the ${name} centered where dot put it`);
+        }
+        assert.notDeepEqual(laid?.labelAt, laid?.xlabelAt, "two places");
     });
 
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {

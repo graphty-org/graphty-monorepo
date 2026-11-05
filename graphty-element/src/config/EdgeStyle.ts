@@ -47,6 +47,13 @@ export const EdgeArrowTypes = z.enum([
     "open-cross-delta",
     // the inverted triangle's outline (Graphviz oinv, invempty)
     "open-inverted",
+    // half-open's arm drawn as one thin stroke, the line running on under it to where it meets the line
+    // (Cytoscape HALF_TOP), and that barb on the line's other side (HALF_BOTTOM)
+    "half-barb",
+    "half-barb-flipped",
+    // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
+    // along the line (vis-network crow)
+    "inverted-vee",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -192,6 +199,28 @@ const LineStyle = z.strictObject({
     wavePeriod: z.number().nonnegative().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
+    /**
+     * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
+     * `linkVisibilityDistanceRange`): a line of `start` pixels or fewer draws at its `opacity`, one of
+     * `end` or more at that times `fade.opacity`, and one between at a value between. No `end` draws
+     * no fade; `start` defaults to 0 and `opacity` to 0.25. A faded line does not animate. The line
+     * alone fades, not its arrowheads or bands, and a line drawn as separate pattern elements or as
+     * a gradient does not fade.
+     */
+    fade: z
+        .strictObject({
+            start: z.number().nonnegative().optional(),
+            end: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * `false` draws the line without alpha blending (cosmos.gl's `linkBlending`), which costs less
+     * on a dense graph and keeps overlapping lines from muddying: every pixel it covers is its
+     * color at full strength, so `opacity` and `fade` have no effect and a line under a pixel wide is
+     * drawn at full strength. Unset or `true`, the line blends.
+     */
+    blending: z.boolean().optional(),
     /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the
@@ -402,6 +431,13 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
+     * on by its words. It is drawn in the label's look -- font, size, color, outline -- and any field set here wins
+     * over the label's. Unset `location`, it sits up and left of the line's middle, its lower right corner on it, or
+     * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the

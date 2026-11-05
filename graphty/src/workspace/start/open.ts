@@ -6,12 +6,13 @@
 
 import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
 import {
+    DATASET_DESCRIPTORS,
     type DatasetMeta,
     DEFAULT_DATASET_BASE_URL,
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { AssetSource, DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
+import type { AssetSource, DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -22,7 +23,7 @@ import { refusalFor } from "../data-page/words";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
-import { fileStylesChoice } from "../settings/preferences";
+import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 
@@ -67,6 +68,17 @@ const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+/** The copy datasets are read from; none reads the site's own. */
+let localDatasets = LOCAL_DATASETS;
+
+/**
+ * Reads the site's own datasets, as a deployed site does, even where this machine has a copy; or
+ * this machine's copy again. For tests of how the site's configuration moves the datasets.
+ * @param prefer - whether to read this machine's copy.
+ */
+export function preferLocalDatasets(prefer: boolean): void {
+    localDatasets = prefer ? LOCAL_DATASETS : undefined;
+}
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
@@ -74,7 +86,7 @@ const LOCAL_DATASETS =
  * @returns the options naming it, or none for graph-samples' default.
  */
 export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = LOCAL_DATASETS ?? siteConfig().datasets;
+    const baseUrl = localDatasets ?? siteConfig().datasets;
     return baseUrl === undefined ? {} : { baseUrl };
 }
 
@@ -89,6 +101,35 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
     return entry.thumbnail === undefined
         ? undefined
         : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+}
+
+/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
+export const OWN_COPIES: Readonly<Record<string, string>> = {
+    "les-miserables": "les-miserables",
+    karate: "karate",
+    "college-football": "football",
+    florentine: "florentine-families",
+};
+
+/**
+ * The graph-samples dataset one of the app's own samples is a copy of.
+ * @param sample - the app's sample.
+ * @returns the dataset's metadata, or undefined when it is not a copy of one.
+ */
+export function copyOf(sample: Pick<StartSample, "id">): DatasetMeta | undefined {
+    return DATASET_DESCRIPTORS.find((dataset) => dataset.name === OWN_COPIES[sample.id]);
+}
+
+/**
+ * The address of the picture of one of the app's own samples: graph-samples' picture of the dataset
+ * it is a copy of, else the app's own picture of it. The start page's tile and the Samples dialog
+ * both show this one.
+ * @param sample - the app's sample.
+ * @returns the address, or undefined when it has no picture.
+ */
+export function samplePicture(sample: Pick<StartSample, "id" | "picture">): string | undefined {
+    const copy = copyOf(sample);
+    return copy === undefined ? sample.picture : pictureOf(copy);
 }
 
 /**
@@ -153,14 +194,16 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param session - the project's session.
  * @param source - what to load.
  * @param fresh - whether it is a new project's first load, which starts its history.
+ * @param read - the source already read into a draft (by `project.open`), else it is read here.
  */
 async function drawFirst(
     workspace: WorkspaceStore,
     session: GraphSession,
     source: DataSourceInput,
     fresh = false,
+    read?: LoadDraft,
 ): Promise<void> {
-    const draft = await session.data.prepare(source, { guess: "values" });
+    const draft = read ?? (await session.data.prepare(source, { guess: "values" }));
     const fixed = draft.tables.every((table) => table.fixed);
     const ready = Object.values(draft.missing()).every((roles) => roles.length === 0);
     const lone = draft.tables.length === 1 && !ready;
@@ -168,6 +211,7 @@ async function drawFirst(
     // A graph file keeps the roles its format sets.
     await draft.load({
         styles: fileStylesChoice(),
+        styleOptions: FILE_STYLE_OPTIONS,
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
     });
@@ -189,12 +233,19 @@ async function drawFirst(
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft onto the graph (by `project.open`).
  */
-async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming: Incoming): Promise<void> {
+async function takeIn(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    incoming: Incoming,
+    read?: LoadDraft,
+): Promise<void> {
     if (await routeToReplace(workspace, session, incoming)) {
+        read?.dispose();
         return;
     }
-    const draft = await session.data.prepare(incoming.source, { onto: "graph", guess: "values" });
+    const draft = read ?? (await session.data.prepare(incoming.source, { onto: "graph", guess: "values" }));
     workspace.set({ joining: { name: incoming.name, draft, source: incoming.source } });
 }
 
@@ -248,14 +299,19 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the open project's session, or null.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the project's session (`project.open`):
+ *     onto the graph when the graph holds data.
  */
-export function addSource({ workspace, session }: CommandContext, incoming: Incoming): void {
+export function addSource({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): void {
     if (workspace.get().project === null || session === null) {
+        read?.dispose();
         openSeparate(workspace, incoming);
         return;
     }
     const first = session.data.sources().length === 0;
-    const work = first ? drawFirst(workspace, session, incoming.source) : takeIn(workspace, session, incoming);
+    const work = first
+        ? drawFirst(workspace, session, incoming.source, false, read)
+        : takeIn(workspace, session, incoming, read);
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
         workspace.set({ opened: work });
@@ -274,14 +330,15 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the new project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the new project's session (`project.open`).
  */
-async function openFirst({ workspace, session }: CommandContext, incoming: Incoming): Promise<void> {
+async function openFirst({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): Promise<void> {
     if (session === null) {
         return;
     }
     const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source, true);
+        await drawFirst(workspace, session, incoming.source, true, read);
         focusLater();
     } catch (error) {
         focusLater(false);
@@ -344,11 +401,11 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length === 1 && incoming !== undefined) {
         void openProjectFile(ctx, files[0], {
             name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-            onData: (next, fresh) => {
+            onData: (next, fresh, draft) => {
                 if (fresh) {
-                    return openFirst(next, incoming);
+                    return openFirst(next, incoming, draft);
                 }
-                addSource(next, incoming);
+                addSource(next, incoming, draft);
                 return Promise.resolve();
             },
         });

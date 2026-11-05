@@ -44,6 +44,10 @@
  *   a synchronous child process (`spawnSync`) blocks the event loop, so no test timeout can end it.
  *   A timeout option of the code under test (a notifier's `timeoutMs`, graphviz's) is what the test
  *   checks, not a deadline on the test, and is not reported.
+ * - a comment that switches this rule off: `eslint-disable`, `-line` or `-next-line` naming it, or
+ *   naming no rule at all. An exception to the rule is an entry in eslint.config.js, where it is
+ *   reviewed, never a comment beside the code. The report is placed where the comment itself
+ *   cannot suppress it.
  *
  * Zero-delay timers (`setTimeout(r, 0)`) yield to the event loop and are not reported, and neither
  * is a sleep inside a callback handed to the code under test, which simulates slow work.
@@ -60,6 +64,8 @@ const WAIT_HINT =
     "Remove it: every wait shares the project's one hang guard (tools/test-wait-guard.mjs). If the wait runs out under load, wait on the event or state that settles it.";
 const DEADLINE_HINT =
     "Remove it: the one global hang guard (tools/test-wait-guard.mjs) ends a real hang. Wait on the condition with no deadline of its own, or assert the state directly.";
+const DISABLE_HINT =
+    "Fix the test instead. A timing exception that must stay is an entry in eslint.config.js, where it is reviewed.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
@@ -179,6 +185,7 @@ const rule = {
             pageTimer: `Timer in code handed to the page. ${PAGE_TIMER_HINT}`,
             waitBudget: `Time budget on a wait. ${WAIT_HINT}`,
             deadline: `Local deadline. ${DEADLINE_HINT}`,
+            disabled: `This rule cannot be switched off by a comment. ${DISABLE_HINT}`,
         },
     },
     create(context) {
@@ -187,6 +194,38 @@ const rule = {
         const { sourceCode } = context;
         // Variables holding a wall-clock value, and whether it is a reading or an elapsed time.
         const clockVars = new Map();
+
+        // A directive that names this rule (under any plugin prefix) or no rule switches it off. The
+        // report goes where that directive does not reach, or the directive would hide it: on the
+        // comment for -next-line, on a neighbouring line for -line, just before the comment for a
+        // block disable.
+        // Known gap: a -line directive in a one-line file, or a block disable that is the file's
+        // first character, still hides its report; no test file is either.
+        const DISABLES = new Set(["eslint-disable", "eslint-disable-line", "eslint-disable-next-line"]);
+        const checkDisables = () => {
+            for (const comment of sourceCode.getAllComments()) {
+                const [kind, ...rest] = comment.value.split(" -- ")[0].trim().split(/\s+/);
+                const names = rest
+                    .join(" ")
+                    .split(",")
+                    .map((n) => n.trim())
+                    .filter(Boolean);
+                const namesThis = names.some((n) => n === "no-test-timing" || n.endsWith("/no-test-timing"));
+                if (!DISABLES.has(kind) || (names.length > 0 && !namesThis)) {
+                    continue;
+                }
+                const { start } = comment.loc;
+                const lines = sourceCode.lines.length;
+                let loc = comment.loc;
+                if (kind === "eslint-disable-line" && lines > 1) {
+                    const line = start.line < lines ? start.line + 1 : start.line - 1;
+                    loc = { line, column: 0 };
+                } else if (kind === "eslint-disable" && comment.range[0] > 0) {
+                    loc = sourceCode.getLocFromIndex(comment.range[0] - 1);
+                }
+                context.report({ loc, messageId: "disabled" });
+            }
+        };
 
         const isFunction = (n) => Boolean(n) && FUNCTION_TYPES.has(n.type);
         const propName = (m) => {
@@ -686,37 +725,53 @@ const rule = {
         const isGuard = (v) =>
             (v?.type === "Identifier" && GUARD_NAMES.has(v.name)) ||
             (v?.type === "MemberExpression" && GUARD_NAMES.has(propName(v)));
-        // A timeout or interval option on a call that is not a wait the checks above know.
-        const checkDeadlineOptions = (node, name) => {
+        // Whether a call's timeout and interval options are not this check's: it is not a wait or a process
+        // call, or it is one the checks above report (a test's, a hook's and setConfig's own timeout).
+        const notDeadlineCall = (node, name) => {
             const base = baseName(node.callee);
             if (!WAITING_CALL.test(name ?? "") && !PROCESS_CALLS.has(name)) {
-                return;
+                return true;
             }
-            // The checks above report a test's, a hook's and setConfig's own timeout.
-            if (
+            return (
                 VALUE_MATCHER.test(name ?? "") ||
                 base === "expect" ||
                 TEST_NAMES.has(base) ||
                 HOOK_NAMES.has(base) ||
                 HOOK_NAMES.has(name) ||
                 name === "setConfig"
-            ) {
+            );
+        };
+        const isDeadline = (p) => {
+            const key = keyName(p);
+            return key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value);
+        };
+        // Each deadline property of an object literal argument, with a fix that removes it.
+        const reportDeadlineProps = (node, arg) => {
+            const args = node.arguments;
+            for (const p of arg.properties) {
+                if (isDeadline(p)) {
+                    context.report({
+                        node: p,
+                        messageId: "deadline",
+                        fix: (fixer) => removeProps(fixer, args, args.indexOf(arg), [p]),
+                    });
+                }
+            }
+        };
+        // A timeout or interval option on a call that is not a wait the checks above know.
+        const checkDeadlineOptions = (node, name) => {
+            if (notDeadlineCall(node, name)) {
                 return;
             }
             for (const arg of node.arguments) {
-                if (arg.type !== "ObjectExpression") {
-                    continue;
+                // A const holding the options: `const opts = { timeoutMs: 1 }; el.waitForStableFrame(opts)`.
+                const def = arg.type === "Identifier" ? resolve(arg)?.defs[0] : undefined;
+                const init = def?.type === "Variable" && def.parent.kind === "const" ? def.node.init : undefined;
+                if (init?.type === "ObjectExpression" && init.properties.some(isDeadline)) {
+                    context.report({ node: arg, messageId: "deadline" });
                 }
-                for (const p of arg.properties) {
-                    const key = keyName(p);
-                    if (key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value)) {
-                        const args = node.arguments;
-                        context.report({
-                            node: p,
-                            messageId: "deadline",
-                            fix: (fixer) => removeProps(fixer, args, args.indexOf(arg), [p]),
-                        });
-                    }
+                if (arg.type === "ObjectExpression") {
+                    reportDeadlineProps(node, arg);
                 }
             }
         };
@@ -838,6 +893,7 @@ const rule = {
                     checkFrames();
                 }
                 checkTimers();
+                checkDisables();
             },
             VariableDeclarator(node) {
                 markClock(node.id, node.init);

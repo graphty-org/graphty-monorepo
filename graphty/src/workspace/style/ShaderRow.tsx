@@ -175,6 +175,7 @@ function SettingsPopout({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: `${name} settings` }}
+                closeLabel={`Close ${name} settings`}
             >
                 <Popout.Content>
                     <ShaderParams
@@ -250,6 +251,7 @@ function GroupByLine({
                             placement="left"
                             alignment="start"
                             header={{ variant: "title", title: GROUP_BY_WORDS.title }}
+                            closeLabel={`Close ${GROUP_BY_WORDS.title}`}
                         >
                             <ValuePicker
                                 title={GROUP_BY_WORDS.title}
@@ -360,7 +362,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
     });
     const remove = (): void => {
         if (box.current?.contains(document.activeElement) === true) {
-            focusSectionNext(box.current, entry.key as Channel);
+            focusSectionNext(ctx.session, box.current, entry.key as Channel);
         }
         store.set({ announcement: `${name} removed` });
         removeShader(ctx, entry).catch(fail("removed"));

@@ -46,6 +46,10 @@ describe("render loop pacing", () => {
         const gl = (manager.engine as Engine)._gl;
         assert.isFunction(gl.fenceSync, "the browser project's Chromium has WebGL 2");
 
+        // Every tick lasts TICK_MS, so the frame time the loop hands on is counted in ticks, not read
+        // off the clock.
+        const TICK_MS = 7;
+        manager.engine.getDeltaTime = (): number => TICK_MS;
         let drawn = 0;
         const frameTimes: number[] = [];
         manager.startRenderLoop((frameMs) => {
@@ -60,18 +64,18 @@ describe("render loop pacing", () => {
             pname === gl.SYNC_STATUS ? gl.UNSIGNALED : real(sync, pname);
         await frames(2);
         const held = drawn;
-        const heldAt = performance.now();
+        const behindBefore = manager.ticks.gpuBehind;
         await frames(10);
         assert.strictEqual(drawn, held, "no frame is drawn while the last frame's fence is unsignalled");
 
         gl.getSyncParameter = real;
-        const heldFor = performance.now() - heldAt;
+        const skipped = manager.ticks.gpuBehind - behindBefore;
+        assert.isAbove(skipped, 0, "the loop kept ticking while it held the frame");
         await frames(5);
         assert.isAbove(drawn, held, "drawing resumes once the GPU has finished the last frame");
-        // eslint-disable-next-line local/no-test-timing -- two readings of one clock in a fixed order, not a duration bound; load cannot break it
         assert.isAtLeast(
             frameTimes[held],
-            heldFor,
+            (skipped + 1) * TICK_MS,
             "the first frame after the skip is handed the time of every tick it skipped",
         );
 

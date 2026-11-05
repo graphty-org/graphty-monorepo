@@ -31,49 +31,49 @@
  */
 
 // The loader plugins, each from its own module. Importing a plugin's module registers it.
-import "@babylonjs/loaders/glTF/2.0/glTFLoader";
-import "@babylonjs/loaders/OBJ/objFileLoader";
+import "@babylonjs/loaders/glTF/2.0/glTFLoader.js";
+import "@babylonjs/loaders/OBJ/objFileLoader.js";
 // The STL loader registers itself through the named import below, which also sets its axes.
 // The glTF extensions a model may use for its look or its storage. Importing one registers it.
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular";
-import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen";
-import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp.js";
 // What the glTF loader would otherwise import lazily (and PBRMaterial, imported by name below).
-import "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter";
-import "@babylonjs/core/Animations/animationGroup";
-import "@babylonjs/loaders/glTF/2.0/glTFLoaderAnimation";
+import "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter.js";
+import "@babylonjs/core/Animations/animationGroup.js";
+import "@babylonjs/loaders/glTF/2.0/glTFLoaderAnimation.js";
 // The shaders PBRMaterial and the .env upload (an RGBD decode post-process) would otherwise
 // import lazily, in both languages.
-import "@babylonjs/core/Shaders/pbr.vertex";
-import "@babylonjs/core/Shaders/pbr.fragment";
-import "@babylonjs/core/ShadersWGSL/pbr.vertex";
-import "@babylonjs/core/ShadersWGSL/pbr.fragment";
-import "@babylonjs/core/Shaders/rgbdDecode.fragment";
-import "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment";
-import "@babylonjs/core/Shaders/postprocess.vertex";
-import "@babylonjs/core/ShadersWGSL/postprocess.vertex";
+import "@babylonjs/core/Shaders/pbr.vertex.js";
+import "@babylonjs/core/Shaders/pbr.fragment.js";
+import "@babylonjs/core/ShadersWGSL/pbr.vertex.js";
+import "@babylonjs/core/ShadersWGSL/pbr.fragment.js";
+import "@babylonjs/core/Shaders/rgbdDecode.fragment.js";
+import "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment.js";
+import "@babylonjs/core/Shaders/postprocess.vertex.js";
+import "@babylonjs/core/ShadersWGSL/postprocess.vertex.js";
 // The .env texture loader, which the texture loader registry would otherwise import lazily.
-import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
+import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader.js";
 
-import type { AssetContainer } from "@babylonjs/core/assetContainer";
-import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader";
-import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags";
-import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
-import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import { Tools } from "@babylonjs/core/Misc/tools";
-import type { Scene } from "@babylonjs/core/scene";
-import { GLTFLoaderAnimationStartMode } from "@babylonjs/loaders/glTF/glTFFileLoader";
-import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation";
-import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
+import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
+import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader.js";
+import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
+import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
+import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import { Tools } from "@babylonjs/core/Misc/tools.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import { GLTFLoaderAnimationStartMode } from "@babylonjs/loaders/glTF/glTFFileLoader.js";
+import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
+import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader.js";
 
 import { pinShadersLoaded } from "../meshes/pinShadersLoaded";
 import { NEUTRAL_ENVIRONMENT_URL } from "./environment";

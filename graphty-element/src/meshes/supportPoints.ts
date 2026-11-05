@@ -163,6 +163,28 @@ function child(c: Cell, k: number): Cell {
 }
 
 /**
+ * `Math.hypot(a, b)`, bit for bit as V8 computes it (its builtin scales by the larger term and sums the squares), at
+ * half the cost of the call: {@link repulsionOn} takes one for every cell it visits.
+ * @param a - One term.
+ * @param b - The other.
+ * @returns The length.
+ */
+export function hypot(a: number, b: number): number {
+    const x = Math.abs(a);
+    const y = Math.abs(b);
+    const max = Math.max(x, y);
+    if (!(max > 0 && max < Infinity)) {
+        return Math.hypot(a, b);
+    }
+    const p = x / max;
+    const q = y / max;
+    return Math.sqrt(p * p + q * q) * max; // NOSONAR(S7769): this is Math.hypot's own sum, inlined for speed
+}
+
+/** The cells {@link repulsionOn} has still to visit, kept from call to call. */
+const STACK: Cell[] = [];
+
+/**
  * The push every body but `self` gives the body at (x, y): the Barnes-Hut sum, a far cell taken as its center of
  * mass.
  * @param root - The tree.
@@ -173,40 +195,60 @@ function child(c: Cell, k: number): Cell {
  * @returns The push, x and y.
  */
 function repulsionOn(root: Cell, self: number, x: number, y: number, forces: SupportForces): [number, number] {
+    // the sum in the same order as before, with no array made per cell: this runs for every support point on every
+    // step (json-vis-siblings: 284 points, up to 1,500 steps each time its nodes move)
     let fx = 0;
     let fy = 0;
-    const stack: Cell[] = [root];
-    while (stack.length > 0) {
-        const c = stack.pop() as Cell;
+    const stack = STACK;
+    let top = 0;
+    stack[top++] = root;
+    while (top > 0) {
+        const c = stack[--top];
         if (c.mass === 0 || c.body === self) {
             continue;
         }
-        const d = Math.hypot(c.mx - x, c.my - y);
+        const dx = c.mx - x;
+        const dy = c.my - y;
+        const d = hypot(dx, dy);
         if (c.kids !== null && c.size / Math.max(d, 1e-12) >= THETA) {
-            stack.push(...c.kids.filter((kid): kid is Cell => kid !== null));
+            top = pushKids(c.kids, stack, top);
             continue;
         }
-        const [px, py] = pushFrom(c, x, y, d, forces);
-        fx += px;
-        fy += py;
+        // vis-network: two bodies at one place are taken as 0.1 apart along x
+        const g = pushPerUnit(c.mass, d, forces);
+        fx += -(d === 0 ? 0.1 : dx) * g;
+        fy += -(d === 0 ? 0 : dy) * g;
     }
     return [fx, fy];
 }
 
 /**
- * The push one cell, taken as its center of mass, gives the body at (x, y).
- * @param c - The cell.
- * @param x - The body's x.
- * @param y - Its y.
- * @param distance - How far the cell's center of mass is.
- * @param forces - The body's force law.
- * @returns The push, x and y.
+ * Put a cell's quarters on the stack, in order.
+ * @param kids - The quarters.
+ * @param stack - The stack.
+ * @param top - Its height.
+ * @returns Its new height.
  */
-function pushFrom(c: Cell, x: number, y: number, distance: number, forces: SupportForces): [number, number] {
-    // vis-network: two bodies at one place are taken as 0.1 apart along x
-    const [d, dx, dy] = distance === 0 ? [0.1, 0.1, 0] : [distance, c.mx - x, c.my - y];
-    const g = (forces.repulsion * c.mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
-    return [-dx * g, -dy * g];
+function pushKids(kids: readonly (Cell | null)[], stack: Cell[], top: number): number {
+    let t = top;
+    for (const kid of kids) {
+        if (kid !== null) {
+            stack[t++] = kid;
+        }
+    }
+    return t;
+}
+
+/**
+ * How hard a cell, taken as its center of mass, pushes per unit of the offset to it.
+ * @param mass - The cell's mass.
+ * @param distance - How far its center of mass is; 0 is taken as 0.1.
+ * @param forces - The pushed body's force law.
+ * @returns The factor.
+ */
+function pushPerUnit(mass: number, distance: number, forces: SupportForces): number {
+    const d = distance === 0 ? 0.1 : distance;
+    return (forces.repulsion * mass) / (forces.model === "barnesHut" ? d * d * d : d * d);
 }
 
 /**
@@ -534,7 +576,10 @@ const MAX_STEPS_TO_REST = 1500;
 
 /**
  * Every support point of a graph, carried from frame to frame: each held as where it sits along and across its
- * edge, so it moves with its nodes, and stepped a few times a frame until it comes to rest.
+ * edge, so it moves with its nodes, and stepped a few times a frame. Once the nodes and forces hold still for a
+ * frame, every point starts again from its edge's middle and is stepped to rest out of sight, a fixed number of
+ * steps a frame, so where it rests depends only on where the nodes stopped and on the forces: not on how the
+ * frames split the nodes' movement, nor on how fast the device draws them (#5299).
  * @template E - The edge.
  */
 export class SupportPoints<E> {
@@ -546,6 +591,11 @@ export class SupportPoints<E> {
     /** Each support point in the scene as last placed; a point is a new object each time it moves. */
     private placed: Xyz[] = [];
     private isResting = true;
+    /**
+     * Whether the points were started again from their edges' middles since the nodes or forces last changed: only
+     * a settle from there may come to rest.
+     */
+    private seeded = false;
     /** Steps taken since the nodes last moved. */
     private steps = 0;
     /** How many steps in a row every support point has stayed under the resting speed. */
@@ -586,6 +636,14 @@ export class SupportPoints<E> {
             this.steps = 0;
             this.calm.steps = 0;
             this.isResting = false;
+            this.seeded = false;
+        } else if (!this.isResting && !this.seeded) {
+            // the nodes held still for a frame: settle from a fixed start, so the history of how they got here is gone
+            this.rel = new Float64Array(this.rel.length).map((_, i) => (i % 2 === 0 ? 0.5 : 0));
+            this.velocities.fill(0);
+            this.steps = 0;
+            this.calm.steps = 0;
+            this.seeded = true;
         }
         if (this.isResting) {
             return false;
@@ -596,16 +654,17 @@ export class SupportPoints<E> {
             this.isResting = true;
             return had;
         }
-        this.step(nodes(), ends);
-        return true;
+        return this.step(nodes(), ends);
     }
 
     /**
-     * Step the support points a frame's worth, from where they sit on their edges, and place them.
+     * Step the support points a frame's worth, from where they sit on their edges, and place them: every step while
+     * the nodes move, and a settle from the middles only once it rests, so the curves do not flick straight and back.
      * @param centers - Every node's center.
      * @param ends - Each edge's ends and forces.
+     * @returns Whether any placed point moved.
      */
-    private step(centers: readonly Xyz[], ends: readonly SupportEdge[]): void {
+    private step(centers: readonly Xyz[], ends: readonly SupportEdge[]): boolean {
         const m = ends.length;
         const points = new Float64Array(2 * m);
         for (let j = 0; j < m; j++) {
@@ -617,15 +676,21 @@ export class SupportPoints<E> {
         const steps = Math.max(1, Math.min(MAX_FRAME_STEPS, Math.floor(FRAME_BUDGET / perStep)));
         this.steps += steps;
         const moving = stepSupportPoints(centers, ends, points, this.velocities, steps, this.calm);
-        this.isResting = !moving || this.steps >= MAX_STEPS_TO_REST;
-        this.placed = [];
+        this.isResting = this.seeded && (!moving || this.steps >= MAX_STEPS_TO_REST);
+        const shown = !this.seeded || this.isResting || this.placed.length !== m;
+        if (shown) {
+            this.placed = [];
+        }
         for (let j = 0; j < m; j++) {
             const { src, dst } = ends[j];
             const [along, across] = toRel(ends[j], points[2 * j], points[2 * j + 1]);
             this.rel[2 * j] = along;
             this.rel[2 * j + 1] = across;
-            this.placed.push({ x: points[2 * j], y: points[2 * j + 1], z: src.z + (dst.z - src.z) * along });
+            if (shown) {
+                this.placed.push({ x: points[2 * j], y: points[2 * j + 1], z: src.z + (dst.z - src.z) * along });
+            }
         }
+        return shown;
     }
 
     /**
@@ -656,29 +721,7 @@ export class SupportPoints<E> {
         });
         const was = this.lastEnds;
         this.lastEnds = now;
-        if (was.length === now.length) {
-            this.reseedChangedForces(was, now);
-        }
         return was.length !== now.length || now.some((v, i) => Math.abs(v - was[i]) > 1e-6);
-    }
-
-    /**
-     * Start again from its edge's middle every support point whose forces changed, so where a point rests depends on
-     * its forces and the nodes, not on the forces it had before (a style set and then removed draws the curve it drew
-     * before it was set).
-     * @param was - Each edge's ends and forces at the call before, flat, as {@link endsChanged} keeps them.
-     * @param now - The same, now.
-     */
-    private reseedChangedForces(was: Float64Array, now: Float64Array): void {
-        for (let j = 0; j < now.length / 11; j++) {
-            const changed = now
-                .subarray(11 * j + 4, 11 * j + 11)
-                .some((v, k) => Math.abs(v - was[11 * j + 4 + k]) > 1e-6);
-            if (changed) {
-                this.rel.set([0.5, 0], 2 * j);
-                this.velocities.set([0, 0], 2 * j);
-            }
-        }
     }
 
     /**

@@ -13,6 +13,21 @@ export type UsageAnswer = "share" | "declined";
 
 const KEY = "graphty.usageData.v1";
 const listeners = new Set<() => void>();
+/** What Share and No switch on and off: Sentry, or the stand-in a test passed in. */
+let sending = { start: initSentry, stop: stopSentry };
+
+/**
+ * Makes Share and No call a stand-in rather than start and stop Sentry. A test passes one in here
+ * instead of mocking the Sentry module: in a browser test, a module mock switches the page's HTTP
+ * cache off (issue #3416).
+ * @param sender - the stand-in, or nothing for Sentry again.
+ * @param sender.start - called where Sentry would start.
+ * @param sender.stop - called where Sentry would stop.
+ */
+export function setUsageSenderForTests(sender?: { start: () => void; stop: () => void }): void {
+    sending = sender ?? { start: initSentry, stop: stopSentry };
+}
+
 /** The answer when browser storage is unavailable (a private window): kept for this page view. */
 let remembered: UsageAnswer | null = null;
 
@@ -44,9 +59,9 @@ export function answerUsageData(answer: UsageAnswer): void {
         // Storage blocked: the answer holds for this page view only.
     }
     if (answer === "share") {
-        initSentry();
+        sending.start();
     } else {
-        stopSentry();
+        sending.stop();
     }
     listeners.forEach((listener) => {
         listener();
@@ -58,7 +73,7 @@ export function answerUsageData(answer: UsageAnswer): void {
  */
 export function startUsageDataIfShared(): void {
     if (readUsageAnswer() === "share") {
-        initSentry();
+        sending.start();
     }
 }
 

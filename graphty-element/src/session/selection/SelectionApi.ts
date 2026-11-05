@@ -88,6 +88,20 @@ export const SET_OPS: readonly SelectionOp[] = Object.freeze(["replace", "add", 
  */
 export type SelectionCause = "user" | "api" | "command" | "history";
 
+/**
+ * How a call to {@link SelectionApi.apply} or {@link SelectionApi.clear} is made.
+ * @since 3.34.0
+ */
+export interface SelectionApplyOptions {
+    /**
+     * Who made the change: `"user"` when a reader made it by hand outside the canvas -- a row
+     * clicked in a table, a node picked from a list, Escape pressed to clear -- so it acts exactly
+     * like a click on the canvas (a filter's select conditions switch off, and a listener reads
+     * `cause: "user"`). `"api"`, the default, is a script's change.
+     */
+    readonly cause?: "user" | "api";
+}
+
 /** What one mutation changed. */
 export interface SelectionDelta {
     /**
@@ -305,9 +319,12 @@ export interface SelectionApi {
      * @param target - What to select.
      * @param op - What to do with it. Replaces the selection when absent, which is what a click
      *     does.
+     * @param options - Who made the change; a script (`"api"`) when absent. Pass
+     *     `{ cause: "user" }` for a selection a reader made by hand, such as a click on a table row.
      * @returns What changed.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the cause is not `"user"` or `"api"`.
      */
-    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
+    apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta>;
     /**
      * How many nodes and edges `apply(target)` would select, without changing the selection. It
      * reads the target exactly as `apply` does, so a rule `apply` refuses is refused here too,
@@ -344,9 +361,12 @@ export interface SelectionApi {
     checkRule(where: Query): RuleCheck;
     /**
      * Empty the selection.
+     * @param options - Who made the change; a script (`"api"`) when absent. Pass
+     *     `{ cause: "user" }` for a clear a reader made by hand, such as pressing Escape.
      * @returns What changed.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the cause is not `"user"` or `"api"`.
      */
-    clear(): SelectionDelta;
+    clear(options?: SelectionApplyOptions): SelectionDelta;
     /**
      * The node under the pointer now, or null. Not part of the selection and never a step: the
      * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` or a
@@ -664,6 +684,29 @@ function accumulate(accumulator: AttributeAccumulator, value: unknown): void {
 }
 
 /**
+ * Fold every present value of one record's attribute bag into the accumulators, adding one for
+ * each attribute name seen first here.
+ * @param accumulators - The accumulators by attribute name.
+ * @param bag - The record's attributes.
+ */
+function accumulateBag(accumulators: Map<string, AttributeAccumulator>, bag: Readonly<Record<string, unknown>>): void {
+    for (const [key, value] of Object.entries(bag)) {
+        if (value === null || value === undefined) {
+            continue;
+        }
+
+        let accumulator = accumulators.get(key);
+
+        if (accumulator === undefined) {
+            accumulator = newAccumulator();
+            accumulators.set(key, accumulator);
+        }
+
+        accumulate(accumulator, value);
+    }
+}
+
+/**
  * A fresh accumulator.
  * @returns The accumulator.
  */
@@ -942,10 +985,13 @@ class Selection implements SelectionOwner {
      * Change the selection.
      * @param target - What to select.
      * @param op - What to do with it; replace when absent.
+     * @param options - Who made the change; the API itself when absent.
      * @returns What changed.
      */
-    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
-        return Promise.resolve(this.applyNow(target, op));
+    apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta> {
+        const cause = callerCause(options);
+        // The caller named this target, so it is the selection's origin whoever made it.
+        return Promise.resolve(this.#change(target, op ?? "replace", cause, true));
     }
 
     /**
@@ -964,6 +1010,19 @@ class Selection implements SelectionOwner {
      *   `E_OPTION_RANGE` when one of the target's options is outside the permitted range.
      */
     applyNow(target: SelectionTarget, op: SelectionOp = "replace", cause: SelectionCause = "api"): SelectionDelta {
+        // A click or an undo reselects a plain id list nobody passed, so only the API names an origin.
+        return this.#change(target, op, cause, cause === "api");
+    }
+
+    /**
+     * The one change every verb makes.
+     * @param target - What to select.
+     * @param op - What to do with it.
+     * @param cause - Who asked.
+     * @param named - Whether a caller named the target, so a whole replace records it as the origin.
+     * @returns What changed.
+     */
+    #change(target: SelectionTarget, op: SelectionOp, cause: SelectionCause, named: boolean): SelectionDelta {
         this.#sync();
         assertOp(op);
         // The cap is read BEFORE anything is mutated: a session configured with a cap that is not
@@ -994,10 +1053,8 @@ class Selection implements SelectionOwner {
         }
 
         this.#truncated = this.#enforceCap(cap);
-        // Only a whole replace a caller asked for leaves the selection exactly what the target
-        // named. A click or an undo reselects a plain id list nobody passed, so it records nothing.
-        this.#origin =
-            op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
+        // Only a whole replace a caller asked for leaves the selection exactly what the target named.
+        this.#origin = op === "replace" && named && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
         return this.#delta(before, originBefore, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
@@ -1072,7 +1129,8 @@ class Selection implements SelectionOwner {
         this.#sources.onHoverPreview?.(this.#nodes.ids());
     }
 
-    clear(): SelectionDelta {
+    clear(options?: SelectionApplyOptions): SelectionDelta {
+        const cause = callerCause(options);
         this.#sync();
         const before = this.#capture();
         const originBefore = this.#origin;
@@ -1081,7 +1139,7 @@ class Selection implements SelectionOwner {
         this.#truncated = false;
         this.#origin = null;
 
-        return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, "api");
+        return this.#delta(before, originBefore, EMPTY_STRINGS, EMPTY_PATHS, cause);
     }
 
     /**
@@ -1370,20 +1428,7 @@ class Selection implements SelectionOwner {
                 continue;
             }
 
-            for (const [key, value] of Object.entries(bag)) {
-                if (value === null || value === undefined) {
-                    continue;
-                }
-
-                let accumulator = selected.get(key);
-
-                if (accumulator === undefined) {
-                    accumulator = newAccumulator();
-                    selected.set(key, accumulator);
-                }
-
-                accumulate(accumulator, value);
-            }
+            accumulateBag(selected, bag);
         }
 
         const numeric = new Set<string>();
@@ -1473,6 +1518,25 @@ function describeAttribute(
         graphMean: whole.mean,
         direction: directionOf(selected.mean, whole.mean),
     };
+}
+
+/**
+ * Who a public call says made the change.
+ * @param options - The call's options.
+ * @returns `"user"` or `"api"`, the API when absent.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` for any other cause.
+ */
+function callerCause(options: SelectionApplyOptions | undefined): "user" | "api" {
+    const cause = options?.cause ?? "api";
+    if (cause !== "user" && cause !== "api") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A selection is changed by "user" or "api", not by "${String(cause)}".`,
+            source: "run",
+            details: { cause, available: ["user", "api"] },
+        });
+    }
+    return cause;
 }
 
 /**

@@ -1,7 +1,7 @@
 # Style fidelity reference tools
 
-The reference scenes come from these programs. They are invoked by `regenerate.sh` from a local tools
-directory and never vendored into a package; only `references/dvipsnam.def` is a copied file. No
+The reference scenes come from these programs. They are invoked by `regenerate.sh` and
+`references/regenerate-corpus.mjs` (`references/README.md`) from a local tools directory and never vendored into a package; only `references/dvipsnam.def` is a copied file. No
 yFiles code is used anywhere: yEd files are read from their own stored geometry.
 
 | Tool                                                                        | Version                                 | License                             | Used for                                                                                                                                                                                                                   |
@@ -22,9 +22,8 @@ yFiles code is used anywhere: yEd files are read from their own stored geometry.
 | Wine, xvfb-run                                                              | Wine 9.0                                | LGPL-2.1 (Wine), MIT (Xvfb)         | run Pajek headless                                                                                                                                                                                                         |
 | dvipsnam.def (LaTeX graphics bundle, `drivers.dtx`, the `dvipsnames` block) | 2026-05-29                              | LPPL-1.3c                           | dvips color names for Pajek, copied unmodified into `references/dvipsnam.def`                                                                                                                                              |
 
-Not used: the draw.io desktop CLI (its virtual display launch was not permitted here), and yEd and yEd Live, whose
-license forbids using them in an automated process. draw.io stands in for yEd until the yEd sheets are exported by
-hand (see "yEd's oracles" below).
+Not used: the draw.io desktop CLI (its virtual display launch was not permitted here). No script here drives yEd or
+yEd Live; their drawings are made as "yEd's oracles" below says.
 
 sigma.js draws label sizes in canvas px over positions it fits to the canvas, so its JSON scenes
 (`json-sigma-lesmis`, `json-graphology-synth`) are drawn on an 800 x 600 canvas, the one the browser
@@ -49,7 +48,7 @@ SVG carries no ids. One script per program makes them, from
 | `gephi.mjs`             | Gephi Toolkit 0.11.3                 | GEXF files through Gephi's Preview, one Preview setting per specimen page              |
 | `pajek.mjs`             | Pajek 6.02 under Wine                | Pajek files, one Draw window option per specimen page                                  |
 | `web/regenerate-web.sh` | Cytoscape.js, vis-network, sigma.js  | the JSON formats, each in headless Chromium with the pinned library (`web-oracle.mjs`) |
-| `drawio.mjs`            | draw.io 32.4.1                       | yEd and yEd Live GraphML (a stand-in for yEd)                                          |
+| `drawio.mjs`            | draw.io 32.4.1                       | a yEd GraphML sheet yEd refuses to open (a stand-in for yEd)                           |
 | `rasterize.mjs`         | resvg                                | the PNG of any oracle SVG, with the repository's pinned fonts                          |
 
 Each script's header says what it needs (a tool directory, an environment variable) and takes sample ids, or none
@@ -62,12 +61,12 @@ cd graphty-element && npx vitest run --project=fidelity test/fidelity/oracle-rep
 ```
 
 Cytoscape desktop runs under servherd on a headless display, and only one script may drive it at a time. Start it
-from the main checkout's `tmp/file-styles-corpus/scripts`, which holds `run-cytoscape.sh` (Cytoscape 3.10.5 and a
-JDK unpacked under `tmp/`):
+with `references/run-cytoscape.sh`, which runs Cytoscape 3.10.5 and a JDK from the tools directory
+(`$STYLE_FIDELITY_TOOLS`, default `<main checkout>/tmp/style-fidelity/tools`) on its own Xvfb display:
 
 ```jsonc
-servherd_start({ name: "cytoscape-desktop", cwd: "<main checkout>/tmp/file-styles-corpus/scripts",
-  command: "bash run-cytoscape.sh {{port}} 96" })
+servherd_start({ name: "cytoscape-desktop", cwd: "<repository root>",
+  command: "bash graph-io/test/fidelity/references/run-cytoscape.sh {{port}} 96" })
 ```
 
 then run `CYREST_PORT=<its port> CYTOSCAPE_DISPLAY=:96 node cytoscape-desktop.mjs [sample ids]`.
@@ -79,15 +78,18 @@ every oracle in `oracles/`, and its CI subset `test/browser/oracle-scorecard.tes
 (`test/fidelity/fidelity.test.ts`, against the reference scenes in `scenes/`). Both decide on elements, never on
 decimals:
 
-- **A sample fails only when an element fails a property that its known failures do not list**: a node, edge, group,
+- **A sample fails when an element fails a property that its known failures do not list**: a node, edge, group,
   label or stray that passed before and fails now, or a failing element that is new. The known failures are
   `graphty-element/test/fidelity/oracle-known-failures.json` (per sample and per `<sample>@matched`, the comparison
   with graphty's nodes at the program's own positions) and the `known` lists of
   `graphty-element/test/fidelity/baseline-scores.json`.
-- **Pass rates are a report.** Each run writes `gate.txt` and `gate.json` (`graphty-element/tmp/oracle-report/` and
-  `graphty-element/test/fidelity/out/`): every newly failing element, every known failure that passes now, and every
-  pass rate that moved from its recorded value (`oracle-floors.json`, the `floors` of `baseline-scores.json`). The
-  recorded values only say how far a property has been; none of them fails a sample.
+- **An oracle sample also fails when a rate drops below its floor.** Each run writes `gate.txt` and `gate.json`
+  (`graphty-element/tmp/oracle-report/` and `graphty-element/test/fidelity/out/`): every newly failing element, every
+  known failure that passes now, and every pass rate that moved from its recorded value (`oracle-floors.json`, the
+  `floors` of `baseline-scores.json`). On the oracle scorecard a rate judged element by element that measures below
+  its floor fails the sample, unless a drop to that rate or lower is accepted with a reason in the `drops` of
+  `oracle-floors.json`: adding a known failure with a reason lowers a rate as surely as a new failure does, and that
+  went unseen while the rates only reported (#5319). The drawn-scene scorecard's floors stay a report.
 - **Whole-picture (raster) regions** are reported when they measure more than 0.02 under their recorded value, and
   never fail a sample. Their recorded values come from SwiftShader runs only (`GRAPHTY_BROWSER_GPU` unset).
 - **A property that cannot be measured any more** (no element on the other side to compare it with: an arrowhead
@@ -113,14 +115,17 @@ npm run fidelity:ratchet -- --add "<why>" --keys <sample>,<sample>@matched --sui
 The ratchet (`graphty-element/scripts/fidelity-ratchet.ts`) takes off the known failures every element that passes
 now, raises every recorded rate to what the run measured and never lowers one, and adds elements only with `--add`
 and a reason, which it records in the file's `reasons` with the date, the elements and how many came from the drawing
-and from the comparator. It exits 1 while unlisted failures remain. Nobody edits a decimal or a list by hand.
+and from the comparator. With `--add` it also accepts every oracle rate below its floor at the rate measured, with the
+same reason, in `drops`, and it takes a drop off once its rate is back at its floor. It exits 1 while unlisted
+failures or unaccepted drops remain. Nobody edits a decimal or a list by hand.
 
 ## yEd's oracles
 
-yEd's license says it "may not be used as part of an automated process", so no script drives yEd or yEd Live. Every
-yEd GraphML and yEd Live GraphML oracle is draw.io's drawing, marked `standIn: true`, and the comparator holds stand-ins
-to their own recorded rates (`standInFloors` in `graphty-element/test/fidelity/oracle-floors.json`). To replace one with yEd's
-own drawing, open the file in yEd, use File > Export > SVG at the sheet's 1200 x 900 size, save it over the
-oracle's SVG, run `rasterize.mjs` on it, and set the oracle's `.oracle.json` to `program: "yEd"` with
-`standIn: false`. The files and the paths they go to are listed in `oracles/ISSUES.md`, "yEd sheets to export by
-hand".
+The yEd and yEd Live oracles are the programs' own drawings, made on 2026-11-04 by an AI agent operating each program's
+user interface at the owner's direction (43 yEd, 29 yEd Live). The programs and that agent's tools are not in this
+repository. Each `.oracle.json` says what was done, with every setting changed, in its `command`, and `regenerate` says
+how to make it again; `drawio.mjs`, `graphviz.mjs` and `cytoscape-desktop.mjs` skip these samples, so rerunning a
+stand-in tool cannot overwrite one. One oracle is still a stand-in, draw.io's drawing, because yEd refuses its file:
+`yed-graphml-specimen-images-charts`, held to its own recorded rates (`standInFloors` in
+`graphty-element/test/fidelity/oracle-floors.json`). The list is in `oracles/ISSUES.md`, "yEd's and yEd Live's own
+drawings".

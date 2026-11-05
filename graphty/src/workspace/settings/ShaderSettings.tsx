@@ -115,6 +115,7 @@ export function BackgroundShader({
                     alignment="start"
                     boundaryTop={picking ? headerBottom() : 0}
                     header={{ variant: "title", title: "Background" }}
+                    closeLabel="Close Background"
                 >
                     <Popout.Content>
                         <ShaderGallery
@@ -155,6 +156,7 @@ export function BackgroundShader({
                         placement="left"
                         alignment="start"
                         header={{ variant: "title", title: `${name} settings` }}
+                        closeLabel={`Close ${name} settings`}
                     >
                         <Popout.Content>
                             <ShaderParams
@@ -255,6 +257,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title: "Held shaders" }}
+                    closeLabel="Close Held shaders"
                 >
                     <Popout.Content>
                         <Stack gap={6} role="list" aria-label="Held shaders">

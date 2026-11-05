@@ -221,7 +221,9 @@ export function isShortPredicate(where: Predicate): boolean {
  */
 function atomTerms(p: Predicate): number {
     if ("all" in p) {
-        return p.all ? 1 : 0;
+        // the rule is the caller's, so `all` can be any value
+        const { all }: { all: unknown } = p;
+        return all ? 1 : 0;
     }
     if ("has" in p) {
         return 1;
@@ -402,7 +404,9 @@ export function discreteLookup(table: readonly (readonly [Scalar, StyleValue])[]
     const byNum = new Map<number, number>();
     const byBool = new Map<string, number>();
     table.forEach(([k], j) => {
-        if (k === null || typeof k === "object") {
+        // the table is the caller's, so a key can be any value
+        const given: unknown = k;
+        if (given === null || typeof given === "object") {
             return;
         }
         const ks = String(k);
@@ -677,6 +681,26 @@ export function resolveStyles(
     snapshot?: GraphSnapshot,
 ): readonly (StyleValue | null)[] {
     return resolveRules(extracted.styles.rules, target, property, sourceOf(extracted, target, snapshot));
+}
+
+/**
+ * Every element's value of one property under one rule of a file's styles, read the way `resolveStyles()` reads it:
+ * the rule's value where its condition selects the element and its value or mapping gives one, null elsewhere.
+ * @param extracted - the styles whose columns and features the rule reads
+ * @param rule - the rule (one of `extracted.styles.rules`, or one made from them)
+ * @param property - the property
+ * @param snapshot - the graph; when given, data columns and degrees are read from it, otherwise from
+ * `extracted.features`
+ * @returns each element of the rule's target's value, or null where the rule gives none
+ * @category Styles
+ */
+export function resolveRule(
+    extracted: ExtractedStyles,
+    rule: StyleRule,
+    property: StyleProperty,
+    snapshot?: GraphSnapshot,
+): readonly (StyleValue | null)[] {
+    return resolveRules([rule], rule.target, property, sourceOf(extracted, rule.target, snapshot));
 }
 
 /**

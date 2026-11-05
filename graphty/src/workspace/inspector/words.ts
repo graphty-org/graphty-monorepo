@@ -19,6 +19,7 @@ import type {
     XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
+import { formatCount, formatNumber } from "../settings/numberFormat";
 import { rangeWords as timeRangeWords } from "../time/timeWords";
 import type { InspectedKindId } from "./inspected";
 
@@ -119,6 +120,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",
+    "node.relativeExtents": "Stretch",
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
@@ -136,6 +138,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPaddingX": "Shape",
     "node.labelPaddingY": "Shape",
     "node.labelFitSquare": "Shape",
+    "node.labelFitQuantum": "Shape",
+    "node.labelFitImage": "Shape",
+    "node.labelFitImagePadding": "Shape",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
@@ -216,9 +221,20 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
     "node.labelShiftY": "Label",
+    "node.labelShiftOf": "Label",
     "node.labelMinNodeScreenSize": "Label",
     "node.labelTextAlign": "Label",
     "node.labelLocation": "Label",
+    "node.xlabel": "Outside label",
+    "node.xlabelStyle": "Outside label",
+    "node.xlabelLocation": "Outside label",
+    "node.xlabelOffsetX": "Outside label",
+    "node.xlabelOffsetY": "Outside label",
+    "edge.xlabel": "Outside label",
+    "edge.xlabelStyle": "Outside label",
+    "edge.xlabelLocation": "Outside label",
+    "edge.xlabelOffsetX": "Outside label",
+    "edge.xlabelOffsetY": "Outside label",
     "node.borderWaveAmplitude": "Border",
     "node.borderWavePeriod": "Border",
     "node.outerBorderColor": "Outer border color",
@@ -226,6 +242,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outerBorderOpacity": "Outer border opacity",
     "node.outerBorderStyle": "Outer border style",
     "node.outerBorderOffset": "Outer border offset",
+    "node.outerBorderCount": "Outer border count",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -287,15 +304,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
     "node.exactCornerRadius": "Exact corner radius",
+    "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Shape",
+    "node.shapeRotation": "Shape rotation",
     "node.shapeParts": "Shape",
     "node.shapeLines": "Shape",
     "node.shapeTexts": "Shape",
+    "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",
     "edge.minScreenWidth": "Min screen width",
+    "edge.fadeEnd": "Fade end",
+    "edge.fadeStart": "Fade start",
+    "edge.fadeOpacity": "Fade opacity",
+    "edge.blending": "Blending",
     "edge.outlineColor": "Outline color",
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
@@ -377,6 +401,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
     "edge.labelShiftY": "Label",
+    "edge.labelShiftOf": "Label",
     "node.groupPadding": "Group",
     "node.groupPaddingRatio": "Group",
     "node.groupPaddingOf": "Group",
@@ -405,21 +430,8 @@ export function channelTokens(channels: readonly Channel[]): string[] {
     return [...new Set(channels.map((channel) => CHANNEL_WORDS[channel]))];
 }
 
-const NUMBER = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 4 });
-/** A number of a thousand or more: its whole part exact, never 12,350 for 12,345. */
-const WHOLE = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-/** Counts are exact: 12,345 nodes, never 12,350. */
-const COUNT = new Intl.NumberFormat();
-
-/**
- * A number as a reader reads it, the one spelling the inspector, the key and the table share:
- * four significant digits, grouped, and never fewer than the whole part's own digits.
- * @param value - the number.
- * @returns the text.
- */
-export function formatNumber(value: number): string {
-    return Math.abs(value) >= 1000 ? WHOLE.format(value) : NUMBER.format(value);
-}
+/** The one spelling the inspector, the key and the table share, in the reader's Number format. */
+export { formatNumber } from "../settings/numberFormat";
 
 /**
  * The graph's direction in one word ("Undirected"); where it came from and what it means for
@@ -513,7 +525,7 @@ export function edgeJoiner(session: GraphSession): string {
  * @returns the words.
  */
 export function count(count: number, noun: string): string {
-    return `${COUNT.format(count)} ${noun}${count === 1 ? "" : "s"}`;
+    return `${formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /**
@@ -577,7 +589,11 @@ export function selectionNameWords(session: GraphSession): string {
  * @returns the words.
  */
 export function selectedNameWords(session: GraphSession): string {
-    return `${selectionNameWords(session)} selected`;
+    const words = selectionNameWords(session);
+    // One node named by a number ("34") would read as a count beside "34 nodes selected".
+    const isOneNode = session.selection.nodes.length === 1 && session.selection.edges.length === 0;
+    const prefix = isOneNode && /^[\d.,]+$/.test(words) ? "node " : "";
+    return `${prefix}${words} selected`;
 }
 
 /**
@@ -779,7 +795,7 @@ export function staleWords(
             ? "Out of date: ran on all time"
             : `Out of date: ran on ${timeRangeWords(ran.from, ran.to, unit)}`;
     }
-    return `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
+    return `Ran on ${count(note.ranOn, "node")}; ${formatCount(note.nowVisible)} shown now`;
 }
 
 const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });

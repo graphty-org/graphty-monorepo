@@ -139,6 +139,7 @@ export function RenamePopover({
                     <Popout.Panel
                         width={220}
                         header={{ variant: "title", title: "Rename column" }}
+                        closeLabel="Close Rename column"
                         anchorX={anchor}
                         anchorY={anchor}
                         placement="bottom"

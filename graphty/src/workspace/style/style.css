@@ -331,7 +331,7 @@
 }
 
 .ws-shader-facts [data-cost="heavy"] {
-    color: var(--mantine-color-orange-text, var(--mantine-color-orange-6));
+    color: var(--cm-text-warning);
 }
 
 .ws-shader-control {
@@ -492,4 +492,15 @@
    column and adds no name to the label column. */
 .ws-field-sub {
     padding-inline-start: var(--ws-label, 80px);
+}
+
+/* A style's setting, drawn under the style's row ("Size" under Halo): its name indented under the
+   style's name. */
+.ws-row[data-setting] .ws-field-name {
+    padding-inline-start: 12px;
+}
+
+/* A style's own "+" beside its name in the label column. */
+.ws-row-add {
+    flex: none;
 }

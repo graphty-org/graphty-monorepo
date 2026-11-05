@@ -363,7 +363,7 @@ describe("checks design section 9.5 lists for the structure level", () => {
         expect(() => s.validate({ level: "structure" })).toThrow(
             expect.objectContaining({
                 code: "E_INVALID_SNAPSHOT",
-                details: expect.objectContaining({ invariant: "I12" }),
+                details: expect.objectContaining({ invariant: "I12" }) as unknown,
             }),
         );
     });
@@ -385,7 +385,7 @@ describe("checks design section 9.5 lists for the structure level", () => {
         expect(() => s.validate({ level: "structure" })).toThrow(
             expect.objectContaining({
                 code: "E_INVALID_SNAPSHOT",
-                details: expect.objectContaining({ invariant: "I10" }),
+                details: expect.objectContaining({ invariant: "I10" }) as unknown,
             }),
         );
     });
@@ -403,14 +403,14 @@ describe("checks design section 9.5 lists for the structure level", () => {
         expect(() => s.validate({ level: "structure" })).toThrow(
             expect.objectContaining({
                 code: "E_INVALID_SNAPSHOT",
-                details: expect.objectContaining({ invariant: "I12", column: "ref" }),
+                details: expect.objectContaining({ invariant: "I12", column: "ref" }) as unknown,
             }),
         );
         ref.mutableData()[1] = INVALID_INDEX; // INVALID_INDEX on a SET row (nullable false -> every row set)
         expect(() => s.validate({ level: "structure" })).toThrow(
             expect.objectContaining({
                 code: "E_INVALID_SNAPSHOT",
-                details: expect.objectContaining({ invariant: "I12", column: "ref", row: 1 }),
+                details: expect.objectContaining({ invariant: "I12", column: "ref", row: 1 }) as unknown,
             }),
         );
         s.nodes.remove("ref");
@@ -421,7 +421,7 @@ describe("checks design section 9.5 lists for the structure level", () => {
         expect(() => s.validate({ level: "structure" })).toThrow(
             expect.objectContaining({
                 code: "E_INVALID_SNAPSHOT",
-                details: expect.objectContaining({ invariant: "I12", column: "d", row: 2 }),
+                details: expect.objectContaining({ invariant: "I12", column: "d", row: 2 }) as unknown,
             }),
         );
     });
@@ -489,7 +489,7 @@ describe("I3 near MAX_COUNT (design 11.3: E_TOO_LARGE at the add* call that cros
             expect(() => fake(overrides).validate({ level: "structure" })).toThrow(
                 expect.objectContaining({
                     code: "E_INVALID_SNAPSHOT",
-                    details: expect.objectContaining({ invariant: "I3" }),
+                    details: expect.objectContaining({ invariant: "I3" }) as unknown,
                 }),
             );
         }

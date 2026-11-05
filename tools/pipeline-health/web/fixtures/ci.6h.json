@@ -473,7 +473,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {
@@ -492,7 +492,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -621,7 +621,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -643,7 +643,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -665,7 +665,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -687,7 +687,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -709,7 +709,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -731,7 +731,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {

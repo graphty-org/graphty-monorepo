@@ -8,6 +8,9 @@
  * - Error retry functionality
  */
 
+// encrypt-storage, as the ./ai and ./credentials entry points register it
+import "../src/ai/keys/withEncryptStorage";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
 

@@ -332,6 +332,7 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
                   FIX_PR: ${{ inputs.fix_pr }}
+                  MODE: ${{ inputs.mode }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -363,6 +364,8 @@ jobs:
             good: ${{ steps.candidate.outputs.good }}
             # why the slot tests that commit, or nothing (the missed-slot alarm's "no new candidate")
             why: ${{ steps.candidate.outputs.why }}
+            # "true" when nightly already holds everything the slot could test (#5671): the slot job files nothing
+            current: ${{ steps.candidate.outputs.current }}
             # none when the handoff step tests this run's own commit instead (its master build may still be running)
             build_run: ${{ steps.handoff.outputs.sha == '' && steps.candidate.outputs.build_run || '' }}
             # the held candidate's head (tools/full-run.mjs pick): "" none, "unknown" when the store did not answer
@@ -761,7 +764,8 @@ jobs:
     # or a key or balance the provider refuses (the harness prints ACCOUNT_REFUSED_MARKER), sets the job's
     # owner_item output, and the held job files the issue as the owner's to fix rather than a code defect. Each
     # case has a per-provider limit, 120 s on Google (graphty-element/test/helpers/llm-regression-env.ts), so the
-    # job ends on its own.
+    # job ends on its own. A test that hangs anyway is ended by the one test hang guard (tools/test-wait-guard.mjs,
+    # 25 min), so the job's limit sits above it plus the build: the cost steps then run and log what the run spent.
     #
     # Every release test of a candidate runs it, once its CI lane is green (owner, 2026-10-29: "LLM tests should only
     # be running during the full release testing, and should run for each of the 4 canary->nightly releases per
@@ -773,7 +777,7 @@ jobs:
         needs: [pick, ci]
         if: ${{ !cancelled() && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 20
+        timeout-minutes: 40 # above the test hang guard (25 min) plus install and build
         environment: full-run # GOOGLE_API_KEY
         permissions:
             actions: read # this month's release.yml runs' jobs, for tools/llm-spend.mjs
@@ -793,7 +797,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Check this month's LLM spend
@@ -823,6 +826,8 @@ jobs:
               env:
                   LLM_REGRESSION_PROVIDER: google
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+                  # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
+                  LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
               run: |
                   set -uo pipefail
                   if [ -z "${GOOGLE_API_KEY}" ]; then
@@ -832,19 +837,25 @@ jobs:
                   fi
                   npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
-                  # the run's cost at the tier and cache prices it was billed at, summed from its log (tools/llm-spend.mjs)
-                  echo "usd=$(node ../tools/llm-spend.mjs cost "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
                       echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
                   fi
                   exit "$status"
 
+            # The run's cost at the tier and cache prices it was billed at, from the usage file the transport appends to as
+            # it spends, else the log's per-file lines (tools/llm-spend.mjs cost). Its own step, so a test step that
+            # failed, was cancelled or was cut off still gets priced: that run cost money too.
+            - name: Price the LLM regression run
+              id: cost
+              if: ${{ always() && steps.llm.outcome != 'skipped' }}
+              run: echo "usd=$(node tools/llm-spend.mjs cost "$RUNNER_TEMP/llm-usage.jsonl" "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
+
             # The run's cost in this step's NAME, so tools/llm-spend.mjs and the health dashboard read it from the
-            # jobs list they already fetch (no log download). It runs after a failed test step too: that run cost money.
-            - name: "LLM regression cost: ${{ steps.llm.outputs.usd }} USD"
-              if: ${{ always() && steps.llm.outputs.usd != '' }}
-              run: echo "::notice::the LLM regression tests cost ${{ steps.llm.outputs.usd }} USD"
+            # jobs list they already fetch (no log download).
+            - name: "LLM regression cost: ${{ steps.cost.outputs.usd }} USD"
+              if: ${{ always() && steps.cost.outputs.usd != '' }}
+              run: echo "::notice::the LLM regression tests cost ${{ steps.cost.outputs.usd }} USD"
 
     # The version and major-bump dry run, a lane like the others (design/ci/channels-pipeline/channels.md, "A planned
     # major or a first publish"; #3455): versions the candidate locally as the version job will, then fails when
@@ -877,7 +888,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1208,7 +1218,6 @@ jobs:
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/setup-node@v7
@@ -1386,7 +1395,6 @@ jobs:
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/setup-node@v7
@@ -1628,6 +1636,7 @@ jobs:
               env:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
+                  GATE_REASON: ${{ steps.gate.outputs.reason }}
                   FIRST: ${{ steps.gate.outputs.first }}
                   # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick);
                   # nothing once this run replaced it
@@ -1718,7 +1727,7 @@ jobs:
     # accept-only pull request's head) of a green-images head H (tools/channel/resume.mjs). The captures of the run
     # that judged H (its visual-final-*, kept 30 days) are first read against P's baselines: a story whose captured PNG
     # is P's baseline byte for byte (the accept commit copies it) is unchanged, as a capture of P would find it
-    # (tools/channel/recapture.mjs accepted). The unchanged screenshot gate then judges them with P's signed approval;
+    # (tools/channel/recapture.mjs accepted), only in captures rendered from H itself, never a carried one. The unchanged screenshot gate then judges them with P's signed approval;
     # then the version, land, publish and site jobs promote P. A gate refusal promotes nothing and records `rejected` on H
     # with a comment on the hold issue, so no later slot tries the same approval again; an open publish hold only
     # waits (a full slot catches up once it closes).
@@ -1775,7 +1784,7 @@ jobs:
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
-                  node tools/channel/recapture.mjs accepted --captures "$CAPTURES" --head "$HEAD_SHA"
+                  node tools/channel/recapture.mjs accepted --captures "$CAPTURES" --head "$HEAD_SHA" --tested "$SHA"
                   tools/channel/screenshot-gate.sh
 
             - name: Decide the nightly promotion
@@ -1783,6 +1792,7 @@ jobs:
               env:
                   STATE: approved
                   GATE: ${{ steps.gate.outputs.outcome }}
+                  GATE_REASON: ${{ steps.gate.outputs.reason }}
                   HELD: ${{ needs.pick.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 
@@ -2038,7 +2048,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
@@ -2335,6 +2344,7 @@ jobs:
                   PICK_RESULT: ${{ needs.pick.result }}
                   RELEASE: ${{ needs.pick.outputs.release }}
                   PICK_WHY: ${{ needs.pick.outputs.why }}
+                  CURRENT: ${{ needs.pick.outputs.current }}
                   RESUME: ${{ needs.pick.outputs.resume }}
                   SHA: ${{ needs.pick.outputs.sha }}
                   STATE: ${{ needs.verdict.outputs.state }}
@@ -2381,7 +2391,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A re-run (gh run rerun <id> --failed) tells the owner's phone it is retrying.

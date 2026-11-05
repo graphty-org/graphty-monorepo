@@ -10,6 +10,7 @@ import {
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    TargetTooltip,
     useFileDrop,
 } from "@graphty/compact-mantine";
 import {
@@ -49,6 +50,7 @@ import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { writeFileStylesChoice } from "../settings/preferences";
 import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
@@ -70,8 +72,15 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
-import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
+import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
+import {
+    type LoadDraftState,
+    type PageSource,
+    type RowFilter,
+    sourceInput,
+    sourceName,
+    useLoadDraft,
+} from "./useLoadDraft";
 import {
     addWords,
     baseName,
@@ -398,6 +407,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
     // with this file beside Load, when the graph's one source can be replaced. When every edge
     // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
+    // Replace replaces at once, as opening a copy of the source does, with a receipt and Undo:
+    // the page already showed the file, and a load can be undone, so nothing asks again. The file
+    // is read as the page read it, with the reader's file settings and column roles.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
@@ -407,7 +419,19 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
-                      replaceSource(store, sources[0], file);
+                      const { draft, source, settings, choices } = page;
+                      if (session === null || draft === null || source === null) {
+                          return;
+                      }
+                      store.set({ page: "panels" });
+                      const incoming = { name: file.name, source: sourceInput(source, settings) };
+                      void replaceWith(store, session, sources[0].key, incoming, loadChoices(draft, choices, "merge"))
+                          .then(() => {
+                              rememberLoad(session, { files: [file], choices });
+                          })
+                          .catch(() => {
+                              store.set({ notice: { message: "Not replaced" } });
+                          });
                   },
               }
             : null;
@@ -527,11 +551,11 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Menu position="bottom-start">
                     <Menu.Target>
                         {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
-                        <Tooltip label="Add a table" position="left">
+                        <TargetTooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
@@ -556,6 +580,7 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                     <Popout.Panel
                         width={ENTRY_WIDTH}
                         header={{ variant: "title", title: "From a URL" }}
+                        closeLabel="Close From a URL"
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
@@ -640,14 +665,14 @@ function leftOutRows(page: LoadDraftState): number {
  * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
+export function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
     if (!ready) {
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
     if (leftOut > 0) {
         return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
     }
-    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
+    return <GLYPHS.ready size={14} color="var(--cm-text-success)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -940,6 +965,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Popout.Panel
                     width={SETTINGS_WIDTH}
                     header={{ variant: "title", title: "File settings" }}
+                    closeLabel="Close File settings"
                     placement="bottom"
                 >
                     <Popout.Content>

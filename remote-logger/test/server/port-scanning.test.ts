@@ -438,10 +438,55 @@ describe("Port scanning", () => {
                 httpEnabled: true,
                 mcpEnabled: false,
                 quiet: true,
-                // maxPortNumber not specified - should use default 9099
+                // maxPortNumber not specified - scans up to 65535
             });
 
             expect(dualServer.httpPort).toBe(testPort);
+        });
+    });
+
+    describe("ports above 9099 and explicit ports (issue #3226)", () => {
+        it("binds port 9500 when it is free", async () => {
+            dualServer = await createDualServer({
+                httpPort: 9500,
+                httpHost: "127.0.0.1",
+                httpEnabled: true,
+                mcpEnabled: false,
+                quiet: true,
+            });
+
+            expect(dualServer.httpPort).toBe(9500);
+            expect(dualServer.httpServer?.listening).toBe(true);
+        });
+
+        it("scans past 9099 by default", async () => {
+            await createBlockingServer(9500);
+
+            dualServer = await createDualServer({
+                httpPort: 9500,
+                httpHost: "127.0.0.1",
+                httpEnabled: true,
+                mcpEnabled: false,
+                quiet: true,
+            });
+
+            expect(dualServer.httpPort).toBe(9501);
+        });
+
+        it("fails with a clear error, never another port, when the given port only is busy", async () => {
+            const busyPort = basePort + 330;
+            await createBlockingServer(busyPort);
+
+            await expect(
+                createDualServer({
+                    httpPort: busyPort,
+                    httpHost: "127.0.0.1",
+                    httpEnabled: true,
+                    mcpEnabled: false,
+                    quiet: true,
+                    maxPortNumber: busyPort,
+                }),
+            ).rejects.toThrow(`Port ${busyPort} on 127.0.0.1 is already in use`);
         });
     });
 

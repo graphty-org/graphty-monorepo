@@ -31,7 +31,6 @@ import {
     FR_DEFAULTS,
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
-    MAX_ITERATIONS_PER_STEP,
     SETTLE_FLOOR_FRACTION,
     TRACE_RECORD_BYTES,
 } from "../constants.js";
@@ -68,15 +67,12 @@ import {
 } from "./force-simulation.js";
 import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
+    assertMaxInFlightUnchanged,
     compileAttraction,
-    describeValue,
     invalid,
-    isPositiveInteger,
     type Overrides,
-    pickCenter,
-    pickDim,
     pickNumber,
-    pickSeed,
+    pickSharedForceOptions,
     scalar,
     subset,
 } from "./model-common.js";
@@ -164,13 +160,7 @@ export function resolveFruchtermanReingoldOptions(
 ): ResolvedFruchtermanReingoldOptions {
     const o: FruchtermanReingoldOptions = options ?? {};
     const base = previous ?? DEFAULT_RESOLVED;
-    if (previous !== undefined && o.maxInFlight !== undefined && o.maxInFlight !== previous.maxInFlight) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `maxInFlight cannot change after creation (the uniform ring is sized by it): got ${describeValue(o.maxInFlight)}, current ${previous.maxInFlight}`,
-            { argument: "maxInFlight", value: o.maxInFlight, expected: previous.maxInFlight },
-        );
-    }
+    assertMaxInFlightUnchanged(o, previous);
     const fixed: unknown = o.fixed === undefined ? base.fixed : o.fixed;
     if (fixed !== null && typeof fixed !== "string" && !(fixed instanceof Uint32Array)) {
         throw invalid("fixed", fixed, "a NodeMask (Uint32Array), the name of a bool node column, or null");
@@ -192,26 +182,7 @@ export function resolveFruchtermanReingoldOptions(
         ),
         cooling,
         fixed: fixed as NodeMask | string | null,
-        dim: pickDim(o.dim, base.dim),
-        scale: pickNumber("scale", o.scale, base.scale, (v) => v > 0, "> 0"),
-        center: pickCenter(o.center, base.center),
-        seed: pickSeed(o.seed, base.seed),
-        settleThreshold: pickNumber("settleThreshold", o.settleThreshold, base.settleThreshold, (v) => v >= 0, ">= 0"),
-        settleWindow: pickNumber(
-            "settleWindow",
-            o.settleWindow,
-            base.settleWindow,
-            isPositiveInteger,
-            "an integer >= 1",
-        ),
-        iterationsPerStep: pickNumber(
-            "iterationsPerStep",
-            o.iterationsPerStep,
-            base.iterationsPerStep,
-            (v) => isPositiveInteger(v) && v <= MAX_ITERATIONS_PER_STEP,
-            `an integer in [1, ${MAX_ITERATIONS_PER_STEP}]`,
-        ),
-        maxInFlight: pickNumber("maxInFlight", o.maxInFlight, base.maxInFlight, isPositiveInteger, "an integer >= 1"),
+        ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
 }
@@ -377,14 +348,16 @@ export class FruchtermanReingoldModel
      * The simulation overwrites the shared fields with the same values and OR-s in its own flags.
      * @param iteration - the GLOBAL iteration index
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows: the n of the default k (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: FruchtermanReingoldOptions): UniformValues {
-        const { n } = this.requireResources();
+    paramsFor(iteration: number, options: FruchtermanReingoldOptions, live?: number): UniformValues {
+        const { n: all } = this.requireResources();
+        const n = live ?? all;
         const resolved = resolveFruchtermanReingoldOptions(options, this.current);
         const adaptive = resolved.cooling === "adaptive";
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             flags: adaptive ? FA2_FLAG_ADAPTIVE : 0,
             scalingRatio: 0,
             gravity: 0,

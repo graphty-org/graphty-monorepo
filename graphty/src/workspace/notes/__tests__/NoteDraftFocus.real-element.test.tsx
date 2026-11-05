@@ -7,8 +7,8 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { screen, waitFor } from "../../../test/test-utils";

@@ -54,10 +54,14 @@ const entries = {
  * 130 packages, among them `@modelcontextprotocol/sdk`, `http-proxy` and `selfsigned`). No
  * published `.d.ts` names a remote-logger type, so copying it changes no public type.
  *
- * Because they are copied in, both are devDependencies: a consumer never resolves them. This set
- * stays so that declaring either as a dependency again cannot quietly externalise it.
+ * `@jsonhero/json-infer-types` (the AI layer's value and string-format classification) is copied
+ * in so that a consumer of the AI entry point installs nothing for it, as it was when it arrived
+ * through `@jsonhero/schema-infer` (issue #3278).
+ *
+ * Because they are copied in, all three are devDependencies: a consumer never resolves them. This
+ * set stays so that declaring one as a dependency again cannot quietly externalise it.
  */
-const bundledDependencies = new Set(["lodash", "@graphty/remote-logger"]);
+const bundledDependencies = new Set(["lodash", "@graphty/remote-logger", "@jsonhero/json-infer-types"]);
 
 /**
  * Every declared dependency and peer dependency, as a specifier matcher.
@@ -87,25 +91,33 @@ function externalDependencies(): RegExp[] {
 }
 
 /**
- * Leave the Graphviz Worker for the consumer's bundler.
+ * Write the file URLs in the plain form a consumer's bundler recognises.
  *
- * Vite builds the Worker (`src/layout/graphviz/worker.ts`) into its own file with the optional
- * Graphviz package left as an import, and writes the reference to it in a shape no other bundler
- * recognises. Rewritten to the plain `new Worker(new URL("<file>", import.meta.url), ...)` form,
- * the consumer's Vite, webpack or Parcel bundles the Worker again and resolves the package from
- * the consumer's own install.
+ * Vite writes a reference to a built file as a `new URL` nested in a `new URL`, which no other
+ * bundler recognises, and it drops the query. Rewritten to `new URL("<file>", import.meta.url)`:
+ *
+ * - the consumer's Vite, webpack or Parcel bundles the Graphviz Worker
+ *   (`src/layout/graphviz/worker.ts`) again and resolves the optional package, which Vite left as
+ *   an import, from the consumer's own install;
+ * - a shader thumbnail gets its `?no-inline` back. Without it the consumer's Vite inlines every
+ *   thumbnail under `assetsInlineLimit` as a `data:` URL, whose base64 can pass the 4096 characters
+ *   a descriptor's thumbnail may hold, and registering the preset throws on import.
+ *
+ * `test/packaging/consumer-bundlers.test.ts` builds and loads a default consumer, and fails if this
+ * stops matching what Vite writes.
  * @returns the plugin
  */
-function plainWorkerUrls(): Plugin {
+function plainFileUrls(): Plugin {
     return {
-        name: "graphty-plain-worker-urls",
-        // After Vite has written its own worker references, which it does as chunks are rendered.
+        name: "graphty-plain-file-urls",
+        // After Vite has written its own references, which it does as chunks are rendered.
         generateBundle(_options, bundle) {
             for (const output of Object.values(bundle)) {
                 if (output.type === "chunk") {
                     output.code = output.code.replaceAll(
-                        /new URL\(\s*\/\* @vite-ignore \*\/\s*"" \+ new URL\(("[^"]+"), import\.meta\.url\)\.href,\s*import\.meta\.url\s*\)/g,
-                        "new URL($1, import.meta.url)",
+                        /new URL\(\s*(?:\/\* @vite-ignore \*\/\s*)?new URL\("([^"]+)", import\.meta\.url\)\.href,\s*"" \+ import\.meta\.url\s*\)/g,
+                        (_match, file: string) =>
+                            `new URL("${file}${file.endsWith(".webp") ? "?no-inline" : ""}", import.meta.url)`,
                     );
                 }
             }
@@ -129,7 +141,7 @@ export default defineConfig(({ mode, command }) => {
             rollupOptions: { external: externalDependencies() },
         },
         plugins: [
-            plainWorkerUrls(),
+            plainFileUrls(),
             // eslint(),
             VitePluginCustomElementsManifest({
                 files: ["./src/graphty-element.ts"],

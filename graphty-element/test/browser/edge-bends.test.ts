@@ -264,6 +264,72 @@ describe("patterned lines drawn along their route (issue #3102)", () => {
         });
     }
 
+    /** The legs of ROUTE between NODES: down from a, across, up into b, each with its direction. */
+    const LEGS = [
+        { from: [0, 0], to: [0, -4] },
+        { from: [0, -4], to: [8, -4] },
+        { from: [8, -4], to: [8, 0] },
+    ];
+
+    /**
+     * The leg of ROUTE a point is on, within a tolerance.
+     * @param x - The point's x.
+     * @param y - The point's y.
+     * @returns The leg's index, or -1 when the point is on none.
+     */
+    function legOf(x: number, y: number): number {
+        return LEGS.findIndex(({ from, to }) => {
+            const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+            const t = Math.max(0, Math.min(1, ((x - from[0]) * dx + (y - from[1]) * dy) / (dx * dx + dy * dy)));
+            return Math.hypot(x - (from[0] + t * dx), y - (from[1] + t * dy)) < 1e-3;
+        });
+    }
+
+    // issue #3094: each of the six element patterns, not only the ones #3102 tested
+    for (const style of ["star", "box", "diamond", "dash-dot", "sinewave", "zigzag"]) {
+        it(`places every ${style} element on the bent route, pointing along the leg it sits on`, async () => {
+            await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
+            const [edge] = graph.getDataManager().edges.values();
+            const pieces = edge.drawnPattern;
+            assert.isAbove(pieces.length, 2);
+            const legs = new Set<number>();
+            for (const piece of pieces) {
+                const { x, y } = piece.position;
+                const leg = legOf(x, y);
+                assert.notStrictEqual(leg, -1, `${style} element at ${x},${y} is off the bent route`);
+                legs.add(leg);
+                const direction = piece.drawnAppearance?.direction;
+                assert.exists(direction, `${style} element has a direction`);
+                const { from, to } = LEGS[leg];
+                const along = Math.hypot(to[0] - from[0], to[1] - from[1]);
+                const cos = (direction.x * (to[0] - from[0]) + direction.y * (to[1] - from[1])) / along;
+                // an element on a corner may point along either leg it joins
+                const corner = LEGS.some((l) => Math.hypot(x - l.to[0], y - l.to[1]) < 1e-3);
+                assert.isTrue(corner || cos > 0.999, `${style} element at ${x},${y} points along its leg`);
+            }
+            assert.strictEqual(legs.size, 3, `${style} elements on every leg`);
+        });
+
+        it(`lays a curved ${style} line's elements along the curve`, async () => {
+            await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.curvature": true });
+            const [edge] = graph.getDataManager().edges.values();
+            const route = edge.drawnCurve;
+            assert.isNotNull(route, "the curve is a run of points");
+            const pieces = edge.drawnPattern;
+            assert.isAbove(pieces.length, 2);
+            assert.isAbove(Math.max(...pieces.map((p) => Math.abs(p.position.y))), 0.2, "bowed off the chord");
+            for (const { position: p } of pieces) {
+                const near = route.slice(1).some((b, i) => {
+                    const a = route[i];
+                    const ab = b.subtract(a);
+                    const t = Math.max(0, Math.min(1, p.subtract(a).dot(ab) / ab.lengthSquared()));
+                    return p.subtract(a.add(ab.scale(t))).length() < 1e-3;
+                });
+                assert.isTrue(near, `${style} element at ${p.x},${p.y} is off the curve`);
+            }
+        });
+    }
+
     it("draws a curved dash-dot line as its elements along the curve, not as a solid line", async () => {
         const drawn = await elements(NODES, [{ src: "a", dst: "b" }], {
             "edge.style": "dash-dot",

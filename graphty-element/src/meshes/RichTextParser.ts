@@ -180,6 +180,11 @@ export interface LineOptions {
 const FONT_BOX_REFERENCE = 1000;
 const fontBoxes = new Map<string, readonly [number, number]>();
 
+/** Forget every font box read so far: a web font that has just loaded measured as its fallback until now. */
+export function forgetFontBoxes(): void {
+    fontBoxes.clear();
+}
+
 /**
  * A font's ascent and descent at a size, the same with hinted and unhinted glyphs. Chromium reports the font box in whole pixels, rounded
  * differently with hinted glyphs and with unhinted ones (`textRendering = "geometricPrecision"`), so a 10 px
@@ -220,13 +225,14 @@ function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): re
  * @param lineSegments - The segments of one line
  * @param options - Layout options
  * @returns The line's advance width, its line box height, the distance from the top of the line box to the
- * alphabetic baseline, and how far below that baseline each run's own baseline is drawn
+ * alphabetic baseline, how far below that baseline each run's own baseline is drawn, and the line's ascent and
+ * descent (its ink above and below the baseline, without the outline)
  */
 export function measureLine(
     ctx: CanvasRenderingContext2D,
     lineSegments: TextSegment[],
     options: LineOptions,
-): { width: number; lineBox: number; baseline: number; offsets: number[] } {
+): { width: number; lineBox: number; baseline: number; offsets: number[]; ascent: number; descent: number } {
     let width = 0;
     let maxSize = 0;
     ctx.textBaseline = "alphabetic";
@@ -277,7 +283,7 @@ export function measureLine(
     const inkHeight = ascent + descent + outline * 2;
     const lineBox = inkHeight * options.lineHeight;
 
-    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent, offsets };
+    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent, offsets, ascent, descent };
 }
 
 /** How a label's lines are fitted to its wrap width. */

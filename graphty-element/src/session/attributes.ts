@@ -432,6 +432,7 @@ export class InputTick {
 export class AttributeRevisions {
     readonly #revisions = new Map<string, number>();
     readonly #tick: InputTick;
+    #writes = 0;
 
     /**
      * Start every field at revision 0.
@@ -451,6 +452,14 @@ export class AttributeRevisions {
     }
 
     /**
+     * How many writes have touched any field of this kind.
+     * @returns the count, starting at 0 and only ever growing
+     */
+    get writes(): number {
+        return this.#writes;
+    }
+
+    /**
      * Record that one write touched these fields. A write that changed no value still counts:
      * comparing old and new values would cost a deep equality per field for no correctness gain.
      * @param fields - the top-level keys written
@@ -460,6 +469,7 @@ export class AttributeRevisions {
             this.#revisions.set(field, (this.#revisions.get(field) ?? 0) + 1);
         }
 
+        this.#writes += 1;
         this.#tick.advance();
     }
 }
@@ -472,6 +482,29 @@ export interface InputCounters {
     readonly nodes: AttributeRevisions;
     /** Edge attribute revisions. */
     readonly edges: AttributeRevisions;
+}
+
+/**
+ * The revision of the graph's data alone: one token that changes on a freeze (a new snapshot) or
+ * an attribute write, and NOT on a mask, selection or run, which move the input tick too. What a
+ * reader of columns, types and values keys its cache on, so moving a time window or a filter keeps
+ * it (issue #4386).
+ * @param snapshot - the graph now; freezes a pending write, so the token is read after it
+ * @param counters - the store owner's counters
+ * @returns reads the token now; the same object while the data has not moved
+ */
+export function dataRevisionOf(snapshot: () => GraphSnapshot, counters: InputCounters): () => object {
+    let held = { snapshot: null as GraphSnapshot | null, nodes: -1, edges: -1 };
+    return () => {
+        const now = snapshot();
+        const { writes: nodes } = counters.nodes;
+        const { writes: edges } = counters.edges;
+        if (held.snapshot !== now || held.nodes !== nodes || held.edges !== edges) {
+            held = { snapshot: now, nodes, edges };
+        }
+
+        return held;
+    };
 }
 
 const countersByOwner = new WeakMap<object, InputCounters>();

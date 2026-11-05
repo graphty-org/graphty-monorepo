@@ -127,11 +127,12 @@ export function parseJunit(xml, pkg, into = undefined) {
         into.files.set(file, f);
         if (f.names.has(name)) f.dup++;
         f.names.add(name);
-        f.ms += Math.round(Number(attr(tag, "time") || 0) * 1000);
+        const ms = Math.round(Number(attr(tag, "time") || 0) * 1000);
+        f.ms += ms;
         const fail = /<(failure|error)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/.exec(body);
         if (fail) {
             f.failed++;
-            into.failures.push({ file, name, text: unxml(fail[3] ?? "").trim() || attr(fail[2], "message") });
+            into.failures.push({ file, name, ms, text: unxml(fail[3] ?? "").trim() || attr(fail[2], "message") });
         } else if (/<skipped\b/.test(body)) f.skipped++;
         else f.passed++;
     }

@@ -18,7 +18,10 @@ import {
     deferred,
     differingImages,
     duplicateOf,
+    fileFlakies,
     fixedRecently,
+    laneRedTitle,
+    runsOnTitleCommit,
     flakyLanes,
     FLAKY_GROUP,
     flakyFilings,
@@ -148,7 +151,8 @@ describe("pick", () => {
         const seen = [];
         const hasNightly = (sha) => (seen.push(sha), false);
         const p = pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code, hasNightly });
-        assert.deepEqual([p.run, p.sha, seen], [false, "c3", ["c3"]]);
+        // master's head h is asked too (#5671): it predates nightly as well, so nightly holds everything
+        assert.deepEqual([p.run, p.sha, p.current, seen], [false, "c3", true, ["c3", "c3", "h"]]);
         assert.match(p.why, /c3 lacks channel\/nightly: it is older than nightly/);
         // even a green-clean one nightly lacks: its promotion would be refused at land
         const own = store([{ sha: "c3", state: "green-clean" }]);
@@ -157,6 +161,23 @@ describe("pick", () => {
             pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hasNightly }).run,
             false,
         );
+    });
+
+    it("tests master's head when nightly was promoted just before the slot (#5671)", () => {
+        // the promotion's version merge h is master's head; c3, the newest built commit, is older than nightly
+        const parents = (sha) => (sha === "h" ? ["h", ...CHAIN] : firstParents(sha));
+        const hasNightly = (sha) => sha === "h";
+        const base = { mode: "full", head: "h", firstParents: parents, hasNightly, stray: code };
+        const p = pick({ ...base, store: store([]) });
+        assert.deepEqual([p.run, p.sha, p.current], [true, "h", false]);
+        assert.match(p.why, /c3 lacks channel\/nightly.*master's head h holds it: h is not judged yet/);
+        // h only adds versions to c3, the promoted commit: nightly holds everything, so no missed slot
+        const promoted = store([{ sha: "c3", state: "green-clean" }]);
+        const q = pick({ ...base, store: promoted, stray: () => [] });
+        assert.deepEqual([q.run, q.sha, q.current, q.inherit?.sha], [false, "h", true, "c3"]);
+        // a head that predates the promotion too: nothing to test, and still no missed slot
+        const r = pick({ ...base, store: store([]), hasNightly: () => false });
+        assert.deepEqual([r.run, r.sha, r.current], [false, "c3", true]);
     });
 
     it("finds the last green commit for the bisect, past a red one", () => {
@@ -415,11 +436,56 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
                 stateReason: "completed",
             },
         ];
-        assert.equal(fixedRecently(closed, "abcdef1234", now), 9001);
+        const url = "https://github.com/o/r/actions/runs/41";
+        const names = () => `The full run failed on abcdef1234 (CI): ${url}`;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, now), 9001);
         const dup = [{ ...closed[0], stateReason: "not_planned" }];
-        assert.equal(fixedRecently(dup, "abcdef1234", now), null, "a duplicate closed by fileRed is not a fix");
-        assert.equal(fixedRecently(closed, "1234567890", now), null, "another commit's issue");
-        assert.equal(fixedRecently(closed, "abcdef1234", now + 2 * 60 * 60 * 1000), null, "closed long ago");
+        assert.equal(
+            fixedRecently(dup, "abcdef1234", url, names, now),
+            null,
+            "a duplicate closed by fileRed is not a fix",
+        );
+        assert.equal(fixedRecently(closed, "1234567890", url, names, now), null, "another commit's issue");
+        const later = now + 2 * 60 * 60 * 1000;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, later), null, "closed long ago");
+    });
+
+    it("files for a run the fixed issue does not name, which release-due leaves running (#3644)", () => {
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [
+            {
+                number: 9001,
+                title: "Full run red: CI on abcdef1",
+                closedAt: "2026-10-25T11:50:00Z",
+                stateReason: "completed",
+            },
+        ];
+        const other = "https://github.com/o/r/actions/runs/42";
+        const names = () => "The full run failed on abcdef1234 (CI): https://github.com/o/r/actions/runs/41";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, names, now), null, "another run on the same commit");
+        // the same test as release-due's toCancel: a run named on another commit is not cancelled either
+        const elsewhere = () => "The full run failed on 1234567890 (CI): https://github.com/o/r/actions/runs/42";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, elsewhere, now), null);
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, names())], [41]);
+        // a lane name with brackets in it still pairs the run with its commit
+        const mac = "The full run failed on abcdef1234 (work protection (macOS), CI): https://x/actions/runs/7";
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, mac)], [7]);
+    });
+
+    it("keeps the lanes the open issue already names on the same commit, in lane order (#3644)", () => {
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: CI, T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on 1234567", "Full run red: CI on abcdef1"),
+            "Full run red: CI on abcdef1",
+            "another commit's issue takes the new title",
+        );
     });
 
     it("keeps the oldest of two red issues lanes ending red together created, so both filers agree", () => {
@@ -482,6 +548,11 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         assert.match(calls, /^issue edit 9 --title Full run red: T4 GPU on abcdef1$/m);
         assert.match(calls, /^issue comment 9 --body-file /m);
         assert.match(stdout, /^issue=9$/m);
+    });
+
+    it("keeps the lane another lane of the run filed when it updates the issue on the same commit (#3644)", () => {
+        const { calls } = runLaneRed([{ number: 9, title: "Full run red: CI on abcdef1" }]);
+        assert.match(calls, /^issue edit 9 --title Full run red: CI, T4 GPU on abcdef1$/m);
     });
 
     it("opens the issue when none is open, and leaves a lane with an owner item to the verdict", () => {
@@ -856,7 +927,8 @@ describe("the verdict reads the hold from the store when it decides", () => {
 });
 
 describe("file-deferred", () => {
-    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+    // file-deferred for run 5 on abcdef1234, with a gh whose closed red issue names `named` (a run URL)
+    const fileDeferred = (named) => {
         const dir = mkdtempSync(join(tmpdir(), "file-deferred-"));
         const log = join(dir, "calls.log");
         const sha = "abcdef1234";
@@ -869,13 +941,15 @@ describe("file-deferred", () => {
         });
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\nexit 0\n`,
+            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\n` +
+                `[[ "$1 $2" == "issue view" ]] && echo 'The full run failed on ${sha} (T4 GPU): ${named}'\nexit 0\n`,
             { mode: 0o755 },
         );
         const record = join(dir, "verdict-1.json");
+        const runUrl = "https://github.com/o/r/actions/runs/5";
         writeFileSync(
             record,
-            JSON.stringify({ sha, good: "", runId: "5", runUrl: "u", red: ["t4"], lanes: {}, deferred: true }),
+            JSON.stringify({ sha, good: "", runId: "5", runUrl, red: ["t4"], lanes: {}, deferred: true }),
         );
         const r = spawnSync(process.execPath, ["tools/full-run.mjs", "file-deferred", record], {
             encoding: "utf8",
@@ -889,8 +963,19 @@ describe("file-deferred", () => {
             },
         });
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /^fixed=77$/m);
-        assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+        return { stdout: r.stdout, calls: readFileSync(log, "utf8") };
+    };
+
+    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/5");
+        assert.match(stdout, /^fixed=77$/m);
+        assert.doesNotMatch(calls, /issue create|workflow run bisect/);
+    });
+
+    it("files when the fixed issue names another run, which release-due did not cancel (#3644)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/6");
+        assert.doesNotMatch(stdout, /^fixed=/m);
+        assert.match(calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
     });
 });
 
@@ -946,6 +1031,69 @@ describe("flaky story issues name their story test", () => {
             flakyStoryBody(s, "on abc", "Fix it."),
             "The story p/a.png matched its baseline on abc.\n\nFix it.",
         );
+    });
+});
+
+describe("fileFlakies", () => {
+    const env = { SHA: "abc", RUN_URL: "https://x/runs/1", RUN_ATTEMPT: "2" };
+    const story = (project, i) => ({ name: `${project}/s${i}.png`, why: "drew a different picture", test: undefined });
+    const fake = (openIssues) => {
+        const calls = [];
+        const run = (cmd, args) => {
+            calls.push(args);
+            if (args[0] === "api") return openIssues.map(([n, t]) => `${n}\t${t}`).join("\n");
+            return "";
+        };
+        return { calls, run };
+    };
+    const quietly = (fn) => {
+        const lines = [];
+        const log = console.log;
+        console.log = (l) => lines.push(l);
+        try {
+            fn();
+        } finally {
+            console.log = log;
+        }
+        return lines;
+    };
+
+    // run 41003760177 paged through every open critical issue once per filing, 337 times, and printed nothing (#4983)
+    it("reads the open critical issues once, comments on the open ones, files the rest and prints a line for each", () => {
+        const { calls, run } = fake([[7, "Flaky in full run: p/s1.png"]]);
+        const stories = [story("p", 0), story("p", 1), story("q", 0)];
+        const lines = quietly(() => fileFlakies(env, ["t4"], stories, run));
+        assert.equal(calls.filter((a) => a[0] === "api").length, 1);
+        assert.deepEqual(
+            calls.filter((a) => a[0] === "issue").map((a) => a.slice(0, 3).join(" ")),
+            [`issue create --title`, "issue create --title", "issue comment 7", "issue create --title"],
+        );
+        assert.equal(lines.length, 4);
+        assert.match(lines[2], /^flaky: commenting on #7 \(p\/s1\.png\)$/);
+        assert.match(lines[3], /^flaky: filing q\/s0\.png$/);
+    });
+
+    it("files one issue for a project's many flaky stories, with one read", () => {
+        const { calls, run } = fake([]);
+        const many = Array.from({ length: 300 }, (_, i) => story("graph-io-fidelity", i));
+        quietly(() => fileFlakies(env, [], many, run));
+        assert.equal(calls.length, 2);
+        assert.equal(calls[1][3], "Flaky in full run: graph-io-fidelity (5+ stories at once)");
+    });
+
+    it("reads nothing when nothing is flaky, and files nothing when the read fails", () => {
+        const { calls, run } = fake([]);
+        quietly(() => fileFlakies(env, [], [], run));
+        assert.equal(calls.length, 0);
+        const failing = [];
+        const lines = quietly(() =>
+            fileFlakies(env, [], [story("p", 0)], (cmd, args) => {
+                failing.push(args);
+                throw new Error("HTTP 502");
+            }),
+        );
+        assert.equal(failing.length, 1);
+        assert.match(lines[0], /reading the open critical issues failed: HTTP 502/);
     });
 });
 

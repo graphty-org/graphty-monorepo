@@ -75,9 +75,9 @@ type BipartiteLayoutOpts = Partial<BipartiteLayoutConfigType>;
  * Bipartite layout engine for graphs with two distinct node sets
  */
 export class BipartiteLayout extends SnapshotLayoutEngine {
-    static type = "bipartite";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = bipartiteLayoutOptionsSchema;
+    static readonly type: string = "bipartite";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = bipartiteLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: BipartiteLayoutConfigType;
 

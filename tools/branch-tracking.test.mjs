@@ -4,7 +4,7 @@
 //
 //   node tools/branch-tracking.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
     chmodSync,
     copyFileSync,
@@ -50,7 +50,7 @@ if (args[1] === "graphql") {
     const repository = {};
     for (const [, alias, n] of field("query").matchAll(/(i\\d+): issue\\(number: (\\d+)\\)/g)) {
         const i = s.issues[n];
-        repository[alias] = i && { number: Number(n), title: i.title, state: "OPEN",
+        repository[alias] = i && { number: Number(n), title: i.title, state: i.state ?? "OPEN",
             labels: { nodes: i.labels.map((name) => ({ name })) },
             comments: { nodes: i.comments.map((c) => ({ databaseId: c.id, body: c.body })) } };
     }
@@ -138,7 +138,14 @@ function repoWith(name, hooks) {
 }
 
 beforeEach(() =>
-    writeFileSync(state, JSON.stringify({ calls: [], nextId: 0, issues: { 512: issue("t"), 77: issue("u") } })),
+    writeFileSync(
+        state,
+        JSON.stringify({
+            calls: [],
+            nextId: 0,
+            issues: { 512: issue("t"), 513: issue("v"), 516: issue("w"), 77: issue("u") },
+        }),
+    ),
 );
 
 describe("never copy", () => {
@@ -397,6 +404,53 @@ describe("tools/worktree-new.sh", () => {
         assert.match(r.stdout, new RegExp(`issue #${n}`));
     });
 
+    it("lets --new-issue win over a year in the branch's name", () => {
+        const r = make("integrate/pipeline-2026-10-24", "--new-issue", "Pipeline integration");
+        assert.equal(r.status, 0, r.stderr);
+        const [n] = Object.entries(gh().issues).find(([, x]) => x.title === "Pipeline integration");
+        assert.equal(git(repo, "config", "branch.integrate/pipeline-2026-10-24.issue"), n);
+        assert.equal(gh().issues[2026], undefined);
+    });
+
+    it("lets --issue win over a number in the branch's name", () => {
+        const r = make("feat/2027-later", "--issue", "77");
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(git(repo, "config", "branch.feat/2027-later.issue"), "77");
+    });
+
+    it("refuses a number in the branch's name that is not an open issue, and makes nothing", () => {
+        writeFileSync(
+            state,
+            JSON.stringify({ calls: [], nextId: 0, issues: { 640: { ...issue("done"), state: "CLOSED" } } }),
+        );
+        for (const [branch, n] of [
+            ["fix/2026-pull-request", 2026],
+            ["fix/640-closed", 640],
+        ]) {
+            const r = make(branch);
+            assert.equal(r.status, 1, r.stderr);
+            assert.match(r.stderr, new RegExp(`#${n}, the number in ${branch}, is not an open issue`));
+            assert.match(r.stderr, /--issue N or --new-issue/);
+            assert.ok(!existsSync(join(repo, `.worktrees/${branch.replace("/", "-")}`)));
+            assert.equal(run(repo, "git", "rev-parse", "-q", "--verify", branch).status, 1);
+        }
+        assert.ok(gh().calls.every((c) => c[1] === "graphql"));
+    });
+
+    it("refuses a branch under an existing branch's name before opening an issue", () => {
+        git(repo, "branch", "docs");
+        const r = make("docs/topic", "--new-issue", "Some docs");
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /a branch named docs exists \(refs\/heads\/docs\)/);
+        assert.equal(gh().calls.length, 0);
+        git(repo, "branch", "-D", "docs");
+        git(repo, "branch", "deep/a");
+        const above = make("deep", "--issue", "77");
+        assert.equal(above.status, 1);
+        assert.match(above.stderr, /branches named deep\/\.\.\. exist/);
+        assert.equal(gh().calls.length, 0);
+    });
+
     it("starts a new branch from master even when GitHub has golden-verified", () => {
         git(repo, "commit", "-q", "--allow-empty", "-m", "verified on golden");
         git(repo, "push", "-q", "origin", "HEAD:golden-verified");
@@ -463,6 +517,48 @@ describe("tools/worktree-new.sh", () => {
         });
         assert.equal(handed.status, 1, handed.stderr);
         assert.equal(handed.stderr.match(/every branch belongs/g).length, 1, handed.stderr);
+    });
+
+    it("finishes every step when several runs start at once (issue #5213)", async () => {
+        // The fake pnpm writes .git/config where husky would: in an install without HUSKY=0, and in
+        // `pnpm exec husky`. gh calls take turns, since the fake gh rewrites one state file.
+        const par = join(dir, "bin-parallel");
+        mkdirSync(par, { recursive: true });
+        writeFileSync(
+            join(par, "pnpm"),
+            '#!/bin/sh\n[ "$1" = exec ] || [ "$HUSKY" != 0 ] || exit 0\nexec git config core.hooksPath "$(git config core.hooksPath)"\n',
+            { mode: 0o755 },
+        );
+        writeFileSync(join(par, "gh"), `#!/bin/sh\nexec flock "$FAKE_GH_STATE.lock" ${join(bin, "gh")} "$@"\n`, {
+            mode: 0o755,
+        });
+        const issues = [601, 602, 603, 604, 605, 606, 607, 608];
+        writeFileSync(
+            state,
+            JSON.stringify({ calls: [], nextId: 0, issues: Object.fromEntries(issues.map((n) => [n, issue("p")])) }),
+        );
+        const results = await Promise.all(
+            issues.map(
+                (n) =>
+                    new Promise((resolve) => {
+                        const c = spawn(script, [`feat/${n}-par`, "origin/master", "--issue", String(n)], {
+                            cwd: repo,
+                            env: { ...env, PATH: `${par}:${env.PATH}` },
+                        });
+                        let stderr = "";
+                        c.stderr.on("data", (d) => (stderr += d));
+                        c.on("close", (status) => resolve({ n, status, stderr }));
+                    }),
+            ),
+        );
+        for (const { n, status, stderr } of results) {
+            assert.equal(status, 0, `#${n}: ${stderr}`);
+            assert.doesNotMatch(stderr, /could not lock|warning:/, `#${n}: ${stderr}`);
+            const wt = join(repo, `.worktrees/feat-${n}-par`);
+            assert.equal(git(wt, "rev-parse", "--abbrev-ref", "@{upstream}"), `origin/feat/${n}-par`);
+            assert.equal(git(repo, "config", `branch.feat/${n}-par.issue`), String(n));
+            assert.deepEqual(gh().issues[n].labels, ["in-progress"]);
+        }
     });
 
     it("makes golden's worktree with no issue and no push", () => {

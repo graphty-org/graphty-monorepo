@@ -17,17 +17,24 @@
 import "@graphty/graphty-element";
 
 import { browserProjects } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { commands, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { pickSample } from "../../../test/samples-dialog";
+import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, refreshStored } from "../../project/recent";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
 
 /**
  * The opened project's element, not the start page's own graph.
@@ -77,14 +84,12 @@ function openButton(): HTMLElement {
     return screen.getByRole("button", { name: /^Open a file/ });
 }
 
-/** The browser's file picker, once, choosing a three-node CSV. */
-function chooseCsv(): void {
-    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
-        const transfer = new DataTransfer();
-        transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));
-        this.files = transfer.files;
-        this.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+/**
+ * The browser's file picker, once, choosing a three-node CSV.
+ * @returns when the answer is set.
+ */
+function chooseCsv(): Promise<void> {
+    return commands.chooseNextFile("abc.csv", "text/csv", "source,target\na,b\nb,c\n");
 }
 
 beforeEach(async () => {
@@ -93,14 +98,13 @@ beforeEach(async () => {
 
 afterEach(() => {
     forgetUsageAnswer();
-    vi.restoreAllMocks();
 });
 
 describe("focus after the control holding it goes away, on the real element", () => {
     it("a sample opened with Enter hands focus to the graph's heading, which says its size", async () => {
         const store = createWorkspaceStore();
         const { unmount } = render(<Workspace store={store} />);
-        const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
+        const sample = screen.getByRole("button", { name: sampleTile("Florentine families") });
         sample.focus();
         const session = await openBy(store, () => userEvent.keyboard("{Enter}"));
         assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
@@ -108,12 +112,7 @@ describe("focus after the control holding it goes away, on the real element", ()
     });
 
     it("a refused file hands focus to Open a file, beside the reason", async () => {
-        vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
-            const transfer = new DataTransfer();
-            transfer.items.add(new File(['<?xml version="1.0"?>\n<graphml><graph><node id='], "cut.graphml"));
-            this.files = transfer.files;
-            this.dispatchEvent(new Event("change"));
-        });
+        await commands.chooseNextFile("cut.graphml", "", '<?xml version="1.0"?>\n<graphml><graph><node id=');
         const store = createWorkspaceStore();
         const { unmount } = render(<Workspace store={store} />);
         openButton().focus();
@@ -183,7 +182,7 @@ describe("focus after the control holding it goes away, on the real element", ()
 
         // The file is drawn at once (the data prototype's first load), and the start screen goes:
         // focus goes to the graph's heading.
-        chooseCsv();
+        await chooseCsv();
         openButton().focus();
         await openBy(store, () => userEvent.keyboard("{Enter}"));
         assertFocusOnGraphHeading(3, 2);

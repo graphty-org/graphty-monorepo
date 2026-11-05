@@ -264,11 +264,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await waitFor(() => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         });
-        // A heading with no focus mark: a box reads as an editable name, an underline as a link.
+        // A heading, not a link: no underline. It draws the shared focus ring, so a keyboard reader
+        // sees where the next key goes (WCAG 2.4.7; FocusRings.real-element.test.tsx measures it).
         const title = inspector().getByRole("heading", { level: 2, name: "Node 0" });
         assert.equal(title, document.activeElement);
         assert.equal(getComputedStyle(title).textDecorationLine, "none");
-        assert.equal(getComputedStyle(title).outlineStyle, "none");
+        assert.equal(getComputedStyle(title).outlineStyle, "solid");
         await userEvent.keyboard("{Enter}");
         assert.isNull(inspector().queryByRole("group", { name: "Node 0 and 3 connections" }));
     });

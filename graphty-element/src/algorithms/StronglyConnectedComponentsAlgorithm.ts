@@ -18,10 +18,10 @@ import { declarationArcOrder } from "./utils/graphUtils";
  * Strongly connected components: the pieces a directed path can cross both ways.
  */
 export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "scc";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "scc";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the pieces of the graph that a directed path can cross both ways.

@@ -24,30 +24,15 @@ function csv(chord: number): string {
 }
 
 /**
- * Wait for a few frames.
- * @param ms - how long.
- * @returns settles after the wait.
- */
-async function wait(ms = 300): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Load a CSV through a draft, as an application's import page does, and wait for the new layout
- * to settle (the old one's settlement must not count).
+ * Load a CSV through a draft, as an application's import page does, and wait for the picture of
+ * the new data to be final: its layout settled and the camera done framing it.
  * @param element - the element.
  * @param data - the CSV text.
  */
 async function load(element: Graphty, data: string): Promise<void> {
     const draft = await element.session.data.prepare({ type: "csv", config: { data }, name: "links.csv" });
     await draft.load({ mode: "replace" });
-    const layoutManager = element.graph.getLayoutManager();
-    for (let tries = 0; tries < 100 && !(layoutManager.isSettled && !layoutManager.running); tries++) {
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await wait(100);
-    }
-    await wait();
+    await element.waitForStableFrame();
 }
 
 /**

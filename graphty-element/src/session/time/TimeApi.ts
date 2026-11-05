@@ -18,6 +18,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { Dispatcher } from "../project/Dispatcher";
+import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
@@ -374,6 +375,11 @@ export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
+    /**
+     * The data's own revision: moves on a freeze or an attribute write, never on a mask. Keeps
+     * `candidates()` until a column, type or value changes; absent, it is recomputed per call.
+     */
+    readonly dataRevision?: () => unknown;
     readonly values: FilterValueSource;
     /** The designation, as `data.knownFields` holds it. */
     readonly knownFields: () => KnownTimeFields;
@@ -703,6 +709,29 @@ function tooManyBins(options: TimeBinsOptions, value: unknown): GraphtyError {
 }
 
 /**
+ * The edges of a histogram's bins of equal width, by count.
+ * @param from - Where the bins start.
+ * @param to - Where they end.
+ * @param options - The count (100 when absent).
+ * @returns The edges, one more than the bins.
+ */
+function countBounds(from: number, to: number, options: TimeBinsOptions): number[] {
+    const bounds: number[] = [];
+    const count = options.count ?? 100;
+    if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
+        throw tooManyBins(options, count);
+    }
+
+    for (let bin = 0; bin < count; bin++) {
+        bounds.push(from + ((to - from) * bin) / count);
+    }
+
+    bounds.push(to);
+
+    return bounds;
+}
+
+/**
  * The edges of a histogram's bins, first start to last end.
  * @param from - Where the bins start (a step aligns it down).
  * @param to - Where they end.
@@ -711,23 +740,12 @@ function tooManyBins(options: TimeBinsOptions, value: unknown): GraphtyError {
  * @returns The edges, one more than the bins.
  */
 function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: boolean): number[] {
-    const bounds: number[] = [];
     const { step } = options;
     if (step === undefined) {
-        const count = options.count ?? 100;
-        if (!Number.isInteger(count) || count < 1 || count > MAX_BINS) {
-            throw tooManyBins(options, count);
-        }
-
-        for (let bin = 0; bin < count; bin++) {
-            bounds.push(from + ((to - from) * bin) / count);
-        }
-
-        bounds.push(to);
-
-        return bounds;
+        return countBounds(from, to, options);
     }
 
+    const bounds: number[] = [];
     if (!isCalendarStep(step) && (Number.isNaN(step) || step <= 0)) {
         throw tooManyBins(options, step);
     }
@@ -748,6 +766,125 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
     bounds.push(options.maxCount === undefined ? to : at);
 
     return bounds;
+}
+
+/** What one column's values look like, counted. */
+interface TimeTally {
+    total: number;
+    parsed: number;
+    numbers: number;
+    epochMs: number;
+    epochS: number;
+    years: number;
+}
+
+/**
+ * Count one number into a column's tally: is it an epoch in milliseconds or seconds, or a year.
+ * @param tally - The tally so far.
+ * @param value - The number.
+ */
+function tallyNumber(tally: TimeTally, value: number): void {
+    tally.numbers++;
+    tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
+    tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
+    tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+}
+
+/**
+ * Count one value into a column's tally.
+ * @param tally - The tally so far.
+ * @param value - The value.
+ */
+function tallyValue(tally: TimeTally, value: unknown): void {
+    if (value === undefined || value === null || value === "") {
+        return;
+    }
+
+    tally.total++;
+    if (typeof value === "number") {
+        tallyNumber(tally, value);
+    } else if (typeof value === "string" && !isNumericText(value)) {
+        const reading = readInstant(value, "ms");
+        tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
+    }
+}
+
+/**
+ * The unit a column of numbers reads in. Numbers read as time only when every one of them looks
+ * like an epoch or a year and the column is named for time: a weight of 1 to 10 is no timeline.
+ * @param tally - The column's tally.
+ * @param name - The column's name.
+ * @returns The unit, or undefined when the numbers are not time.
+ */
+function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
+    if (tally.epochMs === tally.numbers) {
+        return "ms";
+    }
+
+    if (tally.epochS === tally.numbers) {
+        return "s";
+    }
+
+    return tally.years === tally.numbers && /year|date|time|when|period/i.test(name) ? "year" : undefined;
+}
+
+/**
+ * One column as a time candidate: walks every value of it.
+ * @param sources - What `session.time` reads.
+ * @param graph - The graph now.
+ * @param kind - Which records carry the column.
+ * @param name - The column.
+ * @returns The candidate, or undefined when no value reads as time.
+ */
+function timeCandidate(
+    sources: TimeSources,
+    graph: GraphSnapshot,
+    kind: "node" | "edge",
+    name: string,
+): TimeCandidate | undefined {
+    const attribute = `${ATTRIBUTE_PREFIX}${name}`;
+    const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
+    const { values } = sources;
+    const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
+    for (let row = 0; row < count; row++) {
+        tallyValue(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
+    }
+
+    const { total, numbers } = tally;
+    const allNumbers = numbers > 0 && numbers === total;
+    const unit = allNumbers ? numberUnit(tally, name) : undefined;
+    // A column of numbers counts only when they read in a unit.
+    let { parsed } = tally;
+    if (allNumbers) {
+        parsed = unit === undefined ? 0 : numbers;
+    }
+
+    return parsed > 0
+        ? Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) })
+        : undefined;
+}
+
+/**
+ * The columns whose values read as time, best first: walks every value of each column.
+ * @param sources - What `session.time` reads.
+ * @param columns - The columns to look through.
+ * @returns The candidates.
+ */
+function timeCandidates(
+    sources: TimeSources,
+    columns: readonly { readonly kind: "node" | "edge"; readonly name: string }[],
+): readonly TimeCandidate[] {
+    const graph = sources.snapshot();
+    const found: TimeCandidate[] = [];
+    for (const { kind, name } of columns) {
+        const candidate = timeCandidate(sources, graph, kind, name);
+        if (candidate !== undefined) {
+            found.push(candidate);
+        }
+    }
+
+    found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed);
+    return Object.freeze(found);
 }
 
 /**
@@ -777,6 +914,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let reruns: Promise<unknown> = Promise.resolve();
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
+    /** `candidates()` for the data revision, by the columns it looked through. */
+    const candidateCache = new RevisionCache<readonly TimeCandidate[]>(() => sources.dataRevision?.(), 1);
 
     /**
      * The designation, from `data.knownFields`.
@@ -870,7 +1009,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit);
         const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit);
         index = { key, path, unit, inferred, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
-        sources.emit("time:ready", { field });
+        // The index is built lazily, often inside a read (`time.field`, `extent()`): tell listeners
+        // on a microtask so none runs inside the caller's read (#4450). It still lands before an
+        // `await` of the call that built it resumes.
+        queueMicrotask(() => {
+            sources.emit("time:ready", { field });
+        });
 
         return index;
     };
@@ -1726,62 +1870,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         candidates(): readonly TimeCandidate[] {
-            const graph = sources.snapshot();
-            const found: TimeCandidate[] = [];
-            for (const { kind, name } of sources.columns()) {
-                const attribute = `${ATTRIBUTE_PREFIX}${name}`;
-                const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
-                let total = 0;
-                let parsed = 0;
-                let numbers = 0;
-                let epochMs = 0;
-                let epochS = 0;
-                let years = 0;
-                for (let row = 0; row < count; row++) {
-                    const value =
-                        kind === "node"
-                            ? sources.values.nodeValue(row, attribute)
-                            : sources.values.edgeValue(row, attribute);
-                    if (value === undefined || value === null || value === "") {
-                        continue;
-                    }
-
-                    total++;
-                    if (typeof value === "number") {
-                        numbers++;
-                        epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-                        epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-                        years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-                    } else if (typeof value === "string" && !isNumericText(value)) {
-                        const reading = readInstant(value, "ms");
-                        parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-                    }
-                }
-
-                // Numbers read as time only when every one of them looks like an epoch or a year
-                // and the column is named for time: a weight of 1 to 10 is no timeline.
-                let unit: TimeUnit | undefined;
-                if (numbers > 0 && numbers === total) {
-                    if (epochMs === numbers) {
-                        unit = "ms";
-                    } else if (epochS === numbers) {
-                        unit = "s";
-                    } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
-                        unit = "year";
-                    }
-
-                    parsed = unit === undefined ? 0 : numbers;
-                }
-
-                if (parsed > 0) {
-                    found.push(
-                        Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) }),
-                    );
-                }
+            const columns = sources.columns();
+            if (sources.dataRevision === undefined) {
+                return timeCandidates(sources, columns);
             }
 
-            found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed);
-            return Object.freeze(found);
+            return candidateCache.get(JSON.stringify(columns), () => timeCandidates(sources, columns));
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {

@@ -16,7 +16,8 @@ import {
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../src/autosave/types";
 import { type GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
-import { baseSession } from "../helpers/project-session";
+import type { GraphSession } from "../../src/session/types";
+import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
 describe("the autosave key", () => {
@@ -302,7 +303,7 @@ describe("a remount", () => {
             },
         };
         const key = "test.remount-during-load";
-        const startOn = async (session: Awaited<ReturnType<typeof baseSession>>): Promise<ElementAutosave> => {
+        const startOn = async (session: GraphSession): Promise<ElementAutosave> => {
             const autosave = new ElementAutosave(() => undefined, env);
             await autosave.start({
                 session,
@@ -331,7 +332,8 @@ describe("a remount", () => {
         first.depart();
         settle();
 
-        const secondSession = await baseSession();
+        // The remounted element is fresh: a graph it already held would keep the restore out (#3313).
+        const secondSession = sessionWithRuns();
         const second = startOn(secondSession);
         open();
         const restored = await (await second).api.ready;

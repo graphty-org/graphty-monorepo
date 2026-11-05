@@ -67,6 +67,148 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
 }
 
 /**
+ * Throws a RangeError unless dim is 2 or 3, positions holds 3 * n values and scale is finite and > 0.
+ * @param n - the node count
+ * @param positions - the owner's stride-3 array
+ * @param dim - the dimension
+ * @param scale - the scene scale
+ */
+function checkSeedArguments(n: number, positions: F32 | F64, dim: number, scale: number): void {
+    if (dim !== 2 && dim !== 3) {
+        throw new RangeError(`dim must be 2 or 3, got ${String(dim)}`);
+    }
+    if (positions.length !== 3 * n) {
+        throw new RangeError(`positions has ${positions.length} entries, expected ${3 * n}`);
+    }
+    if (!Number.isFinite(scale) || scale <= 0) {
+        throw new RangeError(`scale must be a finite number > 0, got ${scale}`);
+    }
+}
+
+/**
+ * Whether every one of row i's `dim` components is finite.
+ * @param positions - the stride-3 array
+ * @param i - the row
+ * @param dim - 2 or 3
+ * @returns true when the row needs no seeding
+ */
+function rowFinite(positions: F32 | F64, i: number, dim: number): boolean {
+    for (let axis = 0; axis < dim; axis++) {
+        if (!Number.isFinite(positions[3 * i + axis])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Widen [lo, hi] per axis over every finite component, and count the fully finite rows.
+ * @param positions - the stride-3 array
+ * @param n - the row count
+ * @param dim - 2 or 3
+ * @param lo - per-axis minimum, widened in place
+ * @param hi - per-axis maximum, widened in place
+ * @returns the number of fully finite rows
+ */
+function finiteBox(positions: F32 | F64, n: number, dim: number, lo: number[], hi: number[]): number {
+    let finiteRows = 0;
+    for (let i = 0; i < n; i++) {
+        let finite = true;
+        for (let axis = 0; axis < dim; axis++) {
+            const v = positions[3 * i + axis];
+            if (!Number.isFinite(v)) {
+                finite = false;
+                continue;
+            }
+            // comparisons, not Math.min / Math.max, so a -0 never replaces a 0 already held (or the reverse)
+            if (v < lo[axis]) {
+                lo[axis] = v;
+            }
+            if (v > hi[axis]) {
+                hi[axis] = v;
+            }
+        }
+        if (finite) {
+            finiteRows++;
+        }
+    }
+    return finiteRows;
+}
+
+/**
+ * Replace the range box, per axis with a finite value, by the finite components' box in layout units; a zero-width
+ * axis is padded to the range box's width, centered on it.
+ * @param lo - per-axis minimum of the finite components (scene units)
+ * @param hi - per-axis maximum
+ * @param c - the scene center
+ * @param scale - the scene scale
+ * @param dim - 2 or 3
+ * @param boxLo - the range box's low corner, replaced in place
+ * @param boxHi - the range box's high corner, replaced in place
+ */
+function fitDrawBox(
+    lo: readonly number[],
+    hi: readonly number[],
+    c: readonly number[],
+    scale: number,
+    dim: number,
+    boxLo: number[],
+    boxHi: number[],
+): void {
+    for (let axis = 0; axis < dim; axis++) {
+        if (!Number.isFinite(lo[axis]) || !Number.isFinite(hi[axis])) {
+            continue;
+        }
+        // the range box's half width, read before this axis is replaced
+        const half = (boxHi[axis] - boxLo[axis]) / 2;
+        boxLo[axis] = (lo[axis] - c[axis]) / scale;
+        boxHi[axis] = (hi[axis] - c[axis]) / scale;
+        if (boxLo[axis] === boxHi[axis]) {
+            // a zero-width axis (one finite row, or every finite row on one line) would stack every drawn
+            // row on that coordinate: pad it to the range box's width, centered on it
+            boxLo[axis] -= half;
+            boxHi[axis] += half;
+        }
+    }
+}
+
+/** What {@link seedRow} draws with. */
+interface SeedDraw {
+    /** The generator. */
+    readonly rng: Lcg;
+    /** The draw box's low corner (layout units). */
+    readonly boxLo: readonly number[];
+    /** The draw box's high corner. */
+    readonly boxHi: readonly number[];
+    /** The scene scale. */
+    readonly scale: number;
+    /** The scene center. */
+    readonly c: readonly number[];
+}
+
+/**
+ * Draw every non-finite component of row i, in axis order, inside the draw box; in 2D write center[2] as z.
+ * @param positions - the stride-3 array
+ * @param i - the row
+ * @param dim - 2 or 3
+ * @param draw - the generator, the box and the scene transform
+ */
+function seedRow(positions: F32 | F64, i: number, dim: number, draw: SeedDraw): void {
+    const { rng, boxLo, boxHi, scale, c } = draw;
+    for (let axis = 0; axis < dim; axis++) {
+        const at = 3 * i + axis;
+        if (!Number.isFinite(positions[at])) {
+            const u = rng.next();
+            const v = boxLo[axis] + u * (boxHi[axis] - boxLo[axis]);
+            positions[at] = v * scale + c[axis];
+        }
+    }
+    if (dim === 2) {
+        positions[3 * i + 2] = c[2];
+    }
+}
+
+/**
  * Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (spec 9.3 seedPositions, 7.14 `pos`,
  * 7.19 topology change): a row is unseeded when any of its `dim` components is not finite; every such component
  * draws one LCG value; when NO row is fully finite the draw is uniform in [-1, 1) layout units per axis (`range:
@@ -100,89 +242,29 @@ export function seedPositions(
     range: "fa2" | "fr",
 ): void {
     const n = s.nodeCount;
-    if (dim !== 2 && dim !== 3) {
-        throw new RangeError(`dim must be 2 or 3, got ${String(dim)}`);
-    }
-    if (positions.length !== 3 * n) {
-        throw new RangeError(`positions has ${positions.length} entries, expected ${3 * n}`);
-    }
-    if (!Number.isFinite(scale) || scale <= 0) {
-        throw new RangeError(`scale must be a finite number > 0, got ${scale}`);
-    }
+    checkSeedArguments(n, positions, dim, scale);
     const c = resolveCenter(center);
 
     // classify the rows and collect the per-axis box of the finite components (scene units)
     const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
     const hi = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
-    let finiteRows = 0;
-    let unseededRows = 0;
-    for (let i = 0; i < n; i++) {
-        let finite = true;
-        for (let axis = 0; axis < dim; axis++) {
-            const v = positions[3 * i + axis];
-            if (Number.isFinite(v)) {
-                if (v < lo[axis]) {
-                    lo[axis] = v;
-                }
-                if (v > hi[axis]) {
-                    hi[axis] = v;
-                }
-            } else {
-                finite = false;
-            }
-        }
-        if (finite) {
-            finiteRows++;
-        } else {
-            unseededRows++;
-        }
-    }
-    if (unseededRows === 0) {
+    const finiteRows = finiteBox(positions, n, dim, lo, hi);
+    if (finiteRows === n) {
         return;
     }
 
     // the per-axis draw box in layout units
     const rangeLo = range === "fr" ? 0 : -1;
-    const rangeHi = 1;
     const boxLo = [rangeLo, rangeLo, rangeLo];
-    const boxHi = [rangeHi, rangeHi, rangeHi];
+    const boxHi = [1, 1, 1];
     if (finiteRows > 0) {
-        for (let axis = 0; axis < dim; axis++) {
-            if (Number.isFinite(lo[axis]) && Number.isFinite(hi[axis])) {
-                boxLo[axis] = (lo[axis] - c[axis]) / scale;
-                boxHi[axis] = (hi[axis] - c[axis]) / scale;
-                if (boxLo[axis] === boxHi[axis]) {
-                    // a zero-width axis (one finite row, or every finite row on one line) would stack every drawn
-                    // row on that coordinate: pad it to the range box's width, centered on it
-                    const half = (rangeHi - rangeLo) / 2;
-                    boxLo[axis] -= half;
-                    boxHi[axis] += half;
-                }
-            }
-        }
+        fitDrawBox(lo, hi, c, scale, dim, boxLo, boxHi);
     }
 
-    const rng = new Lcg(seed);
+    const draw: SeedDraw = { rng: new Lcg(seed), boxLo, boxHi, scale, c };
     for (let i = 0; i < n; i++) {
-        let unseeded = false;
-        for (let axis = 0; axis < dim; axis++) {
-            if (!Number.isFinite(positions[3 * i + axis])) {
-                unseeded = true;
-            }
-        }
-        if (!unseeded) {
-            continue;
-        }
-        for (let axis = 0; axis < dim; axis++) {
-            const at = 3 * i + axis;
-            if (!Number.isFinite(positions[at])) {
-                const u = rng.next();
-                const v = boxLo[axis] + u * (boxHi[axis] - boxLo[axis]);
-                positions[at] = v * scale + c[axis];
-            }
-        }
-        if (dim === 2) {
-            positions[3 * i + 2] = c[2];
+        if (!rowFinite(positions, i, dim)) {
+            seedRow(positions, i, dim, draw);
         }
     }
 }

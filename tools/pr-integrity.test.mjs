@@ -85,6 +85,14 @@ describe("pure rules", () => {
         assert.ok(!hasProof("## Proof\n"));
         assert.ok(!hasProof("Proof: none"));
         assert.ok(!hasProof(undefined));
+        assert.ok(hasProof("## Proof\r\n\r\nran it\r\n"), "a description edited on GitHub has CRLF line ends");
+        assert.ok(!hasProof("<!--\n## Proof\nhint\n-->"), "a commented-out heading is no Proof");
+        assert.ok(!hasProof("## Proof\n<!<!-- a -->-- b -->\n## Notes\nx"), "a nested comment is stripped whole");
+    });
+    it("hasProof reads up to pr-open's end marker, whatever headings the Proof holds", () => {
+        assert.ok(hasProof("## Proof\n\n## Tests\nran it\n<!-- /proof -->\n## Notes\n"));
+        assert.ok(!hasProof("## Proof\n\n<!-- /proof -->\n## Notes\nnot proof"));
+        assert.ok(!hasProof("## Proof\n\n## Tests\nran it\n"), "without the marker, the next heading ends it");
     });
     it("ownerApproved needs the owner's latest deciding review to approve the head", () => {
         const owners = new Set(["owner"]);
@@ -313,6 +321,20 @@ describe("the workflows", () => {
         assert.doesNotMatch(wf, /issue_comment|pull_request_review_comment|pull_request_target/);
         assert.match(wf, /name: PR Integrity\n/);
         assert.match(wf, /node tools\/pr-integrity\.mjs --base origin\/master/);
+    });
+    it("PR Integrity runs master's copy of the check and reads the head only as data (#4421)", () => {
+        const wf = read("pr-integrity.yml");
+        // the only checkout is master, so a check fix on master reaches every open pull request
+        assert.deepEqual(
+            [...wf.matchAll(/uses: actions\/checkout@v\d+\n\s+with:\n\s+ref: ([^\n]+)/g)].map((m) => m[1]),
+            ["master"],
+        );
+        assert.doesNotMatch(wf, /ref: \$\{\{ ?github\.event\.pull_request\.head/);
+        assert.match(
+            wf,
+            /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n\s+run: git fetch --no-tags origin "\$HEAD_SHA"/,
+        );
+        assert.match(wf, /permissions:\n\s+contents: read\n\s+pull-requests: read\n/);
     });
     it("Dependabot auto-merge never checks out the pull request and leaves Actions updates alone", () => {
         const wf = read("dependabot-automerge.yml");

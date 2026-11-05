@@ -17,7 +17,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { pickSample } from "../../../test/samples-dialog";
+import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -321,7 +321,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         });
         try {
             const second = mountWorkspace();
-            await screen.findByRole("button", { name: `Open the ${LES_MIS.name} sample` });
+            await screen.findByRole("button", { name: sampleTile(LES_MIS.name) });
             assert.isNull(second.store.get().project);
             assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
             const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);

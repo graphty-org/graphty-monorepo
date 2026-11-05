@@ -624,7 +624,7 @@ async function storiesMain(project, opt) {
         cwd: wt,
         stdio: "inherit",
     });
-    const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
+    const graphs = await buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
     const rules = { ...loadRules(wt).stories, selectProjects: [project] };
     const work = dirname(paths.report);
     // no baselines: only the captures' bytes are compared, unbroken against broken
@@ -763,7 +763,7 @@ async function main(argv) {
         ? given.split(",")
         : seededPick(candidates, Number(opt("--count", "5")), Number(opt("--seed", "1")));
     // every package's graph, as the gate has them: a package without one is assumed to read anything
-    const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
+    const graphs = await buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
     if ((graphs.get(reader) ?? []).includes(null)) {
         log(`the import graph of ${reader} could not be built; the selection would run it whole`);
         return 2;

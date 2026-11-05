@@ -6,7 +6,7 @@
  * picker's card for its field. Order never matters. The app holds only a card not yet written.
  */
 
-import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type { FilterCondition, FilterConditionCount, GraphSession } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -44,7 +44,7 @@ import {
     TIME_ROW,
     writeCondition,
 } from "./filterCards";
-import { chipTip, chipWords, statusWords } from "./filterWords";
+import { chipName, chipWords, statusWords } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** Where focus goes once the Filters section draws next: a card's id, or `PLUS` for "+". */
@@ -245,11 +245,11 @@ function AddMenu({
         // Focus goes to the card an item adds, not back to "+".
         <Menu opened={opened} onChange={onOpened} position="bottom-end" withinPortal returnFocus={false}>
             <Menu.Target>
-                <Tooltip label="Add filter">
+                <TargetTooltip label="Add filter">
                     <ActionIcon data-filters-plus="" variant="subtle" aria-label="Add filter">
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
                 {nodes.length > 0 && <Menu.Label>Nodes</Menu.Label>}
@@ -758,7 +758,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
                 >
                     {name}
                 </Button>
-                <Tooltip label={window === null ? "Apply the time window" : "Show all time"}>
+                <Tooltip label="Apply the time window">
                     <Checkbox
                         size="xs"
                         aria-label="Apply the time window"
@@ -799,9 +799,9 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
 }
 
 /**
- * The header's filter chip, "9 of 22 nodes", drawn while a card that hides is on; its tooltip names
- * the cards that are on and it opens the Data place, where the Filters section is; its x switches
- * them off. It also puts each change on the status line.
+ * The header's filter chip, "9 of 22 nodes", drawn while a card that hides is on; its name and
+ * tooltip name the cards that are on and it opens the Data place, where the Filters section is; its
+ * x switches them off. It also puts each change on the status line.
  * @returns the chip, or nothing.
  */
 export function FilterChip(): React.JSX.Element | null {
@@ -840,13 +840,14 @@ export function FilterChip(): React.JSX.Element | null {
         ...hiding.map((c) => conditionWords(session, c.rule)),
         ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),
     ];
+    const name = chipName(words, on);
     return (
         <Group gap={0} wrap="nowrap">
-            <Tooltip label={chipTip(on)} multiline maw={280}>
+            <Tooltip label={name} multiline maw={280}>
                 <Button
                     variant="subtle"
                     size="compact-xs"
-                    aria-label={`Filter: ${words}${window === null ? "" : ", time window"}`}
+                    aria-label={name}
                     leftSection={<GLYPHS.filter size={12} aria-hidden />}
                     onClick={() => {
                         store.set({ page: "panels", place: "data" });

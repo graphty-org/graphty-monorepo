@@ -20,7 +20,8 @@ const { Resvg } = require("@resvg/resvg-js");
 
 const font = {
     loadSystemFonts: false,
-    fontDirs: [join(repo, "visual-fonts/fonts")],
+    // fonts/: the Inter the test pages draw "Verdana" in (graphviz-fonts.conf)
+    fontDirs: [join(repo, "visual-fonts/fonts"), join(here, "fonts")],
     defaultFontFamily: "DejaVu Sans",
     serifFamily: "DejaVu Serif",
     sansSerifFamily: "DejaVu Sans",
@@ -38,6 +39,8 @@ const METRIC_TWIN = new Map([
     ["courier new", "Liberation Mono"],
     ["courier", "Liberation Mono"],
     ["cousine", "Liberation Mono"],
+    // not a metric twin: the test pages register Inter as "Verdana" (graphty-element/test/helpers/pin-label-font.ts)
+    ["verdana", "Inter Variable"],
 ]);
 
 /**

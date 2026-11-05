@@ -4,6 +4,7 @@ import { EllipsizedName } from "@graphty/compact-mantine";
 import { Text, UnstyledButton } from "@mantine/core";
 import React, { useMemo } from "react";
 
+import { focusInspectorTitle } from "../frame/focus";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { StyleTree } from "./StyleTree";
@@ -48,6 +49,9 @@ export function GraphPlace(): React.JSX.Element {
                 className="ws-graph-title cm-focus-inside"
                 onClick={() => {
                     store.set({ inspected: { kind: "graph" } });
+                    // Focus goes to the graph's heading once the inspector draws it, so the
+                    // press does something visible even when the graph is already inspected.
+                    requestAnimationFrame(focusInspectorTitle);
                 }}
             >
                 <Text span className="ws-graph-title-prefix">

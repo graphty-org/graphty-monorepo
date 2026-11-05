@@ -78,21 +78,21 @@ interface DijkstraOptions extends Record<string, unknown> {
  * non-negative edge weights.
  */
 export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
-    static namespace = "graphty";
-    static type = "dijkstra";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "dijkstra";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
-    static parallelEdges: SimplifyPolicy = "min";
+    static readonly parallelEdges: SimplifyPolicy = "min";
 
-    static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 
     /**
      * Options schema for Dijkstra algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

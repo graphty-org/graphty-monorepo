@@ -178,17 +178,33 @@ describe("pr-review.sh", () => {
         assert.ok(existsSync(argsLog), "a new head is reviewed again");
     });
 
-    it("reviews a branch once: a fix reuses the report without calling claude; --again reviews it again", () => {
-        assert.equal(run(undefined, "x\n\nBlocking findings: 1").code, 3);
+    it("reviews a branch once: a clean report stands after more commits; --again reviews it again", () => {
+        assert.equal(run().code, 0);
         rmSync(argsLog);
-        assert.equal(run(["--proof", proof, "--reuse"]).code, 3);
+        writeFileSync(join(work, "a.txt"), "one\nTwo\nthree\n");
+        git(work, "commit", "-q", "-am", "fix(tools): more");
+        assert.equal(run(["--proof", proof, "--reuse"], "x\n\nBlocking findings: 1").code, 0);
         assert.ok(!existsSync(argsLog), "claude was not called");
+        assert.equal(run(["--proof", proof, "--again"], "x\n\nBlocking findings: 1").code, 3);
+        assert.ok(existsSync(argsLog), "--again reviewed the branch once more");
+    });
+
+    // #4201: a report with blocking findings for an older head was reused, so fixed findings still blocked.
+    it("keeps a blocking report for its own change only: a fix is reviewed again, the old report as context", () => {
+        assert.equal(run(undefined, "a.txt:2 -- wrong case\n\nBlocking findings: 1").code, 3);
+        rmSync(argsLog);
+        assert.equal(run(["--proof", proof, "--reuse"]).code, 3, "the same change keeps its blocking report");
+        assert.ok(!existsSync(argsLog), "claude was not called for the same change");
         writeFileSync(join(work, "a.txt"), "one\nTwo\nthree\n");
         git(work, "commit", "-q", "-am", "fix(tools): the finding");
-        assert.equal(run().code, 3, "the first review still stands after a fix");
-        assert.ok(!existsSync(argsLog), "claude was not called for the fix");
-        assert.equal(run(["--proof", proof, "--again"]).code, 0);
-        assert.ok(existsSync(argsLog), "--again reviewed the branch once more");
+        const r = run(["--proof", proof, "--reuse"]);
+        assert.equal(r.code, 0, `the fixed head is reviewed, not judged by the old report: ${r.out}`);
+        assert.ok(existsSync(argsLog), "claude reviewed the new head");
+        const prompt = readFileSync(promptLog, "utf8");
+        assert.match(prompt, /===== EARLIER REVIEW .*=====\n[\s\S]*a\.txt:2 -- wrong case/);
+        const report = readFileSync(reportPath(), "utf8");
+        assert.equal(report.split("\n")[0], `<!-- fresh-review ${patchId()} -->`);
+        assert.match(report, /Blocking findings: 0\n?$/);
     });
 
     it("runs master's copy of itself when this branch's copy is older", () => {

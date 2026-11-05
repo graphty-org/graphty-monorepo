@@ -105,7 +105,7 @@ function elementsOf(s: GraphSnapshot, target: StyleTarget, namespace: string): C
 
 /** A fixture's style, from what the importer kept, as the CX and CX2 readers build it. */
 function styleOf(s: GraphSnapshot, format: string): CytoscapeStyle {
-    const extra = (s.meta.extra ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const extra = s.meta.extra as Record<string, Record<string, unknown> | undefined>;
     if (format === "cx") {
         const vps = extra.cx?.cyVisualProperties;
         return cytoscapeStyleFromCx(Array.isArray(vps) ? vps : []);
@@ -120,7 +120,7 @@ function styleOf(s: GraphSnapshot, format: string): CytoscapeStyle {
  * @returns whether it is
  */
 function isCollection(s: GraphSnapshot): boolean {
-    const extra = (s.meta.extra ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const extra = s.meta.extra as Record<string, Record<string, unknown> | undefined>;
     const subs = extra.cx?.cySubNetworks;
     return Array.isArray(subs) && subs.length > 0;
 }

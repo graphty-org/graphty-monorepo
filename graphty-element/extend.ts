@@ -213,6 +213,7 @@ export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote }
  */
 export type {
     CameraState,
+    CameraViewExtent,
     CameraViewInput,
     CameraViewRegistration,
     DrawingMode,

@@ -12,17 +12,17 @@
  *
  * Each sample is judged twice: as graphty draws it, and with graphty's nodes moved to where the program drew them
  * (`<sample>@matched`), so style is judged apart from layout. A sample fails only when an element fails a property that
- * `test/fidelity/oracle-known-failures.json` does not list for it (`oracle/floors.ts`). The pass rates are a report
- * (`tmp/oracle-report/gate.txt`, against `test/fidelity/oracle-floors.json`), never a gate. With
+ * `test/fidelity/oracle-known-failures.json` does not list for it, or when a rate judged element by element measures
+ * below its floor in `test/fidelity/oracle-floors.json` and below any drop accepted there (`oracle/floors.ts`); the
+ * raster regions are a report (`tmp/oracle-report/gate.txt`), never a gate. With
  * `GRAPHTY_ORACLE_BASELINE=<an earlier run's report directory>` each sample's earlier drawing is judged again by this
  * comparator, and every change is said to come from the drawing or from the comparator. The CI subset is
- * `test/browser/oracle-scorecard.test.ts`, on every pull request; CI's 6-hour full run runs this whole file too, as the
- * `graphty-element-fidelity-<n>` shards, each with `GRAPHTY_ORACLE_SLICE=<n>/<count>` (`oracle/floors.ts`, `oracleSlice`).
+ * `test/browser/oracle-scorecard.test.ts`.
  */
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import { unmount } from "./mount";
-import { gateMessages, type KeyGate, oracleSlice } from "./oracle/floors";
+import { gateMessages, type KeyGate } from "./oracle/floors";
 import {
     gateRun,
     ORACLE_IDS,
@@ -33,8 +33,6 @@ import {
 } from "./oracle/run-oracle";
 
 const stored = await readOracleStored();
-/** The samples this run judges: every one, or one slice of them (`GRAPHTY_ORACLE_SLICE`, CI's full run). */
-const SLICE = oracleSlice(ORACLE_IDS, import.meta.env.GRAPHTY_ORACLE_SLICE as string | undefined);
 const gates: KeyGate[] = [];
 
 afterEach(() => {
@@ -46,7 +44,7 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
         assert.deepEqual(oraclesWithoutMetadata(), []);
     });
 
-    it.each(SLICE)("%s", async (id) => {
+    it.each(ORACLE_IDS)("%s", async (id) => {
         const run = await runOracle(id, { write: true });
         if (run.oracleSha256 !== null) {
             assert.strictEqual(
@@ -60,7 +58,7 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
         assert.deepEqual(
             verdicts.flatMap(gateMessages),
             [],
-            `${id}: an element fails that oracle-known-failures.json does not list`,
+            `${id}: an element fails that oracle-known-failures.json does not list, or a rate is below its floor`,
         );
     });
 

@@ -15,6 +15,7 @@ import { assert, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { inBothSchemes, insetRing } from "../../../test/focus-ring";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -304,6 +305,11 @@ describe("the canvas key on the real element", () => {
         assert.notStrictEqual(document.activeElement, legend);
         await userEvent.keyboard("{Tab}");
         assert.strictEqual(document.activeElement, legend);
+        // Its ring is the shared inset one, 3:1 against the card in both schemes (WCAG 1.4.11).
+        for (const [scheme, ring] of Object.entries(inBothSchemes(() => insetRing(legend)))) {
+            assert.isAtLeast(ring.width, 1, `${scheme}: the key draws a ring`);
+            assert.isAtLeast(ring.contrast, 3, `${scheme}: the ring is 3:1 against the card`);
+        }
         await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
         await waitFor(() => {
             assert.isAbove(legend.scrollTop, 0, "scrolled by the arrow keys");

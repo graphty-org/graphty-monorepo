@@ -206,6 +206,40 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({ content: "A\nB", lines: two }, { content: "A B" }), { "label.lines": ["a"] });
     });
 
+    it("reads words drawn side by side on one row as one line, however far apart", () => {
+        // dot-specimen-labels-p2 html-table: Graphviz draws the cells a and b as two texts 8 px apart on one
+        // baseline, html-sub its <SUB> run lower than the rest; each is one line, as graphty draws it
+        const cells = [
+            { x0: 85, y0: 95, x1: 91, y1: 105 },
+            { x0: 99, y0: 95, x1: 105, y1: 105 },
+        ];
+        assert.deepEqual(labelPair({ content: "a\nb", lines: cells }, { content: "a b" }), {});
+        const sub = [
+            { x0: 85, y0: 94, x1: 100, y1: 104 },
+            { x0: 101, y0: 96, x1: 107, y1: 106 },
+        ];
+        assert.deepEqual(labelPair({ content: "abc\nd", lines: sub }, { content: "abc d" }), {});
+        // a field set half a line down between another field's two lines is a line of its own on both sides
+        // (dot-specimen-node-shapes-p2 record-escapes: graphty's taller line boxes overlap more, still under SAME_ROW)
+        const record = (h: number): PBox[] => [
+            { x0: 85, y0: 90, x1: 100, y1: 90 + h },
+            { x0: 110, y0: 96, x1: 115, y1: 96 + h },
+            { x0: 85, y0: 102, x1: 100, y1: 102 + h },
+        ];
+        assert.deepEqual(
+            labelPair(
+                { content: "left\nc\nright", lines: record(14) },
+                { content: "left\nc\nright", lines: record(11) },
+            ),
+            {},
+        );
+        // a row of two cells over a row of one is two lines (dot-synth-nodes n_html3)
+        const rows = [...cells, { x0: 85, y0: 110, x1: 105, y1: 120 }];
+        assert.deepEqual(labelPair({ content: "a\nb\nwide", lines: rows }, { content: "a b wide" }), {
+            "label.lines": ["a"],
+        });
+    });
+
     it("fails lines centered where the program aligned them left", () => {
         // two lines of different widths sharing their left edge
         const lines: PBox[] = [
@@ -218,6 +252,19 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({ align: "start" }, { content: "A\nB", lines }), {});
     });
 
+    it("reads a table's lines cell by cell, not across the cells beside each other", () => {
+        // dot-specimen-labels-p2 html-td-balign-left: "a" and "wide" flush left in one cell, "b" in the cell beside it
+        const a = { x0: 88.71, y0: 168.6, x1: 94.83, y1: 178.6 };
+        const wide = { x0: 88.71, y0: 181.35, x1: 112.31, y1: 191.35 };
+        // "b" a hair narrower than "a": across the cells their middles line up 0.01 px better than their left edges
+        const b = { x0: 128.96, y0: 175.0, x1: 135.06, y1: 185.0 };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [a, wide, b] })), "start");
+        // the defect planted: the cell's lines centered on each other, as a table drawn without BALIGN is
+        const shift = (wide.x1 - wide.x0 - (a.x1 - a.x0)) / 2;
+        const centered = { ...a, x0: a.x0 + shift, x1: a.x1 + shift };
+        assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
+    });
+
     it("fails a label at the start of its node where the program centered it, a shift the offset check passes", () => {
         // 4 px left of center: within half a font size, but no longer centered on the 40 px node
         assert.deepEqual(labelPair({ x: 96, box: { x0: 81, y0: 95, x1: 111, y1: 105 } }), { "label.anchor": ["a"] });
@@ -228,6 +275,49 @@ describe("label checks", () => {
         assert.strictEqual(labelAnchor(text("A", 130, 100, {}, 20), box), "after/center");
         // a label wider than its node on both sides sits across it, a few pixels of drift aside
         assert.strictEqual(labelAnchor(text("A", 94, 100, {}, 90), box), "center/center");
+    });
+
+    it("passes labels a fraction of a pixel either side of one place boundary, and fails one a few pixels inside", () => {
+        // pajek-synth-vertices 57: Pajek's label starts 0.26 px past the line between inside-at-the-end and after its
+        // node, graphty's 0.08 px short of it -- the same drawing on two sides of a line
+        const at = (x0: number): PText => text("A", x0 + 15, 100);
+        assert.strictEqual(labelAnchor(at(117.6), { x0: 80, y0: 80, x1: 120, y1: 120 }), "after/center");
+        assert.strictEqual(labelAnchor(at(117.3), { x0: 80, y0: 80, x1: 120, y1: 120 }), "end/center");
+        const pair = (g: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: at(117.6) }), scene("graphty", {}, { a: at(g) }));
+        assert.deepEqual(pair(117.3), {});
+        assert.deepEqual(pair(114)["label.anchor"], ["a"]);
+    });
+
+    it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
+        // graphml-cla-checker-graph: draw.io draws 2 px labels 0.6 px left of their nodes' middles, graphty centers
+        // them; at a quarter of a 2 px font the side's tolerance was half a pixel, and the program's label read as
+        // "inside at the start"
+        const tiny = (x: number): PText => text("A", x, 100, {}, 9, 2);
+        const pair = (o: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: tiny(o) }), scene("graphty", {}, { a: tiny(100) }));
+        assert.deepEqual(pair(99.4)["label.anchor"], undefined);
+        // the defect planted: the program's label 6 px left, at the start of its 40 px node
+        assert.deepEqual(pair(94)["label.anchor"], ["a"]);
+        // graphml-stm32-func: a 4 px label hanging half out of the bottom of a 4 px node, on both sides; with the pixel
+        // on the box's edges too the program's read as after the node and graphty's as inside at its end
+        const low = (y: number): PText => text("A", 100, y, {}, 9, 4);
+        const small = (side: PScene["side"], y: number): PScene =>
+            scene(side, {
+                nodes: GRID.map(([id, x, cy]) => node(id, x, cy, { w: 4, h: 4, label: id === "a" ? low(y) : null })),
+            });
+        assert.deepEqual(failures(small("oracle", 102.8), small("graphty", 102.2))["label.anchor"], undefined);
+    });
+
+    it("places other words by their start, middle or end, and the same words by their middle", () => {
+        // pajek-iliad 204: the program's words are a character longer and start where graphty's start
+        const pair = (o: PText, g: PText): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: o }), scene("graphty", {}, { a: g }));
+        const at = (content: string, x0: number, w: number): PText => text(content, x0 + w / 2, 130, {}, w);
+        assert.deepEqual(pair(at("Abcd", 120, 60), at("A", 120, 30))["label.offset"], undefined);
+        assert.deepEqual(pair(at("Abcd", 110, 60), at("A", 175, 30))["label.offset"], ["a"]);
+        // the same words started where the program centers them still fail
+        assert.deepEqual(pair(at("A", 85, 30), at("A", 100, 30))["label.offset"], ["a"]);
     });
 
     it("fails a halo graphty does not draw round the letters, and one of another color or width", () => {
@@ -426,6 +516,17 @@ describe("group checks", () => {
             "group.strokeDash": ["g1"],
         });
         assert.deepEqual(pair(group(BOX), group(BOX, { fill: fill("#eeeeee", 0.3) })), { "group.fillOpacity": ["g1"] });
+    });
+
+    it("judges a yFiles group's fill by its panel, and the band of its frame as drawn by itself", () => {
+        const framed = group(BOX, { fill: fill("#c8c8c8"), panel: fill("#ffffff") });
+        const white = group(BOX, { fill: fill("#ffffff") });
+        // the band is drawn only by the program
+        assert.deepEqual(Object.keys(pair(framed, white)), ["stray.present"]);
+        // painting the whole group in the band's color matches nothing: the panel behind the members is white
+        assert.includeMembers(Object.keys(pair(framed, group(BOX, { fill: fill("#c8c8c8") }))), ["group.fill"]);
+        // a band the color of its panel shows nothing
+        assert.deepEqual(pair(group(BOX, { fill: fill("#ffffff"), panel: fill("#ffffff") }), white), {});
     });
 
     it("fails a group outline drawn see-through where the program's is opaque", () => {
@@ -639,6 +740,40 @@ describe("what the association reads as a label's own and a node's own", () => {
             associate(ab, 600, 400, stacked).scene.nodes.find((n) => n.id === "a")?.label?.content,
             "A\nab",
         );
+    });
+
+    it("reads a label the program wraps into more than four lines at other words as one, and judges its place", () => {
+        // cx2-ndex-90f78bcd 304542: Cytoscape desktop wraps a long label into six lines centered on its node, at other
+        // words than graphty's six; read as its first two lines alone, the label sat above the node
+        const lines = ["Various", "neuronal", "effects", "induced by", "elavl3, sox10,", "and mbp"];
+        const prims = drawing((id) =>
+            id === "a"
+                ? lines.map((w, i) => {
+                      const t = text(w, 100, 75 + 10 * i, {}, 6 * w.length, 8);
+                      return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+                  })
+                : [],
+        );
+        const graphtyLines = ["Various", "neuronal", "effects induced", "by elavl3,", "sox10, and", "mbp"];
+        const at = (dy: number): PScene => {
+            const label = mergeTexts(graphtyLines.map((w, i) => text(w, 100, 75 + dy + 10 * i, {}, 6 * w.length, 8)));
+            return scene(
+                "graphty",
+                {},
+                {
+                    ...Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
+                    a: label ?? undefined,
+                },
+            );
+        };
+        const centered = at(0);
+        const { scene: o } = associate(prims, 600, 400, centered);
+        assert.lengthOf(o.nodes.find((n) => n.id === "a")?.label?.lines ?? [], 6);
+        assert.notInclude(compareOracle("t", o, centered).failures["label.anchor"] ?? [], "a");
+        // the same label drawn wholly above its node is still out of place
+        const above = at(-60);
+        const moved = associate(prims, 600, 400, above).scene;
+        assert.include(compareOracle("t", moved, above).failures["label.anchor"] ?? [], "a");
     });
 
     it("reads a box drawn tight behind a label's words as its background, not a stray", () => {

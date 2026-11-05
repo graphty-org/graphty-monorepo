@@ -14,7 +14,7 @@ import { Camera, Color4, Engine, FreeCamera, Scene, Vector3 } from "@babylonjs/c
 import { afterEach, assert, describe, test } from "vitest";
 
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
-import { EDGE_MITER_LIMIT } from "../../src/meshes/edgeJoinShader";
+import { EDGE_MITER_LIMIT, JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
@@ -223,7 +223,7 @@ async function draw(dash: number, all: Bend[] = bends(), W = WIDTH, H = HEIGHT):
         }
         batch.placeRun(slots, flat);
         const data = (batch as unknown as { slots: Float32Array }).slots;
-        spacings.set(bend, data[slots[0] * 14 + 13]);
+        spacings.set(bend, data[slots[0] * JOIN_FLOATS_PER_PIECE + 13]);
     }
 
     await scene.whenReadyAsync();
@@ -350,9 +350,9 @@ describe("a bent edge's corners", () => {
 
     test("draw no pixel twice on a translucent line", async () => {
         const drawn = await draw(0);
-        // The U whose middle is shorter than the line is wide is the one exception: its two arms
-        // are not neighbours and overlap each other (design/edges/sharp-corners.md).
-        const twice = report(drawn, (d, bend) => (CASES[bend.row] === "U" ? 0 : d.overlap));
+        // The U whose middle is shorter than the line is wide included: its two arms are not
+        // neighbours, and the later one gives the overlap to the earlier (issue #3096).
+        const twice = report(drawn, (d) => d.overlap);
         assert.deepEqual(twice, [], "pixels drawn twice, per bend");
     });
 
@@ -418,6 +418,57 @@ describe("a bent edge's corners", () => {
             }
         }
         assert.deepEqual(wrong, [], "corner points that jump or reach the wrong distance");
+    });
+
+    test("draw an opaque curve as one solid line, with no light seam where two of its pieces meet", async () => {
+        // A curve is a run of short straight pieces (64 here, as an edge's curvature draws). Under
+        // multisampling a pixel on the line where two pieces meet has samples in both: if either
+        // piece discards the pixel the other cannot fill it, and a light line crosses the curve at
+        // every join (issue #5799).
+        const R = 55;
+        const PIECES = 64;
+        // Lines wide enough to have pixels over a pixel from both sides.
+        const curveWidths = [8, 24];
+        const curves: Bend[] = curveWidths.map((width, col) => {
+            const cx = col * CELL + CELL / 2;
+            const cy = CELL / 2 + 25;
+            const points: number[] = [];
+            for (let i = 0; i <= PIECES; i++) {
+                const a = Math.PI * (1.1 + (0.8 * i) / PIECES);
+                points.push(cx + R * Math.cos(a), cy + R * Math.sin(a));
+            }
+            return { points, width, alpha: 1, row: 0, col };
+        });
+        const W = CELL * curveWidths.length;
+        const drawn = await draw(0, curves, W, CELL);
+
+        const wrong: string[] = [];
+        for (const curve of curves) {
+            const cx = curve.col * CELL + CELL / 2;
+            const cy = CELL / 2 + 25;
+            let light = 0;
+            let inside = 0;
+            for (let y = 0; y < CELL; y++) {
+                for (let x = curve.col * CELL; x < (curve.col + 1) * CELL; x++) {
+                    const dx = x + 0.5 - cx;
+                    const dy = y + 0.5 - cy;
+                    const a = Math.atan2(dy, dx) + (dy < 0 ? 2 * Math.PI : 0);
+                    // Well inside the line: over a pixel from its sides, away from its ends.
+                    const across = Math.abs(Math.hypot(dx, dy) - R);
+                    if (across > curve.width / 2 - 1.5 || a < Math.PI * 1.15 || a > Math.PI * 1.85) {
+                        continue;
+                    }
+                    inside++;
+                    light += drawn.mine[y * W + x] < 0.97 ? 1 : 0;
+                }
+            }
+            if (inside === 0 || light > 0) {
+                wrong.push(
+                    `${String(curve.width)} px: ${String(light)} of ${String(inside)} pixels lighter than the line`,
+                );
+            }
+        }
+        assert.deepEqual(wrong, [], "pixels inside the curve lighter than its color, per width");
     });
 
     test("carry the dash pattern round the bend, as dashing the centre line and then stroking does", async () => {

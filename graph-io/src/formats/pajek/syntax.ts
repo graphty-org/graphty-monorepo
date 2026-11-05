@@ -8,6 +8,8 @@
  * `&#dddd;` character references of labels, and the column names both sides agree on.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /**
  * The node column holding the vertex label (role label).
  * @category Plugin helpers
@@ -503,7 +505,8 @@ function parseSpell(token: string, part: string): [number, number] {
     if (match === null) {
         throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
     }
-    const [, startText, endText] = match;
+    const [, startText] = match;
+    const endText = itemAt(match, 2);
     if (startText === "*" && endText === undefined) {
         throw new Error(`malformed time interval ${token}: "*" alone is not a time point`);
     }

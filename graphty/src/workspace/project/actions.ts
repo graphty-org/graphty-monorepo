@@ -7,7 +7,13 @@
  * the words: the notices and the problem sentences.
  */
 
-import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
+import {
+    browserProjects,
+    type GraphSession,
+    isGraphtyError,
+    type LoadDraft,
+    projectFileName,
+} from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
@@ -17,6 +23,7 @@ import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
+import { notReadWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -49,10 +56,12 @@ export interface FileSource {
     /** The new project's name until the file names it, when it opens from the start screen. */
     name?: string;
     /**
-     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
-     * project; `fresh` when it opens a new project from the start screen.
+     * Loads the file when `project.open` reads it as data (`opened: "graph"`) rather than a
+     * project: the draft it was read into (read onto the graph when the graph holds data), or, for
+     * a file the element could not read as data, none, so the caller reads it and says why;
+     * `fresh` when it opens a new project from the start screen.
      */
-    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
+    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft) => Promise<void>;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -91,8 +100,8 @@ function fileState(store: WorkspaceStore): ProjectFileState {
 }
 
 /**
- * The sentence for a project file that did not save or open. graphty-element hands back a code;
- * the words are the app's.
+ * The sentence for a project file that did not open. graphty-element hands back a code; the words
+ * are the app's.
  * @param fileName - the file's name.
  * @param error - what the element threw.
  * @returns the sentence.
@@ -108,29 +117,9 @@ export function problemSentence(fileName: string, error: unknown): string {
             return `${fileName} was saved by a newer graphty. Update graphty to open it.`;
         case "E_UNSUPPORTED":
             return `${fileName} needs a part this graphty cannot read yet.`;
-        case "E_TOO_LARGE":
-            return `${fileName} is too large to open.`;
         default:
-            return `${fileName} could not be opened.`;
+            return notReadWords(fileName, error, "opened");
     }
-}
-
-/**
- * Why a file did not open or add, in the app's words. graphty-element refuses a file it could not
- * read whole with `E_PARSE_FAILED` and the line it broke at; nothing of it is kept.
- * @param fileName - the file's name.
- * @param error - what the element threw.
- * @param verb - "opened" or "added".
- * @returns the notice's sentence.
- */
-export function notReadSentence(fileName: string, error: unknown, verb: "opened" | "added"): string {
-    if (isGraphtyError(error) && error.code === "E_PARSE_FAILED") {
-        const line = error.details?.line;
-        const where = typeof line === "number" ? ` near line ${String(line)}` : "";
-        return `${fileName} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
-    }
-    const reason = error instanceof Error ? error.message : String(error);
-    return `${fileName} could not be ${verb}. ${reason}`;
 }
 
 /**
@@ -466,7 +455,7 @@ function openFailed(ctx: CommandContext, session: GraphSession, pending: Pending
     const verb = fresh ? "opened" : "added";
     const message =
         isGraphtyError(error) && error.code === "E_PARSE_FAILED"
-            ? notReadSentence(withoutExtension(file.name), error, verb)
+            ? notReadWords(withoutExtension(file.name), error, verb)
             : problemSentence(file.name, error);
     workspace.set({ notice: { message, error: true } });
     return false;
@@ -512,17 +501,19 @@ async function openInSession(
     const { file, onData, fresh = false } = pending;
     const focusLater = focusOpenedGraphLater();
     try {
-        // From the start screen a document opens as a new graph, so it starts the history.
+        // From the start screen a document opens as a new graph, so it starts the history. A data
+        // file is read as the caller loads one: its roles guessed from the values too, and onto the
+        // graph when the graph holds data.
+        const onto = !fresh && session.data.sources().length > 0;
         const report = await session.project.open(file, {
             discard,
             fileName: file.name,
             ...(fresh ? { history: "start" as const } : {}),
+            draft: { guess: "values", ...(onto ? { onto: "graph" as const } : {}) },
         });
         if (report.opened === "graph" && onData !== undefined) {
-            // A data file: imported the way the caller imports one, not as the element's draft.
             focusLater(false);
-            report.draft?.dispose();
-            await onData(ctx, fresh);
+            await onData(ctx, fresh, report.draft);
             return true;
         }
         if (report.opened !== "project") {

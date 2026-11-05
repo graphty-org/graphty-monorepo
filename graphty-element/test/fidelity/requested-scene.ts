@@ -99,6 +99,7 @@ function fittedExtent(
         labelPaddingX: num(merged["node.labelPaddingX"], 0),
         labelPaddingY: num(merged["node.labelPaddingY"], 0),
         labelFitSquare: merged["node.labelFitSquare"] === true,
+        labelFitQuantum: num(merged["node.labelFitQuantum"], 0),
         ...(typeof merged["node.shapePoints"] === "string" ? { points: merged["node.shapePoints"] } : {}),
         ...(typeof merged["node.width"] === "number" ? { width: merged["node.width"] } : {}),
         ...(typeof merged["node.height"] === "number" ? { height: merged["node.height"] } : {}),

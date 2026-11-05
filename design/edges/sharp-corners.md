@@ -169,6 +169,57 @@ three defects.
 The browser test `graphty-element/test/browser/edge-corner-joins.test.ts` draws the scene above and
 checks every bend against the canvas reference, for all three.
 
+### Who draws a pixel where pieces overlap
+
+The split at the bisector was later restated as a rule that also covers pieces that are not
+neighbours and the 3D camera's perspective (issues #3096 and #3114):
+
+- **Each piece reads five pieces:** itself, its neighbours and the pieces two away (a slot carries
+  the corners two back and two ahead, 20 floats). A piece shorter than the line is wide lets the
+  pieces either side of it overlap each other, along their whole length when they run side by side.
+- **Of the pieces whose shape covers a pixel's centre, the one whose centre line is nearest draws
+  it, the earlier on a tie.** A shape is the piece and the joins at its corners. Between two
+  neighbours the nearest-line split is the bisector, so this is the old rule there; past a short
+  piece it settles the overlap of the pieces either side, and where three pieces overlap exactly
+  one draws, because distance orders them. Inside a join at a piece's own corner the two pieces'
+  triangles already split it along that same line, so there the rasterizer decides.
+- **Every piece tests the same point with the same numbers.** The fragment's position interpolated
+  from a varying is off by a few hundredths of a pixel, differently in each piece's triangles, so
+  the shader snaps it to the centre of the pixel being drawn (it reads the viewport's size in
+  pixels as each draw binds). Two pieces compare a pair of distances from the same point by the
+  same arithmetic, so their tests are exact complements; distances within 0.001 px tie, so two
+  pieces along one line (a U-turn) split by order rather than by rounding.
+- **Under perspective a piece is a trapezoid,** wider at its nearer end, and a neighbour is tested
+  at its width at both ends, as its triangles draw it.
+- **Coverage is tested 0.05 px inside the edges first,** where it always agrees with what the
+  rasterizer drew (it snaps corners to a sub-pixel grid). Only a pixel no shape covers by that much
+  -- where two edges cross, or the line's anti-aliased edge -- is tested at the edges themselves.
+
+### Corners the two pieces share exactly
+
+The rule above splits a pixel by its centre, and a `discard` throws away all of a pixel's samples.
+The element draws with multisampling on, so a pixel on the boundary between two pieces has samples
+in both: the piece that does not own its centre discarded the samples only it covered, the pixel
+was left part covered, and a light line crossed the curve at every join of its up to 64 pieces
+(issue #5799). WebGL has no per-sample discard, so no per-pixel rule can fix that.
+
+So where it can, a corner is not split by a rule at all: both pieces end at the corner's miter
+line, the line through its two miter points, and the side vertices at that end sit on those points
+(the join's triangles fold away to the centre). Both pieces compute the two points from the same
+three corners and the same half width with the same arithmetic, so their triangles share one exact
+edge and the rasterizer splits every pixel on it by sample, with nothing lost and nothing drawn
+twice. Neither piece then tests the other, or the piece beyond it, for ownership. A corner is
+shared this way when it is within the miter limit and its miter reaches along each piece no
+further than half the shorter one, which keeps every piece a convex quadrilateral. Every corner of
+a curve and of a gentle bend qualifies, so they discard nothing; the clipped join and the ownership
+rule remain for sharper corners and short pieces. A piece's distance along the edge is unchanged,
+so dashes still follow the route.
+
+`graphty-element/test/browser/edge-corner-joins-3d.test.ts` draws each piece of a bent edge on its
+own, from the slot the batch wrote for it, at bends from 150 to 35 degrees and U-turns with a short
+middle, as the camera turns from straight on to 80 degrees: no pixel is drawn by two pieces, and
+together they cover every pixel the pieces cover drawn as plain lines.
+
 ## Past the miter limit
 
 Every miter join needs a rule for a corner so sharp that its point would reach far beyond the
@@ -288,18 +339,36 @@ the joined line, the same at both sizes, while H draws the same triangles six ti
 SwiftShader pays a fixed cost per instance of an instanced draw; the vertex shader's length barely
 matters. A real GPU shows nothing of the kind (0.87 ms for 150,000 instanced pieces). It matters
 only for software rendering -- CI, and a reader with no GPU -- and is the same for the batch before
-and after this change. It is left as an issue rather than worked around: the remedy, expanding
-pieces into a plain mesh, would move the per-move work back onto the CPU on every machine.
+and after this change.
+
+The cause is SwiftShader's Vulkan driver, which runs an instanced draw as one draw per instance
+(`CmdDrawBase::draw` loops over the instances), so each piece pays a draw's setup. Fewer attributes
+do not help: the widened line (eleven attributes a piece) costs the same as the plain one (six).
+So since issue #3095 `EdgeLineBatch` draws a joined line as one plain mesh when the WebGL renderer
+is a software one (`drawsExpandedLines`: SwiftShader, llvmpipe, Microsoft's Basic Render Driver):
+the template repeated once per slot, each slot's floats repeated into its fourteen vertices, read
+by the same shader, so the picture is the same; `test/edge-line-batch.test.ts` holds every vertex's
+inputs against the instance it stands for. A GPU keeps the instances, where expanding is slower.
+
+| 10,000 three-piece edges, one batch | instanced still | instanced moving | expanded still | expanded moving |
+| ----------------------------------- | --------------: | ---------------: | -------------: | --------------: |
+| SwiftShader                         |          171 ms |           163 ms |        14.9 ms |         27.4 ms |
+| NVIDIA RTX 4070 SUPER               |          1.5 ms |           3.3 ms |        10.9 ms |         21.5 ms |
+
+`test/browser/instanced-lines.bench.test.ts` measures it (`--project=browser-bench`; set
+`GRAPHTY_BROWSER_GPU=nvidia` for the card).
 
 ## Known limits
 
-- **Non-adjacent pieces can overlap.** A piece knows only its two neighbours, so when a piece is
-  shorter than the line is wide, the pieces either side of it can overlap each other, and a
-  translucent line shows that overlap darker (the short-middle U at 24 px). Fixing it means giving
-  each piece the corner two pieces away as well.
-- **In 3D the overlap test is approximate.** The neighbour's rectangle is tested with the line's
-  width at the shared corner; under strong perspective a sliver at the far end of a very sharp bend
-  can be drawn twice.
+- **A sharp corner can still show a faint line under anti-aliasing.** Past the miter limit, or
+  where a piece is shorter than its miter needs, the pieces still split the overlap by the
+  ownership rule, and a pixel on that split loses the samples of the piece that discards it.
+
+- **Pieces three apart can overlap.** A piece reads the pieces two away, not three, so two pieces
+  in a row shorter than the line is wide can let the pieces either side of them overlap, and a
+  translucent line shows that overlap darker.
+- **A dash on a piece two away is placed at its neighbour's scale.** Under perspective the dash
+  there can be off by a fraction of a pixel; in 2D the scale is the same for every piece.
 
 ## Prior art
 

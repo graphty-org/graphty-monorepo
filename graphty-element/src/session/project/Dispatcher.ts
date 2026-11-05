@@ -1745,19 +1745,17 @@ export class Dispatcher {
         const { lane } = undoable;
         const queuedKey = lane.kind === "queued" ? (lane.coalesce?.(concrete) ?? null) : null;
 
-        if (queuedKey !== null) {
-            const slot = this.queuedWith(queuedKey, tx);
-            if (slot !== undefined) {
-                // Coalesce while queued: the new arguments take over the slot not yet started.
-                slot.command = concrete;
-                slot.keys = keys;
-                for (const key of keys) {
-                    slot.group.keys.add(key);
-                }
-
-                this.changed();
-                return slot.promise;
+        const slot = queuedKey === null ? undefined : this.queuedWith(queuedKey, tx);
+        if (slot !== undefined) {
+            // Coalesce while queued: the new arguments take over the slot not yet started.
+            slot.command = concrete;
+            slot.keys = keys;
+            for (const key of keys) {
+                slot.group.keys.add(key);
             }
+
+            this.changed();
+            return slot.promise;
         }
 
         if (lane.kind === "immediate") {
@@ -1768,21 +1766,7 @@ export class Dispatcher {
             }
         }
 
-        const group =
-            tx ??
-            this.group(
-                { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
-                origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
-                {},
-                origin?.step ?? null,
-                this.tick,
-                null,
-                {
-                    setup: isSetup(concrete) || origin?.setup === true,
-                    starts: startsHistory(concrete),
-                    startsAt: origin?.starts ?? null,
-                },
-            );
+        const group = tx ?? this.groupOf(concrete, undoable, origin, state);
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
             group.keys.add(key);
@@ -1795,32 +1779,7 @@ export class Dispatcher {
             },
             { once: true },
         );
-        if (lane.kind === "queued" && options.beside === true) {
-            // Beside the queue: pending from now, and started at once rather than given a slot.
-            job.status = "queued";
-            group.jobs.add(job);
-            this.enter(group);
-            this.admit(job);
-        } else if (lane.kind === "queued") {
-            job.slot = this.scheduler.enqueue(
-                lane.categoryOf?.(concrete) ?? lane.category,
-                (context) => this.turn(job, context),
-                undoable.undo.label(concrete, state),
-            );
-            job.status = "queued";
-            group.jobs.add(job);
-            this.enter(group);
-            job.slot.signal.addEventListener(
-                "abort",
-                () => {
-                    this.obsolete(job, "obsolete");
-                },
-                { once: true },
-            );
-        } else {
-            this.admit(job);
-        }
-
+        this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");
         }
@@ -1927,6 +1886,72 @@ export class Dispatcher {
         group.jobs.add(job);
         this.start(job);
         return job.promise;
+    }
+
+    /**
+     * Open the group of its own an undoable command outside a transaction writes into.
+     * @param concrete - The command.
+     * @param undoable - Its definition.
+     * @param origin - For a deferred member, the step it belongs to.
+     * @param state - The state it was dispatched against.
+     * @returns The group.
+     */
+    private groupOf(
+        concrete: CommandLike,
+        undoable: UndoableDefinition<CommandLike>,
+        origin: DeferredOrigin | null,
+        state: ProjectState,
+    ): Group {
+        return this.group(
+            { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
+            origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
+            {},
+            origin?.step ?? null,
+            this.tick,
+            null,
+            {
+                setup: isSetup(concrete) || origin?.setup === true,
+                starts: startsHistory(concrete),
+                startsAt: origin?.starts ?? null,
+            },
+        );
+    }
+
+    /**
+     * Start a new job down its lane: beside the queue, given a queue slot, or admitted at once.
+     * @param job - The job.
+     * @param concrete - Its command.
+     * @param group - The group it writes into.
+     * @param beside - Whether a queued command starts beside the queue.
+     * @param state - The state it was dispatched against, for its label.
+     */
+    private launch(job: Job, concrete: CommandLike, group: Group, beside: boolean, state: ProjectState): void {
+        const { lane } = job.definition;
+        if (lane.kind === "queued" && beside) {
+            // Beside the queue: pending from now, and started at once rather than given a slot.
+            job.status = "queued";
+            group.jobs.add(job);
+            this.enter(group);
+            this.admit(job);
+        } else if (lane.kind === "queued") {
+            job.slot = this.scheduler.enqueue(
+                lane.categoryOf?.(concrete) ?? lane.category,
+                (context) => this.turn(job, context),
+                job.definition.undo.label(concrete, state),
+            );
+            job.status = "queued";
+            group.jobs.add(job);
+            this.enter(group);
+            job.slot.signal.addEventListener(
+                "abort",
+                () => {
+                    this.obsolete(job, "obsolete");
+                },
+                { once: true },
+            );
+        } else {
+            this.admit(job);
+        }
     }
 
     /**
@@ -2298,63 +2323,93 @@ export class Dispatcher {
         }
 
         if (!isEmptyPatch(patch)) {
-            const slices = slicesOf(patch);
-            const removedInFlight = this.arrangement.moved && restoresNodes(patch.log);
-            // A `positions.set` over more than a third of the rows keeps a capture instead of its
-            // row patch: the capture holds every row it wrote, so the step keeps the one, not both.
-            const captured = newEpoch === null && patch.rows !== null && this.arrangement.wantsCapture(patch.rows);
-            const kept = captured ? Object.freeze({ ...patch, rows: null }) : patch;
-            const bytes = patchBytes(kept);
-            const input = {
-                label: group.label,
-                fact: group.fact,
-                patch: kept,
-                key: group.key,
-                ops: group.ops,
-                slices,
-                bytes: { done: bytes, undone: bytes },
-                after: newEpoch ?? (captured ? this.arrangement.capture() : (open?.provisional ?? null)),
-                before: open?.before ?? null,
-            };
-            if (group.after !== null && this.history.amend(group.after, input)) {
-                id = group.after;
-            } else {
-                const provenance = {
-                    ...this.ambientProvenance?.(),
-                    ...group.provenance,
-                    ...(group.after === null ? {} : { after: group.after }),
-                };
-                // Work dispatched after the top step and still pending keeps a coalescing edit
-                // out of that step: merged, the step would be newer than the work and older at
-                // once (design section 5.2).
-                const top = this.adjacent("undo");
-                const since = top === undefined ? undefined : this.steps.get(top.id)?.recorded;
-                const pendingSinceTop = since !== undefined && this.openSince(since, group);
-                id = this.history.record({ ...input, provenance, pendingSinceTop });
-            }
-
-            const meta = this.steps.get(id);
-            const recorded = this.tick++;
-            if (meta === undefined) {
-                this.steps.set(id, { recorded, undone: -1, oplog, removedInFlight });
-            } else {
-                meta.recorded = recorded;
-                meta.oplog.push(...oplog);
-                meta.removedInFlight ||= removedInFlight;
-            }
-
-            this.prune();
-            // Every commit, not only one that wrote the pins slice: a pin byte changed by anything
-            // else is a pin no step records.
-            this.arrangement.checkPins();
-
-            const change = { slices, cause: "command" as const, ...notesOf(patch) };
-            this.emit(change, [change]);
+            id = this.recordStep(group, patch, newEpoch, open, oplog);
         }
 
         this.release(group, true);
         this.startDeferred(group, id);
         return id;
+    }
+
+    /**
+     * Record a group's non-empty patch as a step, or amend the step it was dispatched after.
+     * @param group - The group sealing.
+     * @param patch - What it wrote.
+     * @param newEpoch - Where a new dataset's step ends, or null when it began none.
+     * @param open - The arrangement the group took, or null.
+     * @param oplog - The keys it held.
+     * @returns The step the patch is in.
+     */
+    private recordStep(
+        group: Group,
+        patch: Patch,
+        newEpoch: ReturnType<Arrangement["settledCapture"]>,
+        open: OpenArrangement | null,
+        oplog: SliceKey[],
+    ): string {
+        const slices = slicesOf(patch);
+        const removedInFlight = this.arrangement.moved && restoresNodes(patch.log);
+        // A `positions.set` over more than a third of the rows keeps a capture instead of its
+        // row patch: the capture holds every row it wrote, so the step keeps the one, not both.
+        const captured = newEpoch === null && patch.rows !== null && this.arrangement.wantsCapture(patch.rows);
+        const kept = captured ? Object.freeze({ ...patch, rows: null }) : patch;
+        const bytes = patchBytes(kept);
+        const input = {
+            label: group.label,
+            fact: group.fact,
+            patch: kept,
+            key: group.key,
+            ops: group.ops,
+            slices,
+            bytes: { done: bytes, undone: bytes },
+            after: newEpoch ?? (captured ? this.arrangement.capture() : (open?.provisional ?? null)),
+            before: open?.before ?? null,
+        };
+        const id = this.recordInHistory(group, input);
+
+        const meta = this.steps.get(id);
+        const recorded = this.tick++;
+        if (meta === undefined) {
+            this.steps.set(id, { recorded, undone: -1, oplog, removedInFlight });
+        } else {
+            meta.recorded = recorded;
+            meta.oplog.push(...oplog);
+            meta.removedInFlight ||= removedInFlight;
+        }
+
+        this.prune();
+        // Every commit, not only one that wrote the pins slice: a pin byte changed by anything
+        // else is a pin no step records.
+        this.arrangement.checkPins();
+
+        const change = { slices, cause: "command" as const, ...notesOf(patch) };
+        this.emit(change, [change]);
+        return id;
+    }
+
+    /**
+     * Amend the step a group was dispatched after, or record a new step.
+     * @param group - The group sealing.
+     * @param input - The step.
+     * @returns The step's id.
+     */
+    private recordInHistory(group: Group, input: Parameters<History<Patch>["amend"]>[1]): string {
+        if (group.after !== null && this.history.amend(group.after, input)) {
+            return group.after;
+        }
+
+        const provenance = {
+            ...this.ambientProvenance?.(),
+            ...group.provenance,
+            ...(group.after === null ? {} : { after: group.after }),
+        };
+        // Work dispatched after the top step and still pending keeps a coalescing edit
+        // out of that step: merged, the step would be newer than the work and older at
+        // once (design section 5.2).
+        const top = this.adjacent("undo");
+        const since = top === undefined ? undefined : this.steps.get(top.id)?.recorded;
+        const pendingSinceTop = since !== undefined && this.openSince(since, group);
+        return this.history.record({ ...input, provenance, pendingSinceTop });
     }
 
     /**

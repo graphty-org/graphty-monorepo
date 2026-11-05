@@ -26,6 +26,13 @@ const ROOT = process.env.BISECT_ROOT || join(dirname(fileURLToPath(import.meta.u
 /** Rounds one bisect may take: a point that never reports (its job lost before it wrote a result) is not retried forever. */
 export const MAX_ROUNDS = 12;
 
+/**
+ * Times one point may end with no result (its job lost, cancelled or cut off before it wrote one) before the bisect
+ * stops: each such run of an LLM or T4 point is paid for, and a point that keeps ending the same way would otherwise
+ * be tested again every round until MAX_ROUNDS (#5062).
+ */
+export const MAX_LOST = 2;
+
 /** What graphty-element's AI code is: an LLM bisect tests only merges that touched it (section 5). */
 export const AI_PATHS = ["graphty-element/src/ai", "graphty-element/test/ai", "pnpm-lock.yaml"];
 
@@ -50,7 +57,7 @@ export const LANES = {
         intermittent: false,
         paths: AI_PATHS,
         shard: "llm-regression",
-        minutes: 20,
+        minutes: 40,
     },
     gpu: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
     hosts: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
@@ -259,6 +266,17 @@ export function judge(s, results) {
     s = structuredClone(s);
     for (const r of results) addResult(s, r);
     s.round = (s.round ?? 1) + 1;
+    const reported = new Set(
+        results.filter((r) => !("status" in r) || ["success", "failure"].includes(r.status)).map((r) => r.sha),
+    );
+    s.lost ??= {};
+    for (const sha of s.next?.points ?? []) if (!reported.has(sha)) s.lost[sha] = (s.lost[sha] ?? 0) + 1;
+    const stuck = Object.keys(s.lost).find((sha) => s.lost[sha] >= MAX_LOST);
+    if (stuck)
+        return finish(s, {
+            culprit: null,
+            noLanding: `point ${short(stuck)} ended with no result ${s.lost[stuck]} times`,
+        });
     if (s.round > MAX_ROUNDS) return finish(s, { culprit: null, noLanding: `no answer after ${MAX_ROUNDS} rounds` });
     if (confirm && !s.results[s.bad]) return s; // the confirming job was lost before it reported: confirm again
     return confirm ? afterConfirm(s) : decide(s);

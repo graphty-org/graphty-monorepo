@@ -13,8 +13,8 @@
  * - a fill covered by an outline or glow whose inner rim reaches across the node, or on a node
  *   under one pixel across, or a transparent one (an unfilled shape that draws only its outline),
  *   is no visible fill (null);
- * - a label inside its node's box and behind the node's front face (occluded), or under one pixel
- *   tall, is not visible.
+ * - a label inside its node's box and behind the node's front face (occluded) is not visible; a
+ *   label drawn small is visible, and its size is judged by `fontSize`.
  *
  * Lengths are render pixels; the comparer fits one similarity transform on node centers and
  * expresses every length in reference units with its scale. The vocabulary maps are unit-tested in
@@ -37,6 +37,7 @@ import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
+import { insideFigure } from "./oracle/primitives";
 
 /**
  * What the graphty side cannot read off the drawn scene. A property here is scored "unmeasurable
@@ -303,8 +304,9 @@ const ellipsePoints = (b: ScreenBox): number[][] =>
 /**
  * Whether one screen box lies wholly under a node's outline: under its box for a shape that fills its box, else
  * under the ellipse its box holds. A shape with empty corners (a Pajek man's figure, a star) does not hide a node
- * drawn in a corner of its box (pajek-synth-vertices: man 24 beside man 32's arm, inside his box). ponytail: the
- * ellipse stands for every shape that is no rectangle; a small node under a diamond's or a triangle's corner of that
+ * drawn in a corner of its box (pajek-synth-vertices: man 24 beside man 32's arm, inside his box), so a figure with a
+ * dent covers what lies under its own outline (`DrawnNode.figure`). ponytail: the ellipse stands for every other
+ * shape that is no rectangle; a small node under a diamond's or a triangle's corner of that
  * ellipse is counted hidden although it shows. A round node is covered when its own outline is, not its box's corners:
  * a disc drawn just inside a bigger one shows nothing (json-graphology-synth n1 under n11).
  * @param node - the node that may be covered
@@ -331,6 +333,11 @@ function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
                   [inner.x0, inner.y1],
                   [inner.x1, inner.y1],
               ];
+    // a figure (Pajek's man) covers what lies under its own outline, its edges already in pixels
+    const { figure } = outer;
+    if (figure !== undefined) {
+        return corners.every(([x, y]) => insideFigure(figure, { cx: 0, cy: 0, w: 2, h: 2 }, [x, y], INSIDE_SLACK));
+    }
     return corners.every(([x, y]) => Math.hypot((x - cx) / (rx + INSIDE_SLACK), (y - cy) / (ry + INSIDE_SLACK)) <= 1);
 }
 
@@ -354,15 +361,24 @@ export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, st
 }
 
 /**
- * The groups as drawn: every node whose screen box holds the whole box of a visible node, with
- * the visible leaf nodes (nodes holding no other) inside it as its members, the way the reference
- * extractors list a group's members (its leaf descendants). A group drawn over its members shows
- * none of them, so it has no members and is not a group here.
+ * The groups as drawn: every visible node whose screen box holds the whole box of a visible node,
+ * with the visible leaf nodes (nodes holding no other) inside it as its members, the way the
+ * reference extractors list a group's members (its leaf descendants). A group drawn over its
+ * members shows none of them, so it has no members and is not a group here; nor is a node that is
+ * not drawn (an expanded Cytoscape group's own node, which graph-io marks hidden).
  * @param scene - the scene's nodes, with their visibility already decided
  * @param nodes - what was drawn, by id
+ * @param declared - the nodes the graph nests others in, when only those can be groups: the
+ *     reference extractors read a group off the file's containment (a yEd group, a Cytoscape.js
+ *     compound parent, a Graphviz cluster), never off a plain node drawn round a smaller one; omitted,
+ *     every node holding another is one, as a drawing with no ids shows it
  * @returns the groups
  */
-export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string, DrawnNode>): SceneGroup[] {
+export function groupsOf(
+    scene: readonly SceneNode[],
+    nodes: ReadonlyMap<string, DrawnNode>,
+    declared?: ReadonlySet<string>,
+): SceneGroup[] {
     const visible = scene.filter((n) => n.visible);
     const inside = new Map(
         scene.map((g) => {
@@ -392,7 +408,7 @@ export function groupsOf(scene: readonly SceneNode[], nodes: ReadonlyMap<string,
     return scene.flatMap((g) => {
         const box = nodes.get(g.id)?.box;
         const members = (inside.get(g) ?? []).filter((n) => leaves.has(n));
-        if (!box || members.length === 0) {
+        if (!box || members.length === 0 || !g.visible || (declared !== undefined && !declared.has(g.id))) {
             return [];
         }
         return [
@@ -480,13 +496,15 @@ export function sceneNode(
     const covered = ring !== null && ring.inner && 2 * ring.reachPx >= Math.min(w, h);
     const subPixel = Math.min(w, h) < 1;
     const visible = d.visible && hiddenBy === null;
-    const { label } = d;
+    // a table's words are its label, as the source program's scene records them
+    const label = d.label ?? d.tableLabel ?? null;
     const place = label ? labelPlace(label.box, d) : "other";
     const occluded =
         label !== null && place === "inside" && !label.onTop && (label.box.near + label.box.far) / 2 > d.box.near;
-    // a label a reader could see, whether or not it is enabled now
-    const labelShown =
-        label !== null && d.shown && (hiddenBy === null || label.onTop) && !occluded && label.fontPx >= 1;
+    // a label a reader could see, whether or not it is enabled now, at any size: how small it is drawn is `fontSize`'s
+    // to judge, in the reference's units, and a cut-off in render pixels would fail its text, color and place too for a
+    // label drawn in proportion in a frame that shrinks the whole drawing (cx-ddram's 1 pt labels)
+    const labelShown = label !== null && d.shown && (hiddenBy === null || label.onTop) && !occluded;
     const requestedFill = colorOf(channel(merged, "node.color"));
     const opacity = channel(merged, "node.opacity");
     const labelStyle = (merged["node.labelStyle"] ?? {}) as Readonly<Record<string, unknown>>;
@@ -542,6 +560,9 @@ export function sceneNode(
     };
 }
 
+/** The file-style rule that draws each node a file nests others in behind its members. */
+const GROUPS_RULE = "node.groups";
+
 const MAX_PATH_POINTS = 65;
 
 const PATTERN_STYLES: Readonly<Record<string, LineStyle>> = { dash: "dashed", dot: "dotted" };
@@ -580,7 +601,7 @@ function sceneEdge(
         width: d.thicknessPx,
         style: d.pattern === null ? "solid" : (PATTERN_STYLES[d.pattern] ?? "other"),
         arrow: { source: capAt("arrowTail"), target: capAt("arrowHead") },
-        label: d.label?.enabled === true && d.label.fontPx >= 1 && d.label.text !== "" ? d.label.text : null,
+        label: d.label?.enabled === true && d.label.text !== "" ? d.label.text : null,
         requested: {
             edgeColor: color?.hex ?? null,
             edgeOpacity: (typeof opacity === "number" ? opacity : 1) * (color?.alpha ?? 1),
@@ -616,11 +637,18 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
         session.styles.explain(target).merged;
     const hidden = occluders(drawn.nodes);
     const nodes: SceneNode[] = [];
+    // the nodes the file nests others in: the file styles draw each behind its members by the "node.groups" rule
+    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column)
+    const declared = new Set<string>();
     for (const record of session.data.nodes()) {
         const id = String(record.id);
         const d = drawn.nodes.get(id);
         if (d !== undefined) {
-            nodes.push(sceneNode(id, d, styleOf({ node: id }), hidden.get(id) ?? null));
+            const explained = session.styles.explain({ node: id });
+            nodes.push(sceneNode(id, d, explained.merged, hidden.get(id) ?? null));
+            if (explained.contributions.some((c) => c.name === GROUPS_RULE)) {
+                declared.add(id);
+            }
         }
     }
     const edges: SceneEdge[] = [];
@@ -649,7 +677,7 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
         canCarry: canCarry("graphty", PROPERTIES),
         nodes,
         edges,
-        groups: groupsOf(nodes, drawn.nodes),
+        groups: groupsOf(nodes, drawn.nodes, declared),
         annotations: drawn.annotations.map((a) => ({
             kind: a.kind,
             bbox: { x: a.box.x0, y: a.box.y0, w: a.box.x1 - a.box.x0, h: a.box.y1 - a.box.y0 },

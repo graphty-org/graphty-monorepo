@@ -180,6 +180,34 @@ describe("waitForStableFrame waits for the frame that draws", () => {
         assert.isTrue(tooltipDrawn, "the stable frame drew the tooltip");
     });
 
+    it("a tooltip asked for just before the wait", async () => {
+        // The pointer case above, without the round trip of the pointer: Babylon announces a new
+        // mesh a timer after it is built, and a wait asked for before that timer ran resolved on
+        // the frame from before the tooltip (issue #5139). The hover test hit that gap only when
+        // the timer happened to be slower than the pointer's reply; here it is certain.
+        const element = await mounted();
+        await element.session.styles.add({
+            name: "tooltips",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.tooltip": "a few words" },
+        });
+        await element.waitForStableFrame();
+
+        let tooltipDrawn = false;
+        afterEachFrame(element, () => {
+            const mesh = element.graph.getNode("a")?.tooltip?.labelMesh;
+            tooltipDrawn =
+                mesh !== undefined && mesh !== null && element.graph.getScene().getActiveMeshes().data.includes(mesh);
+        });
+
+        element.graph.getNode("a")?.showTooltip();
+        await element.waitForStableFrame();
+
+        assert.isDefined(element.graph.getNode("a")?.tooltip, "the tooltip was built");
+        assert.isTrue(tooltipDrawn, "the stable frame drew the tooltip");
+    });
+
     it("a selection style changed while a node is selected", async () => {
         const element = await mounted();
         element.graph.selectNode("a");

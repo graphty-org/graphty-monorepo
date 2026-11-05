@@ -4,10 +4,9 @@
  * @module ai/providers/WebLlmProvider
  */
 
-import { asSchema } from "ai";
-
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { missingPackage } from "../missingPackage";
 import type {
     LlmProvider,
     LlmResponse,
@@ -150,6 +149,37 @@ interface OpenAiResponse {
         };
     }[];
     usage?: OpenAiUsage;
+}
+
+/**
+ * Report each named tool call of one streamed delta: collect it and hand it to the callbacks.
+ * @param toolCallsArray - The delta's tool calls, if any.
+ * @param toolCalls - The calls collected so far.
+ * @param callbacks - Streaming callbacks for text and tool calls.
+ */
+function emitToolCalls(
+    toolCallsArray: OpenAiToolCall[] | undefined,
+    toolCalls: ToolCall[],
+    callbacks: StreamCallbacks,
+): void {
+    if (!toolCallsArray) {
+        return;
+    }
+
+    for (const tc of toolCallsArray) {
+        if (tc.function?.name) {
+            const toolCall: ToolCall = {
+                id: tc.id ?? `call_${Date.now()}`,
+                name: tc.function.name,
+                arguments:
+                    typeof tc.function.arguments === "string"
+                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+                        : (tc.function.arguments ?? {}),
+            };
+            toolCalls.push(toolCall);
+            callbacks.onToolCall(toolCall.name, toolCall.arguments);
+        }
+    }
 }
 
 /**
@@ -444,7 +474,7 @@ export class WebLlmProvider implements LlmProvider {
             const sendTools = this.shouldSendTools(tools, options?.toolChoice);
 
             let response = (await engine.chat.completions.create(
-                this.buildRequest(messages, sendTools ? tools : [], false),
+                await this.buildRequest(messages, sendTools ? tools : [], false),
             )) as OpenAiResponse;
 
             // Sent tools, WebLLM constrains a Hermes model to a JSON list of calls, so it cannot
@@ -456,7 +486,7 @@ export class WebLlmProvider implements LlmProvider {
                 }
 
                 response = (await engine.chat.completions.create(
-                    this.buildRequest(messages, [], false),
+                    await this.buildRequest(messages, [], false),
                 )) as OpenAiResponse;
             }
 
@@ -505,7 +535,7 @@ export class WebLlmProvider implements LlmProvider {
             const sendTools = this.shouldSendTools(tools);
 
             const stream = await engine.chat.completions.create(
-                this.buildRequest(messages, sendTools ? tools : [], true),
+                await this.buildRequest(messages, sendTools ? tools : [], true),
             );
 
             let accumulatedText = "";
@@ -528,23 +558,7 @@ export class WebLlmProvider implements LlmProvider {
                 }
 
                 // Handle tool calls (snake_case from OpenAI API)
-                const toolCallsArray = delta.tool_calls;
-                if (toolCallsArray) {
-                    for (const tc of toolCallsArray) {
-                        if (tc.function?.name) {
-                            const toolCall: ToolCall = {
-                                id: tc.id ?? `call_${Date.now()}`,
-                                name: tc.function.name,
-                                arguments:
-                                    typeof tc.function.arguments === "string"
-                                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
-                                        : (tc.function.arguments ?? {}),
-                            };
-                            toolCalls.push(toolCall);
-                            callbacks.onToolCall(toolCall.name, toolCall.arguments);
-                        }
-                    }
-                }
+                emitToolCalls(delta.tool_calls, toolCalls, callbacks);
             }
 
             callbacks.onComplete({
@@ -606,11 +620,11 @@ export class WebLlmProvider implements LlmProvider {
      * @param stream - Whether to stream the response
      * @returns The request
      */
-    private buildRequest(
+    private async buildRequest(
         messages: Message[],
         tools: ToolDefinition[],
         stream: boolean,
-    ): OpenAiRequestOptions & { messages: OpenAiMessage[] } {
+    ): Promise<OpenAiRequestOptions & { messages: OpenAiMessage[] }> {
         // OpenAI API requires snake_case keys
         /* eslint-disable camelcase */
         const request: OpenAiRequestOptions & { messages: OpenAiMessage[] } = {
@@ -624,7 +638,7 @@ export class WebLlmProvider implements LlmProvider {
         }
 
         if (tools.length > 0) {
-            request.tools = this.convertTools(tools);
+            request.tools = await this.convertTools(tools);
             request.tool_choice = "auto";
         }
         /* eslint-enable camelcase */
@@ -680,7 +694,14 @@ export class WebLlmProvider implements LlmProvider {
      * @param tools - Tool definitions to convert
      * @returns Array of OpenAI formatted tool objects
      */
-    private convertTools(tools: ToolDefinition[]): Record<string, unknown>[] {
+    private async convertTools(tools: ToolDefinition[]): Promise<Record<string, unknown>[]> {
+        // `ai` is an optional peer: see `missingPackage`.
+        let asSchema: typeof import("ai").asSchema;
+        try {
+            ({ asSchema } = await import("ai"));
+        } catch (error) {
+            throw missingPackage("ai", "webllm", error);
+        }
         return tools.map((t) => ({
             type: "function",
             function: {

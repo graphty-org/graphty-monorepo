@@ -176,15 +176,23 @@ describe("a database's rim", () => {
 
 describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
     test("reads lists of points separated by semicolons, dropping a list with a bad pair", () => {
+        // each point its x and y fractions, each followed by the length added to it (none here)
         assert.deepEqual(pointLists("-1,0 1,0; 0,0 0,1 2,2; 1,x 2,2"), [
             [
-                [-1, 0],
-                [1, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
             ],
             [
-                [0, 0],
-                [0, 1],
-                [2, 2],
+                [0, 0, 0, 0],
+                [0, 0, 1, 0],
+                [2, 0, 2, 0],
+            ],
+        ]);
+        // a coordinate may add a length to its fraction
+        assert.deepEqual(pointLists("-1+24,0-1.5 0.25-6,1"), [
+            [
+                [-1, 24, 0, -1.5],
+                [0.25, -6, 1, 0],
             ],
         ]);
         assert.deepEqual(pointLists(undefined), []);
@@ -234,6 +242,26 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         // its outline is its four sides, half the border's width either side of them
         assert.equal(lines.length, 4);
         assert.deepEqual(boxOf(lines.flatMap((p) => p.outline)), { x0: -12.5, y0: -6.5, x1: 12.5, y1: -2.5 });
+    });
+});
+
+describe("a node's parts and lines given in lengths", () => {
+    test("keep a length's size and its distance from a side whatever the node's width", () => {
+        // a bar 24 long against the node's left side, 2 world units per unit of length
+        for (const width of [100, 300]) {
+            const { fills } = shapePartPieces(
+                { parts: "-1,0 -1+24,0 -1+24,0+6 -1,0+6" },
+                { width: 1, color: "#000000" },
+                "#ffffff",
+                width,
+                40,
+                2,
+            );
+            assert.deepEqual(boxOf(fills[0].outline), { x0: -width / 2, y0: 0, x1: -width / 2 + 48, y1: 12 });
+        }
+        const lines = shapeLinePieces({ lines: "-1+24,0 1,0" }, { width: 1, color: "#000000" }, 300, 40, 2);
+        const box = boxOf(lines[0].outline);
+        assert.deepEqual([box.x0, box.x1], [-150 + 48, 150]);
     });
 });
 

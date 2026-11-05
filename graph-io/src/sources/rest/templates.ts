@@ -49,7 +49,8 @@ function fill(
     report: ImportReportBuilder,
 ): string {
     return template.replaceAll(SLOT, (_, name: string) => {
-        const value = values[name];
+        const given: Readonly<Partial<Record<string, string>>> = values;
+        const value = given[name];
         if (value === undefined) {
             failOn(report, "E_SOURCE_PARAM", `the mapping's template needs ${name}`, { name, reason: "required" });
         }

@@ -594,7 +594,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY` and `labelShiftOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -645,6 +645,7 @@ export type Channel =
     | "node.labelOffsetY"
     | "node.labelShiftX"
     | "node.labelShiftY"
+    | "node.labelShiftOf"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -663,6 +664,7 @@ export type Channel =
     | "node.width"
     | "node.height"
     | "node.depth"
+    | "node.relativeExtents"
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
@@ -679,6 +681,7 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -691,16 +694,22 @@ export type Channel =
     | "node.overlayCornerRadius"
     | "node.cornerRadius"
     | "node.exactCornerRadius"
+    | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
+    | "node.shapeRotation"
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"
+    | "node.labelTable"
     | "node.shapeLineWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.labelFitQuantum"
+    | "node.labelFitImage"
+    | "node.labelFitImagePadding"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -774,6 +783,10 @@ export type Channel =
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
+    | "edge.fadeStart"
+    | "edge.fadeEnd"
+    | "edge.fadeOpacity"
+    | "edge.blending"
     | "edge.opacity"
     | "edge.bandColor"
     | "edge.bandWidth"
@@ -921,7 +934,18 @@ export type Channel =
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
-    | "edge.labelShiftY";
+    | "edge.labelShiftY"
+    | "edge.labelShiftOf"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.

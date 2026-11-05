@@ -24,6 +24,10 @@
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
  *   test-count=<number of shards>   (0 means skip the test job: an empty matrix is an error)
+ * and, when the plan holds more than MATRIX_CAP jobs, test-matrix-1 and test-matrix-2: the same list cut in
+ * two, one per Test job of ci.yml (test and test-2), since GitHub refuses a matrix above 256 jobs (#5537).
+ * test-matrix is then a slim index of the legs (no commands or file lists): later jobs only test it for a
+ * shard's name, and a second full copy pushed a 261-bin plan past GitHub's 1 MB cap on a job's outputs (#5605).
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
  * no affected name and its shards would silently never run on a pull request again.
@@ -52,6 +56,15 @@ import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
+
+/**
+ * How many parts the graphty-element browser shards split their files into (vitest --shard, by file count). The
+ * family's cost is mostly per file -- each file runs alone in the browser and pays 5 to 7.5 s of setup and import
+ * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
+ * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
+ * the 900 s shard budget (#5822); eight bring that to about 630 s.
+ */
+const ELEMENT_BROWSER_PARTS = 8;
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
@@ -83,14 +96,17 @@ const OFF_SHARDS = [
     // graph-io-fidelity's stories (graph-io/fidelity-stories): every play function run as a test, so the
     // selector has an import graph that picks the stories a change reaches. No coverage: the graph-io shard
     // measures graph-io. The stories draw the oracles' rasterized PNGs, Git LFS objects: "lfs" names the paths
-    // ci.yml's test job pulls (a pointer file fails to decode, #4989).
-    {
-        shard: "graph-io-storybook",
+    // ci.yml's test job pulls (a pointer file fails to decode, #4989). Two parts with a job each: since every test
+    // waits for its story to finish importing, comparing and taking its screenshot (#4997), the stories run one file
+    // at a time for 13.8 minutes of vitest on a CI runner (ci.yml run 41364852981, 2026-11-02), where they took
+    // 1.6 minutes before; inside small-browser that pushed the group past its 30 minute limit (#5631).
+    ...[1, 2].map((n) => ({
+        shard: `graph-io-storybook-${n}`,
         package: "graph-io",
-        "test-command": "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "test-command": `cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook --shard=${n}/2`,
         "needs-browser": true,
         lfs: "graph-io/test/fidelity/oracles/*.png",
-    },
+    })),
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
     // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -303,12 +319,14 @@ const OFF_SHARDS = [
         "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": false,
     },
-    // graphty-element browser tests (5 shards)
+    // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    // "minimum-work" runs the tests of "the picture is final" again with every frame doing the least
+    // work it can (graphty-element/src/managers/minimumWork.ts, issue #4218).
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work --shard=${n}/${ELEMENT_BROWSER_PARTS} --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -337,27 +355,6 @@ const OFF_SHARDS = [
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
-    // The style fidelity gate over every oracle (graphty-element/test/fidelity/oracle-report.test.ts, 563 samples
-    // against the programs' own drawings): a sample fails only when an element fails a property that
-    // oracle-known-failures.json does not list. Pull requests run its 28-sample subset (oracle-scorecard.test.ts, in
-    // the browser shards); the whole set drifted red unseen for a week with nothing running it (issue #4270), so the
-    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Timed on ubuntu-24.04 runners
-    // without a GPU (a dispatch of ci.yml with these four shards, run 40890370190, 2026-10-29): 285 to 355 s of
-    // samples a slice, 6 to 8 minutes a job with its setup, against the job's 30; 807 s for all 563 on the
-    // workstation. The gate's elements are the same with and without a GPU, and on the runner and the workstation
-    // (#4270); only the raster regions differ, and they are reported, never gated. No coverage: the fidelity
-    // project measures none.
-    ...[1, 2, 3, 4].map((n) => ({
-        shard: `graphty-element-fidelity-${n}`,
-        package: "graphty-element",
-        "test-command": `cd graphty-element && GRAPHTY_ORACLE_SLICE=${n}/4 pnpm exec vitest run --project=fidelity test/fidelity/oracle-report.test.ts ${ELEMENT_REPORTERS}`,
-        "needs-browser": true,
-        "full-run-only": true,
-        // every oracle's rasterized PNG, Git LFS objects (about 48 MB)
-        lfs: "graph-io/test/fidelity/oracles/*.png",
-        // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
-        local: "never",
-    })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -426,25 +423,53 @@ export const FEATURES_ON_SHARDS = [
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
 /**
- * The shards ci.yml's story-tests job runs with their screenshots (its matrix's `shard` values; a test checks the
- * two agree). Each one's screenshot run is a results family of its own, `<family>-shots`
- * (tools/results/run-group.mjs groupFamily()), whose quarantines only the results store holds.
+ * The shards ci.yml's story-tests job runs with their screenshots, each with its visual-review project (its
+ * matrix's `shard` and `project` values; a test checks the two agree). Each one's screenshot run is a results
+ * family of its own, `<family>-shots` (tools/results/run-group.mjs groupFamily()), whose quarantines only the
+ * results store holds, and its inputs key holds the project's `visual-baselines/<project>` tree.
  */
-export const STORY_SHARDS = [
-    "graphty-storybook",
-    "graphty-element-storybook-1",
-    "algorithms-browser",
-    "cytoscape-extensions",
-    "layout",
-    "compact-mantine",
-    "graph-io-browser",
-];
+export const STORY_PROJECTS = {
+    "graphty-storybook": "graphty",
+    "graphty-element-storybook-1": "graphty-element",
+    "algorithms-browser": "algorithms",
+    "cytoscape-extensions": "cytoscape-extensions",
+    layout: "layout",
+    "compact-mantine": "compact-mantine",
+    "graph-io-browser": "graph-io-fidelity",
+};
+
+/** The shards ci.yml's story-tests job runs with their screenshots (STORY_PROJECTS' keys). */
+export const STORY_SHARDS = Object.keys(STORY_PROJECTS);
+
+/**
+ * How ci.yml's story-tests job runs each STORY_SHARDS entry: its matrix's `command` without a leg's `--shard=N/M`,
+ * and `lfs`, what its Git LFS pull fetches beyond the project's baselines and the pinned fonts (a test checks they
+ * agree). A base check of a `-shots` variant runs one story file this way (tools/results/cli.mjs baseCheck()),
+ * building the shard's package and `build`, the nx projects its stories import beyond it (the story-tests job has
+ * every package's build).
+ */
+export const STORY_RUNS = {
+    "graphty-storybook": { command: "cd graphty && pnpm exec vitest run --project=storybook" },
+    "graphty-element-storybook-1": { command: "cd graphty-element && pnpm exec vitest run --project=storybook" },
+    "algorithms-browser": { command: "cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "cytoscape-extensions": {
+        command: "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts",
+    },
+    layout: { command: "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "compact-mantine": { command: "cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts" },
+    "graph-io-browser": {
+        command: "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts",
+        lfs: ",graph-io/test/fidelity/oracles/*.png",
+        // the fidelity stories draw with graphty-element's source, which imports the other packages' builds
+        build: ["graphty-element"],
+    },
+};
 
 /**
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
  * setup) run one after another in a single job. A group job runs only its affected members, and
  * every member runs even when an earlier one failed, so one job reports every failure. Without
- * the groups a full run would ask for 36 test runners at once; with them it asks for 25.
+ * the groups a full run would ask for 42 test runners at once; with them it asks for 27.
  *
  * Each group is kept under about 15 minutes so no test job holds up a pull request's CI or a
  * re-run of one failed job. Measured on CI runners (ci.yml runs 39537734606 of 2026-10-21 and
@@ -456,10 +481,10 @@ export const STORY_SHARDS = [
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
  *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
- *                  graph-io-storybook 1.6 (on this machine), layout-storybook 0.3,
- *                  cytoscape-extensions-storybook 0.7
+ *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
+ * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
  * small-browser took over 64 minutes with the graphty shards in it).
  */
@@ -482,7 +507,6 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "algorithms-storybook",
-        "graph-io-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
@@ -497,7 +521,8 @@ const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-storybook",
     "algorithms-storybook",
-    "graph-io-storybook",
+    "graph-io-storybook-1",
+    "graph-io-storybook-2",
     "layout-storybook",
     "cytoscape-extensions-storybook",
     "graph-io-browser",
@@ -648,6 +673,43 @@ export function storiesPlan(light) {
     });
 }
 
+/** GitHub's limit on the jobs one matrix may make: a larger matrix fails its job without running a leg. */
+export const MATRIX_CAP = 256;
+
+/**
+ * The matrix lines a plan above MATRIX_CAP adds: its include list cut into the two Test jobs of ci.yml.
+ * @param include the plan's include list, in order
+ * @returns the extra GITHUB_OUTPUT lines, none when one job holds the plan
+ * @throws when two jobs cannot hold it
+ */
+export function splitLines(include) {
+    if (include.length <= MATRIX_CAP) return [];
+    // ponytail: two Test jobs hold 512; a third job in ci.yml when a plan ever passes that
+    if (include.length > 2 * MATRIX_CAP) {
+        throw new Error(`the plan made ${include.length} Test jobs; ci.yml's two Test jobs hold ${2 * MATRIX_CAP}`);
+    }
+    return [include.slice(0, MATRIX_CAP), include.slice(MATRIX_CAP)].map(
+        (part, i) => `test-matrix-${i + 1}=${JSON.stringify({ include: part })}`,
+    );
+}
+
+/** The fields a leg of the slim test-matrix leaves out: only the Test jobs run a leg, from test-matrix-1/2. */
+const SLIM_DROPS = new Set(["test-command", "files", "ids", "local-paths"]);
+
+/**
+ * The test-matrix line: the whole plan, or, when splitLines cut it in two, a slim index of its legs that still
+ * names every shard, member and package (ci.yml tests test-matrix with contains() for those).
+ * @param include the plan's include list, in order
+ * @returns the GITHUB_OUTPUT line
+ */
+export function matrixLine(include) {
+    const listed =
+        include.length <= MATRIX_CAP
+            ? include
+            : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.has(k))));
+    return `test-matrix=${JSON.stringify({ include: listed })}`;
+}
+
 /**
  * The --only argument as a list of shard names.
  * @param arg the argument's JSON text, or undefined when it was not given
@@ -713,8 +775,9 @@ function main() {
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
     const include = plan(affected, only, light, values["pull-request"] === true);
     console.log(`affected=${JSON.stringify(affected)}`);
-    console.log(`test-matrix=${JSON.stringify({ include })}`);
+    console.log(matrixLine(include));
     console.log(`test-count=${include.length}`);
+    for (const line of splitLines(include)) console.log(line);
     const stories = storiesPlan(light);
     console.log(`stories-matrix=${JSON.stringify({ include: stories })}`);
     console.log(`stories-count=${stories.length}`);

@@ -18,7 +18,7 @@ import type { LayoutResult } from "../../src";
 export function goldenFile(name: string): (key: string) => number[][] {
     // relative to the package root, where vitest runs: under happy-dom import.meta.url is not a file URL
     const file = resolve("test/layouts/fixtures", `${name}.golden.json`);
-    const store = JSON.parse(readFileSync(file, "utf8")) as Record<string, (number | string)[][]>;
+    const store = JSON.parse(readFileSync(file, "utf8")) as Partial<Record<string, (number | string)[][]>>;
     return (key) => {
         const rows = store[key];
         assert.ok(rows !== undefined, `no golden fixture ${name}/${key}`);

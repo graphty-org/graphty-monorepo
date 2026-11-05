@@ -2,7 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { definePalette } from "@graphty/graphty-element/extend";
 import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
-import { UnstyledButton } from "@mantine/core";
+import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
@@ -533,7 +533,7 @@ export function HeroGraph({
         }
         const close = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
-                session.selection.clear();
+                session.selection.clear({ cause: "user" });
             }
         };
         globalThis.addEventListener("keydown", close);
@@ -674,31 +674,34 @@ export function HeroGraph({
                     >
                         2D
                     </Chip>
-                    <UnstyledButton
-                        className="ws-land-chip"
-                        aria-label={turning ? "Pause the turning" : "Turn the graph"}
-                        aria-pressed={!turning}
-                        onClick={() => {
-                            setTurning((before) => !before);
-                        }}
-                    >
-                        {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
-                    </UnstyledButton>
+                    {/* An icon alone, so it says on hover what it does, in the words of its name. */}
+                    <Tooltip label={turning ? "Pause the turning" : "Turn the graph"}>
+                        <UnstyledButton
+                            className="ws-land-chip"
+                            aria-label={turning ? "Pause the turning" : "Turn the graph"}
+                            aria-pressed={!turning}
+                            onClick={() => {
+                                setTurning((before) => !before);
+                            }}
+                        >
+                            {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
+                        </UnstyledButton>
+                    </Tooltip>
                 </div>
-                {lines.length > 0 ? (
-                    <div className="ws-land-said" aria-live="polite">
-                        {lines.map((line) => (
-                            <p key={line}>{line}</p>
-                        ))}
-                    </div>
-                ) : null}
+                {/* On the page, empty, before its first line: a live region that arrives already
+                    holding its words is not read. Empty, it draws nothing (start.css). */}
+                <div className="ws-land-said" aria-live="polite">
+                    {lines.map((line) => (
+                        <p key={line}>{line}</p>
+                    ))}
+                </div>
             </div>
             {card === null || session === null ? null : (
                 <NodeCard
                     card={card}
                     boxRef={cardRef}
                     onClose={() => {
-                        session.selection.clear();
+                        session.selection.clear({ cause: "user" });
                     }}
                 />
             )}

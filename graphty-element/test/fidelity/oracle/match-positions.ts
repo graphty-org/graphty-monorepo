@@ -3,7 +3,7 @@
  * comparison judges style with the layout taken out. Shared by the oracle tests (`run-oracle.ts`) and the matched
  * fidelity stories in graph-io's fidelity Storybook, so both draw the same thing. Runs in any browser page.
  */
-import { fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
+import { apply, fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
 import type { Graphty } from "../../../index.js";
 import { pairNodes } from "./compare-oracle";
 import type { OracleComparison } from "./oracle-library";
@@ -20,6 +20,29 @@ function unapply(t: NonNullable<ReturnType<typeof fitSimilarity>>, q: Pt): Pt {
     const s = Math.sin(-t.rotation) / t.scale;
     const ry = s * x + c * y;
     return [c * x - s * y, t.reflect ? -ry : ry];
+}
+
+/**
+ * How far each graphty node draws its center off its position, in graphty's pixels: nothing for a node drawn round its
+ * position, the glyph's rise for one drawn above its baseline (Graphviz's proteinstab, 9 points up). The matched
+ * drawing places a node so its drawing, not its position, lands where the program drew that node; placing its
+ * position there instead drew every such glyph its rise too far off (dot-specimen-node-shapes@matched).
+ * @param drawn - graphty's drawn nodes: their ids and drawn centers
+ * @param positionOf - a node's position in the world
+ * @param toPx - the frame from world positions to graphty's pixels
+ * @returns each node's offset
+ */
+export function drawnOffsets(
+    drawn: readonly { id: string; cx: number; cy: number }[],
+    positionOf: (id: string) => Pt,
+    toPx: NonNullable<ReturnType<typeof fitSimilarity>>,
+): Map<string, Pt> {
+    return new Map(
+        drawn.map((n): [string, Pt] => {
+            const [x, y] = apply(toPx, positionOf(n.id));
+            return [n.id, [n.cx - x, n.cy - y]];
+        }),
+    );
 }
 
 /**
@@ -82,7 +105,14 @@ export async function matchPositions(element: Graphty, first: OracleComparison, 
                   (bg.y0 + bg.y1) / 2 + (p[1] - (bo.y0 + bo.y1) / 2) * k,
               ]
             : unapply(fit, p);
-    const inGraphty = new Map(pairs.map(([o, g]): [string, Pt] => [g.id, intoGraphty([o.cx, o.cy])]));
+    const offsets = drawnOffsets(drawn, (id) => world.get(id)?.at ?? [0, 0], toPx);
+    const inGraphty = new Map(
+        pairs.map(([o, g]): [string, Pt] => {
+            const [x, y] = intoGraphty([o.cx, o.cy]);
+            const [dx, dy] = offsets.get(g.id) ?? [0, 0];
+            return [g.id, [x - dx, y - dy]];
+        }),
+    );
     // between unrelated layouts, a node the program's drawing does not show goes among its neighbours, not where
     // graphty's own layout put it
     const undrawn =

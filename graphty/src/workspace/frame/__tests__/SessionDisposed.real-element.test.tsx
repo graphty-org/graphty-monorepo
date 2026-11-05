@@ -79,11 +79,12 @@ describe("a disposed session", () => {
         render(<Host place={place} />);
         await waitFor(() => assert.match(screen.getByTestId("reader").textContent ?? "", /values$/));
 
-        // The page loses the element without React unmounting it: its session is disposed.
+        // The page loses the element without React unmounting it: its session is disposed, once
+        // the element has stayed out of the page past the microtask a move would have used.
         const element = place.querySelector("graphty-element");
         assert.isNotNull(element);
         place.remove();
-        assert.isFalse(element.session.status.ready);
+        await waitFor(() => assert.isFalse(element.session.status.ready));
 
         await userEvent.click(screen.getByRole("button", { name: /Render again/ }));
         await waitFor(() => assert.include(screen.getByRole("button", { name: /Render again/ }).textContent, "1"));

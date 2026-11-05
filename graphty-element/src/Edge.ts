@@ -3,6 +3,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
+import omit from "lodash/omit.js";
 
 import { fixedParamsOf, type ShaderParams, type ShaderUse, timingOf } from "./catalog/shaders";
 import {
@@ -62,7 +63,7 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
-import { Node, NodeIdType } from "./Node";
+import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 
@@ -87,6 +88,12 @@ const EDGE_LABEL_LOCATION: AttachPosition = "center";
 
 /** How far an edge's own label sits from the middle of the line when its block does not say. */
 const EDGE_LABEL_OFFSET = 0;
+
+/**
+ * Where an edge's external label (`xlabel`) hangs from the line's middle when its block does not say and no layout
+ * placed it: up and left, its lower right corner on the middle, the first place Graphviz's lib/label/xlabels.c tries.
+ */
+const EDGE_XLABEL_LOCATION: AttachPosition = "top-left";
 
 /**
  * Where a caption hangs from the cap it belongs to, when its own block does not say.
@@ -248,7 +255,7 @@ function taperOf(style: EdgeStyleConfig | null): number {
 
 /**
  * What a style asks the line to be drawn with beyond its plain look, as the key the line was
- * built for: a surface, a taper, or nothing.
+ * built for: a surface, a widened line (a taper or a fade), or nothing.
  * @param style - The resolved style.
  * @returns `"surface:<id>"`, `"taper"` or `"plain"`.
  */
@@ -258,7 +265,17 @@ function flavorOf(style: EdgeStyleConfig | null): string {
         return `surface:${surface}`;
     }
 
-    return taperOf(style) === 1 ? "plain" : "taper";
+    return widensLine(style) ? "taper" : "plain";
+}
+
+/**
+ * Whether a style's line is drawn from a widened batch without a surface: one whose slots carry a
+ * taper or the whole edge's length, which a fade reads.
+ * @param style - The resolved style.
+ * @returns True for a taper or a fade.
+ */
+function widensLine(style: EdgeStyleConfig | null): boolean {
+    return taperOf(style) !== 1 || EdgeMesh.fadeOf(style) !== undefined;
 }
 
 /**
@@ -551,7 +568,7 @@ export class Edge {
      */
     private lineWanted = "plain";
 
-    /** What the line was built with: the flavor asked for, or `"plain"` while a surface cannot draw. */
+    /** What the line was built with: the flavor asked for, or a lesser one while a surface cannot draw. */
     private lineBuilt = "plain";
 
     /**
@@ -609,6 +626,17 @@ export class Edge {
     private _arrowTailTextAttachPosition: AttachPosition = ARROW_CAPTION_LOCATION;
     private _labelOffset = EDGE_LABEL_OFFSET;
     private _labelAttachPosition: AttachPosition = EDGE_LABEL_LOCATION;
+
+    /** The external label on screen (`xlabel`), drawn beside the line's middle. */
+    xlabelLabel: RichTextLabel | null = null;
+    private _xlabelOffset = 0;
+    private _xlabelAttachPosition: AttachPosition = EDGE_XLABEL_LOCATION;
+    /** The labels the layout left out when it last placed this edge ({@link EdgePosition.leftOut}). */
+    private leftOutLabels: NonNullable<EdgePosition["leftOut"]> = [];
+    /** Whether the external label's style names a location of its own, which a layout's place does not override. */
+    private _xlabelPlacedByStyle = false;
+    /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
+    private drawnXlabel?: string;
 
     /**
      * The words the label on screen is drawing, and undefined when this edge draws no label.
@@ -1097,13 +1125,19 @@ export class Edge {
             bent = this.placeLine(src, dst, lnk.bends);
         }
 
+        // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
+        const laidLabel = lnk.labelAt !== undefined && !this.lifted;
         this.label?.attachTo(
             this.labelPoint(src, dst, bent, lnk.labelAt),
-            this._labelAttachPosition,
-            this._labelOffset,
+            laidLabel ? "center" : this._labelAttachPosition,
+            laidLabel ? 0 : this._labelOffset,
         );
 
-        this.placeArrowCaptions(src, dst);
+        this.placeXlabel(src, dst, bent, lnk.xlabelAt);
+        this.placeArrowCaptions(src, dst, lnk);
+        // the layout may leave a label out (Graphviz's `forcelabels=false` with no room for it)
+        this.leftOutLabels = lnk.leftOut ?? [];
+        this.setTextsDrawn(true);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
@@ -1210,16 +1244,41 @@ export class Edge {
     }
 
     /**
+     * Put the external label, if there is one: centered where the layout put it (Graphviz's `xlp`) unless its style
+     * names a location, else against the line's middle where its style, or {@link EDGE_XLABEL_LOCATION}, says.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @param bent - Whether the line was drawn bent.
+     * @param xlabelAt - The layout's place, relative to the two ends.
+     */
+    private placeXlabel(src: Vector3, dst: Vector3, bent: boolean, xlabelAt: EdgePosition["xlabelAt"]): void {
+        if (!this.xlabelLabel) {
+            return;
+        }
+
+        const laid = xlabelAt !== undefined && !this.lifted && !this._xlabelPlacedByStyle;
+        this.xlabelLabel.attachTo(
+            this.labelPoint(src, dst, bent, laid ? xlabelAt : undefined),
+            laid ? "center" : this._xlabelAttachPosition,
+            laid ? 0 : this._xlabelOffset,
+        );
+    }
+
+    /**
      * Put each end's caption, if it has one, beside the arrow cap where the cap now sits, or, at an
-     * end drawn with no arrow, where the line leaves the node.
+     * end drawn with no arrow, where the line leaves the node; centered where the layout put it
+     * (Graphviz's `head_lp` and `tail_lp`) when its style does not place it.
      * @param src - The source node's center.
      * @param dst - The target node's center.
+     * @param laid - Where the layout put the end labels, if it placed them.
      */
-    private placeArrowCaptions(src: Vector3, dst: Vector3): void {
+    private placeArrowCaptions(src: Vector3, dst: Vector3, laid: EdgePosition): void {
         // ponytail: a capless end is found along the straight line between the centers, not along a bent route
         const style = this.currentStyle;
         if (this.arrowHeadText) {
-            const along = this.captionOnLine(style.arrowHead, this.dstNode, dst, src);
+            const along =
+                this.captionOnLine(style.arrowHead, this.dstNode, dst, src) ??
+                this.captionLaid(style.arrowHead, src, dst, laid.headLabelAt);
             this.arrowHeadText.attachTo(
                 along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
                 along?.attachPosition ?? this._arrowHeadTextAttachPosition,
@@ -1228,13 +1287,37 @@ export class Edge {
         }
 
         if (this.arrowTailText) {
-            const along = this.captionOnLine(style.arrowTail, this.srcNode, src, dst);
+            const along =
+                this.captionOnLine(style.arrowTail, this.srcNode, src, dst) ??
+                this.captionLaid(style.arrowTail, src, dst, laid.tailLabelAt);
             this.arrowTailText.attachTo(
                 along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
                 along?.attachPosition ?? this._arrowTailTextAttachPosition,
                 along?.offset ?? this._arrowTailTextOffset,
             );
         }
+    }
+
+    /**
+     * Where an end's caption sits when the layout placed it and its style names no location of its own: centered on
+     * the layout's place. Null otherwise.
+     * @param arrow - The end's arrow block.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param place - The layout's place, relative to the two ends.
+     * @returns The point, where the caption hangs from it and how far, or null.
+     */
+    private captionLaid(
+        arrow: EdgeStyleConfig["arrowHead"],
+        src: Vector3,
+        dst: Vector3,
+        place: EdgePosition["headLabelAt"],
+    ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {
+        if (place === undefined || this.lifted || arrow?.text?.location !== undefined) {
+            return null;
+        }
+
+        return { at: Vector3.FromArray(bendPoints(src, dst, place)), attachPosition: "center", offset: 0 };
     }
 
     /**
@@ -1283,6 +1366,23 @@ export class Edge {
 
         this.sessionPaint = paint;
         this.paintMarked(paint);
+    }
+
+    /**
+     * Build this edge's label and arrow captions again when a font they draw in has just loaded
+     * (issue #3531): one measured and drawn while its web font was loading shows the fallback face.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was rebuilt.
+     * @internal
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const texts = [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText];
+        if (this.disposed || this.drawnStyle === null || !texts.some((text) => text?.usesFont(families) === true)) {
+            return false;
+        }
+
+        this.syncContent(this.drawnStyle, true);
+        return true;
     }
 
     /**
@@ -1926,7 +2026,10 @@ export class Edge {
 
         this.lineWanted = flavorOf(style);
         this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
-        this.lineBuilt = this.lineBatch === null ? "plain" : this.lineWanted;
+        // A surface that cannot draw yet leaves a taper's or a fade's batch here, or nothing; which
+        // of them was built is what wakes the edge once the surface can.
+        const built = shaded(this.lineBatch) === null ? "taper" : this.lineWanted;
+        this.lineBuilt = this.lineBatch === null ? "plain" : built;
         this.lineBatch ??= EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             options,
@@ -1983,7 +2086,7 @@ export class Edge {
         if (surface !== null) {
             const drawing = EdgeShaderDrawing.of(scene, this.context.getSession?.());
             const is2D = EdgeMesh.drawsFlat(scene);
-            const opacity = style.line?.opacity ?? 1;
+            const opacity = EdgeMesh.opacityOf(style);
             const batch = drawing?.surfaceBatch(
                 this,
                 surface,
@@ -1994,6 +2097,8 @@ export class Edge {
                     worldWidth: is2D,
                     color: options.color,
                     opacity,
+                    fade: EdgeMesh.fadeOf(style),
+                    opaque: EdgeMesh.drawsOpaque(style),
                 },
             );
             if (batch) {
@@ -2002,7 +2107,7 @@ export class Edge {
         }
 
         const loop = this.srcNode === this.dstNode;
-        if (taperOf(style) === 1 || EdgeMesh.drawsAsPattern(style, loop)) {
+        if (!widensLine(style) || EdgeMesh.drawsAsPattern(style, loop)) {
             return null;
         }
 
@@ -2077,14 +2182,15 @@ export class Edge {
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         // Every one runs: each brings its own part into line, whatever the others found.
         const label = this.syncLabel(style, rebuild);
+        const xlabel = this.syncXlabel(style, rebuild);
         const captions = this.syncArrowCaptions(style, rebuild);
         const bends = this.syncBends(style);
         const placement = this.syncPlacement(style);
 
-        if (label || captions || bends || placement) {
+        if (label || xlabel || captions || bends || placement) {
             this.invalidatePositionCache();
             // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
-            if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
+            if (this.label ?? this.xlabelLabel ?? this.arrowHeadText ?? this.arrowTailText) {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
@@ -2120,6 +2226,46 @@ export class Edge {
         // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
         // reference somebody else can still write to silently starts passing.
         this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
+        return true;
+    }
+
+    /**
+     * Bring the external label (`xlabel`) into line with one resolved style: drawn in the label's look with its own
+     * fields over it. Rebuilt only when what it is drawn from changes, or the meshes it is placed against were
+     * replaced. See {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the label is positioned against have just been replaced.
+     * @returns True when the external label was rebuilt.
+     */
+    private syncXlabel(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        // its words switch it on, whichever way they were written
+        const own = style.xlabel;
+        const wanted =
+            own?.text === undefined || own.text === "" || own.enabled === false
+                ? undefined
+                : drawnText({ ...own, enabled: true });
+        const key = wanted === undefined ? undefined : JSON.stringify([style.label, wanted]);
+        if (!rebuild && key === this.drawnXlabel) {
+            return false;
+        }
+
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = null;
+        this.drawnXlabel = key;
+        if (wanted === undefined) {
+            return true;
+        }
+
+        // the label's look, less where it sits and what it says; the external label's own fields win
+        const block = { ...omit(style.label ?? {}, XLABEL_UNSHARED), ...wanted };
+        const placement = this.placementOf(wanted, EDGE_XLABEL_LOCATION, 0);
+        this.xlabelLabel = new RichTextLabel(
+            this.context.getScene(),
+            this.createLabelOptions(this.extractLabelText(wanted), block, placement),
+        );
+        this._xlabelAttachPosition = placement.attachPosition;
+        this._xlabelOffset = placement.attachOffset;
+        this._xlabelPlacedByStyle = wanted.location !== undefined;
         return true;
     }
 
@@ -2345,6 +2491,9 @@ export class Edge {
 
         this.label?.dispose();
         this.label = null;
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = null;
+        this.drawnXlabel = undefined;
         this.arrowHeadText?.dispose();
         this.arrowHeadText = null;
         this.arrowTailText?.dispose();
@@ -2470,16 +2619,30 @@ export class Edge {
             }
         }
 
-        for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
-            const labelMesh = text?.labelMesh;
-
-            if (labelMesh && !labelMesh.isDisposed()) {
-                labelMesh.setEnabled(drawn);
-            }
-        }
+        this.setTextsDrawn(drawn);
 
         if (drawn) {
             this.invalidatePositionCache();
+        }
+    }
+
+    /**
+     * Show or hide the edge's texts: its label, external label and end captions; one the layout left out stays hidden.
+     * @param drawn - Whether the edge is drawn.
+     */
+    private setTextsDrawn(drawn: boolean): void {
+        const texts = [
+            [this.label, "label"],
+            [this.xlabelLabel, "xlabel"],
+            [this.arrowHeadText, "headLabel"],
+            [this.arrowTailText, "tailLabel"],
+        ] as const;
+        for (const [text, part] of texts) {
+            const labelMesh = text?.labelMesh;
+
+            if (labelMesh && !labelMesh.isDisposed()) {
+                labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
+            }
         }
     }
 
@@ -2741,6 +2904,19 @@ export class Edge {
      */
     private get fans(): boolean {
         return this.curved && this.drawnStyle?.line?.fanned !== false;
+    }
+
+    /**
+     * How far a line through a node's centre runs before it leaves the node's bounding box ({@link boxReach}), or its
+     * box when its surface is its box ({@link Node.surfaceIsBox}).
+     * @param node - The node.
+     * @param direction - The line's unit direction.
+     * @returns The distance.
+     */
+    private static boxReachOf(node: Node, direction: Vector3): number {
+        return node.surfaceIsBox
+            ? surfaceReach(direction, node.drawnHalfExtents, null)
+            : boxReach(node.mesh, direction);
     }
 
     /**
@@ -3527,8 +3703,8 @@ export class Edge {
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
         // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
         // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = boxReach(this.dstNode.mesh, direction);
-        const srcNodeRadius = boxReach(this.srcNode.mesh, direction);
+        const dstNodeRadius = Edge.boxReachOf(this.dstNode, direction);
+        const srcNodeRadius = Edge.boxReachOf(this.srcNode, direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points
@@ -3850,7 +4026,8 @@ export class Edge {
             const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
             // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
             const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
-                const hit = hits[0]?.pickedPoint;
+                // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
+                const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
                 if (hit) {
                     return Vector3.Lerp(
                         srcMesh.position,
@@ -3859,7 +4036,7 @@ export class Edge {
                     );
                 }
 
-                return node.shapeType === "none"
+                return node.shapeType === "none" || node.surfaceIsBox
                     ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
                     : null;
             };

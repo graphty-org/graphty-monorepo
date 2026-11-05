@@ -1863,10 +1863,11 @@ export interface LoadDraft {
      */
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     /**
-     * Load the held rows as one undoable step, without reading the source again. For a graph
-     * file (every table `fixed`), a load with no `mapping` loads what `data.import` of the same
-     * source loads, and also sets `data.knownFields.nodeLabelPath` to the file's `label` field
-     * when no label path is configured.
+     * Load the held rows as one undoable step, without reading the source again. A load with no
+     * `mapping` loads what `data.import` of the same source loads: for a graph file (every table
+     * `fixed`) it sets `data.knownFields.nodeLabelPath` to `label` when no label path is configured
+     * and the load is not a merge, as `data.import` does; a CSV file's id and endpoint cells load
+     * as text, as `data.import` reads them.
      * @param choices - The column roles, how to treat the graph already there, and the rest.
      * @returns Settles once the rows are in the graph.
      */
@@ -2658,6 +2659,40 @@ export interface ProjectConfig {
      * @since 3.36.0
      */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /**
+     * How far the 2D view is turned: the angle the whole drawing (nodes, edges and labels alike) is
+     * turned counterclockwise on screen, in degrees, about the view's center. Absent (the default),
+     * the drawing is upright. Every fit frames the turned drawing, and the 3D view ignores it. A
+     * file's own turn sets it on import, as Graphviz's `rotate=90` and `landscape` do (90).
+     *
+     * ```ts
+     * await session.config.set({ viewRotation: 90 }); // a quarter turn, as Graphviz draws landscape
+     * ```
+     * @since 3.38.0
+     */
+    readonly viewRotation?: number;
+    /**
+     * How the element frames the graph on its own and on `zoomToFit()`: after a load, a layout change and a 2D/3D
+     * switch. Absent (the default), every visible node is framed whole with its labels, inside a small margin.
+     * `extent: "centers"` frames the nodes' centers alone, so a big node at the edge of the graph may run past the
+     * canvas and labels are not counted. `padding`, in CSS pixels, is the room kept clear at each end of the canvas's
+     * shorter side (the longer side keeps the same share), in place of the margin. A file's own framing sets it on
+     * import when the load asks for it (file style option `framing: "file"`): sigma.js fits node centers 30 px in.
+     *
+     * ```ts
+     * await session.config.set({ framing: { extent: "centers", padding: 30 } }); // as sigma.js frames a graph
+     * ```
+     * @since 3.38.0
+     */
+    readonly framing?: GraphFraming;
+}
+
+/** How the element frames the graph: see {@link ProjectConfig.framing}. */
+export interface GraphFraming {
+    /** What each node counts as: `"drawn"` the box it is drawn in, with its labels; `"centers"` its center alone. */
+    readonly extent: "drawn" | "centers";
+    /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
+    readonly padding?: number;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2688,6 +2723,10 @@ export interface ProjectConfigPatch {
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
     readonly layoutTransition?: LayoutTransitionConfig;
+    /** See {@link ProjectConfig.viewRotation}; `undefined` turns the view upright. */
+    readonly viewRotation?: number;
+    /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
+    readonly framing?: GraphFraming;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */

@@ -11,7 +11,14 @@ import { assert, describe, it, vi } from "vitest";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "../../src/layout/graphviz/fromJson";
+import {
+    clusterMargins,
+    edgeBends,
+    edgeLabelPlaces,
+    edgeLabelsLeftOut,
+    fromJson,
+    nodeXlabelPlaces,
+} from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { graphvizStructure } from "../../src/layout/graphviz/structure";
@@ -662,6 +669,24 @@ describe("the recommendation for a Graphviz file", () => {
         assert.isUndefined(gml?.options);
     });
 
+    it("reads graph-io's layout fact before the file's format and attributes", () => {
+        const fact = { tool: "graphviz", program: "circo", ownFormat: false, settings: { mindist: "2" } } as const;
+        const drawn = recommendLayout(connected, {
+            file: { format: "graphml", attributes: { layout: "neato" }, layout: fact },
+            graphvizAvailable: true,
+        });
+        const placed = recommendLayout(connected, { file: { layout: fact }, graphvizAvailable: true, placedNodes: 30 });
+        const other = recommendLayout(connected, {
+            file: { format: "dot", layout: { tool: "yed", program: "hierarchic", ownFormat: true, settings: {} } },
+            graphvizAvailable: true,
+        });
+
+        assert.strictEqual(drawn?.layout.id, "graphviz-circo");
+        assert.deepEqual(drawn?.options, { attributes: { mindist: "2" } }, "not Graphviz's own format: no label sizes");
+        assert.isUndefined(placed?.options, "Graphviz routes the edges only of a file in its own format");
+        assert.strictEqual(other?.layout.id, "force", "a layout of another tool is not drawn with Graphviz");
+    });
+
     it("ignores files that are not Graphviz files, and never recommends a Graphviz layout on its own", () => {
         const advice = recommendLayout(connected, {
             file: { format: "gexf", attributes: {} },
@@ -689,6 +714,13 @@ describe("a DOT file loaded with layout recommended", () => {
         assert.deepEqual(values.get(FILE_GRAPH_VALUE), {
             format: "dot",
             attributes: { layout: "neato", rankdir: "LR" },
+            layout: {
+                tool: "graphviz",
+                program: "neato",
+                ownFormat: true,
+                direction: "right",
+                settings: { rankdir: "LR" },
+            },
         });
         assert.strictEqual(session.layout.id, "force", "Node has no Worker, so Graphviz is unavailable");
         session.dispose();
@@ -916,5 +948,188 @@ describe("where Graphviz put each edge label read back", () => {
         const [along, across] = edgeLabelPlaces(reply.ok ? reply.json : "{}", edges).get(0) ?? [Number.NaN, Number.NaN];
         assert.closeTo(along, 0.5, 0.1, "about halfway down the edge");
         assert.isAbove(Math.abs(across), 0.05, "beside the line, not on it");
+    });
+
+    it("reads an edge's external, head and tail label places as its label place is read", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            // Graphviz's own names, as its json writes them
+            edges: [
+                JSON.parse(
+                    '{ "id": "e0", "pos": "0,0 100,0", "xlp": "50,-20", "head_lp": "90,10", "tail_lp": "10,10" }',
+                ),
+            ],
+        });
+        const edges = [{ src: 0, dst: 1 }];
+
+        assert.deepEqual(edgeLabelPlaces(json, edges).get(0), undefined, "no lp");
+        assert.deepEqual(edgeLabelPlaces(json, edges, "xlp").get(0), [0.5, -0.2]);
+        assert.deepEqual(edgeLabelPlaces(json, edges, "head_lp").get(0), [0.9, 0.1]);
+        assert.deepEqual(edgeLabelPlaces(json, edges, "tail_lp").get(0), [0.1, 0.1]);
+    });
+
+    it("hands an edge's xlabel, headlabel and taillabel to Graphviz, which places each (issue #5273)", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const structure = graphvizStructure(
+            (id) => ["a", "b"].indexOf(String(id)),
+            [
+                {
+                    srcId: "a",
+                    dstId: "b",
+                    data: {
+                        xlabel: "outside",
+                        headlabel: "<<b>H</b>>",
+                        taillabel: "T",
+                        labelfontsize: 14,
+                        color: "red",
+                    },
+                },
+            ],
+            new Map(),
+            [],
+        );
+        const edges = structure.edges ?? [];
+        assert.deepEqual(edges[0].attributes, {
+            xlabel: "outside",
+            headlabel: "H",
+            taillabel: "T",
+            labelfontsize: "14",
+        });
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), structure), "dot");
+
+        assert.isTrue(reply.ok);
+        const json = reply.ok ? reply.json : "{}";
+        const [xAlong] = edgeLabelPlaces(json, edges, "xlp").get(0) ?? [Number.NaN];
+        const [headAlong] = edgeLabelPlaces(json, edges, "head_lp").get(0) ?? [Number.NaN];
+        const [tailAlong] = edgeLabelPlaces(json, edges, "tail_lp").get(0) ?? [Number.NaN];
+        assert.closeTo(xAlong, 0.5, 0.25, "the external label about halfway along");
+        assert.isAbove(headAlong, 0.5, "the head label near the target");
+        assert.isBelow(tailAlong, 0.5, "the tail label near the source");
+    });
+
+    it("reads where Graphviz puts a node's external label, from the node's center, right and down", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "100,50", xlp: "80,70" },
+                { name: "n1", pos: "10,10" },
+                { name: "cluster", pos: "1,1", xlp: "2,2" },
+            ],
+        });
+        assert.deepEqual([...nodeXlabelPlaces(json)], [[0, [-20, -20]]]);
+    });
+
+    it("hands a node's xlabel to Graphviz, which places it outside the node", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const structure = graphvizStructure(
+            (id) => ["a", "b"].indexOf(String(id)),
+            [{ srcId: "a", dstId: "b", data: {} }],
+            new Map(),
+            [],
+            new Map([[0, { xlabel: "outside" }]]),
+        );
+        assert.deepEqual(structure.nodeAttributes?.get(0), { xlabel: "outside" });
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), structure), "dot");
+
+        assert.isTrue(reply.ok);
+        const places = nodeXlabelPlaces(reply.ok ? reply.json : "{}");
+        assert.deepEqual([...places.keys()], [0]);
+        const [right, down] = places.get(0) ?? [Number.NaN, Number.NaN];
+        // Graphviz's default node is 54 by 36 points: the label's center is past its half width or half height
+        assert.isTrue(Math.abs(right) > 27 || Math.abs(down) > 18, `outside the node: ${String([right, down])}`);
+    });
+
+    it("reads an external label Graphviz gave no place (forcelabels=false, no room) as left out", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "100,50", xlabel: "kept", xlp: "80,70" },
+                { name: "n1", pos: "10,10", xlabel: "dropped" },
+                { name: "n2", pos: "10,10" },
+            ],
+        });
+        assert.deepEqual(
+            [...nodeXlabelPlaces(json)],
+            [
+                [0, [-20, -20]],
+                [1, null],
+            ],
+        );
+    });
+
+    it("leaves out, with the graph's forcelabels=false, an xlabel Graphviz has no room for", async () => {
+        // a long label on a node ringed by sixteen small ones, touching: every place beside it covers one of them
+        const ring = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return `n${i + 1} [pos="${(30 * Math.cos(a)).toFixed(2)},${(30 * Math.sin(a)).toFixed(2)}!"];`;
+        });
+        const dot = (force: string): string =>
+            `graph { graph [forcelabels=${force}, inputscale=72]; ` +
+            `node [shape=circle, width=0.1667, height=0.1667, fixedsize=true, label="", fontsize=10]; ` +
+            `n0 [shape=ellipse, width=0.5, height=0.5, pos="0,0!", xlabel="a long external label"]; ${ring.join(" ")} }`;
+        const dropped = await layout(dot("false"), "neato");
+        assert.isTrue(dropped.ok);
+        assert.deepEqual([...nodeXlabelPlaces(dropped.ok ? dropped.json : "{}")], [[0, null]]);
+        const forced = await layout(dot("true"), "neato");
+        assert.isArray(nodeXlabelPlaces(forced.ok ? forced.json : "{}").get(0), "placed when forced");
+    });
+
+    it("reads the edge labels Graphviz drew nothing for (forcelabels=false, no room) as left out", () => {
+        const text = (x: number, y: number): unknown[] => [{ op: "T", pt: [x, y], text: "t" }];
+        const json = JSON.stringify({
+            edges: [
+                // its label drawn beside a kept xlabel; its end labels drawn
+                {
+                    id: "e0",
+                    label: "m",
+                    lp: "50,40",
+                    xlabel: "x",
+                    xlp: "90,10",
+                    _ldraw_: [...text(50, 37), ...text(90, 7)],
+                    headlabel: "h",
+                    _hldraw_: text(1, 1),
+                    taillabel: "t",
+                    _tldraw_: text(2, 2),
+                },
+                // a stale lp, no end label drawings and no xlp: all four dropped
+                { id: "e1", label: "m", lp: "0,0", xlabel: "x", headlabel: "h", taillabel: "t" },
+                // the label dropped beside a kept xlabel: the only text is the xlabel's
+                { id: "e2", label: "m", lp: "0,0", xlabel: "x", xlp: "90,10", _ldraw_: text(90, 7) },
+                // an xlabel with no label is drawn as the label
+                { id: "e3", xlabel: "x" },
+                { id: "e4" },
+            ],
+        });
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(json)],
+            [
+                [1, ["xlabel", "label", "headLabel", "tailLabel"]],
+                [2, ["label"]],
+                [3, ["label", "xlabel"]],
+            ],
+        );
+    });
+
+    it("leaves out, with the graph's forcelabels=false, the edge labels Graphviz has no room for", async () => {
+        // an edge across a ring of sixteen small touching nodes: every place for its labels covers one of them
+        const ring = Array.from({ length: 16 }, (_, i) => {
+            const a = (i * Math.PI) / 8;
+            return `n${i} [pos="${(30 * Math.cos(a)).toFixed(2)},${(30 * Math.sin(a)).toFixed(2)}!"];`;
+        });
+        const dot = (force: string): string =>
+            `digraph { graph [forcelabels=${force}, inputscale=72]; ` +
+            `node [shape=circle, width=0.1667, height=0.1667, fixedsize=true, label="", fontsize=10]; ` +
+            `edge [fontsize=10]; ${ring.join(" ")} n0 -> n8 [id=e0, label="a long middle label here", ` +
+            `xlabel="a long external edge label", headlabel="a long head label", taillabel="a long tail label"]; }`;
+        const dropped = await layout(dot("false"), "neato");
+        assert.isTrue(dropped.ok);
+        assert.deepEqual(
+            [...edgeLabelsLeftOut(dropped.ok ? dropped.json : "{}")],
+            [[0, ["xlabel", "label", "headLabel", "tailLabel"]]],
+        );
+        const forced = await layout(dot("true"), "neato");
+        assert.isTrue(forced.ok);
+        assert.deepEqual([...edgeLabelsLeftOut(forced.ok ? forced.json : "{}")], [], "placed when forced");
     });
 });

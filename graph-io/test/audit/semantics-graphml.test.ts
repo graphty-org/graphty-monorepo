@@ -7,6 +7,7 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { itemAt } from "../../src/common/text.js";
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
 import { readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
 
@@ -35,7 +36,7 @@ function rawKeys(text: string): Map<string, string>[] {
 function rawNodes(text: string): { id: string; data: Map<string, string> }[] {
     return [...text.matchAll(/<node id="([^"]*)"(?:\/>|>([\s\S]*?)<\/node>)/g)].map((m) => {
         const data = new Map<string, string>();
-        for (const d of (m[2] ?? "").matchAll(/<data key="([^"]*)">([^<]*)<\/data>/g)) {
+        for (const d of (itemAt(m, 2) ?? "").matchAll(/<data key="([^"]*)">([^<]*)<\/data>/g)) {
             data.set(d[1], d[2]);
         }
         return { id: m[1], data };
@@ -50,7 +51,7 @@ function rawEdges(text: string): { id: string | null; source: string; target: st
             attrs.set(a[1], a[2]);
         }
         const data = new Map<string, string>();
-        for (const d of (m[2] ?? "").matchAll(/<data key="([^"]*)">([^<]*)<\/data>/g)) {
+        for (const d of (itemAt(m, 2) ?? "").matchAll(/<data key="([^"]*)">([^<]*)<\/data>/g)) {
             data.set(d[1], d[2]);
         }
         return {

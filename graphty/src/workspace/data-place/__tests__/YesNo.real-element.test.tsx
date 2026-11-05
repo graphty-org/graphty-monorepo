@@ -9,9 +9,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -67,8 +66,10 @@ describe("A yes-or-no column", () => {
 
         // Filter to... from the column's header in the table (the Data place lists no attributes).
         await columnVerb("node", "trained", "Filter to...");
+        // Named for the values it holds (Yes, No), not "how to match".
         // A new yes-or-no card shows no choice and no count, and writes nothing, until one is picked.
-        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
+        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: /^trained[: ]/ });
+        assert.equal(is.getAttribute("aria-label"), "trained is");
         assert.equal(is.value, "");
         assert.lengthOf(session.visibility.conditions, 0);
         await userEvent.click(is);

@@ -302,25 +302,9 @@ export function exactFromBlock(
             values,
             properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
             readBack: (i) => (property) => readBack[property]?.[i] ?? null,
-            // a fan spacing, a curve or a loop's handles only desktop's fanning and looping give (graphty wrote none:
-            // EDGE_CURVED defaults to true there) is graphty's own default again, and so is a label's place beside its
-            // node, which desktop's anchors spell as an offset and a shift
-            take: (property, wanted) => wanted !== null || BLOCK_DEFAULTED.has(property),
         };
     });
 }
-
-/** What a file graphty wrote leaves unset where Cytoscape's reading of it gives a value. */
-const BLOCK_DEFAULTED: ReadonlySet<string> = new Set([
-    "fanSpacing",
-    "curved",
-    "bends",
-    "bendCurve",
-    "labelOffsetX",
-    "labelOffsetY",
-    "labelShiftX",
-    "labelShiftY",
-]);
 
 /**
  * Marks the elements a hidden-state column holds true as not visible.
@@ -353,8 +337,9 @@ export function hiddenToVisible(
 /**
  * Marks not visible what Cytoscape does not draw of its groups: an expanded group's own node (its members are drawn
  * in its place), and every node inside a collapsed group (the group's node is drawn in their place). A group is
- * collapsed when its nested graph's `__groupCollapsed.SUID` names the network being read. A file graphty wrote is
- * left alone: its block says what to draw.
+ * collapsed when its nested graph's `__groupCollapsed.SUID` names the network being read: an XGMML export writes it
+ * there, and the session reader copies it there from the group network's hidden table. A file graphty wrote is left
+ * alone: its block says what to draw.
  * @param snapshot - the graph
  * @param values - the node values per property, changed in place
  */

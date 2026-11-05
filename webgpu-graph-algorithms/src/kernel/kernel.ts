@@ -64,6 +64,123 @@ function rangesIntersect(a: Binding, b: Binding): boolean {
     return a.offset < b.offset + b.size && b.offset < a.offset + a.size;
 }
 
+/** One declared binding and the Binding a bind() call gave it. */
+interface ResolvedBinding {
+    readonly decl: BindingDecl;
+    readonly binding: Binding;
+}
+
+/**
+ * Refuses a zero-size binding and an offset that is not a multiple of STORAGE_ALIGN.
+ * @param id - the kernel id (for the message)
+ * @param decl - the declared binding
+ * @param binding - the Binding given for it
+ */
+function assertBindingRange(id: string, decl: BindingDecl, binding: Binding): void {
+    if (!(Number.isInteger(binding.size) && binding.size > 0)) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: binding "${decl.name}" has size ${binding.size}`, {
+            argument: decl.name,
+            value: binding.size,
+            expected: "size > 0 (a zero-length buffer is never bound)",
+        });
+    }
+    if (!(Number.isInteger(binding.offset) && binding.offset >= 0 && binding.offset % STORAGE_ALIGN === 0)) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: binding "${decl.name}" has offset ${binding.offset}`, {
+            argument: decl.name,
+            value: binding.offset,
+            expected: `a multiple of ${STORAGE_ALIGN} (spec 2.6: the offset alignment the package always honours)`,
+        });
+    }
+}
+
+/**
+ * Pairs every declared binding with its Binding: an unknown name, a missing one or a bad range is E_INVALID_ARGUMENT.
+ * @param id - the kernel id (for the message)
+ * @param decls - the declared bindings, in declaration order
+ * @param resources - the bind() call's Bindings by name
+ * @returns the pairs, in declaration order
+ */
+function resolveBindings(id: string, decls: readonly BindingDecl[], resources: KernelBindings): ResolvedBinding[] {
+    const declared = new Map(decls.map((decl) => [decl.name, decl] as const));
+    for (const name of Object.keys(resources)) {
+        if (!declared.has(name)) {
+            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: no binding named "${name}"`, {
+                argument: "bindings",
+                value: name,
+                expected: [...declared.keys()].join(", "),
+            });
+        }
+    }
+    const resolved: ResolvedBinding[] = [];
+    for (const decl of decls) {
+        const binding = resources[decl.name] as Binding | undefined;
+        if (binding === undefined) {
+            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: binding "${decl.name}" is missing`, {
+                argument: "bindings",
+                value: decl.name,
+                expected: "a Binding for every declared name",
+            });
+        }
+        assertBindingRange(id, decl, binding);
+        resolved.push({ decl, binding });
+    }
+    return resolved;
+}
+
+/**
+ * Refuses two bindings of one buffer when either slot is read_write: with different access modes (the usage rule),
+ * or with intersecting ranges.
+ * @param id - the kernel id (for the message)
+ * @param a - the first binding
+ * @param b - the second binding
+ */
+function assertPairDisjoint(id: string, a: ResolvedBinding, b: ResolvedBinding): void {
+    if (a.binding.buffer !== b.binding.buffer) {
+        return;
+    }
+    const writable = a.decl.kind === "storage" || b.decl.kind === "storage";
+    if (!writable) {
+        return;
+    }
+    if (a.decl.kind !== b.decl.kind) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${id}: "${a.decl.name}" and "${b.decl.name}" bind one buffer with different access modes (writable usage next to another usage)`,
+            {
+                argument: "aliasing",
+                value: [a.decl.name, b.decl.name],
+                expected: "one access mode per buffer when a slot is read_write",
+                reason: "usage",
+            },
+        );
+    }
+    if (rangesIntersect(a.binding, b.binding)) {
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${id}: "${a.decl.name}" and "${b.decl.name}" bind intersecting ranges of one read_write buffer`,
+            {
+                argument: "aliasing",
+                value: [a.decl.name, b.decl.name],
+                expected: "disjoint ranges",
+                reason: "range",
+            },
+        );
+    }
+}
+
+/**
+ * Refuses aliasing between any two bindings of one call (see assertPairDisjoint).
+ * @param id - the kernel id (for the message)
+ * @param resolved - the pairs
+ */
+function assertNoAliasing(id: string, resolved: readonly ResolvedBinding[]): void {
+    for (let i = 0; i < resolved.length; i++) {
+        for (let j = i + 1; j < resolved.length; j++) {
+            assertPairDisjoint(id, resolved[i], resolved[j]);
+        }
+    }
+}
+
 /** A compiled pipeline plus the binding list of its spec (spec 5.1). */
 export class Kernel {
     /** The module spec the pipeline was compiled from (its bindings drive bind()). */
@@ -137,87 +254,8 @@ export class Kernel {
      */
     bind(resources: KernelBindings): BoundKernel {
         const { id } = this.spec;
-        const declared = new Map(this.spec.bindings.map((decl) => [decl.name, decl] as const));
-        for (const name of Object.keys(resources)) {
-            if (!declared.has(name)) {
-                throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: no binding named "${name}"`, {
-                    argument: "bindings",
-                    value: name,
-                    expected: [...declared.keys()].join(", "),
-                });
-            }
-        }
-        const resolved: { readonly decl: BindingDecl; readonly binding: Binding }[] = [];
-        for (const decl of this.spec.bindings) {
-            const binding = resources[decl.name] as Binding | undefined;
-            if (binding === undefined) {
-                throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: binding "${decl.name}" is missing`, {
-                    argument: "bindings",
-                    value: decl.name,
-                    expected: "a Binding for every declared name",
-                });
-            }
-            if (!(Number.isInteger(binding.size) && binding.size > 0)) {
-                throw new WebGpuGraphError(
-                    "E_INVALID_ARGUMENT",
-                    `${id}: binding "${decl.name}" has size ${binding.size}`,
-                    {
-                        argument: decl.name,
-                        value: binding.size,
-                        expected: "size > 0 (a zero-length buffer is never bound)",
-                    },
-                );
-            }
-            if (!(Number.isInteger(binding.offset) && binding.offset >= 0 && binding.offset % STORAGE_ALIGN === 0)) {
-                throw new WebGpuGraphError(
-                    "E_INVALID_ARGUMENT",
-                    `${id}: binding "${decl.name}" has offset ${binding.offset}`,
-                    {
-                        argument: decl.name,
-                        value: binding.offset,
-                        expected: `a multiple of ${STORAGE_ALIGN} (spec 2.6: the offset alignment the package always honours)`,
-                    },
-                );
-            }
-            resolved.push({ decl, binding });
-        }
-        for (let i = 0; i < resolved.length; i++) {
-            for (let j = i + 1; j < resolved.length; j++) {
-                const a = resolved[i];
-                const b = resolved[j];
-                if (a.binding.buffer !== b.binding.buffer) {
-                    continue;
-                }
-                const writable = a.decl.kind === "storage" || b.decl.kind === "storage";
-                if (!writable) {
-                    continue;
-                }
-                if (a.decl.kind !== b.decl.kind) {
-                    throw new WebGpuGraphError(
-                        "E_INVALID_ARGUMENT",
-                        `${id}: "${a.decl.name}" and "${b.decl.name}" bind one buffer with different access modes (writable usage next to another usage)`,
-                        {
-                            argument: "aliasing",
-                            value: [a.decl.name, b.decl.name],
-                            expected: "one access mode per buffer when a slot is read_write",
-                            reason: "usage",
-                        },
-                    );
-                }
-                if (rangesIntersect(a.binding, b.binding)) {
-                    throw new WebGpuGraphError(
-                        "E_INVALID_ARGUMENT",
-                        `${id}: "${a.decl.name}" and "${b.decl.name}" bind intersecting ranges of one read_write buffer`,
-                        {
-                            argument: "aliasing",
-                            value: [a.decl.name, b.decl.name],
-                            expected: "disjoint ranges",
-                            reason: "range",
-                        },
-                    );
-                }
-            }
-        }
+        const resolved = resolveBindings(id, this.spec.bindings, resources);
+        assertNoAliasing(id, resolved);
         const key = resolved
             .map(({ binding }) => `${bufferId(binding.buffer)}:${binding.offset}:${binding.size}`)
             .join("|");

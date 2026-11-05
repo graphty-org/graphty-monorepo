@@ -11,6 +11,7 @@
  * drawn clockwise is its slices in reverse order from where the last one ends.
  */
 
+import { itemAt } from "../../common/text.js";
 import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
@@ -291,11 +292,12 @@ function domainNames(
  */
 function pieSlices(values: readonly number[], colors: readonly string[]): { color: string; size: number }[] {
     const total = values.reduce((sum, v) => sum + (Number.isFinite(v) && v > 0 ? v : 0), 0);
-    return values.flatMap((v, k) =>
-        Number.isFinite(v) && v > 0 && colors[k] !== undefined
-            ? [{ color: colors[k].toLowerCase(), size: v / total }]
-            : [],
-    );
+    return values.flatMap((v, k) => {
+        const color = itemAt(colors, k);
+        return Number.isFinite(v) && v > 0 && color !== undefined
+            ? [{ color: color.toLowerCase(), size: v / total }]
+            : [];
+    });
 }
 
 /**
@@ -335,7 +337,7 @@ function pieOnNode(
     node.put("pieRotation", num6((((90 - from) % 360) + 360) % 360));
     const texts = pieItemLabels(options, values, colors, node.value, {
         start: from,
-        radius: (CHART_ACROSS * (fitted || side === null ? 1 : own / side) * (side ?? 0)) / 2,
+        radius: (CHART_ACROSS * (fitted ? 1 : own / side) * (side ?? 0)) / 2,
         dx: Number(node.get("pieOffsetX") ?? 0),
         dy: Number(node.get("pieOffsetY") ?? 0),
         w: node.w,
@@ -446,7 +448,7 @@ function pieItemLabels(
     if (!drawn) {
         return null;
     }
-    const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && colors[k] !== undefined);
+    const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && itemAt(colors, k) !== undefined);
     const total = values.reduce((sum, v, k) => sum + (shown[k] ? v : 0), 0);
     const size = Number(options.cy_itemLabelFontSize ?? ITEM_LABEL_FONT_SIZE);
     const texts: [number, number, string, { size: number; color: string }][] = [];
@@ -943,7 +945,7 @@ function rangeTicks(
  */
 function categoryNames(
     plot: PlotBox,
-    plotted: Record<string, StyleValue>,
+    plotted: Readonly<Partial<Record<string, StyleValue>>>,
     names: readonly string[],
     position: { turn: number; pin: readonly [number, number] },
     measure: { line: number; width: (text: string) => number },

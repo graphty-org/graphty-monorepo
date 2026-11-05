@@ -24,11 +24,15 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            # The head itself, not the merge ref: every rule is measured from the merge base with master.
-            # Full history, for the merge base, the commits and the revert check.
+            # Master's own copy of the check, never the pull request's: a fix to the check reaches every open pull
+            # request at its next run (a re-run included), and a pull request cannot change the check that judges it
+            # (#4421). The head is fetched below as data only: the script reads it through git (merge base, diff,
+            # log, `git show`) and never runs a file from it, so plain `pull_request` with a read-only token is
+            # enough and nothing from the head executes. Full history, for the merge base, the commits and the
+            # revert check; the checkout's fetch also gives origin/master.
             - uses: actions/checkout@v7
               with:
-                  ref: ${{ github.event.pull_request.head.sha }}
+                  ref: master
                   fetch-depth: 0
                   lfs: false
 
@@ -37,12 +41,15 @@ jobs:
               with:
                   node-version: 22.x
 
-            - name: Fetch master
-              run: git fetch --no-tags origin master:refs/remotes/origin/master
+            # Every rule is measured from the head itself, not the merge ref, against its merge base with master.
+            - name: Fetch the pull request's head
+              env:
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: git fetch --no-tags origin "$HEAD_SHA"
 
             # The title, description and author come from the event file, never from the script text or an
             # environment variable (pr-issue-link.yml's reasons). The baselines signature is checked with
-            # master's own visual-review/trusted (git archive inside the script), never this checkout's.
+            # master's own visual-review/trusted (git archive inside the script).
             - name: Check the pull request
               env:
                   GH_TOKEN: ${{ github.token }}

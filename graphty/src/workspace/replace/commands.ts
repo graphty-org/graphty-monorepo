@@ -7,6 +7,7 @@
 import type {
     CodedFact,
     GraphSession,
+    LoadChoices,
     ReplaceReport,
     ReplaceUnboundCode,
     SourceKey,
@@ -60,16 +61,19 @@ export function replacedWords(before: string, after: string, report: ReplaceRepo
  * @param session - the project's session.
  * @param key - the source the copy replaces.
  * @param incoming - the copy.
+ * @param choices - how to read the copy, such as the column roles the reader chose on the Data
+ *     page; absent reads it as the element would.
  */
 export async function replaceWith(
     workspace: WorkspaceStore,
     session: GraphSession,
     key: SourceKey,
     incoming: Incoming,
+    choices?: LoadChoices,
 ): Promise<void> {
     const replaced = session.data.sources().find((each) => each.key === key);
     const before = replaced === undefined ? key : sourceName(replaced);
-    const report = await session.data.replaceSource(key, incoming.source);
+    const report = await session.data.replaceSource(key, incoming.source, choices);
     const [first] = report.unbound;
     workspace.set({
         notice: {

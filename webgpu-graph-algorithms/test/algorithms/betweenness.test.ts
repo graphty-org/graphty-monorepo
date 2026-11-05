@@ -379,14 +379,15 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
     it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), a sample against the reference on the same sources", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
-            let perArc: Float32Array | null = null;
+            const perArc: Float32Array[] = [];
             const got = await edgeBetweennessWithTuning(ctx, s, undefined, {}, (arcs) => {
-                perArc = arcs;
+                perArc.push(arcs);
             });
             expect(got.scores.length, name).toBe(s.edgeCount);
             if (s.arcCount > 0) {
-                expect(perArc, name).not.toBeNull();
-                expect(arcPairGap(s, perArc ?? new Float32Array(0)), `${name}: arc pairs`).toBeLessThanOrEqual(1e-5);
+                expect(perArc.length, name).toBeGreaterThan(0);
+                const last = perArc.length > 0 ? perArc[perArc.length - 1] : new Float32Array(0);
+                expect(arcPairGap(s, last), `${name}: arc pairs`).toBeLessThanOrEqual(1e-5);
             }
             const want = edgeConvention(s, brandesOracle(s).perArc);
             expect(scoreError(got.scores, want), name).toBeLessThanOrEqual(TOLERANCE);

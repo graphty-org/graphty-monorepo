@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BENCH_KEEP, BENCH_KEEP_ALL, trend, withPoint, type BenchPoint } from "../../src/model/benchmarks.js";
+import { BENCH_KEEP, BENCH_KEEP_ALL, type BenchPoint, trend, withPoint } from "../../src/model/benchmarks.js";
 
 const pts = (vs: number[]): BenchPoint[] => vs.map((v, i) => ({ at: i, v, run: 100 + i }));
 
@@ -14,6 +14,27 @@ describe("benchmark regressions", () => {
     it("never flags one slow run, or fewer than 13 results", () => {
         expect(trend(pts([40, 41, 42, 41, 43, 40, 41, 42, 41, 40, 41, 90, 41])).regressed).toBe(false);
         expect(trend(pts([40, 41, 42, 90, 90, 90]))).toEqual({ regressed: false });
+    });
+
+    it("never flags a change of one timer tick", () => {
+        // layout-exact ms/iteration (profiler) n=1024 on the T4 lane: the GPU profiler reads in 65.536 us ticks, so
+        // every result is 2 or 3 ticks and a one-tick step reads as 1.5x.
+        const tick = 0.065536;
+        const oneTick = trend(pts([2, 3, 2, 2, 3, 2, 2, 3, 2, 2, 3, 3, 3].map((n) => n * tick)));
+        expect(oneTick.ratio).toBeCloseTo(1.5);
+        expect(oneTick.regressed).toBe(false);
+        // two ticks above is a real change
+        const twoTicks = [2, 2, 3, 2, 2, 3, 2, 2, 2, 2, 4, 4, 4].map((n) => n * tick);
+        expect(trend(pts(twoTicks)).regressed).toBe(true);
+        // a clean step between two levels is judged by the earlier results' resolution, never by the step itself
+        const step = [...Array.from({ length: 10 }, () => 2), 6, 6, 6].map((n) => n * tick);
+        expect(trend(pts(step))).toMatchObject({ ratio: 3, regressed: true });
+        expect(trend(pts([...Array.from({ length: 10 }, () => 100), 300, 300, 300])).regressed).toBe(true);
+        // one earlier outlier is not a tick, so it never hides a later step to its level
+        expect(trend(pts([...Array.from({ length: 9 }, () => 100), 300, 300, 300, 300])).regressed).toBe(true);
+        expect(trend(pts([...Array.from({ length: 9 }, () => 2), 6, 6, 6, 6].map((n) => n * tick))).regressed).toBe(
+            true,
+        );
     });
 
     it("compares results only with results of the newest one's machine", () => {
@@ -61,7 +82,9 @@ describe("benchmark regressions", () => {
 
     it("keeps the newest results, one per run", () => {
         let item = withPoint(undefined, "b", "ms", { at: 0, v: 1, run: 1 }, 0);
-        for (let i = 1; i <= BENCH_KEEP + 5; i++) item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        for (let i = 1; i <= BENCH_KEEP + 5; i++) {
+            item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        }
         expect(item.points).toHaveLength(BENCH_KEEP);
         expect(item.points.at(-1)).toEqual({ at: BENCH_KEEP + 5, v: BENCH_KEEP + 5, run: BENCH_KEEP + 6 });
         item = withPoint(item, "b", "ms", { at: 99, v: 7, run: BENCH_KEEP + 6 }, 99);

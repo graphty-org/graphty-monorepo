@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -66,6 +66,7 @@ export const ranAt = (j: Pick<JobItem, "conclusion" | "createdAt" | "startedAt">
  * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
  * family (`graphty`, `graphty-storybook-shots`) name the same family once the variant's flags and shape are dropped.
  * @param family a shard run's or flaky test's family
+ * @returns the family without its flags and shape
  */
 export const hotspotFamily = (family: string): string => family.split("|")[0];
 
@@ -74,6 +75,7 @@ export const hotspotFamily = (family: string): string => family.split("|")[0];
  * every file CI ran (about 3,000) stays near 80 KB, under DynamoDB's 400 KB item limit and cheap to rewrite.
  * @param family the shard run's or the flaky test's family
  * @param file the test file, repository-relative
+ * @returns an 8-character base64url hash
  */
 export const fileRunKey = (family: string, file: string): string =>
     createHash("sha256")
@@ -82,7 +84,7 @@ export const fileRunKey = (family: string, file: string): string =>
         .slice(0, 8);
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
-const isMaster = (base: string) => base === "master" || base === "main";
+const isMaster = (base: string): boolean => base === "master" || base === "main";
 /** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
@@ -93,6 +95,7 @@ const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
  * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
  * "CI / Test (graphty-element-browser-3)" -> "CI / Test (graphty-element-browser)".
  * @param name the job's name
+ * @returns the name with its trailing bin number dropped
  */
 export const jobFamily = (name: string): string => name.replace(/(\bTest \([^)]+?)-\d+\)$/, "$1)");
 
@@ -121,10 +124,15 @@ export const METRICS: MetricDef[] = [
         ),
     },
     {
+        // By cohort (#5400): of the pull requests opened in the window, the settled ones that merged. One still
+        // open (most often still in CI) is neither merged nor unmerged; a stuck one is pr.oldest_open_ms's to judge.
         id: "pr.merge_ratio",
         from: [
-            src("pr", "createdAt", (p) => ({ n: 1, dim: p.repo })),
-            src("pr", "mergedAt", (p) => (p.mergedAt === undefined ? null : { n: 0, sum: 1, dim: p.repo })),
+            src("pr", "createdAt", (p) =>
+                p.mergedAt === undefined && p.closedAt === undefined
+                    ? null
+                    : { n: 1, sum: p.mergedAt === undefined ? 0 : 1, dim: p.repo },
+            ),
         ],
     },
     // Runs failed on a test their own change touched (#3951): the batching trigger, per pull request run.
@@ -239,8 +247,12 @@ export const METRICS: MetricDef[] = [
         from: [
             src("job", "completedAt", (j) => {
                 const pass = JOB_PASS.has(j.conclusion ?? "");
-                if (!j.load || j.load === "pr" || j.offMaster || j.completedAt === undefined) return null;
-                if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) return null;
+                if (!j.load || j.load === "pr" || j.offMaster || j.completedAt === undefined) {
+                    return null;
+                }
+                if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) {
+                    return null;
+                }
                 return {
                     value: j.completedAt,
                     exact: true,
@@ -347,6 +359,21 @@ export const METRICS: MetricDef[] = [
     {
         id: "release.trains",
         from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
+    },
+    // A nightly promotion is release.yml's "Deploy the nightly site" job passing (a green-clean full run or a
+    // promote-nightly run), counted from the stored jobs, so a promotion before the collector first ran still counts.
+    // ponytail: a promote.yml nightly rollback moves channel/nightly too and is not counted.
+    {
+        id: "release.nightly_promotions",
+        from: [
+            src("job", "completedAt", (j) =>
+                j.workflow === "release.yml" &&
+                j.conclusion === "success" &&
+                /^Deploy the nightly site( \/ |$)/.test(j.name)
+                    ? { sum: 1 }
+                    : null,
+            ),
+        ],
     },
     // 4.7 Data sources: rows of CI results per CI test job, for "thin for its activity" (section 9). Each Test (...)
     // job (ci.yml, or "CI / Test (...)" in a release.yml or bisect.yml full run) posts one shard run, its invocation

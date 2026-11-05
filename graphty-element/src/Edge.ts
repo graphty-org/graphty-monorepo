@@ -57,6 +57,7 @@ import {
     type Xyz,
 } from "./meshes/edgeRoute";
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
+import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { readColor } from "./meshes/readColor";
@@ -4080,6 +4081,40 @@ export class Edge {
             srcPoint,
             dstPoint,
             newEndPoint,
+        };
+    }
+
+    /**
+     * What {@link getInterceptPoints} works from, as numbers, for its mirror (`meshes/edgeTrim.ts`).
+     * An end only a ray reaches carries `TRIM_NO_HIT`, for the caller to measure: a shape that is not a
+     * box, and a round end across from a non-round one, which the ray meets on its facets.
+     * @returns The numbers.
+     * @internal
+     */
+    get trimInput(): EdgeTrimInput {
+        const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
+            const leaves = node.surfaceIsBox || node.shapeType === "none";
+            const closed =
+                leaves || (node.roundRadius !== null && other.roundRadius !== null) || node.surfaceIsClosedForm;
+            return {
+                radius: node.roundRadius,
+                half: node.drawnHalfExtents,
+                flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
+                border: node.borderReach,
+                gap,
+                measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
+                leaves,
+                group: node.isDrawnAsGroup,
+            };
+        };
+        // a line a unit long loses what the arrow head takes from any line
+        const tip = new Vector3(1, 0, 0);
+        return {
+            src: this.srcNode.mesh.position,
+            dst: this.dstNode.mesh.position,
+            source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
+            target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
+            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
         };
     }
 

@@ -879,6 +879,8 @@ export class DataManager implements Manager {
     get lastImport(): LoadReport | null;
     // (undocumented)
     meshCache: MeshCache;
+    // @internal
+    nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
@@ -1108,6 +1110,8 @@ export class Edge {
     supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
+    // @internal
+    get trimInput(): EdgeTrimInput;
     update(): void;
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
@@ -4988,6 +4992,8 @@ class Node_2 implements ModelUser {
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
+    // @internal
+    get drawnByRowScan(): boolean;
     get drawnFill(): string | null;
     // @internal
     get drawnGeneration(): number;
@@ -4997,6 +5003,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnPickMesh(): AbstractMesh;
+    // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
     // @internal
@@ -5004,6 +5012,8 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScale(): number;
     set drawnScale(scale: number);
+    // @internal
+    get drawnScaling(): Readonly<Vector3>;
     // @internal
     get drawnScene(): Scene;
     // @internal
@@ -5103,6 +5113,8 @@ class Node_2 implements ModelUser {
     spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
+    // @internal
+    get surfaceIsClosedForm(): boolean;
     // @internal
     syncXlabelPlace(): void;
     // @internal

@@ -158,10 +158,26 @@ Trim is one GLSL include shared by line and cap shaders, with a TypeScript mirro
 | Edge                                 | Ends come from                                                            | Cached per edge       |
 | ------------------------------------ | ------------------------------------------------------------------------- | --------------------- |
 | Straight, no cap, gap or group       | Node centers                                                              | No                    |
-| Straight, round, box or ellipse end  | Closed form                                                               | No                    |
+| Straight, two round ends, or a box   | Closed form                                                               | No                    |
 | Straight, other shape                | Two floats from `rowRayHit`; bounding radius while moving, exact at rest  | Yes                   |
 | Bezier, arc, fan, loop, great circle | Shader evaluates pieces i-2 to i+3, then today's miter and ownership code | `t` range, run length |
 | File and layout routes               | Per-edge slice of a route texture                                         | `t` range, run length |
+
+As built (stage 6): `meshes/edgeTrim.ts` holds `EDGE_TRIM_GLSL`, a string a shader takes in by interpolation as it takes `edgeJoinShader.ts`, and
+`trimEnds`, its mirror. `Edge.trimInput` gives both their numbers. Only `test/browser/edge-trim-mirror.test.ts` reads them; it holds the mirror to
+`getInterceptPoints` on every node shape, in 2D and 3D, and the shader to the mirror through transform feedback on WebGL2, both within 1e-4.
+WebGPU was not run. Corrections to the table, from that test:
+
+- An ellipse is not a closed form. `surfaceReach`'s ellipse is 0.88 off on a line through depth, which meets the slab's face, and 0.003 off across
+  the view, which meets a facet. It takes two floats. A turned rectangle does too.
+- A round end is closed only across from another round end. Across from anything else today's ray meets the sphere's facets, so that end takes a
+  float as well, or it moves by up to the facet depth.
+- 1e-4 holds near the origin only: at y = 3000 a float's spacing is 2.4e-4, and the shader takes rows as floats, so the test moves each edge to the
+  origin before reading it back.
+- The first row is `Edge.bareEnd`, not `getInterceptPoints`: a line with no cap never asks for a surface, so the include does not cover it, and a
+  line with a gap and no cap leaves at `leaveNode`. Stage 16 needs both.
+- A group's end in the include knows a box and an ellipse only. A group is `round-rectangle` by default, whose outline only the mirror reads, so an
+  edge ending on such a group stays an object edge until something supplies that reach.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -193,9 +209,29 @@ which the agreement test lists. `"objects"` answers do not change.
 | Press, release, `elementAt`, `groupOutlineAt` | Row scan, typed edge scan | Row scan, typed edge scan | Row scan                     |
 | `screenToWorld`                               | Row scan                  | Row scan                  | Row scan                     |
 
-A transition click scans the lane, which already holds the destination. Batched rows' expand clicks and `hoverCursor` go through
+A transition click scans `rowBounds` inside `atLayout`, whose move through the mesh funnel puts each row at its destination and whole size
+for the length of the pick. Batched rows' expand clicks and `hoverCursor` go through
 `NodePointerRoster`. Under `"batched"` the shared `ActionManager` is built at the first object row; until then Babylon's move pick does not
 run, and any consumer action turns it back on.
+
+As built (stage 5): every pick lives in `render/PickService.ts`. The twelve sites are `pickAsDrawn`, `pickNodeId`, `alongRay`, the pointer
+predicates, the close-label hover, `screenToWorld`, the edge pick, the XR drag start, and their callers on press, release, background click
+and `elementAt`. `groupOutlineAt` is a 2D test in `RenderManager` and stays there; `Edge.ts`'s own ray waits for stage 7. `RowScan` exists once
+`Graph.openRowTable` runs, so `"objects"` graphs take the old path unchanged. With a table open, a press runs the scan in shadow beside
+`scene.pick` and counts differences (`shadow.differ`); a pick during a transition and an XR ray take the merged answer. `screenToWorld`
+stays on `scene.pick` until a row has no mesh. The narrow phase places rows under `graph-root`: the walk takes the ray into the root's space,
+and each candidate's matrix is multiplied by the root's, so an XR gesture changes nothing. Four things differ from the text above:
+
+- A row's per-axis scale comes from `Node.drawnScaling`, read for candidates only. `rowExtent` holds one scale and one spare float, and a
+  group's box is stretched, so the row with no `Node` (stage 30) needs a place for two more floats. The source likewise comes from
+  `node.drawnSourceMesh`; `MeshCache.sourceFor(name, creator)` is the half of `get` that makes no instance, there for rows with no mesh.
+- Models stay on `scene.pick`: `createModelInstance` tests only the box, on the instance, which the source's triangles cannot reproduce.
+  `Node.drawnByRowScan` is false for them and the scan leaves them to the mesh pick. Every other kind passed: all 52 bodied shapes in both
+  views, hidden rows, non-uniform size, `shape.rotation`, custom shapes, mixed rows, rig cameras, a turned and scaled root, NullEngine.
+- Row order equals `scene.meshes` order after a load, but not after a restyle: a rebuilt mesh goes to the end of `scene.meshes`. On an exact
+  tie `scene.pick` then answers the other row, and the scan keeps the lower row, the section 9 rule. Only a pick on an open table can
+  see this, and a batched row has no place in `scene.meshes` to lose.
+- An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

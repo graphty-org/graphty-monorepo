@@ -280,6 +280,9 @@ const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 /** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
 const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
+/** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
+const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
+
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
 /**
@@ -1312,6 +1315,26 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The mesh a pick answers with for this node. Stage 9 of the row renderer gives a press an
+     * answer without one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnPickMesh(): AbstractMesh {
+        return this.mesh;
+    }
+
+    /**
+     * Whether the row scan answers for this node. A model is picked by its whole bounding box
+     * (`NodeMesh.createModelInstance`), not by its source's triangles, so it stays on Babylon's pick.
+     * @returns True when it does.
+     * @internal
+     */
+    get drawnByRowScan(): boolean {
+        return this.drawnModel === null;
+    }
+
+    /**
      * The box the node is drawn in.
      * @returns The box.
      * @internal
@@ -1336,6 +1359,15 @@ export class Node implements ModelUser {
      */
     get drawnWorldScaling(): Vector3 {
         return this.mesh.absoluteScaling;
+    }
+
+    /**
+     * The node's own scale on each axis: a group's box is stretched, a model may be.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        return this.mesh.scaling;
     }
 
     /**
@@ -2848,6 +2880,21 @@ export class Node implements ModelUser {
      */
     get surfaceIsBox(): boolean {
         return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * Whether a line meets this node's mesh exactly where it leaves the box of
+     * {@link drawnHalfExtents}, so arithmetic can stand in for a ray: a box or a rectangle left unturned. Not an ellipse:
+     * its mesh is a slab of facets, a line through depth meets the face, and across the view it is 0.003 short.
+     * @returns True for such a node.
+     * @internal
+     */
+    get surfaceIsClosedForm(): boolean {
+        return (
+            this.drawnModel === null &&
+            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
+            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
+        );
     }
 
     /**

@@ -55,6 +55,21 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
+test("a real action gets the wait guard on the root and every inline project, keeping the provider's options", () => {
+    const provider = { name: "playwright", options: { launchOptions: { args: ["--x"] }, actionTimeout: 5 } };
+    const config = withTestGuards({
+        test: { browser: { provider }, projects: [{ test: { name: "x", browser: { enabled: true, provider } } }] },
+    });
+    const [x] = config.test.projects;
+    for (const t of [config.test, x.test]) {
+        assert.equal(t.browser.provider.options.actionTimeout, WAIT_GUARD_MS);
+        assert.deepEqual(t.browser.provider.options.launchOptions, { args: ["--x"] });
+    }
+    assert.equal(x.test.browser.enabled, true);
+    assert.equal(provider.options.actionTimeout, 5, "a provider shared by two projects is not changed in place");
+    assert.equal(withTestGuards({ test: {} }).test.browser, undefined);
+});
+
 test("a bench project is a measurement: no time limit and no guard", () => {
     const config = withTestGuards({
         test: { projects: [{ test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 5 } }] },

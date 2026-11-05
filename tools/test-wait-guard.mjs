@@ -26,9 +26,15 @@
  * (vitest.wait-guard-setup.ts) gives `vi.waitFor` and `vi.waitUntil` the wait guard. Testing
  * Library keeps its default per copy of the library, so each setup file or Storybook preview that
  * loads one calls `configure({ asyncUtilTimeout: WAIT_GUARD_MS })`.
+ *
+ * A real `userEvent` action is a wait too: Playwright retries until the target can take it. With no
+ * `actionTimeout`, vitest gives the action what is left of the test's time, so a click on something
+ * that never shows (a hidden radio, issue #5845) ran the full test guard and ended as a bare "Test
+ * timed out". `withTestGuards` gives every Playwright provider the wait guard, so the action fails
+ * first and says what it was waiting for.
  */
 
-/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element) may run. */
+/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element, a real action) may run. */
 export const WAIT_GUARD_MS = 900_000;
 
 /** How long one test, hook or teardown may run. */
@@ -43,6 +49,19 @@ export const TEST_GUARD_MS = 1_500_000;
  */
 function guardSetup() {
     return decodeURIComponent(new URL("../vitest.wait-guard-setup.ts", import.meta.url).pathname);
+}
+
+/**
+ * Gives a block's Playwright provider the wait guard as its action deadline.
+ * @param browser - the `browser` block of a `test` block
+ * @returns the block with the guard on its provider, or the block as it was
+ */
+function guardActions(browser) {
+    const provider = browser.provider;
+    if (provider?.name !== "playwright") {
+        return browser;
+    }
+    return { ...browser, provider: { ...provider, options: { ...provider.options, actionTimeout: WAIT_GUARD_MS } } };
 }
 
 /**
@@ -64,6 +83,7 @@ function guardTest(test) {
         teardownTimeout: TEST_GUARD_MS,
         expect: { ...test.expect, poll: { timeout: WAIT_GUARD_MS } },
         setupFiles: [...setupFiles, guard],
+        ...(test.browser ? { browser: guardActions(test.browser) } : {}),
     };
 }
 

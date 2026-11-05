@@ -279,7 +279,7 @@ export function TimeDock(): React.JSX.Element | null {
         });
     }, [session, store]);
 
-    const extent = session?.time.field ? session.time.extent() : null;
+    const extent = session === null ? null : session.time.extent();
     if (session === null || extent === null || !open) {
         return null;
     }

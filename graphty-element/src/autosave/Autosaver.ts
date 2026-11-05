@@ -1679,7 +1679,7 @@ export class Autosaver {
             this.#kick();
         };
         // Playback moves the window every step: the write waits for the pause, then happens once.
-        if (this.#session.time.playing) {
+        if (this.#session.features.enabled.includes("timeline") && this.#session.time.playing) {
             return;
         }
 

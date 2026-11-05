@@ -14,10 +14,16 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// The timeline is an experiment: this file's workspaces switch it on.
+beforeAll(async () => {
+    await siteFeatures(["timeline"]);
+});
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 

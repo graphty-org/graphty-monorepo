@@ -15,7 +15,7 @@ import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { designate } from "../time/timeActions";
+import { designate, timelineOn } from "../time/timeActions";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
 import {
@@ -123,7 +123,7 @@ export function Overview(): React.JSX.Element | null {
     const statistics = session.data.statistics();
     // With no time field yet, the column the element reads as time is offered once: a door to its
     // home, Data > Fields, with the Time entry added and that column chosen.
-    const found = session.time.field === null ? session.time.candidates().at(0) : undefined;
+    const found = timelineOn(session) && session.time.field === null ? session.time.candidates().at(0) : undefined;
     const timeFound =
         found === undefined ? null : (
             <ActionRow

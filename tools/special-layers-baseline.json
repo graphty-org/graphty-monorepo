@@ -136,12 +136,6 @@
         },
         {
             "row": "Everything",
-            "control": "missing node which open: Add a condition",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
             "control": "missing edge which: Which edges",
             "reason": "isBaseRow gives Everything a sentence instead of a Which row",
             "issue": "#5905"
@@ -149,12 +143,6 @@
         {
             "row": "Everything",
             "control": "missing edge which open: Done",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "missing edge which open: Add a condition",
             "reason": "isBaseRow gives Everything a sentence instead of a Which row",
             "issue": "#5905"
         },
@@ -192,42 +180,6 @@
             "row": "Everything",
             "control": "disabled menu: Delete",
             "reason": "isBaseRow refuses to delete the base row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Ghost",
-            "control": "missing node which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Ghost",
-            "control": "missing edge which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Pinned",
-            "control": "missing node which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Selected",
-            "control": "missing node which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Selected",
-            "control": "missing edge which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Hovered",
-            "control": "missing node which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
             "issue": "#5905"
         }
     ],
@@ -316,7 +268,7 @@
             "file": "graphty/src/workspace/graph-place/commands.ts",
             "rule": "named",
             "detail": "isBaseRow",
-            "count": 2,
+            "count": 1,
             "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
@@ -524,7 +476,7 @@
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "kind-base",
             "detail": "kind",
-            "count": 2,
+            "count": 1,
             "reason": "treats a layer of kind \"base\" differently",
             "issue": "#5905"
         },

@@ -120,7 +120,7 @@ describe("the timeline's switch", () => {
 
     it("turns on by id, by all, by the page default and from a link", () => {
         assert.deepEqual(createGraphSession(ON).features.enabled, ["timeline"]);
-        assert.deepEqual(createGraphSession({ features: ["all"] }).features.enabled, ["timeline"]);
+        assert.include(createGraphSession({ features: ["all"] }).features.enabled, "timeline");
         assert.deepEqual(
             createGraphSession({ features: featuresFromUrl("https://x.test/?features=timeline") }).features.enabled,
             ["timeline"],

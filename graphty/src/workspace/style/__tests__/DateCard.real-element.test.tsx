@@ -126,14 +126,20 @@ describe("the date condition card", () => {
         const session = await openWithDates("data", false);
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
-        const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        const card = await within(list).findByRole("group", { name: /^installed/ });
-        const box = within(card).getByRole("combobox", { name: "installed before, a date or a year" });
+        // The new card's step is edited in the selection workspace (selection spec 3.0).
+        const card = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
+        const box = await within(card ?? document.body).findByRole("combobox", {
+            name: "installed before, a date or a year",
+        });
         await userEvent.click(box);
         await userEvent.keyboard("Jan 1, 2005{Enter}");
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.conditions.map((each) => each.rule),
+                session.visibility.conditions.map((each) => stepOf(each.rule)),
                 [BEFORE_2005],
             );
         });

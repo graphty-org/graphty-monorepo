@@ -138,7 +138,17 @@ function spokenName(control: Element): string {
     }
     const labelled = (control as HTMLInputElement).labels?.[0]?.textContent;
     const name = control.getAttribute("aria-label") ?? labelled ?? control.textContent;
-    return control.closest(WHICH) === null ? name : name.split(",")[0];
+    // The Which row of a selection the workspace edits says Edit first: the same control.
+    return control.closest(WHICH) === null ? name : name.split(",")[0].replace(/^Edit /, "");
+}
+
+/**
+ * Where a selection is edited: the selection workspace while it is open, over the inspector.
+ * @param inspector - the inspector.
+ * @returns the element holding the editor's controls.
+ */
+function editing(inspector: HTMLElement): HTMLElement {
+    return document.querySelector<HTMLElement>(".sel-ws") ?? inspector;
 }
 
 /**
@@ -146,12 +156,12 @@ function spokenName(control: Element): string {
  * @param inspector - the inspector.
  */
 async function closeCards(inspector: HTMLElement): Promise<void> {
-    const done = within(inspector).queryByRole("button", { name: "Done" });
+    const done = within(editing(inspector)).queryByRole("button", { name: "Done" });
     if (done !== null) {
         await userEvent.click(done);
     }
     await waitFor(() => {
-        assert.isNull(within(inspector).queryByRole("button", { name: "Done" }));
+        assert.isNull(within(editing(inspector)).queryByRole("button", { name: "Done" }));
     });
 }
 
@@ -185,8 +195,8 @@ async function readKind(
         controls.set(`${kind} which: no control`, false);
     } else if (button !== null && button !== undefined) {
         await userEvent.click(button);
-        const done = await within(inspector).findByRole("button", { name: "Done" });
-        const add = within(inspector).queryByRole("button", { name: "Add a condition" });
+        const done = await waitFor(() => within(editing(inspector)).getByRole("button", { name: "Done" }));
+        const add = within(editing(inspector)).queryByRole("button", { name: "Add a condition" });
         controls.set(`${kind} which open: Done`, enabled(done));
         if (add !== null) {
             controls.set(`${kind} which open: Add a condition`, enabled(add));
@@ -217,7 +227,9 @@ async function controlsOf(name: string): Promise<Map<string, boolean>> {
     await userEvent.click(row, { button: "right" });
     const menu = await screen.findByRole("menu");
     for (const item of within(menu).getAllByRole("menuitem")) {
-        controls.set(`menu: ${controlName(spokenName(item), name)}`, enabled(item));
+        const words = controlName(spokenName(item), name);
+        // Whether a row can move says where it stands in the list, not what kind of row it is.
+        controls.set(`menu: ${words}`, words.startsWith("Move ") && words !== "Move to folder" ? true : enabled(item));
     }
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {

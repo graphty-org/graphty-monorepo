@@ -74,7 +74,12 @@ class Visit {
     }
 
     async open(url = args.url) {
-        await this.page.goto(url);
+        // Paper citations is a timed sample, offered only with the timeline experiment on.
+        const page = new URL(url);
+        if (this.dataset === "papers") {
+            page.searchParams.set("features", `${page.searchParams.get("features") ?? ""},timeline`);
+        }
+        await this.page.goto(page.href);
         await this.page.getByRole("button", { name: `Open the ${SAMPLES[this.dataset]} sample` }).click();
         await this.page.getByRole("button", { name: "Add a layer or a folder" }).waitFor();
         await this.page.waitForFunction(

@@ -2570,6 +2570,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns True when the element's own base layers paint nothing.
      */
     const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
+    /**
+     * Whether a stack entry is one of the element's own base layers.
+     * @param entry - The entry.
+     * @returns True for a base layer.
+     */
+    const isBaseEntry = (entry: CompiledLayer): boolean => entry.layer.kind === "base";
 
     /**
      * Everything a reading of the whole stack (`agreement`) depends on besides its own
@@ -2587,7 +2593,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                   styleRevision,
                   sources.inputRevision?.() ?? 0,
                   sources.stateRevision(),
-                  editableBase(),
+                  dispatcher.state.config.get("editableBase"),
                   sources.liftDrawn?.() ?? false,
               ];
     /** The readings answered under one token, by question; dropped when the token moves. */
@@ -2657,11 +2663,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         stack: readonly CompiledLayer[],
         layers: readonly CompiledLayer[],
     ): readonly CompiledLayer[] => {
-        const marks = stack.filter((entry) => entry.layer.kind !== "base" && entry.layer.enabled && isStateMark(entry));
+        const marks = stack.filter((entry) => !isBaseEntry(entry) && entry.layer.enabled && isStateMark(entry));
         const rest = stack
             .filter((entry) => !marks.includes(entry))
             .map((entry) => {
-                if (entry.layer.kind === "base" || !entry.layer.enabled) {
+                if (isBaseEntry(entry) || !entry.layer.enabled) {
                     return entry;
                 }
 
@@ -2817,12 +2823,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const basePainting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = paintedStack(stack);
-        if (!editableBase() || !painted.some((entry) => entry.layer.kind === "base" && entry.layer.enabled)) {
+        if (!editableBase() || !painted.some((entry) => isBaseEntry(entry) && entry.layer.enabled)) {
             return painted;
         }
 
         return painted.map((entry) => {
-            if (entry.layer.kind !== "base" || !entry.layer.enabled) {
+            if (!isBaseEntry(entry) || !entry.layer.enabled) {
                 return entry;
             }
 

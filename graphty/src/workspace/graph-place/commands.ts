@@ -35,6 +35,16 @@ export interface RowCommand {
 
 /** Why the Everything row holding the base look never moves or goes. */
 const BASE_STAYS = "Everything holds the base look and stays at the bottom";
+
+/**
+ * Whether a row holds the base look.
+ * @param session - the session.
+ * @param row - the row, if any.
+ * @returns true when it does.
+ */
+const holdsBase = (session: GraphSession | null, row: StyleRow | undefined): boolean =>
+    row !== undefined && isBaseRow(session, row.id);
+
 /** Why the base layer cannot be deleted: its own reason, drawn under Delete. */
 const BASE_KEPT = "Everything holds the base look, so it cannot be deleted";
 
@@ -58,7 +68,7 @@ function pinCommand(pin: StyleRowPin, label: string, icon: keyof typeof GLYPHS):
         // Unpin only where there is a pin to take off.
         applies: (row) => pin !== "none" || row.pin !== "none",
         disabled: (row, session) => {
-            if (isBaseRow(session, row.id)) {
+            if (holdsBase(session, row)) {
                 return BASE_STAYS;
             }
             if (row.pin !== pin) {
@@ -126,7 +136,7 @@ function moveCommand(by: 1 | -1): RowCommand {
         disabled: (row, session) => {
             const { siblings, at } = place(session, row);
             const next = siblings[at + by];
-            if (isBaseRow(session, row.id) || (next !== undefined && isBaseRow(session, next.id))) {
+            if (holdsBase(session, row) || holdsBase(session, next)) {
                 return BASE_STAYS;
             }
             if (next === undefined) {
@@ -305,7 +315,7 @@ export const ROW_COMMANDS: readonly RowCommand[] = [
         group: "remove",
         rowKeys: ["Delete", "Backspace"],
         applies: () => true,
-        disabled: (row, session) => (isBaseRow(session, row.id) ? BASE_KEPT : null),
+        disabled: (row, session) => (holdsBase(session, row) ? BASE_KEPT : null),
         run: async ({ session, workspace }, row) => {
             if (session !== null) {
                 await orNotice(workspace, `delete ${row.name}`, deleteRow(session, workspace, row));

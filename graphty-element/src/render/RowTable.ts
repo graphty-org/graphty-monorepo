@@ -41,7 +41,7 @@ const KNOWN = 8;
 
 /** One float texture and the CPU copy it is uploaded from. */
 class RowTexture {
-    data: Float32Array<ArrayBuffer>;
+    floats: Float32Array<ArrayBuffer>;
     texture: RawTexture;
     /** First and last dirty rows; `first > last` when nothing waits to go up. */
     private first = Number.POSITIVE_INFINITY;
@@ -52,7 +52,7 @@ class RowTexture {
         private readonly floatsPerRow: number,
         capacity: number,
     ) {
-        this.data = new Float32Array(this.lineFloats(capacity));
+        this.floats = new Float32Array(this.lineFloats(capacity));
         this.texture = this.build();
     }
 
@@ -68,9 +68,9 @@ class RowTexture {
 
     private build(): RawTexture {
         return RawTexture.CreateRGBATexture(
-            this.data,
+            this.floats,
             ROW_TEXTURE_WIDTH,
-            this.data.length / FLOATS_PER_TEXEL / ROW_TEXTURE_WIDTH,
+            this.floats.length / FLOATS_PER_TEXEL / ROW_TEXTURE_WIDTH,
             this.scene,
             false,
             false,
@@ -87,11 +87,11 @@ class RowTexture {
      */
     follow(remap: U32 | null, capacity: number): void {
         const length = this.lineFloats(capacity);
-        const grown = length > this.data.length;
+        const grown = length > this.floats.length;
         if (remap !== null || grown) {
-            const next = new Float32Array(Math.max(length, this.data.length));
-            moveRows(this.data, next, this.floatsPerRow, remap);
-            this.data = next;
+            const next = new Float32Array(Math.max(length, this.floats.length));
+            moveRows(this.floats, next, this.floatsPerRow, remap);
+            this.floats = next;
         }
 
         if (grown) {
@@ -114,7 +114,7 @@ class RowTexture {
         const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
         const firstLine = whole ? 0 : Math.floor((this.first * this.floatsPerRow) / lineFloats);
         const endLine = whole
-            ? this.data.length / lineFloats
+            ? this.floats.length / lineFloats
             : Math.floor(((this.last + 1) * this.floatsPerRow - 1) / lineFloats) + 1;
         const internal = this.texture.getInternalTexture();
         const dirty = whole || this.first <= this.last;
@@ -124,7 +124,7 @@ class RowTexture {
             return 0;
         }
 
-        const bytes = this.data.subarray(firstLine * lineFloats, endLine * lineFloats);
+        const bytes = this.floats.subarray(firstLine * lineFloats, endLine * lineFloats);
         // Both engines have it; AbstractEngine does not declare it.
         const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
         engine.updateTextureData(internal, bytes, 0, firstLine, ROW_TEXTURE_WIDTH, endLine - firstLine);
@@ -197,8 +197,8 @@ export class RowTable {
         const { capacity } = lane();
         this.positions = new RowTexture(scene, POSITION_FLOATS, capacity);
         this.extents = new RowTexture(scene, EXTENT_FLOATS, capacity);
-        this.rowBounds = new Float32Array(this.positions.data.length);
-        this.flags = new Uint8Array(this.positions.data.length / POSITION_FLOATS);
+        this.rowBounds = new Float32Array(this.positions.floats.length);
+        this.flags = new Uint8Array(this.positions.floats.length / POSITION_FLOATS);
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
@@ -209,7 +209,7 @@ export class RowTable {
      * @returns The array.
      */
     get rowPosition(): Float32Array<ArrayBuffer> {
-        return this.positions.data;
+        return this.positions.floats;
     }
 
     /**
@@ -217,7 +217,7 @@ export class RowTable {
      * @returns The array.
      */
     get rowExtent(): Float32Array<ArrayBuffer> {
-        return this.extents.data;
+        return this.extents.floats;
     }
 
     /**
@@ -255,11 +255,11 @@ export class RowTable {
         const flags = this.flags[row] ?? 0;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
         const base = row * POSITION_FLOATS;
-        const { data } = this.positions;
+        const { floats } = this.positions;
         const bounds = this.rowBounds;
-        data[base] = bounds[base] = x;
-        data[base + 1] = bounds[base + 1] = y;
-        data[base + 2] = bounds[base + 2] = z;
+        floats[base] = bounds[base] = x;
+        floats[base + 1] = bounds[base + 1] = y;
+        floats[base + 2] = bounds[base + 2] = z;
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);
         }
@@ -325,7 +325,7 @@ export class RowTable {
         const outline = node.outlineHalfExtents;
         const round = node.roundRadius;
         const base = row * EXTENT_FLOATS;
-        this.extents.data.set(
+        this.extents.floats.set(
             [
                 node.drawnScale,
                 round ?? 0,
@@ -344,7 +344,7 @@ export class RowTable {
         );
         this.flags[row] = flags | KNOWN;
         this.extents.touch(row);
-        this.writeW(row, this.positions.data[row * POSITION_FLOATS + 3] ?? 0);
+        this.writeW(row, this.positions.floats[row * POSITION_FLOATS + 3] ?? 0);
     }
 
     /**
@@ -356,7 +356,7 @@ export class RowTable {
         const lane = this.lane();
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
-        const { length } = this.positions.data;
+        const { length } = this.positions.floats;
         if (remap !== null || length > this.rowBounds.length) {
             const bounds = new Float32Array(length);
             moveRows(this.rowBounds, bounds, POSITION_FLOATS, remap);
@@ -444,22 +444,22 @@ export class RowTable {
     private repackRow(row: number, lane: Float32Array): void {
         const from = row * 3;
         const to = row * POSITION_FLOATS;
-        const { data } = this.positions;
+        const { floats } = this.positions;
         const bounds = this.rowBounds;
         const x = lane[from] ?? Number.NaN;
         const placed = Number.isFinite(x);
         const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
-        data[to] = bounds[to] = placed ? x : 0;
-        data[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
-        data[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
-        data[to + 3] = w;
-        bounds[to + 3] = (this.extents.data[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        floats[to] = bounds[to] = placed ? x : 0;
+        floats[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
+        floats[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        floats[to + 3] = w;
+        bounds[to + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
     }
 
     private writeW(row: number, w: number): void {
         const base = row * POSITION_FLOATS;
-        this.positions.data[base + 3] = w;
-        this.rowBounds[base + 3] = (this.extents.data[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        this.positions.floats[base + 3] = w;
+        this.rowBounds[base + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         this.positions.touch(row);
     }
 }

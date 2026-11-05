@@ -5,7 +5,7 @@ import {
     RangeSlider,
     useNumberParser,
 } from "@graphty/compact-mantine";
-import type { GraphSession, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, LayerPatch, RuleTree, Scope } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Autocomplete,
@@ -70,6 +70,7 @@ import {
 } from "./cards";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
+import { useStyleVersion } from "./useStyleVersion";
 import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
@@ -3075,6 +3076,34 @@ function valueRow(
 }
 
 /**
+ * A category field's values and their counts, over a base when it has one.
+ * @param session - the element's session
+ * @param path - the field
+ * @param side - nodes or edges
+ * @param over - the base the values are counted over, or none for the whole graph
+ * @param _version - the session's change count: a new one reads the values again
+ * @returns the values and how many elements have none
+ */
+function categoryCounts(
+    session: GraphSession,
+    path: string,
+    side: Side,
+    over: Scope | undefined,
+    _version: number,
+): { values: readonly { value: unknown; count: number }[]; missing: number } {
+    if (over === undefined) {
+        return session.data.valueCounts(path, { kind: side });
+    }
+    // Counted over the selection's base (or a narrowing step's input), so a value only elements
+    // outside it hold reads 0.
+    const histogram = session.scope.histogram(path, { within: over, as: "categorical" });
+    return {
+        values: histogram.kind === "categorical" ? histogram.values : [],
+        missing: histogram.missing,
+    };
+}
+
+/**
  * A category card: a counted checklist of the values, ticked ones being alternatives, drawing at
  * most 8 rows whatever the column holds; over 8 a search ("Search 5,000"), and while searching
  * "Check N" ticks every match; "(no value)" when some elements have none.
@@ -3100,19 +3129,13 @@ function CategoryCard({
     variant?: CardVariant;
 }>): React.JSX.Element {
     const { name, path, within, counted } = card.field;
-    const counts = useMemo(() => {
-        const over = counted ?? within;
-        if (over === undefined) {
-            return session.data.valueCounts(path, { kind: side });
-        }
-        // Counted over the selection's base (or a narrowing step's input), so a value only
-        // elements outside it hold reads 0.
-        const histogram = session.scope.histogram(path, { within: over, as: "categorical" });
-        return {
-            values: histogram.kind === "categorical" ? histogram.values : [],
-            missing: histogram.missing,
-        };
-    }, [session, path, side, within, counted]);
+    // A run re-run under the same id (Analyze tuning it, the data moving) keeps this path but not
+    // its values, so the groups and counts are read again on every run or data change.
+    const version = useStyleVersion(session, null);
+    const counts = useMemo(
+        () => categoryCounts(session, path, side, counted ?? within, version),
+        [session, path, side, within, counted, version],
+    );
     const [search, setSearch] = useState("");
     const typed = search.trim().toLowerCase();
     const named = useMemo(

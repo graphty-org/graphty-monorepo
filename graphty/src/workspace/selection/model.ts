@@ -142,24 +142,37 @@ export function letterOf(at: number): string {
 }
 
 /**
- * Every group named once there are several: an unnamed group takes the letter of its place, or the
- * first letter no group holds, so a move or a copy never renames one (its color is kept the same way).
+ * A letter's place: the inverse of `letterOf`, or -1 for a name that is not a letter.
+ * @param name - the name.
+ * @returns its place, from 0.
+ */
+function placeOf(name: string): number {
+    if (!/^[A-Z]{1,2}$/.test(name)) {
+        return -1;
+    }
+    const code = (at: number): number => (name.codePointAt(at) ?? 65) - 65;
+    return name.length === 1 ? code(0) : (code(0) + 1) * 26 + code(1);
+}
+
+/**
+ * Every group named once there are several: an unnamed group takes the letter after the last one in
+ * use, never one a deleted group left free, so a new card never reads as the card that was deleted
+ * (owner, 2026-11-04). A move or a copy never renames a group (its color is kept the same way).
  * @param branches - the groups.
  * @returns the groups, each named.
  */
 function lettered(branches: readonly UnionBranch[]): UnionBranch[] {
     const used = new Set(branches.flatMap((branch) => (branch.name === undefined ? [] : [branch.name])));
-    const take = (wanted: string): string => {
-        let name = wanted;
-        let at = 0;
-        while (used.has(name)) {
-            name = letterOf(at);
-            at++;
+    let next = Math.max(-1, ...[...used].map(placeOf)) + 1;
+    const take = (): string => {
+        while (used.has(letterOf(next))) {
+            next++;
         }
+        const name = letterOf(next);
         used.add(name);
         return name;
     };
-    return branches.map((branch, at) => (branch.name === undefined ? { ...branch, name: take(letterOf(at)) } : branch));
+    return branches.map((branch) => (branch.name === undefined ? { ...branch, name: take() } : branch));
 }
 
 /**

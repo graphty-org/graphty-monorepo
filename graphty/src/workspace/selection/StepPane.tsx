@@ -687,6 +687,23 @@ export function StepPane({
     const canSoFar = step.op !== "add" && algorithm?.scopeInput === "subgraph";
     // The algorithm's own settings, as Analyze draws them (spec 3.2), past the ones a step binds.
     const settings = algorithm?.options.filter((o) => o.internal !== true && o.type !== "node-id") ?? [];
+    /**
+     * The measure under new settings. A field whose values are names a re-run may spell differently
+     * (a community's number) has its picked values cleared: "Group 1" of the old run is not the
+     * new run's Group 1.
+     * @param measure - the step's measure.
+     * @param params - its new settings.
+     * @returns the measure.
+     */
+    const retuned = (
+        measure: Extract<RuleTree, { kind: "measure" }>,
+        params: Readonly<Record<string, unknown>>,
+    ): RuleTree => {
+        const renames = algorithm?.fields.some((field) => field.name === measure.field && field.unstable === true);
+        const test =
+            renames === true && measure.test?.kind === "categories" ? { ...measure.test, values: [] } : measure.test;
+        return { ...measure, params, ...(test === undefined ? {} : { test }) };
+    };
     const pending = reading?.state === "pending";
     // A state the Run button does not already say (Paused, Waits for step 1, No reference) is said
     // in the pane, as on the step's row (spec 3.1).
@@ -924,9 +941,7 @@ export function StepPane({
                     algorithm={algorithm.key}
                     onChange={(name, next) => {
                         const measure = step.rule as Extract<RuleTree, { kind: "measure" }>;
-                        onStep({
-                            rule: { ...measure, params: { ...measure.params, [name]: next } },
-                        });
+                        onStep({ rule: retuned(measure, { ...measure.params, [name]: next }) });
                     }}
                 />
             )}
@@ -1006,7 +1021,7 @@ export function StepPane({
                                 }}
                                 onReset={(name) => {
                                     const { [name]: _gone, ...kept } = measure.params ?? {};
-                                    onStep({ rule: { ...measure, params: kept } });
+                                    onStep({ rule: retuned(measure, kept) });
                                 }}
                             />
                         )}

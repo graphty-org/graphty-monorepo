@@ -13,6 +13,8 @@
 import "./selection.css";
 
 import {
+    CardList,
+    type CardListItem,
     FieldCaret,
     focusWithRing,
     InlineRename,
@@ -344,7 +346,13 @@ export function SelectionEditor({
     const endVisit = (how: "done" | "cancel"): void => {
         const ending = visit.current;
         visit.current = null;
-        void (how === "done" ? ending?.commit() : ending?.discard());
+        // A visit ended while the element is torn down (the app closed with the workspace open) is
+        // rolled back by the element: nothing is left to keep or drop.
+        void (how === "done" ? ending?.commit() : ending?.discard())?.catch((error: unknown) => {
+            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                throw error;
+            }
+        });
     };
     // The place it was opened in: leaving it closes the workspace as Done (spec 3.0).
     const place = useWorkspaceState((state) => state.place);
@@ -1602,54 +1610,6 @@ export function SelectionEditor({
         },
     ];
 
-    // A card dragged by its grip: it takes the place the pointer is at as the pointer moves, so the
-    // order's effect (the first group wins) shows on the preview while dragging.
-    const [draggingCard, setDraggingCard] = useState<string | null>(null);
-    const dragCardTo = useRef<(id: string, y: number) => void>(() => undefined);
-    dragCardTo.current = (id, y) => {
-        const at = rule.branches.findIndex((branch) => branch.id === id);
-        const others = [...(wsBox.current?.querySelectorAll<HTMLElement>(".sel-card") ?? [])].filter(
-            (card) => card.dataset.branch !== id,
-        );
-        const to = others.filter((card) => {
-            const box = card.getBoundingClientRect();
-            return box.top + box.height / 2 < y;
-        }).length;
-        if (at >= 0 && to !== at) {
-            onChange(moveBranch(rule, id, to));
-        }
-    };
-    const grabCard = (event: React.PointerEvent<HTMLElement>, id: string): void => {
-        if (event.button !== 0) {
-            return;
-        }
-        event.preventDefault();
-        setDraggingCard(id);
-        // Followed on the window: the card moves in the page under the pointer as it is dragged.
-        const move = (moved: PointerEvent): void => {
-            dragCardTo.current(id, moved.clientY);
-        };
-        const drop = (): void => {
-            globalThis.removeEventListener("pointermove", move);
-            globalThis.removeEventListener("pointerup", drop);
-            globalThis.removeEventListener("pointercancel", drop);
-            setDraggingCard(null);
-        };
-        globalThis.addEventListener("pointermove", move);
-        globalThis.addEventListener("pointerup", drop);
-        globalThis.addEventListener("pointercancel", drop);
-    };
-    const moveCardKeys = (event: React.KeyboardEvent<HTMLElement>, id: string): void => {
-        const by = { ArrowUp: -1, ArrowDown: 1 }[event.key] as -1 | 1 | undefined;
-        if (by === undefined) {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        moveBranchBy(id, by);
-        focusAfter.current = `[data-grip="${CSS.escape(id)}"]`;
-    };
-
     // A folded card's summary: its value and conditions in one line.
     const foldedWords = (branch: UnionBranch): string =>
         branch.steps.length === 0
@@ -1840,8 +1800,8 @@ export function SelectionEditor({
         const made = addBranch(rule);
         const withValue = addStep(made.rule, made.id, "add", stepRule);
         lastEdited.current = withValue.id;
+        // CardList folds the cards before it as it is appended.
         onChange(withValue.rule);
-        setFolded(new Set(rule.branches.map((branch) => branch.id ?? "")));
         setAdding(null);
         if (hasTest(stepRule)) {
             focusAfter.current = TEST_FOCUS.map((each) =>
@@ -1870,91 +1830,30 @@ export function SelectionEditor({
      * @returns the cards.
      */
     const cards = (): React.JSX.Element => (
-        <div className="sel-cards">
-            {titleExtra}
-            {rule.branches.map((branch, at) => {
+        <CardList
+            label="Cards"
+            header={titleExtra}
+            items={rule.branches.map((branch, at): CardListItem => {
                 const branchRead = branchReading(branch.id);
-                const color = branchRead?.color ?? branch.color ?? "var(--cm-border)";
                 const letter = branchName(branch);
                 const branchId = branch.id ?? "";
                 const on = branch.on !== false;
                 const narrowing = adding !== null && adding.branch === branchId;
-                const isFolded = folded.has(branchId) && !narrowing;
-                return (
-                    <section
-                        key={branchId}
-                        className="sel-card"
-                        data-branch={branchId}
-                        data-off={on ? undefined : ""}
-                        data-folded={isFolded ? "" : undefined}
-                        data-dragging={draggingCard === branchId ? "" : undefined}
-                        aria-label={`${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`}
-                        style={{ "--sel-card-color": color } as React.CSSProperties}
-                    >
-                        <header className="sel-card-head">
-                            <TargetTooltip label="Drag, or Up and Down arrows, to reorder">
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    className="sel-card-grip"
-                                    data-grip={branchId}
-                                    aria-label={`Move ${letter}`}
-                                    onPointerDown={(event) => {
-                                        grabCard(event, branchId);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        moveCardKeys(event, branchId);
-                                    }}
-                                >
-                                    <GLYPHS.drag size={12} aria-hidden />
-                                </ActionIcon>
-                            </TargetTooltip>
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                className="sel-card-fold"
-                                aria-label={`${isFolded ? "Expand" : "Collapse"} ${letter}`}
-                                onClick={() => {
-                                    fold(branchId, !isFolded);
-                                }}
-                            >
-                                <GLYPHS.expand size={12} aria-hidden />
-                            </ActionIcon>
-                            <span className="sel-chit" data-filled="" aria-hidden />
-                            {renaming === branchId ? (
-                                <InlineRename
-                                    value={letter}
-                                    label={`Rename ${letter}`}
-                                    onCommit={(typed) => {
-                                        const text = typed.trim();
-                                        if (text !== letter) {
-                                            onChange(
-                                                editBranch(rule, branchId, {
-                                                    name: text === "" ? undefined : text,
-                                                }),
-                                            );
-                                        }
-                                        setRenaming(null);
-                                    }}
-                                    onCancel={() => {
-                                        setRenaming(null);
-                                    }}
-                                />
-                            ) : (
-                                <Tooltip label="Rename" openDelay={500}>
-                                    <UnstyledButton
-                                        className="sel-card-name"
-                                        aria-label={`Rename ${letter}`}
-                                        onClick={() => {
-                                            setRenaming(branchId);
-                                        }}
-                                    >
-                                        <Text size="sm" fw={600} span truncate>
-                                            {letter}
-                                        </Text>
-                                    </UnstyledButton>
-                                </Tooltip>
-                            )}
+                return {
+                    id: branchId,
+                    title: letter,
+                    color: branchRead?.color ?? branch.color ?? "var(--cm-border)",
+                    off: !on,
+                    label: `${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`,
+                    className: "sel-card",
+                    data: { "data-branch": branchId },
+                    summary: (
+                        <Text size="sm" c="dimmed" truncate span className="sel-card-summary">
+                            {foldedWords(branch)}
+                        </Text>
+                    ),
+                    aside: (
+                        <>
                             <Tooltip
                                 label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
                                 openDelay={500}
@@ -1980,86 +1879,73 @@ export function SelectionEditor({
                                     {on ? "Passes none" : "Off"}
                                 </Text>
                             )}
-                            {isFolded ? (
-                                <Text size="sm" c="dimmed" truncate className="sel-card-summary">
-                                    {foldedWords(branch)}
-                                </Text>
-                            ) : (
-                                <span className="sel-spacer" />
+                        </>
+                    ),
+                    header:
+                        branchRead?.state === "pending" ? (
+                            <Text size="sm" c="dimmed" className="sel-state">
+                                Waits
+                            </Text>
+                        ) : (
+                            <CountChip
+                                count={branchRead?.count ?? 0}
+                                of={of}
+                                side={side}
+                                host={host}
+                                onClick={() => {
+                                    showMembers(branchRead?.members, branchId);
+                                }}
+                            />
+                        ),
+                    menu: <PaneMenu name={letter} items={cardItems(branch, at)} />,
+                    children: (
+                        <>
+                            {branch.steps.length === 0 && (
+                                <div className="sel-card-step" data-new-step="">
+                                    <NewStepPane
+                                        key={branchId}
+                                        session={session}
+                                        rule={rule}
+                                        branch={branch}
+                                        open={false}
+                                        hostPicks={hostPicks}
+                                        onPick={(stepRule) => {
+                                            pick(branch, newVerb(branch), stepRule);
+                                        }}
+                                        onCancel={emptyClosed}
+                                    />
+                                </div>
                             )}
-                            {branchRead?.state === "pending" ? (
-                                <Text size="sm" c="dimmed" className="sel-state">
-                                    Waits
-                                </Text>
-                            ) : (
-                                <CountChip
-                                    count={branchRead?.count ?? 0}
-                                    of={of}
-                                    side={side}
-                                    host={host}
-                                    onClick={() => {
-                                        showMembers(branchRead?.members, branchId);
-                                    }}
-                                />
+                            {branch.steps.map((step, index) => cardStep(branch, step, index))}
+                            {narrowing && (
+                                <div className="sel-card-step" data-new-step="">
+                                    <NewStepPane
+                                        key={`${adding.branch}:${adding.op}`}
+                                        session={session}
+                                        rule={rule}
+                                        branch={branch}
+                                        open={adding.open}
+                                        hostPicks={hostPicks}
+                                        lead={
+                                            <Text size="sm" fw={600} className="sel-card-verb" data-op={adding.op}>
+                                                {VERB_WORDS[adding.op].word}
+                                            </Text>
+                                        }
+                                        onPick={(stepRule) => {
+                                            pick(branch, adding.op, stepRule);
+                                        }}
+                                        onCancel={() => {
+                                            stopAdding(branch);
+                                        }}
+                                    />
+                                </div>
                             )}
-                            <PaneMenu name={letter} items={cardItems(branch, at)} />
-                            <TargetTooltip label="Delete">
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    data-card-delete=""
-                                    aria-label={`Delete ${letter}`}
-                                    onClick={() => {
-                                        removeCard(branch);
-                                    }}
-                                >
-                                    <GLYPHS.close size={12} aria-hidden />
-                                </ActionIcon>
-                            </TargetTooltip>
-                        </header>
-                        {!isFolded && branch.steps.length === 0 && (
-                            <div className="sel-card-step" data-new-step="">
-                                <NewStepPane
-                                    key={branchId}
-                                    session={session}
-                                    rule={rule}
-                                    branch={branch}
-                                    open={false}
-                                    hostPicks={hostPicks}
-                                    onPick={(stepRule) => {
-                                        pick(branch, newVerb(branch), stepRule);
-                                    }}
-                                    onCancel={emptyClosed}
-                                />
-                            </div>
-                        )}
-                        {(isFolded ? [] : branch.steps).map((step, index) => cardStep(branch, step, index))}
-                        {narrowing && (
-                            <div className="sel-card-step" data-new-step="">
-                                <NewStepPane
-                                    key={`${adding.branch}:${adding.op}`}
-                                    session={session}
-                                    rule={rule}
-                                    branch={branch}
-                                    open={adding.open}
-                                    hostPicks={hostPicks}
-                                    lead={
-                                        <Text size="sm" fw={600} className="sel-card-verb" data-op={adding.op}>
-                                            {VERB_WORDS[adding.op].word}
-                                        </Text>
-                                    }
-                                    onPick={(stepRule) => {
-                                        pick(branch, adding.op, stepRule);
-                                    }}
-                                    onCancel={() => {
-                                        stopAdding(branch);
-                                    }}
-                                />
-                            </div>
-                        )}
-                        {!isFolded && !narrowing && branch.steps.length > 0 && (
-                            // Shown once the card has a value: Add, Keep and Except change it.
-                            <footer className="sel-card-actions">
+                        </>
+                    ),
+                    // Shown once the card has a value: Add, Keep and Except change it.
+                    footer:
+                        narrowing || branch.steps.length === 0 ? undefined : (
+                            <div className="sel-card-actions">
                                 {CARD_VERBS.map((op) => (
                                     <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
                                         <Button
@@ -2076,20 +1962,40 @@ export function SelectionEditor({
                                         </Button>
                                     </Tooltip>
                                 ))}
-                            </footer>
-                        )}
-                    </section>
-                );
+                            </div>
+                        ),
+                };
             })}
-            <AddCard
-                session={session}
-                rule={rule}
-                hostPicks={hostPicks}
-                left={reading.branchesLeft}
-                most={rule.branches.length}
-                onPick={addCard}
-            />
-        </div>
+            // A card narrowed by a new condition stays open while its picker is up.
+            folded={adding === null ? folded : new Set([...folded].filter((id) => id !== adding.branch))}
+            onFoldedChange={setFolded}
+            renaming={renaming}
+            onRenamingChange={setRenaming}
+            onRename={(branchId, typed) => {
+                const text = typed.trim();
+                onChange(editBranch(rule, branchId, { name: text === "" ? undefined : text }));
+            }}
+            onRemove={(branchId) => {
+                const branch = rule.branches.find((each) => each.id === branchId);
+                if (branch !== undefined) {
+                    removeCard(branch);
+                }
+            }}
+            onReorder={(branchId, to) => {
+                onChange(moveBranch(rule, branchId, to));
+                say(`Moved to ${letterOf(to)}`);
+            }}
+            add={
+                <AddCard
+                    session={session}
+                    rule={rule}
+                    hostPicks={hostPicks}
+                    left={reading.branchesLeft}
+                    most={rule.branches.length}
+                    onPick={addCard}
+                />
+            }
+        />
     );
 
     // The workspace is a modal over the whole app, a margin all round (the owner, 2026-11-04).

@@ -264,22 +264,10 @@
     background: var(--cm-bg-selected, var(--mantine-color-default-hover));
 }
 
-/* The group cards: each group a card in its own color, its steps inside, its actions along its
-   bottom. */
-.sel-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
+/* The group cards: compact-mantine's CardList draws each card in its group's color (its tint,
+   header, grip, fold and title); its steps and its actions take the same color. */
 .sel-card {
-    --sel-card-color: var(--cm-border);
-
-    /* The whole card is tinted in its group's color, its border mixed in too (mock I). */
-    background: color-mix(in srgb, var(--sel-card-color) 7%, var(--cm-bg));
-    border: 1px solid color-mix(in srgb, var(--sel-card-color) 45%, var(--cm-bg));
-    border-inline-start: 4px solid var(--sel-card-color);
-    border-radius: 6px;
+    --sel-card-color: var(--cm-card-color, var(--cm-border));
 }
 
 /* A card's controls take its color: the brush, the in-range bars and the focused boxes. */
@@ -302,6 +290,7 @@
     border-radius: 3px;
 }
 
+/* The workspace title's rename button. */
 .sel-card-name {
     min-width: 0;
     padding-inline: 2px;
@@ -344,52 +333,6 @@
     flex: 0 0 12px;
 }
 
-.sel-card[data-off] {
-    opacity: 0.6;
-}
-
-.sel-card-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 30px;
-    padding-inline: 4px;
-    background: color-mix(in srgb, var(--sel-card-color) 14%, var(--cm-bg));
-    border-start-end-radius: 5px;
-}
-
-.sel-card-head .sel-chit {
-    border-color: var(--sel-card-color);
-    background: var(--sel-card-color);
-}
-
-/* A card's grip drags it to another place; its chevron folds it to its header line. */
-.sel-card-grip {
-    cursor: grab;
-    touch-action: none;
-}
-
-.sel-card[data-dragging] {
-    box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
-}
-
-.sel-card[data-dragging] .sel-card-grip {
-    cursor: grabbing;
-}
-
-.sel-card[data-folded] .sel-card-fold svg {
-    transform: rotate(-90deg);
-}
-
-.sel-card-summary {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.sel-card[data-folded] .sel-card-head {
-    border-end-end-radius: 5px;
-}
-
 /* A card's start, All or No nodes, beside its letter: compact, never a row of its own. */
 .sel-card-start {
     flex: 0 0 auto;
@@ -422,8 +365,6 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 4px 6px;
-    border-top: 1px solid color-mix(in srgb, var(--sel-card-color) 30%, var(--cm-bg));
 }
 
 /* Its buttons are plain subtle buttons; only the verb's glyph carries the verb's color, and the

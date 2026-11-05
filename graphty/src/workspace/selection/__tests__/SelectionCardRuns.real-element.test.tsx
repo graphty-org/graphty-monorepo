@@ -157,3 +157,89 @@ describe("runs started from a selection card", () => {
         assert.strictEqual(pagerankRuns(session), 1, "started once");
     });
 });
+
+/**
+ * The first card's header count ("8 of 77"), from its accessible name.
+ * @returns the count.
+ */
+function cardCount(): number {
+    const label = document.querySelector(".sel-ws .sel-card")?.getAttribute("aria-label") ?? "";
+    return Number(/(\d+) of \d+/u.exec(label)?.[1] ?? Number.NaN);
+}
+
+/**
+ * Each listed group's own count, from its checkbox's name ("Group 1 (20 nodes)").
+ * @param modal - the modal.
+ * @returns the counts by group name.
+ */
+function listedGroups(modal: HTMLElement): Map<string, number> {
+    const groups = new Map<string, number>();
+    for (const box of within(modal).queryAllByRole("checkbox", { name: /^Group \d+\b/u })) {
+        const name = box.getAttribute("aria-label") ?? (box as HTMLInputElement).labels?.[0]?.textContent ?? "";
+        const match = /^(Group \d+)\D*(\d+)/u.exec(name);
+        if (match !== null) {
+            groups.set(match[1], Number(match[2]));
+        }
+    }
+    return groups;
+}
+
+describe("a card's setting its run name does not carry (the owner, 2026-11-04)", () => {
+    it("Louvain's Max iterations makes the card's own run: its groups are re-read and the ticks cleared", async () => {
+        const { session, layer } = await openLayer();
+        await userEvent.click(screen.getByRole("button", { name: /^Edit Which nodes/ }));
+        const modal = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("Louvain");
+        await userEvent.keyboard("{Enter}");
+        await userEvent.click(await within(modal).findByRole("checkbox", { name: /^Group 1\b/u }));
+        await waitFor(() => {
+            assert.isAbove(cardCount(), 0, "Group 1 ticked");
+        });
+        const first = session.runs.list().find((run) => run.algorithm === "louvain");
+        const firstParams = JSON.stringify(first?.params);
+
+        await userEvent.click(within(modal).getAllByRole("button", { name: /^Settings for /u })[0]);
+        await screen.findByRole("dialog", { name: /Louvain/u });
+        // Max iterations may sit behind an "Advanced" button in the settings.
+        const advanced = screen.queryByRole("button", { name: "Advanced" });
+        if (advanced !== null) {
+            await userEvent.click(advanced);
+        }
+        const field = await screen.findByLabelText(/Max iterations/u);
+        await userEvent.clear(field);
+        await userEvent.type(field, "1{Enter}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            const tuned = session.runs
+                .list()
+                .find((run) => run.algorithm === "louvain" && run.params.maxIterations === 1);
+            assert.strictEqual(tuned?.status, "succeeded", "the card's own run");
+        });
+        assert.strictEqual(
+            JSON.stringify(session.runs.get(first?.id ?? "")?.params),
+            firstParams,
+            "the first run was never re-run in place",
+        );
+        await waitFor(() => {
+            assert.strictEqual(cardCount(), 0, "the old run's Group 1 is not ticked on the new run");
+        });
+        // Each listed group's count is what ticking it adds: the list reads the new run.
+        const groups = await waitFor(() => {
+            const found = listedGroups(modal);
+            assert.isAbove(found.size, 1);
+            return found;
+        });
+        const [name, count] = [...groups][0];
+        await userEvent.click(within(modal).getByRole("checkbox", { name: new RegExp(`^${name}\\b`, "u") }));
+        await waitFor(() => {
+            assert.strictEqual(cardCount(), count, `${name} adds the ${String(count)} nodes it lists`);
+        });
+        assert.isDefined(layer);
+    });
+});

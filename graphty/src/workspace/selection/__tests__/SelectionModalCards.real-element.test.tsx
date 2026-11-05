@@ -283,7 +283,8 @@ describe("the owner's review of the cards (2026-11-04)", () => {
             "Degree",
             "its one-line summary",
         );
-        assert.notMatch(document.querySelector(".sel-cards")?.textContent ?? "", /\bor\b/u, "no or between the cards");
+        const list = screen.getByRole("group", { name: "Cards" });
+        assert.notMatch(list.textContent ?? "", /\bor\b/u, "no or between the cards");
         // The chevron unfolds it again.
         await userEvent.click(within(cards()[0]).getByRole("button", { name: "Expand A" }));
         await waitFor(() => {
@@ -293,6 +294,29 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         await waitFor(() => {
             assert.isTrue(cards()[0].hasAttribute("data-folded"));
         });
+    });
+
+    it("a card added after deleting the top card is named after the last letter, never the deleted one", async () => {
+        const { session, layer, modal } = await twoCards();
+        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+        await pickValue("Degree");
+        await waitFor(() => {
+            assert.lengthOf(unionOf(session, layer.id)?.branches ?? [], 3);
+        });
+        await userEvent.click(within(cards()[0]).getByRole("button", { name: "Delete A" }));
+        await waitFor(() => {
+            assert.lengthOf(cards(), 2);
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
+        await pickValue("Degree");
+        await waitFor(() => {
+            assert.deepEqual(
+                (unionOf(session, layer.id)?.branches ?? []).map((each) => each.name),
+                ["B", "C", "D"],
+                "the new card is last and named D",
+            );
+        });
+        assert.match(cards().at(-1)?.getAttribute("aria-label") ?? "", /^D, /, "the last card reads D");
     });
 
     it("a card dragged by its grip, or moved with the arrow keys, takes its new place", async () => {

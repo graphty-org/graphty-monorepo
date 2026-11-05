@@ -208,6 +208,17 @@ describe("the device a graph opens", () => {
         assert.strictEqual(devices(), 1);
     });
 
+    it("draws on WebGPU without sharing on a browser whose adapter has no info", async () => {
+        vi.spyOn(GPUAdapter.prototype, "info", "get").mockReturnValue(undefined as unknown as GPUAdapterInfo);
+
+        const graph = await open();
+
+        assert.deepInclude(graph.rendererStatus, { active: "webgpu", reason: null, drawing: true });
+        assert.isFalse((graph.engine as RecoveringWebGPUEngine).sharesDevice);
+        assert.isNull(graph.acceleration.accelerator);
+        assert.isNotNull(graph.acceleration.status.reason);
+    });
+
     it("has every limit of the adapter when it is shared", async () => {
         adapterSays("test-hardware");
         const graph = await open();

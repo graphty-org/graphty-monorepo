@@ -507,10 +507,25 @@ export class AccelerationController {
     /**
      * Whether a registered backend would run on the device a renderer opens on this adapter.
      * @param adapter - The `GPUAdapter`, opaque here.
-     * @returns True when the renderer should open a device fit for both.
+     * @returns True when the renderer should open a device fit for both. A registration that throws
+     * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
      */
     sharesDevice(adapter: unknown): boolean {
-        return this.#policy !== "off" && this.#registry.list().some((entry) => entry.sharesDevice?.(adapter) === true);
+        if (this.#policy === "off") {
+            return false;
+        }
+
+        return this.#registry.list().some((entry) => {
+            try {
+                return entry.sharesDevice?.(adapter) === true;
+            } catch (error) {
+                logger.warn("A registered accelerator could not say whether it shares the device", {
+                    name: entry.name,
+                    reason: error instanceof Error ? error.message : String(error),
+                });
+                return false;
+            }
+        });
     }
 
     /**

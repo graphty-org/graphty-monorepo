@@ -26,7 +26,7 @@ export interface AcceleratorRegistration {
     /**
      * Asked before a WebGPU engine opens: whether this backend can run on the device drawn with.
      * Yes opens the engine with every limit and feature of `adapter`, and `factory` then gets
-     * that device. Left out, the backend finds its own.
+     * that device. Left out, or if it throws, the backend finds its own.
      * @param adapter - The `GPUAdapter`, opaque here.
      * @returns True to share.
      */

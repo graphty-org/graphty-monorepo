@@ -1169,7 +1169,6 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:white_delta_bar", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["other:crows_foot_many_mandatory", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["other:crows_foot_many_optional", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-    ["other:skewed-dash", 1],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",

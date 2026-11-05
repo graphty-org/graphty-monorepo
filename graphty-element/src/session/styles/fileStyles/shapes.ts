@@ -153,7 +153,6 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:kite", "kite"],
     ["other:deltoid", "deltoid"],
     ["other:open-vee", "open-vee"],
-    ["other:skewed-dash", "slash"],
     // the first cap of each of yEd's rows (`ARROW_RUNS`): a stem where yEd stands the row back from the line's end
     ["other:white_delta_bar", "open-normal"],
     ["other:crows_foot_many_optional", "crow"],
@@ -163,6 +162,7 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:crows_foot_one_optional", "stem"],
     ["other:crows_foot_optional", "stem"],
     ["other:dash", "stem"],
+    ["other:skewed-dash", "stem"],
 ]);
 
 /** One cap of a row: its element type, and how long along the line and how wide across it, in yEd's pixels. */
@@ -185,6 +185,7 @@ const RING: ArrowRunPart = { type: "open-dot", along: 10 };
 export const ARROW_RUNS: ReadonlyMap<string, { readonly lead?: number; readonly parts: readonly ArrowRunPart[] }> =
     new Map([
         ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
+        ["other:skewed-dash", { lead: 4, parts: [{ type: "slash", along: 8 }] }],
         ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
         ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { type: "stem", along: 8 }, BAR] }],
         ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { type: "stem", along: 3 }, RING] }],

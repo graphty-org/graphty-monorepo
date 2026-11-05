@@ -1070,8 +1070,8 @@ void main() {
      * - "kite": widest a fifth of its length from its back, its back a point on the line (yEd Live's kite).
      * - "deltoid": wider than it is long, its sides bowed in and its back notched (yEd Live's deltoid).
      * - "open-vee": two half barbs meeting at the tip, nothing between them (yEd's plain, concave and convex).
-     * - "slash": one stroke a twelfth of the cap thick, from a third of the cap to one side of the line at its back to
-     *   a third to the other side two thirds on (yEd's skewed_dash, 12 long, a stroke 8 x 8 and 4 back from the tip).
+     * - "slash": one stroke an eighth of the cap thick, corner to corner of a square as long as the cap (yEd's
+     *   skewed_dash, 8 x 8).
      * - "stem": a piece of the line, as long as the cap. EdgeMesh sets how wide from the line's width.
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
@@ -1184,13 +1184,13 @@ void main() {
             ...FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"](),
         ],
         slash: () => {
-            const half = Math.SQRT1_2 / 24;
+            const half = Math.SQRT2 / 16;
             return [
                 [
-                    [-1 + half, -1 / 3 - half],
-                    [-1 - half, -1 / 3 + half],
-                    [-1 / 3 - half, 1 / 3 + half],
-                    [-1 / 3 + half, 1 / 3 - half],
+                    [-1, -0.5 - half],
+                    [-1, -0.5 + half],
+                    [0, 0.5 + half],
+                    [0, 0.5 - half],
                 ],
             ];
         },

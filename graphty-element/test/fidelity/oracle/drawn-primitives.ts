@@ -272,7 +272,7 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, P
         return { ...arrow, standing };
     }
     // a half arrow lies to one side of its line by its make
-    // and a slash lies a third of itself back from its own tip, the line running on to the tip
+    // and a slash lies back from its line's end behind its stem
     const misplaced =
         end === "middle" || (shape === "half" && c.name.includes("slash"))
             ? 0
@@ -655,8 +655,9 @@ export function drawnPrimitives(
         }
         // a cap drawn at no opacity or no size draws nothing
         const isStem = (c: DrawnCap): boolean => c.name.includes("stem");
+        // a slash's middle is off a bent line, where it is read off the bend, so how far back it stands is not judged
         const standsBack = (c: DrawnCap, k: number): boolean =>
-            d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
+            !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
         // a stem is a length of the line, no arrow: what stands behind it is
         const arrows: PArrow[] = d.caps.flatMap((c, k) =>
             c.opacity > 0 && c.sizePx > 0 && !isStem(c) ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k))] : [],

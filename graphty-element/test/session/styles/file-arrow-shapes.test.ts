@@ -33,7 +33,7 @@ describe("the cap a file's arrow is drawn as, by the program that wrote it", () 
             "other:kite": "kite",
             "other:deltoid": "deltoid",
             "other:open-vee": "open-vee",
-            "other:skewed-dash": "slash",
+            "other:skewed-dash": "stem",
             "other:dash": "stem",
             "other:crows_foot_optional": "stem",
             "other:crows_foot_one": "stem",
@@ -46,6 +46,7 @@ describe("the cap a file's arrow is drawn as, by the program that wrote it", () 
     it("draws yEd's rows as their caps, nearest the line's end first, each as far back as yEd stands it", () => {
         const rows: Record<string, [string, number | undefined, string[]]> = {
             "other:dash": ["stem", 8, ["tee"]],
+            "other:skewed-dash": ["stem", 4, ["slash"]],
             "other:crows_foot_one": ["stem", 10, ["tee"]],
             "other:crows_foot_optional": ["stem", 10, ["open-dot"]],
             "other:crows_foot_one_mandatory": ["stem", 6, ["tee", "stem", "tee"]],

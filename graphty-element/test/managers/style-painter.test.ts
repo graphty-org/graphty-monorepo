@@ -525,6 +525,24 @@ describe("StylePainter dirty set", () => {
         assert.isTrue(held.painter.hasPending, "while the edges still are");
     });
 
+    it("takes rows queued between two batches, oldest first and each once", async () => {
+        const held = harness();
+        await held.paintAll();
+        held.painter.takeNodes();
+        for (const row of [0, 1, 2]) {
+            held.painter.queue("node", row);
+        }
+
+        assert.deepStrictEqual(held.painter.takeNodes(2), [0, 1]);
+        held.painter.queue("node", 0);
+        held.painter.queue("node", 3);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [2, 0], "a row taken and queued again goes to the back");
+        assert.deepStrictEqual(held.painter.takeNodes(2), [3]);
+        held.painter.queue("node", 1);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [1], "a queue that ran dry takes again");
+        assert.isFalse(held.painter.hasPendingNodes);
+    });
+
     it("queues ONLY the elements one edit touched", async () => {
         const held = harness();
         await held.paintAll();

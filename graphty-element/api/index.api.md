@@ -1108,6 +1108,8 @@ export class Edge {
     supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
+    // @internal
+    get trimInput(): EdgeTrimInput;
     update(): void;
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
@@ -5103,6 +5105,8 @@ class Node_2 implements ModelUser {
     spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
+    // @internal
+    get surfaceIsClosedForm(): boolean;
     // @internal
     syncXlabelPlace(): void;
     // @internal

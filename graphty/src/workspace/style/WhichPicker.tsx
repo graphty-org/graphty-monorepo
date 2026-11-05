@@ -1251,6 +1251,48 @@ interface ExtraSection {
 const EXTRA = "extra:";
 
 /**
+ * What a value list says when its search finds nothing: on one kind's tab, where a field of the
+ * other kind with that name is.
+ * @param other - the other kind's field the search found, if any.
+ * @returns the words.
+ */
+function nothingFoundWords(other: CardField | undefined): string {
+    if (other === undefined) {
+        return "Nothing found";
+    }
+    return `${other.name} is ${other.on === "edge" ? "an edge" : "a node"} attribute; it is on the ${tabOf(other)} tab`;
+}
+
+/**
+ * The tab a field is on: Edge for an edge field, else Node.
+ * @param field - the field, if any.
+ * @returns the tab's name.
+ */
+function tabOf(field: CardField | undefined): "Edge" | "Node" {
+    return field?.on === "edge" ? "Edge" : "Node";
+}
+
+/**
+ * Where a value list lies: under a field (an anchor) it is as wide as the field, or as `listWidth`
+ * says, and always opens below it, inside its column, never flipped up over the header and Done
+ * (ws-polish 2, 3); else as wide as the cards it adds to.
+ * @param anchored - the list opens under a field.
+ * @param width - the cards' column width.
+ * @param listWidth - a width asked for.
+ * @returns the combobox's width and middlewares.
+ */
+function listPlacement(
+    anchored: boolean,
+    width: number | undefined,
+    listWidth: number | undefined,
+): { width: number | "target" | undefined; middlewares?: { flip: boolean; shift: boolean } } {
+    if (!anchored) {
+        return { width: listWidth ?? width };
+    }
+    return { width: listWidth ?? "target", middlewares: { flip: false, shift: true } };
+}
+
+/**
  * "+ Add a condition": a searchable list of every field of the kind, grouped Data, Results and
  * Structure; a field that is already a condition is marked, and picking it goes to that card.
  * @param props - Component props
@@ -1379,10 +1421,8 @@ export function AddCondition({
         extras.length;
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
-    const otherTab = other?.on === "edge" ? "Edge" : "Node";
-    const otherKind = other?.on === "edge" ? "an edge" : "a node";
-    const nothingWords =
-        other === undefined ? "Nothing found" : `${other.name} is ${otherKind} attribute; it is on the ${otherTab} tab`;
+    const nothingWords = nothingFoundWords(other);
+    const otherTab = tabOf(other);
     // The other kind's field is one step away: its tab, with a card on it.
     const goElsewhere =
         other === undefined || onElsewhere === undefined
@@ -1491,12 +1531,9 @@ export function AddCondition({
     return (
         <Combobox
             store={combobox}
-            // A list under a field is as wide as the field, however it was opened (ws-polish 3).
-            width={listWidth ?? (anchor === undefined ? width : "target")}
+            // Its width and how it opens: see listPlacement.
+            {...listPlacement(anchor !== undefined, width, listWidth)}
             position="bottom-start"
-            // A list under a field (the selection workspace's value fields) always opens below it,
-            // inside its column, never flipped up over the header and Done (ws-polish 2).
-            middlewares={anchor === undefined ? undefined : { flip: false, shift: true }}
             withinPortal
             // compact-mantine's listbox look, as every Select's: its lit row keeps the menu's ink
             // (Mantine's bare highlight is white on the brand color, under 3:1).

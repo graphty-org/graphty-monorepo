@@ -815,9 +815,15 @@ function headParts(heads: readonly PArrow[]): number {
         // a part of the same head is drawn in the head's color at about its size: a neighbor's head read onto this
         // end (a diamond of another color beside a Cytoscape desktop head) is not one
         const first = placed[0];
+        // a head's size is its longer side: a bar across the line is as long as a stroke is wide (yEd's crow's foot with
+        // a bar behind it, tines 12 long and a bar 16 wide and 1 deep)
+        const size = (q: PArrow): number => Math.max(q.length, q.width);
         const kin =
             first === undefined ||
-            (h.color === first.color && h.length <= 2 * first.length && first.length <= 2 * h.length);
+            // a hollow head's white fill has no color of its own (yEd's circle, its fill then its ring)
+            ((h.color === first.color || first.color === null) &&
+                size(h) <= 2 * size(first) &&
+                size(first) <= 2 * size(h));
         if (kin && placed.every(apart)) {
             placed.push(h);
         }
@@ -1462,7 +1468,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
-        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half); one no class names matches nothing",
+        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half, cross); one no class names matches nothing",
     "edge.arrowParts": "as many arrowhead parts in a row at each end",
     "edge.dashPeriod": `where both sides read a dash array: its period (a dash and a gap) and the share of it drawn, each ratio in [${ORACLE_TOLERANCES.dashRatio.join(", ")}]`,
     "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels; a break between the line and half an arrow on both sides or on neither`,

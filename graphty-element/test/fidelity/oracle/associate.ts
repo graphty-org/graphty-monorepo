@@ -19,6 +19,8 @@ import {
     bandPaintedAsFill,
     boxOfPoints,
     compareIds,
+    figureOf,
+    insideFigure,
     PAINTED_OUTLINE,
     type PaintedBand,
     type PArrow,
@@ -420,6 +422,12 @@ function nodeFrom(
     };
     if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
         slantedOutlines.set(node, outline.points);
+    }
+    // a figure with a dent (Pajek's man): its lines are cut, and what it hides judged, at its own outline
+    const figure =
+        outline?.closed === true && shape !== null ? figureOf(outline.fine ?? outline.points, node) : undefined;
+    if (figure !== undefined) {
+        node.figure = figure;
     }
     return node;
 }
@@ -871,6 +879,10 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
         ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
+    // a bar drawn as a stroke across the line (yEd's dash and t_shape) is solid, as long as its stroke is wide
+    if (arrow.shape === "tee" && p.stroke !== null && arrow.length < p.stroke.width) {
+        return { ...arrow, length: p.stroke.width, filled: true, color: p.stroke.color };
+    }
     // half an arrow drawn as a thin strip is one open stroked barb (Cytoscape desktop's HALF_TOP), not a filled wedge
     return arrow.shape === "half" && arrow.filled && strokedBarb(p.points) ? { ...arrow, filled: false } : arrow;
 }
@@ -3167,6 +3179,16 @@ export function associate(
         e.label = mergeTexts(picked);
     }
 
+    // ---- labels drawn as glyph outlines: rows of lettering inside a node's box with no label of its own are its label,
+    // inside the smallest node that holds them (yEd's HTML labels, graphml-libcitygml-mapping)
+    for (const n of [...nodeList].sort((a, b) => a.w * a.h - b.w * b.h)) {
+        const rows = free().filter((p) => p.lettering === true && within(p.box, nodeBox(n)));
+        if (n.label === null && rows.length > 0) {
+            rows.forEach(take);
+            n.label = glyphLabel(rows);
+        }
+    }
+
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
     // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
     // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
@@ -3183,6 +3205,7 @@ export function associate(
             take(p);
             twin.fill ??= p.fill;
             twin.stroke ??= p.stroke;
+            twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
@@ -3204,6 +3227,7 @@ export function associate(
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,
+                ...(p.panel === undefined ? {} : { panel: p.panel }),
                 label: null,
                 members: members.map((n) => n.id),
             });
@@ -3336,6 +3360,42 @@ function boxIoU(a: PBox, b: PBox): number {
     const inter = w > 0 && h > 0 ? w * h : 0;
     const union = area(a) + area(b) - inter;
     return union > 0 ? inter / union : 0;
+}
+
+/**
+ * A label from rows of lettering: where it was drawn and in what color, with no words. A row drawn twice (a halo under
+ * its letters) is one line.
+ * @param rows - the rows
+ * @returns the label
+ */
+function glyphLabel(rows: readonly Prim[]): PText {
+    const lines = rows
+        .filter((p, i) => rows.findIndex((q) => sameBox(q.box, p.box)) === i)
+        .map((p) => p.box)
+        .sort((a, b) => a.y0 - b.y0);
+    const box = boxOfPoints(
+        lines.flatMap((b): Pt[] => [
+            [b.x0, b.y0],
+            [b.x1, b.y1],
+        ]),
+    );
+    const fill = rows.find((p) => p.fill !== null)?.fill ?? null;
+    return {
+        content: "",
+        x: cx(box),
+        y: cy(box),
+        box,
+        sizePx: lines.reduce((s, b) => s + bh(b), 0) / lines.length,
+        family: "",
+        weight: 400,
+        style: "normal",
+        anchor: "middle",
+        rotation: 0,
+        color: fill?.color ?? "#000000",
+        opacity: fill?.opacity ?? 1,
+        lines,
+        glyphs: true,
+    };
 }
 
 /**
@@ -4460,9 +4520,38 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         shown.has(b.id) &&
         boxWithin(boxOf(a), boxOf(b), slack) &&
         boxWithin(boxOf(b), boxOf(a), slack);
+    // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
+    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
+    // point round a round node's outline
+    const underFigure = (n: PNode, c: PNode): boolean => {
+        if (c.figure === undefined) {
+            return true;
+        }
+        const b = boxOf(n);
+        const [mx, my, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+        const points: Pt[] =
+            n.shape === "ellipse"
+                ? Array.from({ length: 16 }, (_, k) => [
+                      mx + rx * Math.cos((k * Math.PI) / 8),
+                      my + ry * Math.sin((k * Math.PI) / 8),
+                  ])
+                : [
+                      [b.x0, b.y0],
+                      [b.x1, b.y0],
+                      [b.x0, b.y1],
+                      [b.x1, b.y1],
+                  ];
+        const reach = slack + (c.stroke?.width ?? 0) / 2;
+        return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
+    };
     for (const n of scene.nodes) {
         const over = covers.filter(
-            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack) && !twins(n, c.n),
+            (c) =>
+                c.n !== n &&
+                c.order > (n.order ?? Infinity) &&
+                boxWithin(boxOf(n), c.box, slack) &&
+                underFigure(n, c.n) &&
+                !twins(n, c.n),
         );
         if (over.length > 0) {
             coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);

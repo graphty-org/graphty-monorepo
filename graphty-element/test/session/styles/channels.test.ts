@@ -209,6 +209,10 @@ const DECLARED = [
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -394,9 +398,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-seven node channels and one hundred and fifty-three edge channels", () => {
+    it("splits into one hundred and eighty-seven node channels and one hundred and fifty-seven edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 187);
-        assert.strictEqual(channelsFor("edge").length, 153);
+        assert.strictEqual(channelsFor("edge").length, 157);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -617,6 +621,7 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",

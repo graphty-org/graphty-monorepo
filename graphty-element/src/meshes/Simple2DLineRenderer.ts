@@ -1,6 +1,6 @@
 import type { Mesh, Scene } from "@babylonjs/core";
 
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type JoinedLineOptions } from "./CustomLineRenderer";
 
 /**
  * Renderer for simple 2D solid lines in world-space
@@ -29,6 +29,7 @@ export class Simple2DLineRenderer {
      * @param scene - Babylon.js scene
      * @param widened - Whether its slots carry a taper's static values (`EdgeLineBatch`)
      * @param minScreenWidth - The fewest screen pixels wide the line is drawn (`line.minScreenWidth`)
+     * @param blend - How it blends: its fade (`line.fade`) and whether it does not (`line.blending`)
      * @returns The template mesh, with its material
      */
     static createBatchMesh(
@@ -38,9 +39,10 @@ export class Simple2DLineRenderer {
         scene: Scene,
         widened = false,
         minScreenWidth = 0,
+        blend: Pick<JoinedLineOptions, "fade" | "opaque"> = {},
     ): Mesh {
         const mesh = CustomLineRenderer.createJoinedLineMesh(
-            { width, color, opacity, worldWidth: true, widened, minScreenWidth },
+            { width, color, opacity, worldWidth: true, widened, minScreenWidth, ...blend },
             scene,
         );
         mesh.name = "line-2d";

@@ -67,7 +67,9 @@ async function get<T>(path: string, fixture: string): Promise<T> {
     }
     let res: Response;
     try {
-        res = await fetch(`${API}${path}`, { headers: { accept: "application/json" } });
+        // no-cache: always ask the API, never take the browser's copy, which can outlive the 60-second max-age
+        // in a tab left open for days (#5783).
+        res = await fetch(`${API}${path}`, { headers: { accept: "application/json" }, cache: "no-cache" });
     } catch (e) {
         throw new ApiError(path, e instanceof Error ? e.message : String(e), true);
     }
@@ -436,6 +438,18 @@ globalThis.addEventListener("hashchange", () => {
     void show(true);
 });
 setInterval(() => void show(false), REFRESH_MS);
+// A tab the browser froze or a machine that slept refreshes as soon as it is back, not up to a minute later (#5783).
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        void show(false);
+    }
+});
+globalThis.addEventListener("online", () => void show(false));
+globalThis.addEventListener("pageshow", (ev) => {
+    if (ev.persisted) {
+        void show(false);
+    }
+});
 await show(false);
 const target = current.section ? document.getElementById(`s-${current.section}`) : null;
 if (target) {

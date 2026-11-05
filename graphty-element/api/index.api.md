@@ -1827,6 +1827,12 @@ export const EdgeStyle: z.ZodObject<{
         wavePeriod: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
+        fade: z.ZodOptional<z.ZodObject<{
+            start: z.ZodOptional<z.ZodNumber>;
+            end: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        blending: z.ZodOptional<z.ZodBoolean>;
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             width: z.ZodOptional<z.ZodNumber>;

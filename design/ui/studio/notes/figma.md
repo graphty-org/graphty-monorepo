@@ -5,52 +5,45 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 closed; insights read).
+Last updated: 2026-10-30 (tier 4 closed after round 1 on build 79ed770292).
 
 ## Top of mind
 
-- (2026-10-23, issue #3315) Location as one "+" pick per kind. My position: Figma's effect
-  rows (type select + gear) were the closest precedent for the gear, but Figma only puts settings
-  in a gear when the row's shape does not change with them; latitude and longitude are two
-  inputs, like X and Y, so they are two rows. Adopted; the in-row kind select was rejected for
-  width (two selects in 240 px).
-
-1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; studio stopped.
-   55 of 56 sessions succeeded: the round is at its ceiling, so signal lives in cost, routes and
-   problems, not success. Bar 5 fails only on two pre-round severity 3 backlog items (the node's
-   own Fill "+" making a one-node layer; the folder chain icon painting every cluster one color).
-2. (2026-10-21) Biggest newcomer cost: with nothing picked, the Graph inspector's Style tab shows
-   only canvas settings; 9 sessions looked there first for node color and recovered only by
-   matching the "Everything" count. Figma answer: an empty selection's panel still points at
-   what styles the content (Figma's page panel lists Selection colors / local styles).
-3. (2026-10-21) A new style line starts at the value everything already has (Fill "+" = 6366F1,
-   edge Width = 8, no unit), so accepting it looks broken. Figma adds a new fill VISIBLY
-   different (its default paint differs). A new line must change the canvas or say why not.
-4. (2026-10-21) Checking a layer's members is done by eye: no hover outline, Values tab lists ids
-   not names, table does not mark painted rows. Element owns the transient highlight; app calls it.
-5. (2026-10-21) Color words: the color box accepts "orange" and nothing says so; swatches hold no
-   common hues. compact-mantine `colorWord` returns CSS keywords before hue ("gold" not
-   "yellow"), and the app speaks those names. Fix the shared table, not the grade or the app.
-6. (2026-10-21) Keyboard: inspector F6 stop draws no focus ring (WCAG 2.4.7); both "Samples"
-   controls leave focus behind; 30+ Tabs to a sample card. Fix in shared components.
-7. (2026-10-21) Layer tree Shift-click anchors on the last layer CLICKED, not the current
-   selection (pulled Everything into a bulk edit after Duplicate). Still a watch item.
-8. (2026-10-21) One list drawn four ways (inline 11 px drop-down, two 14 px side popovers, a
-   bordered grid). One picker component, one value-row grammar (swatch, name, count, eye, more).
-9. (2026-10-21) Avoiding the purple <<Layer>> token is not reading it: 6 sessions went around it.
-   Next round needs a measure that separates avoidance from understanding before I defend it.
-10. (2026-10-21) Build defects with repros: "+" click lost when the find list re-lays out the
-    panel; one hue-bar click closes the picker; first color with a find selection moves the
-    drawing ~130 px; swatch focus drawn on the whole box. All chrome, all fixable.
-11. (2026-10-21) Doors a Figma user tries first lead nowhere: Control+G, "Move to folder" > "No
-    folders yet". Wire both to "+" > Folder, which already wraps the selection.
-12. (2026-10-21) Panel sentences are back; owner 2026-10-20: no UI sentences.
-13. (2026-10-13) Owner-review decisions stand: one settings button per section title, dimmed
-    painted-over values with tooltip, opacity inline in the color row (still not built).
-14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
-    graphty's ontology. Never a task-word synonym (no "Cube" for Box).
-15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak; the answer key
-    may lead graders -- read tasks for leading before spending sessions.
+1. (2026-10-30) Tier 4 stopped after round 1 at the round cap with bars 5, 6 and 7 failing
+   (`tier4/rounds/round-1/insights.md`). Bar 6 is mine to carry: the joined source row clips the
+   approved "17/19" ratio and the second file's name. One layout fix covers both; also "17 of 19
+   joined" beside 18 edges contradicts itself.
+2. (2026-10-30) Most severe open problem: the join preview does not show what Join will do (the
+   unknown-end row is untagged, the repeated key tagged). Figma previews the result of an action
+   before commit; the preview must tag every row by what Join does to it.
+3. (2026-10-30) Choices come after the act with a default already applied: the unknown end is
+   decided after Join with "Add nodes" in effect; "Leave out" does not say it deletes; a new filter
+   card starts on Hide. The planned Select | Filter to | Filter out rename keeps that default --
+   question the default, not just the words.
+4. (2026-10-30) One fact drawn two ways sends people to a second menu: Time role with text kind
+   glyph; card counts on two bases (whole graph vs picture); place roles unmarked on headers. The
+   kind glyph follows the kind alone, and a role gets a header mark.
+5. (2026-10-30) Weakened by the check, do not re-raise at 3: "With issues 11" (1), the bare
+   "Hide" label (1; tooltip and behavior agree), kind-glyph mismatch nobody tripped on (1),
+   A-to-Z ISO sort (1, keep an eye on it only).
+6. (2026-10-30) The study tool printed `tooltip: null` when a hover opened a popover; header issue
+   marks DO open their fix list. Before trusting any "nothing appeared on hover" finding, look at
+   the screenshot.
+7. (2026-10-30) Keyboard still blocks (bar 5): the table's Nodes tab names a panel never rendered;
+   the header "..." is not a Tab stop; the issue mark is an image with no spoken issue.
+8. (2026-10-30) Check every decided entry against the build before a walk: four of my eighteen
+   round 1 findings were decisions already made but unbuilt.
+9. (2026-10-30) The table header is where people go for column work (3 of 4); the inspector's
+   "Set in Data" misleads only when the task is about the column's kind.
+10. (2026-10-30) Works now: toolbar Filters is a door; Filters "+" is the Style picker; filters
+    never move the camera; Sources "+" and row menus show glyph and key; Time sets only the time.
+11. (2026-10-30) The filter card and the Style card still rest differently; "the filters ARE the
+    Style cards" needs one resting drawing.
+12. (2026-10-21) An empty selection's Style tab should still point at what styles the content.
+13. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
+14. (2026-10-20, owner) No UI sentences; tooltips that instruct are sentences too.
+15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+    graphty's ontology. Never a task-word synonym.
 
 ## Priorities and values
 
@@ -116,6 +109,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-10-30, tier 4 round 1 severities.** Rated "Hide keeps" 3, not 2: a reader reading the
+  visible word gets the opposite of the canvas, and the app itself calls the cards "Showing only".
+  Rated the epoch-millisecond date summary 3: it is the only reading of a closed card, so the
+  reader cannot check their own rule. Rated the missing joined-row ratio 2 but flagged it for bar 6:
+  the backlog has it at 1 as cosmetic, while the decided list names it an approved surface. Rated
+  the Control+E label on a row's Export 2: a key shown beside an item must do that item.
+
 - **2026-10-23, menu sections (issue #3315, director ruled).** Section labels, as Figma's own
   menus and plugin lists do: small dimmed caps-weight label, no rule line, no indent, rows flush.
   Both pick lists draw the same `ws-analyze-heading` label so they cannot drift. Engines read as
@@ -169,6 +169,16 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-10-30 Tier 4 round 1 walk, four `real.mjs` sessions (w1 to w4, about 90 shots). Worked:
+  one session per start state (empty, pantries, volunteers, pantries-joined); `--hover-at` on
+  every icon, which found three controls with no tooltip; reading `route.jsonl` for the hover
+  text of a row, which proved "17/19" lives only in the accessible name; comparing against the
+  reference shots in the main checkout's `tmp/design-studio/tier4/reference/`; grepping the app
+  source for the odd words on screen ("is at most") to name the file. Did not: `--click
+"pantries.csv"` is ambiguous once Fields has a group of that name (use `"pantries.csv#1"`);
+  `--start` with `setup:` must run from the setups folder or name it. Lesson: grep decided.md's
+  team entries before walking, so a missing build reads as "decided, not built", not a new idea.
+
 - 2026-10-21 Round 1 outcome versus my walk. Worked: my walk's sev 3 (Shift-click anchor) and
   the four-ways list held as real; my Figma comparisons mapped onto 4 of the top 6 insights.
   Did not: my severity 3 did not survive into bar 5 (no session reached it) -- a walk finding
@@ -204,7 +214,20 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   reading; fix the shared component first; a result must show; check a decided change in the
   build before the round.
 
+- (2026-10-30) Did not work: holding severity 3 on single-cause findings. Both skeptic checks cut
+  every severity 3 candidate to 2 or 1 because participants recovered from the counts. Rate by the
+  cost a reader paid, and say "rule broken" separately when an approved surface is lost.
+- (2026-10-30) Worked: findings with a scripted repro survived the check (join preview, clipped
+  ratio); findings resting on the tool's hover line did not.
+
 ## Thinking
+
+- 2026-10-30 Tier 4's data screens are close to Figma's paved path now; what remains is words and
+  drawing drift between two homes of one thing (filter card vs Style card, picker glyph vs table
+  glyph, Fields "+" vs Sources "+"). The cheapest fix list is "one component, one resting drawing"
+  per pair. Dropped from top of mind on 2026-10-30, still true until a walk says otherwise: tier 3's
+  color words and swatches, keyboard focus rings, the "+" lost on re-layout, Control+G to a folder,
+  opacity in the color row (decided 2026-10-13, not built).
 
 - 2026-10-21 Success saturates; the useful measures are steps over the key, first door tried,
   and spoken-versus-seen disagreement. Figma's strength is that an empty selection is never a
@@ -235,6 +258,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   a pass weak; grade from the last screenshot.
 
 ## Sources
+
+- Tier 4 (2026-10-30): `design/ui/studio/tier4/criteria.md` (bars, severity), `decided.md`
+  (owner rules, approved surfaces, R1 to R15, team entries, dry run passes), `review/figma.md`
+  (my pre-round review on e52d7c4f57), `rounds/round-1/expert/figma.md` (this round's walk).
+  Reference shots of approved surfaces: main checkout `tmp/design-studio/tier4/reference/`.
 
 - Studio digests (read 2026-10-06): `design/ui/studio/digests/decisions.md`, `framework.md`,
   `owner-voice.md`, `study-rounds.md`, `tier1.md` (all under

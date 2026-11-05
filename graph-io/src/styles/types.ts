@@ -171,6 +171,17 @@ export interface NodeStyleValues {
     readonly fillGradientStops: string;
     /** How a gradient fill runs: `linear` across the node (`fillGradientAngle`), or `radial` out from its middle. */
     readonly fillGradientKind: string;
+    /**
+     * Where a radial gradient fill's middle is across the node's box: 0 at its left side, 1 at its right. Unset, 0.5.
+     */
+    readonly fillGradientCenterX: number;
+    /** Where a radial gradient fill's middle is down the node's box: 0 at its top, 1 at its bottom. Unset, 0.5. */
+    readonly fillGradientCenterY: number;
+    /**
+     * How far a radial gradient fill's last stop reaches from its middle, in halves of the node's side; past it the
+     * last color goes on. Unset, 1 (the node's edge).
+     */
+    readonly fillGradientRadius: number;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */
@@ -547,6 +558,11 @@ export interface NodeStyleValues {
     readonly stripeDirection: string;
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
+    /**
+     * Keeps only the rim of the bands' box, four fractions "top right bottom left" of its height and width deep: the
+     * band yEd Live draws round a group's panel.
+     */
+    readonly stripeFrame: string;
     /**
      * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
      * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower

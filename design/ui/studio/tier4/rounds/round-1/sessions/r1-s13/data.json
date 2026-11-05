@@ -1,0 +1,128 @@
+{
+ "counts": {
+  "totalEdges": 0,
+  "totalNodes": 12,
+  "visibleEdges": 0,
+  "visibleNodes": 12,
+  "selectedNodes": 1,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "pantries.csv",
+   "kind": "file",
+   "counts": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "recount": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "chips": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": {
+    "tables": {
+     "rows": {
+      "rowsAre": "nodes",
+      "key": "id",
+      "label": null,
+      "time": null
+     }
+    }
+   }
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.lat",
+   "name": "lat",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.lon",
+   "name": "lon",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.families",
+   "name": "families",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.site",
+   "name": "site",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.zip",
+   "name": "zip",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.opened",
+   "name": "opened",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.volunteer_run",
+   "name": "volunteer_run",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

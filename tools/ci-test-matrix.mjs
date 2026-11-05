@@ -334,6 +334,16 @@ const OFF_SHARDS = [
         // The helpers the browser and interaction tests import, which vitest does not list.
         "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
+    // The element drawn on WebGPU, on SwiftShader because no shard has a card: the five shards above launch
+    // Chromium with no WebGPU, so a shader only WebGPU refuses blanked every canvas with edges unseen (#5847).
+    {
+        shard: "graphty-element-webgpu",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
+        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+    },
     // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
     // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
     // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
@@ -355,6 +365,27 @@ const OFF_SHARDS = [
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
+    // The style fidelity gate over every oracle (graphty-element/test/fidelity/oracle-report.test.ts, 563 samples
+    // against the programs' own drawings): a sample fails only when an element fails a property that
+    // oracle-known-failures.json does not list. Pull requests run its 28-sample subset (oracle-scorecard.test.ts, in
+    // the browser shards); the whole set drifted red unseen for a week with nothing running it (issue #4270), so the
+    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Timed on ubuntu-24.04 runners
+    // without a GPU (a dispatch of ci.yml with these four shards, run 40890370190, 2026-10-29): 285 to 355 s of
+    // samples a slice, 6 to 8 minutes a job with its setup, against the job's 30; 807 s for all 563 on the
+    // workstation. The gate's elements are the same with and without a GPU, and on the runner and the workstation
+    // (#4270); only the raster regions differ, and they are reported, never gated. No coverage: the fidelity
+    // project measures none.
+    ...[1, 2, 3, 4].map((n) => ({
+        shard: `graphty-element-fidelity-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_ORACLE_SLICE=${n}/4 pnpm exec vitest run --project=fidelity test/fidelity/oracle-report.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // every oracle's rasterized PNG, Git LFS objects (about 48 MB)
+        lfs: "graph-io/test/fidelity/oracles/*.png",
+        // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
+        local: "never",
+    })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -480,7 +511,8 @@ export const STORY_RUNS = {
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
+ *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
+ *                  algorithms-storybook 1.8,
  *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
@@ -506,6 +538,7 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
+        "graphty-element-webgpu",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
@@ -519,6 +552,7 @@ export const GROUPS = {
 // Nor do the On shards: coverage is judged on the Off run.
 const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
+    "graphty-element-webgpu",
     "graphty-storybook",
     "algorithms-storybook",
     "graph-io-storybook-1",

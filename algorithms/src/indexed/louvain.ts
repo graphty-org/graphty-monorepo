@@ -220,9 +220,10 @@ function requeueOutside(
     best: number,
 ): number {
     const capacity = queue.length;
-    const end = level.rowPtr[u + 1];
-    for (let a = level.rowPtr[u]; a < end; a++) {
-        const v = level.colIdx[a];
+    const { rowPtr, colIdx } = level;
+    const end = rowPtr[u + 1];
+    for (let a = rowPtr[u]; a < end; a++) {
+        const v = colIdx[a];
         if (queued[v] === 0 && comm[v] !== best) {
             queued[v] = 1;
             queue[tail] = v;
@@ -253,15 +254,16 @@ function tallyCommunities(
     touched: Uint32Array,
 ): number {
     let cnt = 0;
-    const end = level.rowPtr[u + 1];
-    for (let a = level.rowPtr[u]; a < end; a++) {
-        const c = comm[level.colIdx[a]];
+    const { rowPtr, colIdx, w } = level;
+    const end = rowPtr[u + 1];
+    for (let a = rowPtr[u]; a < end; a++) {
+        const c = comm[colIdx[a]];
         if (stamp[c] !== mark) {
             stamp[c] = mark;
             acc[c] = 0;
             touched[cnt++] = c;
         }
-        acc[c] += level.w[a];
+        acc[c] += w[a];
     }
     return cnt;
 }

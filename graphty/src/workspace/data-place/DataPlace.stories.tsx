@@ -123,7 +123,7 @@ async function addField(
     column: string,
 ): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: `Add to ${side} fields` }));
+    await userEvent.click(await place.findByRole("button", { name: `Add to ${side} attributes` }));
     await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }));
     await userEvent.click(await within(document.body).findByRole("option", { name: column }));
 }
@@ -134,7 +134,7 @@ export const AddFieldMenu: Story = {
     play: async ({ canvasElement }) => {
         await loadLog(canvasElement);
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-        await userEvent.click(await place.findByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(await place.findByRole("button", { name: "Add to edge attributes" }));
         await within(document.body).findByRole("menuitem", { name: "Weight" });
     },
 };
@@ -148,7 +148,7 @@ export const FieldEntries: Story = {
         await addField(canvasElement, "edge", "Kind of source", "user");
         await addField(canvasElement, "edge", "Weight", "bytes");
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-        await userEvent.click(await place.findByRole("combobox", { name: "Higher weight means" }));
+        await userEvent.click(await place.findByRole("combobox", { name: "Higher means, edge weight" }));
         await userEvent.click(await within(document.body).findByRole("option", { name: "farther" }));
         await waitFor(() => {
             if (element.session.config.data.knownFields.edgeWeightMeaning !== "distance") {
@@ -176,7 +176,7 @@ export const TwoSources: Story = {
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
         await userEvent.click(await within(canvasElement).findByRole("button", { name: "Add filter" }));
-        await within(document.body).findByRole("menuitem", { name: "Data source" });
+        await within(document.body).findByRole("option", { name: "Data source" });
     },
 };
 
@@ -188,7 +188,8 @@ export const TwoSources: Story = {
 async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
     await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: item }));
+    const named = new RegExp(`^${item}(,|$)`);
+    await userEvent.click(await within(document.body).findByRole("option", { name: named }));
 }
 
 /**
@@ -205,9 +206,9 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
- * Filter cards, each added by clicks: a Hide card on group, a Select card on the largest
+ * Filter cards, each added by clicks: a Filter to card on group, a Select card on the largest
  * component, a Neighbors card on the selected node, and a card a rule no card edits holds (an
- * old Hide step), read-only (design/data/filter-cards.md section 5).
+ * old filter step), read-only (design/data/filter-cards.md section 5).
  */
 export const FilterCards: Story = {
     args: { initialState: OPEN },
@@ -216,18 +217,20 @@ export const FilterCards: Story = {
         const { session } = element;
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
 
-        // Hide: group 2 or more, typed in its From box and committed.
+        // Filter to: group 2 or more, typed in its From box and committed; a new card starts on
+        // Select, so its toggle is switched to Filter to.
         await addFilter(canvasElement, "group");
         const from = await place.findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
+        const group = await place.findByRole("group", { name: /^group is/ });
+        await userEvent.click(within(group).getByRole("radio", { name: /^Filter to:/ }));
 
-        // Select: the largest component, its toggle switched to Select.
+        // Select: the largest component, as a new card starts.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        const largest = await place.findByRole("listitem", { name: /^in the largest component/ });
-        await userEvent.click(within(largest).getByRole("radio", { name: "Select" }));
+        await place.findByRole("group", { name: /^in the largest component, Select/ });
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -237,12 +240,12 @@ export const FilterCards: Story = {
         await addFilter(canvasElement, "Neighbors of selection");
         await holds(element, 3);
 
-        // An old Hide step, as a saved project opens it: kept, read-only.
+        // An old filter step, as a saved project opens it: kept, read-only.
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
         });
-        await place.findByRole("listitem", { name: /^not: label contains Cos/ });
+        await place.findByRole("group", { name: /^not: label contains Cos/ });
         await element.waitForStableFrame();
     },
 };

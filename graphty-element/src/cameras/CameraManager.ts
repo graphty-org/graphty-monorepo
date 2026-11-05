@@ -183,9 +183,11 @@ export class CameraManager {
      * glides its pivot to it.
      * @param point - The point, in world space.
      * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
+     * @param instant - Reach the point at once rather than gliding there; by default, whether the
+     *     reader prefers reduced motion (see `setInstantGlides`).
      * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3, frames = 1): boolean {
+    public followPoint(point: Vector3, frames = 1, instant = this.#instantGlides): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
@@ -193,7 +195,7 @@ export class CameraManager {
         }
 
         const controller = this.activeCameraController;
-        if (!this.#instantGlides) {
+        if (!instant) {
             return controller?.followPoint?.(point, frames) ?? false;
         }
 

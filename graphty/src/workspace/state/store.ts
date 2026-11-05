@@ -90,11 +90,22 @@ export interface WorkspaceState {
      */
     readonly dockColumn: string | null;
     /**
+     * An issue whose rows the table narrows to once the dock shows its table, set by an issue
+     * list's Show rows outside the table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockIssue: string | null;
+    /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
      * Filters); cleared by the section. Null when none is asked for.
      */
     readonly filterDraft: string | null;
+    /**
+     * A Fields entry to bring into view and focus once Data > Fields shows it
+     * (`<nodes|edges>:<entry>`, the Overview's Set in Data); cleared by Fields. Null when none is
+     * asked for.
+     */
+    readonly fieldsEntry: string | null;
     /**
      * Whether the open table dock fills the canvas area, with the configuration beside it (data
      * prototype spec section 3.5). A file with problems opens it so.
@@ -118,11 +129,18 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
+    readonly pickedSource: SourceKey | null;
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
-     * `timeline.toggle` (T) flips it, and designating a field shows it.
+     * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
      */
     readonly timelineOpen: boolean;
+    /**
+     * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
+     * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
+     */
+    readonly timeWindowCard: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -164,9 +182,14 @@ export interface WorkspaceState {
     readonly outlineWidth: number | null;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
-     * edges table. The table dock's Export... sets the table that is showing.
+     * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
+     * showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "nodes" | "edges";
+    /** The source a Sources row's Export... opened Data on (its key), else null. */
+    readonly exportSource: string | null;
+    /** The source the server form opens on (a catalog id, Open network data's card), else null. */
+    readonly serverKind: string | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -239,12 +262,16 @@ const INITIAL: WorkspaceState = {
     timeSpeed: 1,
     dockTab: "nodes",
     dockColumn: null,
+    dockIssue: null,
     filterDraft: null,
+    fieldsEntry: null,
     dockMaximized: false,
     joining: null,
     editingJoin: null,
     ends: null,
-    timelineOpen: true,
+    pickedSource: null,
+    timelineOpen: false,
+    timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,
@@ -255,6 +282,8 @@ const INITIAL: WorkspaceState = {
     lighting: "studio",
     outlineWidth: null,
     exportOn: "image",
+    exportSource: null,
+    serverKind: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,

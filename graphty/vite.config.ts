@@ -38,6 +38,21 @@ function unversionedDepsNotImmutable(): Plugin {
     };
 }
 
+/**
+ * Loads the remote logger's browser script ahead of everything else in the dev server's page.
+ * @param server - the log server's address.
+ * @returns the Vite plugin.
+ */
+function remoteLogScript(server: string): Plugin {
+    return {
+        name: "graphty-remote-log-script",
+        apply: "serve",
+        transformIndexHtml: () => [
+            { tag: "script", attrs: { src: `${server}/remote-logger.js` }, injectTo: "head-prepend" },
+        ],
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
@@ -51,6 +66,9 @@ export default defineConfig(({ mode }) => {
         buildStampPlugin(),
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
+        // The remote logger's script, first in the page so it hears a load that fails before the
+        // app starts (dev server only; VITE_REMOTE_LOG_URL is the log server's address).
+        ...(env.VITE_REMOTE_LOG_URL ? [remoteLogScript(env.VITE_REMOTE_LOG_URL)] : []),
     ];
 
     const config: UserConfig = {

@@ -417,6 +417,47 @@ export function polygonReach(points: readonly Point2[]): [number, number] {
     return [Math.max(...points.map(([x]) => Math.abs(x))), Math.max(...points.map(([, y]) => Math.abs(y)))];
 }
 
+/**
+ * An outline divided by its box's half width and half height, so the box spans 2 each way (not moved: an outline
+ * off its center stays off it).
+ * @param outline - The outline.
+ * @returns The outline in units of its box's half size, or null for an outline with no width or height.
+ */
+export function inUnitBox(outline: readonly Point2[]): Point2[] | null {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+    const [hw, hh] = [(Math.max(...xs) - Math.min(...xs)) / 2, (Math.max(...ys) - Math.min(...ys)) / 2];
+    return outline.length >= 3 && hw > 0 && hh > 0 ? outline.map(([x, y]): Point2 => [x / hw, y / hh]) : null;
+}
+
+/**
+ * How far along a ray from the origin it last crosses an outline: where a line coming in from outside first meets
+ * the shape, a star's point and not the dent beside it, a figure's leg and not the gap between its legs.
+ * @param outline - The closed outline.
+ * @param x - The ray's x.
+ * @param y - The ray's y.
+ * @returns The farthest crossing, in multiples of (x, y), or 0 when the ray crosses no side.
+ */
+export function rayReach(outline: readonly Point2[], x: number, y: number): number {
+    let far = 0;
+    for (let i = 0; i < outline.length; i++) {
+        const [ax, ay] = outline[i];
+        const [bx, by] = outline[(i + 1) % outline.length];
+        const [ex, ey] = [bx - ax, by - ay];
+        const denom = x * ey - y * ex;
+        if (denom === 0) {
+            continue;
+        }
+        // t (x, y) = a + s e, solved by crossing both sides with e and with (x, y)
+        const t = (ax * ey - ay * ex) / denom;
+        const s = (ax * y - ay * x) / denom;
+        if (s >= 0 && s <= 1 && t > far) {
+            far = t;
+        }
+    }
+    return far;
+}
+
 /** The polygons drawn with rounded corners, by the name of their rounded shape. */
 const ROUNDED: Readonly<Record<string, string>> = {
     "round-triangle": "triangle",

@@ -11,6 +11,7 @@
 import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
+    crossedStrokes,
     dashClassOf,
     dented,
     isLettering,
@@ -635,8 +636,14 @@ function bandCenter(points: readonly Pt[], by: number): Pt[] {
  * 71.07 px at 14 px against Liberation Sans's 61.47), the Serif specimen half a DejaVu Serif width
  * (cys-specimen-labels font-face-serif), and a `Dialog.bolditalic` label's background box is its DejaVu Sans Bold
  * Oblique width (cys-syn-mappings). Java draws a font named `Default`, which it does not have, in Dialog.
+ *
+ * yEd is a Java program too, and its SVG writer (ySVG) names the same logical fonts: `'Dialog'` on the root, which any
+ * text without a family of its own inherits, and `sans-serif`, `serif` and `monospace`. Measured on its drawings:
+ * "patm" at 12 px starts 15.68 px left of its node's middle (gml-yed-pmodel), half its DejaVu Sans width of 31.4, and a
+ * label `Agj` at 10 px starts half its DejaVu Sans Mono width (18.06) left of the middle of the fontFamily=Monospaced
+ * node and half its DejaVu Serif width (16.72) left of the fontFamily=Serif one (yed-graphml-specimen-labels).
  */
-const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
+const JAVA_FACES: Readonly<Record<string, string>> = {
     helvetica: "DejaVu Sans",
     dialog: "DejaVu Sans",
     sansserif: "DejaVu Sans",
@@ -653,11 +660,24 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",
     monospaced: "DejaVu Sans Mono",
+    monospace: "DejaVu Sans Mono",
     dialoginput: "DejaVu Sans Mono",
 };
 
 /**
- * Lays a text of a FreeHEP SVG out in the face Java drew it in, so its box is the one the program measured.
+ * Whether a Java SVG writer made this drawing: FreeHEP says so in its `desc`, ySVG in a comment at the root.
+ * @param svg - the drawing
+ * @returns true for FreeHEP's and ySVG's
+ */
+function writtenByJava(svg: SVGSVGElement | null): boolean {
+    return (
+        (svg?.querySelector(":scope > desc")?.textContent ?? "").includes("FreeHEP") ||
+        [...(svg?.childNodes ?? [])].some((n) => n.nodeType === Node.COMMENT_NODE && n.nodeValue?.includes("ySVG"))
+    );
+}
+
+/**
+ * Lays a text of a Java program's SVG out in the face Java drew it in, so its box is the one the program measured.
  * @param el - the text
  * @param first - the first family it declares, lowercased, with any Java style suffix (`dialog.bolditalic`)
  * @returns a call that puts the text's own font back
@@ -665,9 +685,8 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
 function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     const [name, javaStyle = ""] = first.split(".");
     // a PostScript name's style suffix (`Calibri-Bold`) after the family, where the whole name is not a face itself
-    const face = FREEHEP_JAVA_FACES[name] ?? FREEHEP_JAVA_FACES[name.split("-")[0]];
-    const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
-    if (face === undefined || !desc.includes("FreeHEP")) {
+    const face = JAVA_FACES[name] ?? JAVA_FACES[name.split("-")[0]];
+    if (face === undefined || !writtenByJava(el.ownerSVGElement)) {
         return () => undefined;
     }
     const { fontFamily, fontWeight, fontStyle } = el.style;
@@ -692,8 +711,11 @@ const SMALL_TEXT_SCALE = 100;
  * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
  * lays a text out at the size it is drawn on screen and rounds the font's ascent and descent to whole pixels there, so a
  * text drawn a pixel high has a line box twice its font size, wholly above its baseline (dot-real-depcruise's 0.8 px
- * labels: 1.88 em tall, its middle 0.62 em above the words' middle). A text drawn small is laid out again a hundred
- * times larger, where the rounding is nothing, and its line box taken from there.
+ * labels: 1.88 em tall, its middle 0.62 em above the words' middle), and its letters' advances too, so a line centered
+ * on its anchor reads a fifth of a pixel off it (json-cyjs-winecheese 107's two lines, both `text-anchor: middle` at one
+ * x, read as right-aligned). A text drawn small is laid out again a hundred times larger, where the rounding is nothing,
+ * and its box taken from there. A text under `text-rendering: geometricPrecision` is laid out at its own size, not the
+ * size on screen, so its advances were never rounded there and it keeps its width (graphml-cla-checker-graph).
  * @param el - the text
  * @param size - its font size in user units
  * @param screenPx - its font size on screen
@@ -708,6 +730,7 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
     if (placed || !(screenPx > 0 && screenPx < SMALL_TEXT_PX && bb.height > 0)) {
         return bb;
     }
+    const x = el.x.baseVal.numberOfItems > 0 ? el.x.baseVal.getItem(0).value : 0;
     const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
     const before = el.style.fontSize;
     el.style.fontSize = `${String(size * SMALL_TEXT_SCALE)}px`;
@@ -716,7 +739,11 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
     if (!(big.height > 0)) {
         return bb;
     }
-    return new DOMRect(bb.x, y + (big.y - y) / SMALL_TEXT_SCALE, bb.width, big.height / SMALL_TEXT_SCALE);
+    const top = y + (big.y - y) / SMALL_TEXT_SCALE;
+    const height = big.height / SMALL_TEXT_SCALE;
+    return getComputedStyle(el).textRendering.toLowerCase() === "geometricprecision"
+        ? new DOMRect(bb.x, top, bb.width, height)
+        : new DOMRect(x + (big.x - x) / SMALL_TEXT_SCALE, top, big.width / SMALL_TEXT_SCALE, height);
 }
 
 function textOf(
@@ -1144,12 +1171,19 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
+                const b = el.getBBox();
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, el.getBBox()),
+                    box: boxThrough(m, b),
+                    quad: [
+                        at(m, b.x, b.y),
+                        at(m, b.x + b.width, b.y),
+                        at(m, b.x + b.width, b.y + b.height),
+                        at(m, b.x, b.y + b.height),
+                    ],
                     points: [],
                     closed: true,
                     corners: 4,
@@ -1237,6 +1271,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 };
                 fill = null;
             }
+            // two stroked subpaths are read apart only as a cross: their outline, run from one to the other, makes no shape
+            const twoStrokes =
+                stroke !== null && subpaths === null && (el.getAttribute("d")?.split("M").length ?? 0) === 3
+                    ? subpathsOf(el, m)
+                    : null;
             const panel = panelFillOf(el, root, opacities, m);
             prims.push({
                 index: i,
@@ -1256,6 +1295,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 },
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
+                ...(twoStrokes !== null && crossedStrokes(twoStrokes) ? { subpaths: twoStrokes } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
             });

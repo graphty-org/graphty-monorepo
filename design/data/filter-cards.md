@@ -150,6 +150,15 @@ edge chip), with no rule parsing. A rule on a column that does not resolve repor
 `unresolved` instead of a silent "0 of 900". The combined result stays the header chip's
 `140 of 900` (`visibility.summary`).
 
+One exception: a select condition counts what it would select. Unless every select condition that
+is on reads `within: "graph"` (an off card is judged as if it were on), the selection stays within
+what is drawn, so its count does too: `matched` is its rule's matches among the drawn elements and
+`total` is how many are drawn, on or off (the whole graph when nothing filters). It still holds
+whether the card is on or off and whatever the order, so an off card shows what switching it on
+would mark. When the selection reaches past the picture, and for every keep and exclude
+condition, the count is over the whole graph as above. A value list's per-value counts stay over
+the whole graph.
+
 ## 2. What today's steps become
 
 Every step becomes one **keep** condition with the same id, the same `on` and the same rule,
@@ -210,7 +219,9 @@ New exported types: `FilterCondition`, `FilterConditionInput`, `FilterConditionC
   changes; a select-only change fires only `selection:changed` (section 1).
 - **Counts.** Synchronous like `summary` and `previewSteps`. Cached per condition, keyed by the
   canonical rule and the data revision: a count depends on neither effect, `on` nor the other
-  conditions, so one edited condition recomputes one count. Re-read on `visibility:changed` or
+  conditions, so one edited condition recomputes one count. A select count that stays within the
+  picture also keys on the drawn masks' version, so switching, editing, undoing or redoing a keep
+  or exclude condition recounts it. Re-read on `visibility:changed` or
   `history:changed` (a data load, a rename and every condition op are history steps).
 - **Select.** Applied inside the condition op's history step as
   `selection.apply({ scope: { define: { kind: "rule", where: all[on select rules] } } })` over the

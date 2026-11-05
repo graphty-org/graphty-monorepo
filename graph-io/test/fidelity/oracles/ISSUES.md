@@ -402,9 +402,11 @@ Arrowheads
 - Fixed for most programs (graph-io states each program's arrowhead proportions, graphty-element
   draws them): every arrowhead passes on cx-ndex-90f78bcd, every DOT sample but two, the Gephi
   samples and the yEd stand-ins that failed at 2x to 7x.
-- Still open: Cytoscape arrow size and shape mappings on the syn-mappings family (length 20/48,
-  4.1x on the mapped sizes; width 0.41x; 22 of 74 ends where one side draws an arrow and the other
-  does not); the syn-bypass family 1.75x on 11 of 64; dot-synth-edges-clusters 3.25x on 16 of 101;
+- Fixed in the comparator (#3113): the syn-mappings family's arrow shape and length, graphty having drawn them right
+  all along: heads were lost to a neighbor's line where a line's end cap or a big head over a small node stopped the
+  walk over what was drawn after the line. Its one edge drawn only as two meeting heads (189->192, no line in the SVG)
+  still has no edge to go to.
+- Still open: the syn-bypass family 1.75x on 11 of 64; dot-synth-edges-clusters 3.25x on 16 of 101;
   dot-real-depcruise 1.67x on 94 of 652; vis-network arrow type 73/98 (vis-unix) and width 0.59x
   (vis-world 43/48).
 
@@ -1406,6 +1408,14 @@ The annotation, chart color scheme and mapping pages added after the first round
   shows. A chart's own `cy_values` now come before its data columns (`pie-values` on `-p5` and `-p18`).
   stray.present on `images-charts-p5`, `-p6` and `mappings-bypass-p18`: 59 -> 5 failing per format (cx, cx2, cys,
   xgmml). Left: `-p5`/`-p18` one #e8eae8 disc, `-p6` three annotation outlines.
+- Labels outside a node (`json-cyjs-synth-nodes` n32, n35, n95-n99: `label.anchor`). Fixed (#4247, 2026-11-04):
+  Cytoscape.js draws a top label's last line with `textBaseline = "bottom"` at the node's top less its padding
+  (cytoscape.js 3.34.3 `recalculateNodeLabelProjection`, `drawElementText`), so the bottom of its words sits on the
+  node's outline and covers the outer half of a thick border; graphty placed its label's whole box there, its bottom
+  margin and half its leading (about 0.28 of the font size) under the words. graphty-element's new label field
+  `gapOf: "words"` (`labelGapOf`; unset, the whole box as before) places the words' own font box against the node,
+  and a Cytoscape.js file's node labels are translated with it. Only Cytoscape.js files: the other programs' outside
+  labels are not measured against their words.
 
 ## Specimen sheets: Cytoscape desktop label settings graph-io now reads (fix round 1, XGMML, 2026-10-19)
 
@@ -1792,17 +1802,18 @@ node-sizes-opacity 3 -> 2. Still open, and why:
   background; `node-shapes`, `images-charts`) failed `stray.extra` (`graphty:annotation-image`): the oracle side
   folds the program's `<image>` into the node, so nothing was left for graphty's picture to match. Comparator, fixed in
   fix round 3: the oracle node keeps the boxes of the pictures it is drawn with (`pictures`), and graphty's picture
-  matches one of them as it would a stray. `annotation-image#5` on `images-charts` still fails: graphty places the
-  `coordinate-origin-circular` node 23 px off (`node.position`, shared with `unpositioned-layout-scale`).
+  matches one of them as it would a stray. `annotation-image#5` on `images-charts` failed while graphty placed the
+  `coordinate-origin-circular` node 23 px off; graph-io now puts its center half its square from `x` and `y` (#4515).
 - `json-vis-siblings` (200 nodes / 284 edges drawn, 83 / 104 associated): not an import gap. The file has no hidden or
   duplicate record and vis-network draws all of them (`observed` 200 / 284 in the oracle's metadata); it stores no
   positions, so graphty lays it out itself and the geometric association pairs 83 of its nodes by chance. Shared
   with the other vis-network documents without positions (`unpositioned-layout-scale`).
 - `json-vis-synth` `curve`, `inv_curve` and `image` arrows (5->6, 6->7, 11->12) read as no arrow on the oracle: the
   arc sits against the target dot where the next edge starts at the same center, and the comparator gives it to
-  neither; the image arrow is read as a stray picture.
+  neither. The image arrow (11->12) was read as a stray picture until the comparator gave a picture a tip (its box) and
+  measured it by its turned corners (#4515).
 - Unchanged from round 1: `database` (no stroke on the oracle, sized from its label's width), `border-radius-12`
-  (shape class), `coordinate-origin-circular` and `image-background` (images-charts), `self-reference-front`.
+  (shape class), `image-background` (images-charts), `self-reference-front`.
 
 Checked again on a clean copy of the commits (2026-10-20), every vis-network sheet run against the committed floors
 and known failures:
@@ -2445,7 +2456,11 @@ Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sam
   `<FONT COLOR>` keeps the node's own weight and color (`cluster-label-html` `label.weight`, `n_html2`
   `label.color`); `<BR ALIGN>`, `BALIGN` and a cell's `ALIGN` are not read (`html-br-left`, `html-br-right`,
   `html-td-balign-left`: `label.align`); `<SUB>`, `<SUP>` and `ROWSPAN` lay text out on lines graphty joins
-  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`).
+  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`). Since #4247 (2026-11-04) graph-io lowers a `<SUB>` run
+  and raises a `<SUP>` run (`labelRuns` `shift`) by half the font's height, as Chromium draws Graphviz's
+  `baseline-shift="sub"` and `"super"` (0.585 of a DejaVu Sans em, measured). A file's raised or lowered run leaves its
+  line where it was (the label markup's `<nudge>`), as Graphviz keeps the baseline and vis-network draws `y +
+block.vadjust` without growing the line, so `html-sup` `label.anchor` passes.
 - OPEN, graph-io: a cluster's stored `lp` (`cluster-lp`) is not read, and graphty's inside-left and inside-right
   label is a little farther in than Graphviz's (`cluster-labeljust-l`, `-r`: `label.offset`, miss 0.35 of the size);
   a striped cluster (`cluster-style-striped`) is drawn flat (`group.fill`).
@@ -2678,15 +2693,16 @@ Rows still open, each with what stops it:
 - vis-network `interpolation: true`: the oracle draws the upscaled checker crisp (the oracle route's rasterizer),
   graphty smooths it as a canvas would. `broken-image-none` (a picture that cannot load and no `brokenImage`): the
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
-- yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`, draw.io stand-in): the BPMN artifact (its `type` picks a data
-  object, data store, message, ...), the SBGN nucleic acid feature and perturbing agent are left as boxes, which
-  draw.io draws too, until yEd's own export shows them. The lines some shapes draw inside (predefined process,
-  internal storage, direct data's rim, the big entity's header) are not drawn.
+- yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
+  agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
+  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
+  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
+  BPMN intermediate event's and transaction's double line are not drawn.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
-  the owner's yEd export replaces the stand-in. Whether yEd paints an image or SVG node's own fill and border under
-  the picture is not known from the stand-in; graphty keeps them under it (they are covered where the picture is
-  opaque).
+  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its
+  border (`graphml-stm32-func`: 15 nodes, `graphml-synthetic-nodes`), but draw.io paints both on this sheet, which yEd
+  refuses to open, so graphty keeps them under the picture until this sheet has yEd's own drawing (#5792).
 - Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
   force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
   else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's
@@ -3485,9 +3501,8 @@ Still open, and why:
   box, so the words move up with the smaller box; vis-network places the words and draws the box round them. Needs a
   way to place a label by its words when its box is drawn (graphty-element-render), or graph-io's label place for
   vis-network below a node modelled on the words (`label-anchor-offset`).
-- vis-network `size-30-database` (`label.anchor` center/end against center/center): the database is sized by its label,
-  as vis-network sizes it (width and height pass now); graphty's label box is a line height and a padding taller than
-  the words, so its words sit lower in the small node (`label-anchor-offset`). Its `node.stroke` rows and
+- vis-network `size-30-database` (`label.anchor`): fixed in #4247, graph-io counted the top margin twice, once as the
+  label's padding and again as its offset. Its `node.stroke` rows and
   `node-shapes` `shape-database*`: comparator, as before (vis-network strokes the database as one open path, which
   the oracle reader does not take as the node's outline).
 - vis-network `border-radius-12` (`node.shape` o=other g=roundrect): comparator, as before (the same capsule).
@@ -4634,6 +4649,57 @@ Only a person can judge whether the drawings got better. These stories of the gr
 12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
     branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.
 
+## The full-run gate's drift after round 4, explained (#4270, 2026-10-29)
+
+Before round 5 the full oracle gate (`oracle-known-failures.json`, run by `oracle-report.test.ts` over all 563
+samples) failed 27 samples, and the plain-view total had moved from round 4's 10,359 failing elements to 10,469.
+Nothing in CI ran the full comparison, so nobody saw it move. Measured by full runs of round 4's own measurement
+commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before round 5 (780b7edbe6) and master on
+2026-10-29 (ea5b2c9f29):
+
+- **Not a GPU difference.** Master drawn on the workstation's NVIDIA card and without a GPU (headless Chromium's
+  SwiftShader, which is what CI uses) fails exactly the same elements on all 563 samples, in both views, and the 27
+  samples fail the same way on both paths at 0ba5008d36 and at 780b7edbe6. Only the raster regions differ between
+  the paths, and they are reported, never gated.
+- **26 of the 27 samples were already red at round 4's own measurement**: f0b669df00 fails 30 samples against its
+  own records (309 clean, 10,378 failing elements). Round 4 said so ("not green against its own records") and left
+  the recording pass undone. Their drawings did not change between 0ba5008d36 and 780b7edbe6.
+- **The +110, split.** 19 of it is already in a fresh run of round 4's own measurement commit: f0b669df00 fails
+  10,378 elements against the 10,359 round 4 reported. The other +91, from f0b669df00 to 780b7edbe6, is two changes
+  that partly cancel (+251 - 160). `dot-real-siblings` went from 225 to 476 failing elements: all 284 edges now fail
+  edge.width. The edges are as wide as before. A bisect over the 1,351 commits between f0b669df00 and 0ba5008d36
+  names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not depend on load order): the
+  unhinted labels measure a little differently, this file's nodes are sized to their labels, so graphty's Graphviz
+  run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines 0.22 units wide that moves the
+  width ratio from inside [0.9, 1.1] to 1.101. No reader can see it; the comparator's edge.width is too strict on
+  sub-pixel lines (#4451). It moved no other sample. Against it, eight `gml-specimen-*` pages went from 160 failing
+  elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged beside it
+  (802cb125e1): an oracle change, not a drawing change.
+- **The 11 samples round 5 added** are elements its comparator newly judges (listed under "Round 5", "The full-run
+  gate"). Three more were classified element by element against round 5's own run, judged again by today's
+  comparator (`GRAPHTY_ORACLE_BASELINE`; until this change a baseline outside the worktree was silently unreadable,
+  so every element came out "unclassified"): of their 76 elements, 33 already failed in round 5's run (most of
+  `json-cyjs-perf`'s arrows, `json-cyjs-tokyo`'s extra nodes and sizes, failing since round 4), 24 appear with the
+  comparator's twin pairing (#4265) on round 5's drawings, and 19 in the position-matched views of `cx2-wp1449-tlr`
+  and `json-cyjs-tokyo` come from a drawing change since round 5 that is not explained yet (#4452). Whether the
+  twin pairing pairs twins rightly is not settled.
+- **One recorded element is a drawing regression.** The four `syn-mappings` copies each add one route since round
+  5's arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253. It is in the known
+  failures now, so the gate no longer shows it.
+
+What changed:
+
+- The 6-hour full run now runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
+  (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
+  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Timed on
+  CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
+  job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
+  on the same inputs is never quarantined as flaky: it fails the run.
+- The gate is green on master (2026-11-04, master 19fb4bf684 merged in, workstation, all four slices: 567 samples, none
+  failing). Every failure listed above has since been fixed on master or recorded in its known failures, under the
+  issues it was traced to (#5116 to #5119, #4253, #4452, #4523, #3103, #4514, #4524; #4515, still open, is recorded),
+  so the full run starts from green.
+
 ## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
 
 Round 6 closed the comparator's remaining blind spots (#4272), then worked the largest drawing problems the round 5
@@ -4927,3 +4993,26 @@ the curves branch merged shows the program's drawing beside graphty's, with the 
 11. `style-fidelity-cx-samples--syn-bypass`: the Cytoscape custom graphics graphty draws flat, beside patterned lines.
 12. The one-file-scale change has no oracle sample: open a yEd GraphML with stored positions in the graphty app built
     from that branch, with file styles, and switch to the fixed layout.
+
+## Label places left on real programs' drawings (#4247, 2026-11-05)
+
+Fixed:
+
+- Cytoscape.js `ghost` (`json-cyjs-synth-nodes` n78): the see-through copy drawn just before the node was read as the
+  node, its box the union of the two, so `node.fillOpacity` and `label.anchor` failed. The comparator leaves the ghost
+  out of the body and it stands as a stray, because graphty does not draw it: graph-io does not read `ghost`. That
+  `stray.present` row is the real gap, recorded in the known failures.
+- Graphviz `threepoverhang` (`dot-synth-nodes` s_threepoverhang): its 12 px bar is exactly half its 24 px bar, and a
+  float's rounding left it out of the node's box where the same bars of `fivepoverhang` were in. Comparator.
+- Lines of a label under 6 px on screen read off Chromium's rounded advances (`json-cyjs-winecheese` 107 334 393,
+  `json-cyjs-graphmaker`, `cys-import-and-save` 3769): centered lines read as left or right aligned. Comparator.
+- A table cell spanning two cells beside each other (`dot-synth-nodes` n_html3) says nothing of their alignment.
+  Comparator.
+- Pajek labels in Courier (`pajek-synth-vertices` v29): graph-io lifted them by Arial's half height. Import.
+
+Open:
+
+- `pajek-synth-vertices` 49 (`label.anchor`): graphty's words are within 0.4 px of Pajek's around the vertex, baseline
+  through its center. Pajek draws the man unevenly about his vertex (64.7 up, 62.2 down at this size) and graphty
+  centers the figure, so the box the label is judged against sits 1.24 px lower in Pajek's drawing. Needs a figure
+  drawn off its node's center (graphty-element-render).

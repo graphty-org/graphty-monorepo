@@ -85,6 +85,17 @@ const CameraBehaviorOpts = z
          */
         pivotOnSelection: z.boolean().default(false),
         /*
+         * Which selection changes move the pivot, by who made them: the `cause` of the
+         * `selection:changed` event -- `user` (a click or a shift-click on the canvas), `api` (a
+         * call such as `session.selection.apply`), `command` (a filter condition whose effect is
+         * `select`) and `history` (an undo, a redo or a restore).
+         *
+         * UNSET BY DEFAULT, so every selection change moves it, as `pivotOnSelection` always has.
+         * Set, a change whose cause is not listed leaves the camera where it is, as a pan of the
+         * reader's does, until the selection changes again. Only read while `pivotOnSelection` is on.
+         */
+        pivotOnSelectionCauses: z.array(z.enum(["user", "api", "command", "history"])).optional(),
+        /*
          * How fast the 3D camera turns on its own, in radians per second, about the graph's
          * vertical axis.
          *

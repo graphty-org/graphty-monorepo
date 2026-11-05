@@ -58,6 +58,8 @@ const VITEST_ARGS = [
     ...(process.env.CI ? ["--reporter=junit"] : []),
     // and the time-budget check when it is on (tools/vitest-time-budget.mjs)
     ...(process.env.VITEST_BUDGET_CHECK === "1" ? ["--reporter=../tools/vitest-time-budget.mjs"] : []),
+    // and the record of what is running when the run has a deadline (tools/running-tests.mjs)
+    ...(process.env.GRAPHTY_RUNNING_TESTS ? ["--reporter=../tools/running-tests.mjs"] : []),
     `--outputFile=${RESULTS_FILE}`,
 ];
 

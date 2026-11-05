@@ -18,6 +18,10 @@
  * A wait's guard is below the test's so a hung wait reports its last failure instead of a bare
  * "test timed out".
  *
+ * These guards run where the test runs, so a browser page that is blocked or never finishes a file's imports does not
+ * fire them, and they start with the test, so they can outlast a CI job. CI's test job stops such a run itself and
+ * names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
+ *
  * Measurements are not tests and carry no guard: an inline project whose name starts with
  * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
  * recording) is started by hand, never by the gate, and runs with no time limit at all.

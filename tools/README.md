@@ -242,6 +242,9 @@ All packages: 80% lines/functions/statements, 75% branches
   an interval or a deadline loop of its own, and no override of the guard exists. The
   `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
   named `bench*` (started by hand, never by the gate), which runs with no time limit.
+  CI's test job also stops a run 26 minutes after its first shard started, before GitHub's job limit, and prints
+  `[HANG]` with the test or file still running (`withTestDeadline()` in `tools/results/run-group.mjs`): a guard
+  cannot fire in a blocked browser page, and GitHub keeps no log of a job it cancels.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why), the

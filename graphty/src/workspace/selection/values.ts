@@ -22,7 +22,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { ranOverWords } from "../runWords";
 import {
@@ -133,12 +132,24 @@ function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["withi
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @param within - the selection's base, which a structure value's range is read over.
+ * @param perAlgorithm - an algorithm's default run is its entry, not a Results field.
  * @returns the fields, regrouped.
  */
-export function pickerFields(session: GraphSession, side: Side, within?: UnionLeaf["within"]): CardField[] {
+export function pickerFields(
+    session: GraphSession,
+    side: Side,
+    within?: UnionLeaf["within"],
+    perAlgorithm = false,
+): CardField[] {
     // A run's rank and percentile companions are left out; a data column of that name is kept.
+    // Listed one entry per algorithm (the workspace's cards), a run of an algorithm's default
+    // settings over the base is that entry, so it is not listed again under Results.
     const fields = stepFields(session, side, within).filter(
-        (field) => field.group !== "Results" || (!field.path.endsWith(".rank") && !field.path.endsWith(".percentile")),
+        (field) =>
+            field.group !== "Results" ||
+            (!field.path.endsWith(".rank") &&
+                !field.path.endsWith(".percentile") &&
+                !(perAlgorithm && isAlgorithmEntry(session, field.path, within))),
     );
     const data = fields
         .filter((field) => field.group !== "Results")
@@ -147,6 +158,9 @@ export function pickerFields(session: GraphSession, side: Side, within?: UnionLe
     // the entry is not read as the same values over the base (the step stays bound to that run).
     const results = fields
         .filter((field) => field.group === "Results")
+        // A filter (based on the full graph) never reads a run over the visible graph: what it
+        // hides would move the run it reads (graphty-element refuses it).
+        .filter((field) => within !== "graph" || runFieldOf(session, field.path)?.scope !== "visible")
         .map((field) => {
             const run = runFieldOf(session, field.path);
             return run === undefined || sameScope(run.scope, baseOf(within))
@@ -154,6 +168,26 @@ export function pickerFields(session: GraphSession, side: Side, within?: UnionLe
                 : { ...field, name: `${field.name} (${ranOverWords(session, run.scope, run.nodes)})` };
         });
     return [...data, ...results];
+}
+
+/**
+ * Whether a Results field is what an algorithm's own picker entry reads: a run of the algorithm's
+ * default settings over the selection's base.
+ * @param session - the element's session.
+ * @param path - the field's path.
+ * @param within - the selection's base.
+ * @returns true when the algorithm's entry covers it.
+ */
+function isAlgorithmEntry(session: GraphSession, path: string, within?: UnionLeaf["within"]): boolean {
+    const run = runFieldOf(session, path);
+    if (run === undefined || !sameScope(run.scope, baseOf(within))) {
+        return false;
+    }
+    const options = session.catalog.algorithms().find((each) => each.key === run.algorithm)?.options ?? [];
+    return Object.entries(run.params).every(
+        ([name, value]) =>
+            JSON.stringify(value) === JSON.stringify(options.find((option) => option.name === name)?.default),
+    );
 }
 
 /**
@@ -201,50 +235,47 @@ function runFieldOf(
 }
 
 /**
- * A new step's leaf on a field: a number or date over its whole range, so the step passes every
- * measured value and counts at once (the owner, 2026-11-04); any other kind untested. An
- * untouched range is inert (`test-unset`), which an Add step reads as "adds nothing": a new
- * Degree group held 0 until its brush moved.
- * @param field - the field.
- * @param whole - start a number or date over its whole range (the `selection-workspace`
- *     experiment); false leaves it untested, as before the experiment.
- * @returns the leaf.
+ * The test a new algorithm step starts with, so its rule says what its control shows: an empty pick
+ * for a field read as a checklist or a yes-or-no (nothing ticked selects nothing), none for a
+ * number (an unbounded range, every measured element, as the slider with both handles at the ends
+ * shows).
+ * @param field - the algorithm's field, as the catalog declares it.
+ * @param field.type - its value type.
+ * @param field.measurement - how it is measured.
+ * @returns the test, or undefined.
  */
-function freshLeaf(field: CardField, whole = true): RuleTree {
-    const leaf = untested(field);
-    return whole && leaf.kind === "range" && field.range !== undefined ? { ...leaf, ...field.range } : leaf;
+export function freshTest(field: {
+    readonly type: string;
+    readonly measurement?: string;
+}): Extract<RuleTree, { kind: "measure" }>["test"] {
+    const listed = field.measurement === "categorical" || field.type === "boolean" || field.type === "string";
+    return listed ? { kind: "categories", values: [] } : undefined;
 }
 
 /**
  * The rule a picked field writes: a data column's new leaf, or for a run's value a `measure` of
  * that algorithm, settings and field (spec 6: every algorithm step saves as algorithm, settings,
- * field and test), a number over its whole range.
+ * field and test). A number's leaf has no bounds: graphty-element reads it as every measured
+ * value, which is what its untouched slider shows.
  * @param session - the element's session.
  * @param field - the picked field.
  * @param within - the selection's base: a run over another scope is named in the rule.
- * @param whole - a number starts over its whole range; by default while the `selection-workspace`
- *     experiment is on.
  * @returns the step's rule.
  */
-export function ruleOfField(
-    session: GraphSession,
-    field: CardField,
-    within?: UnionLeaf["within"],
-    whole = selectionWorkspaceOn(session),
-): RuleTree {
+export function ruleOfField(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): RuleTree {
     if (field.group !== "Results") {
-        return freshLeaf(field, whole);
+        return untested(field);
     }
     const run = runFieldOf(session, field.path);
-    const range = whole && field.kind === "number" ? field.range : undefined;
+    const listed = field.kind === "category" || field.kind === "yes-no";
     return run === undefined
-        ? freshLeaf(field, whole)
+        ? untested(field)
         : {
               kind: "measure",
               algorithm: run.algorithm,
               ...(Object.keys(run.params).length === 0 ? {} : { params: run.params }),
               field: run.field,
-              ...(range === undefined ? {} : { test: { kind: "range", ...range } }),
+              ...(listed ? { test: { kind: "categories" as const, values: [] } } : {}),
               // Picked from a run over another part of the graph: the step reads that run.
               ...(sameScope(run.scope, baseOf(within)) ? {} : { scope: run.scope }),
           };
@@ -257,12 +288,14 @@ export function ruleOfField(
  * @param session - the element's session.
  * @param rule - the selection.
  * @param onPick - takes the rule an entry writes.
+ * @param perAlgorithm - one entry per algorithm, run or not (the workspace's cards).
  * @returns the sections, in order; an empty one is left out.
  */
 export function pickSections(
     session: GraphSession,
     rule: UnionLeaf,
     onPick: (stepRule: RuleTree) => void,
+    perAlgorithm = false,
 ): PickSection[] {
     const side = sideOf(rule);
     const ran = new Set(
@@ -277,7 +310,10 @@ export function pickSections(
             items: entries
                 // Degree is listed under Data, read with no run (spec 4).
                 .filter(
-                    (each) => (each.category === "custom") === custom && !ran.has(each.key) && each.key !== "degree",
+                    (each) =>
+                        (each.category === "custom") === custom &&
+                        (perAlgorithm || !ran.has(each.key)) &&
+                        each.key !== "degree",
                 )
                 .flatMap((each) => {
                     // No rank or percentile entries (spec 4): the test's By position covers them.
@@ -291,15 +327,23 @@ export function pickSections(
                     const method = wordsFor(each).name;
                     // The catalog's own words find it too: its keywords and its technical name.
                     const aliases = [...(each.keywords ?? []), each.technicalName];
-                    return fields.map((field) => ({
+                    // One entry per algorithm (the workspace's cards): its card chooses the field.
+                    const listed = perAlgorithm ? fields.slice(0, 1) : fields;
+                    return listed.map((field) => ({
                         key: `alg:${each.key}:${field.name}`,
-                        name: fields.length === 1 ? method : `${method}: ${field.plainName}`,
+                        name: fields.length === 1 || perAlgorithm ? method : `${method}: ${field.plainName}`,
                         glyph: GLYPHS.analyze,
                         ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
                         // Its field's name finds it too: "Label propagation: comm".
                         aliases: [...aliases, field.plainName],
                         onPick: () => {
-                            onPick({ kind: "measure", algorithm: each.key, field: field.name });
+                            const test = freshTest(field);
+                            onPick({
+                                kind: "measure",
+                                algorithm: each.key,
+                                field: field.name,
+                                ...(test === undefined ? {} : { test }),
+                            });
                         },
                     }));
                 }),
@@ -317,7 +361,7 @@ export function pickSections(
             glyph: GLYPHS[other],
             ...(field.fact === undefined ? {} : { fact: field.fact }),
             onPick: () => {
-                onPick(freshLeaf(field, selectionWorkspaceOn(session)));
+                onPick(untested(field));
             },
         }));
     const item = (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree): ExtraItem => ({

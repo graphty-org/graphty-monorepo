@@ -41,6 +41,8 @@ import type { PickSection } from "./values";
  * @param props.onDone - Escape with no row selected
  * @param props.onTitleToggle - Space on the title row: switches the card's on box
  * @param props.titleOff - the card's on box is off
+ * @param props.name - the name the reader gave the card, written with it
+ * @param props.onRename - renames the card from the workspace's title bar
  * @returns The editor
  */
 export function FilterSelection({
@@ -63,6 +65,8 @@ export function FilterSelection({
     onDone,
     onTitleToggle,
     titleOff,
+    name,
+    onRename,
 }: Readonly<{
     session: GraphSession;
     store: WorkspaceStore;
@@ -83,13 +87,22 @@ export function FilterSelection({
     onDone: () => void;
     onTitleToggle?: () => void;
     titleOff?: boolean;
+    name?: string;
+    onRename?: (name: string | undefined) => void;
 }>): React.JSX.Element {
     // The rule as last edited, until the element holds it.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const writes = useRef(0);
     const write = (next: UnionLeaf): Promise<unknown> =>
         effect === undefined
-            ? writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule: next }))
+            ? writeCondition(store, () =>
+                  session.visibility.addCondition({
+                      id,
+                      effect: "keep",
+                      rule: next,
+                      ...(name === undefined ? {} : { name }),
+                  }),
+              )
             : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
     // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
     const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
@@ -113,6 +126,7 @@ export function FilterSelection({
             onEmptyCancel={onEmptyCancel}
             onTitleToggle={onTitleToggle}
             titleOff={titleOff}
+            onRename={onRename}
             onChange={(next) => {
                 setLocal(next);
                 if (effect === undefined && next.branches.every((branch) => branch.steps.length === 0)) {

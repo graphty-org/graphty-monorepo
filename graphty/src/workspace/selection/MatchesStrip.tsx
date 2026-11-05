@@ -48,9 +48,10 @@ export function MatchesStrip({
     // The table reads its page as the search allows: a keystroke is drawn at once.
     const typed = useDeferredValue(text.trim());
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
-    // Rows are tinted by group only when there are two groups to tell apart.
+    // Rows are tinted by group: in the workspace always, a single card's rows in its color too (the
+    // owner, 2026-11-04); in the outline editor only when there are two groups to tell apart.
     const groupOf =
-        reading === null || reading.rule.branches.length < 2
+        reading === null || reading.rule.branches.length < (modal ? 1 : 2)
             ? undefined
             : (id: NodeId | EdgeId): { name: string; color: string } | null => {
                   const branchId = reading.branchOf(id);

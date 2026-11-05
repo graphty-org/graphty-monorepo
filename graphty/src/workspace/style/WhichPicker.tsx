@@ -1268,6 +1268,7 @@ const EXTRA = "extra:";
  * @param props.anchor - drawn in place of the opener button (the list opens under it)
  * @param props.placeholder - the search box's words
  * @param props.seed - typed into the search as the list opens from outside
+ * @param props.listWidth - the list's width under an anchor narrower than its rows (a "+ Card" button)
  * @returns The control
  */
 export function AddCondition({
@@ -1285,6 +1286,7 @@ export function AddCondition({
     anchor,
     placeholder = FIND_ATTRIBUTE,
     seed,
+    listWidth,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
@@ -1309,6 +1311,7 @@ export function AddCondition({
     placeholder?: string;
     /** Typed into the search as the list opens from outside (a key pressed on the anchor). */
     seed?: string;
+    listWidth?: number;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
@@ -1489,7 +1492,7 @@ export function AddCondition({
         <Combobox
             store={combobox}
             // A list under a field is as wide as the field, however it was opened (ws-polish 3).
-            width={anchor === undefined ? width : "target"}
+            width={listWidth ?? (anchor === undefined ? width : "target")}
             position="bottom-start"
             // A list under a field (the selection workspace's value fields) always opens below it,
             // inside its column, never flipped up over the header and Done (ws-polish 2).
@@ -1735,7 +1738,6 @@ const HISTOGRAM_BINS = 32;
  * @param props.high - the values' highest
  * @param props.step - how far a thumb moves
  * @param props.value - the test's bounds, clamped to the values
- * @param props.untouched - no bound is set yet, so no bar is lit
  * @param props.onChangeEnd - takes the bounds a gesture ended on
  * @param props.links - a selection step's Links, the edges a degree is counted over
  * @param props.given - the values' spread when no path names them (a step's own computation)
@@ -1752,7 +1754,6 @@ function ValueBrush({
     high,
     step,
     value,
-    untouched = false,
     onChangeEnd,
 }: Readonly<{
     session: GraphSession;
@@ -1765,8 +1766,6 @@ function ValueBrush({
     high: number;
     step: number;
     value: [number, number];
-    /** No bound is set yet: no bar is lit, so an untouched step never reads as a full range. */
-    untouched?: boolean;
     onChangeEnd: (value: [number, number]) => void;
 }>): React.JSX.Element | null {
     const linksKey = links === undefined ? "" : JSON.stringify(links);
@@ -1806,7 +1805,8 @@ function ValueBrush({
                     // as a bar, never a hairline.
                     from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
                     to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
-                    highlighted: (moving !== null || !untouched) && bin.to > shown[0] && bin.from <= shown[1],
+                    // No bound set is the whole range, every bar lit: what the step passes.
+                    highlighted: bin.to > shown[0] && bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
                 maxLabel={formatNumber(high)}
@@ -2010,6 +2010,8 @@ function CardEditor({
  * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
  * @param props.variant - "filter" or "step": a value row reads box, name, then its count dimmed at
  *     the right; "step" offers no presence choices
+ * @param props.bare - a number step draws no By value | By position select (a selection
+ *     workspace card, which offers it in its settings)
  * @returns The body
  */
 export function CardBody({
@@ -2019,6 +2021,7 @@ export function CardBody({
     onChange,
     blank = false,
     variant,
+    bare = false,
 }: Readonly<{
     session: GraphSession;
     card: Card;
@@ -2026,10 +2029,20 @@ export function CardBody({
     onChange: OnCard;
     blank?: boolean;
     variant?: CardVariant;
+    bare?: boolean;
 }>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
-            return <NumberCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
+            return (
+                <NumberCard
+                    session={session}
+                    card={card}
+                    side={side}
+                    onChange={onChange}
+                    variant={variant}
+                    bare={bare}
+                />
+            );
         case "date":
             return <DateCard session={session} card={card} side={side} onChange={onChange} />;
         case "category":
@@ -2435,6 +2448,7 @@ function heldTopWords(card: Extract<Card, { type: "number" }>): string | null {
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
  * @param props.variant - "step": no presence choices
+ * @param props.bare - a step draws no By value | By position select
  * @returns The body
  */
 function NumberCard({
@@ -2443,12 +2457,14 @@ function NumberCard({
     side,
     onChange,
     variant,
+    bare = false,
 }: Readonly<{
     session: GraphSession;
     card: Extract<Card, { type: "number" }>;
     side: Side;
     onChange: OnCard;
     variant?: CardVariant;
+    bare?: boolean;
 }>): React.JSX.Element {
     // A step's mode is the reader's explicit choice (selection spec 3.5), kept by the step: By
     // position chosen starts untouched, so the step reads No test, and By value chosen again brings
@@ -2606,7 +2622,7 @@ function NumberCard({
     const value: [number, number] = [Math.max(low, card.min ?? low), Math.min(high, card.max ?? high)];
     return (
         <Stack gap={4} data-card-body ref={body}>
-            {variant === "step" ? (
+            {!bare && variant === "step" && (
                 // A step's test (selection spec 5): By value, a brush over the values' bars; By
                 // position, the highest N. A select that shows its mode, above the histogram, so a
                 // click on the bars never switches it (spec 3.5).
@@ -2620,7 +2636,8 @@ function NumberCard({
                     ]}
                     onChange={pickMatch}
                 />
-            ) : (
+            )}
+            {variant !== "step" && (
                 <MatchSelect
                     name={name}
                     value={card.match}
@@ -2640,7 +2657,6 @@ function NumberCard({
                     high={high}
                     step={step}
                     value={value}
-                    untouched={card.min === undefined && card.max === undefined}
                     onChangeEnd={([min, max]) => {
                         clear();
                         onChange({ ...card, min, max });

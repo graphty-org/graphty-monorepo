@@ -1573,6 +1573,30 @@ interface Opening {
 }
 
 /**
+ * What a project's session member holds that is kept as saved but does nothing with the timeline
+ * off: playback settings, a designated time field, and the options a saved window takes.
+ * @param state - The `graphty-session` member.
+ * @returns One `E_FEATURE_OFF` per part.
+ */
+function timelineLeftOff(state: Record<string, unknown> | undefined): ProjectProblem[] {
+    const { config, visibility } = (state ?? {}) as {
+        config?: { data?: { knownFields?: Record<string, unknown> } };
+        visibility?: { playback?: unknown; window?: { nodes?: string; missing?: string } | null };
+    };
+    const known = config?.data?.knownFields;
+    const window = visibility?.window;
+    const held: Record<string, unknown> = {
+        "visibility.playback": visibility?.playback,
+        "data.knownFields.nodeTimePath": known?.nodeTimePath,
+        "data.knownFields.edgeTimePath": known?.edgeTimePath,
+        "visibility.window": window?.nodes === "ends" || window?.missing === "outside" ? window : null,
+    };
+    return Object.keys(held)
+        .filter((key) => held[key] !== undefined && held[key] !== null)
+        .map((key) => ({ code: "E_FEATURE_OFF", params: { feature: "timeline", key } }));
+}
+
+/**
  * Do one part, recording it as restored, or its failure as a problem rather than failing the open.
  * @param opening - The open.
  * @param slice - The part.
@@ -2316,6 +2340,9 @@ export function projectOf(
             now: new Date().toISOString(),
         });
         problems.push(...loads.problems);
+        if (dispatcher.services.timeline?.() === false) {
+            problems.push(...timelineLeftOff(state));
+        }
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.

@@ -175,20 +175,6 @@ export function rowLayers(session: GraphSession, id: string): string[] {
 }
 
 /**
- * Whether a row is the timeline's Ghost row. TEMPORARY, as `lacksStartingRows`: it reads the
- * element's template id, which graphty-element does not publish as a fact.
- * @param session - the element's session.
- * @param id - the row's id.
- * @returns true for the Ghost row.
- */
-export function isGhostRow(session: GraphSession, id: string): boolean {
-    return rowLayers(session, id).some((layerId) => {
-        const source = session.styles.get(layerId)?.source;
-        return source?.by === "template" && source.templateId === "graphty:timeline-ghost";
-    });
-}
-
-/**
  * A count with its noun, "1 node" or "77 nodes".
  * @param n - the count.
  * @param noun - the singular noun.

@@ -789,8 +789,12 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
                     await tx.visibility.updateCondition(c.id, { on: false });
                 }
             }
-            if (timelineOn(session) && tx.time.current !== null) {
-                await tx.time.window(null);
+            if (timelineOn(session)) {
+                if (tx.time.current !== null) {
+                    await tx.time.window(null);
+                }
+            } else if (tx.visibility.window !== null) {
+                await tx.visibility.setWindow(null);
             }
         })
         .catch(() => {
@@ -799,9 +803,10 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
 }
 
 /**
- * The header's filter chip, "9 of 22 nodes", drawn while a card that hides is on; its name and
- * tooltip name the cards that are on and it opens the Data place, where the Filters section is; its
- * x switches them off. It also puts each change on the status line.
+ * The header's filter chip, "9 of 22 nodes", drawn while a card that hides is on, or a saved time
+ * window applies with the timeline off and so no other control shows it; its name and tooltip name
+ * what is on and it opens the Data place, where the Filters section is; its x switches them off. It
+ * also puts each change on the status line.
  * @returns the chip, or nothing.
  */
 export function FilterChip(): React.JSX.Element | null {
@@ -828,17 +833,19 @@ export function FilterChip(): React.JSX.Element | null {
     }, [session, store]);
 
     const hiding = session?.visibility.conditions.filter((c) => c.on && hides(c)) ?? [];
-    if (session === null || hiding.length === 0) {
+    const savedWindow = session !== null && !timelineOn(session) && session.visibility.window !== null;
+    if (session === null || (hiding.length === 0 && !savedWindow)) {
         return null;
     }
     const counts = session.visibility.conditionCounts();
-    const edges = hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
+    const edges = savedWindow || hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
     const words = chipWords(session.visibility.summary, edges);
     // The time window is one of the filters in force, as the Filters list shows it.
     const window = timeField(session) === null ? null : session.time.current;
     const on = [
         ...hiding.map((c) => conditionWords(session, c.rule)),
         ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),
+        ...(savedWindow ? ["Time window"] : []),
     ];
     const name = chipName(words, on);
     return (

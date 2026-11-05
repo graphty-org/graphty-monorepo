@@ -488,9 +488,19 @@ export interface TimeInternals {
     dispose(): void;
 }
 
+/** The members of `session.time` that return a promise, so refuse by rejecting it. */
+const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
+    "setField",
+    "setSettings",
+    "stepBy",
+    "seek",
+    "commit",
+]);
+
 /**
  * `session.time` behind its experiment: every member refuses with `E_FEATURE_OFF` while the
- * experiment is off. Reading `session.time` itself is safe, and asked per member, because an
+ * experiment is off. Reading a member throws, except that the ones returning a promise read as a
+ * function that rejects. Reading `session.time` itself is safe, and asked per member, because an
  * element's session settles its features only when the element first renders.
  * @param api - The timeline.
  * @param on - Whether the experiment is on now.
@@ -502,7 +512,12 @@ export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
         Object.defineProperty(gated, key, {
             get: () => {
                 if (!on()) {
-                    throw featureOff("timeline", `time.${key}`);
+                    const refusal = featureOff("timeline", `time.${key}`);
+                    if (REJECTING_MEMBERS.has(key)) {
+                        return () => Promise.reject(refusal);
+                    }
+
+                    throw refusal;
                 }
 
                 return Reflect.get(api, key) as unknown;

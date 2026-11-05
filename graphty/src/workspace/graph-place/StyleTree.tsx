@@ -13,7 +13,7 @@ import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
-import { timelineOn, unitOf } from "../time/timeActions";
+import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
 import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
@@ -25,7 +25,6 @@ import {
     findTreeRow,
     groupRowOf,
     isBaseRow,
-    isGhostRow,
     isHidden,
     layerCount,
     layerKindWords,
@@ -319,8 +318,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             }),
         [session],
     );
-    // A project saved with the timeline on keeps its Ghost row; with it off the reader sees none.
-    const tree = session.styles.tree().filter((row) => timelineOn(session) || !isGhostRow(session, row.id));
+    const tree = session.styles.tree();
     // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
     // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.
     const restingId = (tree.find((row) => isBaseRow(session, row.id)) ?? tree.find((row) => row.pin === "none"))?.id;

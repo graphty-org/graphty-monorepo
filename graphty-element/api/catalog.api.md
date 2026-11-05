@@ -757,9 +757,10 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
-* A command, saved document or attribute asked for something whose experiment is off:
-* `details` carry `feature`, the experiment's id, and `key`, what was asked for. The caller
-* switches the experiment on (`features="..."`) or leaves that part out.
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
 */
 | "E_FEATURE_OFF"
 /**

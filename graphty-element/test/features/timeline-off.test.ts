@@ -98,9 +98,29 @@ describe("the timeline's switch", () => {
 describe("session.time with the timeline off", () => {
     it("can be read, and every member refuses with E_FEATURE_OFF", () => {
         const { time } = createGraphSession(OFF);
-        const members = ["field", "settings", "playing", "extent", "bins", "play", "pause", "setField", "window"];
+        const members = ["field", "settings", "playing", "extent", "bins", "play", "pause", "window"];
         for (const member of members) {
             const error = thrownBy(() => time[member as keyof typeof time]);
+            assert.instanceOf(error, GraphtyError, member);
+            assert.strictEqual(error.code, "E_FEATURE_OFF");
+            assert.deepEqual(error.details, { feature: "timeline", key: `time.${member}` });
+        }
+    });
+
+    it("rejects, and never throws, from the members that return a promise", async () => {
+        const { time } = createGraphSession(OFF);
+        const calls = {
+            setField: () => time.setField({ edges: { start: "sent" } }),
+            setSettings: () => time.setSettings({ mode: "cumulative" }),
+            stepBy: () => time.stepBy(1),
+            seek: () => time.seek("start"),
+            commit: () => time.commit(),
+        };
+        for (const [member, call] of Object.entries(calls)) {
+            const error = await (call() as Promise<unknown>).then(
+                () => undefined,
+                (refusal: unknown) => refusal,
+            );
             assert.instanceOf(error, GraphtyError, member);
             assert.strictEqual(error.code, "E_FEATURE_OFF");
             assert.deepEqual(error.details, { feature: "timeline", key: `time.${member}` });
@@ -188,7 +208,13 @@ describe("a project saved with the timeline on, opened with it off", () => {
 
         const session = createGraphSession({ ...OFF, runs: { execute } });
         const report = await session.project.open(text);
-        assert.deepEqual(report.problems, []);
+        assert.sameDeepMembers(
+            [...report.problems],
+            ["visibility.playback", "data.knownFields.edgeTimePath", "visibility.window"].map((key) => ({
+                code: "E_FEATURE_OFF",
+                params: { feature: "timeline", key },
+            })),
+        );
         assert.strictEqual(session.config.data.knownFields.edgeTimePath, "sent");
         assert.strictEqual(session.config.data.knownFields.edgeTimeUnit, "ms");
         const ghostRows = (each: GraphSession): number =>
@@ -196,6 +222,9 @@ describe("a project saved with the timeline on, opened with it off", () => {
                 .length;
         assert.strictEqual(ghostRows(session), ghostRows(saved));
         assert.isAbove(ghostRows(saved), 0);
+        const rowNames = (each: GraphSession): string[] => each.styles.tree().map((row) => row.name);
+        assert.include(rowNames(saved), "Ghost");
+        assert.notInclude(rowNames(session), "Ghost");
         assert.isFalse(dispatcherOf(session).state.visibility.playback === null);
         const visibility = (doc: string): Record<string, unknown> => {
             const { members } = JSON.parse(doc) as { members: { kind?: string; visibility?: object }[] };
@@ -207,5 +236,13 @@ describe("a project saved with the timeline on, opened with it off", () => {
         await reopened.project.open((await session.project.save()).text);
         assert.strictEqual(reopened.time.settings.outside, "ghost");
         assert.strictEqual(reopened.time.field?.edges?.start, "sent");
+        assert.include(rowNames(reopened), "Ghost");
+    });
+
+    it("reports nothing for a project that never used the timeline", async () => {
+        const saved = await loaded(OFF);
+        const { text } = await saved.project.save();
+        const report = await createGraphSession({ ...OFF, runs: { execute } }).project.open(text);
+        assert.deepEqual(report.problems, []);
     });
 });

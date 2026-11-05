@@ -298,6 +298,7 @@ describe("the legend card's words", () => {
         };
         const summary = { visibleNodes: 15, totalNodes: 20 };
         const session = {
+            features: { enabled: [] },
             runs: { get: () => run },
             visibility: { summary },
             styles: { get: () => undefined, counts: () => ({ covers: {} }) },
@@ -321,6 +322,35 @@ describe("the legend card's words", () => {
         assert.equal(title(), "Size: PageRank on 12 nodes");
     });
 
+    it("names a run's time window only with the timeline on, so a saved one is no 1970 date with it off", () => {
+        const run = {
+            id: "r1",
+            algorithm: "pagerank",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "graph" },
+            status: "succeeded",
+            stale: null,
+            caveats: { window: { from: 5, to: 8 } },
+        };
+        const features = { enabled: ["timeline"] };
+        const session = {
+            features,
+            time: { field: { edges: { start: "tick", unit: "ordinal" } } },
+            runs: { get: () => run },
+            visibility: { summary: { visibleNodes: 20, totalNodes: 20 } },
+            styles: { get: () => undefined, counts: () => ({ covers: {} }) },
+            sets: { get: () => undefined },
+            catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
+        } as unknown as GraphSession;
+        const size = block({ channel: "node.size", runId: "r1" });
+        const title = (): string => keySections([size], keyNames(session))[0].title;
+        assert.equal(title(), "Size: PageRank, 5 - 7");
+        features.enabled = [];
+        assert.equal(title(), "Size: PageRank");
+    });
+
     it("names a run by its algorithm as the Analyze list names it, not the catalog's plain name", () => {
         const run = {
             id: "r1",
@@ -334,6 +364,7 @@ describe("the legend card's words", () => {
             caveats: {},
         };
         const session = {
+            features: { enabled: [] },
             runs: { get: () => run },
             styles: { get: () => undefined, counts: () => ({ covers: {} }) },
             catalog: {

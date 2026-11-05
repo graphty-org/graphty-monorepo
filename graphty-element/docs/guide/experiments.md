@@ -55,10 +55,38 @@ shipped.
 Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
 attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`.
 
+```html
+<graphty-element features="timeline" edge-time-path="sent"></graphty-element>
+```
+
+```ts
+const { session } = document.querySelector("graphty-element");
+const data = "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\n";
+await session.data.import({ type: "csv", config: { data } });
+
+if (session.features.enabled.includes("timeline")) {
+    await session.time.setSettings({ step: "day" });
+    session.time.play();
+}
+```
+
+Instead of the attribute, `await session.time.setField({ edges: { start: "sent" } })` picks the
+column from code.
+
 With it off, every member of `session.time` refuses with `E_FEATURE_OFF` (`details` carry
-`{ feature, key }`), the four attributes do nothing but log that refusal, and a text column of
-dates does not measure time. `session.visibility.setWindow` works either way. A project saved with
-the timeline on keeps its time settings when it is opened and saved with it off.
+`{ feature, key }`): reading a plain property such as `session.time.field`, or calling `play`,
+`pause` or `window`, throws, while `setField`, `setSettings`, `stepBy`, `seek` and `commit` return a
+promise that rejects. Check `session.features.enabled.includes("timeline")` first, as above. The four
+attributes do nothing but log that refusal, and a text column of dates does not measure time.
+`session.visibility.setWindow` works either way.
+
+A project saved with the timeline on keeps its time settings when it is opened and saved with it
+off. They do nothing meanwhile, and `project.open` reports each one in `problems` as `E_FEATURE_OFF`
+with `{ feature, key }`. A saved window still limits what shows, by its bounds only, and
+`session.visibility.setWindow(null)` clears it. `styles.tree()` leaves out the saved Ghost row.
+
+Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds
+`features="timeline"` to keep it.
 
 ## What `@experimental` promises
 

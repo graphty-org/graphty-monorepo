@@ -2247,7 +2247,7 @@ export class Graphty extends LitElement {
         return this.#timeField("edgeTimePath");
     }
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     set edgeTimePath(value: string | undefined) {
         this.#setTimeField("edgeTimePath", value);
@@ -2269,7 +2269,7 @@ export class Graphty extends LitElement {
         return this.#timeField("nodeTimePath");
     }
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     set nodeTimePath(value: string | undefined) {
         this.#setTimeField("nodeTimePath", value);
@@ -2293,7 +2293,7 @@ export class Graphty extends LitElement {
         return this.#timeField("edgeTimeUnit");
     }
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     set edgeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
@@ -2322,7 +2322,7 @@ export class Graphty extends LitElement {
         return this.#timeField("nodeTimeUnit");
     }
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     set nodeTimeUnit(value: string | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {

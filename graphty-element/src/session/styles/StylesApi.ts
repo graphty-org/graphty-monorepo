@@ -1721,6 +1721,18 @@ const FOLDER = "folder:";
 /** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
 const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
 
+/** The same with the timeline off, which leaves the Ghost row out. */
+const treeWithoutGhostCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
+
+/**
+ * The row a layer of the stack is a part of.
+ * @param entry - The layer.
+ * @returns The row's id.
+ */
+function rowIdOf(entry: CompiledLayer): StyleRowId {
+    return entry.layer.row ?? entry.layer.id;
+}
+
 /** One layer of a style document, in both the form it was written in and the form it compiled to. */
 interface ImportedLayer {
     /** The specification the document carried, kept so the layer can be re-checked disabled. */
@@ -4531,10 +4543,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         tree(): readonly StyleRow[] {
             const stack = current();
-            let rows = treeCache.get(stack);
+            // With the timeline off a saved Ghost row stays in the stack, so it saves, and is no row.
+            const timelineOff = dispatcher.services.timeline?.() === false;
+            const cache = timelineOff ? treeWithoutGhostCache : treeCache;
+            let rows = cache.get(stack);
             if (rows === undefined) {
-                rows = publicRows(rowsOf(stack), namesIn(stack));
-                treeCache.set(stack, rows);
+                const ghosts = new Set(timelineOff ? stack.filter(isGhostRow).map(rowIdOf) : []);
+                rows = publicRows(
+                    rowsOf(stack).filter((row) => !ghosts.has(row.id)),
+                    namesIn(stack),
+                );
+                cache.set(stack, rows);
             }
 
             return rows;

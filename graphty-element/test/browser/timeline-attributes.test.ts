@@ -52,4 +52,28 @@ describe("the timeline's attributes", () => {
         assert.isUndefined(made.edgeTimePath);
         assert.isNull(made.session.config.data.knownFields.edgeTimePath);
     });
+
+    it("are refused when set after the first render with the experiment off", async () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const made = await element([]);
+        logged.mockClear();
+
+        made.nodeTimePath = "joined";
+
+        const refusal = logged.mock.calls.flat().find((each) => (each as { code?: string }).code === "E_FEATURE_OFF");
+        assert.deepEqual((refusal as { details?: unknown } | undefined)?.details, {
+            feature: "timeline",
+            key: "nodeTimePath",
+        });
+        assert.isUndefined(made.nodeTimePath);
+        assert.isNull(made.session.config.data.knownFields.nodeTimePath);
+    });
+
+    it("designate the field when set after the first render with the experiment on", async () => {
+        const made = await element(["timeline"]);
+        made.edgeTimePath = "received";
+        await vi.waitFor(() => {
+            assert.strictEqual(made.session.time.field?.edges?.start, "received");
+        });
+    });
 });

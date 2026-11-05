@@ -759,6 +759,17 @@ describe("GraphML styles: yFiles 3", () => {
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[i]).toBe("Arial");
     });
 
+    it("reads a RectangleNodeStyle's corners=TOP as a box rounded along its top", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml"),
+            ),
+        );
+        const shape = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
+    });
+
     it("notes shared references that refer to each other and finishes", async () => {
         const { snapshot, styles } = await load(corpusBytes(join(GENERATED, "yfiles3-shared-cycle.graphml")));
         expect(snapshot.nodeCount).toBe(3);

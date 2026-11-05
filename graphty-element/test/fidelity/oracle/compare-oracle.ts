@@ -220,6 +220,8 @@ export const ORACLE_TOLERANCES = {
     edgeWidthRatio: [0.9, 1.1],
     /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
     gradientAngleDeg: 15,
+    /** A radial gradient's middle within this fraction of its node's box. */
+    gradientCenter: 0.1,
     /**
      * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
      * oracle's, which a rounding on a small head moves by more than the ratio allows.
@@ -1297,7 +1299,7 @@ function runsBackwards(o: PGradient, g: PGradient, angles: { o: number | null; g
 
 /**
  * How far two gradients are from alike: one on each side or on neither; the same kind; their colors at five places
- * along them within the color tolerance; a linear one's direction within its tolerance.
+ * along them within the color tolerance; a linear one's direction and a radial one's middle within their tolerances.
  * @param o - the oracle's gradient, or null
  * @param g - graphty's, or null
  * @param angles - each linear gradient's direction as judged (in the oracle's frame, or against its edge's chord)
@@ -1338,7 +1340,12 @@ function gradientMissAsRun(
     const show = (x: PGradient | null, angle: number | null): unknown =>
         x === null
             ? null
-            : { kind: x.kind, angle: angle === null ? null : R(angle, 1), colors: RAMP_AT.map((t) => rampColor(x, t)) };
+            : {
+                  kind: x.kind,
+                  angle: angle === null ? null : R(angle, 1),
+                  colors: RAMP_AT.map((t) => rampColor(x, t)),
+                  ...(x.center === undefined ? {} : { center: x.center }),
+              };
     const out = { oracle: show(o, angles.o), graphty: show(g, angles.g) };
     if (o === null || g === null) {
         return { miss: (o === null) === (g === null) ? 0 : 1, ...out };
@@ -1355,6 +1362,8 @@ function gradientMissAsRun(
     if (o.kind === "linear" && angles.o !== null && angles.g !== null && (changes(o) || changes(g))) {
         miss += Math.max(0, Math.abs(turnOf(angles.g - angles.o)) - ORACLE_TOLERANCES.gradientAngleDeg) / 90;
     }
+    const [oc, gc] = [o.center ?? [0.5, 0.5], g.center ?? [0.5, 0.5]];
+    miss += Math.max(0, Math.hypot(oc[0] - gc[0], oc[1] - gc[1]) - ORACLE_TOLERANCES.gradientCenter);
     return { miss, ...out };
 }
 
@@ -1412,7 +1421,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
-    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,

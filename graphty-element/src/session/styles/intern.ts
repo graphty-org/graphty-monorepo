@@ -209,6 +209,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientColors": "mesh",
     "node.gradientStops": "mesh",
     "node.gradientKind": "mesh",
+    "node.gradientCenterX": "mesh",
+    "node.gradientCenterY": "mesh",
+    "node.gradientRadius": "mesh",
     // A model and the options that change its geometry pick the template a node is drawn from.
     // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
     // colour is written into the model's instances (Node.applyInstanceColor).

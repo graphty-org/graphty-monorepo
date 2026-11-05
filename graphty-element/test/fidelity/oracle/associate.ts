@@ -1394,7 +1394,10 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
     const q = drawnEnd(e.points, end, nodeById(nodes, id));
-    return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
+    // a picture has no outline points: its tip is wherever its box meets the end (vis-network's image arrows)
+    return p.kind === "image"
+        ? toBox(q, p.box)
+        : Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
 /**
@@ -3014,7 +3017,7 @@ export function associate(
         // its own
         if (picture) {
             const { x0, y0, x1, y1 } = p.box;
-            const corners: Pt[] = [
+            const corners: readonly Pt[] = p.quad ?? [
                 [x0, y0],
                 [x1, y0],
                 [x1, y1],

@@ -530,7 +530,7 @@ export function resolveCytoscape(
             const v = one(slot, raw, "pieColors", i);
             return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
         };
-        readCytoscapeGradientsAndImages(out, n, graphicOf, notes);
+        readCytoscapeGradientsAndImages(out, n, graphicOf);
         readCytoscapeCharts(
             out,
             n,

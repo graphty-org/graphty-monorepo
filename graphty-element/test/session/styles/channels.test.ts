@@ -197,6 +197,9 @@ const DECLARED = [
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.gradientCenterX",
+    "node.gradientCenterY",
+    "node.gradientRadius",
     "node.model",
     "node.modelSourceUp",
     "node.modelTurn",
@@ -400,8 +403,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-six node channels and one hundred and sixty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 186);
+    it("splits into one hundred and eighty-nine node channels and one hundred and sixty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 189);
         assert.strictEqual(channelsFor("edge").length, 160);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

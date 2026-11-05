@@ -38,6 +38,11 @@ export interface PGradient {
      * turn: one run the other way from its other end is the same picture. Absent for a gradient a program wrote.
      */
     halfTurn?: true;
+    /**
+     * Where a radial gradient's middle is, in fractions of its node's box from the top left corner, when it is off the
+     * node's middle; its stops are then in halves of the node's shorter side from there. Absent, the node's middle.
+     */
+    center?: readonly [number, number];
 }
 
 /** A fill: a flat color, or a gradient (its first stop is also its `color`). */
@@ -162,6 +167,10 @@ export interface Prim {
     tag: string;
     kind: "shape" | "path" | "text" | "image";
     box: PBox;
+    /**
+     * An image's four corners as drawn, which a turned image's box is wider than.
+     */
+    quad?: readonly [number, number][];
     /**
      * An image's: the gradient its pixels are (`pictureGradient`), as a program draws a gradient fill as a picture
      * (Cytoscape desktop's gradient custom graphics). Absent for everything else.

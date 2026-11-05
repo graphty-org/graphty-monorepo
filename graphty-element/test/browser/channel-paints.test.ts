@@ -94,6 +94,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.gradientKind": { "node.gradientColor": "#00ff00" },
     // Stops place colours, three of them so the middle one has somewhere to move.
     "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
+    // a radial gradient's middle and reach move only a radial gradient
+    "node.gradientCenterX": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
+    "node.gradientCenterY": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
+    "node.gradientRadius": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
     // A wrap option changes only a label wider than its wrap width; the blank count only one with blanks.
     "node.labelWrapEllipsis": { "node.labelWrapWidth": 0.05 },
     "node.labelWrapAnywhere": { "node.labelWrapWidth": 0.05 },

@@ -1036,7 +1036,9 @@ export class UpdateManager implements Manager {
             this.syncNodeStyles(painter, deadline);
         }
 
-        if (painter.hasPendingEdges) {
+        // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
+        // out of step, so the nodes finish first and each edge is placed once, at its nodes' sizes.
+        if (painter.hasPendingEdges && !(painter.hasPendingNodes && this.dataManager.drawHeld)) {
             this.syncEdgeStyles(painter, deadline);
         }
 
@@ -1142,15 +1144,19 @@ export class UpdateManager implements Manager {
             }
         }
 
-        // The edges of a node this frame resized measure again and are placed this frame.
+        // The edges of a node this frame resized measure again and are placed this frame. While a
+        // load holds the draw they wait for their own paint, or for the walk that ends the repaint.
         if (resized.size > 0) {
             this.sceneChanged = true;
             const incident = this.edgesByNode();
+            const place = !this.dataManager.drawHeld;
 
             for (const node of resized) {
                 for (const edge of incident.get(node) ?? []) {
                     edge.invalidatePositionCache();
-                    this.edgesToPlace.push(edge);
+                    if (place) {
+                        this.edgesToPlace.push(edge);
+                    }
                 }
             }
         }
@@ -2291,14 +2297,18 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        const walk = this.edgesNeedWalking();
+        // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
+        // every node on each of a load's thousands of frames, waits for the first frame it releases.
+        const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
         // support points move after their nodes stop, until they come to rest, and their edges with them
-        const bowed = this.dataManager.supportPoints.update(
-            () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
-            this.layoutManager.edges,
-            (edge) => edge.supportEdge(),
-            walk,
-        );
+        const bowed =
+            !this.dataManager.drawHeld &&
+            this.dataManager.supportPoints.update(
+                () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
+                this.layoutManager.edges,
+                (edge) => edge.supportEdge(),
+                walk,
+            );
         this.sceneChanged ||= bowed;
         if (walk || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not

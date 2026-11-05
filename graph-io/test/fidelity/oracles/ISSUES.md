@@ -1408,6 +1408,14 @@ The annotation, chart color scheme and mapping pages added after the first round
   shows. A chart's own `cy_values` now come before its data columns (`pie-values` on `-p5` and `-p18`).
   stray.present on `images-charts-p5`, `-p6` and `mappings-bypass-p18`: 59 -> 5 failing per format (cx, cx2, cys,
   xgmml). Left: `-p5`/`-p18` one #e8eae8 disc, `-p6` three annotation outlines.
+- Labels outside a node (`json-cyjs-synth-nodes` n32, n35, n95-n99: `label.anchor`). Fixed (#4247, 2026-11-04):
+  Cytoscape.js draws a top label's last line with `textBaseline = "bottom"` at the node's top less its padding
+  (cytoscape.js 3.34.3 `recalculateNodeLabelProjection`, `drawElementText`), so the bottom of its words sits on the
+  node's outline and covers the outer half of a thick border; graphty placed its label's whole box there, its bottom
+  margin and half its leading (about 0.28 of the font size) under the words. graphty-element's new label field
+  `gapOf: "words"` (`labelGapOf`; unset, the whole box as before) places the words' own font box against the node,
+  and a Cytoscape.js file's node labels are translated with it. Only Cytoscape.js files: the other programs' outside
+  labels are not measured against their words.
 
 ## Specimen sheets: Cytoscape desktop label settings graph-io now reads (fix round 1, XGMML, 2026-10-19)
 
@@ -2448,7 +2456,11 @@ Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sam
   `<FONT COLOR>` keeps the node's own weight and color (`cluster-label-html` `label.weight`, `n_html2`
   `label.color`); `<BR ALIGN>`, `BALIGN` and a cell's `ALIGN` are not read (`html-br-left`, `html-br-right`,
   `html-td-balign-left`: `label.align`); `<SUB>`, `<SUP>` and `ROWSPAN` lay text out on lines graphty joins
-  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`).
+  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`). Since #4247 (2026-11-04) graph-io lowers a `<SUB>` run
+  and raises a `<SUP>` run (`labelRuns` `shift`) by half the font's height, as Chromium draws Graphviz's
+  `baseline-shift="sub"` and `"super"` (0.585 of a DejaVu Sans em, measured). `html-sup` `label.anchor` still
+  fails: graphty grows the line by the raised run and centers the taller line on the node, where Graphviz keeps the
+  baseline where it was and draws the raised words above the line.
 - OPEN, graph-io: a cluster's stored `lp` (`cluster-lp`) is not read, and graphty's inside-left and inside-right
   label is a little farther in than Graphviz's (`cluster-labeljust-l`, `-r`: `label.offset`, miss 0.35 of the size);
   a striped cluster (`cluster-style-striped`) is drawn flat (`group.fill`).

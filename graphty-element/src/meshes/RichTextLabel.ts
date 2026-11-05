@@ -247,6 +247,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "shiftX"
     | "shiftY"
     | "shiftOf"
+    | "gapOf"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -441,6 +442,8 @@ export class RichTextLabel {
     private contentArea: ContentArea = { x: 0, y: 0, width: 0, height: 0 };
     /** The size of the words alone, in the same units as `actualDimensions`. */
     private textSize = { width: 0, height: 0 };
+    /** How far the first line's font box sits below the words' top, and the last line's above their bottom. */
+    private textLead = { top: 0, bottom: 0 };
     /**
      * How tall the plane is, in units of one line's height in the scene (`lineHeightInWorld`): 1
      * for one line at the default line height, more for each extra line or wider spacing (see
@@ -863,7 +866,7 @@ export class RichTextLabel {
 
         this.wrapToWidth(tempCtx);
 
-        const { maxWidth, totalHeight } = this.parser.measureText(this.parsedContent, tempCtx, {
+        const { maxWidth, totalHeight, leadTop, leadBottom } = this.parser.measureText(this.parsedContent, tempCtx, {
             lineHeight: this.options.lineHeight,
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
@@ -871,6 +874,7 @@ export class RichTextLabel {
         });
 
         this.textSize = { width: maxWidth, height: totalHeight };
+        this.textLead = { top: leadTop, bottom: leadBottom };
         const bgPadding = this.options.backgroundPadding * 2;
 
         this.totalBorderWidth = this._sumBorderWidth();
@@ -1838,6 +1842,38 @@ export class RichTextLabel {
     }
 
     /**
+     * Move a label placed beside its target by its whole box so that its words' own font box, not the box, is the
+     * offset away from the target, when its `gapOf` is `"words"`: Cytoscape.js draws a top label's last line with
+     * `textBaseline = "bottom"` at `y = node top - padding` (cytoscape.js 3.34.3 `recalculateNodeLabelProjection` and
+     * `drawElementText`), so the bottom of its words, not of a box round them, sits on the node's outline.
+     * ponytail: the per-frame screen fit (`sizeMode: "screen"`, `keepInView`) still places the whole box; move this
+     * into labelScreenFit's placeBeside when a file label needs both.
+     * @param at - The label's position, beside its target; changed in place.
+     * @param position - Which side of the target.
+     * @param size - The label's size, in world units.
+     * @param size.width - Its width.
+     * @param size.height - Its height.
+     * @param stretch - The target's own scaling, which the label's gaps are divided by; null for none.
+     */
+    private gapToWords(
+        at: Vector3,
+        position: AttachPosition,
+        size: { width: number; height: number },
+        stretch: Vector3 | null,
+    ): void {
+        const side = Object.hasOwn(SIDES, position) ? SIDES[position as keyof typeof SIDES] : null;
+        if (side === null || this.options.gapOf !== "words") {
+            return;
+        }
+
+        const words = this.wordsBounds;
+        const gapX = side.x < 0 ? 1 - words.right : words.left;
+        const gapY = side.y > 0 ? 1 - words.bottom : words.top;
+        at.x -= (side.x * gapX * size.width) / ((stretch?.x ?? 1) || 1);
+        at.y -= (side.y * gapY * size.height) / ((stretch?.y ?? 1) || 1);
+    }
+
+    /**
      * Where a label beside its target goes when its offset moves it over the target (vis-network's font.vadjust, a
      * Cytoscape.js text margin into the node): in front of it, hung from the pivot a center label hangs from, since
      * beside, in the target's own frame, the target's mesh hides it.
@@ -1955,6 +1991,7 @@ export class RichTextLabel {
                 this.options.attachOffset,
                 stretch ?? undefined,
             );
+            this.gapToWords(newPos, position, { width: labelWidth, height: labelHeight }, stretch);
             this.placementBounds = { min: bounds.min, max: bounds.max, z: newPos.z };
         }
 
@@ -2429,6 +2466,25 @@ export class RichTextLabel {
             right: (x + this.textSize.width) / width,
             top: y / height,
             bottom: (y + this.textSize.height) / height,
+        };
+    }
+
+    /**
+     * Where the label's words' own font box is on its plane: {@link textBounds} without the room above the first line's
+     * font box and below the last line's.
+     * @returns The box, as fractions of the plane's width and height from its top left corner.
+     */
+    public get wordsBounds(): { left: number; right: number; top: number; bottom: number } {
+        const box = this.textBounds;
+        const { height } = this.actualDimensions;
+        if (height <= 0) {
+            return box;
+        }
+
+        return {
+            ...box,
+            top: box.top + this.textLead.top / height,
+            bottom: box.bottom - this.textLead.bottom / height,
         };
     }
 

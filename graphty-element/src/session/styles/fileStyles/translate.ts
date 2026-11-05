@@ -1674,22 +1674,27 @@ function sizeUniformly(layer: Building, scope: Path | null): void {
 }
 
 /**
- * Make a layer of another program's file that shifts its labels shift their words (`labelShiftOf: "words"`): a
- * program that pins a label's text by one of its points (Pajek's `text-anchor: start`) pins the text's own box, where
- * the element's own shift moves the label's whole box, margins round its words and all, a margin further. Graphviz is
- * left on the whole box: it pins an xlabel by the corner of the label's box, padding (and an HTML table's cells and
- * borders) included. Set where the layer's shifts paint, so it adds no layer.
+ * Make a layer of another program's file place its labels by their words (`"words"` in `words`) wherever it paints one
+ * of `from`, and set it where the layer paints, so it adds no layer.
+ *
+ * A layer that shifts its labels shifts their words (`labelShiftOf`): a program that pins a label's text by one of its
+ * points (Pajek's `text-anchor: start`) pins the text's own box, where the element's own shift moves the label's whole
+ * box, margins round its words and all, a margin further. Graphviz is left on the whole box: it pins an xlabel by the
+ * corner of the label's box, padding (and an HTML table's cells and borders) included.
+ *
+ * A Cytoscape.js layer that places its node labels places them by their words (`labelGapOf`): Cytoscape.js puts the
+ * bottom of a top label's words on the node's outline (see RichTextLabel's gapToWords). Only Cytoscape.js: the other
+ * programs' outside labels are not measured against their words, so they keep the element's default.
  * @param layer - A layer the translation built.
- * @param kind - Its elements' kind.
+ * @param from - The channels whose painting places a label by its words.
+ * @param words - The channel that says so.
  */
-function shiftWords(layer: Building, kind: StyleTarget): void {
-    const shifts: Channel[] = [`${kind}.labelShiftX`, `${kind}.labelShiftY`];
+function placeByWords(layer: Building, from: readonly Channel[], words: Channel): void {
     const { set, encode } = layer.spec;
-    if (!shifts.some((channel) => channel in set || channel in encode)) {
+    if (!from.some((channel) => channel in set || channel in encode)) {
         return;
     }
 
-    const words: Channel = `${kind}.labelShiftOf`;
     set[words] = "words";
     // `set` paints every element the layer paints anything on, shifted or not (a file's bypass that shifts only
     // some of them, xgmml-syn-bypass): that is where the words shift is drawn, and where it is predicted
@@ -1917,9 +1922,15 @@ class KindTranslation {
             });
         }
         const { tool } = this.#input.extracted.styles.source;
+        const kind = this.#kind;
         if (tool !== "graphty" && tool !== "graphviz") {
             ordered.forEach((layer) => {
-                shiftWords(layer, this.#kind);
+                placeByWords(layer, [`${kind}.labelShiftX`, `${kind}.labelShiftY`], `${kind}.labelShiftOf`);
+            });
+        }
+        if (tool === "cytoscape-js" && kind === "node") {
+            ordered.forEach((layer) => {
+                placeByWords(layer, ["node.labelLocation"], "node.labelGapOf");
             });
         }
 

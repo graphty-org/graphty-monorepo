@@ -1369,6 +1369,10 @@ export const EdgeStyle: z.ZodObject<{
                 box: "box";
                 words: "words";
             }>>;
+            gapOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1625,6 +1629,10 @@ export const EdgeStyle: z.ZodObject<{
             shiftX: z.ZodOptional<z.ZodNumber>;
             shiftY: z.ZodOptional<z.ZodNumber>;
             shiftOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
+            gapOf: z.ZodOptional<z.ZodEnum<{
                 box: "box";
                 words: "words";
             }>>;
@@ -2030,6 +2038,10 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -2239,6 +2251,10 @@ export const EdgeStyle: z.ZodObject<{
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
         shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
         }>>;
@@ -5754,6 +5770,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -5966,6 +5986,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6175,6 +6199,10 @@ export const NodeStyle: z.ZodObject<{
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
         shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
         }>>;
@@ -6945,6 +6973,10 @@ export const RichTextStyle: z.ZodObject<{
     shiftX: z.ZodOptional<z.ZodNumber>;
     shiftY: z.ZodOptional<z.ZodNumber>;
     shiftOf: z.ZodOptional<z.ZodEnum<{
+        box: "box";
+        words: "words";
+    }>>;
+    gapOf: z.ZodOptional<z.ZodEnum<{
         box: "box";
         words: "words";
     }>>;

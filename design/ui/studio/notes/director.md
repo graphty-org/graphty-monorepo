@@ -5,7 +5,7 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-23 (Location in the Fields list ruled: one "+" pick per kind; menu sections
+Last updated: 2026-11-04 (the Assistant designed: `tier6/design.md`, `tier6/decided.md`; earlier: 2026-10-23, Location in the Fields list ruled: one "+" pick per kind; menu sections
 ruled; both issue #3315; earlier: timeline prototype review ruled: `timeline/decisions.md`; location map
 prototype reviews triaged into `location-map/decisions.md`).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
@@ -13,6 +13,12 @@ history.
 
 ## Top of mind
 
+- (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`, research copied to
+  `design/ai/assistant-chat-research.md`. A rail place in the left panel, not a window. Reply
+  language: plain text is the model's, a chip is computed, a change line is what happened. Only tool
+  results are chips. Hover peeks, click selects. Undo on the newest step only. Transcript waits for
+  Enter. First test: the missing layer list and a planted wrong count. Ten additive element asks in
+  design section 11; two reviewers' asks were dropped because the read already exists.
 - (2026-10-21) Shaders, second redesign: `design/rendering/shader-studio/decisions-v2.md`. One
   Shaders section and one gallery per tab; place (on the node, instead of, on top, around, behind,
   around the group, along the line) is an option on the row; no timing tags (layer condition, the
@@ -154,6 +160,11 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-04, Assistant concept.** Panel in the rail, with the chip reply language and the
+  reviewed transcript grafted in. All four reviews ranked the panel over the window, and the window's
+  covered-node failure is the worst one: a reader checks the wrong picture. Rejected: the window;
+  folding older turns; prose mentions as chips (launders model claims); a Quick actions door as the
+  no-key path; a model dropdown in the composer; glyph marks beside chips.
 - **2026-10-23, Layout and Analyze section pattern (owner question, issue #3315).** The owner:
   the two menus must share one pattern, indent or headings, and either every item is in a
   section or none is. Today Analyze uses headings (Recent, Rank nodes and edges, Find groups,
@@ -290,6 +301,12 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
 
 ## Tried: worked / did not work
 
+- 2026-11-04 (Assistant) -- Worked: checking each review claim in source before ruling. It settled
+  the caption fit by measuring (39.41 of 40 px, in a browser with the app's font), showed the history
+  read already answers Undo so `undoAiMessage` is unneeded, and showed a new assertive region is
+  unneeded because failures are `role="alert"` on their row. Worked: a selection target on effects
+  instead of an id list, which removes the size cap from chips. Lesson: a reviewer's "the element
+  lacks X" is a lead to grep, as with the 2026-10-22 refusal.
 - 2026-10-21 (round 1) -- Worked: two independent skeptic checks with a drop/weaken rule; they cut
   every new severity 3 to 2 and caught a tool artifact (wheel zoom from one synthetic event) and
   an automation artifact (storage notice). Did not work: tasks whose wording leads (the answer key

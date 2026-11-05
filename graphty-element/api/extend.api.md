@@ -80,6 +80,7 @@ import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -1946,7 +1947,6 @@ export abstract class LayoutEngine {
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
-    // (undocumented)
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
@@ -2106,6 +2106,8 @@ class Node_2 implements ModelUser {
     dragHandler?: NodeDragHandler;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
     get drawnFill(): string | null;
     // @internal
     get drawnGeneration(): number;
@@ -2134,6 +2136,8 @@ class Node_2 implements ModelUser {
     get drawnWorldRadius(): number;
     // @internal
     get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;

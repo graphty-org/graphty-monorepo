@@ -162,6 +162,7 @@ import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
+import { WRITABLE_LANE } from "./data/lane";
 import { sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { drawnCurveInWorld } from "./edgeWorldCurve";
@@ -237,6 +238,7 @@ import {
     pickNodeId,
     pointerEventTime,
 } from "./NodeBehavior";
+import { RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -814,6 +816,8 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
+    /** The row tables, once something has opened them; see {@link Graph.openRowTable}. */
+    #rowTable: RowTable | null = null;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -1385,6 +1389,7 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
+                this.#rowTable?.replaced(event.report.nodeRemap, this.dataManager.nodes.values());
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -1401,6 +1406,7 @@ export class Graph implements GraphContext {
                 peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
+                this.#rowTable?.cleared();
                 // A repaint in flight is painting rows that no longer exist; stop it.
                 this.#dataGeneration.abort(new DOMException("The graph's data was cleared.", "AbortError"));
                 this.#dataGeneration = new AbortController();
@@ -4460,6 +4466,30 @@ export class Graph implements GraphContext {
      */
     getUpdateManager(): UpdateManager {
         return this.updateManager;
+    }
+
+    /**
+     * The row tables, when something has opened them.
+     * @returns The tables, or null.
+     * @internal
+     */
+    getRowTable(): RowTable | null {
+        return this.#rowTable;
+    }
+
+    /**
+     * Start keeping the row tables, or get them if they are kept already. Nothing draws from them
+     * yet, so nothing opens them but tests and the benchmark harness.
+     * @returns The tables.
+     * @internal
+     */
+    openRowTable(): RowTable {
+        if (this.#rowTable === null) {
+            this.#rowTable = new RowTable(this.scene, () => this.dataManager[WRITABLE_LANE]);
+            this.#rowTable.replaced(null, this.dataManager.nodes.values());
+        }
+
+        return this.#rowTable;
     }
 
     /**

@@ -41,6 +41,7 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, Channel, EdgeId, LayerSpec, NodeId, Path, Rgba } from "../../../catalog/types";
+import { parseArrowStack } from "../../../meshes/arrowStack";
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
@@ -184,6 +185,19 @@ const ARROW_ROWS = new Map(
     ]),
 );
 
+/**
+ * An end cap's `stack` as a neutral `targetArrowParts` value.
+ * @param value - The `stack` value.
+ * @returns The parts, or null for none a file can name.
+ */
+function stackParts(value: unknown): string | null {
+    const words = parseArrowStack(typeof value === "string" ? value : undefined).flatMap(({ type, side }) => {
+        const shape = ARROW_OF.get(type);
+        return shape === undefined ? [] : [side === undefined ? shape : `${shape}:${side}`];
+    });
+    return words.length === 0 ? null : words.join(" ");
+}
+
 const color: PropertyPlan["toNeutral"] = (value) => {
     const found = colorOf(value);
     return found !== null && found.alpha >= 1 ? found.hex : null;
@@ -205,6 +219,20 @@ const plan = (toNeutral: PropertyPlan["toNeutral"], ...properties: string[]): Pr
     properties,
     toNeutral,
 });
+
+/**
+ * What DOT's writer needs beyond the end cap to spell a Graphviz arrow of several shapes: each channel's neutral
+ * property, its end cap, and its value there. A lone cap's side stays `graphty:<channel>`, as in every other format.
+ */
+const ARROW_NAME_CHANNELS: ReadonlyMap<
+    string,
+    { readonly property: string; readonly cap: string; readonly toNeutral: PropertyPlan["toNeutral"] }
+> = new Map([
+    ["edge.arrowHeadStack", { property: "targetArrowParts", cap: "edge.arrowHead", toNeutral: stackParts }],
+    ["edge.arrowTailStack", { property: "sourceArrowParts", cap: "edge.arrowTail", toNeutral: stackParts }],
+    ["edge.arrowHeadSide", { property: "targetArrowSide", cap: "edge.arrowHead", toNeutral: text }],
+    ["edge.arrowTailSide", { property: "sourceArrowSide", cap: "edge.arrowTail", toNeutral: text }],
+]);
 
 /**
  * The neutral property of each channel that has one, so that a load reads it back to the same
@@ -650,6 +678,27 @@ class KindExport {
     }
 
     /**
+     * What a channel adds to a Graphviz arrow name, for DOT alone: a stack behind an end cap, or that cap's side. yEd's
+     * rows are stacks too, but DOT writes their end cap.
+     * @param channel - The channel.
+     * @param drawn - What it painted.
+     * @returns The neutral property and its values by row, or null when the channel adds nothing.
+     */
+    #arrowName(channel: string, drawn: readonly unknown[]): { property: string; values: StyleColumn } | null {
+        const end = ARROW_NAME_CHANNELS.get(channel);
+        if (end === undefined || this.#input.format !== "dot") {
+            return null;
+        }
+
+        const values = drawn.map((value, row) => {
+            const stack = this.#merged[row]?.[`${end.cap}Stack`];
+            const yed = ARROW_ROWS.has(`${String(this.#merged[row]?.[end.cap])} ${stackShape(String(stack))}`);
+            return value === null || stackParts(stack) === null || yed ? null : end.toNeutral(value);
+        });
+        return values.some((value) => value !== null) ? { property: end.property, values } : null;
+    }
+
+    /**
      * One layer as one rule.
      * @param entry - The layer.
      * @param at - Its place among this kind's layers.
@@ -672,6 +721,12 @@ class KindExport {
                 this.#unwritten(entry, channel, drawn);
             } else {
                 this.#channel({ entry, at, where, channel: channel as Channel }, written, body);
+            }
+
+            const name = this.#arrowName(channel, drawn);
+            if (name !== null) {
+                const key = this.#keep(`layer.${String(at)}.${name.property}`, name.values);
+                body.map[name.property] = { kind: "passthrough", by: { style: key } };
             }
         }
         const { set, map, reason } = body;

@@ -206,7 +206,7 @@ describe("DOT styles: writing what these read", () => {
     });
 });
 
-describe("DOT styles: an arrow of several shapes written back (#5925)", () => {
+describe("DOT styles: an arrow's whole name written back (#5925, #5947)", () => {
     const NAMES = [
         "crowodot",
         "dotodot",
@@ -229,7 +229,7 @@ describe("DOT styles: an arrow of several shapes written back (#5925)", () => {
     async function written(doc: string, attribute: string): Promise<{ names: string[]; text: string }> {
         const { snapshot, styles } = await load(doc);
         const text = await registry.exportGraphToString(snapshot, "dot", { styles });
-        const names = [...text.matchAll(new RegExp(`\\b${attribute}="?(\\w+)`, "g"))].map((m) => m[1]);
+        const names = [...text.matchAll(new RegExp(`\\b${attribute}="?([\\w-]+)`, "g"))].map((m) => m[1]);
         return { names, text: text.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "") };
     }
 
@@ -251,12 +251,92 @@ describe("DOT styles: an arrow of several shapes written back (#5925)", () => {
         expect(names).toEqual(["lteeoldiamond"]);
     });
 
-    it("writes a lone arrow as it always did", async () => {
+    it("writes a lone arrow's name, with no side as it always did", async () => {
         const { names } = await written(
-            `digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=odot]; c -> d [arrowhead=lbox]; d -> e [arrowhead=normal] }`,
+            `digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=odot]; c -> d [arrowhead=curve]; d -> e [arrowhead=normal] }`,
             "arrowhead",
         );
-        expect(names).toEqual(["crow", "odot", "box"]);
+        expect(names).toEqual(["crow", "odot", "curve"]);
+    });
+
+    it("writes a lone arrow's side and open form, which read back as the same arrow without the style block", async () => {
+        const LONE = [
+            ...["lbox", "rbox", "olbox", "orbox", "lnormal", "rnormal", "olnormal", "ornormal", "ldot", "rdot"],
+            ...["oldot", "ordot", "lcrow", "rcrow", "lvee", "rvee", "ltee", "rtee", "ldiamond", "rdiamond"],
+            ...["oldiamond", "ordiamond", "linv", "rinv", "olinv", "orinv", "lcurve", "rcurve", "licurve", "ricurve"],
+            "icurve",
+        ];
+        const doc = `digraph { ${LONE.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        const { names, text } = await written(doc, "arrowhead");
+        expect(names).toEqual(LONE);
+        const back = await load(text);
+        const before = await load(doc);
+        for (const property of ["targetArrow", "targetArrowSide"] as const) {
+            expect(resolveStyles(back.styles, "edge", property, back.snapshot)).toEqual(
+                resolveStyles(before.styles, "edge", property, before.snapshot),
+            );
+        }
+    });
+
+    it("writes a lone arrowtail's side", async () => {
+        const { names } = await written(`digraph { a -> b [dir=both, arrowtail=lbox] }`, "arrowtail");
+        expect(names).toEqual(["lbox"]);
+    });
+
+    /**
+     * A file's edge with its target arrow set by a rule.
+     * @param value - the neutral arrow
+     * @returns what is written, and the properties noted as approximated
+     */
+    async function withArrow(value: string): Promise<{ name: string | undefined; noted: unknown[] }> {
+        const { snapshot, styles } = await load(`digraph { a -> b [arrowhead=crow] }`);
+        const rule = {
+            id: "arrow",
+            target: "edge",
+            role: "group",
+            origin: "declared",
+            where: { all: true },
+            set: { targetArrow: value },
+        } as const;
+        const withRule = { ...styles, styles: { ...styles.styles, rules: [...styles.styles.rules, rule] } };
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles: withRule });
+        return {
+            name: /arrowhead="?([\w-]+)/.exec(text)?.[1],
+            noted: registry
+                .checkExport(snapshot, "dot", { styles: withRule })
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED" && l.style?.property === "targetArrow"),
+        };
+    }
+
+    it("writes a lone other: arrow Graphviz has a name for by that name", async () => {
+        for (const [value, name] of [
+            ["other:inv-curve", "icurve"],
+            ["other:open-half-circle", "icurve"],
+            ["other:curve", "curve"],
+        ]) {
+            expect((await withArrow(value)).name).toBe(name);
+        }
+    });
+
+    it("writes a lone other: arrow Graphviz has no name for as its plain arrow, with an approximation note", async () => {
+        for (const value of ["other:kite", "other:cross", "other:deltoid", "other:skewed-dash"]) {
+            const { name, noted } = await withArrow(value);
+            expect(name).toBe("normal");
+            expect(noted).toHaveLength(1);
+        }
+    });
+
+    it("keeps a lone other: name Graphviz reads as it was written", async () => {
+        const NAMES = ["empty", "ediamond", "open", "halfopen", "invempty", "lteeoldiamond", "lempty", "oempty"];
+        for (const name of NAMES) {
+            expect((await withArrow(`other:${name}`)).name).toBe(name);
+        }
+    });
+
+    it("keeps a name of Graphviz's deprecated modifiers a file holds", async () => {
+        const NAMES = ["ebox", "halfbox", "lempty", "oempty", "emptydot"];
+        const doc = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        expect((await written(doc, "arrowhead")).names).toEqual(NAMES);
     });
 
     it("leaves out of the name a shape Graphviz has no name for, and any past the fourth", async () => {

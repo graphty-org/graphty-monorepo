@@ -280,6 +280,9 @@ const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 /** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
 const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
+/** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
+const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
+
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
 /**
@@ -2848,6 +2851,21 @@ export class Node implements ModelUser {
      */
     get surfaceIsBox(): boolean {
         return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * Whether a line meets this node's mesh exactly where it leaves the box of
+     * {@link drawnHalfExtents}, so arithmetic can stand in for a ray: a box or a rectangle left unturned. Not an ellipse:
+     * its mesh is a slab of facets, a line through depth meets the face, and across the view it is 0.003 short.
+     * @returns True for such a node.
+     * @internal
+     */
+    get surfaceIsClosedForm(): boolean {
+        return (
+            this.drawnModel === null &&
+            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
+            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
+        );
     }
 
     /**

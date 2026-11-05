@@ -1,0 +1,22 @@
+# The food bank's volunteers as left last time: ranked by PageRank, dots colored and sized by it, with the assistant already connected and its panel closed.
+--click Open a file
+--upload volunteers.graphml
+--key Shift+A
+--type PageRank
+--click PageRank
+--click Run
+--click PageRank
+--click role=tab:Style
+--click Add to node shape
+--click role=menuitem:Size
+--click Size by attribute
+--click role=option:PageRank
+--key Escape
+--click Assistant
+--click AI provider...
+--expect API key
+--click API key
+--type study-access-4471
+--click Save
+--expect-not Get a key from Google
+--click role=button:Graph

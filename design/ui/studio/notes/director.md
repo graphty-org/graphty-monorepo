@@ -5,14 +5,27 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-04 (the Assistant designed: `tier6/design.md`, `tier6/decided.md`; earlier: 2026-10-23, Location in the Fields list ruled: one "+" pick per kind; menu sections
-ruled; both issue #3315; earlier: timeline prototype review ruled: `timeline/decisions.md`; location map
-prototype reviews triaged into `location-map/decisions.md`).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
+Last updated: 2026-11-05 (tier 6 criteria reviewed and frozen).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21 and 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-11-05) TIER 6 CRITERIA FROZEN, 12 bars: `tier6/criteria.md`. One round, then fixes walked again;
+  the bars gate fixes, not a further round. Bars 11 (computed numbers true) and 12 (expert severity 2s
+  answered) are new; bar 10 needs the state list; bar 5 needs at least 2 sessions with a claim on screen.
+- (2026-11-05) The doubt lives in follow-ups now: T92, T93 and T95 prompts stop at the outcome, and
+  `Taken on trust:`, `Checked:` and `Card:` grade the first report. A prompt that asks "how sure" measures
+  obedience.
+- (2026-11-05) The planted wrong count is a selection, not a falsified reply: T92 A starts with the 14
+  people selected. Walked: "Of the 9 on-record sources in the selection, 6 gave donations" against the
+  file's 7 of 12. The dry run must confirm it; prose against a chip stays untested and is the report's
+  first limit.
+- (2026-11-05) Returning readers: T91 A and T94 A (Ruth), T94 B (Grace-returning). Doubters moved off
+  bar 5: T92 A and T93 A to Dev, T95 A to Grace, T95 B to Dev.
+- (2026-11-05) Known defects ruled in `answers.md`: fix yeast's 82-over-361 count in the dry run; keep
+  the refused key reading as a connection failure until after the round, so T90 shows how readers get
+  out. Bar 4 will likely fail on it, and that is expected.
 - (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`, research copied to
   `design/ai/assistant-chat-research.md`. A rail place in the left panel, not a window. Reply
   language: plain text is the model's, a chip is computed, a change line is what happened. Only tool
@@ -26,24 +39,9 @@ history.
   released channel plus additive `node.meshDetail`. Lesson: the first redesign kept the old
   section-per-target structure because it existed; the owner caught it. Start a redesign from the
   user's three questions, then check what survives, not the other way round.
-- (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315, owner: the Location "+" does not follow
-  the patterns; a gear for the kind, or one "+" per kind). RULED: one "+" pick per kind of
-  location. The nodes' "+" offers Latitude, Longitude, Coordinates, Country, Region and City as
-  ordinary Fields entries, each its kind's name, one column and a minus, exactly like Label, Weight
-  and Time. Deleted: the "Read as" select, the Place type and Within sub-rows, and the "Auto"
-  place type in the app. Reasons: every other entry's control is a column and Location's was a
-  mode, which is the rule the owner tripped on; a gear fails the latitude and longitude pair (two
-  columns cannot sit in one row's picker) and hides a choice that changes the row's shape; the
-  kind is a fact of the column, so it belongs in the "+" pick, not a setting; "Within" stops being
-  a control because a City entry beside a Country or Region entry already says it. Element work
-  (additive, team's call): `ColumnRole` gains `latitude`, `longitude`, `coordinates`, `country`,
-  `region`, `city`, set through `data.setRole` like the other entries; the element resolves the
-  source (a full pair, else coordinates, else the finest place narrowed by the next coarser one
-  listed), reports a detected column with its resolved role (never `auto`), and marks a listed
-  role it is not reading with a code (`location.unused`, params naming the source in effect).
-  Rejected: the gear (above); an in-row kind select like Figma's effect type (two selects in 240
-  px, and no other Fields entry can change its kind in place); a "Location" heading or group in
-  the "+" menu (the menu stays flat, so it never mixes grouped and ungrouped items).
+- (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315): one "+" pick per kind of location, each an
+  ordinary Fields entry. No gear, no in-row kind select, no heading in the "+" menu. `ColumnRole` gains
+  the six kinds; the element resolves the source and marks an unused one with `location.unused`.
 - (2026-10-23, issue #3315) MENU SECTIONS RULED: every pick list of catalog choices (Layout,
   Analyze) uses section headings, never indentation, and every row sits under a heading; Layout
   gains four headings from the catalog's `family` fact and loses its indented engine rows.
@@ -53,72 +51,19 @@ history.
   `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as
   the field and a field change leaves a hidden window with no way to clear it (TL-04, TL-05); a
   stale result reads current when node counts match (TL-03, staleness must compare the window).
-- (2026-10-22) Timeline architecture calls: Results, Mode and Step become field playback settings
-  (`time.settings`, project key `visibility.playback`) so "Show all time" keeps them (TL-12);
-  owner's three values and the `"stale"` default unchanged. One shared histogram brush in
-  compact-mantine fixes alignment, body drag, value text and touch size for every caller (TL-16).
-  Bins, Auto step, ends, jump-to-end and parsing typed dates are element facts; the dock computes
-  no widths (TL-11, TL-18, TL-22, TL-23). Commit 530c136's app-side "Time" precedence is a
-  workaround to delete once TL-06 lands.
-- (2026-10-22) Held against earlier rulings: no pre-set time field on samples ("nothing pre-done in
-  a first session"); no Time chip on the owner-approved Samples dialog; the selection line moves
-  over the histogram because a new row breaks "the drawing moves only when the reader asks"; F6
-  gains the dock as a sixth region only while it is shown.
 - (2026-10-22) LOCATION MAP PROTOTYPE (branch feat/location-map-prototype, build 3137c48f2f):
   four reviews triaged into `location-map/decisions.md`. 23 items to do, 8 rejected or deferred,
   and the open one-way doors for the owner. The worst finding: Map that cannot run said nothing
   and showed "Applied" (three reviews). Fix order: false screens first (refusal, half-filled
   pair, undo), then lost data (detection, antimeridian, unplaced), then legibility (contrast,
   node scale, tiles).
-- (2026-10-22) Decided myself: preset views follow the map's facing only while a map frame is
-  active, which settles the Isometric item; wheel zoom centers on the pointer only on a map. The
-  map picker keeps its home in Graph settings, renamed "Source", with one read-only row in the
-  layout form that leads to it. Rejected: clicking a node no longer moving the map (owner's
-  2026-10-20 glide), a combined pair picker, location roles at import.
 - (2026-10-22) Lesson: the reviewers all asked for a refusal mechanism that already exists
   (`CostEstimate.refusal`, `layout.needs-grouping`). Grep the existing coded-fact paths before
   naming a new element mechanism.
-- (2026-10-21) TIER 3 REPORT REWRITTEN with round 1's results; the subagent harness again refused
-  `tier3/report.md`, so the text went back to the orchestrator to write. Next move is the owner's:
-  whether to fund round 2. Owner list is ELEVEN, not nine: the earlier draft missed the edge
-  line-width unit (2026-10-09) and the bare number in rules (2026-10-07); the fold region is
-  settled by the owner's 2026-10-10 minor-release ruling (tier 2 report says so).
-- (2026-10-21) TIER 3 ROUND 1 CLOSED; THE STUDIO STOPPED at the 1-round cap without meeting the
-  bars. Read `tier3/rounds/round-1/insights.md` first. 55 of 56 sessions succeeded; the round is
-  at its ceiling: signal is in cost, routes and problems, not success.
-- (2026-10-21) Bar 5 fails only on the two severity 3 backlog items carried in (the node Fill "+"
-  one-node layer; the folder chain icon painting every cluster one color, reached by 0 sessions).
-  No new severity 3 survived the two skeptics. Bar 1's only F is the grading rule's: `#FFD700` is
-  drawn yellow but `colorWord` names it "gold".
-- (2026-10-21) Fix first, in compact-mantine: `colorWord` returns CSS keywords before hue, so the
-  spoken name and the grade disagree with what is drawn. One shared fix serves grading and
-  screen readers.
-- (2026-10-21) Top design problems (all severity 2): with nothing picked, the Graph inspector's
-  Style tab gives no route to node color (9 sessions); a new style line starts at the value
-  everything already has (Fill `6366F1`, Width 8 with no unit), so it looks broken; nothing marks
-  which rows or nodes a layer paints; color entry is hex first and never says words work.
-- (2026-10-21) Keyboard: inspector F6 stop has no focus ring (WCAG 2.4.7); both "Samples"
-  controls leave focus behind; 30+ Tabs to a sample card. One persona only; cost, not failure.
-- (2026-10-21) Six build defects with repros (see insights): "+" click lost while find list open;
-  one hue-bar click closes the picker; ~130 px move on first color with a selection held (same
-  family as the backlog `followSelection` vs `setViewInsets` jump); "community" filter misses;
-  swatch focus drawn as hex box focus. The wheel-zoom claim is a tool artifact until a 30-notch
-  repro.
-- (2026-10-21) Light-theme contrast is ONE element (the "Autosave: saved" chip, 2.17:1), not every
-  screen as the pre-round draft said. Round 1's 11 voids were one runner mechanism (start inside
-  the participant's turn); 0 Sonnet sessions.
-- (2026-10-21) Owed before any next round: `score.mjs` bar 4 start from first steps line after
-  open; criteria decision on CSS keywords inside the asked hue's band; a measure separating
-  avoiding the `<<Layer>>` token from understanding it; read tasks for leading (the answer key
-  names most problems graders cite).
-- (2026-10-21) Fix order after the go: `colorWord`, bar 6, bar 8, the two carried-in 3s, the
-  four severity 2 design problems, the six repro'd defects; raw `>` card before T42 runs.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Do not let a
   ceiling round read as "the product is easy".
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
-- (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
-  unit with the owner's leave. No bypass trailer.
 - Owner items open: eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
 
 ## Priorities and values
@@ -160,57 +105,20 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 criteria.** Applied the three reviews where they converged (returning readers,
+  doubt moved to follow-ups, bars 4 to 8 tightened, a state list behind bar 10). Added bar 11 from the
+  advocate and bar 12 in place of the red team's gate on severity 2s: answered, not fixed, since a quick
+  round gates on harm. Rejected: a tool option for a mid-session failure (the `REAL_GEMINI_COUNT` file
+  gives one free) and a model instruction that falsifies counts (the selection plant needs a setup only).
+  T92 A went to Dev, a believer, because a doubter on the plant measures the briefing.
 - **2026-11-04, Assistant concept.** Panel in the rail, with the chip reply language and the
   reviewed transcript grafted in. All four reviews ranked the panel over the window, and the window's
   covered-node failure is the worst one: a reader checks the wrong picture. Rejected: the window;
   folding older turns; prose mentions as chips (launders model claims); a Quick actions door as the
   no-key path; a model dropdown in the composer; glyph marks beside chips.
-- **2026-10-23, Layout and Analyze section pattern (owner question, issue #3315).** The owner:
-  the two menus must share one pattern, indent or headings, and either every item is in a
-  section or none is. Today Analyze uses headings (Recent, Rank nodes and edges, Find groups,
-  Find paths and edge sets, Measure the graph) with every row under one; Layout uses neither
-  for most rows and indents only Force's six engines, with the eight Graphviz engines flat
-  among the rest (28 rows, one Tab stop each). Decision: headings for both, every row
-  under one, no indentation in any pick list. Reasons: (1) indentation shows one level of
-  "child of the row above" and cannot carry the Graphviz engines, which belong to three
-  different arrangements, so it would stay partial, which is what the owner rejected; (2)
-  Analyze's headings already passed tiers 1-3, and a 28-row list needs landmarks at least as
-  much; (3) headings are a Figma-native pattern (layer and plugin menus) and the
-  ARIA group-in-listbox pattern Analyze already ships, so this is one built-in, not a new
-  control; (4) the element already declares `family` for every layout, so the grouping is the
-  app reading an element fact, like Analyze reading result shapes -- no graph logic in the
-  app, no element change. Rejected: indentation for both (Analyze has no parent rows to
-  indent under, and invented parents become clickable-looking non-options); flat lists with
-  no sections (Analyze would lose the landmarks its tree tests depend on); a Force parent row
-  that expands (a disclosure inside a listbox, a second interaction rule only this list uses);
-  moving engines into the Force form as an "Engine" select (worth considering, but it hides
-  engines the owner asked to see in the list and is a separate question); a Filter box on
-  Layout (28 rows fit; revisit if a plugin pushes it past about 40). Section words are mine
-  to change after a tree test, the pattern is not.
-  Spec for both lists: inside the listbox, one `role="group"` per section with `aria-label` =
-  its heading, the heading drawn as Analyze draws it today (`Text size="xs" fw={600}
-c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every option
-  inside exactly one group; no `pl` or `data-nested` indent anywhere; an empty section is not
-  drawn. Layout sections, in this order, from the catalog's `family` fact on each descriptor
-  (the app owns the words and order, the element only the fact): `force` -> "Force-directed",
-  `geometric` -> "Shapes", `hierarchical` -> "Hierarchy", `special` and any family the app does
-  not know (a plugin's) -> "Other". Rows inside a section keep catalog order, so Force's
-  default row comes first, then its engines (D3 Force, ForceAtlas2, Spring, Kamada-Kawai,
-  Spring Electrical, ARF), then the Graphviz engines of that family with their "Graphviz"
-  suffix (Stress, Spring embedder, Multilevel spring). Hierarchy: Tree, Two columns, Columns by
-  group, Layered. Shapes: Circle, Rings around a node, Grid, Rings by group, Spiral, Spectral,
-  No crossings, Random, Circles, Rings. Other: Keep positions, Map, Clusters, Treemap. Each
-  row is unchanged otherwise (check, name, Graphviz suffix, Recommended, slow, dimmed line,
-  reason). Analyze keeps Recent and its four headings exactly as they are. Keyboard in Layout:
-  the list is one Tab stop (roving tabindex on the checked row, else the first enabled row);
-  ArrowDown/ArrowUp move across sections and skip headings, Home/End go to the first/last
-  row, Enter or Space opens a row, Esc steps back from the form and a second Esc closes (as
-  now). Analyze's keyboard is unchanged; its arrows already skip headings. Command menus (the
-  main menu, a row's menu) are not pick lists: they keep dividers between groups and no
-  headings. The Style tab's "+ Set another property" and the table's Columns chooser already
-  follow the rule (Menu.Label sections, every item in one) and stay. A test asserts every
-  `family` in the element's layout catalog maps to a heading, as `words.ts` does for result
-  shapes, and a real-input test walks the Layout list by arrows and reads the group names.
+- **2026-10-23, Layout and Analyze section pattern (issue #3315; full text in git history).** Headings
+  for both menus, every row under one, no indentation in any pick list: indentation cannot carry the
+  Graphviz engines, and Layout's four headings come from the catalog's `family` fact.
 - **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
   round, per-task table, learnings in insight order, changes by package with whether round 1
   confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the
@@ -228,38 +136,9 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
 - **2026-10-21, tier 3 report with round 1 not run** (superseded the same day). Bars 6 and 8 not
   fixed before round 1 (round cannot pass by plan; a fix restarts the walks); the tool's 900 x 700
   gap did block the round.
-- **2026-10-21, dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`).** 141 lines, 0 (a). Not
-  (a), with reasons: the selection-held jump (layer graded from `styles.json`, names only as read
-  from screen, Fit recovers, T41's success path already needs Fit after the owner's glide); the raw
-  `>` threshold card (T42 only, `>=` or Remove reaches the line); T46 B's key dropping Louvain
-  after Undo (only after reopening an app-exported GraphML; T48 B's plain-file Replace and Undo
-  keep the key, `q-findlayer-replace-undo/10.png`); the unset Width Enter (a width over 8, the
-  success step, works); T42 A's Filter-to focus (a click reaches the box). T48 A's PASS INCOMPLETE
-  is covered by `758c-pointer` on the same build. Settled in `decided.md` 2026-10-21: a held
-  selection asks for nothing after the pick (narrows the 2026-10-20 glide). Left (b): whether a
-  different file offers Replace on Control+O (T50 B). No API change.
-- **2026-10-20, dry run passes 1 and 2 on 7d87760756 and 6de5f95d12** (summarized 2026-10-21; full
-  text in git history and `tier3/dry-run-r1-1.md`, `-r1-2.md`). Five units, all fixed and held: a
-  project opens with its look across a channel rename; the table names community groups as the key
-  does; Replace with the same file keeps hand-picked layers; a layer from a selection takes its
-  conditions before a look (`addRow` admitted what `update` refused); Undo across Replace redraws
-  from the layers. Each settled in `decided.md` 2026-10-20.
-- **2026-10-20, fifth review of the tier 3 criteria, frozen** (summarized 2026-10-20; full text in
-  git history). The round 1 build must hold golden (checkable by `--is-ancestor f9d8b44b9`); round 1
-  verdict rule; design problems confirmed across two halves; colors by `colorWord`; core halves need
-  2 S/SD without Alex and Maren; backlog severities; preflight 4 defines grading-spoiling and Sam's
-  keyboard blocks; missing screens and `spoken.json` are gate refusals. Not taken: dropping T37 from
-  the judged set; SD for T50 B. Which build counts is a rule, not an owner question.
-- **2026-10-19, dry-run triage on e3c5bca8e6 (`tier3/dry-run-r1-5.md`)** (summarized
-  2026-10-21; full text in git history). Settled in `tier3/decided.md`: the drawing moves only when
-  the reader asks; Which nodes with no condition opens on its list; Escape keeps typed text and
-  clears a selection only on its inspector; Tab and remove never pull focus back; F6 cycles five
-  regions; a node is called by its label; Control+A selects all. No API change.
-- **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b** (summarized
-  2026-10-20; full text in git history). Bar 2 states T49's exception; bar 5 unscored when a walk
-  skipped a success-path screen; bar 6 checks typing after "Starts with"; bar 7 confirmed by a
-  `--keys` repro or two Sam sessions; `spoken.json`; docs-only commits never refreeze; the dry run
-  walks only planned halves; gate keyed by half; T51 to 4, T44 to round 2.
+- **2026-10-19..21, tier 3 dry runs and criteria reviews (summarized 2026-11-05; full text in git
+  history).** Pass 3 on 758b8e8081 fixed only what blocked; triage stayed against `decided.md`; the fifth
+  criteria review froze the bars; `tier3/dry-run-r1-*.md` hold each pass.
 - **2026-10-17..18, earlier tier 3 criteria reviews and dry-run triages r1-1 to r1-4**
   (summarized 2026-10-20; full text in git history, the dry-run files, the criteria change log and
   `tier3/decided.md`). The exit test and `decided.md` came from the third review; bar 4 fixed at
@@ -301,6 +180,10 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (tier 6 freeze) -- Worked: walking each proposed setup before ruling. It proved the
+  selection plant with one question, and found a setup race: `--click API key` looked before Settings
+  had drawn, so 1 start in 3 failed with the dialog then on screen. `--expect API key` first in every
+  setup; 3 starts clean. Did not work: `--expect selected=N` reads table rows, not canvas selection.
 - 2026-11-04 (Assistant) -- Worked: checking each review claim in source before ruling. It settled
   the caption fit by measuring (39.41 of 40 px, in a browser with the app's font), showed the history
   read already answers Undo so `undoAiMessage` is unneeded, and showed a new assertive region is
@@ -331,29 +214,8 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
   `session.json` commits showed T48 A's "unwalked" success path was walked on the same build by an
   earlier session. Worked: the rows file plus generator again (141 rows, per-task counts asserted).
 
-- 2026-10-20 (dry run passes 1 and 2, criteria review; summarized 2026-10-21, full text in git
-  history) -- Worked: a Node repro against the built element before writing a unit (the problem
-  code led to the cause in minutes); walking an unjudged task's (a) candidate myself; reading
-  `answers.md` grading before classing spoils; one rows file plus a generator with asserts for
-  every triage; reading the design-studio skill before taking a red-team claim. Did not work: a
-  pass file name reused (history in git); prose counts copied from an earlier pass; "does not pass
-  until" sentences in preflights (gate refusals instead).
-- 2026-10-19 (r1-5 and criteria review; summarized 2026-10-21) -- Worked: reading each fix
-  commit's message before classing origin (two lines named 26 of 37 regressions); grepping for a
-  decided rule's code before calling a defect a regression; reading `gateCheck` before taking a
-  red-team claim; recounting the roster by script. Did not work: a new build for a docs-only
-  commit (it reset the dry run's count).
-- 2026-10-18 (summarized 2026-10-20) -- Worked: checking reviewer claims against the tool before
-  writing a rule; counting input lines per task against the triage rows; reading `session.json`
-  (`commit`, `uncommittedChanges`) before classing; grepping the on-screen string to find the
-  owning file. Did not work: carrying a known wrong bar "between rounds" across four builds;
-  launching more pilots than browser slots; judging a find-box Escape fix alone.
-- 2026-10-17 (summarized 2026-10-20; full text in git history) -- Worked: reading
-  `owner-decisions.md` before classing (six "defects" were decided behavior); triaging by mechanism
-  (490 lines into 21 groups); grepping on-screen strings to find the owning file; lists, not tables,
-  for long triages; walking reviewers' proposed screens by hand before adding them. Did not work:
-  judging a focus fix alone; a recovery that pressed Escape and dropped a card; counting "one by
-  one" toward T47's route bar.
+- 2026-10-17..20 (summarized 2026-11-05) -- Worked: checking reviewer claims against the tool and the
+  screens before ruling. Did not work: trusting a bar the tool had not been seen to read.
 - 2026-10-11..13 -- Worked: the gate inside `real.mjs --start`; reading the red team against source;
   measuring before classing. Did not work: counting steps differently for key and participants.
 - 2026-09-27..10-10 -- Worked: root-causing in source; one change per path. Did not work: a fix
@@ -361,6 +223,8 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
 
 ## Thinking
 
+- **2026-11-05, tier 6 criteria:** all three reviewers found the same shape: a bar can pass while the
+  thing it studies never happens. Before freezing any bar, ask what it reads if the trap never fires.
 - **2026-10-21, after round 1:** the cheapest next round is one where the instrument moves first.
   Every pre-round claim I carried as a measurement (contrast on every screen, the private-window
   notice gone with a disk profile) was narrower or different once the round measured it. Report

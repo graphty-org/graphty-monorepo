@@ -2052,7 +2052,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                         }
                     }
                 },
-                addedOnTop(request) ? request.fromIndex : null,
+                // A pass already handed the stack with the new layers in it has painted them: going
+                // over that paint would apply them twice, and a list like `node.shaders` keeps both.
+                addedOnTop(request) && !request.stack.slice(request.fromIndex).some((entry) => appliedTo.has(entry))
+                    ? request.fromIndex
+                    : null,
             ),
         );
 

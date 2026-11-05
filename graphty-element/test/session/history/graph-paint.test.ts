@@ -497,6 +497,31 @@ describe("an add under layers that encode or select by expression (issue #5897)"
         session.dispose();
     });
 
+    it("paints an add of 100,000 edges under a degree, more ends than a call takes arguments", async () => {
+        const session = await chained(2000);
+        await session.styles.add(ENCODED_LAYERS["a degree"][0]);
+        await session.data.addNodes([{ id: "start" }]);
+        await dispatcherOf(session).lane.settled();
+        const painted = paintedPerPass(session);
+
+        await session.data.addEdges(
+            Array.from({ length: 100_000 }, (_, at) => ({
+                src: `v${String(at % 2000)}`,
+                dst: `v${String((at + 1 + Math.floor(at / 2000)) % 2000)}`,
+            })),
+        );
+        await dispatcherOf(session).lane.settled();
+
+        const { nodeCount, edgeCount } = session.snapshot();
+        assert.isAtLeast(edgeCount, 100_000);
+        assert.deepEqual(
+            painted,
+            [{ nodes: nodeCount, edges: edgeCount }],
+            "the extent moved, so every row is painted",
+        );
+        session.dispose();
+    });
+
     it("paints every row under a template's rank, which no settled fact describes", async () => {
         const session = await styled();
         await session.styles.add(ENCODED_LAYERS["a template's rank"][0]);

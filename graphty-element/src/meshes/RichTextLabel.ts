@@ -130,6 +130,8 @@ export interface RichTextStyle {
     background: string | null;
     /** How far below the line's baseline this run is drawn, in canvas pixels (the markup's `shift`). */
     shift?: number;
+    /** The same, leaving the line where it was (the markup's `nudge`). */
+    nudge?: number;
 }
 
 export interface TextSegment {
@@ -444,6 +446,8 @@ export class RichTextLabel {
     private textSize = { width: 0, height: 0 };
     /** How far the first line's font box sits below the words' top, and the last line's above their bottom. */
     private textLead = { top: 0, bottom: 0 };
+    /** How far nudged runs reach past the first line's top and the last line's bottom (`measureLine`'s `over`). */
+    private textOver = { top: 0, bottom: 0 };
     /**
      * How tall the plane is, in units of one line's height in the scene (`lineHeightInWorld`): 1
      * for one line at the default line height, more for each extra line or wider spacing (see
@@ -866,15 +870,20 @@ export class RichTextLabel {
 
         this.wrapToWidth(tempCtx);
 
-        const { maxWidth, totalHeight, leadTop, leadBottom } = this.parser.measureText(this.parsedContent, tempCtx, {
-            lineHeight: this.options.lineHeight,
-            textOutline: this.options.textOutline,
-            textOutlineWidth: this.options.textOutlineWidth,
-            runAlign: this.options.runAlign,
-        });
+        const { maxWidth, totalHeight, leadTop, leadBottom, over } = this.parser.measureText(
+            this.parsedContent,
+            tempCtx,
+            {
+                lineHeight: this.options.lineHeight,
+                textOutline: this.options.textOutline,
+                textOutlineWidth: this.options.textOutlineWidth,
+                runAlign: this.options.runAlign,
+            },
+        );
 
         this.textSize = { width: maxWidth, height: totalHeight };
         this.textLead = { top: leadTop, bottom: leadBottom };
+        this.textOver = over;
         const bgPadding = this.options.backgroundPadding * 2;
 
         this.totalBorderWidth = this._sumBorderWidth();
@@ -1834,6 +1843,11 @@ export class RichTextLabel {
             const w = this.textBounds;
             sx0 = shiftX * (w.right - w.left) * labelWidth - ((w.left + w.right) / 2 - 0.5) * labelWidth;
             sy0 = shiftY * (w.bottom - w.top) * labelHeight - ((w.top + w.bottom) / 2 - 0.5) * labelHeight;
+        }
+        // the plane grows to hold a nudged run, and moves so the lines stay where they would be without it
+        const { height } = this.actualDimensions;
+        if (height > 0) {
+            sy0 += (((this.textOver.bottom - this.textOver.top) / 2) * labelHeight) / height;
         }
         return {
             x: offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn),

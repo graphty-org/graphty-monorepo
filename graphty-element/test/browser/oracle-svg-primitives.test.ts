@@ -45,6 +45,24 @@ describe("the oracle SVG reader", () => {
         assert.closeTo(small.middle, large.middle, 0.1);
     });
 
+    it("reads the lines of a label drawn under a few pixels high where they stand, not where rounding left them", () => {
+        // json-cyjs-winecheese 107: two lines centered at one x, 1.9 px on screen, read 0.4 px apart and so right-aligned
+        const label = (anchor: string): string => `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">
+            <g transform="matrix(0.2146 0 0 0.2146 0 0)">
+                <text x="900" y="900" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">L'Edel de</text>
+                <text x="900" y="909" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">Cleron</text>
+            </g></svg>`;
+        const boxes = (anchor: string): { x0: number; x1: number }[] =>
+            readSvgPrimitives(label(anchor)).prims.flatMap((p) => (p.text ? [p.text.box] : []));
+        const [a, b] = boxes("middle");
+        assert.closeTo((a.x0 + a.x1) / 2, (b.x0 + b.x1) / 2, 0.02);
+        assert.isAbove(a.x1 - a.x0 - (b.x1 - b.x0), 1);
+        // lines started at one x still read so
+        const [c, d] = boxes("start");
+        assert.closeTo(c.x0, d.x0, 0.02);
+        assert.isAbove(Math.abs((c.x0 + c.x1) / 2 - (d.x0 + d.x1) / 2), 0.5);
+    });
+
     it("reads the open outline vis-network writes over a filled shape as that shape's outline", () => {
         // vis-network's database cylinder: its fill, then its outline as an open stroke-only path of the same geometry
         const d =

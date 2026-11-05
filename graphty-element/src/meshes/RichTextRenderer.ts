@@ -53,8 +53,9 @@ export class RichTextRenderer {
         const textAreaX = contentArea.x + this.options.marginLeft + pad;
         let currentY = contentArea.y + this.options.marginTop + pad;
 
-        for (const lineSegments of parsedContent) {
-            const { width, lineBox, baseline, offsets } = measureLine(ctx, lineSegments, this.options);
+        for (const [i, lineSegments] of parsedContent.entries()) {
+            const { width, lineBox, baseline, offsets, over } = measureLine(ctx, lineSegments, this.options);
+            currentY += i === 0 ? over.top : 0;
             const startX = this.calculateLineStartX(textAreaX, textAreaWidth, width);
 
             this.drawLine(ctx, lineSegments, startX, currentY, lineBox, currentY + baseline, offsets);

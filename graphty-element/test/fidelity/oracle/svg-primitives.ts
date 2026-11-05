@@ -692,8 +692,11 @@ const SMALL_TEXT_SCALE = 100;
  * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
  * lays a text out at the size it is drawn on screen and rounds the font's ascent and descent to whole pixels there, so a
  * text drawn a pixel high has a line box twice its font size, wholly above its baseline (dot-real-depcruise's 0.8 px
- * labels: 1.88 em tall, its middle 0.62 em above the words' middle). A text drawn small is laid out again a hundred
- * times larger, where the rounding is nothing, and its line box taken from there.
+ * labels: 1.88 em tall, its middle 0.62 em above the words' middle), and its letters' advances too, so a line centered
+ * on its anchor reads a fifth of a pixel off it (json-cyjs-winecheese 107's two lines, both `text-anchor: middle` at one
+ * x, read as right-aligned). A text drawn small is laid out again a hundred times larger, where the rounding is nothing,
+ * and its box taken from there. A text under `text-rendering: geometricPrecision` is laid out at its own size, not the
+ * size on screen, so its advances were never rounded there and it keeps its width (graphml-cla-checker-graph).
  * @param el - the text
  * @param size - its font size in user units
  * @param screenPx - its font size on screen
@@ -708,6 +711,7 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
     if (placed || !(screenPx > 0 && screenPx < SMALL_TEXT_PX && bb.height > 0)) {
         return bb;
     }
+    const x = el.x.baseVal.numberOfItems > 0 ? el.x.baseVal.getItem(0).value : 0;
     const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
     const before = el.style.fontSize;
     el.style.fontSize = `${String(size * SMALL_TEXT_SCALE)}px`;
@@ -716,7 +720,11 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
     if (!(big.height > 0)) {
         return bb;
     }
-    return new DOMRect(bb.x, y + (big.y - y) / SMALL_TEXT_SCALE, bb.width, big.height / SMALL_TEXT_SCALE);
+    const top = y + (big.y - y) / SMALL_TEXT_SCALE;
+    const height = big.height / SMALL_TEXT_SCALE;
+    return getComputedStyle(el).textRendering.toLowerCase() === "geometricprecision"
+        ? new DOMRect(bb.x, top, bb.width, height)
+        : new DOMRect(x + (big.x - x) / SMALL_TEXT_SCALE, top, big.width / SMALL_TEXT_SCALE, height);
 }
 
 function textOf(

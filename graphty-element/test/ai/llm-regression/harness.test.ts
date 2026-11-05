@@ -264,8 +264,12 @@ describe("LlmRegressionTestHarness", () => {
             assert.isFalse(isTransientFailure(failure("AI_KEY_REJECTED", 401)));
             assert.isFalse(isTransientFailure({ code: "AI_FAILED", params: {}, message: "failed" }));
             // The transport already retried these: asking again only waits past the case's limit.
-            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_FLEX_CAPACITY: fetch failed")));
-            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_REQUEST_TIMEOUT: socket")));
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_FLEX_CAPACITY: fetch failed")),
+            );
+            assert.isFalse(
+                isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_REQUEST_TIMEOUT: socket")),
+            );
         });
     });
 

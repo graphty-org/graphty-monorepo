@@ -119,7 +119,7 @@ for (const [name, c] of [
         `| ${name} | ${cell(c, METRICS[8])} | ${cell(c, ["", (r) => r.layoutSteps?.stepCpu?.median, null, "ms"])} |`,
     );
 console.log(
-    "\n## Every run\n\n| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure |\n|---|---|---|---|---|---|---|---|---|",
+    "\n## Every run\n\n| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure | Runs | Load when each began |\n|---|---|---|---|---|---|---|---|---|---|---|",
 );
 const stages = ["load", "still", "orbit", "memory", "hover", "layoutFps", "layoutSteps"];
 const groups = new Map();
@@ -138,9 +138,10 @@ for (const r of all) {
             .split("\n")[0]
             .slice(0, 90),
     ].join(" | ");
-    groups.set(k, (groups.get(k) ?? 0) + 1);
+    groups.set(k, [...(groups.get(k) ?? []), r.loadavgBefore]);
 }
-for (const [k, c] of groups) console.log(`| ${k} |${c > 1 ? " x" + c : ""}`);
+for (const [k, loads] of groups)
+    console.log(`| ${k} | ${loads.length} | ${loads.map((l) => nice(l ?? 0)).join(", ")} |`);
 // The figures of section 8.3 (cosmos.gl: middle of its range; hover for graphty-element: the "on golden" row).
 const OLD = {
     "cosmos.gl": {

@@ -337,6 +337,7 @@ async function cosmosAdapter({ dpr }) {
 // One repack of every row and its upload, finished on the card, with the frame loop stopped.
 // Opened only here so that no earlier stage pays for tables nothing draws from yet.
 async function measureRepack(graph, eng) {
+    if (!graph.openRowTable) return undefined;
     const table = graph.openRowTable();
     const gl = graph.engine?._gl;
     table.flush();
@@ -592,7 +593,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                     undrawn.push(now() - t);
                 }
                 out.stepUndrawn = stats(undrawn);
-                if (graph.openRowTable) out.repackUpload = await measureRepack(graph, eng);
+                out.repackUpload = await measureRepack(graph, eng);
             } else {
                 const single = [];
                 const budget = now() + 20000;

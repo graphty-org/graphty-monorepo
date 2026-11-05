@@ -153,7 +153,7 @@ export function ChipRow({ target, kinds, table = false }: Readonly<ChipRowProps>
     };
     return (
         <Group gap={4} justify="space-between">
-            <div
+            <div // NOSONAR(S6819,S6847): one Tab stop with arrows inside, the roving pattern; a fieldset would bring its own frame
                 ref={group}
                 role="group"
                 aria-label={WORDS["assistant.chips.name"]}
@@ -264,7 +264,10 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
         <div className="ws-assistant-change">
             {lines.slice(0, MAX_LINES).map((line, index) => (
                 // A turn's lines never reorder.
-                <Text key={index} size="sm">
+                <Text
+                    key={index} // NOSONAR(S6479): two lines of a turn may read alike
+                    size="sm"
+                >
                     {line}
                 </Text>
             ))}

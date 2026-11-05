@@ -774,39 +774,64 @@ async function runInTransaction(
         targets.push(...(result.target === undefined ? [] : [result.target]));
     }
 
-    const { gate, totals } = batch.message;
-    if (gate !== false && gated(batch.message, "large")) {
-        const removeNodes = totals.removeNodes + measured.removeNodes;
-        // The share is of the graph before the message removed anything: what is left plus what went.
-        const large =
-            removeNodes >= gate.removeNodes ||
-            (removeNodes > 0 && removeNodes / (tx.status.counts.nodes + removeNodes) >= gate.removeNodesShare) ||
-            totals.removeEdges + measured.removeEdges >= gate.removeEdges ||
-            totals.changedValues + measured.changedValues >= gate.changedValues;
-        if (large) {
-            const target = batch.message.evidence === true ? heldTarget(targets) : undefined;
-            throw new RollBack(
-                held(
-                    "large",
-                    {
-                        removeNodes,
-                        removeEdges: totals.removeEdges + measured.removeEdges,
-                        changedValues: totals.changedValues + measured.changedValues,
-                        ids: affected.slice(0, 10).map((id) => ({ id, label: tx.data.name(id) ?? id })),
-                        ...(target === undefined ? {} : { target: target as JsonObject }),
-                    },
-                    batch,
-                    ready,
-                    writes,
-                ),
-            );
-        }
+    const { totals } = batch.message;
+    const large = largePreview(batch, tx, measured, affected, targets);
+    if (large !== undefined) {
+        throw new RollBack(held("large", large, batch, ready, writes));
     }
 
     totals.removeNodes += measured.removeNodes;
     totals.removeEdges += measured.removeEdges;
     totals.changedValues += measured.changedValues;
     return { results, writes };
+}
+
+/**
+ * What the reader is shown when a batch, with what the message did before it, passes the gate's
+ * limits.
+ * @param batch - The batch.
+ * @param tx - The transaction.
+ * @param measured - What its calls did.
+ * @param measured.removeNodes - Nodes removed.
+ * @param measured.removeEdges - Edges removed.
+ * @param measured.changedValues - Values changed.
+ * @param affected - The nodes they touched.
+ * @param targets - The targets they named.
+ * @returns The preview, or undefined within the limits.
+ */
+function largePreview(
+    batch: ToolBatch,
+    tx: TransactionScope,
+    measured: { removeNodes: number; removeEdges: number; changedValues: number },
+    affected: readonly string[],
+    targets: readonly AiTarget[],
+): JsonObject | undefined {
+    const { gate, totals } = batch.message;
+    if (gate === false || !gated(batch.message, "large")) {
+        return undefined;
+    }
+
+    const removeNodes = totals.removeNodes + measured.removeNodes;
+    const removeEdges = totals.removeEdges + measured.removeEdges;
+    const changedValues = totals.changedValues + measured.changedValues;
+    // The share is of the graph before the message removed anything: what is left plus what went.
+    const large =
+        removeNodes >= gate.removeNodes ||
+        (removeNodes > 0 && removeNodes / (tx.status.counts.nodes + removeNodes) >= gate.removeNodesShare) ||
+        removeEdges >= gate.removeEdges ||
+        changedValues >= gate.changedValues;
+    if (!large) {
+        return undefined;
+    }
+
+    const target = batch.message.evidence === true ? heldTarget(targets) : undefined;
+    return {
+        removeNodes,
+        removeEdges,
+        changedValues,
+        ids: affected.slice(0, 10).map((id) => ({ id, label: tx.data.name(id) ?? id })),
+        ...(target === undefined ? {} : { target: target as JsonObject }),
+    };
 }
 
 /**

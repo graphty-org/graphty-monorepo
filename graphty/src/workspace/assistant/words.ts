@@ -108,6 +108,9 @@ export const MODEL_INSTRUCTIONS =
     "Keep answers short. Write plain text with no markdown. Never name a color or a position in an " +
     "answer. Ask the reader when a wrong guess would cost them.";
 
+/** One fact behind a result's code, when it has it. */
+type ResultParam = AiResultParams[string] | undefined;
+
 /** One ended turn in words. */
 export interface EndWords {
     /** The turn's line. */
@@ -146,7 +149,7 @@ export function stepName(tool: string, args?: Readonly<Record<string, unknown>>)
  * @param status - the HTTP status, when it answered with one.
  * @returns the cause.
  */
-function causeWords(status: string | number | undefined): string {
+function causeWords(status: ResultParam): string {
     const code = Number(status);
     if (status === undefined || Number.isNaN(code)) {
         return "the connection failed";
@@ -165,7 +168,7 @@ function causeWords(status: string | number | undefined): string {
  * @param reason - the result's reason.
  * @returns the line.
  */
-function staleWords(reason: string | number | undefined): string {
+function staleWords(reason: ResultParam): string {
     switch (reason) {
         case "graph-changed":
             return "Not run: the graph changed.";
@@ -337,8 +340,7 @@ export function keyShapeWords(check: AiKeyShapeCheck, provider: string): string 
  * @param one - the thing.
  * @returns such as "12 nodes".
  */
-export const counted = (count: number, one: string): string =>
-    `${formatNumber(count)} ${count === 1 ? one : `${one}s`}`;
+export const counted = (count: number, one: string): string => `${formatNumber(count)} ${one}${count === 1 ? "" : "s"}`;
 
 /**
  * Nodes and edges in one phrase; a count of zero drops out.
@@ -473,7 +475,8 @@ function styleLine(session: GraphSession | null, params: AiEffect["params"]): st
     const count =
         params.edges === undefined ? counted(Number(params.nodes), "node") : counted(Number(params.edges), "edge");
     const source = typeof params.source === "string" ? params.source : undefined;
-    const by = source === undefined ? "" : ` by ${session === null ? source : attributeName(session, source)}`;
+    const named = session === null || source === undefined ? source : attributeName(session, source);
+    const by = named === undefined ? "" : ` by ${named}`;
     if (channel.endsWith(".color")) {
         return `Colored ${count}${by}`;
     }

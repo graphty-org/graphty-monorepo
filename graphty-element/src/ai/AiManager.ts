@@ -494,44 +494,9 @@ export class AiManager {
         this.graph = graph;
         this.disposed = false;
 
-        // Configure key persistence if specified (before setting API key)
-        if (config.keyPersistence?.enabled) {
-            this.apiKeyManager.enablePersistence({
-                ...(config.keyPersistence.encryptionKey === undefined
-                    ? {}
-                    : { encryptionKey: config.keyPersistence.encryptionKey }),
-                storage: config.keyPersistence.storage ?? "localStorage",
-                prefix: config.keyPersistence.prefix,
-            });
-            this.apiKeyManager.retireOtherStorage();
-        }
-
-        // Use custom provider instance if provided, otherwise create one
-        if (config.providerInstance) {
-            this.provider = config.providerInstance;
-        } else {
-            // Create the provider
-            this.provider = createProvider(config.provider);
-
-            // The model and its options, kept for a key set later (`setApiKey`).
-            this.providerOptions = {
-                model: config.model,
-                temperature: config.temperature,
-                reasoningEffort: config.reasoningEffort,
-                thinkingBudgetTokens: config.thinkingBudgetTokens,
-            };
-            // Configure the provider with API key if provided (will be persisted if persistence enabled)
-            if (config.apiKey) {
-                this.keysSeen.add(config.apiKey);
-                this.apiKeyManager.setKey(config.provider, config.apiKey);
-            }
-
-            // A key given here wins; with none, the one storage brought back is the provider's key.
-            this.provider.configure({
-                ...this.providerOptions,
-                apiKey: config.apiKey || this.apiKeyManager.getKey(config.provider),
-            });
-        }
+        // Before the API key is set, so it is persisted.
+        this.persistKeys(config.keyPersistence);
+        this.provider = config.providerInstance ?? this.configuredProvider(config);
 
         const toolset = config.toolset ?? "commands";
         if (toolset === "generated") {
@@ -546,46 +511,7 @@ export class AiManager {
         // Initialize schema manager and set up data change listeners
         this.initializeSchemaManager();
 
-        // Create the controller. Among the generated tools, WebLLM's models break past a handful.
-        const profile = config.toolProfile ?? "auto";
-        const smallModel = toolset === "generated" && config.provider === "webllm";
-        const history = historyFor(config.history, graph);
-        this.controller = new AiController({
-            provider: this.provider,
-            commandRegistry: this.commandRegistry,
-            graph: this.graph,
-            schemaManager: this.schemaManager,
-            toolset,
-            ...(config.instructions === undefined ? {} : { instructions: config.instructions }),
-            ...(toolset === "generated"
-                ? { toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile }
-                : {}),
-            ...(config.gate === undefined ? {} : { gate: config.gate }),
-            ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
-            ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
-            ...(config.questions === undefined ? {} : { questions: config.questions }),
-            ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
-            ...(config.tools === undefined ? {} : { tools: config.tools }),
-            ...(config.model === undefined ? {} : { model: config.model }),
-            ...(history === undefined
-                ? {}
-                : {
-                      history,
-                      // Every key the page has given, rotated or removed ones included.
-                      secrets: () => {
-                          for (const provider of this.apiKeyManager.getConfiguredProviders()) {
-                              this.keysSeen.add(this.apiKeyManager.getKey(provider) ?? "");
-                          }
-
-                          return [...this.keysSeen];
-                      },
-                  }),
-            // Onto the graph's own event channel, so `addListener` and the element's DOM
-            // forwarder both deliver every AI event.
-            emitEvent: (event) => {
-                graph.eventManager.emit(event.type, { ...event });
-            },
-        });
+        this.controller = new AiController(this.controllerOptions(graph, config, toolset, this.provider));
 
         this.voiceOptions = config.voice;
         this.voiceKeys = config.apiKeys;
@@ -603,6 +529,108 @@ export class AiManager {
         }
 
         this.initialized = true;
+    }
+
+    /**
+     * Turn key persistence on, when the configuration asks, and retire what another `storage`
+     * setting left behind.
+     * @param persistence - `keyPersistence`.
+     */
+    private persistKeys(persistence: AiManagerConfig["keyPersistence"]): void {
+        if (!persistence?.enabled) {
+            return;
+        }
+
+        this.apiKeyManager.enablePersistence({
+            ...(persistence.encryptionKey === undefined ? {} : { encryptionKey: persistence.encryptionKey }),
+            storage: persistence.storage ?? "localStorage",
+            prefix: persistence.prefix,
+        });
+        this.apiKeyManager.retireOtherStorage();
+    }
+
+    /**
+     * Create the configured provider, with its model, its options and its key.
+     * @param config - The configuration.
+     * @returns The provider.
+     */
+    private configuredProvider(config: AiManagerConfig): LlmProvider {
+        const provider = createProvider(config.provider);
+
+        // The model and its options, kept for a key set later (`setApiKey`).
+        this.providerOptions = {
+            model: config.model,
+            temperature: config.temperature,
+            reasoningEffort: config.reasoningEffort,
+            thinkingBudgetTokens: config.thinkingBudgetTokens,
+        };
+        // Configure the provider with API key if provided (will be persisted if persistence enabled)
+        if (config.apiKey) {
+            this.keysSeen.add(config.apiKey);
+            this.apiKeyManager.setKey(config.provider, config.apiKey);
+        }
+
+        // A key given here wins; with none, the one storage brought back is the provider's key.
+        provider.configure({
+            ...this.providerOptions,
+            apiKey: config.apiKey || this.apiKeyManager.getKey(config.provider),
+        });
+        return provider;
+    }
+
+    /**
+     * Every key the page has given, rotated or removed ones included.
+     * @returns The keys.
+     */
+    private allKeysSeen(): readonly string[] {
+        for (const provider of this.apiKeyManager.getConfiguredProviders()) {
+            this.keysSeen.add(this.apiKeyManager.getKey(provider) ?? "");
+        }
+
+        return [...this.keysSeen];
+    }
+
+    /**
+     * What the controller is built with. Among the generated tools, WebLLM's models break past a
+     * handful.
+     * @param graph - The graph.
+     * @param config - The configuration.
+     * @param toolset - The tools the model is offered.
+     * @param provider - The provider.
+     * @returns The options.
+     */
+    private controllerOptions(
+        graph: Graph,
+        config: AiManagerConfig,
+        toolset: "commands" | "generated",
+        provider: LlmProvider,
+    ): AiControllerOptions {
+        const profile = config.toolProfile ?? "auto";
+        const smallModel = toolset === "generated" && config.provider === "webllm";
+        const toolProfile = profile === "auto" ? toolProfileFor(smallModel) : profile;
+        const history = historyFor(config.history, graph);
+        return {
+            provider,
+            commandRegistry: this.commandRegistry,
+            graph,
+            schemaManager: this.schemaManager,
+            toolset,
+            ...(config.instructions === undefined ? {} : { instructions: config.instructions }),
+            ...(toolset === "generated" ? { toolProfile } : {}),
+            ...(config.gate === undefined ? {} : { gate: config.gate }),
+            ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
+            ...(config.questions === undefined ? {} : { questions: config.questions }),
+            ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
+            ...(config.tools === undefined ? {} : { tools: config.tools }),
+            ...(config.model === undefined ? {} : { model: config.model }),
+            ...(history === undefined ? {} : { history, secrets: () => this.allKeysSeen() }),
+            // Onto the graph's own event channel, so `addListener` and the element's DOM
+            // forwarder both deliver every AI event.
+            emitEvent: (event) => {
+                graph.eventManager.emit(event.type, { ...event });
+            },
+        };
     }
 
     /**

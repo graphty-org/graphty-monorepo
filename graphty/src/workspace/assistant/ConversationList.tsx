@@ -16,7 +16,7 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
     const { element, store } = useWorkspace();
     const [rows, setRows] = useState<readonly AiConversationSummary[]>([]);
     const [deleting, setDeleting] = useState<string | null>(null);
-    const list = useRef<HTMLDivElement>(null);
+    const list = useRef<HTMLElement>(null);
     useEffect(() => {
         void element?.listAiConversations().then(setRows);
     }, [element]);
@@ -24,10 +24,9 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
         list.current?.querySelector("button")?.focus();
     }, [rows.length]);
     return (
-        <div
+        <section // NOSONAR(S6847): only catches Esc bubbling from the list's own buttons
             ref={list}
             className="ws-assistant-log"
-            role="region"
             aria-label={WORDS["assistant.list.name"]}
             onKeyDown={(event) => {
                 if (event.key === "Escape") {
@@ -104,6 +103,6 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
                     </li>
                 ))}
             </ul>
-        </div>
+        </section>
     );
 }

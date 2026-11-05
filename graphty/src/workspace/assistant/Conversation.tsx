@@ -1,5 +1,5 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
-import type { AiEffect } from "@graphty/graphty-element/catalog";
+import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import { Button, Collapse, Group, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -40,6 +40,12 @@ interface Turn {
     readonly undone: boolean;
 }
 
+/** How a turn ended. */
+interface Ending {
+    readonly code: AiResultCode;
+    readonly params: AiResultParams;
+}
+
 /** One step, as a row shows it: never its arguments. */
 interface Step {
     readonly name: string;
@@ -73,7 +79,7 @@ function turnsOf(messages: readonly AiConversationMessage[]): readonly Turn[] {
             if (turns.length === 0) {
                 turns.push({ reader: null, replies: [], provenance: undefined, undone: false });
             }
-            turns[turns.length - 1].replies.push(message);
+            turns.at(-1)?.replies.push(message);
         }
     }
     return turns;
@@ -150,7 +156,9 @@ function Steps({ steps, open, onToggle }: Readonly<StepsProps>): React.JSX.Eleme
                 <ul className="ws-assistant-steps">
                     {steps.map((step, index) => (
                         // A step has no id of its own, and a turn's steps only ever grow at the end.
-                        <li key={index}>
+                        <li
+                            key={index} // NOSONAR(S6479): a step has no id to key by
+                        >
                             <span className="ws-assistant-step">
                                 <Text span size="xs">
                                     {step.name}
@@ -164,7 +172,10 @@ function Steps({ steps, open, onToggle }: Readonly<StepsProps>): React.JSX.Eleme
                             {open
                                 ? step.results?.map((effect, at) => (
                                       // A reply's results never reorder.
-                                      <ResultRow key={at} effect={effect} />
+                                      <ResultRow
+                                          key={at} // NOSONAR(S6479): an effect has no id to key by
+                                          effect={effect}
+                                      />
                                   ))
                                 : null}
                         </li>
@@ -223,6 +234,44 @@ function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX
     );
 }
 
+/**
+ * A turn's steps: the running calls while it runs, then what its replies recorded.
+ * @param turn - the turn.
+ * @param status - the status, on the newest turn.
+ * @returns the steps.
+ */
+function stepsOf(turn: Turn, status: AiStatus | null): readonly Step[] {
+    if (isRunning(status)) {
+        return (status?.toolCalls ?? []).map((call) => ({ name: stepName(call.name, call.arguments) }));
+    }
+    return turn.replies.flatMap((reply) =>
+        reply.calls.map((call, index) => ({
+            name: stepName(call.command, call.arguments),
+            ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
+            ...(index === reply.calls.length - 1
+                ? { results: (reply.effects ?? []).filter((effect) => !isChange(effect)) }
+                : {}),
+        })),
+    );
+}
+
+/**
+ * How a turn ended: its saved outcome, the call a request ended on, else on the newest turn how the
+ * last run ended.
+ * @param turn - the turn.
+ * @param status - the status, on the newest turn.
+ * @param lastEnded - how the last run ended.
+ * @returns the code and its facts, if it has ended that way.
+ */
+function endingOf(turn: Turn, status: AiStatus | null, lastEnded: Ending | null): Ending | undefined {
+    // A request that ended unanswered says why on the calls it held.
+    const unanswered = turn.replies
+        .flatMap((reply) => reply.calls)
+        .findLast((call) => call.code === "AI_APPROVAL_STALE");
+    const saved = turn.replies.findLast((reply) => reply.outcome !== undefined)?.outcome ?? unanswered;
+    return saved ?? (status === null ? undefined : (lastEnded ?? undefined));
+}
+
 /** Props for TurnView. */
 interface TurnViewProps {
     readonly turn: Turn;
@@ -253,26 +302,11 @@ function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewPr
         .join("\n");
     // A run in progress, and a run that ended before its words were saved, show what streamed.
     const prose = running || said === "" ? (status?.streamedText ?? said) : said;
-    const steps: readonly Step[] = running
-        ? (status?.toolCalls ?? []).map((call) => ({ name: stepName(call.name, call.arguments) }))
-        : turn.replies.flatMap((reply) =>
-              reply.calls.map((call, index) => ({
-                  name: stepName(call.command, call.arguments),
-                  ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
-                  ...(index === reply.calls.length - 1
-                      ? { results: (reply.effects ?? []).filter((effect) => !isChange(effect)) }
-                      : {}),
-              })),
-          );
+    const steps = stepsOf(turn, status);
     const effects = running ? [] : turn.replies.flatMap((reply) => reply.effects ?? []);
     const changes = effects.filter(isChange);
     const result = effects.findLast((effect) => !isChange(effect));
-    // A request that ended unanswered says why on the calls it held.
-    const unanswered = turn.replies
-        .flatMap((reply) => reply.calls)
-        .findLast((call) => call.code === "AI_APPROVAL_STALE");
-    const saved = turn.replies.findLast((reply) => reply.outcome !== undefined)?.outcome ?? unanswered;
-    const ended = saved ?? (status === null ? undefined : (lastEnded ?? undefined));
+    const ended = endingOf(turn, status, lastEnded);
     const words = running || ended === undefined ? null : endWords(ended.code, ended.params, provider, false);
     const { reader } = turn;
     return (
@@ -352,7 +386,7 @@ interface ConversationProps {
  */
 export function Conversation({ conversation, status, choice }: Readonly<ConversationProps>): React.JSX.Element {
     const { element, store } = useWorkspace();
-    const log = useRef<HTMLDivElement>(null);
+    const log = useRef<HTMLElement>(null);
     const following = useRef(true);
     const [behind, setBehind] = useState(false);
     const running = isRunning(status);
@@ -381,13 +415,12 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
     };
     return (
         <div className="ws-assistant-logwrap">
-            <div
+            <section
                 ref={log}
                 className="ws-assistant-log cm-focus-inside"
-                role="region"
                 aria-label={WORDS["assistant.log.name"]}
                 // Scrolls by keyboard: a region with focus takes the arrow and Page keys.
-                tabIndex={0}
+                tabIndex={0} // NOSONAR(S6845): a scrolling region needs a focus stop for the keyboard
                 onScroll={(event) => {
                     const box = event.currentTarget;
                     const atFoot = box.scrollHeight - box.scrollTop - box.clientHeight <= FOOT_SLACK_PX;
@@ -410,7 +443,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                         />
                     );
                 })}
-            </div>
+            </section>
             {behind ? (
                 <Button className="ws-assistant-jump" variant="default" size="compact-xs" onClick={toFoot}>
                     {WORDS["assistant.jump"]}

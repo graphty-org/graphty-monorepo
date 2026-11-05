@@ -99,6 +99,25 @@ function choicesListed(text: string, choices: readonly string[]): string[] | und
 }
 
 /**
+ * What each part of an answer names.
+ * @param request - The question.
+ * @param request.choices - Its choices.
+ * @param request.multiple - Whether it takes several.
+ * @param answer - The answer.
+ * @returns A choice or undefined per part, or undefined when a list names none.
+ */
+function namedChoices(
+    { choices, multiple }: AiQuestionRequest,
+    answer: string | readonly string[],
+): readonly (string | undefined)[] | undefined {
+    if (typeof answer !== "string") {
+        return answer.map((value) => choiceNamed(value, choices));
+    }
+
+    return multiple ? choicesListed(answer, choices) : [choiceNamed(answer, choices)];
+}
+
+/**
  * The choices an answer picks, when they are among the question's: what a reader types or says
  * counts with case, punctuation and spacing ignored, and a question that takes several also takes
  * one text of its choices with commas between them.
@@ -107,17 +126,13 @@ function choicesListed(text: string, choices: readonly string[]): string[] | und
  * @returns The choices as the question gave them, or undefined when the answer is not among them.
  */
 export function pickedChoices(request: AiQuestionRequest, answer: string | readonly string[]): string[] | undefined {
-    const { choices, multiple } = request;
-    const named =
-        typeof answer === "string" && multiple
-            ? choicesListed(answer, choices)
-            : (typeof answer === "string" ? [answer] : answer).map((value) => choiceNamed(value, choices));
+    const named = namedChoices(request, answer);
     const values = named?.filter((value) => value !== undefined);
     const valid =
         values !== undefined &&
         values.length > 0 &&
         values.length === named?.length &&
-        (multiple || values.length === 1) &&
+        (request.multiple || values.length === 1) &&
         new Set(values).size === values.length;
     return valid ? values : undefined;
 }

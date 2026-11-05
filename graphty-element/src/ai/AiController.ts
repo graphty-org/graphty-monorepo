@@ -737,19 +737,7 @@ export class AiController {
         const consumerRoles = options.agents === undefined ? [] : rolesOf(options.agents);
         // The web tools asked for, kept where the provider and model can use them.
         const main = resolveTools(options.tools, this.getCapabilities());
-        const unavailable = [...main.unavailable];
-        for (const role of consumerRoles) {
-            if (role.tools === undefined) {
-                continue;
-            }
-
-            const provider = role.provider ?? options.provider.name;
-            const model = role.model ?? (role.provider === undefined ? this.model : defaultModelOf(provider));
-            const own = role.provider === undefined ? this.engine.capabilities(model).hostedTools : undefined;
-            const resolved = resolveTools(role.tools, capabilitiesOf(provider, model, own));
-            this.hosted.set(role.name, resolved.offered);
-            unavailable.push(...resolved.unavailable);
-        }
+        const unavailable = [...main.unavailable, ...this.resolveHelperTools(consumerRoles, options.provider.name)];
 
         // With a web tool to use, the main model may hand a task to the built-in research helper.
         const research = main.offered.length === 0 || options.tools === undefined ? [] : [researchRole(options.tools)];
@@ -795,6 +783,27 @@ export class AiController {
                 type: "ai-status-change",
                 status,
             });
+        });
+    }
+
+    /**
+     * Resolve the web tools each helper asked for, where its provider and model can use them.
+     * @param roles - The host's helpers.
+     * @param mainProvider - The assistant's own provider, by name.
+     * @returns The tools asked for that cannot be used.
+     */
+    private resolveHelperTools(roles: readonly AiAgentRole[], mainProvider: string): UnavailableTool[] {
+        return roles.flatMap((role) => {
+            if (role.tools === undefined) {
+                return [];
+            }
+
+            const provider = role.provider ?? mainProvider;
+            const model = role.model ?? (role.provider === undefined ? this.model : defaultModelOf(provider));
+            const own = role.provider === undefined ? this.engine.capabilities(model).hostedTools : undefined;
+            const resolved = resolveTools(role.tools, capabilitiesOf(provider, model, own));
+            this.hosted.set(role.name, resolved.offered);
+            return resolved.unavailable;
         });
     }
 

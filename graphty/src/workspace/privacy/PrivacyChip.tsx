@@ -24,12 +24,13 @@ export function PrivacyChip(): React.JSX.Element {
     const usageWords = on ? "Usage data on, content masked" : "Local only";
     const glyph =
         on || sendsTo !== null ? <GLYPHS.shared size={12} aria-hidden /> : <GLYPHS.private size={12} aria-hidden />;
+    const usageNote = on ? ` ${usage}.` : "";
     return (
         <Tooltip
             label={
                 sendsTo === null
                     ? `${usage}. Opens Settings > Privacy`
-                    : `Your messages and graph details go to ${sendsTo}.${on ? ` ${usage}.` : ""} Opens AI provider`
+                    : `Your messages and graph details go to ${sendsTo}.${usageNote} Opens AI provider`
             }
         >
             <Button

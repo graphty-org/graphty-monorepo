@@ -314,7 +314,7 @@ export class ApiKeyManager {
      */
     retireOtherStorage(): void {
         const config = this.persistenceConfig;
-        if (config === null || typeof window === "undefined") {
+        if (config === null || globalThis.window === undefined) {
             return;
         }
 
@@ -340,7 +340,7 @@ export class ApiKeyManager {
      * @param visit - What to do with each.
      */
     private eachStore(visit: (store: EncryptStorage) => void): void {
-        if (typeof window === "undefined") {
+        if (globalThis.window === undefined) {
             return;
         }
 

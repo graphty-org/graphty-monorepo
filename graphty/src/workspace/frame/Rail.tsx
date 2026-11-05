@@ -8,6 +8,23 @@ import { formatKey } from "../keys/keys";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
 /**
+ * The Assistant's glyph, with a neutral dot while a request waits for the reader.
+ * @param props - Component props
+ * @param props.waiting - whether one waits
+ * @returns The glyph
+ */
+function AssistantGlyph({ waiting }: Readonly<{ waiting: boolean }>): React.JSX.Element {
+    const glyph = <GLYPHS.assistant size={20} aria-hidden />;
+    return waiting ? (
+        <Indicator color="gray" size={8} offset={2} processing={false}>
+            {glyph}
+        </Indicator>
+    ) : (
+        glyph
+    );
+}
+
+/**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
  * as the classic shell's activity rail pins it, and Assistant after Graph while the element has the
  * assistant experiment on, with a neutral dot while a request waits for the reader. Views is not drawn until it is built. Icon buttons with the shared
@@ -51,15 +68,7 @@ export function Rail(): React.JSX.Element {
             />
             {assistant === null ? null : (
                 <RailButton
-                    icon={
-                        waiting ? (
-                            <Indicator color="gray" size={8} offset={2} processing={false}>
-                                <GLYPHS.assistant size={20} aria-hidden />
-                            </Indicator>
-                        ) : (
-                            <GLYPHS.assistant size={20} aria-hidden />
-                        )
-                    }
+                    icon={<AssistantGlyph waiting={waiting} />}
                     label="Assistant"
                     shortcut={assistantKey === undefined ? undefined : formatKey(assistantKey)}
                     active={place === "assistant"}

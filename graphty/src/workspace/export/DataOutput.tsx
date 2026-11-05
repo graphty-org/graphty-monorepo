@@ -389,6 +389,20 @@ function FailureAlert({ failure }: Readonly<{ failure: Failure }>): React.JSX.El
 }
 
 /**
+ * A field's row with a control at its end, as a Select's `inputContainer`.
+ * @param trailing - the control, if any.
+ * @returns what draws the row around the field.
+ */
+function withTrailing(trailing: React.ReactNode): (input: React.ReactNode) => React.JSX.Element {
+    return (input) => (
+        <Group gap={4} wrap="nowrap">
+            <div style={{ flex: 1, minWidth: 0 }}>{input}</div>
+            {trailing}
+        </Group>
+    );
+}
+
+/**
  * The Data output: one Format row per file type graphty-element writes (each format's export
  * variants, such as CSV's tables), the row's key options and the rest behind an Advanced fold, the
  * scope and the columns written, what the format cannot hold (the export's losses, as compact
@@ -541,22 +555,19 @@ export function DataOutput({
                         value={rowId}
                         allowDeselect={false}
                         // The format's rarer settings: the settings button at the end of its row.
-                        inputContainer={(input) => (
-                            <Group gap={4} wrap="nowrap">
-                                <div style={{ flex: 1, minWidth: 0 }}>{input}</div>
-                                {advanced.length === 0 ? null : (
-                                    // Its own floating layer: the page's is under this modal.
-                                    <PopoutManager key={row?.id}>
-                                        <SettingsPopout
-                                            label="Format settings"
-                                            changed={advanced.some((o) => keyed[o.name] !== undefined)}
-                                            onOpenChange={onSettingsOpen}
-                                        >
-                                            <Stack gap={8}>{optionsOf(advanced)}</Stack>
-                                        </SettingsPopout>
-                                    </PopoutManager>
-                                )}
-                            </Group>
+                        inputContainer={withTrailing(
+                            advanced.length === 0 ? null : (
+                                // Its own floating layer: the page's is under this modal.
+                                <PopoutManager key={row?.id}>
+                                    <SettingsPopout
+                                        label="Format settings"
+                                        changed={advanced.some((o) => keyed[o.name] !== undefined)}
+                                        onOpenChange={onSettingsOpen}
+                                    >
+                                        <Stack gap={8}>{optionsOf(advanced)}</Stack>
+                                    </SettingsPopout>
+                                </PopoutManager>
+                            ),
                         )}
                         onChange={(id) => {
                             const picked = rows.find((entry) => entry.id === id);

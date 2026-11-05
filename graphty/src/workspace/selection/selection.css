@@ -328,10 +328,6 @@
     background: var(--cm-bg-hover, var(--mantine-color-default-hover));
 }
 
-.sel-card-new {
-    margin-top: -4px;
-}
-
 .sel-card-new .mantine-Button-root {
     color: var(--mantine-color-dimmed);
 }
@@ -427,6 +423,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-top: -4px;
 }
 
 .sel-card-new [data-full] {

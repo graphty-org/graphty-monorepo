@@ -428,7 +428,11 @@ export function AnalyzePopover({
         const isChosen = chosen?.key === descriptor.key;
         if (calm) {
             return (
-                <div key={`${String(i)}-${descriptor.key}`} className="ws-analyze-row" role="presentation">
+                <div // NOSONAR(S6819): a layout wrapper between the listbox and its option, which no image could be
+                    key={`${String(i)}-${descriptor.key}`}
+                    className="ws-analyze-row"
+                    role="presentation"
+                >
                     <Tooltip
                         label={reason ?? words.answers}
                         disabled={(reason ?? words.answers) === ""}

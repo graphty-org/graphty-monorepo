@@ -43,7 +43,7 @@ const ONE_NAME: Readonly<Partial<Record<string, string>>> = {
  * @returns the name in sentence case.
  */
 const sentenceCase = (name: string): string =>
-    name.replace(/ ([A-Z])(?=[a-z])/gu, (_all, letter: string) => ` ${letter.toLowerCase()}`);
+    name.replaceAll(/ ([A-Z])(?=[a-z])/gu, (_all, letter: string) => ` ${letter.toLowerCase()}`);
 
 /**
  * One line of a form in the `selection-workspace` forms: the name at its left, its control filling

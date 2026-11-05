@@ -362,3 +362,47 @@ describe("the owner's review of the cards (2026-11-04)", () => {
         });
     });
 });
+
+describe("a card's settings pop-out closes like Figma's (the owner, 2026-11-04)", () => {
+    /**
+     * Opens the Degree card's settings.
+     * @returns the settings panel.
+     */
+    async function openSettings(): Promise<HTMLElement> {
+        await userEvent.click(screen.getByRole("button", { name: "Settings for Degree" }));
+        return screen.findByRole("dialog", { name: "Degree" });
+    }
+
+    it("a click on the workspace's empty card list or its header closes the settings and leaves the workspace open", async () => {
+        await openLayer();
+        const modal = await openModal();
+        await pickValue("Degree");
+
+        await openSettings();
+        const list = modal.querySelector<HTMLElement>(".sel-ws-cards");
+        assert.isNotNull(list);
+        const { height } = list.getBoundingClientRect();
+        // The bottom of the card list, below the one card: empty space.
+        await userEvent.click(list, { position: { x: 12, y: height - 12 } });
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the empty card list closes it");
+        });
+        assert.isTrue(modal.isConnected, "the workspace stays open");
+
+        await openSettings();
+        const count = modal.querySelector<HTMLElement>(".sel-ws-head .sel-count");
+        assert.isNotNull(count);
+        await userEvent.click(count);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the header closes it");
+        });
+        assert.isTrue(modal.isConnected);
+
+        await openSettings();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "Escape closes it");
+        });
+        assert.isNotNull(document.querySelector(".sel-ws"), "and only it");
+    });
+});

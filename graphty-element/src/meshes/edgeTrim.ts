@@ -299,8 +299,8 @@ EdgeTrimmed edgeTrimEnds(vec3 src, vec3 dst, EdgeTrimEnd source, EdgeTrimEnd tar
     }
 
     if (ends.hasSrc && ends.hasDst) {
-        float length = edgeTrimLength(ends.dst - ends.src);
-        vec3 unit = length > 0.0 ? (ends.dst - ends.src) / length : vec3(0.0);
+        float lineLength = edgeTrimLength(ends.dst - ends.src);
+        vec3 unit = lineLength > 0.0 ? (ends.dst - ends.src) / lineLength : vec3(0.0);
         ends.lineEnd = ends.dst - unit * capBack;
     }
 

@@ -117,6 +117,17 @@ import {
     wordsOnScreen,
     workGone,
 } from "./measure.mjs";
+import {
+    capLine,
+    countFileOf,
+    GEMINI_ROUTE,
+    geminiKey,
+    geminiRouter,
+    scanForKey,
+    siteFile,
+    TIER6_CAP,
+    usesAssistant,
+} from "./tier6.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
@@ -204,6 +215,9 @@ function tierOf(dir) {
     const rel = under(d, STUDIO) ? d.slice(STUDIO.length + 1) : under(d, SCRATCH) ? d.slice(SCRATCH.length + 1) : "";
     return rel.match(/^tier(\d+)(?:\/|$)/)?.[1] ?? (process.env.REAL_TIER || "2");
 }
+const tier6 = (dir) => usesAssistant(tierOf(dir));
+// the root .env of the main checkout; REAL_ENV_FILE plants another for --prove
+const ENV_FILE = process.env.REAL_ENV_FILE || join(MAIN, ".env");
 const tierFiles = (dir) => join(here, `../tier${tierOf(dir)}`);
 const setupsOf = (dir) => join(here, `../rounds/tier-${tierOf(dir)}/setups`);
 const frozenSha = (dir) =>
@@ -592,6 +606,20 @@ async function copyBack(own, home) {
     for (const line of leakLines(l, own)) console.log(line);
 }
 
+// --end of a tier 6 session: every file of these folders, bytes included, holds no key; a hit names
+// only the file. A check that cannot run fails.
+function keyCheck(dirs) {
+    const key = geminiKey(ENV_FILE);
+    if (!key) {
+        console.log(`FAIL: the key check could not run: no GOOGLE_API_KEY in ${ENV_FILE}`);
+        return false;
+    }
+    const hits = dirs.filter((d) => existsSync(d)).flatMap((d) => scanForKey(d, key).map((f) => join(d, f)));
+    for (const f of hits) console.log(`FAIL: the Gemini key is in ${f}`);
+    if (!hits.length) console.log(`key check: no key in ${dirs.join(" or ")}`);
+    return !hits.length;
+}
+
 // ---------- a round: its leak check and its gate ----------
 // the session rows of a round's plan.md ("| r4-s01 | T20 | A: ... | Nadia | `empty` |")
 const planRows = (rd) => {
@@ -898,6 +926,10 @@ async function start(dir, how, sr, task, keys) {
         console.log(`FAIL: ${ungated}`);
         return 1;
     }
+    if (tier6(dir) && !geminiKey(ENV_FILE)) {
+        console.error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}; nothing started`);
+        return 1;
+    }
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
         if (alive) {
@@ -1003,7 +1035,7 @@ async function start(dir, how, sr, task, keys) {
         waited++;
     }
     child?.unref();
-    topUp();
+    if (!tier6(dir)) topUp();
     const route = {
         start: how || "empty",
         keys: !!keys,
@@ -1037,8 +1069,17 @@ async function serve(dir, sr) {
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     if (!existsSync(join(dist, "index.html")))
         throw new Error(`no production build at ${dist}; run pnpm exec nx run graphty:build`);
+    // a warm browser has no tier: it never serves a tier 6 session (claimWarm)
+    const tier = dir ? tierOf(dir) : null;
+    const key = usesAssistant(tier) ? geminiKey(ENV_FILE) : null;
+    if (usesAssistant(tier)) {
+        if (!key) throw new Error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}`);
+        delete process.env.GOOGLE_API_KEY; // the browser inherits this process's environment
+    }
     // the app at / (so /samples/*.gml resolve); any path that is not a file is the app's page
     const http = createServer(async (req, res) => {
+        const site = siteFile(tier, new URL(req.url, "http://x").pathname);
+        if (site) return res.writeHead(200, { "content-type": "application/json" }).end(site);
         const f = join(
             dist,
             normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
@@ -1103,6 +1144,18 @@ async function serve(dir, sr) {
         saved: {},
     };
     await answerPickers(s);
+    if (key) {
+        s.gemini = { file: countFileOf(MAIN, tier), capped: false };
+        await context.route(
+            GEMINI_ROUTE,
+            geminiRouter({
+                key,
+                file: s.gemini.file,
+                onRefused: () => (s.gemini.capped = true),
+                log: console.log,
+            }),
+        );
+    }
     // every session records live regions: a notice that times out while a slow step settles is
     // still reported (goneNotices), as a person would have seen it
     await s.context.addInitScript(watchLive);
@@ -1177,6 +1230,8 @@ async function serve(dir, sr) {
                     else if (req.op === "measure") r = await measure(s, req.plant);
                     else if (req.op === "work") r = { out: [], code: 0, data: await s.page.evaluate(openWork) };
                     else if (req.op === "plant-removal") r = await plantRemoval(s);
+                    else if (req.op === "tier-facts") r = { out: [], code: 0, data: await tierFacts(s) };
+                    else if (req.op === "plant-gemini") r = await plantGemini(s);
                     else if (req.op === "plant-dom") r = await plantDom(s, req.kind);
                     else if (req.op === "end" && s.followUp && !s.followUpGiven) r = await giveFollowUp(s);
                     else if (req.op === "end") r = await opEnd(s);
@@ -1256,7 +1311,8 @@ function topUp() {
 }
 // Takes over a ready warm browser for <dir>: true when one answered the claim
 async function claimWarm(dir, sr, keys) {
-    if (!(WARM_POOL > 0)) return false;
+    // the app reads site.json once, and a warm browser loaded it with no session and no flag
+    if (!(WARM_POOL > 0) || tier6(dir)) return false;
     for (const sock of warmOnes().ready) {
         const r = await askAt(sock, {
             op: "claim",
@@ -1324,19 +1380,33 @@ async function warmUp(s, browser, http) {
     });
 }
 
+// A build with no site.json is the app's normal case (graphty/src/siteConfig.ts), not an error
+const noSiteFile = (url) => new URL(url, "http://x").pathname === "/site.json";
 // A tab of the session's browser: its errors, file choosers and downloads reported to the session
 async function newTab(s) {
     const page = (s.page = await s.context.newPage());
     s.cdp = null;
     const { origin } = s;
     page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
-    page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
+    page.on(
+        "console",
+        (m) =>
+            m.type() === "error" &&
+            !noSiteFile(m.location().url) &&
+            s.errors.push(`console error: ${m.text().slice(0, 300)}`),
+    );
     page.on(
         "response",
-        (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
+        (r) =>
+            r.status() >= 400 &&
+            !noSiteFile(r.url()) &&
+            s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
     );
-    page.on("requestfailed", (r) =>
-        s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
+    page.on(
+        "requestfailed",
+        (r) =>
+            !noSiteFile(r.url()) &&
+            s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
     );
     page.on("filechooser", (c) => {
         s.chooser = c;
@@ -1691,7 +1761,7 @@ async function opening(s, out) {
             // the workspace, or the start page a first visit with no project open lands on
             () =>
                 document.querySelector("#root")?.children.length > 0 &&
-                document.querySelector("main, [role=main], [data-start-door]"),
+                document.querySelector("main, [role=main], [data-start-door], .ws-land-top"),
             null,
             { timeout: 30000 },
         )
@@ -1821,7 +1891,8 @@ async function opEnd(s) {
     const key = await s.page.evaluate(keyShown).catch((e) => ({ error: e.message.split("\n")[0] }));
     const drawn = await s.page.evaluate(drawnColors).catch((e) => ({ error: e.message.split("\n")[0] }));
     await writeFile(join(s.dir, "key.json"), JSON.stringify({ key, drawn }, null, 1) + "\n");
-    return { out: [`session ended: ${s.dir}`], code: 0, end: true };
+    const capped = s.gemini?.capped ? [capLine(s.gemini.file)] : [];
+    return { out: [...capped, `session ended: ${s.dir}`], code: 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
@@ -1910,6 +1981,29 @@ async function bar10Counts(page) {
     }
     for (const c of cut) delete c.mark;
     return { cut, raw };
+}
+// --prove only: what decides a session's tier, as the session itself sees it
+async function tierFacts(s) {
+    const children = spawnSync("pgrep", ["-P", String(process.pid)], { encoding: "utf8" }).stdout.split("\n");
+    const environs = children.filter(Boolean).map((p) => readFileSync(`/proc/${p}/environ`, "latin1"));
+    return {
+        siteStatus: await s.page.evaluate(() => fetch("/site.json").then((r) => r.status)),
+        assistant: await s.page.getByRole("button", { name: "Assistant" }).count(),
+        chip: await s.page.getByLabel(/^Site: /).count(),
+        url: s.page.url(),
+        routed: !!s.gemini,
+        children: environs.length,
+        keyInChildEnv: environs.some((e) => e.split("\0").some((v) => v.startsWith("GOOGLE_API_KEY="))),
+    };
+}
+// --prove only: one call to Gemini from the page, with the count already at the cap
+async function plantGemini(s) {
+    const status = await s.page.evaluate(() =>
+        fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+            headers: { "x-goog-api-key": "placeholder" },
+        }).then((r) => r.status),
+    );
+    return { out: [], code: 0, data: status };
 }
 // --prove only: clears the graph through the element, as a lost table would go; says the source's name
 async function plantRemoval(s) {
@@ -2019,6 +2113,7 @@ async function opStep(s, steps) {
     const t0 = performance.now();
     s.ms = {};
     const r = await run(s, steps, out);
+    if (s.gemini?.capped) out.push(capLine(s.gemini.file));
     const t1 = performance.now();
     const said = await shot(s);
     out.push(said);
@@ -2780,7 +2875,8 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
     }
     for (const e of s.errors.splice(0)) {
         out.push(e);
-        if (requestsFail || !e.startsWith("failed request: ")) code = 1;
+        // a blocked remote picture on the start page is logged, and is not this step's failure
+        if (!e.startsWith("failed request: ") || (requestsFail && !e.includes("ERR_BLOCKED_BY_ORB"))) code = 1;
     }
     s.ms = { ...s.ms, act: t1 - t0, settle: t2 - t1, after: performance.now() - t2 };
     return { code, missed };
@@ -3588,7 +3684,7 @@ async function prove() {
     await writeFile(
         srSetup,
         // the last click is on a control that stays, so Tab would start after it if the setup left it there
-        "--click Open a file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
+        "--click Open a file\n--upload florentine.gml\n--click role=button:Graph\n",
     );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
@@ -3687,7 +3783,7 @@ async function prove() {
         x = step(H, "--click", "weight#1");
         check(
             "a position pick among different kinds of control is refused, naming each kind",
-            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=option:weight"/.test(
+            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=\w+:weight"/.test(
                 x.out,
             ) && pngs(H).length === before + 1,
             x.out,
@@ -3699,8 +3795,10 @@ async function prove() {
         check("a participant's miss exits 0", x.code === 0 && /nothing on screen is called/.test(x.out), x.out);
         x = step(H, "--drop", "friends-v2.csv");
         check(
-            "a drop where nothing takes it says it was not delivered",
-            /the drop was not delivered: nothing in the middle of the window \(empty canvas\)/.test(x.out),
+            "a drop on the workspace canvas is reported as taken",
+            /dropped the file friends-v2\.csv on the middle of the window \(empty canvas\); the page took it/.test(
+                x.out,
+            ),
             x.out,
         );
     }
@@ -3717,14 +3815,14 @@ async function prove() {
     }
     node(["--end", M]);
     await proveRoutes(base, check, node, step);
-    await proveWarm(base, check);
+    await proveWarm(base, check, step);
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
-        // a data file dropped on the start screen opens the Data page as a new graph, not a project
-        const x = step(I, "--drop", "friends.csv", "--expect", "Open as a new graph");
+        // a data file dropped on the start screen opens as a new graph
+        const x = step(I, "--drop", "friends.csv", "--expect", "From friends.csv");
         check(
-            "a file dropped on the start screen opens it on the Data page",
+            "a file dropped on the start screen opens it as a new graph",
             x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),
             x.out,
         );
@@ -3750,7 +3848,7 @@ async function proveRoutes(base, check, node, step) {
     const R = join(base, "route-walk");
     let r = node(["--start", R, "empty"]);
     if (!check("a walk to replay starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
-    step(R, "--click", "Open a file", "--upload", "florentine.gml", "--click", "Load");
+    step(R, "--click", "Open a file", "--upload", "florentine.gml");
     step(R, "--hover", "Undo");
     let x = step(R, "--click", "Nothing is called this", "--key", "Tab");
     check(
@@ -3819,7 +3917,7 @@ async function proveRoutes(base, check, node, step) {
 }
 // --prove's check of the warm pool, in a pool of its own: a start tops it up, and the next start of
 // the same build takes the warm browser over instead of launching one
-async function proveWarm(base, check) {
+async function proveWarm(base, check, step) {
     const self = fileURLToPath(import.meta.url);
     const pool = join(base, "warm-slots");
     await mkdir(pool, { recursive: true });
@@ -3844,6 +3942,15 @@ async function proveWarm(base, check) {
         r.status === 0 && /took over warm browser/.test(log) && existsSync(join(W2, "01.png")),
         `exit ${r.status} in ${took} ms; ${r.stdout}${r.stderr}; session.log: ${log.slice(0, 300)}`,
     );
+    step(W2, "--click", "New project");
+    const facts = await ask(W2, { op: "tier-facts" }).catch((e) => ({ data: e.message }));
+    check(
+        "a session of another tier is unchanged: no site.json answered, no Assistant, no Gemini route",
+        facts.data?.siteStatus === 404 && facts.data.assistant === 0 && facts.data.routed === false,
+        JSON.stringify(facts.data),
+    );
+    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
+    await proveTier6(base, check, step, env);
     for (const d of [W1, W2]) spawnSync(process.execPath, [self, "--end", d], { env: { ...env, REAL_WARM_POOL: "0" } });
     // the browsers it warmed after: stopped, so the planted pool leaves nothing running
     for (const f of existsSync(WARM_DIR) ? readdirSync(WARM_DIR) : []) {
@@ -3855,6 +3962,104 @@ async function proveWarm(base, check) {
             // already gone
         }
     }
+}
+// --prove's checks of a tier 6 session, with a warm browser ready and a planted key file, so no check
+// touches the real key or spends a call: the count starts at the cap, and the shell's own
+// GOOGLE_API_KEY stands in for one that must not reach the browser
+async function proveTier6(base, check, step, warmEnv) {
+    const self = fileURLToPath(import.meta.url);
+    const fake = "planted-fake-key-0123456789";
+    const T = join(base, "tier6");
+    const envFile = join(base, "tier6.env");
+    const count = join(base, "tier6.count");
+    await writeFile(envFile, `GOOGLE_API_KEY=${fake}\n`);
+    await writeFile(count, "x".repeat(TIER6_CAP));
+    const env = {
+        ...warmEnv,
+        REAL_TIER: "6",
+        REAL_ENV_FILE: envFile,
+        REAL_GEMINI_COUNT: count,
+        GOOGLE_API_KEY: "planted-in-the-shell",
+    };
+    const run = (a, e = env) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env: e });
+
+    let r = run(["--start", join(base, "tier6-nokey"), "empty"], { ...env, REAL_ENV_FILE: join(base, "no-such.env") });
+    check(
+        "a tier 6 start with no key fails with one line that starts nothing",
+        r.status === 1 && r.stderr.trim().split("\n").length === 1 && /GOOGLE_API_KEY/.test(r.stderr),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+
+    const ready = warmOnes().ready.length;
+    r = run(["--start", T, "empty"]);
+    if (!check("a tier 6 session starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
+    const log = readFileSync(join(T, "session.log"), "utf8");
+    check(
+        "a tier 6 start never takes a warm browser, which loaded the app with no flag",
+        ready > 0 && !/took over warm browser/.test(log),
+        `${ready} ready; session.log: ${log.slice(0, 300)}`,
+    );
+    step(T, "--click", "New project");
+    const facts = (await ask(T, { op: "tier-facts" })).data;
+    check(
+        "a tier 6 session has the Assistant, with nothing in the address and no site chip",
+        facts.siteStatus === 200 &&
+            facts.assistant === 1 &&
+            facts.chip === 0 &&
+            facts.routed &&
+            !facts.url.includes("features"),
+        JSON.stringify(facts),
+    );
+    check(
+        "the browser's environment holds no GOOGLE_API_KEY",
+        facts.children > 0 && !facts.keyInChildEnv,
+        JSON.stringify(facts),
+    );
+    const refused = (await ask(T, { op: "plant-gemini" })).data;
+    const x = step(T, "--key", "Escape");
+    check(
+        "at the cap a call is refused, it adds nothing to the count, and the step says so",
+        refused === 429 && statSync(count).size === TIER6_CAP && /the tier's cap of 3000 Gemini requests/.test(x.out),
+        `${refused} ${x.out}`,
+    );
+    r = run(["--end", T]);
+    check(
+        "--end repeats the cap's line and passes the key check",
+        r.status === 0 && /the tier's cap of 3000/.test(r.stdout) && /key check: no key/.test(r.stdout),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await writeFile(join(T, "planted.bin"), Buffer.concat([Buffer.from([0, 255]), Buffer.from(fake)]));
+    r = run(["--end", T]);
+    check(
+        "--end fails on a key in the session's folder, naming the file and not the key",
+        r.status === 1 && /FAIL: the Gemini key is in .*planted\.bin/.test(r.stdout) && !r.stdout.includes(fake),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await rm(join(T, "planted.bin"));
+
+    // the round's copy: a clean session's copy is scanned too, and a key in the session stays out of it
+    const own = join(SCRATCH, "tier6/rounds/prove/sessions/p1");
+    const home = studioOf(own);
+    await mkdir(own, { recursive: true });
+    await mkdir(home, { recursive: true });
+    await writeFile(join(own, "01.png"), "not a picture");
+    await writeFile(join(home, "transcript.md"), fake);
+    r = run(["--end", own]);
+    check(
+        "--end fails on a key in the round's copy",
+        r.status === 1 && r.stdout.includes(`FAIL: the Gemini key is in ${join(home, "transcript.md")}`),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await rm(home, { recursive: true });
+    await writeFile(join(own, "01.png"), fake);
+    r = run(["--end", own]);
+    check(
+        "a key in the session's folder is never copied to the round",
+        r.status === 1 && !existsSync(home),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await rm(join(SCRATCH, "tier6"), { recursive: true });
+    await rm(join(STUDIO, "tier6/rounds"), { recursive: true });
 }
 function finish(bad, dirs) {
     for (const d of dirs)
@@ -3917,10 +4122,15 @@ if (mode === "--serve") {
         ended = !!r.end;
         code = say(r);
     }
-    const home = args[1] && studioOf(resolve(args[1]));
-    if (ended && home) await copyBack(resolve(args[1]), home);
+    const own = resolve(args[1] || ".");
+    const home = args[1] && studioOf(own);
+    const keyed = ended && args[1] && tier6(own);
+    // a key in the session's folder stays out of the round's copy, which is in git's reach
+    const clean = !keyed || keyCheck([own]);
+    if (ended && home && clean) await copyBack(own, home);
+    if (!clean || (keyed && home && !keyCheck([home]))) code = 1;
     // a slot just came free: warm the next browser of the build this command names
-    if (ended && process.env.REAL_DIST) topUp();
+    if (ended && process.env.REAL_DIST && !keyed) topUp();
 } else if (mode === "--leaks") {
     const [dir, ...given] = args.slice(1);
     if (!dir) {

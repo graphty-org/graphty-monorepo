@@ -579,6 +579,48 @@ reviewed, so a real change on a route that also flickers between runs is hidden 
 made stable. Pilots walk the detours and the keyboard walk; a route that passes is not looked at
 screen by screen.
 
+## Tier 6 sessions: the Assistant with live Gemini
+
+A session of tier 6 (a folder under `tier6/`, or `REAL_TIER=6`) runs the same production build with
+the Assistant on and a real model behind it. Nothing changes for any other tier: no `site.json`, no
+network route, and the warm pool as before. The code is in `tier6.mjs`.
+
+- **The flag.** The session's own server answers `/site.json` with `{ "features": ["assistant"] }`,
+  so the rail shows Assistant with nothing in the page address and no site chip. The app reads that
+  file once, when it loads, and a warm browser loaded it before it had a session, so a tier 6 session
+  never takes a warm browser and never starts one: it always starts cold.
+- **The key.** The session process takes `GOOGLE_API_KEY` from the main checkout's root `.env`, that
+  one value only (`node:util` `parseEnv`, so no other token reaches `process.env`), and removes the
+  variable from its own environment before launching the browser. A missing key fails `--start` with
+  one line. Requests to `generativelanguage.googleapis.com`, and no other host, have their
+  `x-goog-api-key` header replaced on the way out of the browser; the answer still streams.
+- **Starting a conversation.** The participant types any placeholder of at least 11 characters into
+  the app's own setup: open a project, Assistant, AI provider..., click the API key box, type, Save.
+  The real key is never in the page.
+
+    ```bash
+    S=<session dir>; real="node design/ui/studio/tool/real.mjs"
+    REAL_TIER=6 $real --start $S empty
+    $real --step $S --click "New project" --click "Assistant" --click "AI provider..."
+    $real --step $S --click-at 815,331 --type "study-placeholder" --click "Save"
+    $real --step $S --type "Which nodes matter most?" --click "Send"
+    ```
+
+- **The model.** Whatever the app's setup shows; its default is `gemini-3.8-flash`, from the
+  element's catalog. `session.log` holds one line per call, with its count and path and no key.
+- **The cap.** 3,000 requests per tier, counted in
+  `tmp/design-studio/tier6/gemini-requests.count` under the main checkout, one byte per request, so
+  every worktree and every session shares it. CORS preflights are not counted, and neither is a refused
+  request; each of the app's own retries is. A live voice session's WebSocket is neither routed nor
+  counted, only the one token that opens it. At the cap a call is answered 429, the app shows its
+  own failure after its retries, and every later step and `--end` print a line saying the cap is
+  reached. `REAL_GEMINI_COUNT=<file>` counts in another file, for trying the refusal with no paid
+  call: fill it with 3,000 bytes.
+- **The key check.** `--end` scans every file of the session's folder, bytes included, and then of
+  the copy returned to the round. A hit prints `FAIL` with the file's name, never the key, exits 1,
+  and keeps a session's folder from being copied to the round. It sees the key as written, not an
+  encoded copy. `--end` on a finished session runs the check again.
+
 ## Checking the tool
 
 ```bash
@@ -598,7 +640,7 @@ one whose step names nothing, one whose click never becomes clickable), a screen
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
 planted position pick between the open Attribute list's option "weight" and the Data panel's row
-"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
+"weight" that must be refused, an end, and the participant's side without a browser (a participant's folder inside the studio's files refused, one with no briefing refused, a briefing written outside the studio, a planted transcript that opens `tasks.md` voided by name while a clean one and another agent's are not, an end that copies the session back with `leaks.json` and keeps a note written in the round's folder before it, a round's leak check that fails naming a session with no readable log, a start refused for a session of a round whose plan holds no gate evidence, and a gate that refuses a round folder with no pilot results and no bars run, then passes and lists the evidence in the plan; then, with every slot of a planted one-slot pool full, a start bounded by `REAL_SLOT_WAIT_SECONDS` that exits 4 with nothing started, and the same start run again that starts the session once the slot frees), and the faster tool's own checks (the session draws on the GPU, not SwiftShader, and `session.json` names the renderer; a batch stops at its first miss; a walk saves its route; a replay of an unchanged route matches every check point and ends; a planted change in what a step printed stops a replay at that step with the session left open; a rewalk that sorts an unchanged route from a missing control and a changed screen, keeping the diverged folders aside; and, in a pool of its own, a start that tops up the warm pool and the next start that takes the warm browser over; in that same pool, a session of another tier with no `site.json`, Assistant or Gemini route, and a tier 6 session on a planted key with its count at the cap: a start with no key that fails in one line, a cold start beside a ready warm browser, the Assistant with nothing in the address and no site chip, a browser environment with no `GOOGLE_API_KEY`, a refused call the step and `--end` report, a key planted in the folder that fails `--end` by file name, one in the round's copy that fails it too, and one in a session that is never copied to the round; no check spends a call). It prints `ok` or `FAIL` per check and exits 1 on any failure. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the gate's caps and its try mode without a browser.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set
 `REAL_PROVE_DIR=<folder>` to run it beside another self-test.
 

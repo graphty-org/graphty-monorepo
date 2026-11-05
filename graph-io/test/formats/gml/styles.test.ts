@@ -470,6 +470,41 @@ describe("GML styles: yEd's flowchart shapes", () => {
         expect(String(stored)).toContain("0.8,0");
         expect(String(stored)).toContain("-1,0");
     });
+
+    it("draws the shapes and sizes yEd draws for its types and palette nodes", async () => {
+        const node = (id: number, extra: string): string =>
+            `node [ id ${String(id)} graphics [ w 48.0 h 36.0 outlineWidth 1 ${extra} ] ]`;
+        const doc = `Creator "yFiles"\ngraph [ ${[
+            'type "fatarrow"',
+            'type "fatarrow2"',
+            'type "triangle2"',
+            'type "hexagon2"',
+            'type "octagon2"',
+            'type "rectangle3d"',
+            'customconfiguration "com.yworks.flowchart.annotation"',
+            'customconfiguration "com.yworks.flowchart.start2"',
+        ]
+            .map((extra, i) => node(i, extra))
+            .join(" ")} ]`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "polygon",
+            "polygon",
+            "ellipse",
+            "ellipse",
+            "rectangle",
+            "rectangle",
+            "ellipse",
+        ]);
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot).slice(0, 3)).toEqual([
+            "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0",
+            "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0",
+            "-1,1 1,1 0,-1",
+        ]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([1, 1, 1, 1, 1, 0, 0, 1]);
+        expect(resolveStyles(styles, "node", "width", snapshot).at(-1)).toBe(36);
+    });
 });
 
 describe("GML files that failed before", () => {

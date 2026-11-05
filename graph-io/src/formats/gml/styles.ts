@@ -68,6 +68,8 @@ import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putOutline,
+    typeOutline,
     type ValueColumns,
     valueColumns,
     YED_ARROWS,
@@ -541,15 +543,29 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         }
         put("shape", shape ?? null);
     } else if (g.type !== undefined) {
-        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        const outline = v === "yed" ? typeOutline(g.type, "ellipse") : null;
+        if (outline === null) {
+            put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        } else {
+            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+        }
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         const outline = configurationOutline(g.customconfiguration);
-        put("shape", outline?.shape ?? null);
-        if (outline?.points !== undefined) {
-            put("shapePoints", outline.points);
+        if (outline !== null) {
+            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
         }
     }
+}
+
+/**
+ * A side of a node's box, for a shape drawn by its size.
+ * @param side - the `w` or `h` value
+ * @returns the number, or null when it is not one
+ */
+function boxSide(side: unknown): number | null {
+    const n = Number(side);
+    return side !== undefined && Number.isFinite(n) ? n : null;
 }
 
 /**

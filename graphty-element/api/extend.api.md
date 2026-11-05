@@ -1981,8 +1981,15 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    // @internal
+    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
+    // @internal
+    protected publishScratch(count: number): {
+        rows: Float64Array;
+        coords: Float64Array;
+    };
     readNodePosition(n: Node_2, out: {
         x: number;
         y: number;
@@ -2107,6 +2114,9 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    get drawnScale(): number;
+    set drawnScale(scale: number);
     // @internal
     get drawnScene(): Scene;
     // @internal

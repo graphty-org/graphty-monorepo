@@ -1326,6 +1326,24 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The node's own scale, the same on every axis.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScale(): number {
+        return this.mesh.scaling.x;
+    }
+
+    /**
+     * Set the node's own scale on every axis.
+     * @param scale - The scale.
+     * @internal
+     */
+    set drawnScale(scale: number) {
+        this.mesh.scaling.setAll(scale);
+    }
+
+    /**
      * The scene the node is drawn in.
      * @returns The scene.
      * @internal

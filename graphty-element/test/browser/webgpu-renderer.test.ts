@@ -19,8 +19,10 @@ import { EngineStore, Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands } from "vitest/browser";
 
+import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -483,6 +485,33 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         const resized = await screenshot(graph, "webgpu-resized");
         const { ink } = compare(resized, resized);
         assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
+    });
+
+    it("stops claiming to draw and reports it when the device refuses a shader", async () => {
+        // Legal GLSL, so it passes the element's own checks; `pass` is reserved in WGSL.
+        defineShader({
+            id: "webgpu-renderer/reserved-word",
+            glsl: "vec4 shade(NodeInput n) { float pass = 1.0; return vec4(n.color.rgb, pass); }",
+        });
+        const graph = await open("webgpu");
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "refused",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: "webgpu-renderer/reserved-word" }] },
+        });
+
+        const error = await refused;
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.match(String(error.details.messages), /pass/);
+        assert.equal(graph.rendererStatus?.drawing, false);
     });
 
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {

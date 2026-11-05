@@ -420,7 +420,9 @@ const OWN_ENTRY_POINTS = {
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
  * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
  * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
- * ANGLE switches alone left `requestAdapter()` null on one host, and `metal` and `warp` are the
+ * ANGLE switches alone left `requestAdapter()` null on one host, the two Vulkan switches on it
+ * because without them a real scene crashed the GPU process here and every later
+ * `requestAdapter()` came back null, and `metal` and `warp` are the
  * macOS and Windows legs of the host-matrix workflow.
  *
  * This table must know EVERY value any workflow puts in GRAPHTY_BROWSER_GPU, whether or not that
@@ -434,7 +436,8 @@ const OWN_ENTRY_POINTS = {
  *
  * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
- * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
+ * accelerator. `test/browser/webgpu-layout.test.ts` asks for a real card, and the
+ * `graphty-element-webgpu` shard runs `test/browser/webgpu-renderer.test.ts` on SwiftShader.
  */
 const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
     nvidia: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
@@ -443,6 +446,8 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--use-angle=swiftshader",
         "--enable-unsafe-swiftshader",
         "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--disable-vulkan-surface",
     ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.

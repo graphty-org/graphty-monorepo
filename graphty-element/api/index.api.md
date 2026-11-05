@@ -3923,6 +3923,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
+* legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
+* turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+*/
+| "E_SHADER_REFUSED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or

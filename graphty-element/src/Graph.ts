@@ -2058,6 +2058,7 @@ export class Graph implements GraphContext {
             return;
         }
 
+        this.watchShaderModules(opened);
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
@@ -2103,6 +2104,47 @@ export class Graph implements GraphContext {
         this.managers.set("render", this.renderManager);
         this.managers.set("input", this.inputManager);
         this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+    }
+
+    /**
+     * Reports a shader the WebGPU device refuses. Nothing else would: creating the module does not
+     * throw and Babylon never asks how it went, the pipeline built from it is invalid, and the
+     * frame's whole command buffer is rejected, so the canvas stays blank with no failed call.
+     * ponytail: a device Babylon opens after a device loss is not watched; it compiles the same shaders.
+     * @param engine - The engine whose device compiles the graph's shaders.
+     */
+    private watchShaderModules(engine: WebGPUEngine): void {
+        const device = engine._device;
+        const create = device.createShaderModule.bind(device);
+        device.createShaderModule = (descriptor) => {
+            const module = create(descriptor);
+            void module.getCompilationInfo().then(({ messages }) => {
+                const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
+                if (errors.length > 0) {
+                    this.reportRefusedShader(errors);
+                }
+            });
+            return module;
+        };
+    }
+
+    /**
+     * Stops claiming to draw and says why.
+     * @param messages - What the device said about the shader.
+     */
+    private reportRefusedShader(messages: readonly string[]): void {
+        if (this.#rendererStatus !== null) {
+            this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
+        }
+
+        const error = new GraphtyError({
+            code: "E_SHADER_REFUSED",
+            message: `the WebGPU device refused a shader, so nothing is drawn: ${messages.join("; ")}`,
+            source: "view",
+            recoverable: false,
+            details: { messages },
+        });
+        this.eventManager.emitGraphError(this, error, "other");
     }
 
     /**

@@ -26821,14 +26821,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "gml-specimen-node-fills-borders-p2@matched": {
             "node.present": 1,
@@ -26846,11 +26847,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "gml-specimen-node-fills-borders-p4": {
             "node.present": 1,
@@ -27072,14 +27074,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "gml-specimen-node-shapes-p2@matched": {
             "node.present": 1,
@@ -27097,11 +27100,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "gml-specimen-node-shapes-p3": {
             "node.present": 1,
@@ -27111,7 +27115,7 @@
             "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.879,
+            "node.shape": 0.97,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -27136,7 +27140,7 @@
             "node.height": 0.97,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.879,
+            "node.shape": 0.97,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -27678,7 +27682,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.057,
+            "stray.present": 0.739,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -27753,7 +27757,7 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.043,
+            "stray.present": 0.739,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -28313,17 +28317,18 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "stray.present": 0,
+            "stray.present": 0.934,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.94,
-            "raster.edge": 0.89,
-            "raster.arrowhead": 0.93,
+            "raster.nodeOutline": 0.95,
+            "raster.edge": 0.9,
+            "raster.arrowhead": 0.94,
             "raster.label": 0.9,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.98,
+            "stray.extra": 1
         },
         "graphml-libcitygml-mapping@matched": {
             "node.present": 1,
@@ -28374,11 +28379,12 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "stray.present": 0,
+            "stray.present": 0.934,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "graphml-magiclantern-architecture": {
             "node.present": 1,
@@ -29044,7 +29050,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.924,
+            "node.shape": 0.985,
             "node.fill": 0.985,
             "node.fillOpacity": 1,
             "node.gradient": 0.803,
@@ -29095,8 +29101,8 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.167,
-            "stray.extra": 0.333,
+            "stray.present": 0.333,
+            "stray.extra": 0.6,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -29116,7 +29122,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.924,
+            "node.shape": 0.985,
             "node.fill": 0.985,
             "node.fillOpacity": 1,
             "node.gradient": 0.803,
@@ -29167,8 +29173,8 @@
             "group.strokeWidth": 1,
             "group.strokeDash": 1,
             "group.label": 1,
-            "stray.present": 0.167,
-            "stray.extra": 0.333,
+            "stray.present": 0.333,
+            "stray.extra": 0.6,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -29466,7 +29472,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.459,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 0,
@@ -29527,7 +29533,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.459,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 0,
@@ -39759,14 +39765,15 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p2": {
             "node.present": 1,
@@ -39776,7 +39783,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.898,
+            "node.shape": 1,
             "node.fill": 0.918,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -39790,7 +39797,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeOutline": 0.93,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-node-shapes-p2@matched": {
@@ -39801,7 +39808,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.898,
+            "node.shape": 1,
             "node.fill": 0.918,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -39823,7 +39830,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.973,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -39845,7 +39852,7 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0,
+            "stray.present": 0.5,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -39853,7 +39860,8 @@
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
             "raster.label": 0.85,
-            "raster.canvas": 0.99
+            "raster.canvas": 0.99,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p3@matched": {
             "node.present": 1,
@@ -39863,7 +39871,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.973,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -39885,11 +39893,12 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "stray.present": 0,
+            "stray.present": 0.485,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-shapes-p4": {
             "node.present": 1,
@@ -39899,12 +39908,12 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.857,
-            "node.fill": 0.857,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.857,
-            "node.strokeWidth": 0.857,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -39924,12 +39933,12 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.857,
-            "node.fill": 0.857,
+            "node.shape": 1,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.857,
-            "node.strokeWidth": 0.857,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -39950,7 +39959,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.931,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -39975,7 +39984,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.931,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -39994,11 +40003,11 @@
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.968,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.968,
-            "node.strokeWidth": 0.968,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -40019,11 +40028,11 @@
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
             "node.shape": 1,
-            "node.fill": 0.968,
+            "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.968,
-            "node.strokeWidth": 0.968,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -40048,11 +40057,12 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "stray.present": 0,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.extra": 1
         },
         "yed-graphml-specimen-node-sizes-opacity": {
             "node.present": 1,
@@ -41795,7 +41805,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.8,
+            "node.shape": 0.943,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -41820,7 +41830,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.8,
+            "node.shape": 0.943,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -56165,6 +56175,22 @@
                 "date": "2026-11-01"
             }
         },
+        "cytoscapejs-specimen-node-shapes": {
+            "node.shape": {
+                "floor": 1,
+                "to": 0.957,
+                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
+                "date": "2026-11-05"
+            }
+        },
+        "cytoscapejs-specimen-node-shapes@matched": {
+            "node.shape": {
+                "floor": 1,
+                "to": 0.957,
+                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
+                "date": "2026-11-05"
+            }
+        },
         "dot-real-crazy": {
             "node.position": {
                 "floor": 1,
@@ -56346,12 +56372,6 @@
             }
         },
         "gml-synthetic-coverage": {
-            "stray.present": {
-                "floor": 0.057,
-                "to": 0.043,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "node.gradient": {
                 "floor": 0.871,
                 "to": 0.859,
@@ -56396,12 +56416,6 @@
             }
         },
         "graphml-synthetic-nodes": {
-            "stray.present": {
-                "floor": 0.167,
-                "to": 0.143,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "node.gradient": {
                 "floor": 0.803,
                 "to": 0.794,
@@ -56416,12 +56430,6 @@
             }
         },
         "graphml-synthetic-nodes@matched": {
-            "stray.present": {
-                "floor": 0.167,
-                "to": 0.143,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "node.gradient": {
                 "floor": 0.803,
                 "to": 0.794,
@@ -56449,6 +56457,22 @@
                 "to": 0.994,
                 "reason": "comparator (#5196): with n570's own disc found, the haystack lines n464 -> n442 and n464 -> n570 end inside both overlapping nodes alike and are given each other's node (their widths, 1.6 and 5.7 px, say which is which; the reader does not use width)",
                 "date": "2026-11-01"
+            }
+        },
+        "json-cyjs-synth-nodes": {
+            "node.shape": {
+                "floor": 1,
+                "to": 0.981,
+                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
+                "date": "2026-11-05"
+            }
+        },
+        "json-cyjs-synth-nodes@matched": {
+            "node.shape": {
+                "floor": 1,
+                "to": 0.981,
+                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
+                "date": "2026-11-05"
             }
         },
         "json-graphology-synth": {
@@ -56635,6 +56659,22 @@
                 "to": 0.75,
                 "reason": "first judgment of this sheet after the yEd references changed (2026-11-04, #3109): yEd refuses the file, so these are draw.io's stand-in drawing judged by the corrected comparator, not yEd's; followed up in #5792",
                 "date": "2026-11-04"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes": {
+            "node.shape": {
+                "floor": 0.585,
+                "to": 0.561,
+                "reason": "comparator (#5789): yEd Live's RectangleNodeStyle corners=TOP rounds two corners and graphty draws all four rounded, a drawing gap the square-corner reading exposed, passed by chance before",
+                "date": "2026-11-05"
+            }
+        },
+        "yed-live-graphml-specimen-node-shapes@matched": {
+            "node.shape": {
+                "floor": 0.585,
+                "to": 0.561,
+                "reason": "comparator (#5789): yEd Live's RectangleNodeStyle corners=TOP rounds two corners and graphty draws all four rounded, a drawing gap the square-corner reading exposed, passed by chance before",
+                "date": "2026-11-05"
             }
         }
     }

@@ -518,6 +518,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
     "edge.minScreenWidth": "Min screen width",
+    "edge.fadeEnd": "Fade end",
+    "edge.fadeStart": "Fade start",
+    "edge.fadeOpacity": "Fade opacity",
+    "edge.blending": "Blending",
     "edge.outlineColor": "Outline color",
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
@@ -636,6 +640,23 @@ export function isPercent(descriptor: ChannelDescriptor): boolean {
  */
 export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
+}
+
+/**
+ * A style's setting named on its own line under the style's row, where the style is already said:
+ * "Size" under Halo for "Halo size", "Count" under Pattern for "Pattern count".
+ * @param style - the style's channel (graphty-element's `modifies`).
+ * @param setting - the setting's channel.
+ * @returns the words.
+ */
+export function settingWord(style: Channel, setting: Channel): string {
+    const prefix = `${channelWord(style)} `;
+    const word = channelWord(setting);
+    if (!word.startsWith(prefix)) {
+        return word;
+    }
+    const rest = word.slice(prefix.length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
 /**

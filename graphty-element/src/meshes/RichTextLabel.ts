@@ -1843,7 +1843,7 @@ export class RichTextLabel {
 
     /**
      * Move a label placed beside its target by its whole box so that its words' own font box, not the box, is the
-     * offset away from the target (`gapOf: "words"`): Cytoscape.js draws a top label's last line with
+     * offset away from the target, when its `gapOf` is `"words"`: Cytoscape.js draws a top label's last line with
      * `textBaseline = "bottom"` at `y = node top - padding` (cytoscape.js 3.34.3 `recalculateNodeLabelProjection` and
      * `drawElementText`), so the bottom of its words, not of a box round them, sits on the node's outline.
      * ponytail: the per-frame screen fit (`sizeMode: "screen"`, `keepInView`) still places the whole box; move this
@@ -1862,7 +1862,7 @@ export class RichTextLabel {
         stretch: Vector3 | null,
     ): void {
         const side = Object.hasOwn(SIDES, position) ? SIDES[position as keyof typeof SIDES] : null;
-        if (side === null) {
+        if (side === null || this.options.gapOf !== "words") {
             return;
         }
 
@@ -1991,9 +1991,7 @@ export class RichTextLabel {
                 this.options.attachOffset,
                 stretch ?? undefined,
             );
-            if (this.options.gapOf === "words") {
-                this.gapToWords(newPos, position, { width: labelWidth, height: labelHeight }, stretch);
-            }
+            this.gapToWords(newPos, position, { width: labelWidth, height: labelHeight }, stretch);
             this.placementBounds = { min: bounds.min, max: bounds.max, z: newPos.z };
         }
 

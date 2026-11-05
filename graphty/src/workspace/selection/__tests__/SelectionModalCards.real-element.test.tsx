@@ -165,11 +165,9 @@ describe("the selection modal with colored group cards", () => {
             assert.lengthOf(cards(), 2, "a second card");
         });
         const [first, second] = cards();
-        assert.notEqual(
-            first.style.getPropertyValue("--sel-card-color"),
-            second.style.getPropertyValue("--sel-card-color"),
-            "each card in its group's own color",
-        );
+        const color = (card: HTMLElement): string => getComputedStyle(card).getPropertyValue("--sel-card-color").trim();
+        assert.notStrictEqual(color(first), "", "a card has its group's color");
+        assert.notEqual(color(first), color(second), "each card in its group's own color");
         await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"), "Done closes it");

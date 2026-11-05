@@ -82,21 +82,14 @@ export default function AiProviderSection({ onSaved }: Readonly<{ onSaved: () =>
         }
         const choice: AssistantChoice = { provider, model, remember };
         try {
-            if (saved !== null) {
-                await linked(element, store, saved);
-            }
-            const keys = element.getApiKeyManager();
-            const apiKey = typed === "" ? keys?.getKey(provider) : typed;
-            // Out of wherever the last choice kept it, so Remember off leaves nothing on the device.
-            keys?.forgetKey(provider);
+            await link(element, store, choice, typed === "" ? undefined : typed);
             writeAssistantChoice(choice);
-            await link(element, store, choice, apiKey);
         } catch {
             setProblem(endWords("AI_CONFIG_INVALID", {}, provider, false)?.line ?? null);
             return;
         }
         onSaved();
-        store.set({ dialog: null });
+        store.set({ dialog: null, assistantEnded: null });
         goToComposer(store);
     };
 
@@ -104,15 +97,9 @@ export default function AiProviderSection({ onSaved }: Readonly<{ onSaved: () =>
         if (element === null) {
             return;
         }
-        if (saved !== null) {
-            await linked(element, store, saved).catch(() => undefined);
-        }
-        const keys = element.getApiKeyManager();
-        for (const { id } of AI_PROVIDER_DESCRIPTORS) {
-            keys?.forgetKey(id);
-        }
-        writeAssistantChoice(null);
         unlink(element);
+        await element.forgetAiKeys();
+        writeAssistantChoice(null);
         store.set({ assistantEnded: null });
         setKey("");
         setKeySaved(false);
@@ -122,12 +109,7 @@ export default function AiProviderSection({ onSaved }: Readonly<{ onSaved: () =>
         if (element === null) {
             return;
         }
-        const choice = saved ?? { provider, model, remember: false };
-        await linked(element, store, choice).catch(() => undefined);
         await element.clearAiHistory();
-        if (saved === null) {
-            unlink(element);
-        }
         store.set({ assistantEnded: null });
         setConfirming(false);
     };

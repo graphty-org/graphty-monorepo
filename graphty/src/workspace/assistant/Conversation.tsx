@@ -36,6 +36,8 @@ interface Turn {
     readonly replies: readonly AssistantMessage[];
     /** The id its steps carry: an answer to a question goes on with the message it answers. */
     readonly provenance: string | undefined;
+    /** Whether none of its changes stands. */
+    readonly undone: boolean;
 }
 
 /** One step, as a row shows it: never its arguments. */
@@ -52,13 +54,24 @@ interface Step {
  * @returns the turns.
  */
 function turnsOf(messages: readonly AiConversationMessage[]): readonly Turn[] {
-    const turns: { reader: ReaderMessage | null; replies: AssistantMessage[]; provenance: string | undefined }[] = [];
+    const turns: {
+        reader: ReaderMessage | null;
+        replies: AssistantMessage[];
+        provenance: string | undefined;
+        undone: boolean;
+    }[] = [];
     for (const message of messages) {
         if (message.role === "reader") {
-            turns.push({ reader: message, replies: [], provenance: message.provenance ?? turns.at(-1)?.provenance });
+            const before = turns.at(-1);
+            turns.push({
+                reader: message,
+                replies: [],
+                provenance: message.provenance ?? before?.provenance,
+                undone: message.undone ?? (message.provenance === undefined && before?.undone === true),
+            });
         } else if (message.role === "assistant") {
             if (turns.length === 0) {
-                turns.push({ reader: null, replies: [], provenance: undefined });
+                turns.push({ reader: null, replies: [], provenance: undefined, undone: false });
             }
             turns[turns.length - 1].replies.push(message);
         }
@@ -217,7 +230,7 @@ interface TurnViewProps {
     readonly status: AiStatus | null;
     readonly provider: string;
     readonly late: boolean;
-    readonly onAgain: ((text: string) => void) | null;
+    readonly onAgain: ((reader: ReaderMessage) => void) | null;
 }
 
 /**
@@ -294,6 +307,7 @@ function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewPr
                         <ChangeRows
                             changes={changes}
                             provenance={turn.provenance}
+                            undone={turn.undone}
                             onMore={() => {
                                 setStepsOpen(true);
                             }}
@@ -308,7 +322,7 @@ function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewPr
                                 onAgain === null || reader === null
                                     ? null
                                     : () => {
-                                          onAgain(reader.text);
+                                          onAgain(reader);
                                       }
                             }
                         />
@@ -360,9 +374,9 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
             setBehind(true);
         }
     }, [turns.length, status?.streamedText, status?.toolCalls?.length, status?.state, late]);
-    const again = (text: string): void => {
+    const again = ({ text, scope, via }: ReaderMessage): void => {
         if (element !== null) {
-            void send(element, store, choice, text);
+            void send(element, store, choice, text, { via, ...(scope === undefined ? {} : { scope: scope.kind }) });
         }
     };
     return (

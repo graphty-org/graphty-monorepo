@@ -377,6 +377,20 @@ describe("talking to the Assistant", () => {
         await screen.findByText("The reply.");
     });
 
+    it("leaves a failure behind on New conversation, with the starters back", async () => {
+        await open();
+        await setUpGoogle();
+        Object.defineProperty(model, "name", { value: "google" });
+        model.setError(Object.assign(new Error("upstream exploded in English"), { statusCode: 503 }));
+        await say("Please answer");
+        await screen.findByRole("alert");
+        model.clearError();
+
+        await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+        await screen.findByRole("button", { name: "Which nodes matter most?" });
+        assert.isNull(screen.queryByRole("alert"));
+    });
+
     it("sends the reader to setup when the provider refuses the key", async () => {
         await open();
         await setUpGoogle();
@@ -478,6 +492,42 @@ describe("talking to the Assistant", () => {
         const stores = [localStorage, sessionStorage];
         const stored = stores.flatMap((area) => Object.keys(area).map((name) => area.getItem(name) ?? ""));
         assert.isFalse(stored.some((value) => value.includes(KEY)));
+    });
+
+    it("Delete all reaches saved conversations with no assistant up", async () => {
+        await open();
+        await setUpGoogle();
+        await say("Keep this in mind");
+        await screen.findByText("The reply.");
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector("graphty-element")?.getAiConversation());
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
+        await waitFor(() => {
+            assert.isNull(readAssistantChoice());
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Delete all conversations" }));
+        await userEvent.click(await within(dialog).findByRole("button", { name: "Delete all" }));
+        await within(dialog).findByRole("button", { name: "Delete all conversations" });
+
+        await userEvent.click(within(dialog).getByLabelText("API key"));
+        await userEvent.keyboard(KEY);
+        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await screen.findByRole("button", { name: "Which nodes matter most?" });
+        const list = await document.querySelector("graphty-element")?.listAiConversations();
+        assert.deepEqual(list, []);
+    });
+
+    it("drops a Talk press the setup screen has no Talk to take", async () => {
+        writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
+        const store = await open();
+        await userEvent.keyboard("{Shift>}{Control>} {/Control}{/Shift}");
+        await screen.findByRole("button", { name: "AI provider..." });
+        await waitFor(() => {
+            assert.isFalse(store.get().assistantTalkPress);
+        });
     });
 
     it("offers Jump to newest to a reader who scrolled up, and leaves them where they are", async () => {

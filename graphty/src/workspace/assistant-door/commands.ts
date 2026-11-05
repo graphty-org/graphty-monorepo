@@ -43,7 +43,7 @@ export function closeAssistant(store: WorkspaceStore): void {
  * @param store - the workspace store.
  * @returns true when it is.
  */
-function assistantShown(store: WorkspaceStore): boolean {
+export function assistantShown(store: WorkspaceStore): boolean {
     const { page, place } = store.get();
     return page === "panels" && place === "assistant";
 }

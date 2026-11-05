@@ -1,6 +1,6 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { AiCommandOptions, ExecutionResult } from "@graphty/graphty-element/ai";
-import type { AiEffect } from "@graphty/graphty-element/catalog";
+import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 
 import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -15,7 +15,7 @@ const WORKING_AFTER_MS = 1000;
 const links = new WeakMap<GraphtyElement, Promise<void>>();
 
 /** Results that end a message for now and wait on the reader. */
-const WAITING = new Set(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
+const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
 
 /**
  * Sets up the element's assistant. The key is the element's: given here once, and back from storage
@@ -49,26 +49,24 @@ export function link(
             store.set((state) => ({ assistantLinks: state.assistantLinks + 1 }));
         });
     links.set(element, ready);
+    // A setup that failed is tried again by whatever needs the assistant next.
+    ready.catch(() => {
+        if (links.get(element) === ready) {
+            links.delete(element);
+        }
+    });
     return ready;
 }
 
 /**
- * The element's assistant, set up once its graph has opened, so a saved conversation of that graph
- * is the one it reopens.
+ * The element's assistant, set up or on its way.
  * @param element - the element.
  * @param store - the workspace store.
  * @param choice - the provider and model.
  * @returns when it is ready.
  */
 export function linked(element: GraphtyElement, store: WorkspaceStore, choice: AssistantChoice): Promise<void> {
-    const known = links.get(element);
-    if (known !== undefined) {
-        return known;
-    }
-    const opening = store.get().opened ?? Promise.resolve();
-    const ready = opening.catch(() => undefined).then(() => link(element, store, choice));
-    links.set(element, ready);
-    return ready;
+    return links.get(element) ?? link(element, store, choice);
 }
 
 /**
@@ -159,7 +157,7 @@ async function follow(
             store.set({ announcement: WORDS["assistant.status.working"] });
         }
     }, WORKING_AFTER_MS);
-    let ended: { code: string; params: Readonly<Record<string, string | number>>; success: boolean };
+    let ended: { code: AiResultCode; params: AiResultParams; success: boolean };
     try {
         await linked(element, store, choice);
         const result = await running();
@@ -175,13 +173,15 @@ async function follow(
         store.set({ assistantRefused: true, assistantDraft: text });
         return;
     }
-    const words = endWords(ended.code, ended.params, choice.provider, ended.success);
+    // Set up anew under the run (a provider saved): it ended, and the assistant is here.
+    const replaced = ended.code === "AI_DISPOSED" && element.isAiEnabled();
+    const words = replaced ? null : endWords(ended.code, ended.params, choice.provider, ended.success);
     const { changes, provenance } = newestTurn(element);
     const lines = changes.map((effect) => effectLine(element.session, effect));
     const said = [...lines, words?.line ?? WORDS["assistant.status.ready"]].join(". ");
     store.set((state) => ({
         assistantEnded: words === null ? null : { code: ended.code, params: ended.params },
-        assistantDraft: words === null || state.assistantDraft !== "" ? state.assistantDraft : text,
+        assistantDraft: (words === null && !replaced) || state.assistantDraft !== "" ? state.assistantDraft : text,
         // A notice speaks its own words, so away from the panel they are said once.
         ...(words?.failed === true || isAway(store) ? {} : { announcement: said }),
     }));

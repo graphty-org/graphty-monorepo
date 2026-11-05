@@ -10,8 +10,10 @@ import {
     AI_PROVIDER_DESCRIPTORS,
     type AiEffect,
     type AiKeyShapeCheck,
+    type AiResultParams,
     algorithmByKey,
     ASSISTANT_TOOLS,
+    calledAlgorithm,
     layoutDescriptor,
 } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
@@ -106,9 +108,6 @@ export const MODEL_INSTRUCTIONS =
     "Keep answers short. Write plain text with no markdown. Never name a color or a position in an " +
     "answer. Ask the reader when a wrong guess would cost them.";
 
-/** A result's params: the facts behind its code. */
-type Params = Readonly<Record<string, string | number>>;
-
 /** One ended turn in words. */
 export interface EndWords {
     /** The turn's line. */
@@ -135,10 +134,8 @@ export function providerName(id: unknown): string {
  * @returns the name.
  */
 export function stepName(tool: string, args?: Readonly<Record<string, unknown>>): string {
-    const algorithm =
-        typeof args?.name === "string" && tool === "run_algorithm" ? algorithmByKey(args.name) : undefined;
     return (
-        algorithm?.plainName ??
+        calledAlgorithm(tool, args)?.plainName ??
         ASSISTANT_TOOLS.find((entry) => entry.name === tool)?.plainName ??
         WORDS["assistant.step.unnamed"]
     );
@@ -210,7 +207,7 @@ const note = (line: string): EndWords => ({ line, action: null, failed: false })
  * @param success - whether the message succeeded, for an unknown code.
  * @returns the row, or null for a message that ended in the reply itself.
  */
-export function endWords(code: string, params: Params, provider: string, success: boolean): EndWords | null {
+export function endWords(code: string, params: AiResultParams, provider: string, success: boolean): EndWords | null {
     const name = providerName(params.provider ?? provider);
     switch (code) {
         case "AI_COMPLETED":

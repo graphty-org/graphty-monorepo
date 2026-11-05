@@ -52,13 +52,17 @@ export function isRunning(status: AiStatus | null): boolean {
 export function useAssistantView(choice: AssistantChoice | null): AssistantView {
     const { element, store } = useWorkspace();
     const links = useWorkspaceState((state) => state.assistantLinks);
+    const asked = useWorkspaceState((state) => state.assistantTalkPress);
     const [view, setView] = useState(NOT_LINKED);
     useEffect(() => {
         if (element !== null && choice !== null) {
-            // A failure here is the first message's to report, worded from its code.
-            void linked(element, store, choice).catch(() => undefined);
+            // A failure here is the first message's to report, worded from its code. A Talk press
+            // ends with it: no Talk comes up to take it, and later it would open the microphone.
+            void linked(element, store, choice).catch(() => {
+                store.set({ assistantTalkPress: false });
+            });
         }
-    }, [element, store, choice]);
+    }, [element, store, choice, asked]);
     useEffect(() => {
         if (element === null || choice === null) {
             setView(NOT_LINKED);

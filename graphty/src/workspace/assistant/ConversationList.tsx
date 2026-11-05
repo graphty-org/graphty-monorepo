@@ -13,7 +13,7 @@ import { WORDS } from "./words";
  * @returns The list
  */
 export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
-    const { element } = useWorkspace();
+    const { element, store } = useWorkspace();
     const [rows, setRows] = useState<readonly AiConversationSummary[]>([]);
     const [deleting, setDeleting] = useState<string | null>(null);
     const list = useRef<HTMLDivElement>(null);
@@ -52,8 +52,12 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
                                     variant="default"
                                     size="compact-xs"
                                     onClick={() => {
+                                        const open = element?.getAiConversation()?.id === row.id;
                                         void element?.deleteAiConversation(row.id).then(() => {
                                             setDeleting(null);
+                                            if (open) {
+                                                store.set({ assistantEnded: null });
+                                            }
                                             setRows(rows.filter((other) => other.id !== row.id));
                                         });
                                     }}
@@ -77,7 +81,10 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
                                     size="compact-xs"
                                     aria-label={`${WORDS["assistant.list.open"]}: ${row.firstWords ?? WORDS["assistant.list.untitled"]}`}
                                     onClick={() => {
-                                        void element?.openAiConversation(row.id).then(onClose);
+                                        void element?.openAiConversation(row.id).then(() => {
+                                            store.set({ assistantEnded: null });
+                                            onClose();
+                                        });
                                     }}
                                 >
                                     {WORDS["assistant.list.open"]}

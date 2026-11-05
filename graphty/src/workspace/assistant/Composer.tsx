@@ -97,17 +97,6 @@ function useScope(): Scope {
     };
 }
 
-/**
- * Matches what the reader typed to a question's choices, as they would read them.
- * @param typed - the text.
- * @param choices - the choices.
- * @returns the choice as given, or the text.
- */
-function asChoice(typed: string, choices: readonly string[]): string {
-    const plain = typed.trim().toLowerCase();
-    return choices.find((choice) => choice.toLowerCase() === plain) ?? typed.trim();
-}
-
 /** Props for Composer. */
 interface ComposerProps {
     readonly choice: AssistantChoice;
@@ -149,10 +138,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
             return;
         }
         if (asking) {
-            const answer = question.multiple
-                ? draft.split(",").map((part) => asChoice(part, question.choices))
-                : asChoice(draft, question.choices);
-            void answerQuestion(element, store, choice, question.id, answer, draft);
+            void answerQuestion(element, store, choice, question.id, draft, draft);
             return;
         }
         void send(element, store, choice, draft, {
@@ -177,7 +163,13 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                     maxRows={6}
                     value={draft}
                     onChange={(event) => {
-                        store.set({ assistantDraft: event.currentTarget.value, assistantRefused: false });
+                        const text = event.currentTarget.value;
+                        store.set({
+                            assistantDraft: text,
+                            assistantRefused: false,
+                            // An erased transcript takes what was said, and pointed at, with it.
+                            ...(text.trim() === "" ? { assistantSpoken: null } : {}),
+                        });
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {

@@ -463,6 +463,25 @@ describe("checking what the Assistant says", () => {
         });
     });
 
+    it("Send again goes out with the scope the failed message had", async () => {
+        const { session } = await openOn(50);
+        await session.selection.apply({ ids: ids(3) });
+        Object.defineProperty(model, "name", { value: "google" });
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("About these");
+        const row = await screen.findByRole("alert");
+        model.clearError();
+
+        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await screen.findByText("The reply.");
+        await waitFor(() => {
+            assert.deepEqual(
+                sent.map((options) => options.scope),
+                ["selection", "selection"],
+            );
+        });
+    });
+
     it("updates the line while typing and keeps the draft when the selection changes", async () => {
         const { session } = await openOn(5);
         const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);

@@ -235,6 +235,8 @@ interface ChangeRowsProps {
     readonly changes: readonly AiEffect[];
     /** The id the turn's steps carry. */
     readonly provenance: string | undefined;
+    /** Whether none of the turn's changes stands. */
+    readonly undone: boolean;
     /** Opens the turn's steps. */
     readonly onMore: () => void;
 }
@@ -245,27 +247,15 @@ interface ChangeRowsProps {
  * @param props - Component props
  * @param props.changes - the turn's changes
  * @param props.provenance - the id its steps carry
+ * @param props.undone - whether none of its changes stands
  * @param props.onMore - opens the turn's steps
  * @returns The rows
  */
-export function ChangeRows({ changes, provenance, onMore }: Readonly<ChangeRowsProps>): React.JSX.Element {
+export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<ChangeRowsProps>): React.JSX.Element {
     const { store, session, run } = useWorkspace();
     useVisibilityVersion(session);
-    const history = session?.history;
-    const ours = (step: { readonly provenance: Readonly<Record<string, string>> }): boolean =>
-        provenance !== undefined && step.provenance.message === provenance;
-    const standing = history?.steps.slice(0, history.position).some(ours) === true;
-    const taken = history?.steps.slice(history.position).some(ours) === true;
-    // A later edit drops undone steps from the history, and a reload drops every step, so neither
-    // absence says Undone: only seeing the steps undone does.
-    const [isUndone, setUndone] = useState(false);
-    useEffect(() => {
-        if (standing || taken) {
-            setUndone(!standing);
-        }
-    }, [standing, taken]);
-    const next = history?.nextUndo;
-    const newest = next?.kind === "undo" && ours(next.step);
+    const next = session?.history.nextUndo;
+    const newest = next?.kind === "undo" && provenance !== undefined && next.step.provenance.message === provenance;
     const lines = changes.map((effect) => effectLine(session, effect));
     const excluded = excludedLine(changes);
     const layer = changes.find((effect) => effect.params.layer !== undefined)?.params.layer;
@@ -286,7 +276,7 @@ export function ChangeRows({ changes, provenance, onMore }: Readonly<ChangeRowsP
             {excluded === null ? null : <Text size="sm">{excluded}</Text>}
             <Group gap={4} justify="space-between">
                 <Group gap={4}>
-                    {layer === undefined || isUndone ? null : (
+                    {layer === undefined || undone ? null : (
                         <Button
                             variant="subtle"
                             color="gray"
@@ -298,7 +288,7 @@ export function ChangeRows({ changes, provenance, onMore }: Readonly<ChangeRowsP
                             {WORDS["assistant.open-layer"]}
                         </Button>
                     )}
-                    {ran === undefined || isUndone ? null : (
+                    {ran === undefined || undone ? null : (
                         <Button
                             variant="subtle"
                             color="gray"
@@ -322,7 +312,7 @@ export function ChangeRows({ changes, provenance, onMore }: Readonly<ChangeRowsP
                         {WORDS["assistant.undo"]}
                     </Button>
                 ) : null}
-                {isUndone ? <Text size="sm">{WORDS["assistant.undone"]}</Text> : null}
+                {undone ? <Text size="sm">{WORDS["assistant.undone"]}</Text> : null}
             </Group>
         </div>
     );

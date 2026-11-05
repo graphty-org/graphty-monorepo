@@ -4,6 +4,35 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided by the team: what an application no longer does for the assistant (graphty-element)
+
+All additive, tagged `@experimental assistant` where new. Each replaces code the app held:
+
+- `forgetAiKeys({ provider?, prefix? })` on the graph and the element, and `ApiKeyManager.forgetKeys()`:
+  forget keys from memory and both storages with no assistant running.
+  `Graph.createApiKeyManager` takes the constructor's options.
+- `clearAiHistory({ database? })` works with no assistant running.
+- `ApiKeyManager.retireOtherStorage()`, called by `enableAiControl` when `keyPersistence` is on: a
+  change of `storage` moves the keys and leaves none behind.
+- `calledAlgorithm(tool, args)` in `./catalog`: the algorithm a tool call runs, by the element's own
+  resolver, so an application reads neither a private tool's arguments nor its name spellings.
+- `undone?: true` on a reader's message and on its saved text part (format v1 has not been
+  released): the fact survives a later edit and a reload, which drop the steps.
+
+Behavior: an empty open conversation reopens the saved one when a graph loads after
+`enableAiControl`; `answerAiQuestion` matches a choice with case, punctuation and spacing ignored,
+as a spoken answer already was, and takes a comma list on a question that takes several; a new or
+opened conversation resets the status, so no words of the last run stay on it; `dispose` emits
+`ai-pending-resolved` with `reason: "disposed"`; `new AiController` refuses what `enableAiControl`
+refuses (`tools`, `approvals` and the rest are unreleased, so no consumer depends on them).
+
+A message bound to a selection: `style.encode` draws on the selection, `edit_data` update writes
+only records it holds and reports `outsideSelection`, and `delete_all` and `apply_suggestion`, which
+can only reach the whole graph, refuse with `AI_NOT_AVAILABLE`, `requirement: "whole-graph"`. A
+`style.update` naming a layer and no target still changes that layer as it stands: narrowing it
+would unpaint elements outside the selection, and refusing would break "make them bigger" on the
+layer the message just made.
+
 ## 2026-11-04 -- Decided by the team: effects, targets, peek, a message's scope and a reviewed transcript (graphty-element)
 
 All additive, all `@experimental assistant`, active only with the `assistant` experiment on; asking

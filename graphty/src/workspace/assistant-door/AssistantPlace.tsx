@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { assistantOn } from "./commands";
+import { assistantOn, assistantShown } from "./commands";
 
 const AssistantPanel = React.lazy(() => import("../assistant/AssistantPanel"));
 const AiProviderSection = React.lazy(() => import("../assistant/AiProviderSection"));
@@ -37,6 +37,15 @@ export function AssistantPlace(): React.JSX.Element | null {
             store.set({ place: "graph" });
         }
     }, [on, store]);
+    // A Talk press lasts as long as the place: one left waiting would open the microphone later.
+    useEffect(
+        () => () => {
+            if (!assistantShown(store)) {
+                store.set({ assistantTalkPress: false });
+            }
+        },
+        [store],
+    );
     return on === true ? (
         <Suspense fallback={null}>
             <AssistantPanel />

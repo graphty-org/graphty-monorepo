@@ -147,6 +147,13 @@ export default function AssistantPanel(): React.JSX.Element {
     const view = useAssistantView(choice);
     const [listing, setListing] = useState(false);
     const setUp = choice !== null && !view.keyMissing;
+    const asked = useWorkspaceState((state) => state.assistantTalkPress);
+    useEffect(() => {
+        // The setup screen has no Talk to take a press, and it must not wait for the next one.
+        if (asked && view.linked && !setUp) {
+            store.set({ assistantTalkPress: false });
+        }
+    }, [asked, view.linked, setUp, store]);
     const empty = (view.conversation?.messages ?? []).length === 0;
     const title = empty ? WORDS["assistant.title.new"] : WORDS["assistant.name"];
     const backToLog = (): void => {
@@ -187,7 +194,10 @@ export default function AssistantPanel(): React.JSX.Element {
                                 color="gray"
                                 aria-label={WORDS["assistant.new"]}
                                 onClick={() => {
-                                    void element?.newAiConversation().then(backToLog);
+                                    void element?.newAiConversation().then(() => {
+                                        store.set({ assistantEnded: null });
+                                        backToLog();
+                                    });
                                 }}
                             >
                                 <GLYPHS.add size={14} aria-hidden />

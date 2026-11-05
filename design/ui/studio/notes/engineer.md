@@ -17,6 +17,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+-1. (2026-11-05) Assistant review fixes. What the code now says: the element reopens a conversation
+on load, matches typed answers, forgets keys and clears history with no assistant up, moves keys
+between storages, reports `undone`, and names a call's algorithm (`calledAlgorithm`). The app
+holds none of that. A saved-format change regenerates its schema with
+`GRAPHTY_WRITE_FORMAT_SCHEMA=1` on `test/ai/conversation/formats.test.ts` (fine until the format
+ships; the file is not on master yet). `style.encode`'s layer needs its palette from
+`styles.encode`: a raw layer with `by` painted nothing, so a bound message encodes first and
+then narrows the selector. An effect cleanup that clears store state must check the state
+really left: `main.tsx` is StrictMode, and its dev double effect runs cleanups on mount.
+
 0. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars
    (`tier3/rounds/round-1/insights.md`). What it taught me, most important first:
    a. No new severity 3. Bar 5 fails only on two backlog items: the node's own Fill "+" that makes

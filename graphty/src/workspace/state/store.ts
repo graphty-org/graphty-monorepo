@@ -9,6 +9,7 @@
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { AiPointing } from "@graphty/graphty-element/ai";
+import type { AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -101,8 +102,8 @@ export interface WorkspaceState {
     readonly assistantRefused: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
     readonly assistantEnded: {
-        readonly code: string;
-        readonly params: Readonly<Record<string, string | number>>;
+        readonly code: AiResultCode;
+        readonly params: AiResultParams;
     } | null;
     readonly rightWidth: number;
     readonly dockHeight: number;

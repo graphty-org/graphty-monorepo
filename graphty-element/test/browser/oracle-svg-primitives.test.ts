@@ -8,9 +8,10 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, shapeOf } from "../fidelity/oracle/associate";
+import { associate, mergeTexts, shapeOf } from "../fidelity/oracle/associate";
+import { compareOracle } from "../fidelity/oracle/compare-oracle";
 import type { Pixels } from "../fidelity/oracle/picture-gradient";
-import type { PScene } from "../fidelity/oracle/primitives";
+import type { PScene, PText } from "../fidelity/oracle/primitives";
 import { embeddedPngs, readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
 
 describe("the oracle SVG reader", () => {
@@ -61,6 +62,85 @@ describe("the oracle SVG reader", () => {
         const [c, d] = boxes("start");
         assert.closeTo(c.x0, d.x0, 0.02);
         assert.isAbove(Math.abs((c.x0 + c.x1) / 2 - (d.x0 + d.x1) / 2), 0.5);
+    });
+
+    describe("still fails a small label drawn wrong, with its lines read off the unrounded layout", () => {
+        const K = 0.2146;
+        /** The program's two lines, 1.9 px on screen, anchored at the middle of an 8 px node at (100, 100). */
+        const program = (anchor: string): PText => {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">
+                <g transform="matrix(${String(K)} 0 0 ${String(K)} 0 0)">
+                    <text x="${String(100 / K)}" y="${String(99 / K)}" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">L'Edel de</text>
+                    <text x="${String(100 / K)}" y="${String(101 / K)}" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">Cleron</text>
+                </g></svg>`;
+            const label = mergeTexts(readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : [])));
+            assert.isNotNull(label);
+            return label;
+        };
+        const drawing = (side: PScene["side"], label: PText): PScene => ({
+            side,
+            width: 600,
+            height: 400,
+            background: "#ffffff",
+            nodes: [
+                [100, 100],
+                [300, 100],
+                [500, 100],
+                [100, 300],
+                [300, 300],
+                [500, 300],
+            ].map(([cx, cy], i) => ({
+                id: "abcdef"[i],
+                cx,
+                cy,
+                w: 8,
+                h: 8,
+                shape: "ellipse",
+                fill: { color: "#cccccc", opacity: 1, gradient: null },
+                stroke: null,
+                label: i === 0 ? label : null,
+            })),
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+        const failing = (o: PText, g: PText): string[] =>
+            Object.keys(compareOracle("t", drawing("oracle", o), drawing("graphty", g)).failures)
+                .filter((p) => p.startsWith("label."))
+                .sort();
+
+        it("and passes one drawn right", () => {
+            assert.deepEqual(failing(program("middle"), { ...program("middle"), align: "middle" }), []);
+            assert.deepEqual(failing(program("start"), { ...program("start"), align: "start" }), []);
+            assert.deepEqual(failing(program("end"), { ...program("end"), align: "end" }), []);
+        });
+
+        it("in the wrong alignment", () => {
+            for (const [wanted, drawn] of [
+                ["middle", "start"],
+                ["middle", "end"],
+                ["start", "middle"],
+                ["end", "middle"],
+                ["start", "end"],
+            ] as const) {
+                assert.include(failing(program(wanted), { ...program(wanted), align: drawn }), "label.align");
+            }
+        });
+
+        it("on the wrong side of its node", () => {
+            const o = program("middle");
+            const moved = (b: PText["box"]): PText["box"] => ({ ...b, x0: b.x0 + 14, x1: b.x1 + 14 });
+            const g = { ...o, align: "middle" as const, box: moved(o.box), lines: o.lines?.map(moved) };
+            assert.includeMembers(failing(o, g), ["label.anchor", "label.offset"]);
+        });
+
+        it("at the wrong width", () => {
+            const o = program("middle");
+            const wider = (b: PText["box"]): PText["box"] => ({ ...b, x1: b.x1 + (b.x1 - b.x0) });
+            const g = { ...o, align: "start" as const, box: wider(o.box), lines: o.lines?.map(wider) };
+            assert.includeMembers(failing(o, g), ["label.align", "label.anchor", "label.offset"]);
+        });
     });
 
     it("reads the open outline vis-network writes over a filled shape as that shape's outline", () => {

@@ -240,13 +240,12 @@ class Visit {
                 const s = document.querySelector("graphty-element").session;
                 const run = s.runs
                     .list()
-                    .filter(
+                    .findLast(
                         (r) =>
                             r.algorithm === algorithm &&
                             r.status === "succeeded" &&
                             Object.entries(params).every(([k, v]) => r.params[k] === v),
-                    )
-                    .at(-1);
+                    );
                 if (run?.result === undefined) {
                     return false;
                 }
@@ -359,7 +358,9 @@ class Visit {
             const seen = await this.ws.evaluate((box) =>
                 [...box.querySelectorAll("[data-testid=data-table-row]")]
                     .slice(0, 6)
-                    .map((r) => `${r.innerText.replace(/\n/g, "|")} ${r.style.getPropertyValue("--cm-dt-row-color")}`),
+                    .map(
+                        (r) => `${r.innerText.replaceAll("\n", "|")} ${r.style.getPropertyValue("--cm-dt-row-color")}`,
+                    ),
             );
             fail(`${when}: a table row is not in the selection or has the wrong tint: ${seen.join("; ")}`);
         }
@@ -494,7 +495,7 @@ class Visit {
         await this.ws.waitFor({ state: "detached" });
         // A layer that selected everything reads the same as one card with All and no step.
         const plain = (held) =>
-            held.replace(
+            held.replaceAll(
                 /\{"match":"rule","where":\{"kind":"union","side":"\w+","within":"\w+","branches":\[\{"start":"all","steps":\[\],"id":"\w+","color":"#\w+"\}\]\}\}/g,
                 '{"match":"everything"}',
             );
@@ -1464,9 +1465,10 @@ async function runOne(scenario) {
     }
     result.seconds = Math.round((Date.now() - began) / 1000);
     results.push(result);
-    console.log(
-        `${result.status}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}${result.message === "" ? "" : `\n      ${result.message}`}`,
-    );
+    console.log(`${result.status}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}`);
+    if (result.message !== "") {
+        console.log(`      ${result.message}`);
+    }
     await context.close();
 }
 

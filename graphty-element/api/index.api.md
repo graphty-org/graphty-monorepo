@@ -5470,6 +5470,11 @@ export const NodeStyle: z.ZodObject<{
         offset: z.ZodOptional<z.ZodNumber>;
         count: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
+    raisedBorder: z.ZodOptional<z.ZodObject<{
+        width: z.ZodOptional<z.ZodNumber>;
+        lightColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;

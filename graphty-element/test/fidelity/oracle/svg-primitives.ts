@@ -24,6 +24,7 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    solidOuter,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
@@ -322,8 +323,9 @@ function cornersOf(el: SVGElement): number {
         if (/[CcSsQqTtAa]/.test(d)) {
             return roundedPolygonSides(d);
         }
-        // vertices of the first subpath
-        const first = d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "";
+        // vertices of the first subpath, up to its close: lines drawn on from there (yEd's BPMN envelope, its flap after
+        // its box) are no sides of it
+        const first = (d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "").replace(/[Zz].*$/s, "");
         const n = (first.match(/[LlHhVv]/g)?.length ?? 0) + 1;
         const coords = first
             .replace(/[A-Za-z]/g, " ")
@@ -378,11 +380,48 @@ function roundedPolygonSides(d: string): number {
     return straight >= 3 && straight !== 4 && curved === straight ? straight : 0;
 }
 
+/**
+ * Whether a path draws some corners of its box square and rounds others: a segment ends on the box's corner, as none
+ * of a rectangle with rounded corners does, and all four do where a rounding of 0 draws a plain box. Nothing is known of
+ * a path with relative commands.
+ * @param d - the path data
+ * @param box - the path's box, in the path's own space
+ * @param box.x - its left
+ * @param box.y - its top
+ * @param box.width - its width
+ * @param box.height - its height
+ * @returns whether it does
+ */
+export function hasSquareCorner(d: string, box: { x: number; y: number; width: number; height: number }): boolean {
+    if (/[a-y]/.test(d)) {
+        return false;
+    }
+    const side = (v: number, a: number, b: number): number | null => {
+        if (Math.abs(v - a) < 0.01) {
+            return 0;
+        }
+        return Math.abs(v - b) < 0.01 ? 1 : null;
+    };
+    const corners = new Set<string>();
+    for (const m of d.matchAll(/[MLCSQTA]([^A-Z]*)/g)) {
+        const [x, y] = m[1]
+            .trim()
+            .split(/[\s,]+/)
+            .map(Number)
+            .slice(-2);
+        const [sx, sy] = [side(x, box.x, box.x + box.width), side(y, box.y, box.y + box.height)];
+        if (sx !== null && sy !== null) {
+            corners.add(`${String(sx)}${String(sy)}`);
+        }
+    }
+    return corners.size > 0 && corners.size < 4;
+}
+
 function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
     if (CLOSED.has(el.localName)) {
         return true;
     }
-    if (el.localName === "path" && /[Zz]\s*$/.test(el.getAttribute("d") ?? "")) {
+    if (el.localName === "path" && /[Zz]\s*([LlHhVv]|$)/.test(el.getAttribute("d") ?? "")) {
         return true;
     }
     const a = pts[0];
@@ -1257,8 +1296,13 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
+            const nonzero = cs.fillRule !== "evenodd";
             const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
-            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
+            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths, nonzero) : null;
+            const solid = subpaths !== null && nonzero ? solidOuter(subpaths) : null;
+            if (solid !== null) {
+                points = [...solid];
+            }
             if (fill !== null && painted !== null) {
                 stroke = {
                     color: fill.color,
@@ -1286,6 +1330,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
+                ...(el.localName === "path" && hasSquareCorner(el.getAttribute("d") ?? "", el.getBBox())
+                    ? { squareCorner: true }
+                    : {}),
                 fill: closed ? fill : null,
                 stroke,
                 text: null,

@@ -1,5 +1,5 @@
 /**
- * A raised border is its node's, never an arrowhead, and stays a stray graphty's flat box does not draw: yEd draws a UML class node and a 3D rectangle with
+ * A raised border is its node's, never an arrowhead, and stays a stray, judged against the strips graphty draws: yEd draws a UML class node and a 3D rectangle with
  * Java's `fill3DRect`, a body and then four one-pixel strips round it. In graphml-libcitygml-mapping 67 ends of 57 edges
  * read as arrowed, the file arrowing 9: a line ending at a node takes the strip it stops at as its head.
  */

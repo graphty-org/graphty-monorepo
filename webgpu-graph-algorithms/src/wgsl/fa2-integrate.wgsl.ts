@@ -2,7 +2,7 @@
  * K5 of the ForceAtlas2 iteration, `fa2-integrate` (spec 7.11; contract 4.5): the per-node speed factor
  * `speed / (1 + sqrt(speed * swing_i))` with the local swing recomputed inline (paper mode `m |F(t) - F(t-1)|`,
  * networkx mode `m |F|`, contract 4.6), the position update with no displacement clamp (D25), z never integrated
- * in 2D (spec 7.13), `oldForce` stored in paper mode for fixed nodes too (spec 7.11), and the partials A
+ * in 2D (spec 7.13), `oldForce` stored in paper mode, 0 for a fixed node (spec 7.11), and the partials A
  * (sum p, sum |p - c|^2, min, max with max |p - c|^2 in `max.w`) and C (sum |dp| over free rows, free count) in
  * uniform control flow. `APPLY` (P5, spec 7.20) picks the integrator: 0 = the FA2 text, 1 = the Fruchterman-Reingold
  * temperature cap `min(|F|, t)` along F, 2 = ngraph's semi-implicit Euler step with drag and the unit speed clamp
@@ -61,7 +61,7 @@ fn integrate(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id
         if (P.dim == 2u) { dp.z = 0.0; }                                   // 2D never integrates z (7.13)
         p = vec4f(p.xyz + dp, p.w);
         pos[i] = p;
-        if (SWING_MODE == 0u) { store_old(i, f); }                         // fixed nodes too, so a later unpin sees no stale swing (7.11)
+        if (SWING_MODE == 0u) { store_old(i, select(f, vec3f(0.0), fixed)); }   // 0 when fixed, as after load: the first free tick has the full swing damping (7.11)
         free = !fixed;
     }
     // uniform control flow from here (3.5 rule 1): partials A (sum p, sum |p - c|^2, min, max over valid rows) and C (sum |dp|, free count)

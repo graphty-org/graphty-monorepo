@@ -475,6 +475,12 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
+     * The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
+     * legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
+     * turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+     */
+    | "E_SHADER_REFUSED"
+    /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
      * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -693,6 +699,10 @@ export type GraphtyErrorCode =
      * for an unnamed asset), so it was not added. `params.id`.
      */
     | "E_MODEL_DIGEST_MISMATCH"
+    /**
+     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+     */
+    | "E_IMAGE_LOAD"
     | "E_INTERNAL";
 
 /**
@@ -995,6 +1005,7 @@ const CODE_TABLE = {
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
+    E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
@@ -1039,6 +1050,7 @@ const CODE_TABLE = {
     E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
     E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
+    E_IMAGE_LOAD: "E_IMAGE_LOAD",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

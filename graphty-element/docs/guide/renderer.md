@@ -44,7 +44,10 @@ drawing.
 
 `rendererStatus.drawing` is false when the browser gave the page no working WebGL context at
 all: nothing is drawn, but the data, the session and [autosave](./autosave) still work, so the
-reader can still save a file.
+reader can still save a file. It is also false once the WebGPU device refuses a shader, which
+loses every frame the shader is part of: a `graph-error` event carries `E_SHADER_REFUSED`, with
+what the device said in `error.details.messages`. A shader passed to `defineShader` may use a name
+WGSL reserves, such as `pass`, `target` or `fn`: the element renames it for you.
 
 ## What differs under WebGPU
 

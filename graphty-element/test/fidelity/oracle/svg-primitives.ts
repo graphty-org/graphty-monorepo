@@ -1144,12 +1144,19 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
+                const b = el.getBBox();
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, el.getBBox()),
+                    box: boxThrough(m, b),
+                    quad: [
+                        at(m, b.x, b.y),
+                        at(m, b.x + b.width, b.y),
+                        at(m, b.x + b.width, b.y + b.height),
+                        at(m, b.x, b.y + b.height),
+                    ],
                     points: [],
                     closed: true,
                     corners: 4,

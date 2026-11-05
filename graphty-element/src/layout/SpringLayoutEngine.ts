@@ -12,6 +12,7 @@ import type { SimulationType } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -56,6 +57,8 @@ const springLayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
         schema: z.number().positive().nullable().default(null),
         meta: {

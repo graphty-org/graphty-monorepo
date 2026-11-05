@@ -13,6 +13,7 @@ import { Composer } from "./Composer";
 import { Conversation } from "./Conversation";
 import { ConversationList } from "./ConversationList";
 import { type AssistantView, useAssistantView } from "./useAssistantView";
+import { Waiting } from "./Waiting";
 import { starterColumn, WORDS } from "./words";
 
 /**
@@ -115,6 +116,7 @@ function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): Re
         return (
             <>
                 <ConversationList onClose={onCloseList} />
+                <Waiting view={view} choice={choice} />
                 <Composer choice={choice} view={view} model={model} />
             </>
         );
@@ -128,6 +130,7 @@ function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): Re
             ) : (
                 <Conversation conversation={view.conversation} status={view.status} choice={choice} />
             )}
+            <Waiting view={view} choice={choice} />
             <Composer choice={choice} view={view} model={model} />
         </>
     );

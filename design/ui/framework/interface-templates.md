@@ -108,10 +108,10 @@ A1, A2 and A10. Each card's States field says whether it draws data paint.
 - **Instantiates:** Assistant.
 - **Figma source:** the Agents panel (canvas-selection `s1`, `s2` captures).
 - **Departures:** none.
-- **Regions and rows:** the left panel header (`interface-specification.md` 1.2); conversation; composer. Width in `interface-specification.md` 1.3. No graph rows; an object it names is
-  a link that selects it.
-- **Tab order:** conversation; composer.
-- **States:** no provider: the rail button disabled with its reason (`state-matrix.md` 3). Chrome only.
+- **Regions and rows:** the left panel header (`interface-specification.md` 1.2); conversation; composer. Width in `interface-specification.md` 1.3. No graph rows; only a tool's result is a
+  chip that peeks and selects, and an object the model merely names stays plain text.
+- **Tab order:** header; conversation; waiting section; composer.
+- **States:** no provider: the panel says what the assistant does and offers AI provider...; the rail button is never disabled (`state-matrix.md` 3). Chrome only.
 
 ## 6. Header rows
 

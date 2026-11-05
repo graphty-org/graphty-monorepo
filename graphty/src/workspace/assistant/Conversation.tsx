@@ -1,16 +1,19 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
+import type { AiEffect } from "@graphty/graphty-element/catalog";
 import { Button, Collapse, Group, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { ChangeRows, ResultRow } from "./Checks";
 import { send } from "./connection";
 import { isRunning } from "./useAssistantView";
 import {
     durationWords,
     type EndWords,
     endWords,
+    isChange,
     providerName,
     runningWords,
     sendingWords,
@@ -31,12 +34,16 @@ type AssistantMessage = Extract<AiConversationMessage, { role: "assistant" }>;
 interface Turn {
     readonly reader: ReaderMessage | null;
     readonly replies: readonly AssistantMessage[];
+    /** The id its steps carry: an answer to a question goes on with the message it answers. */
+    readonly provenance: string | undefined;
 }
 
 /** One step, as a row shows it: never its arguments. */
 interface Step {
     readonly name: string;
     readonly ms?: number;
+    /** What it found, on the last step of its reply. */
+    readonly results?: readonly AiEffect[];
 }
 
 /**
@@ -45,13 +52,13 @@ interface Step {
  * @returns the turns.
  */
 function turnsOf(messages: readonly AiConversationMessage[]): readonly Turn[] {
-    const turns: { reader: ReaderMessage | null; replies: AssistantMessage[] }[] = [];
+    const turns: { reader: ReaderMessage | null; replies: AssistantMessage[]; provenance: string | undefined }[] = [];
     for (const message of messages) {
         if (message.role === "reader") {
-            turns.push({ reader: message, replies: [] });
+            turns.push({ reader: message, replies: [], provenance: message.provenance ?? turns.at(-1)?.provenance });
         } else if (message.role === "assistant") {
             if (turns.length === 0) {
-                turns.push({ reader: null, replies: [] });
+                turns.push({ reader: null, replies: [], provenance: undefined });
             }
             turns[turns.length - 1].replies.push(message);
         }
@@ -95,14 +102,22 @@ function useLate(running: boolean): boolean {
     return late;
 }
 
+/** Props for Steps. */
+interface StepsProps {
+    readonly steps: readonly Step[];
+    readonly open: boolean;
+    readonly onToggle: () => void;
+}
+
 /**
- * A turn's steps: collapsed, a plain name and a time each.
+ * A turn's steps: collapsed, a plain name, a time and any chips each.
  * @param props - Component props
  * @param props.steps - the steps
+ * @param props.open - whether they show
+ * @param props.onToggle - opens or closes them
  * @returns The row, or nothing with no steps
  */
-function Steps({ steps }: Readonly<{ steps: readonly Step[] }>): React.JSX.Element | null {
-    const [open, setOpen] = useState(false);
+function Steps({ steps, open, onToggle }: Readonly<StepsProps>): React.JSX.Element | null {
     if (steps.length === 0) {
         return null;
     }
@@ -114,9 +129,7 @@ function Steps({ steps }: Readonly<{ steps: readonly Step[] }>): React.JSX.Eleme
                 size="compact-xs"
                 aria-expanded={open}
                 leftSection={<GLYPHS.expand size={12} aria-hidden className={open ? undefined : "ws-assistant-shut"} />}
-                onClick={() => {
-                    setOpen(!open);
-                }}
+                onClick={onToggle}
             >
                 {stepsWords(steps.length)}
             </Button>
@@ -125,14 +138,22 @@ function Steps({ steps }: Readonly<{ steps: readonly Step[] }>): React.JSX.Eleme
                     {steps.map((step, index) => (
                         // A step has no id of its own, and a turn's steps only ever grow at the end.
                         <li key={index}>
-                            <Text span size="xs">
-                                {step.name}
-                            </Text>
-                            {step.ms === undefined ? null : (
-                                <Text span size="xs" c="dimmed">
-                                    {durationWords(step.ms)}
+                            <span className="ws-assistant-step">
+                                <Text span size="xs">
+                                    {step.name}
                                 </Text>
-                            )}
+                                {step.ms === undefined ? null : (
+                                    <Text span size="xs" c="dimmed">
+                                        {durationWords(step.ms)}
+                                    </Text>
+                                )}
+                            </span>
+                            {open
+                                ? step.results?.map((effect, at) => (
+                                      // A reply's results never reorder.
+                                      <ResultRow key={at} effect={effect} />
+                                  ))
+                                : null}
                         </li>
                     ))}
                 </ul>
@@ -211,6 +232,7 @@ interface TurnViewProps {
  */
 function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewProps>): React.JSX.Element {
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
+    const [stepsOpen, setStepsOpen] = useState(false);
     const running = isRunning(status);
     const said = turn.replies
         .map((reply) => reply.text)
@@ -221,12 +243,22 @@ function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewPr
     const steps: readonly Step[] = running
         ? (status?.toolCalls ?? []).map((call) => ({ name: stepName(call.name, call.arguments) }))
         : turn.replies.flatMap((reply) =>
-              reply.calls.map((call) => ({
+              reply.calls.map((call, index) => ({
                   name: stepName(call.command, call.arguments),
                   ...(call.durationMs === undefined ? {} : { ms: call.durationMs }),
+                  ...(index === reply.calls.length - 1
+                      ? { results: (reply.effects ?? []).filter((effect) => !isChange(effect)) }
+                      : {}),
               })),
           );
-    const saved = turn.replies.findLast((reply) => reply.outcome !== undefined)?.outcome;
+    const effects = running ? [] : turn.replies.flatMap((reply) => reply.effects ?? []);
+    const changes = effects.filter(isChange);
+    const result = effects.findLast((effect) => !isChange(effect));
+    // A request that ended unanswered says why on the calls it held.
+    const unanswered = turn.replies
+        .flatMap((reply) => reply.calls)
+        .findLast((call) => call.code === "AI_APPROVAL_STALE");
+    const saved = turn.replies.findLast((reply) => reply.outcome !== undefined)?.outcome ?? unanswered;
     const ended = saved ?? (status === null ? undefined : (lastEnded ?? undefined));
     const words = running || ended === undefined ? null : endWords(ended.code, ended.params, provider, false);
     const { reader } = turn;
@@ -245,17 +277,33 @@ function TurnView({ turn, status, provider, late, onAgain }: Readonly<TurnViewPr
             {running || prose !== "" || steps.length > 0 || words !== null ? (
                 <>
                     <h3 className="ws-assistant-who">{WORDS["assistant.turn.assistant"]}</h3>
-                    <Steps steps={steps} />
+                    <Steps
+                        steps={steps}
+                        open={stepsOpen}
+                        onToggle={() => {
+                            setStepsOpen(!stepsOpen);
+                        }}
+                    />
                     {prose === "" ? null : (
                         <Text size="sm" className="ws-assistant-prose">
                             {prose}
                         </Text>
                     )}
                     {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
+                    {changes.length > 0 ? (
+                        <ChangeRows
+                            changes={changes}
+                            provenance={turn.provenance}
+                            onMore={() => {
+                                setStepsOpen(true);
+                            }}
+                        />
+                    ) : null}
+                    {changes.length === 0 && result !== undefined ? <ResultRow effect={result} table /> : null}
                     {words === null ? null : (
                         <EndRow
                             words={words}
-                            unchanged={turn.replies.every((reply) => (reply.effects ?? []).length === 0)}
+                            unchanged={changes.length === 0}
                             onAgain={
                                 onAgain === null || reader === null
                                     ? null
@@ -321,7 +369,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
         <div className="ws-assistant-logwrap">
             <div
                 ref={log}
-                className="ws-assistant-log"
+                className="ws-assistant-log cm-focus-inside"
                 role="region"
                 aria-label={WORDS["assistant.log.name"]}
                 // Scrolls by keyboard: a region with focus takes the arrow and Page keys.

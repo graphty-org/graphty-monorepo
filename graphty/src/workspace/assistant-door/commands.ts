@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 
 import { defineRegistration } from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
+import { readAssistantChoice } from "./provider";
 
 /** The composer's mark, on the region a later field sits in. */
 const COMPOSER = "[data-assistant-composer]";
@@ -65,7 +66,10 @@ export function goToComposer(store: WorkspaceStore): void {
     });
 }
 
-/** The Assistant's commands: Mod+I goes to the composer, and in the composer closes; AI provider... */
+/**
+ * The Assistant's commands: Mod+I goes to the composer, and in the composer closes; Shift+Mod+Space
+ * presses Talk from anywhere; AI provider...
+ */
 export const registration = defineRegistration({
     owner: "assistant-door",
     commands: [
@@ -82,6 +86,21 @@ export const registration = defineRegistration({
                 } else {
                     goToComposer(workspace);
                 }
+            },
+        },
+        {
+            id: "assistant.talk",
+            label: "Talk",
+            group: "Go to",
+            keys: ["Shift+Mod+Space"],
+            shown: ({ element }) => assistantOn(element) === true,
+            experiment: true,
+            run: ({ workspace }) => {
+                if (!assistantShown(workspace)) {
+                    goToComposer(workspace);
+                }
+                // With no provider there is no Talk to take the press.
+                workspace.set({ assistantTalkPress: readAssistantChoice() !== null });
             },
         },
         {

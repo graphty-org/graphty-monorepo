@@ -98,7 +98,14 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     }, [place, store]);
     // A note or a message being written is about this project's graph: another project drops it.
     useEffect(() => {
-        store.set({ noteDraft: null, assistantDraft: "", assistantEnded: null });
+        store.set({
+            noteDraft: null,
+            assistantDraft: "",
+            assistantEnded: null,
+            assistantWaiting: 0,
+            assistantSpoken: null,
+            assistantRefused: false,
+        });
     }, [projectId, store]);
 
     return (

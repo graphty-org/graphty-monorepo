@@ -5,12 +5,20 @@
  * message) is never read here.
  */
 
+import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
 import {
     AI_PROVIDER_DESCRIPTORS,
+    type AiEffect,
     type AiKeyShapeCheck,
     algorithmByKey,
     ASSISTANT_TOOLS,
+    layoutDescriptor,
 } from "@graphty/graphty-element/catalog";
+import type { Channel } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
+
+import { formatNumber } from "../settings/numberFormat";
+import { attributeName, channelWord } from "../style/words";
 
 export const WORDS = {
     "assistant.name": "Assistant",
@@ -25,10 +33,29 @@ export const WORDS = {
     "assistant.starter.groups": "What groups does this graph have?",
     "assistant.starter.stands-out": "What stands out in this graph?",
     "assistant.composer.placeholder": "Ask about this graph",
+    "assistant.composer.answer": "Or type an answer",
     "assistant.composer.name": "Message the assistant",
     "assistant.send": "Send",
     "assistant.send.tooltip": "Enter sends, Shift+Enter makes a new line",
     "assistant.stop": "Stop Esc",
+    "assistant.talk": "Talk",
+    "assistant.talk.stop": "Stop talking",
+    "assistant.scope.graph": "Whole graph",
+    "assistant.scope.selection": "Selection",
+    "assistant.scope.use": "Use selection",
+    "assistant.scope.drop": "Ask about the whole graph",
+    "assistant.chips.name": "Results",
+    "assistant.chip.gone": "Not in this graph",
+    "assistant.table": "Show in table",
+    "assistant.open-layer": "Open layer",
+    "assistant.open-run": "Open run",
+    "assistant.undo": "Undo",
+    "assistant.undone": "Undone",
+    "assistant.waiting.name": "Waiting for you",
+    "assistant.waiting.change": "Change this",
+    "assistant.waiting.answer": "Answer",
+    "assistant.waiting.invalid": "That is not one of the choices.",
+    "assistant.answered": "The assistant answered",
     "assistant.model.tooltip": "Change provider or model",
     "assistant.log.name": "Conversation",
     "assistant.jump": "Jump to newest",
@@ -47,6 +74,9 @@ export const WORDS = {
     "assistant.working.writing": "Writing",
     "assistant.status.working": "Working",
     "assistant.status.ready": "Answer ready",
+    "assistant.status.waiting-answer": "Waiting for your answer",
+    "assistant.status.listening": "Listening",
+    "assistant.status.transcript": "Transcript in the message box",
     "assistant.provider.provider": "Provider",
     "assistant.provider.model": "Model",
     "assistant.provider.key": "API key",
@@ -301,5 +331,295 @@ export function keyShapeWords(check: AiKeyShapeCheck, provider: string): string 
             return `${provider} keys start with ${check.params.prefix}.`;
         default:
             return "This key is too short.";
+    }
+}
+
+/**
+ * A count of a thing.
+ * @param count - how many.
+ * @param one - the thing.
+ * @returns such as "12 nodes".
+ */
+export const counted = (count: number, one: string): string =>
+    `${formatNumber(count)} ${count === 1 ? one : `${one}s`}`;
+
+/**
+ * Nodes and edges in one phrase; a count of zero drops out.
+ * @param nodes - how many nodes.
+ * @param edges - how many edges.
+ * @returns such as "12 nodes and 30 edges".
+ */
+function nodesAndEdges(nodes: number, edges: number): string {
+    return [nodes > 0 ? counted(nodes, "node") : "", edges > 0 ? counted(edges, "edge") : ""]
+        .filter((part) => part !== "")
+        .join(" and ");
+}
+
+/** An approval card in words. */
+export interface ApprovalWords {
+    readonly title: string;
+    readonly line: string | null;
+    readonly primary: string;
+    readonly decline: string;
+}
+
+const UNDO_REACHES = "Undo can bring them back.";
+
+/**
+ * What a held request's calls are, by name.
+ * @param request - the request.
+ * @returns the tools' plain names.
+ */
+function toolNames(request: AiApprovalRequest): string {
+    return [...new Set(request.calls.map((call) => stepName(call.tool, call.arguments)))].join(", ");
+}
+
+/**
+ * A `large` card: its removal, else the values it changes.
+ * @param request - the request.
+ * @returns the words.
+ */
+function largeWords(request: AiApprovalRequest): ApprovalWords {
+    const { preview } = request;
+    const removing = nodesAndEdges(preview.removeNodes ?? 0, preview.removeEdges ?? 0);
+    return removing === ""
+        ? {
+              title: `Change ${counted(preview.changedValues ?? 0, "value")}?`,
+              line: UNDO_REACHES,
+              primary: "Change",
+              decline: "Keep them",
+          }
+        : { title: `Remove ${removing}?`, line: UNDO_REACHES, primary: "Remove", decline: "Keep them" };
+}
+
+/**
+ * An approval card's words, from its gate and what was measured, never the model's arguments
+ * (design 6.5). Only `irreversible` says Undo cannot reach it.
+ * @param request - the request.
+ * @returns the words.
+ */
+export function approvalWords(request: AiApprovalRequest): ApprovalWords {
+    const { gate, preview } = request;
+    const algorithm = preview.algorithm === undefined ? undefined : algorithmByKey(preview.algorithm);
+    const otherwise = { title: `Run ${toolNames(request)}?`, line: null, primary: "Allow", decline: "Decline" };
+    switch (gate) {
+        case "large":
+            return largeWords(request);
+        case "replaces":
+            return {
+                title: `Replace this graph's ${nodesAndEdges(preview.nodes ?? 0, preview.edges ?? 0)}?`,
+                line: null,
+                primary: "Replace",
+                decline: "Keep this graph",
+            };
+        case "irreversible": {
+            const removing = nodesAndEdges(preview.removeNodes ?? 0, preview.removeEdges ?? 0);
+            return {
+                title: removing === "" ? `Run ${toolNames(request)}?` : `Remove ${removing}?`,
+                line: "Undo cannot bring this back.",
+                primary: removing === "" ? "Run" : "Remove",
+                decline: "Keep them",
+            };
+        }
+        case "slow":
+            return {
+                title: `Run ${algorithm?.plainName ?? toolNames(request)}?`,
+                line:
+                    typeof preview.seconds === "number"
+                        ? `About ${counted(preview.seconds, "second")}.`
+                        : "May run for a long time.",
+                primary: "Run",
+                decline: "Skip",
+            };
+        case "network":
+            return preview.url === undefined
+                ? otherwise
+                : {
+                      title: `Load ${preview.url}?`,
+                      line: "Reads a page outside graphty.",
+                      primary: "Load",
+                      decline: "Skip",
+                  };
+        default:
+            return otherwise;
+    }
+}
+
+/**
+ * A waiting request's notice, for a reader away from the panel.
+ * @param title - an approval's title, or null for a question.
+ * @returns the words, such as "Waiting: remove 12 nodes".
+ */
+export function awayWords(title: string | null): string {
+    if (title === null) {
+        return WORDS["assistant.status.waiting-answer"];
+    }
+    return `Waiting: ${title.charAt(0).toLowerCase()}${title.slice(1).replace(/\?$/, "")}`;
+}
+
+/**
+ * Whether an effect is a change to the graph a change line reports, not a read.
+ * @param effect - the effect.
+ * @returns true for a change.
+ */
+export const isChange = (effect: AiEffect): boolean =>
+    effect.code !== "AI_EFFECT_FOUND" && effect.code !== "AI_EFFECT_EMPTY";
+
+/**
+ * A style effect's line.
+ * @param session - the session, to name a source.
+ * @param params - the effect's facts.
+ * @returns the line.
+ */
+function styleLine(session: GraphSession | null, params: AiEffect["params"]): string {
+    const channel = String(params.channel);
+    const count =
+        params.edges === undefined ? counted(Number(params.nodes), "node") : counted(Number(params.edges), "edge");
+    const source = typeof params.source === "string" ? params.source : undefined;
+    const by = source === undefined ? "" : ` by ${session === null ? source : attributeName(session, source)}`;
+    if (channel.endsWith(".color")) {
+        return `Colored ${count}${by}`;
+    }
+    if (channel.endsWith(".size")) {
+        return `Sized ${count}${by}`;
+    }
+    return `Set ${(channelWord(channel as Channel) ?? channel).toLowerCase()} on ${count}`;
+}
+
+/**
+ * A data effect's line.
+ * @param params - the effect's facts.
+ * @returns the line.
+ */
+function dataLine(params: AiEffect["params"]): string {
+    const n = (name: string): number => Number(params[name] ?? 0);
+    const added = nodesAndEdges(n("addedNodes"), n("addedEdges"));
+    const removed = nodesAndEdges(n("removedNodes"), n("removedEdges"));
+    return [
+        added === "" ? "" : `Added ${added}`,
+        removed === "" ? "" : `Removed ${removed}`,
+        n("changedValues") > 0 ? `Changed ${counted(n("changedValues"), "value")}` : "",
+    ]
+        .filter((part) => part !== "")
+        .join(", ");
+}
+
+/**
+ * One effect's change line (design 6.6).
+ * @param session - the session, to name a source.
+ * @param effect - the effect.
+ * @returns the line.
+ */
+export function effectLine(session: GraphSession | null, effect: AiEffect): string {
+    const { code, params } = effect;
+    switch (code) {
+        case "AI_EFFECT_STYLE":
+            return styleLine(session, params);
+        case "AI_EFFECT_LAYOUT": {
+            const layout = layoutDescriptor(String(params.layout));
+            return `Arranged as ${layout?.plainName ?? String(params.layout)}`;
+        }
+        case "AI_EFFECT_FILTER":
+            return `Filtered to ${formatNumber(Number(params.kept))} of ${counted(Number(params.total), "node")}`;
+        case "AI_EFFECT_RUN": {
+            const name = algorithmByKey(String(params.algorithm))?.plainName ?? String(params.algorithm);
+            return params.nodes === undefined
+                ? `Computed ${name}`
+                : `Computed ${name} for ${counted(Number(params.nodes), "node")}`;
+        }
+        case "AI_EFFECT_DATA":
+            return dataLine(params);
+        case "AI_EFFECT_SELECTION":
+            return `Selected ${counted(Number(params.nodes ?? 0), "node")}`;
+        case "AI_EFFECT_VIEW":
+            return "Moved the view";
+        default:
+            return "Changed the graph";
+    }
+}
+
+/**
+ * The line for what a style left out because a filter hides it.
+ * @param effects - a turn's changes.
+ * @returns the line, or null with nothing left out.
+ */
+export function excludedLine(effects: readonly AiEffect[]): string | null {
+    const styles = effects.filter((effect) => effect.code === "AI_EFFECT_STYLE" && Number(effect.params.hidden) > 0);
+    const worst = styles.reduce((most, effect) => Math.max(most, Number(effect.params.hidden)), 0);
+    if (worst === 0) {
+        return null;
+    }
+    const colored = styles.every((effect) => String(effect.params.channel).endsWith(".color"));
+    return `${formatNumber(worst)} hidden ${worst === 1 ? "node" : "nodes"} ${colored ? "not colored" : "not changed"}`;
+}
+
+/**
+ * An empty result's row.
+ * @param searched - what was searched for.
+ * @returns the words.
+ */
+export const emptyWords = (searched: unknown): string =>
+    typeof searched === "string" && searched !== "" ? `No matches for ${searched}.` : "No matches.";
+
+/**
+ * The row of more change lines.
+ * @param count - how many more.
+ * @returns the words.
+ */
+export const moreWords = (count: number): string => `and ${formatNumber(count)} more`;
+
+/**
+ * A chip's spoken name: the count, because the peek shows only on the canvas.
+ * @param kind - nodes or edges.
+ * @param count - how many.
+ * @returns the name.
+ */
+export const chipName = (kind: "node" | "edge", count: number): string => `${counted(count, kind)}, select`;
+
+/**
+ * The hidden part of the scope line.
+ * @param count - how many nodes a filter hides.
+ * @returns the words.
+ */
+export const hiddenWords = (count: number): string => `${formatNumber(count)} hidden`;
+
+/**
+ * Where a first press of Talk says the audio goes.
+ * @param destination - the element's fact.
+ * @param provider - the provider's name.
+ * @returns the words, or null when it stays on the device.
+ */
+export function audioWords(destination: string, provider: string): string | null {
+    switch (destination) {
+        case "browser-vendor":
+            return "Speech goes to your browser's maker.";
+        case "provider":
+            return `Speech goes to ${provider}.`;
+        default:
+            return null;
+    }
+}
+
+/**
+ * A voice failure's line (design 6.4).
+ * @param reason - the reason in `AI_VOICE_UNAVAILABLE`'s params.
+ * @returns the line.
+ */
+export function voiceWords(reason: string | number | undefined): string {
+    switch (reason) {
+        case "permission-denied":
+            return "Allow the microphone to talk.";
+        case "no-microphone":
+            return "No microphone found.";
+        case "insecure-context":
+        case "no-recognition":
+        case "no-provider-transcription":
+            return "This browser cannot take speech here.";
+        case "recognition-network":
+            return "Speech stopped: the connection dropped.";
+        case "no-key":
+            return "Speech needs a key.";
+        default:
+            return "Speech is not available.";
     }
 }

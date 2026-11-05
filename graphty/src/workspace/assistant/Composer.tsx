@@ -1,11 +1,112 @@
-import { Button, Group, Textarea, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef } from "react";
+import { EntityChip } from "@graphty/compact-mantine";
+import { ActionIcon, Button, Group, Text, Textarea, Tooltip } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
-import type { AssistantChoice } from "../assistant-door/provider";
+import { type AssistantChoice, providerDescriptor } from "../assistant-door/provider";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { GLYPHS } from "../glyphs";
+import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { send } from "./connection";
+import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { answerQuestion, send } from "./connection";
+import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
-import { WORDS } from "./words";
+import { hiddenWords, WORDS } from "./words";
+
+/** The scope a message goes with. */
+interface Scope {
+    /** What the next message is about. */
+    readonly kind: "selection" | "graph";
+    /** Sends with the next message: the x lasts for one. */
+    readonly sent: () => void;
+    readonly line: React.JSX.Element;
+}
+
+/**
+ * What the next message is about, in one line above the composer, live while typing. The x lasts
+ * for one message, or until the selection changes.
+ * @returns The scope and its line
+ */
+function useScope(): Scope {
+    const { session } = useWorkspace();
+    useVisibilityVersion(session);
+    useSessionVersion(session);
+    const [dropped, setDropped] = useState(false);
+    const selected = session?.selection.nodes.length ?? 0;
+    const selectedEdges = session?.selection.edges.length ?? 0;
+    const any = selected + selectedEdges > 0;
+    useEffect(
+        () =>
+            session?.on("selection:changed", () => {
+                setDropped(false);
+            }),
+        [session],
+    );
+    const { nodes = 0, edges = 0 } = session?.status.counts ?? {};
+    const hidden = nodes - (session?.visibility.summary.visibleNodes ?? nodes);
+    const chips = (nodeCount: number, edgeCount: number): React.JSX.Element => (
+        <>
+            {nodeCount > 0 ? <EntityChip kind="node">{formatNumber(nodeCount)}</EntityChip> : null}
+            {edgeCount > 0 ? <EntityChip kind="edge">{formatNumber(edgeCount)}</EntityChip> : null}
+        </>
+    );
+    const line =
+        any && !dropped ? (
+            <Group gap={4} wrap="nowrap" className="ws-assistant-scope">
+                <Text size="xs">{WORDS["assistant.scope.selection"]}</Text>
+                {chips(selected, selectedEdges)}
+                <Tooltip label={WORDS["assistant.scope.drop"]}>
+                    <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        size="xs"
+                        aria-label={WORDS["assistant.scope.drop"]}
+                        onClick={() => {
+                            setDropped(true);
+                        }}
+                    >
+                        <GLYPHS.close size={12} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            </Group>
+        ) : (
+            <Group gap={4} wrap="nowrap" className="ws-assistant-scope">
+                <Text size="xs">{WORDS["assistant.scope.graph"]}</Text>
+                {chips(nodes, edges)}
+                {hidden > 0 ? <Text size="xs">{hiddenWords(hidden)}</Text> : null}
+                {any ? (
+                    <Button
+                        variant="subtle"
+                        color="gray"
+                        size="compact-xs"
+                        onClick={() => {
+                            setDropped(false);
+                        }}
+                    >
+                        {WORDS["assistant.scope.use"]}
+                    </Button>
+                ) : null}
+            </Group>
+        );
+    return {
+        kind: any && !dropped ? "selection" : "graph",
+        sent: () => {
+            setDropped(false);
+        },
+        line,
+    };
+}
+
+/**
+ * Matches what the reader typed to a question's choices, as they would read them.
+ * @param typed - the text.
+ * @param choices - the choices.
+ * @returns the choice as given, or the text.
+ */
+function asChoice(typed: string, choices: readonly string[]): string {
+    const plain = typed.trim().toLowerCase();
+    return choices.find((choice) => choice.toLowerCase() === plain) ?? typed.trim();
+}
 
 /** Props for Composer. */
 interface ComposerProps {
@@ -16,9 +117,9 @@ interface ComposerProps {
 }
 
 /**
- * The composer, pinned at the panel's foot: the message field, the model label and Send, which is
- * Stop while a message runs. The field stays typable through a run, and Send and Stop are one
- * button, so focus survives the change.
+ * The composer, pinned at the panel's foot: the scope line, the message field, the model label, Talk
+ * and Send, which is Stop while a message runs. The field stays typable through a run, and Send and
+ * Stop are one button, so focus survives the change.
  * @param props - Component props
  * @param props.choice - the provider and model
  * @param props.view - what the element reports
@@ -29,7 +130,10 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
     const { store, element, run } = useWorkspace();
     const draft = useWorkspaceState((state) => state.assistantDraft);
     const composerCalls = useWorkspaceState((state) => state.composerCalls);
+    const spoken = useWorkspaceState((state) => state.assistantSpoken);
+    const [voiceLine, setVoiceLine] = useState<string | null>(null);
     const field = useRef<HTMLTextAreaElement>(null);
+    const scope = useScope();
     useEffect(() => {
         if (composerCalls > 0) {
             field.current?.focus();
@@ -37,35 +141,55 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
     }, [composerCalls]);
     const running = isRunning(view.status);
     const empty = draft.trim() === "";
+    const [question] = view.questions;
+    const asking = view.approvals.length === 0 && question !== undefined;
+    const waiting = view.approvals.length > 0 || question !== undefined;
     const submit = (): void => {
-        if (element !== null && !running && !empty) {
-            void send(element, store, choice, draft);
+        if (element === null || running || empty) {
+            return;
         }
+        if (asking) {
+            const answer = question.multiple
+                ? draft.split(",").map((part) => asChoice(part, question.choices))
+                : asChoice(draft, question.choices);
+            void answerQuestion(element, store, choice, question.id, answer, draft);
+            return;
+        }
+        void send(element, store, choice, draft, {
+            scope: scope.kind,
+            ...(spoken === null ? {} : { via: "voice" as const, ...spoken }),
+        });
+        scope.sent();
     };
     return (
-        <div className="ws-assistant-foot" data-panel-start="">
-            <Textarea
-                ref={field}
-                aria-label={WORDS["assistant.composer.name"]}
-                placeholder={WORDS["assistant.composer.placeholder"]}
-                data-assistant-composer=""
-                autosize
-                minRows={1}
-                maxRows={6}
-                value={draft}
-                onChange={(event) => {
-                    store.set({ assistantDraft: event.currentTarget.value });
-                }}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                        event.preventDefault();
-                        submit();
-                    } else if (event.key === "Escape" && view.status?.canCancel === true) {
-                        event.preventDefault();
-                        element?.cancelAiCommand();
-                    }
-                }}
-            />
+        <div className="ws-assistant-foot">
+            {scope.line}
+            <div data-panel-always="">
+                <Textarea
+                    ref={field}
+                    aria-label={WORDS["assistant.composer.name"]}
+                    placeholder={asking ? WORDS["assistant.composer.answer"] : WORDS["assistant.composer.placeholder"]}
+                    data-assistant-composer=""
+                    // An emptied composer holds no edit of its own, so Mod+Z is the app's Undo.
+                    data-committed={draft === "" ? "" : undefined}
+                    autosize
+                    minRows={1}
+                    maxRows={6}
+                    value={draft}
+                    onChange={(event) => {
+                        store.set({ assistantDraft: event.currentTarget.value, assistantRefused: false });
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                            event.preventDefault();
+                            submit();
+                        } else if (event.key === "Escape" && view.status?.canCancel === true) {
+                            event.preventDefault();
+                            element?.cancelAiCommand();
+                        }
+                    }}
+                />
+            </div>
             <Group justify="space-between" gap={4} wrap="nowrap">
                 <Tooltip label={WORDS["assistant.model.tooltip"]}>
                     <Button
@@ -79,25 +203,33 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                         {model}
                     </Button>
                 </Tooltip>
-                <Tooltip label={WORDS["assistant.send.tooltip"]} disabled={running}>
-                    <Button
-                        size="compact-xs"
-                        variant={running ? "default" : "filled"}
-                        aria-disabled={!running && empty}
-                        aria-keyshortcuts={running ? "Escape" : undefined}
-                        onClick={() => {
-                            if (running) {
-                                element?.cancelAiCommand();
-                            } else {
-                                submit();
-                            }
-                            field.current?.focus();
-                        }}
-                    >
-                        {running ? WORDS["assistant.stop"] : WORDS["assistant.send"]}
-                    </Button>
-                </Tooltip>
+                <Group gap={4} wrap="nowrap">
+                    <Talk
+                        provider={providerDescriptor(choice.provider).plainName}
+                        linked={view.linked}
+                        onLine={setVoiceLine}
+                    />
+                    <Tooltip label={WORDS["assistant.send.tooltip"]} disabled={running}>
+                        <Button
+                            size="compact-xs"
+                            variant={running || waiting ? "default" : "filled"}
+                            aria-disabled={!running && empty}
+                            aria-keyshortcuts={running ? "Escape" : undefined}
+                            onClick={() => {
+                                if (running) {
+                                    element?.cancelAiCommand();
+                                } else {
+                                    submit();
+                                }
+                                field.current?.focus();
+                            }}
+                        >
+                            {running ? WORDS["assistant.stop"] : WORDS["assistant.send"]}
+                        </Button>
+                    </Tooltip>
+                </Group>
             </Group>
+            {voiceLine === null ? null : <Text size="xs">{voiceLine}</Text>}
         </div>
     );
 }

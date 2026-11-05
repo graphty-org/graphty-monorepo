@@ -8,6 +8,7 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
+import type { AiPointing } from "@graphty/graphty-element/ai";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -32,6 +33,8 @@ export interface Notice {
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
+    /** Stays until it is answered or dismissed, rather than going after 6 s; it is no failure. */
+    readonly lasting?: boolean;
     /** Describes the selection that just went: a new selection takes it down at once. */
     readonly endsWithSelection?: boolean;
     /** What it shows instead of the words, such as the replace receipt's chips. */
@@ -88,6 +91,14 @@ export interface WorkspaceState {
     readonly assistantDraft: string;
     /** How many times the element's assistant was set up: the panel listens to the newest. */
     readonly assistantLinks: number;
+    /** How many approvals and questions wait on the reader: the rail's dot. */
+    readonly assistantWaiting: number;
+    /** A press of Talk from outside the panel, held until the panel's Talk takes it. */
+    readonly assistantTalkPress: boolean;
+    /** What the reader pointed at, while a spoken message waits in the composer; else null. */
+    readonly assistantSpoken: { readonly pointing?: AiPointing } | null;
+    /** The open question refused the composer's text: it stays open with one line. */
+    readonly assistantRefused: boolean;
     /** How the last message ended, when the conversation cannot say: nothing reached it. */
     readonly assistantEnded: {
         readonly code: string;
@@ -257,6 +268,10 @@ const INITIAL: WorkspaceState = {
     composerCalls: 0,
     assistantDraft: "",
     assistantLinks: 0,
+    assistantWaiting: 0,
+    assistantTalkPress: false,
+    assistantSpoken: null,
+    assistantRefused: false,
     assistantEnded: null,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,

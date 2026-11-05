@@ -1,4 +1,9 @@
-import type { AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
+import type {
+    AiApprovalRequest,
+    AiConversationSnapshot,
+    AiQuestionRequest,
+    AiStatus,
+} from "@graphty/graphty-element/ai";
 import { useEffect, useState } from "react";
 
 import { type AssistantChoice, providerDescriptor } from "../assistant-door/provider";
@@ -9,13 +14,26 @@ import { linked } from "./connection";
 export interface AssistantView {
     readonly status: AiStatus | null;
     readonly conversation: AiConversationSnapshot | null;
+    /** The approvals and the questions that wait on the reader, oldest first. */
+    readonly approvals: readonly AiApprovalRequest[];
+    readonly questions: readonly AiQuestionRequest[];
     /** Whether the element's assistant is up. */
     readonly linked: boolean;
     /** Whether a provider that needs a key has none. */
     readonly keyMissing: boolean;
 }
 
-const NOT_LINKED: AssistantView = { status: null, conversation: null, linked: false, keyMissing: false };
+const NOT_LINKED: AssistantView = {
+    status: null,
+    conversation: null,
+    approvals: [],
+    questions: [],
+    linked: false,
+    keyMissing: false,
+};
+
+/** What can change the requests that wait. */
+const REQUEST_EVENTS = ["ai-approval-requested", "ai-question-asked", "ai-pending-resolved"] as const;
 
 /**
  * A run in progress.
@@ -51,6 +69,8 @@ export function useAssistantView(choice: AssistantChoice | null): AssistantView 
             setView({
                 status: element.getAiStatus(),
                 conversation: element.getAiConversation(),
+                approvals: element.getPendingAiApprovals(),
+                questions: element.getPendingAiQuestions(),
                 linked: element.isAiEnabled(),
                 keyMissing:
                     needed && element.isAiEnabled() && element.getApiKeyManager()?.hasKey(choice.provider) !== true,
@@ -58,10 +78,14 @@ export function useAssistantView(choice: AssistantChoice | null): AssistantView 
         };
         read();
         const stop = element.onAiStatusChange(read);
-        element.addEventListener("ai-conversation-changed", read);
+        for (const type of ["ai-conversation-changed", ...REQUEST_EVENTS] as const) {
+            element.addEventListener(type, read);
+        }
         return () => {
             stop();
-            element.removeEventListener("ai-conversation-changed", read);
+            for (const type of ["ai-conversation-changed", ...REQUEST_EVENTS] as const) {
+                element.removeEventListener(type, read);
+            }
         };
     }, [element, choice, links]);
     return view;

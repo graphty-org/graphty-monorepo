@@ -84,10 +84,43 @@
 }
 
 .ws-assistant-steps li {
+    padding-left: 8px;
+}
+
+.ws-assistant-step {
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    padding-left: 8px;
+}
+
+.ws-assistant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ws-assistant-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+}
+
+.ws-assistant-change {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-assistant-scope {
+    min-height: 24px;
+}
+
+.ws-assistant-waiting {
+    flex: none;
+    overflow-y: auto;
+    max-height: 40%;
+    padding: 8px;
+    border-top: 1px solid var(--cm-border);
 }
 
 .ws-assistant-list {

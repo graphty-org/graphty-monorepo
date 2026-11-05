@@ -1,4 +1,5 @@
 import { NavRail, RailButton } from "@graphty/compact-mantine";
+import { Indicator } from "@mantine/core";
 import type React from "react";
 
 import { closeAssistant } from "../assistant-door/commands";
@@ -9,7 +10,7 @@ import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceC
 /**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
  * as the classic shell's activity rail pins it, and Assistant after Graph while the element has the
- * assistant experiment on. Views is not drawn until it is built. Icon buttons with the shared
+ * assistant experiment on, with a neutral dot while a request waits for the reader. Views is not drawn until it is built. Icon buttons with the shared
  * tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
  * @returns The rail
  */
@@ -21,6 +22,7 @@ export function Rail(): React.JSX.Element {
     const settingsKey = settings?.command.keys?.[0];
     const assistant = useCommand("place.assistant");
     const assistantKey = assistant?.command.keys?.[0];
+    const waiting = useWorkspaceState((state) => state.assistantWaiting > 0) && place !== "assistant";
     return (
         <NavRail
             aria-label="Places"
@@ -49,12 +51,21 @@ export function Rail(): React.JSX.Element {
             />
             {assistant === null ? null : (
                 <RailButton
-                    icon={<GLYPHS.assistant size={20} aria-hidden />}
+                    icon={
+                        waiting ? (
+                            <Indicator color="gray" size={8} offset={2} processing={false}>
+                                <GLYPHS.assistant size={20} aria-hidden />
+                            </Indicator>
+                        ) : (
+                            <GLYPHS.assistant size={20} aria-hidden />
+                        )
+                    }
                     label="Assistant"
                     shortcut={assistantKey === undefined ? undefined : formatKey(assistantKey)}
                     active={place === "assistant"}
                     aria-current={place === "assistant" ? "page" : undefined}
                     data-assistant-door=""
+                    aria-description={waiting ? "Waiting for you" : undefined}
                     onClick={() => {
                         if (place === "assistant") {
                             closeAssistant(store);

@@ -74,13 +74,43 @@ await time.window(null); // clear it
 Each of these is undoable, and the window is saved in the project. Moves made in quick succession
 merge into one undo step, as a drag does; `await time.commit()` always records its own step. `play`
 records one step for the whole play. It takes `step`, `mode` (`"sliding"`, or `"cumulative"` to grow from the start),
-`interval` (milliseconds per step, default 1000), `loop` and `motion`.
+`interval` (milliseconds per step, default 1000), `loop`, `motion` and `timeZone`.
 
 While a window is moving without being recorded, as in a smooth play or a `seek` with `commit: false`,
 the two windows differ: `time.current` is the window on screen, and `time.committed` is the one undo
 and the project file hold. `await time.commit()` records where a `seek` left it. A stepped play
 (`motion: "steps"`, reduced motion, or `results: "rerun"`) records each window in the play's one
 history step, so `time.committed` follows every step.
+
+## Time zones
+
+Every instant is held in UTC, and everything reads in UTC unless you name a zone. A zone matters in
+two places. Text with no offset, such as `2026-01-15T09:00:00` or `2026-01-15`, reads in the field's
+`parseZone`, which only `setField` takes. Calendar steps and bins read in `timeZone`:
+
+```js
+await time.setField({ edges: { start: "sent", parseZone: "America/New_York" } });
+await time.setSettings({ step: "month", timeZone: "America/New_York" });
+await time.stepBy(1); // the first calendar month, midnight to midnight in New York
+const days = time.bins({ step: "day" }); // bars start at local midnight
+```
+
+`window`, `bins` and `play` each take `timeZone` too. A call's zone wins, then the window's, then the
+setting's. A new zone in `setSettings` snaps a sliding window to the new boundaries, as a new step
+does, and a new `parseZone` clears the window. A zone is an IANA name; any other name is refused with
+`E_BAD_COMMAND`, reason `"time-zone"`.
+
+Days and longer follow the zone's clock, so a day across a clock change is 23 or 25 hours; an hour is
+always 60 minutes. A time a change skipped reads as the same distance past the gap, and a time it
+repeated reads as the first of the two. A year column (`unit: "year"`) always reads in UTC, so 1995
+stays 1995 everywhere.
+
+`time.parse` reads in `parseZone`. If you show dates in another zone, pass it, so a date a reader
+types means what they see:
+
+```js
+const at = time.parse("2026-03-08", { timeZone: "Asia/Kolkata" });
+```
 
 ## Jumping to the selection
 

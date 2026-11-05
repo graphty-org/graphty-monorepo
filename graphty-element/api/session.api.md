@@ -6363,7 +6363,9 @@ export interface TimeApi {
     readonly interval: number;
     readonly mode: TimePlayMode;
     notices(): readonly CodedFact<TimeNoticeCode>[];
-    parse(text: string): number | null;
+    parse(text: string, options?: {
+        readonly timeZone?: string;
+    }): number | null;
     pause(): void;
     play(options?: TimePlayOptions): void;
     readonly playing: boolean;
@@ -6411,6 +6413,7 @@ export interface TimeBinsOptions {
     };
     readonly scope?: "all" | "visible";
     readonly step?: TimeStep;
+    readonly timeZone?: string;
     readonly to?: number;
 }
 
@@ -6495,6 +6498,7 @@ export interface TimePlayback {
     readonly outside?: "hide" | "ghost";
     readonly results?: TimeResultsPolicy;
     readonly step?: TimeStep | "auto";
+    readonly timeZone?: string;
 }
 
 // @beta
@@ -6507,6 +6511,7 @@ export interface TimePlayOptions {
     readonly mode?: TimePlayMode;
     readonly motion?: "smooth" | "steps";
     readonly step?: TimeStep;
+    readonly timeZone?: string;
 }
 
 // @beta
@@ -6519,10 +6524,12 @@ export interface TimeSettings {
     readonly outside: "hide" | "ghost";
     readonly results: TimeResultsPolicy;
     readonly step: TimeStep | "auto";
+    readonly timeZone: string;
 }
 
 // @beta
 export interface TimeSource {
+    readonly parseZone?: string;
     readonly start: Path;
     readonly unit?: TimeUnit;
 }
@@ -6563,6 +6570,8 @@ export interface TimeWindow {
     // @beta
     readonly nodes?: "all" | "ends";
     readonly step?: TimeStep;
+    // @beta
+    readonly timeZone?: string;
     readonly to: number | string;
 }
 

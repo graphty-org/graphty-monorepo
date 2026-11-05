@@ -51,6 +51,7 @@ import {
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
+import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
 export type { TimeUnit } from "./parse";
 
@@ -72,6 +73,12 @@ export interface TimeSource {
      * as `"ms"`, and any other numbers as `"ordinal"` (steps, ticks).
      */
     readonly unit?: TimeUnit;
+    /**
+     * The IANA zone text with no offset reads in, such as `America/New_York`: date-times, and
+     * dates, year-months and years written as text; default `"UTC"`. A year column (`unit: "year"`)
+     * always reads in UTC. Changing it clears the window.
+     */
+    readonly parseZone?: string;
 }
 
 /**
@@ -160,7 +167,7 @@ export interface TimeBin {
 export interface TimeBinsOptions {
     /** How many equal bins; default 100. Ignored when `step` is given. */
     readonly count?: number;
-    /** A bin width: milliseconds (or ordinal units), or a calendar step aligned in UTC. */
+    /** A bin width: milliseconds (or ordinal units), or a calendar step aligned in `timeZone`. */
     readonly step?: TimeStep;
     /**
      * At most this many bins: the shortest calendar step (a 1-2-5 number for ordinal time) that
@@ -183,6 +190,8 @@ export interface TimeBinsOptions {
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
     };
+    /** The IANA zone calendar bins align in; default the current window's, else the setting's. */
+    readonly timeZone?: string;
 }
 
 /**
@@ -280,6 +289,8 @@ export interface TimePlayOptions {
      * `"rerun"` results setting, which re-runs algorithms on each step.
      */
     readonly motion?: "smooth" | "steps";
+    /** The IANA zone calendar steps read in; default the window's, else the setting's. */
+    readonly timeZone?: string;
 }
 
 /**
@@ -298,6 +309,8 @@ export interface TimeSettings {
     readonly missing: "inside" | "outside";
     /** Whether elements outside the window are hidden or drawn as ghosts; see {@link TimePlayback.outside}. */
     readonly outside: "hide" | "ghost";
+    /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
+    readonly timeZone: string;
 }
 
 /**
@@ -335,7 +348,7 @@ export interface TimeApi {
      * @param field - Nodes, edges or both; both must name the same column.
      * @returns What the values held.
      * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"`, `"unit"`,
-     *     `"no-times"` for a column whose values hold no time at all).
+     *     `"time-zone"`, `"no-times"` for a column whose values hold no time at all).
      */
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     /**
@@ -351,11 +364,15 @@ export interface TimeApi {
     notices(): readonly CodedFact<TimeNoticeCode>[];
     /**
      * Read text as an instant the way the designated field reads its values (a date with no
-     * offset is UTC; ordinal time reads numbers).
+     * offset reads in the field's `parseZone`; ordinal time reads numbers). A caller showing dates
+     * in another zone passes it, so a date a reader types means what the readout shows.
      * @param text - Such as `"2025-03-09"`, `"Mar 9, 2025"` or `"1998"`.
+     * @param options - The zone to read in instead of `parseZone`.
+     * @param options.timeZone - An IANA zone name.
      * @returns Epoch milliseconds (or the ordinal value), or null when the text names no instant.
+     * @throws `E_BAD_COMMAND` with `reason: "time-zone"` for a bad zone name.
      */
-    parse(text: string): number | null;
+    parse(text: string, options?: { readonly timeZone?: string }): number | null;
     /** Resolves once the designated field is indexed, so the facts below answer synchronously. */
     readonly ready: Promise<void>;
     /** The span of the data's time, or null when nothing is designated or nothing has a time. */
@@ -365,7 +382,8 @@ export interface TimeApi {
      * @param options - Count, step or a most-bins budget, range, and which elements to count.
      * @returns The bins, or null when there is no extent.
      * @throws `E_OPTION_RANGE` for a bad count or more than 10,000 bins; `E_BAD_COMMAND` with
-     *     `reason: "calendar-step-on-ordinal"` for a calendar step on ordinal time.
+     *     `reason: "calendar-step-on-ordinal"` for a calendar step on ordinal time, or
+     *     `reason: "time-zone"` for a bad zone name.
      */
     bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
     /**
@@ -406,8 +424,9 @@ export interface TimeApi {
     /**
      * Change how windows move, one undoable step saved in the project (`visibility.playback`).
      * A sliding window snaps to a new step; switching to cumulative grows the window from the start
-     * of the data, and back to sliding keeps one step ending where it ended. With no window only the
-     * setting is stored. `results: "rerun"` re-runs the runs a window move left out of date.
+     * of the data, and back to sliding keeps one step ending where it ended. A new `timeZone` is
+     * written on the window, and snaps it as a new step does. With no window only the setting is
+     * stored. `results: "rerun"` re-runs the runs a window move left out of date.
      * @param settings - The settings that change.
      */
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
@@ -488,12 +507,14 @@ export interface TimeSources {
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
 }
 
-/** The four `data.knownFields` keys that hold the designation. */
+/** The `data.knownFields` keys that hold the designation. */
 export interface KnownTimeFields {
     readonly nodeTimePath: string | null;
     readonly nodeTimeUnit: TimeUnit | null;
+    readonly nodeTimeParseZone: string | null;
     readonly edgeTimePath: string | null;
     readonly edgeTimeUnit: TimeUnit | null;
+    readonly edgeTimeParseZone: string | null;
 }
 
 /** What the rest of the session reads back from the timeline. */
@@ -585,6 +606,7 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     step: "auto",
     missing: "inside",
     outside: "hide",
+    timeZone: UTC_ZONE,
 });
 
 /**
@@ -599,7 +621,8 @@ export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
         a.mode === b.mode &&
         a.step === b.step &&
         a.missing === b.missing &&
-        a.outside === b.outside
+        a.outside === b.outside &&
+        a.timeZone === b.timeZone
     );
 }
 
@@ -720,9 +743,10 @@ function mostlyText(count: number, read: (row: number) => unknown): boolean {
  * @param count - How many rows.
  * @param read - Reads one row's value.
  * @param unit - How numbers are read.
+ * @param zone - The zone text with no offset reads in.
  * @returns The index.
  */
-function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit): KindIndex {
+function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit, zone: string): KindIndex {
     const rows = new Float64Array(count);
     let untimed = 0;
     let unparsed = 0;
@@ -737,7 +761,9 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
     for (let row = 0; row < count; row++) {
         const value = read(row);
         const reading =
-            datesOnly && isBareNumber(value) ? { at: Number.NaN, how: "unparsed" as const } : readInstant(value, unit);
+            datesOnly && isBareNumber(value)
+                ? { at: Number.NaN, how: "unparsed" as const }
+                : readInstant(value, unit, zone);
         rows[row] = reading.at;
         if (reading.how === "missing") {
             untimed++;
@@ -832,6 +858,29 @@ function badCommand(message: string, details: Readonly<Record<string, unknown>>)
 }
 
 /**
+ * The refusal for a name that is no time zone.
+ * @param field - The option that gave it.
+ * @param value - The name.
+ * @returns The error.
+ */
+function badZone(field: string, value: unknown): GraphtyError {
+    return badCommand("A time zone is an IANA zone name, such as America/New_York.", {
+        field,
+        reason: "time-zone",
+        value,
+    });
+}
+
+/**
+ * A window's zone as an option to spread: nothing when it names none.
+ * @param timeZone - The zone, or undefined.
+ * @returns The option.
+ */
+function zoned(timeZone: string | undefined): { readonly timeZone?: string } {
+    return timeZone === undefined ? {} : { timeZone };
+}
+
+/**
  * The first position in a sorted array holding a value above `at`.
  * @param sorted - Ascending values.
  * @param at - The value.
@@ -896,9 +945,10 @@ function countBounds(from: number, to: number, options: TimeBinsOptions): number
  * @param to - Where they end.
  * @param options - The count or the step.
  * @param ordinal - Whether a numeric step aligns to its multiples (ordinal time).
+ * @param zone - The zone calendar steps read in.
  * @returns The edges, one more than the bins.
  */
-function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: boolean): number[] {
+function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: boolean, zone: string): number[] {
     const { step } = options;
     if (step === undefined) {
         return countBounds(from, to, options);
@@ -909,7 +959,7 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
         throw tooManyBins(options, step);
     }
 
-    const first = ordinal && !isCalendarStep(step) ? Math.floor(from / step) * step : alignTo(from, step);
+    const first = ordinal && !isCalendarStep(step) ? Math.floor(from / step) * step : alignTo(from, step, zone);
     let at = first;
     let bins = 0;
     while (at < to) {
@@ -919,7 +969,7 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
 
         bounds.push(at);
         bins++;
-        at = ordinal && !isCalendarStep(step) ? first + bins * step : addSteps(at, step, 1);
+        at = ordinal && !isCalendarStep(step) ? first + bins * step : addSteps(at, step, 1, zone);
     }
 
     bounds.push(options.maxCount === undefined ? to : at);
@@ -1084,10 +1134,20 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const fieldNow = (): TimeField | null => {
         const known = sources.knownFields();
-        const sourceOf = (path: string | null, unit: TimeUnit | null): TimeSource | undefined =>
-            path === null ? undefined : Object.freeze({ start: path, ...(unit === null ? {} : { unit }) });
-        const nodes = sourceOf(known.nodeTimePath, known.nodeTimeUnit);
-        const edges = sourceOf(known.edgeTimePath, known.edgeTimeUnit);
+        const sourceOf = (
+            path: string | null,
+            unit: TimeUnit | null,
+            parseZone: string | null,
+        ): TimeSource | undefined =>
+            path === null
+                ? undefined
+                : Object.freeze({
+                      start: path,
+                      ...(unit === null ? {} : { unit }),
+                      ...(parseZone === null ? {} : { parseZone }),
+                  });
+        const nodes = sourceOf(known.nodeTimePath, known.nodeTimeUnit, known.nodeTimeParseZone);
+        const edges = sourceOf(known.edgeTimePath, known.edgeTimeUnit, known.edgeTimeParseZone);
 
         return nodes === undefined && edges === undefined
             ? null
@@ -1099,15 +1159,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param kind - Nodes or edges.
      * @param column - The column.
      * @param unit - How numbers are read.
+     * @param zone - The zone text with no offset reads in.
      * @returns The kind's index.
      */
-    const indexKind = (kind: "node" | "edge", column: string, unit: TimeUnit): KindIndex => {
+    const indexKind = (kind: "node" | "edge", column: string, unit: TimeUnit, zone = UTC_ZONE): KindIndex => {
         const graph = sources.snapshot();
         const attribute = `${ATTRIBUTE_PREFIX}${column}`;
 
         return kind === "node"
-            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit)
-            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit);
+            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit, zone)
+            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit, zone);
     };
 
     /**
@@ -1155,7 +1216,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const source = (field.edges ?? field.nodes) as TimeSource;
         const path = columnOf(source.start);
         const graph = sources.snapshot();
-        const key = `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}`;
+        const key = `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.nodes?.parseZone ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}|${field.edges?.parseZone ?? ""}`;
         if (index?.key === key) {
             return index;
         }
@@ -1167,8 +1228,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const nodeUnit = field.nodes === undefined ? undefined : (field.nodes.unit ?? inferred.node ?? "ms");
         const edgeUnit = field.edges === undefined ? undefined : (field.edges.unit ?? inferred.edge ?? "ms");
         const unit = edgeUnit ?? nodeUnit ?? "ms";
-        const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit);
-        const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit);
+        const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit, field.nodes?.parseZone);
+        const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit, field.edges?.parseZone);
         index = { key, path, unit, inferred, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
         // The index is built lazily, often inside a read (`time.field`, `extent()`): tell listeners
         // on a microtask so none runs inside the caller's read (#4450). It still lands before an
@@ -1242,6 +1303,31 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * The zone calendar steps read in: the call's, then the window's, then the setting's.
+     * @param given - A zone a call passed.
+     * @param window - The window the call is about.
+     * @returns The zone.
+     */
+    const zoneOf = (given?: string, window?: TimeWindow | null): string => {
+        const zone = given ?? window?.timeZone ?? settingsNow().timeZone;
+        if (!isTimeZone(zone)) {
+            throw badZone("timeZone", zone);
+        }
+
+        return zone;
+    };
+
+    /**
+     * The zone the designated field reads text in.
+     * @returns The zone.
+     */
+    const parseZoneNow = (): string => {
+        const field = fieldNow();
+
+        return (field?.edges ?? field?.nodes)?.parseZone ?? UTC_ZONE;
+    };
+
+    /**
      * The step `"auto"` stands for: the calendar step closest to a twentieth of the data's span,
      * or the closest 1-2-5 number for ordinal time.
      * @returns The step.
@@ -1288,11 +1374,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * step, or whole steps from the start of the data for a step in milliseconds.
      * @param at - The instant.
      * @param step - The step.
+     * @param zone - The zone calendar steps read in.
      * @returns The aligned instant.
      */
-    const alignAt = (at: number, step: TimeStep): number => {
+    const alignAt = (at: number, step: TimeStep, zone: string): number => {
         if (isCalendarStep(step)) {
-            return alignTo(at, step);
+            return alignTo(at, step, zone);
         }
 
         const origin = ordinal() ? 0 : (extentNow()?.from ?? 0);
@@ -1332,16 +1419,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const nodes = input.nodes ?? (followsEdges ? "ends" : undefined);
         const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
         const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
+        const timeZone = zoneOf(input.timeZone);
+        const parseZone = parseZoneNow();
 
         return Object.freeze({
             ...input,
             attribute,
-            from: numericBound(input.from),
-            to: numericBound(input.to),
+            from: numericBound(input.from, parseZone),
+            to: numericBound(input.to, parseZone),
             step: input.step ?? stepFor(),
             ...(nodes === undefined ? {} : { nodes }),
             ...(missing === undefined ? {} : { missing }),
             ...(mode === undefined ? {} : { mode }),
+            ...zoned(timeZone === UTC_ZONE ? input.timeZone : timeZone),
         });
     };
 
@@ -1355,14 +1445,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const extent = extentNow();
         const step = stepFor(options.step);
         const first = extent?.from ?? 0;
-        const start = alignAt(first, step);
+        const zone = zoneOf(options.timeZone);
+        const start = alignAt(first, step, zone);
         const mode = options.mode ?? settingsNow().mode;
 
         return complete({
             from: mode === "cumulative" ? first : start,
-            to: addSteps(start, step, 1),
+            to: addSteps(start, step, 1, zone),
             step,
             ...(mode === "cumulative" ? { mode } : {}),
+            ...zoned(options.timeZone),
         });
     };
 
@@ -1374,14 +1466,16 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const lastWindow = (options: TimePlayOptions = {}): TimeWindow => {
         const extent = extentNow();
         const step = stepFor(options.step);
-        const start = alignAt((extent?.to ?? 1) - 1, step);
+        const zone = zoneOf(options.timeZone);
+        const start = alignAt((extent?.to ?? 1) - 1, step, zone);
         const mode = options.mode ?? settingsNow().mode;
 
         return complete({
             from: mode === "cumulative" ? (extent?.from ?? start) : start,
-            to: addSteps(start, step, 1),
+            to: addSteps(start, step, 1, zone),
             step,
             ...(mode === "cumulative" ? { mode } : {}),
+            ...zoned(options.timeZone),
         });
     };
 
@@ -1397,7 +1491,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         return window.mode === "cumulative"
-            ? addSteps(numericBound(window.to), stepOf(window), -1) <= extent.from
+            ? addSteps(numericBound(window.to), stepOf(window), -1, zoneOf(undefined, window)) <= extent.from
             : numericBound(window.from) <= extent.from;
     };
 
@@ -1420,15 +1514,20 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const advanced = (window: TimeWindow, direction: 1 | -1): TimeWindow => {
         const step = stepOf(window);
+        const zone = zoneOf(undefined, window);
         const from = numericBound(window.from);
         const to = numericBound(window.to);
         if (window.mode === "cumulative") {
             const start = extentNow()?.from ?? from;
-            const end = addSteps(to, step, direction);
+            const end = addSteps(to, step, direction, zone);
             return Object.freeze({ ...window, from: start, to: end > start ? end : to });
         }
 
-        return Object.freeze({ ...window, from: addSteps(from, step, direction), to: addSteps(to, step, direction) });
+        return Object.freeze({
+            ...window,
+            from: addSteps(from, step, direction, zone),
+            to: addSteps(to, step, direction, zone),
+        });
     };
 
     /**
@@ -1443,16 +1542,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const step = stepOf(window);
+        const zone = zoneOf(undefined, window);
         const anchor =
-            window.mode === "cumulative" ? addSteps(numericBound(window.to), step, -1) : numericBound(window.from);
-        const first = alignAt(extent.from, step);
+            window.mode === "cumulative"
+                ? addSteps(numericBound(window.to), step, -1, zone)
+                : numericBound(window.from);
+        const first = alignAt(extent.from, step, zone);
         if (!isCalendarStep(step)) {
             return Math.round((anchor - first) / step);
         }
 
+        // Counted on the wall clock, where a step is plain arithmetic; an hour is absolute.
+        const wall = step === "hour" ? UTC_ZONE : zone;
+        const start = alignTo(wallClock(first, wall), step);
+        const end = wallClock(anchor, wall);
         let count = 0;
         // ponytail: walks calendar steps one at a time; fine to tens of thousands of steps.
-        while (count < 1_000_000 && addSteps(first, step, count + 1) <= anchor) {
+        while (count < 1_000_000 && addSteps(start, step, count + 1) <= end) {
             count++;
         }
 
@@ -1475,6 +1581,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             firstWindow({
                 ...(input.step === undefined ? {} : { step: input.step }),
                 ...(input.mode === undefined ? {} : { mode: input.mode }),
+                ...zoned(input.timeZone),
             });
 
         return { ...base, ...defined };
@@ -1699,22 +1806,23 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const step = stepOf(at);
         const mode = at.mode ?? "sliding";
         const head = numericBound(at.to);
-        const by = ((addSteps(head, step, 1) - head) * elapsed) / interval;
-        const end = numericBound(lastWindow({ step, mode }).to);
+        const by = ((addSteps(head, step, 1, zoneOf(undefined, at)) - head) * elapsed) / interval;
+        const bounds = { step, mode, ...zoned(at.timeZone) };
+        const end = numericBound(lastWindow(bounds).to);
         let next: TimeWindow =
             mode === "cumulative"
                 ? Object.freeze({ ...at, to: head + by })
                 : Object.freeze({ ...at, from: numericBound(at.from) + by, to: head + by });
         if (numericBound(next.to) >= end) {
             if (!loop) {
-                const last = lastWindow({ step, mode });
+                const last = lastWindow(bounds);
                 slideTo(last, "play");
                 sources.emit("time:end", { window: last });
                 api.pause();
                 return;
             }
 
-            next = firstWindow({ step, mode });
+            next = firstWindow(bounds);
         }
 
         slideTo(next, "play");
@@ -1742,7 +1850,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return;
             }
 
-            next = firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" });
+            next = firstWindow({
+                step: stepOf(current),
+                mode: current.mode ?? "sliding",
+                ...zoned(current.timeZone),
+            });
         } else {
             next = advanced(current, 1);
         }
@@ -1821,9 +1933,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param from - The range's start.
      * @param to - Its end.
      * @param maxCount - The budget.
+     * @param zone - The zone calendar steps read in.
      * @returns The step.
      */
-    const budgetStep = (from: number, to: number, maxCount: number): TimeStep => {
+    const budgetStep = (from: number, to: number, maxCount: number, zone: string): TimeStep => {
         if (!Number.isInteger(maxCount) || maxCount < 1 || maxCount > MAX_BINS) {
             throw tooManyBins({ count: maxCount }, maxCount);
         }
@@ -1846,7 +1959,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         // Aligned bins can need one more than the span alone: widen until they fit.
         for (let guard = 0; guard < 12; guard++) {
             let count = 0;
-            for (let at = alignTo(from, step); at < to && count <= maxCount; at = addSteps(at, step, 1)) {
+            for (let at = alignTo(from, step, zone); at < to && count <= maxCount; at = addSteps(at, step, 1, zone)) {
                 count++;
             }
 
@@ -1893,6 +2006,82 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const movedRuns = (): readonly Run[] =>
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
 
+    /**
+     * The window as new settings leave it: its step, mode, missing rule and zone.
+     * @param current - The window now.
+     * @param next - The settings.
+     * @param newZone - The zone the call set, which replaces the window's own.
+     * @returns The window.
+     */
+    const windowUnder = (current: TimeWindow, next: TimeSettings, newZone: string | undefined): TimeWindow => {
+        const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
+        const extent = extentNow() as TimeExtent;
+        const from = numericBound(current.from);
+        const to = numericBound(current.to);
+        const was = zoneOf(undefined, current);
+        const zone = newZone ?? was;
+        const resized = step !== current.step || (zone !== was && isCalendarStep(step));
+        const { timeZone: _timeZone, ...unzoned } = current;
+        let window: TimeWindow = Object.freeze({
+            ...(newZone === undefined ? current : unzoned),
+            step,
+            ...zoned(newZone === UTC_ZONE ? undefined : newZone),
+        });
+        if (next.mode !== (current.mode ?? "sliding") && next.mode === "cumulative") {
+            // Cumulative grows from the start of the data to where the window ends.
+            window = Object.freeze({ ...window, mode: "cumulative", from: extent.from });
+        } else if (next.mode !== (current.mode ?? "sliding")) {
+            // Back to sliding: one step ending where the cumulative window ended.
+            const { mode: _mode, ...rest } = window;
+            window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1, zone)) });
+        } else if (resized && next.mode === "sliding") {
+            // A new step or zone snaps a sliding window to one step on its boundary.
+            const start = alignAt(from, step, zone);
+            window = Object.freeze({ ...window, from: start, to: addSteps(start, step, 1, zone) });
+        } else if (resized) {
+            window = Object.freeze({ ...window, to: addSteps(alignAt(to - 1, step, zone), step, 1, zone) });
+        }
+
+        if (next.missing !== (current.missing ?? "inside")) {
+            const { missing: _missing, ...rest } = window;
+            window = Object.freeze(next.missing === "outside" ? { ...rest, missing: "outside" } : rest);
+        }
+
+        return window;
+    };
+
+    /**
+     * The window a play starts from.
+     * @param current - The window now, or null.
+     * @param options - What the play asked for.
+     * @returns The window.
+     */
+    const playStart = (current: TimeWindow | null, options: TimePlayOptions): TimeWindow => {
+        if (current === null) {
+            return firstWindow(options);
+        }
+
+        if (isLast(current)) {
+            // Pressing play at the end starts again from the first window.
+            return firstWindow({
+                step: options.step ?? stepOf(current),
+                mode: options.mode ?? current.mode ?? "sliding",
+                ...zoned(options.timeZone ?? current.timeZone),
+            });
+        }
+
+        if (options.step === undefined && options.mode === undefined && options.timeZone === undefined) {
+            return current;
+        }
+
+        return Object.freeze({
+            ...current,
+            ...(options.step === undefined ? {} : { step: options.step }),
+            ...(options.mode === undefined ? {} : { mode: options.mode }),
+            ...zoned(options.timeZone),
+        });
+    };
+
     const api: TimeApi = {
         get field() {
             const field = fieldNow();
@@ -1934,6 +2123,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                             reason: "unit",
                             unit: source.unit,
                         });
+                    }
+
+                    if (source.parseZone !== undefined && !isTimeZone(source.parseZone)) {
+                        throw badZone("parseZone", source.parseZone);
                     }
                 }
             }
@@ -1981,7 +2174,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
                 // A column with values none of which reads as time is no timeline.
                 const tried =
-                    source === undefined ? null : indexKind(kind, columnOf(source.start), source.unit ?? "ms");
+                    source === undefined
+                        ? null
+                        : indexKind(kind, columnOf(source.start), source.unit ?? "ms", source.parseZone);
                 if (tried !== null && tried.counts.timed === 0 && tried.counts.unparsed > 0) {
                     throw badCommand("None of the column's values reads as a time.", {
                         field: "start",
@@ -2005,7 +2200,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 before?.nodes?.start !== nodes?.start ||
                 before?.edges?.start !== edges?.start ||
                 (before?.nodes?.unit ?? "ms") !== (nodes?.unit ?? "ms") ||
-                (before?.edges?.unit ?? "ms") !== (edges?.unit ?? "ms");
+                (before?.edges?.unit ?? "ms") !== (edges?.unit ?? "ms") ||
+                (before?.nodes?.parseZone ?? UTC_ZONE) !== (nodes?.parseZone ?? UTC_ZONE) ||
+                (before?.edges?.parseZone ?? UTC_ZONE) !== (edges?.parseZone ?? UTC_ZONE);
             api.pause();
             await dispatcher.transaction(
                 "time.field",
@@ -2017,8 +2214,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                                 knownFields: {
                                     nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
                                     nodeTimeUnit: nodes?.unit ?? null,
+                                    nodeTimeParseZone: nodes?.parseZone ?? null,
                                     edgeTimePath: edges === undefined ? null : columnOf(edges.start),
                                     edgeTimeUnit: edges?.unit ?? null,
+                                    edgeTimeParseZone: edges?.parseZone ?? null,
                                 },
                             },
                         },
@@ -2060,13 +2259,18 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return noticesOf(indexNow());
         },
 
-        parse(text: string): number | null {
+        parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
+            const zone = options.timeZone ?? parseZoneNow();
+            if (!isTimeZone(zone)) {
+                throw badZone("timeZone", zone);
+            }
+
             const trimmed = text.trim();
             if (trimmed === "") {
                 return null;
             }
 
-            return readTimeValue(trimmed, indexNow()?.unit ?? "ms");
+            return readTimeValue(trimmed, indexNow()?.unit ?? "ms", zone);
         },
 
         get ready() {
@@ -2090,12 +2294,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 checkStep(options.step);
             }
 
+            const zone = zoneOf(options.timeZone, cursor ?? visibility.window);
             const from = options.from ?? extent.from;
             const to = options.to ?? extent.to;
             const step =
-                options.step ?? (options.maxCount === undefined ? undefined : budgetStep(from, to, options.maxCount));
+                options.step ??
+                (options.maxCount === undefined ? undefined : budgetStep(from, to, options.maxCount, zone));
             const asked = step === undefined ? options : { ...options, step };
-            const bounds = binBounds(from, to, asked, built.unit === "ordinal");
+            const bounds = binBounds(from, to, asked, built.unit === "ordinal", zone);
             const countOf = (kind: "node" | "edge"): number[] => {
                 const parsed = built[kind];
                 const into = new Array<number>(bounds.length - 1).fill(0);
@@ -2194,37 +2400,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 checkStep(patch.step);
             }
 
-            const current = visibility.window;
-            let moved: TimeWindow | null = null;
-            if (current !== null && extentNow() !== null) {
-                const step = next.step === "auto" || (isCalendarStep(next.step) && ordinal()) ? autoStep() : next.step;
-                const extent = extentNow() as TimeExtent;
-                const from = numericBound(current.from);
-                const to = numericBound(current.to);
-                let window: TimeWindow = Object.freeze({ ...current, step });
-                if (next.mode !== (current.mode ?? "sliding") && next.mode === "cumulative") {
-                    // Cumulative grows from the start of the data to where the window ends.
-                    window = Object.freeze({ ...window, mode: "cumulative", from: extent.from });
-                } else if (next.mode !== (current.mode ?? "sliding")) {
-                    // Back to sliding: one step ending where the cumulative window ended.
-                    const { mode: _mode, ...rest } = window;
-                    window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1)) });
-                } else if (step !== current.step && next.mode === "sliding") {
-                    // A new step snaps a sliding window to one step on its boundary.
-                    const start = alignAt(from, step);
-                    window = Object.freeze({ ...window, from: start, to: addSteps(start, step, 1) });
-                } else if (step !== current.step) {
-                    window = Object.freeze({ ...window, to: addSteps(alignAt(to - 1, step), step, 1) });
-                }
-
-                if (next.missing !== (current.missing ?? "inside")) {
-                    const { missing: _missing, ...rest } = window;
-                    window = Object.freeze(next.missing === "outside" ? { ...rest, missing: "outside" } : rest);
-                }
-
-                moved = window;
+            if (patch.timeZone !== undefined) {
+                zoneOf(patch.timeZone);
             }
 
+            const current = visibility.window;
+            const moved = current !== null && extentNow() !== null ? windowUnder(current, next, patch.timeZone) : null;
             const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
@@ -2279,6 +2460,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 checkStep(options.step);
             }
 
+            zoneOf(options.timeZone);
             interval = options.interval ?? interval;
             loop = options.loop ?? loop;
             smooth = (options.motion ?? (smooth ? "smooth" : "steps")) === "smooth";
@@ -2286,24 +2468,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             playing = true;
             playStep = null;
             sources.emit("time:play", { window: current });
-            let start: TimeWindow;
-            if (current === null) {
-                start = firstWindow(options);
-            } else if (isLast(current)) {
-                // Pressing play at the end starts again from the first window.
-                start = firstWindow({
-                    step: options.step ?? stepOf(current),
-                    mode: options.mode ?? current.mode ?? "sliding",
-                });
-            } else if (options.step !== undefined || options.mode !== undefined) {
-                start = Object.freeze({
-                    ...current,
-                    ...(options.step === undefined ? {} : { step: options.step }),
-                    ...(options.mode === undefined ? {} : { mode: options.mode }),
-                });
-            } else {
-                start = current;
-            }
+            const start = playStart(current, options);
 
             if (canSlide()) {
                 slideTo(start, "play");
@@ -2390,6 +2555,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     firstWindow({
                         mode: settingsNow().mode,
                         ...(visibility.window?.step === undefined ? {} : { step: visibility.window.step }),
+                        ...zoned(visibility.window?.timeZone),
                     }),
                     "seek",
                 );
@@ -2400,6 +2566,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     lastWindow({
                         mode: settingsNow().mode,
                         ...(visibility.window?.step === undefined ? {} : { step: visibility.window.step }),
+                        ...zoned(visibility.window?.timeZone),
                     }),
                     "seek",
                 );

@@ -285,6 +285,7 @@ describe("the window, its step and playback", () => {
             results: "keep",
             missing: "inside",
             outside: "hide",
+            timeZone: "UTC",
         });
 
         const { text } = await session.project.save();

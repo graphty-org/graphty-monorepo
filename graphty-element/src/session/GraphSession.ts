@@ -3159,8 +3159,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return {
                 nodeTimePath: known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
+                // A saved zone stays saved with the timeline off, and is not read.
+                nodeTimeParseZone: timelineOn() ? (known.nodeTimeParseZone ?? null) : null,
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
+                edgeTimeParseZone: timelineOn() ? (known.edgeTimeParseZone ?? null) : null,
             };
         },
         declarations: () => dispatcher.state.attributes,

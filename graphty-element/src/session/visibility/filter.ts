@@ -70,6 +70,7 @@ import {
 } from "../sets/dependencies";
 import { normalizeText, textMatcher } from "../text";
 import { readTimeValue } from "../time/parse";
+import { isTimeZone } from "../time/zone";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -120,6 +121,14 @@ export interface TimeWindow {
      * @beta
      */
     readonly mode?: "sliding" | "cumulative";
+    /**
+     * The IANA zone `session.time`'s calendar steps and bins read in, such as `America/New_York`;
+     * left out, {@link TimePlayback.timeZone}. Hours are absolute; a day and longer follow the
+     * zone's clock, so a day across a clock change is 23 or 25 hours.
+     * @experimental timeline
+     * @beta
+     */
+    readonly timeZone?: string;
 }
 
 /**
@@ -157,6 +166,8 @@ export interface TimePlayback {
      * export includes them.
      */
     readonly outside?: "hide" | "ghost";
+    /** The IANA zone calendar steps and bins read in; default `"UTC"`. */
+    readonly timeZone?: string;
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
@@ -832,6 +843,14 @@ export function windowNeedsTimeline(window: TimeWindow | null): boolean {
  */
 export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | null, sources: FilterSources): void {
     assertVisibility(filter, window);
+    // With the timeline off a window's zone does nothing, so any value stays saved as it came.
+    if (window?.timeZone !== undefined && sources.timeline?.() !== false && !isTimeZone(window.timeZone)) {
+        throw malformed("A time window's timeZone is an IANA zone name, such as America/New_York.", {
+            field: "timeZone",
+            reason: "time-zone",
+            value: window.timeZone,
+        });
+    }
 
     const check = (each: RuleTree): void => {
         switch (each.kind) {

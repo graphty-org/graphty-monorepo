@@ -2,6 +2,7 @@ import type { DuplicatePolicy, IdCoercion } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { GraphtyError } from "../errors/GraphtyError";
+import { isTimeZone } from "../session/time/zone";
 
 // graph-format's own vocabulary for what to do with a second edge between the same ordered pair.
 // The `satisfies` keeps this list identical to graph-format's type, so the element can never grow
@@ -32,6 +33,8 @@ const ID_COERCION_RULES = ["canonical", "keep"] as const satisfies readonly IdCo
 // back to the default in silence -- but it is a BREAKING direction for a stored template, so a key
 // removed from here later needs a StyleTemplate majorVersion bump and an upgrade step, not a
 // quiet deletion.
+const TimeZoneName = z.string().refine(isTimeZone, "not an IANA time zone name");
+
 const GraphKnownFields = z.strictObject({
     nodeIdPath: z.string().default("id"),
     // What to CALL a node, as distinct from how to address it. A result card naming the busiest
@@ -45,6 +48,8 @@ const GraphKnownFields = z.strictObject({
     // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
     // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
     nodeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    // The IANA zone text in the node time column reads in when it carries no offset. Null reads UTC.
+    nodeTimeParseZone: TimeZoneName.or(z.null()).optional(),
     // Where each node's location is: one column of whole locations, or a latitude and a longitude
     // column. The location map layout reads them when its own options name none; absent or null,
     // it finds them by name or by their values.
@@ -104,6 +109,7 @@ const GraphKnownFields = z.strictObject({
     edgeWeightMeaning: z.enum(["distance", "strength", "capacity"]).or(z.null()).default(null),
     edgeTimePath: z.string().or(z.null()).default(null),
     edgeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    edgeTimeParseZone: TimeZoneName.or(z.null()).optional(),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses
     // every file-placed node onto the scene origin, which is indistinguishable from the NaN the

@@ -421,8 +421,10 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
     config: new Set([
         "data.knownFields.nodeTimePath",
         "data.knownFields.nodeTimeUnit",
+        "data.knownFields.nodeTimeParseZone",
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
+        "data.knownFields.edgeTimeParseZone",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),

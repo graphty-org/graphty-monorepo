@@ -1046,7 +1046,14 @@ const TIME_API: Readonly<Record<string, Door>> = {
                 op: "config.set",
                 values: {
                     data: {
-                        knownFields: { nodeTimePath: null, nodeTimeUnit: null, edgeTimePath: "t", edgeTimeUnit: null },
+                        knownFields: {
+                            nodeTimePath: null,
+                            nodeTimeUnit: null,
+                            nodeTimeParseZone: null,
+                            edgeTimePath: "t",
+                            edgeTimeUnit: null,
+                            edgeTimeParseZone: null,
+                        },
                     },
                 },
             },

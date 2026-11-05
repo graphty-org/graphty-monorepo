@@ -104,10 +104,21 @@ function standInExecutor(session: () => GraphSession): (context: RunExecutionCon
     };
 }
 
-/** A session holding the small graph, with the stand-in executor. */
-export async function assistantSession(data: { nodes: Row[]; edges: Row[] } = SMALL_GRAPH): Promise<GraphSession> {
+/**
+ * A session holding the small graph, with the stand-in executor.
+ * @param data - The graph.
+ * @param features - The experiments it switches on.
+ * @returns The session.
+ */
+export async function assistantSession(
+    data: { nodes: Row[]; edges: Row[] } = SMALL_GRAPH,
+    features?: readonly string[],
+): Promise<GraphSession> {
     const holder: { session?: GraphSession } = {};
-    const session = createGraphSession({ runs: { execute: standInExecutor(() => holder.session!) } });
+    const session = createGraphSession({
+        runs: { execute: standInExecutor(() => holder.session!) },
+        ...(features === undefined ? {} : { features }),
+    });
     holder.session = session;
     await session.data.addNodes(data.nodes);
     await session.data.addEdges(data.edges);

@@ -7,6 +7,7 @@
  * graph.
  */
 
+import type { AiMessageScope } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { GraphSession } from "../../session/types";
 import type { GraphCommand } from "../commands/types";
@@ -90,9 +91,15 @@ export interface AiPointing {
  * @param session - The session.
  * @param profile - The tool profile: the small one gets a shorter block.
  * @param pointing - What the reader pointed at while talking; absent for a typed message.
+ * @param scope - What the message is about, when it was sent with a scope.
  * @returns The facts, as text.
  */
-export function factsBlock(session: GraphSession, profile: ToolProfile, pointing?: AiPointing): string {
+export function factsBlock(
+    session: GraphSession,
+    profile: ToolProfile,
+    pointing?: AiPointing,
+    scope?: AiMessageScope,
+): string {
     const { counts, directed } = session.status;
     const attributes = session.data.attributes().filter((attribute) => attribute.origin !== "result");
     const shown = attributes.slice(0, profile === "small" ? 8 : 15);
@@ -116,16 +123,34 @@ export function factsBlock(session: GraphSession, profile: ToolProfile, pointing
             );
         }
 
-        if (pointing === undefined && session.selection.size > 0) {
+        if (pointing === undefined && scope === undefined && session.selection.size > 0) {
             lines.push(`Selected: ${String(session.selection.size)}.`);
         }
     }
 
     if (pointing !== undefined) {
-        lines.push(...pointingLines(pointing, profile));
+        // A scope says what the message is about: a capped list of the selection would only blur it.
+        lines.push(...pointingLines(scope === undefined ? pointing : { ...pointing, selected: [] }, profile));
+    }
+
+    if (scope !== undefined) {
+        lines.push(scopeLine(scope));
     }
 
     return lines.join("\n");
+}
+
+/**
+ * The facts line for what a message is about.
+ * @param scope - The scope.
+ * @returns The line.
+ */
+function scopeLine(scope: AiMessageScope): string {
+    const { nodes, edges, hiddenNodes, hiddenEdges } = scope;
+    const held = `${String(nodes)} nodes and ${String(edges)} edges (${String(hiddenNodes + hiddenEdges)} hidden)`;
+    return scope.kind === "selection"
+        ? `This message is about the reader's selection, ${held}: every target is limited to it, and where "selection" names all of it.`
+        : `This message is about the whole graph, ${held}, whatever is selected.`;
 }
 
 /**

@@ -923,6 +923,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
     hoverPreview: READ,
     previewHover: exempt("A preview of the hover look on the selection is view state, like the pointer."),
+    peeked: READ,
+    peek: exempt("Pointing at elements for a moment is view state, like the pointer: no step, never saved."),
     // The doors test selects node "d1" before calling it.
     promote: calls(
         ["door set"],
@@ -1241,6 +1243,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     sequence: READ,
     layerGroups: READ,
     counts: READ,
+    drawnCount: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
@@ -3359,6 +3362,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
             edgeRemovalChangesNothing: READ,
+            endPeek: exempt("The session's end clears a peek, which is view state."),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -3553,11 +3557,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: READ,
     },
     {
+        name: "EnabledFeatures",
+        file: "src/features/resolve.ts",
+        half: "session",
+        whole: READ,
+    },
+    {
         name: "GraphCommand",
         file: "src/ai/commands/types.ts",
         half: "renderer",
         doors: {
             name: READ,
+            plainName: READ,
             description: READ,
             parameters: READ,
             examples: READ,

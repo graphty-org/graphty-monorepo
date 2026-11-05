@@ -14,7 +14,7 @@
  * itself). The executor keeps no state of its own, so several conversations can run batches at once.
  */
 
-import type { AiResultCode, AiResultParams } from "../catalog/ai";
+import type { AiEffect, AiResultCode, AiResultParams, AiTarget } from "../catalog/ai";
 import type { AiEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession, HistoryStepId, TransactionScope } from "../session/types";
@@ -24,6 +24,7 @@ import type { CommandContext, CommandResult, GraphCommand } from "./commands/typ
 import type { ProviderState } from "./engine/types";
 import { asRefusal, coded } from "./tools/families/common";
 import { UNDO_TOOL } from "./tools/families/undo";
+import { BOUND_SELECTION } from "./tools/fields";
 import { suggest } from "./tools/search";
 import { toJson } from "./tools/shape";
 import { type AssistantTool, type CheckedCall, isAssistantTool } from "./tools/toolset";
@@ -82,6 +83,10 @@ export interface CallResult extends CommandResult {
     readonly writes: boolean;
     /** The rest of the call, awaited once its batch has committed (`ActionResult.settle`). */
     readonly settle?: NonNullable<ActionResult["settle"]>;
+    /** What it did, while the message records effects. */
+    readonly effects?: readonly AiEffect[];
+    /** The elements a write names (`ActionResult.target`). */
+    readonly target?: AiTarget;
 }
 
 /** A batch held for the reader's approval. */
@@ -499,7 +504,8 @@ async function settleLast(
     const results = outcome.results.slice(0, -1);
     let result: CallResult;
     try {
-        result = resultOf(await pending.settle(contextOf(batch)), call);
+        const settled = await pending.settle(contextOf(batch));
+        result = { ...resultOf(settled, call), ...(await evidenceOf(batch, call, settled)) };
     } catch (error) {
         const refusal = asRefusal(error);
         if (!(refusal instanceof ToolRefusal)) {
@@ -558,6 +564,56 @@ function resultOf(outcome: ActionResult, call: PreparedCall): CallResult {
         ...(outcome.load === undefined ? {} : { load: outcome.load }),
         ...(outcome.affectedNodes === undefined ? {} : { affectedNodes: [...outcome.affectedNodes] }),
     };
+}
+
+/**
+ * What a call did, while the message records it. A change that names no effect still says so.
+ * @param batch - The batch.
+ * @param call - The call.
+ * @param outcome - What the action returned.
+ * @returns The call result's `effects`, or nothing.
+ */
+async function evidenceOf(
+    batch: ToolBatch,
+    call: PreparedCall,
+    outcome: ActionResult,
+): Promise<Pick<CallResult, "effects">> {
+    if (batch.message.evidence !== true) {
+        return {};
+    }
+
+    const named = await outcome.effects?.();
+    if (named !== undefined) {
+        return { effects: named };
+    }
+
+    const { checked } = call;
+    return checked === undefined || checked.action.effect === "read"
+        ? {}
+        : {
+              effects: [{ code: "AI_EFFECT_OTHER", params: { tool: checked.tool.name, action: checked.action.name } }],
+          };
+}
+
+/**
+ * The target one held batch names: the one call's, or its calls' together when they can be read as
+ * one. Calls naming a rule and a list together name none.
+ * @param targets - What each write named.
+ * @returns The target, or undefined.
+ */
+function heldTarget(targets: readonly AiTarget[]): AiTarget | undefined {
+    if (targets.length <= 1) {
+        return targets[0];
+    }
+
+    const rules = targets.flatMap((target) => ("where" in target ? [target.where] : []));
+    if (rules.length === targets.length) {
+        return { where: rules.map((rule) => `(${rule})`).join(" || ") };
+    }
+
+    const ids = targets.flatMap((target) => ("ids" in target ? [...target.ids] : []));
+    const listed = targets.every((target) => "ids" in target);
+    return listed ? { ids } : undefined;
 }
 
 /**
@@ -676,6 +732,7 @@ async function runInTransaction(
     const results: (CallResult | undefined)[] = ready.map(() => undefined);
     const measured = { removeNodes: 0, removeEdges: 0, changedValues: 0 };
     const affected: string[] = [];
+    const targets: AiTarget[] = [];
     for (const [index, call] of ready.entries()) {
         // Cancelled, or undone while the message was going: no further tool runs.
         batch.abort.signal.throwIfAborted();
@@ -705,6 +762,7 @@ async function runInTransaction(
         measured.removeEdges += result.measure?.removeEdges ?? 0;
         measured.changedValues += result.measure?.changedValues ?? 0;
         affected.push(...(result.affectedNodes ?? []));
+        targets.push(...(result.target === undefined ? [] : [result.target]));
     }
 
     const { gate, totals } = batch.message;
@@ -717,6 +775,7 @@ async function runInTransaction(
             totals.removeEdges + measured.removeEdges >= gate.removeEdges ||
             totals.changedValues + measured.changedValues >= gate.changedValues;
         if (large) {
+            const target = batch.message.evidence === true ? heldTarget(targets) : undefined;
             throw new RollBack(
                 held(
                     "large",
@@ -725,6 +784,7 @@ async function runInTransaction(
                         removeEdges: totals.removeEdges + measured.removeEdges,
                         changedValues: totals.changedValues + measured.changedValues,
                         ids: affected.slice(0, 10).map((id) => ({ id, label: tx.data.name(id) ?? id })),
+                        ...(target === undefined ? {} : { target: target as JsonObject }),
                     },
                     batch,
                     ready,
@@ -830,8 +890,10 @@ async function runChecked(
     last: boolean,
 ): Promise<CallResult> {
     const { graph, abort, session } = batch;
+    const { bound } = batch.message;
+    const named = bound === undefined ? checked : { ...checked, args: { ...checked.args, [BOUND_SELECTION]: bound } };
     try {
-        let outcome = await checked.tool.run(checked, {
+        let outcome = await checked.tool.run(named, {
             tx,
             session,
             graph,
@@ -849,15 +911,43 @@ async function runChecked(
             outcome = await coded(() => settle(contextOf(batch)));
         }
 
-        return resultOf(outcome, call);
+        return {
+            ...resultOf(outcome, call),
+            ...(await evidenceOf(batch, call, outcome)),
+            ...(outcome.target === undefined ? {} : { target: outcome.target }),
+        };
     } catch (error) {
         if (!(error instanceof ToolRefusal)) {
             throw error;
         }
 
         // A failed write leaves the message's earlier writes pending: fix and retry, or they go.
-        return refused(error.code, call.writes ? { ...error.params, rollback: "pending" } : error.params, call.writes);
+        return {
+            ...refused(error.code, call.writes ? { ...error.params, rollback: "pending" } : error.params, call.writes),
+            ...emptyEvidence(batch, checked, error),
+        };
     }
+}
+
+/**
+ * A call that matched nothing, as an effect: a write refused for it searched as a read does.
+ * @param batch - The batch.
+ * @param checked - The call.
+ * @param refusal - Why it was refused.
+ * @returns The call result's `effects`, or nothing.
+ */
+function emptyEvidence(
+    batch: ToolBatch,
+    checked: NonNullable<PreparedCall["checked"]>,
+    refusal: ToolRefusal,
+): Pick<CallResult, "effects"> {
+    if (batch.message.evidence !== true || refusal.code !== "AI_EMPTY_MATCH") {
+        return {};
+    }
+
+    const { where } = refusal.params;
+    const searched = typeof where === "string" ? where : "";
+    return { effects: [{ code: "AI_EFFECT_EMPTY", params: { tool: checked.tool.name, searched } }] };
 }
 
 /**

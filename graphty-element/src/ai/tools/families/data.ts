@@ -6,11 +6,13 @@
 
 import { z } from "zod";
 
+import type { AiTarget } from "../../../catalog/ai";
 import type { FormatId } from "../../../catalog/types";
 import { canExpand, expansionOf } from "../../../data/expand";
 import type { ExportResult } from "../../../data/export";
 import type { Graph } from "../../../Graph";
 import type { TransactionScope } from "../../../session/types";
+import { dataEffects, effectTarget } from "../effects";
 import {
     idsOf,
     MAX_STRING,
@@ -72,6 +74,7 @@ async function update(
     const { tx } = context;
     let rows: { id: string; values: Record<string, unknown> }[];
     let notes: Record<string, unknown> = {};
+    let target: AiTarget | undefined;
     if (args.records !== undefined) {
         rows = (args.records as Record<string, unknown>[]).map((record) => {
             const { id, ...values } = record;
@@ -91,6 +94,7 @@ async function update(
 
         const named = targetIds(tx, args, kind);
         ({ notes } = named);
+        target = effectTarget(named.target);
         rows = named.ids.map((id) => ({ id, values: args.values as Record<string, unknown> }));
     }
 
@@ -99,6 +103,8 @@ async function update(
     return {
         ...ok(undefined, { ...(notes as Record<string, never>), updated: rows.length }),
         measure: { changedValues },
+        target: target ?? { ids: rows.map((row) => row.id) },
+        effects: dataEffects({ changedValues }),
     };
 }
 
@@ -128,6 +134,7 @@ export const editDataTool: ToolDefinition = {
                 return {
                     ...ok(undefined, { added: records.length }),
                     affectedNodes: records.map((record) => String(record.id)),
+                    effects: dataEffects({ addedNodes: records.length }),
                 };
             },
         },
@@ -156,7 +163,10 @@ export const editDataTool: ToolDefinition = {
                 }
 
                 await coded(() => tx.data.addEdges(records));
-                return ok(undefined, { added: records.length });
+                return {
+                    ...ok(undefined, { added: records.length }),
+                    effects: dataEffects({ addedEdges: records.length }),
+                };
             },
         },
         {
@@ -182,7 +192,7 @@ export const editDataTool: ToolDefinition = {
             effect: "write",
             reaches: [{ door: "SessionDataApi.removeNodes" }, { op: "data.apply" }],
             run: async ({ tx }, args) => {
-                const { ids, notes } = targetIds(tx, args, "node");
+                const { ids, target, notes } = targetIds(tx, args, "node");
                 const edgesBefore = tx.status.counts.edges;
                 await coded(() => tx.data.removeNodes(ids));
                 const edges = edgesBefore - tx.status.counts.edges;
@@ -190,6 +200,8 @@ export const editDataTool: ToolDefinition = {
                     ...ok(undefined, { ...(notes as Record<string, never>), removed: ids.length, removedEdges: edges }),
                     measure: { removeNodes: ids.length, removeEdges: edges },
                     affectedNodes: ids.slice(0, 50),
+                    target: effectTarget(target),
+                    effects: dataEffects({ removedNodes: ids.length, removedEdges: edges }),
                 };
             },
         },
@@ -200,11 +212,13 @@ export const editDataTool: ToolDefinition = {
             effect: "write",
             reaches: [{ door: "SessionDataApi.removeEdges" }, { op: "data.apply" }],
             run: async ({ tx }, args) => {
-                const { ids, notes } = targetIds(tx, args, "edge");
+                const { ids, target, notes } = targetIds(tx, args, "edge");
                 await coded(() => tx.data.removeEdges(ids));
                 return {
                     ...ok(undefined, { ...(notes as Record<string, never>), removed: ids.length }),
                     measure: { removeEdges: ids.length },
+                    target: effectTarget(target),
+                    effects: dataEffects({ removedEdges: ids.length }),
                 };
             },
         },
@@ -246,6 +260,10 @@ export const editDataTool: ToolDefinition = {
                         addedEdges: after.edges - before.edges,
                     }),
                     affectedNodes: [id],
+                    effects: dataEffects({
+                        addedNodes: after.nodes - before.nodes,
+                        addedEdges: after.edges - before.edges,
+                    }),
                 };
             },
         },
@@ -262,7 +280,11 @@ export const editDataTool: ToolDefinition = {
                 }
 
                 await coded(() => tx.data.clear());
-                return { ...ok(undefined, { removedNodes: nodes, removedEdges: edges }), measure: { replaces: true } };
+                return {
+                    ...ok(undefined, { removedNodes: nodes, removedEdges: edges }),
+                    measure: { replaces: true },
+                    effects: dataEffects({ removedNodes: nodes, removedEdges: edges }),
+                };
             },
         },
     ] satisfies ActionSpec[],
@@ -378,6 +400,7 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                     const document = args.text as string | undefined;
                     const { parsed, network } = importSource(args.url as string | undefined, document, host);
                     const mode = args.mode === "replace" ? "replace" : "merge";
+                    const before = mode === "replace" ? { nodes: 0, edges: 0 } : tx.status.counts;
                     const { nodes } = tx.status.counts;
                     const hold = network === undefined ? "replaces" : "network";
                     if (gated(message, hold) && (network !== undefined || (mode === "replace" && nodes > 0))) {
@@ -410,6 +433,10 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                             ...(mode === "replace" ? { replaces: true } : {}),
                             ...(network === undefined ? {} : { network }),
                         },
+                        effects: dataEffects({
+                            addedNodes: tx.status.counts.nodes - before.nodes,
+                            addedEdges: tx.status.counts.edges - before.edges,
+                        }),
                     };
                 },
             },

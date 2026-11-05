@@ -10,6 +10,7 @@ import type { Channel, LayerSource, LayerSpec, Selector, StaticStyle } from "../
 import type { ChannelDescriptor } from "../../../session/styles/channels";
 import type { Layer } from "../../../session/styles/Layer";
 import type { TransactionScope } from "../../../session/types";
+import { styleEffects } from "../effects";
 import {
     attributeNames,
     idsOf,
@@ -415,11 +416,14 @@ async function addLayer(
 
     const facts = validate(tx, spec);
     const layer = await coded(() => tx.styles.add(spec, positionOf(tx, args)));
-    return ok(
-        { layer: layer.id, name: layer.name },
-        { ...notes, ...facts, layer: layer.id, ...paintedFacts(tx, layer.id) },
-        "style.add-layer",
-    );
+    return {
+        ...ok(
+            { layer: layer.id, name: layer.name },
+            { ...notes, ...facts, layer: layer.id, ...paintedFacts(tx, layer.id) },
+            "style.add-layer",
+        ),
+        effects: () => styleEffects(tx, layer.id),
+    };
 }
 
 /** The `encode` argument of a call. */
@@ -564,11 +568,14 @@ async function encode(
               selector: { match: "has", path },
               encode: { [channel]: { by: path, ...binding, ...scaleOptions } },
           });
-    return ok(
-        { layer: layer.id, name: layer.name },
-        { layer: layer.id, ...paintedFacts(tx, layer.id) },
-        "style.encode",
-    );
+    return {
+        ...ok(
+            { layer: layer.id, name: layer.name },
+            { layer: layer.id, ...paintedFacts(tx, layer.id) },
+            "style.encode",
+        ),
+        effects: () => styleEffects(tx, layer.id),
+    };
 }
 
 /**
@@ -685,10 +692,13 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 }
 
                 const updated = await coded(() => tx.styles.update(current.id, patch));
-                return ok(
-                    { layer: updated.id },
-                    { ...notes, layer: updated.id, ...paintedFacts(tx, updated.id, updated.enabled) },
-                );
+                return {
+                    ...ok(
+                        { layer: updated.id },
+                        { ...notes, layer: updated.id, ...paintedFacts(tx, updated.id, updated.enabled) },
+                    ),
+                    effects: () => styleEffects(tx, updated.id),
+                };
             },
         },
         {
@@ -833,7 +843,10 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                     throw new ToolRefusal("AI_EMPTY_MATCH", { run, matched: 0 });
                 }
 
-                return ok({ layers: layers.map((each) => each.id) }, { run, matched });
+                return {
+                    ...ok({ layers: layers.map((each) => each.id) }, { run, matched }),
+                    effects: () => layers.flatMap((each) => styleEffects(tx, each.id)),
+                };
             },
         },
         {

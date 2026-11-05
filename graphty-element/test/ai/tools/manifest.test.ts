@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { assert, describe, it } from "vitest";
 
-import { AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "../../../catalog";
+import { AI_EFFECT_CODES, AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "../../../catalog";
 import { createGraphSession } from "../../../session";
 import { CommandRegistry } from "../../../src/ai/commands";
 import { installAssistantTools } from "../../../src/ai/tools/install";
@@ -74,6 +74,7 @@ describe("the published list of the assistant's tools", () => {
                 .map((code) => code.slice(1, -1)),
         );
         const reader = new Set([
+            ...AI_EFFECT_CODES,
             "AI_COMPLETED",
             "AI_TOOL_UNKNOWN",
             "AI_CONFIRMATION_NEEDED",

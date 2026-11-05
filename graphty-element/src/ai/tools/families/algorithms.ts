@@ -6,10 +6,12 @@
 
 import { z } from "zod";
 
+import type { AiEffect, AiTarget } from "../../../catalog/ai";
 import { algorithmByLegacyKey } from "../../../catalog/algorithms";
 import type { AlgorithmDescriptor, LayerId } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
-import type { TransactionScope } from "../../../session/types";
+import type { GraphSession, TransactionScope } from "../../../session/types";
+import { foundEffects } from "../effects";
 import { resolveRun, text, WHERE_HELP, whereField } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
@@ -102,6 +104,23 @@ export async function awaitRun(run: Run, signal: AbortSignal): Promise<void> {
 }
 
 /**
+ * A finished run as an effect. A run with no number to range over (a path) names no elements.
+ * @param session - The session.
+ * @param run - The run.
+ * @returns The effect.
+ */
+async function runEffects(session: GraphSession, run: Run): Promise<AiEffect[]> {
+    const params = { run: run.id, algorithm: run.algorithm };
+    const target: AiTarget = { range: { run: run.id } };
+    try {
+        const { nodes } = await session.selection.count(target);
+        return [{ code: "AI_EFFECT_RUN", params: { ...params, nodes }, target }];
+    } catch {
+        return [{ code: "AI_EFFECT_RUN", params }];
+    }
+}
+
+/**
  * A started run as an action's result: its summary once it has finished, which the executor waits
  * for after the batch commits when the run is the batch's last call.
  * @param run - The run.
@@ -112,7 +131,7 @@ export function settleRun(run: Run, params: JsonObject): ActionResult {
     return {
         settle: async ({ session, signal }) => {
             await awaitRun(run, signal);
-            return ok(summarizeRun(session, run), params);
+            return { ...ok(summarizeRun(session, run), params), effects: () => runEffects(session, run) };
         },
     };
 }
@@ -398,7 +417,16 @@ export const resultsTool: ToolDefinition = {
                     await coded(() => tx.selection.apply({ ids: rows.map((row) => row.id) }, "replace"));
                 }
 
-                return { ...ok(rows, { run: run.id, field }), affectedNodes: rows.map((row) => row.id) };
+                return {
+                    ...ok(rows, { run: run.id, field }),
+                    affectedNodes: rows.map((row) => row.id),
+                    effects: () =>
+                        foundEffects(
+                            "results",
+                            { nodes: rows.length },
+                            { top: { run: run.id, field, n: rows.length } },
+                        ),
+                };
             },
         },
         {

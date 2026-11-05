@@ -4,6 +4,44 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-04 -- Decided by the team: effects, targets, peek, a message's scope and a reviewed transcript (graphty-element)
+
+All additive, all `@experimental assistant`, active only with the `assistant` experiment on; asking
+for one while it is off is refused with the new `E_FEATURE_OFF` `{ feature, key }`.
+
+- `AI_EFFECT_CODES`, `AiEffect` `{ code, params, target? }`, `AiTarget`, on `./catalog`. An assistant
+  message gains `effects?`, saved on its tool results (`tool-result.effects`), under
+  `toolset: "generated"`. Codes: style, layout, filter, run, data, selection, view, found, empty,
+  other. One style effect per channel a layer writes. A batch taken back or held reports none. A
+  write refused with `AI_EMPTY_MATCH` reports empty, as a read does.
+- `AiTarget` is the JSON subset of `SelectionTarget`: `{ where }`, `{ text }`, `{ layer }`,
+  `{ range: { run, field? } }`, `{ top }`, `{ scope: "graph" | "visible" }`, and `{ ids }` only when
+  ids are what the call named. A style effect targets its layer, a run its range, a filter what is
+  visible now. `session.selection.count(target)` is the live read, already public; a layer or run
+  that is gone rejects, a rule that finds nothing counts zero.
+- `AiApprovalPreview.target`, on a `large` hold: the one call's target, or several rules joined or
+  several id lists joined. A rule beside an id list names none (`ids` stays).
+- `selection.peek(target | null)` and `selection.peeked`. The look is element layers painted above
+  the stack only while a peek shows, never in it (`transient` on the stack's sources), naming the
+  peeked ids: slate `#334155`, halo and band. No new `{ match: "state" }` value, since a wider
+  `ElementState` breaks a consumer's exhaustive table, as it broke the app's. A change to the
+  graph and the session's end clear it. `styles.drawnCount(id)`, the matched elements a filter
+  leaves drawn, gives an effect's `hidden`.
+- `AiCommandOptions.scope?: "selection" | "graph"`; the reader's message reports `scope`
+  (`AiMessageScope`). A selection is read when `aiCommand` is called, and bound by reference: the
+  tool executor hands it to `settleTarget`, where `"all"`, `"selection"` and a missing required
+  target name all of it, and any other target is cut to what the selection holds. It is saved with
+  a held change or a question (`bound`), so a reload cannot widen `where: "all"` to the whole graph.
+  Under `toolset: "commands"` a scope is `AI_CONFIG_INVALID` (`"needs-generated-toolset"`).
+- A reader's message gains `provenance?`: the id its history steps carry. `step.provenance.message`
+  is the run's own id, which no snapshot message showed, so the app could not tell whether the next
+  undo takes a message back. No `undoAiMessage`: this is the missing read, and the undo stays shared.
+- With the experiment on, a run still going when its assistant is disposed ends `AI_DISPOSED`
+  rather than `AI_CANCELLED`; off, it stays `AI_CANCELLED`, as today.
+- `AiVoiceOptions.review?: boolean`; `ai-voice-transcript` gains `pointing?`. Under `review` a press
+  has exactly one final transcript, when it ends. `mode: "live"` beside it is `AiConfigError`
+  (field `"voice.review"`, reason `"needs-turns"`).
+
 ## 2026-11-04 -- Decided by the team: the assistant's tools are a choice, and four small additions (graphty-element)
 
 Landing the Assistant changes nothing for a consumer of graphty-element that does not ask for it.

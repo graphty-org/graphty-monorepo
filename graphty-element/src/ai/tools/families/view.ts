@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { CameraState } from "../../../camera/types";
+import { viewEffects } from "../effects";
 import { MAX_STRING, scopeOf, settleTarget, targetFields, text } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { type ActionContext, type ActionSpec, type CatalogView, type ToolDefinition, ToolRefusal } from "../types";
@@ -63,7 +64,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             reaches: [{ op: "view.dimension" }, { door: "SessionLayout.setDimension" }],
             run: async ({ tx }, args) => {
                 await coded(() => tx.layout.setDimension(args.dimension as "2d" | "3d"));
-                return ok(undefined, { dimension: tx.layout.dimension });
+                return { ...ok(undefined, { dimension: tx.layout.dimension }), effects: viewEffects };
             },
         },
         {
@@ -101,7 +102,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
 
                     const params = checkOptions(tx, descriptor.options, args.options as Record<string, unknown>);
                     await coded(() => renderer(context).applyCameraView(preset, { params, animate: true }));
-                    return ok(undefined, { preset });
+                    return { ...ok(undefined, { preset }), effects: viewEffects };
                 }
 
                 await coded(() =>
@@ -113,7 +114,10 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
                         animate: true,
                     }),
                 );
-                return ok(undefined, args.preset === undefined ? {} : { preset: text(args.preset) });
+                return {
+                    ...ok(undefined, args.preset === undefined ? {} : { preset: text(args.preset) }),
+                    effects: viewEffects,
+                };
             },
         },
         {
@@ -130,7 +134,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
                         animate: true,
                     }),
                 );
-                return ok(undefined, notes);
+                return { ...ok(undefined, notes), effects: viewEffects };
             },
         },
         {
@@ -141,7 +145,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
             reaches: [{ door: "Graph.applyCameraView" }],
             run: async (context) => {
                 await coded(() => renderer(context).applyCameraView("fitToGraph", { animate: true }));
-                return ok();
+                return { ...ok(), effects: viewEffects };
             },
         },
         {
@@ -173,7 +177,7 @@ export function viewTool(catalog: CatalogView): ToolDefinition {
                 }
 
                 await coded(() => tx.execute({ op: "view.camera", preset: saved, animate: true }));
-                return ok(undefined, { name: saved });
+                return { ...ok(undefined, { name: saved }), effects: viewEffects };
             },
         },
         {

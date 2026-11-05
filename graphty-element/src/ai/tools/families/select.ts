@@ -5,23 +5,11 @@
 
 import { z } from "zod";
 
-import type { SelectionTarget } from "../../../session/selection/targets";
-import { MAX_STRING, requireTarget, settleTarget, type Target, targetFields, text } from "../fields";
+import type { AiEffect, AiTarget } from "../../../catalog/ai";
+import { effectTarget } from "../effects";
+import { MAX_STRING, requireTarget, settleTarget, targetFields, text } from "../fields";
 import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
-
-/**
- * A target as the selection reads one.
- * @param target - The target.
- * @returns The selection target.
- */
-function selectionTarget(target: Target): SelectionTarget {
-    if (target.kind === "all") {
-        return { scope: "graph" };
-    }
-
-    return target.kind === "where" ? { where: target.where } : { ids: target.ids };
-}
 
 /**
  * Apply a target to the selection.
@@ -38,7 +26,8 @@ async function apply(
     const { tx } = context;
     const { target, notes } = requireTarget(tx, args, "node");
 
-    const delta = await coded(() => tx.selection.apply(selectionTarget(target), op));
+    const named = effectTarget(target);
+    const delta = await coded(() => tx.selection.apply(named, op));
     return {
         ...ok(
             { nodes: tx.selection.nodes.length, edges: tx.selection.edges.length },
@@ -50,7 +39,25 @@ async function apply(
             },
         ),
         affectedNodes: tx.selection.nodes.slice(0, 50).map(String),
+        effects: () => selectionEffects(context, named),
     };
+}
+
+/**
+ * The selection as an effect.
+ * @param context - The action's context.
+ * @param context.tx - The session.
+ * @param target - What the call named.
+ * @returns The effect.
+ */
+function selectionEffects({ tx }: Pick<ActionContext, "tx">, target?: AiTarget): AiEffect[] {
+    return [
+        {
+            code: "AI_EFFECT_SELECTION",
+            params: { nodes: tx.selection.nodes.length, edges: tx.selection.edges.length },
+            ...(target === undefined ? {} : { target }),
+        },
+    ];
 }
 
 const SELECT_DOOR = [
@@ -100,7 +107,10 @@ export const selectTool: ToolDefinition = {
             reaches: [{ door: "SelectionApi.clear" }],
             run: ({ tx }) => {
                 const delta = tx.selection.clear();
-                return Promise.resolve(ok(undefined, { removed: delta.removed.length }));
+                return Promise.resolve({
+                    ...ok(undefined, { removed: delta.removed.length }),
+                    effects: () => selectionEffects({ tx }),
+                });
             },
         },
         {
@@ -120,7 +130,10 @@ export const selectTool: ToolDefinition = {
                 const delta = await coded(() =>
                     tx.selection.apply(seeds === undefined ? { depth } : { neighborsOf: seeds, depth }, "replace"),
                 );
-                return ok({ nodes: tx.selection.nodes.length }, { ...notes, added: delta.added.length });
+                return {
+                    ...ok({ nodes: tx.selection.nodes.length }, { ...notes, added: delta.added.length }),
+                    effects: () => selectionEffects({ tx }),
+                };
             },
         },
         {

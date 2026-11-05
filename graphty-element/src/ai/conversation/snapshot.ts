@@ -6,7 +6,14 @@
  * element wrote for a model, not for a reader.
  */
 
-import type { AiHostedToolId, AiPageRetrieval, AiResultCode, AiResultParams } from "../../catalog/ai";
+import type {
+    AiEffect,
+    AiHostedToolId,
+    AiMessageScope,
+    AiPageRetrieval,
+    AiResultCode,
+    AiResultParams,
+} from "../../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
@@ -55,6 +62,18 @@ export type AiConversationMessage =
           readonly text: string;
           /** How they said it. */
           readonly via: "text" | "voice";
+          /**
+           * What the message was about, when it was sent with a scope.
+           * @experimental assistant
+           */
+          readonly scope?: AiMessageScope;
+          /**
+           * The id its changes carry on the history (`step.provenance.message`), so an application
+           * can tell whether `session.history.nextUndo` would take this message back. Under the
+           * generated tools with the `assistant` experiment on.
+           * @experimental assistant
+           */
+          readonly provenance?: string;
       }
     | {
           /** The message's id, stable across saves and reloads. */
@@ -73,6 +92,12 @@ export type AiConversationMessage =
           readonly outcome?: { readonly code: AiResultCode; readonly params: AiResultParams };
           /** The helper (`AiAgentRole.name`) that said it, when a helper did; absent for the assistant itself. */
           readonly agent?: string;
+          /**
+           * What its calls did, in order, under the generated tools with the `assistant` experiment
+           * on; absent when they did nothing to report.
+           * @experimental assistant
+           */
+          readonly effects?: readonly AiEffect[];
       };
 
 /** A conversation, as an application draws it. */
@@ -140,6 +165,7 @@ function snapshotMessages(
 ): AiConversationMessage[] {
     const outcomes = callOutcomes(messages, pending);
     const helperSources = helperSourcesOf(messages);
+    const effects = callEffects(messages);
     return messages.flatMap((message): AiConversationMessage[] => {
         switch (message.role) {
             case "tool":
@@ -147,7 +173,7 @@ function snapshotMessages(
             case "user":
                 return readerEntry(message);
             case "assistant":
-                return assistantEntry(message, outcomes, helperSources);
+                return assistantEntry(message, outcomes, helperSources, effects);
             default:
                 return [];
         }
@@ -178,6 +204,23 @@ function callOutcomes(messages: readonly SavedMessage[], pending: readonly Saved
     }
 
     return outcomes;
+}
+
+/**
+ * What each call did, as its tool result records it.
+ * @param messages - The saved messages.
+ * @returns The effects, by call id.
+ */
+function callEffects(messages: readonly SavedMessage[]): Map<string, readonly AiEffect[]> {
+    const effects = new Map<string, readonly AiEffect[]>();
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "tool-result" && part.effects !== undefined) {
+            // A saved code may be one a newer release wrote: the union is open, as `AI_EFFECT_CODES` says.
+            effects.set(part.callId, part.effects as readonly AiEffect[]);
+        }
+    }
+
+    return effects;
 }
 
 /**
@@ -239,6 +282,8 @@ function readerEntry(message: SavedMessage): AiConversationMessage[] {
             role: "reader",
             text: said.map((part) => part.text).join("\n"),
             via: said.some((part) => part.via === "voice") ? "voice" : "text",
+            ...(said[0].scope === undefined ? {} : { scope: said[0].scope }),
+            ...(said[0].provenance === undefined ? {} : { provenance: said[0].provenance }),
         },
     ];
 }
@@ -249,12 +294,14 @@ function readerEntry(message: SavedMessage): AiConversationMessage[] {
  * @param message - The assistant message.
  * @param outcomes - Each call's outcome.
  * @param helperSources - The pages each helper found, by its call.
+ * @param effects - What each call did.
  * @returns Its entry, or none when it holds nothing a reader sees.
  */
 function assistantEntry(
     message: SavedMessage,
     outcomes: ReadonlyMap<string, CallOutcome>,
     helperSources: ReadonlyMap<string, AiSource[]>,
+    effects: ReadonlyMap<string, readonly AiEffect[]>,
 ): AiConversationMessage[] {
     const text = message.parts
         .flatMap((part) => (part.type === "text" && part.origin === "model" ? [part.text] : []))
@@ -281,7 +328,18 @@ function assistantEntry(
         return [];
     }
 
-    return [{ id: message.id, role: "assistant", text, calls, sources, ...outcome }];
+    const did = message.parts.flatMap((part) => (part.type === "tool-call" ? (effects.get(part.callId) ?? []) : []));
+    return [
+        {
+            id: message.id,
+            role: "assistant",
+            text,
+            calls,
+            sources,
+            ...outcome,
+            ...(did.length > 0 && { effects: did }),
+        },
+    ];
 }
 
 /**

@@ -10,6 +10,7 @@
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
@@ -308,6 +309,17 @@ const CASES: readonly Case[] = [
                 session.selection.previewHover(true);
                 await session.styles.settled();
             };
+        },
+    },
+    {
+        method: "SelectionApi.peek",
+        growth: "linear",
+        prepare: (session, size) => {
+            setDefaultFeatures(["assistant"]);
+            return Promise.resolve(async () => {
+                await session.selection.peek({ nodes: ids(size) });
+                await session.styles.settled();
+            });
         },
     },
     {
@@ -1039,6 +1051,7 @@ const CASES: readonly Case[] = [
 describe("the session's mutating methods do work in proportion to their reach", () => {
     afterEach(() => {
         vi.unstubAllGlobals();
+        setDefaultFeatures([]);
     });
     for (const { method, growth, superlinear, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";

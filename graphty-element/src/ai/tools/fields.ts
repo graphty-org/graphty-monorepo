@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import { isGraphtyError } from "../../errors";
 import type { GraphSession, TransactionScope } from "../../session/types";
-import { type JsonObject, ToolRefusal } from "./types";
+import { type BoundSelection, type JsonObject, ToolRefusal } from "./types";
 
 /** The most ids, records or positions one call carries. */
 export const MAX_ITEMS = 500;
@@ -243,8 +243,16 @@ export function attributeNames(session: Pick<GraphSession, "data">, kind: "node"
         .map((attribute) => attribute.path.slice("data.".length));
 }
 
+/** The arguments' key the executor hands a message's bound selection under: no model can write it. */
+export const BOUND_SELECTION: unique symbol = Symbol("graphty.ai.bound-selection");
+
+/** The word a call under a bound selection names all of it by. */
+const SELECTION_WORD = "selection";
+
 /**
- * Settle a call's target: exactly one of `where`, `ids` or `result`.
+ * Settle a call's target: exactly one of `where`, `ids` or `result`. Under a bound selection the
+ * target is limited to it: a required target left out, `"all"` and `"selection"` name all of it,
+ * and any other names what it holds of the selection.
  * @param session - Where to resolve labels and runs.
  * @param args - The call's arguments.
  * @param kind - Nodes or edges.
@@ -253,6 +261,43 @@ export function attributeNames(session: Pick<GraphSession, "data">, kind: "node"
  * @throws {ToolRefusal} `AI_ARG_INVALID` for none or more than one; `AI_UNKNOWN_NODE` for an id that names nothing.
  */
 export function settleTarget(
+    session: TransactionScope,
+    args: Record<string, unknown>,
+    kind: "node" | "edge",
+    required: boolean,
+): { target: Target | undefined; notes: JsonObject } {
+    const bound = (args as { [BOUND_SELECTION]?: BoundSelection })[BOUND_SELECTION];
+    if (bound === undefined) {
+        return settled(session, args, kind, required);
+    }
+
+    const ids = kind === "node" ? bound.nodes : bound.edges;
+    if (text(args.where).trim().toLowerCase() === SELECTION_WORD) {
+        return { target: { kind: "ids", ids }, notes: {} };
+    }
+
+    const { target, notes } = settled(session, args, kind, false);
+    if (target === undefined) {
+        return { target: required ? { kind: "ids", ids } : undefined, notes };
+    }
+
+    if (target.kind === "all") {
+        return { target: { kind: "ids", ids }, notes };
+    }
+
+    const named = new Set(idsOf(session, target, kind).ids);
+    return { target: { kind: "ids", ids: ids.filter((id) => named.has(String(id))) }, notes };
+}
+
+/**
+ * Settle a call's target, whatever the message is bound to.
+ * @param session - Where to resolve labels and runs.
+ * @param args - The call's arguments.
+ * @param kind - Nodes or edges.
+ * @param required - Whether a missing target is refused.
+ * @returns The target and what was repaired.
+ */
+function settled(
     session: TransactionScope,
     args: Record<string, unknown>,
     kind: "node" | "edge",

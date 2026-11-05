@@ -7,11 +7,14 @@
 
 import type { z } from "zod";
 
+import type { AiEffect, AiTarget } from "../../catalog/ai";
 import type {
     AlgorithmDescriptor,
     CameraDescriptor,
+    EdgeId,
     FormatDescriptor,
     LayoutDescriptor,
+    NodeId,
     PaletteDescriptor,
     ScaleDescriptor,
 } from "../../catalog/types";
@@ -85,6 +88,14 @@ export interface ActionResult {
     readonly load?: readonly string[];
     /** Ids of nodes the action touched, for the reader-facing result. */
     readonly affectedNodes?: readonly string[];
+    /**
+     * What it did, as an application words it. Asked only while the message records effects
+     * (`MessageState.evidence`), since a count can walk the graph. A change that names none reads
+     * as `AI_EFFECT_OTHER`.
+     */
+    readonly effects?: () => readonly AiEffect[] | Promise<readonly AiEffect[]>;
+    /** The elements a write names, for an approval's preview when the batch is held. */
+    readonly target?: AiTarget;
     /**
      * The rest of the action, a wait with nothing left to write (a run finishing, a recording):
      * its result replaces this one. The batch's last call waits after the batch commits, so the
@@ -202,6 +213,12 @@ export class GateHold extends Error {
     }
 }
 
+/** The selection a message was bound to when it was sent (`AiCommandOptions.scope`). */
+export interface BoundSelection {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}
+
 /** State that lives for one message: what the gate and the undo rules count. */
 export interface MessageState {
     /** The gate's limits, or false when it is off. */
@@ -250,6 +267,10 @@ export interface MessageState {
     readonly hostedUses?: Record<string, number>;
     /** The message's running totals of what its writes did. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
+    /** Record what calls did (`AiEffect`) and what a held batch names (the assistant experiment). */
+    readonly evidence?: boolean;
+    /** The selection every target of this message is limited to, when it was sent with one. */
+    readonly bound?: BoundSelection;
 }
 
 /**

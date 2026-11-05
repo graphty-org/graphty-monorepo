@@ -134,7 +134,10 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
                         ...(args.options === undefined ? {} : { options }),
                     }),
                 );
-                return ok(undefined, { layout: tx.layout.id, engine: tx.layout.engine });
+                return {
+                    ...ok(undefined, { layout: tx.layout.id, engine: tx.layout.engine }),
+                    effects: () => [{ code: "AI_EFFECT_LAYOUT", params: { layout: tx.layout.id } }],
+                };
             },
         },
         {

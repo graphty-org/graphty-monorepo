@@ -7,10 +7,12 @@ import {
     AI_CONVERSATION_FORMAT,
     AI_CONVERSATION_FORMAT_VERSION,
     type AiCapabilities,
+    type AiMessageScope,
     type AiProviderId,
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
+import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { GraphSession } from "../session/types";
@@ -87,6 +89,7 @@ import {
     type AiApprovalVerdict,
     type AiToolCallFacts,
     type AssistantGateLimits,
+    type BoundSelection,
     DEFAULT_ASSISTANT_GATE_LIMITS,
     type GateKind,
     type JsonObject,
@@ -169,6 +172,8 @@ interface PendingApproval {
     readonly planStep?: string;
     /** The helper whose batch is held, and the `delegate` call it answers. */
     readonly helper?: { readonly agent: string; readonly callId: string };
+    /** The selection the message was bound to when it was sent. */
+    readonly bound?: BoundSelection;
 }
 
 /**
@@ -189,6 +194,8 @@ interface PendingQuestion {
     readonly stopWatching: () => void;
     /** What the host was asked, as `getPendingAiQuestions` returns it. */
     readonly request: AiQuestionRequest;
+    /** The selection the message was bound to when it was sent. */
+    readonly bound?: BoundSelection;
 }
 
 /** Whatever waits on the reader: an approval request or a question. */
@@ -357,6 +364,8 @@ interface MessageRun {
     readonly resume?: { readonly callId: string; readonly decided: DecidedBatch };
     /** The message's own engine (a live connection's turns); absent, the controller's. */
     readonly live?: LiveMessage;
+    /** The selection the message was bound to when it was sent. */
+    readonly bound?: BoundSelection;
 }
 
 /**
@@ -476,6 +485,22 @@ export interface AiCommandOptions {
      * names a node. `aiTalk` fills it from the nodes the pointer entered while talk was held.
      */
     readonly pointing?: AiPointing;
+    /**
+     * What the message is about, read when it is sent: `"selection"` limits every tool call to the
+     * whole selection, however large, hidden elements included; `"graph"` is the whole graph,
+     * whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
+     * message then reports it (`AiConversationMessage.scope`). Needs `toolset: "generated"`
+     * (otherwise `AI_CONFIG_INVALID`) and the `assistant` experiment (otherwise it rejects with
+     * `E_FEATURE_OFF`).
+     * @experimental assistant
+     */
+    readonly scope?: "selection" | "graph";
+}
+
+/** A message's scope as it was read when it was sent. */
+interface SentScope {
+    readonly facts: AiMessageScope;
+    readonly bound?: BoundSelection;
 }
 
 /**
@@ -764,6 +789,15 @@ export class AiController {
     }
 
     /**
+     * What a cancelled message ends with: `AI_DISPOSED` once `dispose` ended it under the `assistant`
+     * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
+     * @returns The code.
+     */
+    private get cancelCode(): "AI_CANCELLED" | "AI_DISPOSED" {
+        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELLED";
+    }
+
+    /**
      * Emit an AI event if an emitter is configured.
      * @param event - The AI event to emit
      */
@@ -791,6 +825,17 @@ export class AiController {
             };
         }
 
+        // Read now, not when its turn comes: a selection changed while it waits is not its scope.
+        const scope = options.scope === undefined ? undefined : this.readScope(options.scope);
+        if (scope === null) {
+            return {
+                success: false,
+                message: "",
+                code: "AI_CONFIG_INVALID",
+                params: { field: "scope", reason: "needs-generated-toolset" },
+            };
+        }
+
         // Track input for retry
         this.lastInput = input;
 
@@ -807,7 +852,7 @@ export class AiController {
         return this.enqueue(async () => {
             if (abortController.signal.aborted) {
                 this.running.delete(abortController);
-                return { success: false, message: "", code: "AI_CANCELLED", params: {} };
+                return { success: false, message: "", code: this.cancelCode, params: {} };
             }
 
             if (options.conversation !== undefined && !(await this.switchTo(options.conversation))) {
@@ -831,8 +876,67 @@ export class AiController {
                 return { success: false, message: "", code: "AI_FAILED", params: {} };
             }
 
-            return this.executeNow(input, abortController, options, planned);
+            return this.executeNow(input, abortController, options, planned, scope);
         });
+    }
+
+    /**
+     * Whether messages record what they did: the generated tools, with the experiment on.
+     * @param session - The session.
+     * @returns True when they do.
+     */
+    private recordsEvidence(session: GraphSession): boolean {
+        return this.toolset === "generated" && session.features.has("assistant");
+    }
+
+    /**
+     * What a message's scope holds now.
+     * @param kind - The scope asked for.
+     * @returns The scope, or null when the commands of the default toolset cannot be bound.
+     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off.
+     */
+    private readScope(kind: "selection" | "graph"): SentScope | null {
+        const session = this.graph.getSession();
+        if (!session.features.has("assistant")) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: `A message's scope needs the "assistant" experiment.`,
+                source: "config",
+                details: { feature: "assistant", key: "scope" },
+            });
+        }
+
+        if (this.toolset !== "generated") {
+            return null;
+        }
+
+        const shown = session.visibility.summary;
+        if (kind === "graph") {
+            const { nodes, edges } = session.status.counts;
+            return {
+                facts: {
+                    kind,
+                    nodes,
+                    edges,
+                    hiddenNodes: nodes - shown.visibleNodes,
+                    hiddenEdges: edges - shown.visibleEdges,
+                },
+            };
+        }
+
+        const { nodes, edges } = session.selection;
+        const hidden = (ids: readonly (string | number)[]): number =>
+            ids.filter((id) => !session.visibility.isVisible(id)).length;
+        return {
+            bound: { nodes, edges },
+            facts: {
+                kind,
+                nodes: nodes.length,
+                edges: edges.length,
+                hiddenNodes: hidden(nodes),
+                hiddenEdges: hidden(edges),
+            },
+        };
     }
 
     /**
@@ -979,6 +1083,7 @@ export class AiController {
      * @param abortController - The message's controller, which `cancel()` aborts.
      * @param options - How the reader gave it, and what they pointed at.
      * @param planned - A function router's plan for it.
+     * @param scope - What it is about, when it was sent with a scope.
      * @returns The message's result.
      */
     private async executeNow(
@@ -986,18 +1091,27 @@ export class AiController {
         abortController: AbortController,
         options: AiCommandOptions,
         planned: AiPlan | undefined,
+        scope: SentScope | undefined,
     ): Promise<ExecutionResult> {
         await this.supersedePending(true);
 
         this.emitAiEvent({ type: "ai-command-start", input, timestamp: Date.now() });
         const live = (options as AiCommandOptions & { [LIVE_MESSAGE]?: LiveMessage })[LIVE_MESSAGE];
+        const message = uniqueId("msg_");
         return this.runMessage({
             input,
-            message: uniqueId("msg_"),
+            message,
             abortController,
-            conversation: (session) => this.startConversation(input, session, options.via, options.pointing),
+            conversation: (session) =>
+                this.startConversation(input, session, {
+                    via: options.via,
+                    pointing: options.pointing,
+                    scope: scope?.facts,
+                    provenance: this.recordsEvidence(session) ? message : undefined,
+                }),
             conversationId: this.current?.id,
             live,
+            ...(scope?.bound === undefined ? {} : { bound: scope.bound }),
             // A live message is model-routed: the live model already chose its tools.
             ...(this.router === "model" || this.roles.length === 0 || live !== undefined
                 ? {}
@@ -1124,7 +1238,15 @@ export class AiController {
         const emit = (event: AiEvent): void => {
             this.emitAiEvent(event);
         };
-        const saved = { message, label: input, session, conversation: running, conversationId: run.conversationId };
+        const { bound } = run;
+        const saved = {
+            message,
+            label: input,
+            session,
+            conversation: running,
+            conversationId: run.conversationId,
+            ...(bound === undefined ? {} : { bound }),
+        };
         return {
             conversation: running,
             engine: run.live?.engine ?? this.engine,
@@ -1146,6 +1268,8 @@ export class AiController {
                 undo: { calls: 0 },
                 hostedUses: {},
                 totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
+                ...(this.recordsEvidence(session) ? { evidence: true } : {}),
+                ...(bound === undefined ? {} : { bound }),
             },
             host: {
                 emit,
@@ -1201,7 +1325,7 @@ export class AiController {
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
         if (this.cancelled.has(run.abortController)) {
-            result = { ...result, code: "AI_CANCELLED", params: {} };
+            result = { ...result, code: this.cancelCode, params: {} };
         }
 
         return result;
@@ -1413,7 +1537,7 @@ export class AiController {
      * @returns Cancelled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(abortController: AbortController): Outcome {
-        return { code: this.cancelled.has(abortController) ? "AI_CANCELLED" : "AI_UNDONE", params: {} };
+        return { code: this.cancelled.has(abortController) ? this.cancelCode : "AI_UNDONE", params: {} };
     }
 
     /**
@@ -1450,6 +1574,7 @@ export class AiController {
      * @param hold.helper - The helper whose batch is held, and the call it answers.
      * @param hold.helper.agent - The helper's name.
      * @param hold.helper.callId - The `delegate` call it answers.
+     * @param hold.bound - The selection the message was bound to when it was sent.
      * @returns The request's id, once the conversation holding it is saved and the host told.
      */
     private async hold(hold: {
@@ -1462,8 +1587,9 @@ export class AiController {
         conversationId: string | undefined;
         plan?: PlanSteps;
         helper?: { readonly agent: string; readonly callId: string };
+        bound?: BoundSelection;
     }): Promise<string> {
-        const { held, message, session, conversationId, plan, helper } = hold;
+        const { held, message, session, conversationId, plan, helper, bound } = hold;
         const id = uniqueId("approval_");
         const changed = { value: false };
         const stopWatching = session.on("history:changed", ({ reason }) => {
@@ -1511,6 +1637,7 @@ export class AiController {
             ...(plan === undefined ? {} : { plan: () => Promise.resolve(plan) }),
             ...(planStep === undefined ? {} : { planStep: planStep.id }),
             ...(helper === undefined ? {} : { helper }),
+            ...(bound === undefined ? {} : { bound }),
         });
         this.updatePending();
         // The message holding the calls and the request are saved together, before the host hears
@@ -1524,6 +1651,7 @@ export class AiController {
             preview: held.preview,
             graph,
             historyRevision: session.history.position,
+            ...(bound === undefined ? {} : { bound }),
             claim: null,
             createdAt,
             ...(helper === undefined ? {} : { agent: helper.agent }),
@@ -1548,6 +1676,7 @@ export class AiController {
      * @param ask.conversation - The conversation, ending in the question's call.
      * @param ask.messageId - The conversation message holding the call.
      * @param ask.conversationId - The saved conversation, with history.
+     * @param ask.bound - The selection the message was bound to when it was sent.
      * @returns The question's id, once the conversation holding it is saved and the host told.
      */
     private async ask(ask: {
@@ -1558,8 +1687,9 @@ export class AiController {
         conversation: Conversation;
         messageId: string;
         conversationId: string | undefined;
+        bound?: BoundSelection;
     }): Promise<string> {
-        const { question, message, session, conversationId } = ask;
+        const { question, message, session, conversationId, bound } = ask;
         const id = uniqueId("question_");
         const stopWatching = session.on("history:changed", () => {
             if (undoneStepOf(session, message)) {
@@ -1576,6 +1706,7 @@ export class AiController {
             question: question.question,
             choices: [...question.choices],
             multiple: question.multiple,
+            ...(bound === undefined ? {} : { bound }),
             claim: null,
             createdAt,
         };
@@ -1590,6 +1721,7 @@ export class AiController {
             conversationId,
             stopWatching,
             request,
+            ...(bound === undefined ? {} : { bound }),
         });
         this.updatePending();
         // Saved before the host hears of it: a reload after the event always finds the question.
@@ -1683,6 +1815,7 @@ export class AiController {
             conversationId: record.id,
             stopWatching: () => undefined,
             request: questionRequest(entry, record.id),
+            ...(entry.bound === undefined ? {} : { bound: entry.bound }),
         };
         this.questions.set(entry.id, pending);
         return pending;
@@ -1723,6 +1856,7 @@ export class AiController {
             request: approvalRequest(entry, record.id),
             graph: entry.graph,
             replayed: true,
+            ...(entry.bound === undefined ? {} : { bound: entry.bound }),
             ...(entry.agent === undefined || callId === undefined ? {} : { helper: { agent: entry.agent, callId } }),
             ...(planStep?.kind === "plan-step"
                 ? {
@@ -1954,6 +2088,7 @@ export class AiController {
             totals: pending.held.totals,
             request: id,
             ...(pending.plan === undefined ? {} : { plan: pending.plan }),
+            ...(pending.bound === undefined ? {} : { bound: pending.bound }),
         });
     }
 
@@ -2022,6 +2157,7 @@ export class AiController {
             conversationId: pending.conversationId,
             request: id,
             answer: { call: pending.call, values },
+            ...(pending.bound === undefined ? {} : { bound: pending.bound }),
         });
     }
 
@@ -2053,18 +2189,33 @@ export class AiController {
      * reader's request.
      * @param input - User input
      * @param session - The session, for the facts.
-     * @param via - How the reader gave it; recorded only when the host said.
-     * @param pointing - What the reader pointed at while saying it.
+     * @param sent - What came with it.
+     * @param sent.via - How the reader gave it; recorded only when the host said.
+     * @param sent.pointing - What the reader pointed at while saying it.
+     * @param sent.scope - What it is about, when it was sent with a scope.
+     * @param sent.provenance - The id its history steps carry, to record on it.
      * @returns The conversation
      */
     private startConversation(
         input: string,
         session: GraphSession,
-        via?: "text" | "voice",
-        pointing?: AiPointing,
+        sent: {
+            readonly via: "text" | "voice" | undefined;
+            readonly pointing: AiPointing | undefined;
+            readonly scope: AiMessageScope | undefined;
+            readonly provenance: string | undefined;
+        },
     ): Conversation {
         const system = this.systemPrompt();
-        const said = { type: "text", origin: "reader", text: input, ...(via === undefined ? {} : { via }) } as const;
+        const { via, pointing, scope, provenance } = sent;
+        const said = {
+            type: "text",
+            origin: "reader",
+            text: input,
+            ...(via === undefined ? {} : { via }),
+            ...(scope === undefined ? {} : { scope }),
+            ...(provenance === undefined ? {} : { provenance }),
+        } as const;
         if (hasAssistantTools(this.commandRegistry)) {
             // The generated tools: fixed instructions, and the facts as graph data, never in them.
             return {
@@ -2075,7 +2226,11 @@ export class AiController {
                         id: this.firstMessageId(),
                         role: "user",
                         parts: [
-                            { type: "text", origin: "graph-data", text: factsBlock(session, this.profile, pointing) },
+                            {
+                                type: "text",
+                                origin: "graph-data",
+                                text: factsBlock(session, this.profile, pointing, scope),
+                            },
                             said,
                         ],
                     },

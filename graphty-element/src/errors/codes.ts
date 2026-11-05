@@ -492,6 +492,12 @@ export type GraphtyErrorCode =
      */
     | "E_UNSUPPORTED"
     /**
+     * A call asked for something an experiment provides while that experiment is off. `details` are
+     * `{ feature, key }`: the experiment's id and what was asked for. Nothing was substituted. The
+     * caller switches the experiment on (`features`) or stops asking.
+     */
+    | "E_FEATURE_OFF"
+    /**
      * The target may not be mutated from here. A session that shares another session's data core
      * refuses structural mutation, and refuses to dispose the owner while a sharer is live.
      * `details` name the owning session. The caller applies the change through the owner.
@@ -997,6 +1003,7 @@ const CODE_TABLE = {
     E_NO_WEBGL: "E_NO_WEBGL",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
+    E_FEATURE_OFF: "E_FEATURE_OFF",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
     E_EXTENSION_FAILED: "E_EXTENSION_FAILED",

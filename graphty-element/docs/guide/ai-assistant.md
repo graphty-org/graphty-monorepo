@@ -416,6 +416,83 @@ element.addEventListener("ai-conversation-changed", () => {
 });
 ```
 
+## What a message did
+
+_Experimental: everything in this section needs the `assistant` experiment (the element's `features`
+property) and `toolset: "generated"`, and may change in a minor release. A call that needs the
+experiment while it is off is refused with `E_FEATURE_OFF` `{ feature, key }`, and nothing is
+substituted._
+
+```typescript
+element.features = ["assistant"];
+await element.enableAiControl({ provider: "google", apiKey: myKey, toolset: "generated", history: "browser" });
+```
+
+### Effects
+
+An assistant message carries `effects`: what its calls did, as `{ code, params, target? }`, for you
+to word (`AI_EFFECT_CODES` in `./catalog` lists every code and its params). A read that found nothing
+is an effect too, and says what it searched for.
+
+```typescript
+await element.aiCommand("Color the servers red");
+
+for (const message of element.getAiConversation().messages) {
+    for (const effect of message.effects ?? []) {
+        if (effect.code === "AI_EFFECT_STYLE") {
+            show(`Set ${effect.params.channel} on ${effect.params.nodes} nodes`);
+        } else if (effect.code === "AI_EFFECT_EMPTY") {
+            show(`No matches for ${effect.params.searched}`);
+        }
+    }
+}
+```
+
+`target` is a selection target: a rule or a reference to a layer or a run, not a list of ids, so it
+is exact at any graph size and small to save. It is read against the graph as it is now, so a count
+stays live:
+
+```typescript
+const { nodes } = await element.session.selection.count(effect.target); // follows the data
+await element.session.selection.apply(effect.target); // select them
+```
+
+When the layer or run it refers to is gone, `count` rejects (`E_UNKNOWN_LAYER`, `E_UNKNOWN_RUN`);
+when its rule finds nothing any more, the count is zero. Effects are kept in saved conversations.
+
+An approval's `preview.ids` stops at ten; a `large` change's `preview.target` covers all of it.
+
+### Peek
+
+`selection.peek(target)` points at some elements for a moment: a neutral halo, drawn by a style layer
+the element holds above every other. It adds no undo step and never changes the selection or the
+camera, and nothing about it is saved.
+
+```typescript
+chip.onpointerenter = () => element.session.selection.peek(effect.target);
+chip.onpointerleave = () => element.session.selection.peek(null);
+```
+
+A change to the graph and the end of the session clear it too.
+
+### What a message is about
+
+`scope` says what a message is about, read when it is sent, so a selection changed while it runs
+does not change it:
+
+```typescript
+await element.aiCommand("Color these by group", { scope: "selection" });
+await element.aiCommand("How many clusters are there?", { scope: "graph" });
+```
+
+| `scope`       | What the tools work on                                                                  |
+| ------------- | --------------------------------------------------------------------------------------- |
+| absent        | whatever the model names; it is told how many elements are selected                     |
+| `"selection"` | every target is limited to the whole selection, however large, hidden elements included |
+| `"graph"`     | the whole graph, whatever is selected                                                   |
+
+The reader's message reports it, as `message.scope`: `{ kind, nodes, edges, hiddenNodes, hiddenEdges }`.
+
 ## Helpers and plans
 
 Helpers are smaller assistants of your own that the assistant hands parts of a message to: one
@@ -966,6 +1043,29 @@ else is a new message, which ends what was waiting, as a typed message does.
 **Talking interrupts.** `aiTalk(true)` stops an answer being spoken, and so does
 `stopAiSpeech()`. `disableAiControl()` closes the microphone and stops speaking.
 
+### Reviewing a transcript before it is sent
+
+_Experimental: needs the `assistant` experiment._
+
+With `review: true` a finished press sends nothing. Its one final `ai-voice-transcript` carries the
+text and what the reader pointed at, so you can show it and send it when the reader says so:
+
+```typescript
+await element.enableAiControl({ provider: "google", apiKey: myKey, voice: { review: true } });
+
+element.addEventListener("ai-voice-transcript", (e) => {
+    const { transcript, isFinal, pointing } = e.detail;
+    composer.value = transcript;
+    if (isFinal) {
+        spoken = { via: "voice", pointing };
+    }
+});
+sendButton.onclick = () => element.aiCommand(composer.value, spoken);
+```
+
+A live conversation reaches the model as it is said, so `mode: "live"` beside `review` is refused
+(`AiConfigError`, field `"voice.review"`, reason `"needs-turns"`). The default sends on release.
+
 ### Pointing: "color this"
 
 While talk is held, the element records the nodes the pointer passes over, in order, and the
@@ -986,15 +1086,15 @@ while the wrist orb is pinched.
 
 ### Events
 
-| Event                     | `detail`                    | When                                                                                                                                                                                                                                                                                                                      |
-| ------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ai-voice-start`          | `{ mode?, code?, params? }` | the microphone opened and listening began. With `voice.mode` set, `mode` says how this press reaches the model, `"live"` or `"turns"`; a press asked to be live that runs turn by turn carries `code` and `params` saying why (`AI_VOICE_UNAVAILABLE` `{ path, reason }`, or the code the connection failed to open with) |
-| `ai-voice-transcript`     | `{ transcript, isFinal }`   | what has been heard so far; the last one has `isFinal: true`                                                                                                                                                                                                                                                              |
-| `ai-voice-level`          | `{ level }`                 | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                                                             |
-| `ai-voice-end`            | `{ reason, code, params }`  | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...)                                           |
-| `ai-voice-support-change` | `{ support }`               | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                                                                    |
-| `ai-speech-start`         | `{}`                        | an answer started being spoken                                                                                                                                                                                                                                                                                            |
-| `ai-speech-end`           | `{ code, params }`          | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                                                            |
+| Event                     | `detail`                             | When                                                                                                                                                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai-voice-start`          | `{ mode?, code?, params? }`          | the microphone opened and listening began. With `voice.mode` set, `mode` says how this press reaches the model, `"live"` or `"turns"`; a press asked to be live that runs turn by turn carries `code` and `params` saying why (`AI_VOICE_UNAVAILABLE` `{ path, reason }`, or the code the connection failed to open with) |
+| `ai-voice-transcript`     | `{ transcript, isFinal, pointing? }` | what has been heard so far; the last one has `isFinal: true`, and under `review` also `pointing`                                                                                                                                                                                                                          |
+| `ai-voice-level`          | `{ level }`                          | how loud the microphone is, 0 to 1, at most once per animation frame while talk is held: draw a meter from it                                                                                                                                                                                                             |
+| `ai-voice-end`            | `{ reason, code, params }`           | the press ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`, `AI_NOT_ENABLED` when the assistant has no `voice`, `AI_FAILED` when the voice code would not load, or the provider's code when its transcription failed (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...)                                           |
+| `ai-voice-support-change` | `{ support }`                        | what `getAiVoiceSupport()` would return changed: redraw the talk button from `support`                                                                                                                                                                                                                                    |
+| `ai-speech-start`         | `{}`                                 | an answer started being spoken                                                                                                                                                                                                                                                                                            |
+| `ai-speech-end`           | `{ code, params }`                   | it stopped: `AI_COMPLETED`, `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off), `AI_VOICE_UNAVAILABLE`, or a provider's code                                                                                                                                                                                            |
 
 ```typescript
 element.addEventListener("ai-voice-level", (e) => {

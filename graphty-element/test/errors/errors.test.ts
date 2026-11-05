@@ -19,6 +19,8 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // an experiment that is off (design/ci/channels-pipeline/features.md section 3)
+    "E_FEATURE_OFF",
     // the node models (design/rendering/node-models.md section 4)
     "E_MODEL_FETCH",
     "E_MODEL_URL_BLOCKED",
@@ -267,6 +269,8 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
+        case "E_FEATURE_OFF":
+            return "config";
         default: {
             const unreachable: never = code;
             return unreachable;

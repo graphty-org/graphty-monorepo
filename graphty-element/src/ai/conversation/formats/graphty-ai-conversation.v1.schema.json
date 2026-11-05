@@ -63,6 +63,50 @@
                                             ],
                                             "type": "string"
                                         },
+                                        "provenance": {
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "scope": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "edges": {
+                                                    "maximum": 9007199254740991,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "hiddenEdges": {
+                                                    "maximum": 9007199254740991,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "hiddenNodes": {
+                                                    "maximum": 9007199254740991,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "selection",
+                                                        "graph"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "nodes": {
+                                                    "maximum": 9007199254740991,
+                                                    "minimum": 0,
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "nodes",
+                                                "edges",
+                                                "hiddenNodes",
+                                                "hiddenEdges"
+                                            ],
+                                            "type": "object"
+                                        },
                                         "text": {
                                             "type": "string"
                                         },
@@ -163,6 +207,166 @@
                                         "content": {
                                             "maxLength": 8000,
                                             "type": "string"
+                                        },
+                                        "effects": {
+                                            "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "code": {
+                                                        "pattern": "^AI_[A-Z0-9_]+$",
+                                                        "type": "string"
+                                                    },
+                                                    "params": {
+                                                        "additionalProperties": {
+                                                            "type": [
+                                                                "string",
+                                                                "number"
+                                                            ]
+                                                        },
+                                                        "propertyNames": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "target": {
+                                                        "anyOf": [
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "where": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "where"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "text": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "text"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "layer": {
+                                                                        "minLength": 1,
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "layer"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "range": {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "field": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "run": {
+                                                                                "minLength": 1,
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "run"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "range"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "top": {
+                                                                        "additionalProperties": false,
+                                                                        "properties": {
+                                                                            "field": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "n": {
+                                                                                "maximum": 9007199254740991,
+                                                                                "minimum": -9007199254740991,
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "run": {
+                                                                                "minLength": 1,
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "run",
+                                                                            "n"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "top"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "ids": {
+                                                                        "items": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "number"
+                                                                            ]
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "ids"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "scope": {
+                                                                        "enum": [
+                                                                            "graph",
+                                                                            "visible"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "scope"
+                                                                ],
+                                                                "type": "object"
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "code",
+                                                    "params"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
                                         },
                                         "origin": {
                                             "enum": [
@@ -317,6 +521,50 @@
                                                                             ],
                                                                             "type": "string"
                                                                         },
+                                                                        "provenance": {
+                                                                            "minLength": 1,
+                                                                            "type": "string"
+                                                                        },
+                                                                        "scope": {
+                                                                            "additionalProperties": false,
+                                                                            "properties": {
+                                                                                "edges": {
+                                                                                    "maximum": 9007199254740991,
+                                                                                    "minimum": 0,
+                                                                                    "type": "integer"
+                                                                                },
+                                                                                "hiddenEdges": {
+                                                                                    "maximum": 9007199254740991,
+                                                                                    "minimum": 0,
+                                                                                    "type": "integer"
+                                                                                },
+                                                                                "hiddenNodes": {
+                                                                                    "maximum": 9007199254740991,
+                                                                                    "minimum": 0,
+                                                                                    "type": "integer"
+                                                                                },
+                                                                                "kind": {
+                                                                                    "enum": [
+                                                                                        "selection",
+                                                                                        "graph"
+                                                                                    ],
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "nodes": {
+                                                                                    "maximum": 9007199254740991,
+                                                                                    "minimum": 0,
+                                                                                    "type": "integer"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "kind",
+                                                                                "nodes",
+                                                                                "edges",
+                                                                                "hiddenNodes",
+                                                                                "hiddenEdges"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
                                                                         "text": {
                                                                             "type": "string"
                                                                         },
@@ -417,6 +665,166 @@
                                                                         "content": {
                                                                             "maxLength": 8000,
                                                                             "type": "string"
+                                                                        },
+                                                                        "effects": {
+                                                                            "items": {
+                                                                                "additionalProperties": false,
+                                                                                "properties": {
+                                                                                    "code": {
+                                                                                        "pattern": "^AI_[A-Z0-9_]+$",
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "params": {
+                                                                                        "additionalProperties": {
+                                                                                            "type": [
+                                                                                                "string",
+                                                                                                "number"
+                                                                                            ]
+                                                                                        },
+                                                                                        "propertyNames": {
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "type": "object"
+                                                                                    },
+                                                                                    "target": {
+                                                                                        "anyOf": [
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "where": {
+                                                                                                        "type": "string"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "where"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "text": {
+                                                                                                        "type": "string"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "text"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "layer": {
+                                                                                                        "minLength": 1,
+                                                                                                        "type": "string"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "layer"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "range": {
+                                                                                                        "additionalProperties": false,
+                                                                                                        "properties": {
+                                                                                                            "field": {
+                                                                                                                "type": "string"
+                                                                                                            },
+                                                                                                            "run": {
+                                                                                                                "minLength": 1,
+                                                                                                                "type": "string"
+                                                                                                            }
+                                                                                                        },
+                                                                                                        "required": [
+                                                                                                            "run"
+                                                                                                        ],
+                                                                                                        "type": "object"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "range"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "top": {
+                                                                                                        "additionalProperties": false,
+                                                                                                        "properties": {
+                                                                                                            "field": {
+                                                                                                                "type": "string"
+                                                                                                            },
+                                                                                                            "n": {
+                                                                                                                "maximum": 9007199254740991,
+                                                                                                                "minimum": -9007199254740991,
+                                                                                                                "type": "integer"
+                                                                                                            },
+                                                                                                            "run": {
+                                                                                                                "minLength": 1,
+                                                                                                                "type": "string"
+                                                                                                            }
+                                                                                                        },
+                                                                                                        "required": [
+                                                                                                            "run",
+                                                                                                            "n"
+                                                                                                        ],
+                                                                                                        "type": "object"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "top"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "ids": {
+                                                                                                        "items": {
+                                                                                                            "type": [
+                                                                                                                "string",
+                                                                                                                "number"
+                                                                                                            ]
+                                                                                                        },
+                                                                                                        "type": "array"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "ids"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            },
+                                                                                            {
+                                                                                                "additionalProperties": false,
+                                                                                                "properties": {
+                                                                                                    "scope": {
+                                                                                                        "enum": [
+                                                                                                            "graph",
+                                                                                                            "visible"
+                                                                                                        ],
+                                                                                                        "type": "string"
+                                                                                                    }
+                                                                                                },
+                                                                                                "required": [
+                                                                                                    "scope"
+                                                                                                ],
+                                                                                                "type": "object"
+                                                                                            }
+                                                                                        ]
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "code",
+                                                                                    "params"
+                                                                                ],
+                                                                                "type": "object"
+                                                                            },
+                                                                            "type": "array"
                                                                         },
                                                                         "origin": {
                                                                             "enum": [
@@ -776,6 +1184,31 @@
                                 "minLength": 1,
                                 "type": "string"
                             },
+                            "bound": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "edges": {
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "nodes": {
+                                        "items": {
+                                            "type": [
+                                                "string",
+                                                "number"
+                                            ]
+                                        },
+                                        "type": "array"
+                                    }
+                                },
+                                "required": [
+                                    "nodes",
+                                    "edges"
+                                ],
+                                "type": "object"
+                            },
                             "calls": {
                                 "items": {
                                     "additionalProperties": false,
@@ -949,6 +1382,137 @@
                                             }
                                         ]
                                     },
+                                    "target": {
+                                        "anyOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "where": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "where"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "text": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "text"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "layer": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "layer"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "range": {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "field": {
+                                                                "type": "string"
+                                                            },
+                                                            "run": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "run"
+                                                        ],
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "range"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "top": {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "field": {
+                                                                "type": "string"
+                                                            },
+                                                            "n": {
+                                                                "maximum": 9007199254740991,
+                                                                "minimum": -9007199254740991,
+                                                                "type": "integer"
+                                                            },
+                                                            "run": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "run",
+                                                            "n"
+                                                        ],
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "top"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "ids": {
+                                                        "items": {
+                                                            "type": [
+                                                                "string",
+                                                                "number"
+                                                            ]
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "ids"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "scope": {
+                                                        "enum": [
+                                                            "graph",
+                                                            "visible"
+                                                        ],
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "scope"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
                                     "url": {
                                         "type": "string"
                                     }
@@ -973,6 +1537,31 @@
                     {
                         "additionalProperties": false,
                         "properties": {
+                            "bound": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "edges": {
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "type": "array"
+                                    },
+                                    "nodes": {
+                                        "items": {
+                                            "type": [
+                                                "string",
+                                                "number"
+                                            ]
+                                        },
+                                        "type": "array"
+                                    }
+                                },
+                                "required": [
+                                    "nodes",
+                                    "edges"
+                                ],
+                                "type": "object"
+                            },
                             "callId": {
                                 "minLength": 1,
                                 "type": "string"

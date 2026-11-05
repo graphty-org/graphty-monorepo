@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { RecordPageOptions } from "../../../session/types";
+import { effectTarget, foundEffects } from "../effects";
 import {
     attributeNames,
     guardSelector,
@@ -76,7 +77,10 @@ function recordsAction(kind: "node" | "edge"): ActionSpec {
                     const edge = tx.data.edge(String(id));
                     return edge === undefined ? [] : [compactRecord(edge, args.fields as string[] | undefined)];
                 });
-                return Promise.resolve(ok(records, notes));
+                return Promise.resolve({
+                    ...ok(records, notes),
+                    effects: () => foundEffects("query", { edges: records.length }, effectTarget(target)),
+                });
             }
 
             const result = guardSelector(target, () =>
@@ -86,6 +90,12 @@ function recordsAction(kind: "node" | "edge"): ActionSpec {
             return Promise.resolve({
                 ...ok(records, notes),
                 page: pageOf(result.total, offset, records.length, revision),
+                // A read of everything points at nothing in particular.
+                ...(target === undefined || target.kind === "all"
+                    ? {}
+                    : {
+                          effects: () => foundEffects("query", { [`${kind}s`]: result.total }, effectTarget(target)),
+                      }),
             });
         },
     };
@@ -247,9 +257,11 @@ export const queryTool: ToolDefinition = {
                 const offset = offsetOf(args.cursor as string | undefined, revision);
                 const result = tx.find(args.text, { limit: limitOf(args.limit), offset });
                 const records = result.records.map((hit) => toJson(hit));
+                const { text: searched } = args;
                 return Promise.resolve({
                     ...ok(records),
                     page: pageOf(result.total, offset, records.length, revision),
+                    effects: () => foundEffects("query", { nodes: result.total }, { text: searched }),
                 });
             },
         },
@@ -350,7 +362,10 @@ export const queryTool: ToolDefinition = {
                 const edges = target.kind === "ids" ? 0 : idsOf(tx, target, "edge", 0).total;
                 // The edges among those nodes: the subgraph a run or a layout scoped to them reads.
                 const among = await coded(() => tx.scope.count(scopeOf(target)));
-                return ok({ nodes, edges, edgesAmong: among.edges, exact: among.exact }, notes);
+                return {
+                    ...ok({ nodes, edges, edgesAmong: among.edges, exact: among.exact }, notes),
+                    effects: () => foundEffects("query", { nodes, edges }, effectTarget(target)),
+                };
             },
         },
     ],

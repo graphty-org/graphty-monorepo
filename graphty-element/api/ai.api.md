@@ -135,6 +135,7 @@ export interface AiApprovalPreview {
     readonly removeNodes?: number;
     readonly run?: string;
     readonly seconds?: number | "unbounded";
+    readonly target?: AiTarget;
     readonly url?: string;
 }
 
@@ -197,6 +198,7 @@ export interface AiCapabilityUnavailableEvent {
 export interface AiCommandOptions {
     readonly conversation?: string;
     readonly pointing?: AiPointing;
+    readonly scope?: "selection" | "graph";
     readonly via?: "text" | "voice";
 }
 
@@ -271,6 +273,8 @@ export type AiConversationMessage = {
     readonly role: "reader";
     readonly text: string;
     readonly via: "text" | "voice";
+    readonly scope?: AiMessageScope;
+    readonly provenance?: string;
 } | {
     readonly id: string;
     readonly role: "assistant";
@@ -282,6 +286,7 @@ export type AiConversationMessage = {
         readonly params: AiResultParams;
     };
     readonly agent?: string;
+    readonly effects?: readonly AiEffect[];
 };
 
 // @public
@@ -575,6 +580,7 @@ export interface AiVoiceOptions {
         deny?: readonly string[];
         gates?: readonly string[];
     };
+    review?: boolean;
     say?: (fact: {
         code: AiResultCode;
         params: AiResultParams;
@@ -622,6 +628,7 @@ export interface AiVoiceSupportChangeEvent {
 export interface AiVoiceTranscriptEvent {
     // (undocumented)
     isFinal: boolean;
+    pointing?: AiPointing;
     // (undocumented)
     transcript: string;
     // (undocumented)

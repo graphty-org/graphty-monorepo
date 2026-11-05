@@ -558,7 +558,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  *   `"too-long"`, `"too-many"`, `"unsupported"`, `"threw"`, `"invalid-plan"`), for an unknown
  *   command, `command`, and for a reason past a limit, `limit`. Reason
  *   `"needs-generated-toolset"`: the field (`"toolProfile"`, `"gate"`, `"approvals"`, `"agents"`,
- *   `"tools"`, `"instructions"`) is honored only under `toolset: "generated"`. Field `"tools"` with reason
+ *   `"tools"`, `"instructions"`) is honored only under `toolset: "generated"`, or `aiCommand`'s
+ *   `"scope"` asked for under the default toolset. Field `"voice.review"` with reason `"needs-turns"`:
+ *   a live conversation reaches the model as it is said, so it cannot wait for a review. Field `"tools"` with reason
  *   `"web-tools-with-writes"`: a helper given web tools may also run commands that change the
  *   graph, which web content must not drive; with reason `"unsupported"`: a helper given web tools
  *   beside any command, on a provider whose searching turn cannot also call commands (Google).
@@ -648,6 +650,94 @@ export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 /** The facts an AI command result states, keyed by name; which ones each code carries is listed in {@link AI_RESULT_CODES}. */
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+/**
+ * What one tool call did, as a code an application words for itself (`AiEffect.code`):
+ *
+ * - `AI_EFFECT_STYLE` -- a layer sets a channel. `{ channel, layer, nodes | edges, hidden, source? }`:
+ *   `nodes` or `edges` count the elements its rule matches, `hidden` how many of them a filter hides,
+ *   and `source` the path a bound channel reads (`data.group`); a fixed value has no `source`.
+ * - `AI_EFFECT_LAYOUT` -- the layout changed. `{ layout }`.
+ * - `AI_EFFECT_FILTER` -- the filter changed. `{ kept, total, keptEdges, totalEdges }`.
+ * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes? }`, `nodes` being the elements it
+ *   measured.
+ * - `AI_EFFECT_DATA` -- the data changed. Any of `{ addedNodes, addedEdges, removedNodes, removedEdges,
+ *   changedValues }`.
+ * - `AI_EFFECT_SELECTION` -- the selection changed. `{ nodes, edges }`.
+ * - `AI_EFFECT_VIEW` -- the camera or the dimension changed.
+ * - `AI_EFFECT_FOUND` -- a read named these elements. `{ nodes?, edges? }`.
+ * - `AI_EFFECT_EMPTY` -- a read or a write matched nothing. `{ tool, searched }`: `searched` is the
+ *   rule or text it looked for.
+ * - `AI_EFFECT_OTHER` -- anything else that changed the graph. `{ tool, action }`.
+ *
+ * OPEN UNION: codes may be added in a minor release.
+ * @experimental assistant
+ */
+export const AI_EFFECT_CODES = Object.freeze([
+    "AI_EFFECT_STYLE",
+    "AI_EFFECT_LAYOUT",
+    "AI_EFFECT_FILTER",
+    "AI_EFFECT_RUN",
+    "AI_EFFECT_DATA",
+    "AI_EFFECT_SELECTION",
+    "AI_EFFECT_VIEW",
+    "AI_EFFECT_FOUND",
+    "AI_EFFECT_EMPTY",
+    "AI_EFFECT_OTHER",
+] as const);
+
+/**
+ * One effect code; see {@link AI_EFFECT_CODES}.
+ * @experimental assistant
+ */
+export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
+
+/**
+ * Which elements an effect or an approval is about: a selection target, so
+ * `session.selection.count(target)`, `.apply(target)` and `.peek(target)` read it against the graph
+ * as it is now. A rule or a reference, so it stays exact at any graph size; `ids` appears only when
+ * ids are what the call named. A target whose rule, layer or run is gone counts zero or is refused
+ * (`E_UNKNOWN_LAYER`, `E_UNKNOWN_RUN`).
+ * @experimental assistant
+ */
+export type AiTarget =
+    | { readonly where: string }
+    | { readonly text: string }
+    | { readonly layer: string }
+    | { readonly range: { readonly run: string; readonly field?: string } }
+    | { readonly top: { readonly run: string; readonly field?: string; readonly n: number } }
+    | { readonly ids: readonly (string | number)[] }
+    | { readonly scope: "graph" | "visible" };
+
+/**
+ * What a tool call did, for an application to word and to point at.
+ * @experimental assistant
+ */
+export interface AiEffect {
+    /** What happened; see {@link AI_EFFECT_CODES}. */
+    readonly code: AiEffectCode;
+    /** Its facts. */
+    readonly params: AiResultParams;
+    /** The elements it is about, when it names any. */
+    readonly target?: AiTarget;
+}
+
+/**
+ * What a message was about (`AiCommandOptions.scope`), read when it was sent.
+ * @experimental assistant
+ */
+export interface AiMessageScope {
+    /** `"selection"`: the selected elements; `"graph"`: the whole graph, whatever was selected. */
+    readonly kind: "selection" | "graph";
+    /** Nodes in it, hidden ones included. */
+    readonly nodes: number;
+    /** Edges in it, hidden ones included. */
+    readonly edges: number;
+    /** How many of its nodes a filter hid. */
+    readonly hiddenNodes: number;
+    /** How many of its edges a filter hid. */
+    readonly hiddenEdges: number;
+}
 
 /** The `format` of a saved assistant conversation (an exported conversation's JSON). */
 export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";

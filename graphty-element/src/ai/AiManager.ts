@@ -22,9 +22,10 @@ import {
 } from "../catalog/ai";
 import type { NodeId } from "../catalog/types";
 import type { XRAiConfig } from "../config/XRConfig";
+import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../events";
 import type { Graph } from "../Graph";
-import type { AiAgentsSetting, AiToolOptions } from "./agents";
+import { type AiAgentsSetting, AiConfigError, type AiToolOptions } from "./agents";
 import {
     type AiApprovalAnswer,
     type AiApprovalsSetting,
@@ -126,6 +127,14 @@ export interface AiVoiceOptions {
     language?: string;
     /** The voice the provider speaks with, by the provider's own name for it. */
     voiceName?: string;
+    /**
+     * True: a finished press sends nothing. Its final `ai-voice-transcript`, the press's only one,
+     * carries the text and the pointing, for the application to show and then send with
+     * `aiCommand(transcript, { via: "voice", pointing })`. Default false: a press sends on release.
+     * Needs `mode: "turns"` and the `assistant` experiment.
+     * @experimental assistant
+     */
+    review?: boolean;
     /** `"hold"` (the default): talk while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends. */
     push?: "hold" | "toggle";
     /**
@@ -478,6 +487,9 @@ export class AiManager {
 
         // A configuration that cannot run is rejected before anything is built.
         checkAiConfig(config);
+        if (config.voice?.review === true) {
+            this.checkReview(graph, config.voice);
+        }
 
         this.graph = graph;
         this.disposed = false;
@@ -695,6 +707,28 @@ export class AiManager {
             target.removeEventListener("keyup", up);
             target.removeEventListener("focusout", up);
         };
+    }
+
+    /**
+     * Refuse a reviewed transcript that cannot be had.
+     * @param graph - The graph, whose session says which experiments are on.
+     * @param voice - The assistant's `voice`.
+     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off; an
+     * `AiConfigError` for a live conversation, whose words reach the model as they are said.
+     */
+    private checkReview(graph: Graph, voice: AiVoiceOptions): void {
+        if (!graph.getSession().features.has("assistant")) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: `Reviewing a transcript needs the "assistant" experiment.`,
+                source: "config",
+                details: { feature: "assistant", key: "voice.review" },
+            });
+        }
+
+        if (voice.mode === "live") {
+            throw new AiConfigError({ field: "voice.review", reason: "needs-turns" });
+        }
     }
 
     /**

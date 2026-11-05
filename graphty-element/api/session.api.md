@@ -1971,6 +1971,12 @@ export type GraphtyErrorCode =
 */
 | "E_UNSUPPORTED"
 /**
+* A call asked for something an experiment provides while that experiment is off. `details` are
+* `{ feature, key }`: the experiment's id and what was asked for. Nothing was substituted. The
+* caller switches the experiment on (`features`) or stops asking.
+*/
+| "E_FEATURE_OFF"
+/**
 * The target may not be mutated from here. A session that shares another session's data core
 * refuses structural mutation, and refuses to dispose the owner while a sharer is live.
 * `details` name the owning session. The caller applies the change through the owner.
@@ -4881,6 +4887,14 @@ export interface SelectionApi {
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
     readonly originPaths: readonly Path[];
+    peek(target: SelectionTarget | null): Promise<{
+        readonly nodes: number;
+        readonly edges: number;
+    }>;
+    readonly peeked: {
+        readonly nodes: number;
+        readonly edges: number;
+    } | null;
     previewHover(on: boolean): void;
     // @deprecated
     promote(name: string): ScopeId;
@@ -6135,6 +6149,7 @@ export interface StylesApi {
     counts(id: LayerId): StyleCounts;
     defaultValue(channel: Channel): ChannelValue | undefined;
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
+    drawnCount(id: LayerId): number;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;

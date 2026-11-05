@@ -45,12 +45,43 @@ const providerStateSchema = z.strictObject({
 /** Where a part of a message came from: `web` for what a tool the provider ran read on the web. */
 const originSchema = z.enum(["reader", "model", "graph-data", "graphty", "web"]);
 
+/** What a message was about, as `AiMessageScope` states it. */
+const scopeSchema = z.strictObject({
+    kind: z.enum(["selection", "graph"]),
+    nodes: z.number().int().nonnegative(),
+    edges: z.number().int().nonnegative(),
+    hiddenNodes: z.number().int().nonnegative(),
+    hiddenEdges: z.number().int().nonnegative(),
+});
+
 const textPart = z.strictObject({
     type: z.literal("text"),
     origin: originSchema,
     text: z.string(),
     /** How the reader gave it, for a reader's text. */
     via: z.enum(["text", "voice"]).optional(),
+    /** What the reader's message was about, when it was sent with a scope. */
+    scope: scopeSchema.optional(),
+    /** The id the reader's message's history steps carry (`provenance.message`). */
+    provenance: id.optional(),
+});
+
+/** Which elements an effect or a held change names, as `AiTarget` states it. */
+const targetSchema = z.union([
+    z.strictObject({ where: z.string() }),
+    z.strictObject({ text: z.string() }),
+    z.strictObject({ layer: id }),
+    z.strictObject({ range: z.strictObject({ run: id, field: z.string().optional() }) }),
+    z.strictObject({ top: z.strictObject({ run: id, field: z.string().optional(), n: z.number().int() }) }),
+    z.strictObject({ ids: z.array(z.union([z.string(), z.number()])) }),
+    z.strictObject({ scope: z.enum(["graph", "visible"]) }),
+]);
+
+/** What a call did. Open: a record written by a newer release may carry a code this one does not know. */
+const effectSchema = z.strictObject({
+    code: resultCode,
+    params: resultParams,
+    target: targetSchema.optional(),
 });
 
 const toolCallPart = z.strictObject({
@@ -76,6 +107,8 @@ const toolResultPart = z.strictObject({
     params: resultParams,
     /** The text the model read: the result as JSON, truncated. */
     content: z.string().max(TOOL_RESULT_MAX_CHARS),
+    /** What the call did, for an application to word. */
+    effects: z.array(effectSchema).optional(),
 });
 
 const reasoningPart = z.strictObject({
@@ -177,6 +210,13 @@ const previewSchema = z.strictObject({
     edges: z.number().int().nonnegative().optional(),
     mode: z.enum(["merge", "replace"]).optional(),
     url: z.string().optional(),
+    target: targetSchema.optional(),
+});
+
+/** The selection a waiting message is limited to, so its calls run on it after a reload too. */
+const boundSchema = z.strictObject({
+    nodes: z.array(z.union([z.string(), z.number()])),
+    edges: z.array(z.string()),
 });
 
 const approvalPending = z.strictObject({
@@ -199,6 +239,7 @@ const approvalPending = z.strictObject({
     }),
     /** The element's history revision when it was held. */
     historyRevision: z.number().int().nonnegative(),
+    bound: boundSchema.optional(),
     claim,
     createdAt: timestamp,
 });
@@ -215,6 +256,7 @@ const questionPending = z.strictObject({
     choices: z.array(z.string()).min(2).max(10),
     /** Whether the reader may pick more than one. */
     multiple: z.boolean(),
+    bound: boundSchema.optional(),
     claim,
     createdAt: timestamp,
 });

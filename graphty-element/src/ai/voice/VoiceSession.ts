@@ -551,7 +551,9 @@ export class VoiceSession {
             },
             {
                 onTranscript: (transcript, isFinal) => {
-                    this.host.emit("ai-voice-transcript", { transcript, isFinal });
+                    // Reviewing, the press's one final transcript comes when it ends, with the pointing.
+                    const final = isFinal && this.host.options.review !== true;
+                    this.host.emit("ai-voice-transcript", { transcript, isFinal: final });
                 },
                 onLevel: (level) => {
                     this.host.emit("ai-voice-level", { level });
@@ -592,6 +594,15 @@ export class VoiceSession {
         // The press may have asked for the microphone or learned whether recognition works.
         void this.checkSupport();
         if (code !== "AI_COMPLETED" || end.text === "" || this.disposed) {
+            return;
+        }
+
+        if (this.host.options.review === true) {
+            this.host.emit("ai-voice-transcript", {
+                transcript: end.text,
+                isFinal: true,
+                pointing: pointing.facts(),
+            });
             return;
         }
 

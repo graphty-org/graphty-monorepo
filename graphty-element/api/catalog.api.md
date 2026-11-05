@@ -26,6 +26,9 @@ export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
 export const AI_CONVERSATION_FORMAT_VERSION = 1;
 
 // @public
+export const AI_EFFECT_CODES: readonly ["AI_EFFECT_STYLE", "AI_EFFECT_LAYOUT", "AI_EFFECT_FILTER", "AI_EFFECT_RUN", "AI_EFFECT_DATA", "AI_EFFECT_SELECTION", "AI_EFFECT_VIEW", "AI_EFFECT_FOUND", "AI_EFFECT_EMPTY", "AI_EFFECT_OTHER"];
+
+// @public
 export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>>;
 
 // @public
@@ -75,6 +78,16 @@ export interface AiCapabilities {
 export type AiCapabilityStatus = "available" | "unsupported" | "results-not-returned" | "unknown";
 
 // @public
+export interface AiEffect {
+    readonly code: AiEffectCode;
+    readonly params: AiResultParams;
+    readonly target?: AiTarget;
+}
+
+// @public
+export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
+
+// @public
 export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
 
 // @public
@@ -109,6 +122,15 @@ export type AiKeyShapeCheck = {
 
 // @public
 export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
+
+// @public
+export interface AiMessageScope {
+    readonly edges: number;
+    readonly hiddenEdges: number;
+    readonly hiddenNodes: number;
+    readonly kind: "selection" | "graph";
+    readonly nodes: number;
+}
 
 // @public
 export interface AiModelDescriptor {
@@ -178,6 +200,30 @@ export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 // @public
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+// @public
+export type AiTarget = {
+    readonly where: string;
+} | {
+    readonly text: string;
+} | {
+    readonly layer: string;
+} | {
+    readonly range: {
+        readonly run: string;
+        readonly field?: string;
+    };
+} | {
+    readonly top: {
+        readonly run: string;
+        readonly field?: string;
+        readonly n: number;
+    };
+} | {
+    readonly ids: readonly (string | number)[];
+} | {
+    readonly scope: "graph" | "visible";
+};
 
 // @public
 export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilityStatus>>;
@@ -1274,6 +1320,12 @@ export type GraphtyErrorCode =
 * and `measurement`, and naming a `scale` draws it anyway.
 */
 | "E_UNSUPPORTED"
+/**
+* A call asked for something an experiment provides while that experiment is off. `details` are
+* `{ feature, key }`: the experiment's id and what was asked for. Nothing was substituted. The
+* caller switches the experiment on (`features`) or stops asking.
+*/
+| "E_FEATURE_OFF"
 /**
 * The target may not be mutated from here. A session that shares another session's data core
 * refuses structural mutation, and refuses to dispose the owner while a sharer is live.

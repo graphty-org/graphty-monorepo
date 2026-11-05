@@ -883,12 +883,16 @@ function appendResults(
                 outcome.code === "AI_TOOL_NOT_RUN" && result?.success === true
                     ? { code: "AI_TOOL_NOT_RUN", params: { tool: call.name, rolledBack: true } }
                     : modelView(result, call.name);
+            // A call taken back with its batch, or held, did nothing to report.
+            const stood = outcome.code !== "AI_TOOL_NOT_RUN" && outcome.code !== "AI_CONFIRMATION_NEEDED";
+            const effects = stood ? result?.effects : undefined;
             return {
                 type: "tool-result" as const,
                 origin: commands ? ("command" as const) : ("graph-data" as const),
                 callId: call.id,
                 ...outcome,
                 content: commands ? commandResultText(result) : resultText(view, cap),
+                ...(effects === undefined || effects.length === 0 ? {} : { effects }),
             };
         }),
     };

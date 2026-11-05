@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { RuleTree } from "../../../catalog/types";
 import type { TransactionScope } from "../../../session/types";
+import { filterEffects } from "../effects";
 import { MAX_STRING, requireTarget, resolveNode, type Target, targetFields, text } from "../fields";
 import { type ActionResult, type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
@@ -43,7 +44,10 @@ async function setFilter(tx: TransactionScope, rule: RuleTree | null, notes: Jso
         await tx.visibility.set(rule);
     });
     const { summary } = tx.visibility;
-    return ok({ visibleNodes: summary.visibleNodes, visibleEdges: summary.visibleEdges }, notes);
+    return {
+        ...ok({ visibleNodes: summary.visibleNodes, visibleEdges: summary.visibleEdges }, notes),
+        effects: () => filterEffects(tx),
+    };
 }
 
 /**
@@ -140,7 +144,10 @@ export const filterTool: ToolDefinition = {
                     await coded(async () => {
                         await tx.visibility.setWindow({ attribute, from, to });
                     });
-                    return ok({ visibleNodes: tx.visibility.summary.visibleNodes });
+                    return {
+                        ...ok({ visibleNodes: tx.visibility.summary.visibleNodes }),
+                        effects: () => filterEffects(tx),
+                    };
                 }
 
                 return setFilter(tx, {

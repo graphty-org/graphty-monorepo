@@ -5,7 +5,8 @@ import type { AiVoiceConversationMode, AiVoiceSupport } from "./ai/AiManager";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
-import type { AiHostedToolId, AiResultCode, AiResultParams } from "./catalog/ai";
+import type { AiPointing } from "./ai/tools/prompt";
+import type { AiHostedToolId, AiResultCode, AiResultParams, AiTarget } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
 import type { ExportLoss } from "./data/export";
@@ -887,6 +888,12 @@ export interface AiVoiceTranscriptEvent {
     type: "ai-voice-transcript";
     transcript: string;
     isFinal: boolean;
+    /**
+     * What the reader pointed at during the press, on a press's final transcript under
+     * `AiVoiceOptions.review`, to pass on as `aiCommand(transcript, { via: "voice", pointing })`.
+     * @experimental assistant
+     */
+    pointing?: AiPointing;
 }
 
 /**
@@ -1080,6 +1087,12 @@ export interface AiApprovalPreview {
     readonly mode?: "merge" | "replace";
     /** The URL an import would fetch, which the reader did not give. */
     readonly url?: string;
+    /**
+     * Every element a `large` change would touch, for `session.selection.peek(target)`, where `ids`
+     * stops at ten. Under the generated tools with the `assistant` experiment on.
+     * @experimental assistant
+     */
+    readonly target?: AiTarget;
 }
 
 /**

@@ -247,10 +247,10 @@ export function outlineProgram(descriptor: Pick<ShaderDescriptor, "params" | "fo
 ${FIELD_SAMPLERS.map((name) => `uniform sampler2D ${name};`).join("\n")}
 float graphty_fieldAt(vec2 uv) {
     float slot = floor(graphty_groupInfo.z + 0.5);
-    float target = floor(slot / 4.0);
-    vec4 mask = vec4(equal(vec4(slot - target * 4.0), vec4(0.0, 1.0, 2.0, 3.0)));
+    float fieldTarget = floor(slot / 4.0);
+    vec4 mask = vec4(equal(vec4(slot - fieldTarget * 4.0), vec4(0.0, 1.0, 2.0, 3.0)));
     vec4 v = vec4(0.0);
-${FIELD_SAMPLERS.map((name, i) => `    ${i === 0 ? "" : "else "}if (target < ${String(i)}.5) { v = texture2D(${name}, uv); }`).join("\n")}
+${FIELD_SAMPLERS.map((name, i) => `    ${i === 0 ? "" : "else "}if (fieldTarget < ${String(i)}.5) { v = texture2D(${name}, uv); }`).join("\n")}
     return dot(v, mask) * graphty_fieldTexel.w;
 }
 `;

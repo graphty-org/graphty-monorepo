@@ -19,8 +19,10 @@ import { EngineStore, Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands } from "vitest/browser";
 
+import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -483,6 +485,72 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         const resized = await screenshot(graph, "webgpu-resized");
         const { ink } = compare(resized, resized);
         assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
+    });
+
+    it("draws a shader whose names WGSL reserves, local, parameter, field and built-in alike", async () => {
+        // Legal GLSL that WGSL would refuse with the names kept: `pass`, `target` and `fn` are
+        // reserved, and a local `select` hides the built-in the translated program calls (#5852).
+        defineShader({
+            id: "webgpu-renderer/reserved-words",
+            glsl:
+                "struct S { float fn; }; float lift(float target) { return target; } " +
+                "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = lift(s.fn); " +
+                "float select = n.color.r > 0.5 ? 1.0 : 0.9; return vec4(n.color.rgb, pass * select); }",
+        });
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const device = graph.engine._device;
+        const compiled: Promise<GPUCompilationInfo>[] = [];
+        const create = device.createShaderModule.bind(device);
+        device.createShaderModule = (descriptor) => {
+            const module = create(descriptor);
+            compiled.push(module.getCompilationInfo());
+            return module;
+        };
+        const errors: unknown[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error);
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "reserved",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: "webgpu-renderer/reserved-words" }] },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.scene.whenReadyAsync();
+        await drawnFrames(graph.scene, 1);
+
+        const refused = (await Promise.all(compiled)).flatMap(({ messages }) =>
+            messages.filter(({ type }) => type === "error").map(({ message }) => message),
+        );
+        assert.isAbove(compiled.length, 0, "no shader was compiled after the style was added");
+        assert.deepEqual(refused, []);
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
+        const pixels = await screenshot(graph, "webgpu-reserved-words");
+        const { ink } = compare(pixels, pixels);
+        assert.isAbove(ink, 0.001, "the nodes drawn with the shader are not on the canvas");
+    });
+
+    it("stops claiming to draw and reports it when the device refuses a shader", async () => {
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        // Every GLSL body the element accepts now translates, so the device is handed WGSL it
+        // refuses directly, through the same device the graph's shaders are compiled on.
+        graph.engine._device.createShaderModule({ code: "fn refused( {" });
+
+        const error = await refused;
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.match(String(error.details.messages), /expected/);
+        assert.equal(graph.rendererStatus?.drawing, false);
     });
 
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {

@@ -140,8 +140,12 @@ describe("the test matrix", () => {
     it("leaves out the groups and shards of unaffected packages", () => {
         assert.deepEqual(plan([]), []);
         assert.deepEqual(
-            plan(["graphty-element"]).map((e) => e.shard),
-            SHARDS.filter((s) => s.package === "graphty-element").map((s) => s.shard),
+            plan(["graphty-element"])
+                .flatMap((e) => e.members ?? [e.shard])
+                .sort(),
+            SHARDS.filter((s) => s.package === "graphty-element")
+                .map((s) => s.shard)
+                .sort(),
         );
     });
 
@@ -7475,7 +7479,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default"],
+            none: ["graphty-element-default", "graphty-element-webgpu"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");

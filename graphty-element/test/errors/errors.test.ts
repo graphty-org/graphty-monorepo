@@ -129,6 +129,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
+    "E_SHADER_REFUSED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -213,6 +214,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
+        case "E_SHADER_REFUSED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":

@@ -334,6 +334,16 @@ const OFF_SHARDS = [
         // The helpers the browser and interaction tests import, which vitest does not list.
         "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
+    // The element drawn on WebGPU, on SwiftShader because no shard has a card: the five shards above launch
+    // Chromium with no WebGPU, so a shader only WebGPU refuses blanked every canvas with edges unseen (#5847).
+    {
+        shard: "graphty-element-webgpu",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
+        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+    },
     // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
     // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
     // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
@@ -501,7 +511,8 @@ export const STORY_RUNS = {
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
+ *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
+ *                  algorithms-storybook 1.8,
  *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
@@ -527,6 +538,7 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
+        "graphty-element-webgpu",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
@@ -540,6 +552,7 @@ export const GROUPS = {
 // Nor do the On shards: coverage is judged on the Off run.
 const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
+    "graphty-element-webgpu",
     "graphty-storybook",
     "algorithms-storybook",
     "graph-io-storybook-1",

@@ -174,8 +174,11 @@ export interface ArrowRunPart {
 
 /** yEd's bar, 16 across its line. */
 const BAR: ArrowRunPart = { type: "tee", along: 1, across: 16 };
-/** yEd's circle, 10 across: its white disc hides the line, which the stem ahead of it and the line behind it leave out. */
-const RING: ArrowRunPart = { type: "open-dot", along: 10 };
+/**
+ * yEd's circle, 10 across: its white disc hides the line, which the stem ahead of it and the line behind it leave out.
+ * Its width is stated though it is the cap's own: that tells it, on an export, from Graphviz's `crowodot`.
+ */
+const RING: ArrowRunPart = { type: "open-dot", along: 10, across: 10 };
 
 /**
  * yEd's arrows of several pieces (yed-graphml-specimen-arrows at line width 1, on its standard head's 12 pixels; every

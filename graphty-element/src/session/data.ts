@@ -117,7 +117,7 @@ import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
-import type { GraphSlice, RunEntry, VisibilityState } from "./project/state";
+import type { GraphRecord, GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { readableValues } from "./readable";
 import { pairKey, planReplace, rejoined } from "./replace";
@@ -5138,10 +5138,28 @@ export function sliceRecords(
                 return null;
             }
 
-            return (row) => {
-                const record = edges.size === 0 ? undefined : edges.get(edgeIdOf(counters[row]));
-                return (record ?? fallback?.edgeAttributes(row))?.[key];
+            if (edges.size === 0) {
+                return (row) => fallback?.edgeAttributes(row)?.[key];
+            }
+
+            // A walk of the map as the rows ask: rows and records run in the same order almost
+            // always, and printing a counter and hashing it for each row costs more than the sort.
+            const walk = edges.entries();
+            const byCounter: (GraphRecord | undefined)[] = [];
+            const recordOf = (counter: number): GraphRecord | undefined => {
+                while (byCounter[counter] === undefined) {
+                    const next = walk.next();
+                    if (next.done === true) {
+                        return undefined;
+                    }
+
+                    byCounter[Number(next.value[0])] = next.value[1];
+                }
+
+                return byCounter[counter];
             };
+
+            return (row) => (recordOf(counters[row]) ?? fallback?.edgeAttributes(row))?.[key];
         },
     };
 }

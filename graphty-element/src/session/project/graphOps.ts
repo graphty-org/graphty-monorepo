@@ -1264,6 +1264,8 @@ class Writer implements GraphWriter {
     /** The fields this command's writes bumped already: each moves once per command. */
     private readonly bumped = bumped();
     private begun = false;
+    /** The nodes this writer's edges made: giving one its record fills a row, it rewrites none. */
+    private readonly madeByEdge = new Set<unknown>();
 
     constructor(
         private readonly graph: GraphOps,
@@ -1295,7 +1297,7 @@ class Writer implements GraphWriter {
             this.store.touch();
         }
 
-        if (merged || prior !== undefined) {
+        if ((merged && !this.madeByEdge.has(id)) || prior !== undefined) {
             this.graph.noteRewrite();
         }
 
@@ -1320,6 +1322,10 @@ class Writer implements GraphWriter {
         const record = frozenRecord(given);
         const { builder } = this.store;
         const created = [source, target].filter((id, at, both) => !builder.hasNode(id) && both.indexOf(id) === at);
+        for (const id of created) {
+            this.madeByEdge.add(id);
+        }
+
         const index = builder.addEdge(source, target, weight);
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);

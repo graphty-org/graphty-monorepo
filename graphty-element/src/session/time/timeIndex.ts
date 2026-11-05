@@ -5,7 +5,7 @@
  * ONE READ. A build copies the column's raw values once; the unit, the notices and the parsing all
  * read that copy, so a million record lookups happen once however many questions the values answer.
  *
- * BUILT IN STEPS. A build is a generator that yields after each chunk of rows. The session runs one
+ * BUILT IN STEPS. A build is a generator that yields after each chunk of work. The session runs one
  * to the end at once ({@link drain}) or a slice at a time ({@link inSlices}), and can switch from
  * the second to the first part way through, which is what a window needed now does.
  *
@@ -35,6 +35,12 @@ const SLICE_MS = 8;
 
 /** How many rows a build works through between looks at the clock. */
 const CHUNK = 16_384;
+
+/**
+ * What parsing a row that is not a plain number costs, in plain rows: text in a named zone or in a
+ * loose form runs 100 times slower, so a chunk of it would hold the thread past a frame.
+ */
+const SLOW_ROW = 64;
 
 /** The range a whole number reads as a year in, for the `"ordinal"` suggestion. */
 const YEAR_LIKE = { min: -5000, max: 3000 } as const;
@@ -455,16 +461,15 @@ function* parseInto(
 ): IndexWork<void> {
     // A finite number under these units is its own instant.
     const plain = !datesOnly && (unit === "ms" || unit === "ordinal");
-    for (let from = 0; from < raw.length; from += CHUNK) {
-        const to = Math.min(from + CHUNK, raw.length);
-        for (let at = from; at < to; at++) {
-            const value = raw[at];
-            if (plain && typeof value === "number" && Number.isFinite(value)) {
-                rows[start + at] = value;
-                tally.whole &&= Number.isInteger(value);
-                continue;
-            }
-
+    let spent = 0;
+    let counted = 0;
+    for (let at = 0; at < raw.length; at++) {
+        const value = raw[at];
+        if (plain && typeof value === "number" && Number.isFinite(value)) {
+            rows[start + at] = value;
+            tally.whole &&= Number.isInteger(value);
+            spent++;
+        } else {
             const reading =
                 datesOnly && isBareNumber(value)
                     ? { at: Number.NaN, how: "unparsed" as const }
@@ -472,11 +477,19 @@ function* parseInto(
             rows[start + at] = reading.at;
             noteReading(tally, reading.how, value);
             tally.whole &&= Number.isNaN(reading.at) || Number.isInteger(reading.at);
+            spent += SLOW_ROW;
         }
 
-        timeIndexCounters.parsed += to - from;
-        yield;
+        if (spent >= CHUNK) {
+            timeIndexCounters.parsed += at + 1 - counted;
+            counted = at + 1;
+            spent = 0;
+            yield;
+        }
     }
+
+    timeIndexCounters.parsed += raw.length - counted;
+    yield;
 }
 
 /**

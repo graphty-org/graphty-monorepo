@@ -47,6 +47,7 @@ import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
 import { minimumWorkPerFrame } from "./minimumWork";
 import { pendingWorkOf, trackOnScene } from "./PendingWork";
+import { RecoveringWebGPUEngine } from "./RecoveringWebGPUEngine";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -185,7 +186,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  *     out a WebGPU one.
  * @returns The initialised engine, or the reason there is none.
  */
-export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine | string> {
+export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
@@ -211,7 +212,7 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
         );
     }
 
-    const engine = new WebGPUEngine(canvas, { antialias: true });
+    const engine = new RecoveringWebGPUEngine(canvas, { antialias: true });
     try {
         // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
         // is given, though its type and its docs ask for the instance itself.

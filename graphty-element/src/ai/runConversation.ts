@@ -357,8 +357,12 @@ export class TurnFailed extends Error {
     /**
      * The turn failed.
      * @param failure - The turn's error event.
+     * @param said - What the turn had streamed by then, which the reader read.
      */
-    constructor(readonly failure: TurnError) {
+    constructor(
+        readonly failure: TurnError,
+        readonly said = "",
+    ) {
         super(failure.cause.message);
     }
 }
@@ -515,49 +519,79 @@ function trimmedHistory(messages: readonly SavedMessage[]): SavedMessage[] {
 type ResultPart = Extract<SavedPart, { type: "tool-result" }>;
 
 /**
+ * A message as a model is sent it: an `outcome` part goes as the text it stands for, without the
+ * words saved beside it, which are the reader's to read and claim what was taken back.
+ * @param message - The saved message.
+ * @returns The message to send.
+ */
+function sentMessage(message: SavedMessage): SavedMessage {
+    if (!message.parts.some((part) => part.type === "outcome")) {
+        return message;
+    }
+
+    return {
+        ...message,
+        parts: message.parts.flatMap((part): SavedPart[] => {
+            if (part.type === "outcome") {
+                const text = `This request ended without an answer: ${JSON.stringify({ code: part.code, ...part.params })}`;
+                return [{ type: "text", origin: "graphty", text }];
+            }
+
+            return part.type === "text" && part.origin === "model" ? [] : [part];
+        }),
+    };
+}
+
+/**
  * The conversation as a model may be sent it: every call followed at once by exactly one result.
- * A result saved further on (another tab appended between) is moved up to its call, a second one
- * is dropped, and a call with none -- a record cut short when a tab closed, or a request ended
- * there -- is answered `AI_TOOL_NOT_RUN`, since a provider rejects a call left unanswered. An
- * `outcome` part goes as the text it stands for. The saved messages are never changed.
+ * A result saved further on (another tab appended between, or the reader's decision on a held call)
+ * is moved up to its call, a second one is dropped, and a call with none -- a record cut short when
+ * a tab closed, or a request ended there -- is answered `AI_TOOL_NOT_RUN`, since a provider rejects
+ * a call left unanswered. What the model said while its calls were held joins the message holding
+ * them, so the request still ends in their results. The saved messages are never changed.
  * @param messages - The conversation.
  * @returns The messages to send.
  */
 export function pairedForModel(messages: readonly SavedMessage[]): SavedMessage[] {
     const results = new Map<string, ResultPart>();
-    for (const part of messages.flatMap((message) => message.parts)) {
-        if (part.type === "tool-result" && !results.has(part.callId)) {
-            results.set(part.callId, part);
+    const resultAt = new Map<string, number>();
+    messages.forEach((message, index) => {
+        for (const part of message.parts) {
+            if (part.type === "tool-result" && !results.has(part.callId)) {
+                results.set(part.callId, part);
+                resultAt.set(part.callId, index);
+            }
         }
-    }
+    });
 
     const out: SavedMessage[] = [];
+    const moved = new Set<SavedMessage>();
     messages.forEach((message, index) => {
-        if (message.role === "tool") {
-            // Sent only right after its calls, below.
+        if (message.role === "tool" || moved.has(message)) {
+            // A tool message is sent only right after its calls, below.
             return;
         }
 
-        out.push(
-            message.parts.some((part) => part.type === "outcome")
-                ? {
-                      ...message,
-                      parts: message.parts.map((part): SavedPart =>
-                          part.type === "outcome"
-                              ? {
-                                    type: "text",
-                                    origin: "graphty",
-                                    text: `This request ended without an answer: ${JSON.stringify({ code: part.code, ...part.params })}`,
-                                }
-                              : part,
-                      ),
-                  }
-                : message,
-        );
+        const sent = sentMessage(message);
         const calls = message.parts.flatMap((part) => (part.type === "tool-call" ? [part] : []));
         if (calls.length === 0) {
+            out.push(sent);
             return;
         }
+
+        const lastResult = Math.max(...calls.map((call) => resultAt.get(call.callId) ?? index));
+        const beside = messages
+            .slice(index + 1, lastResult)
+            .filter((later) => later.role === "assistant" && !later.parts.some((part) => part.type === "tool-call"));
+        beside.forEach((later) => moved.add(later));
+        out.push({
+            ...sent,
+            parts: [
+                ...sent.parts.filter((part) => part.type !== "tool-call"),
+                ...beside.flatMap((later) => later.parts),
+                ...calls,
+            ],
+        });
 
         const next = messages[index + 1];
         const exact =
@@ -593,6 +627,8 @@ export function pairedForModel(messages: readonly SavedMessage[]): SavedMessage[
 interface MessageTally {
     readonly results: CallResult[];
     failure?: Outcome;
+    /** Whether the last batch's failure is a refused read, which an answer gets past. */
+    refusedRead?: boolean;
     /** The failure of the last write batch, cleared by a later successful one. */
     pending?: Outcome;
     /** Write batches committed. */
@@ -769,7 +805,7 @@ async function modelTurn(
         } else if (event.type === "usage") {
             onUsage({ inputTokens: event.inputTokens, outputTokens: event.outputTokens });
         } else if (event.type === "error") {
-            throw new TurnFailed(event);
+            throw new TurnFailed(event, text);
         } else if (event.type === "finish") {
             finished = true;
             paused = event.reason === "paused";
@@ -782,7 +818,7 @@ async function modelTurn(
         const cause = abort.signal.aborted
             ? abort.signal.reason
             : new Error("The model's turn ended without finishing.");
-        throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal));
+        throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal), text);
     }
 
     return { text, calls, hosted, paused };
@@ -1104,6 +1140,10 @@ async function tallyBatch(
     // The message's outcome is its last batch's: a failure a later batch got past is not the
     // message's. Among commands, any failure is, and the first one names it.
     tally.failure = tally.commands ? (tally.failure ?? batch.failure) : batch.failure;
+    tally.refusedRead =
+        !tally.commands &&
+        (batch.failure?.code === "AI_TOOL_FAILED" || batch.failure?.code === "AI_TOOL_INVALID_ARGUMENTS") &&
+        batch.results.every((result) => result?.writes !== true);
     if (batch.failure !== undefined) {
         if (batch.writes) {
             tally.pending = batch.failure;
@@ -1459,7 +1499,9 @@ async function continueDecided(loop: Loop, decided: DecidedBatch): Promise<boole
 
     // The assistant message holding the calls: the turn's calls a hold kept from running may
     // be answered after it.
-    const callsMessage = [...conversation.messages].reverse().find((message) => message.role === "assistant")?.id ?? "";
+    const callsMessage =
+        [...conversation.messages].reverse().find((message) => message.parts.some((part) => part.type === "tool-call"))
+            ?.id ?? "";
     // Only the hold the reader approved is let through, and only for this batch; every
     // other limit still holds, counted on from what the message did before it.
     const approved = decided.approved === undefined ? state : { ...state, approved: decided.approved };
@@ -1593,12 +1635,19 @@ function answered(loop: Loop, said: Said): boolean {
     const { run, tally, heldResults } = loop;
     const { text, hosted, paused } = said;
     const { messages } = run.conversation;
+    if (text && tally.refusedRead === true) {
+        // The model read the refusal and answered: a read changed nothing, so the reply stands.
+        tally.failure = undefined;
+    }
+
     if (heldResults !== undefined) {
-        // Waiting on the reader: the conversation ends in the held calls, and the answer
-        // about them is the reader's alone, so it never sits between a call and its result.
+        // Waiting on the reader: the decision answers the held calls, not this placeholder.
         messages.splice(messages.indexOf(heldResults), 1);
-    } else if (text || hosted.length > 0) {
-        // The answer stays in the conversation, for a host that keeps it.
+    }
+
+    if (text || hosted.length > 0) {
+        // The answer stays in the conversation, for a host that keeps it. Beside held calls it is
+        // saved after them, and `pairedForModel` sends it with them.
         messages.push({
             id: loop.newId(),
             role: "assistant",
@@ -1791,7 +1840,13 @@ async function askReader(
     callsMessage: string,
 ): Promise<boolean> {
     const { asks } = loop;
-    if (asking === undefined || asks === undefined || batch.failure !== undefined) {
+    if (asking === undefined || asks === undefined) {
+        return false;
+    }
+
+    if (batch.failure !== undefined) {
+        const notAsked = { code: "AI_TOOL_NOT_RUN", params: {} } as const;
+        loop.run.conversation.messages.push(closingResults([asking], notAsked, loop.newId()));
         return false;
     }
 

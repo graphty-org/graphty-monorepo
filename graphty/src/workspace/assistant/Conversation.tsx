@@ -283,8 +283,9 @@ interface TurnViewProps {
 }
 
 /**
- * What a turn's reply says: what streams while it runs, and for a run that ended before its words
- * were saved; else what was saved.
+ * What a turn's reply says: what was saved, with what streams while it runs (a continued message
+ * streams only what it adds, and a hold saved mid-run holds the start of what streams), and what
+ * streamed for a run that ended before its words were saved.
  * @param turn - the turn.
  * @param status - the status, on the newest turn.
  * @returns the text.
@@ -294,7 +295,11 @@ function proseOf(turn: Turn, status: AiStatus | null): string {
         .map((reply) => reply.text)
         .filter((text) => text !== "")
         .join("\n");
-    return isRunning(status) || said === "" ? (status?.streamedText ?? said) : said;
+    const streamed = status?.streamedText ?? "";
+    if (!isRunning(status)) {
+        return said === "" ? streamed : said;
+    }
+    return streamed.startsWith(said) ? streamed : [said, streamed].filter((text) => text !== "").join("\n");
 }
 
 /**

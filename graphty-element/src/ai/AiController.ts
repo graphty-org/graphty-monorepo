@@ -1470,7 +1470,7 @@ export class AiController {
         };
         if (conversation !== undefined) {
             this.heardSoFar(run, conversation, base);
-            await this.saveUnkept(run, conversation, base, failed);
+            await this.saveUnkept(run, conversation, base, failed, error instanceof TurnFailed ? error.said : "");
             this.hearLater(run, conversation, base);
         }
 
@@ -1553,32 +1553,46 @@ export class AiController {
     }
 
     /**
-     * A message that was taken back, or failed, keeps the reader's words and how it ended (an
-     * `outcome` part), and a continued one still answers its held calls, so the saved record never
-     * ends in calls without results.
+     * A message that was taken back, or failed, keeps the reader's words, the model's words the
+     * reader read, and how it ended (an `outcome` part), and a continued one still answers its held
+     * calls, so the saved record never ends in calls without results.
      * @param run - The message.
      * @param conversation - Its conversation.
      * @param base - How many messages it had once the run's own reader message was added.
      * @param result - How the run ended.
+     * @param cutOff - What the turn that failed had streamed.
      */
     private async saveUnkept(
         run: MessageRun,
         conversation: Conversation,
         base: number,
         result: ExecutionResult,
+        cutOff = "",
     ): Promise<void> {
         const code = result.code ?? "AI_FAILED";
         const resumed = run.resume === undefined ? [] : [{ id: run.resume.callId, name: DELEGATE, arguments: {} }];
         const calls = run.decided?.calls ?? (run.answer === undefined ? resumed : [run.answer.call]);
         const closing =
             calls.length === 0 ? [] : [closingResults(calls, { code, params: {} }, this.newMessageId(conversation))];
+        // ponytail: a hold saved earlier in this run already keeps its calls' words, so a model turn
+        // that fails right after a hold repeats them; ask the record what it holds if that matters.
+        const said = [
+            ...conversation.messages
+                .slice(base)
+                .flatMap((message) => message.parts)
+                .flatMap((part) => (part.type === "text" && part.origin === "model" ? [part.text] : [])),
+            ...(cutOff === "" ? [] : [cutOff]),
+        ].join("\n");
         await this.saveInto(run.conversationId, [
             ...conversation.messages.slice(0, base),
             ...closing,
             {
                 id: this.newMessageId(conversation),
                 role: "assistant",
-                parts: [{ type: "outcome", origin: "graphty", code, params: result.params ?? {} }],
+                parts: [
+                    ...(said === "" ? [] : [{ type: "text" as const, origin: "model" as const, text: said }]),
+                    { type: "outcome", origin: "graphty", code, params: result.params ?? {} },
+                ],
             },
         ]);
     }

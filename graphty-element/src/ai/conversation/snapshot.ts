@@ -15,6 +15,7 @@ import type {
     AiResultParams,
 } from "../../catalog/ai";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
+import { ASK_READER } from "../runConversation";
 import type { ConversationRecord } from "./formats";
 import type { SavedMessage, SavedPending } from "./formats/v1";
 
@@ -92,15 +93,20 @@ export type AiConversationMessage =
           /** The message's id, stable across saves and reloads. */
           readonly id: string;
           readonly role: "assistant";
-          /** What the model said in this message; empty when it only called tools. */
+          /**
+           * What the model said in this message, a question it asked included once the question no
+           * longer waits (`pending` and `ai-question-asked` carry a waiting one); empty when it only
+           * called tools.
+           */
           readonly text: string;
           /** The calls it made, in order. */
           readonly calls: readonly AiCallRecord[];
           /** The pages the provider's tools found or read for it, in order; empty when none ran. */
           readonly sources: readonly AiSource[];
           /**
-           * How the reader's message ended when it failed or was taken back, instead of an answer:
-           * the code (and facts) `aiCommand` resolved with. Absent on an answer.
+           * How the reader's message ended when it failed or was taken back: the code (and facts)
+           * `aiCommand` resolved with. Absent on an answer. `text` beside it is what the model had
+           * said by then, which no longer stands.
            */
           readonly outcome?: { readonly code: AiResultCode; readonly params: AiResultParams };
           /** The helper (`AiAgentRole.name`) that said it, when a helper did; absent for the assistant itself. */
@@ -179,6 +185,7 @@ function snapshotMessages(
     const outcomes = callOutcomes(messages, pending);
     const helperSources = helperSourcesOf(messages);
     const effects = callEffects(messages);
+    const questions = questionsAsked(messages, pending, outcomes);
     return messages.flatMap((message): AiConversationMessage[] => {
         switch (message.role) {
             case "tool":
@@ -186,7 +193,7 @@ function snapshotMessages(
             case "user":
                 return readerEntry(message);
             case "assistant":
-                return assistantEntry(message, outcomes, helperSources, effects);
+                return assistantEntry(message, outcomes, helperSources, effects, questions);
             default:
                 return [];
         }
@@ -221,6 +228,35 @@ function callOutcomes(messages: readonly SavedMessage[], pending: readonly Saved
     }
 
     return outcomes;
+}
+
+/**
+ * The questions the reader was shown and that no longer wait: answered, or ended unanswered, or
+ * with no result yet and no entry because the answer is running. A call answered as not run never
+ * showed, and a waiting question is `pending`'s to carry.
+ * @param messages - The saved messages.
+ * @param pending - The record's waiting entries.
+ * @param outcomes - Each call's outcome.
+ * @returns Each question's text, by call id.
+ */
+function questionsAsked(
+    messages: readonly SavedMessage[],
+    pending: readonly SavedPending[],
+    outcomes: ReadonlyMap<string, CallOutcome>,
+): Map<string, string> {
+    const questions = new Map<string, string>();
+    for (const part of messages.flatMap((message) => message.parts)) {
+        if (part.type === "tool-call" && part.command === ASK_READER && typeof part.arguments.question === "string") {
+            const entry = pending.find((waiting) => waiting.kind === "question" && waiting.callId === part.callId);
+            const code = outcomes.get(part.callId)?.code;
+            const shown = code !== "AI_TOOL_NOT_RUN" && code !== "AI_TOOL_INVALID_ARGUMENTS";
+            if (entry === undefined ? shown : entry.claim !== null) {
+                questions.set(part.callId, part.arguments.question);
+            }
+        }
+    }
+
+    return questions;
 }
 
 /**
@@ -313,6 +349,7 @@ function readerEntry(message: SavedMessage): AiConversationMessage[] {
  * @param outcomes - Each call's outcome.
  * @param helperSources - The pages each helper found, by its call.
  * @param effects - What each call did.
+ * @param questions - The questions that read as said, by call.
  * @returns Its entry, or none when it holds nothing a reader sees.
  */
 function assistantEntry(
@@ -320,9 +357,16 @@ function assistantEntry(
     outcomes: ReadonlyMap<string, CallOutcome>,
     helperSources: ReadonlyMap<string, AiSource[]>,
     effects: ReadonlyMap<string, readonly AiEffect[]>,
+    questions: ReadonlyMap<string, string>,
 ): AiConversationMessage[] {
     const text = message.parts
-        .flatMap((part) => (part.type === "text" && part.origin === "model" ? [part.text] : []))
+        .flatMap((part) => {
+            if (part.type === "tool-call") {
+                return questions.get(part.callId) ?? [];
+            }
+
+            return part.type === "text" && part.origin === "model" ? [part.text] : [];
+        })
         .join("\n");
     const calls = message.parts.flatMap((part): AiCallRecord[] =>
         part.type === "tool-call"

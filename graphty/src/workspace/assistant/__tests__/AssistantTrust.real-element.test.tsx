@@ -441,6 +441,42 @@ describe("checking what the Assistant says", () => {
         await screen.findByText(/Odd it is\./);
     });
 
+    it("keeps an answered question's sentence in the log", async () => {
+        await openOn(3);
+        model.turns = [
+            calling("ask_reader", { question: "Which group?", choices: ["even", "odd"] }),
+            { text: "Odd it is.", toolCalls: [] },
+        ];
+        await say("Pick one");
+        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
+        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await within(log()).findByText(/Which group\?/);
+        await within(log()).findByText(/Odd it is\./);
+    });
+
+    it("keeps the reply beside a request while the decision runs, and after it", async () => {
+        await openOn(12);
+        model.turns = [
+            calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
+            { text: "All twelve would go.", toolCalls: [] },
+            { text: "Gone.", toolCalls: [] },
+        ];
+        model.holdTurn = 2;
+        await say("Remove them");
+        const section = await screen.findByRole("region", { name: "Waiting for you" });
+        await within(log()).findByText("All twelve would go.");
+
+        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await waitFor(() => {
+            assert.isTrue(model.held);
+        });
+        assert.isDefined(within(log()).getByText(/All twelve would go\./));
+
+        model.release();
+        await within(log()).findByText(/Gone\./);
+        assert.isDefined(within(log()).getByText(/All twelve would go\./));
+    });
+
     it("reads Selection with 42 selected, and x sends scope graph for one message", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(42) });

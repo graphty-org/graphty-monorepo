@@ -4,6 +4,16 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided by the team: what a conversation snapshot's text holds (graphty-element)
+
+**What.** An assistant message's `text` in `AiConversationSnapshot` now holds a question the model
+asked once the question no longer waits, and, beside an `outcome`, what the model had said before
+the message failed or was taken back. No field was added, and the saved format did not change.
+
+**Why.** `decided.md`, "A turn keeps the words the reader read". The snapshot type has not reached
+master, so no published reader of `text` changes. The words beside a failure are never sent back to
+the model, because what they claim was taken back.
+
 ## 2026-11-05 -- Decided by the team: what a rule reads, and how many groups a run found (graphty-element)
 
 **What.** Three changes, none of them for the owner.

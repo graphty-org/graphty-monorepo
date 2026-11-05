@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { switchedOff } from "../commands/registry";
 import type { WorkspaceValue } from "../state/WorkspaceContext";
 import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesKey, trackPendingEdits } from "./keys";
 
@@ -71,7 +72,7 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
             const { singleKeyShortcuts } = workspace.store.get();
             for (const command of workspace.registry.live) {
                 const key = command.keys?.find((combo) => matchesKey(event, combo));
-                if (key === undefined) {
+                if (key === undefined || switchedOff(command, workspace)) {
                     continue;
                 }
                 const pending = hasPendingEdit(event.target);

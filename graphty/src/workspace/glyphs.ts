@@ -95,6 +95,7 @@ import {
     Share2,
     Shuffle,
     Sigma,
+    Sparkle,
     Sparkles,
     Spline,
     Square,
@@ -132,6 +133,8 @@ export const GLYPHS = {
     graph: Workflow,
     node: CircleDot,
     edge: Spline,
+    // The AI assistant: the single sparkle, since the plural means glow.
+    assistant: Sparkle,
     // A style layer that paints nodes and edges: a dot on a line.
     bothKinds: GitCommitHorizontal,
     several: Group,

@@ -967,7 +967,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map";
 
 // @public
 export interface FieldBand {

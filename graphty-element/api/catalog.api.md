@@ -658,7 +658,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

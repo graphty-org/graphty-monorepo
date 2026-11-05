@@ -5,6 +5,8 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
+import { AssistantPlace } from "../assistant-door/AssistantPlace";
+import { useLeftPanel } from "../assistant-door/leftPanel";
 import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
@@ -32,7 +34,12 @@ import { Rail } from "./Rail";
 import { WebGpuChip } from "./WebGpuChip";
 
 /** What each rail place draws in the left panel. */
-const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
+const PLACES = {
+    graph: <GraphPlace />,
+    assistant: <AssistantPlace />,
+    data: <DataPlace />,
+    notes: <NotesPlace />,
+} as const;
 
 /** Props for Frame. */
 interface FrameProps {
@@ -56,7 +63,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
-    const leftWidth = useWorkspaceState((state) => state.leftWidth);
+    const left = useLeftPanel();
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
@@ -101,31 +108,36 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 className="ws-body"
                 style={
                     {
-                        "--ws-left": `${String(leftWidth)}px`,
+                        "--ws-left": `${String(left.width)}px`,
                         "--ws-right": `${String(rightWidth)}px`,
                     } as React.CSSProperties
                 }
             >
                 <Rail />
-                <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
+                <aside
+                    className="ws-left"
+                    aria-label="Left panel"
+                    hidden={!panels}
+                    data-fills={left.fills ? "" : undefined}
+                >
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
                             {PLACES[place]}
                         </PanelBoundary>
                     </div>
-                    <ResizeHandle
-                        edge="end"
-                        label="Resize left panel"
-                        value={leftWidth}
-                        defaultValue={PANEL_MIN}
-                        min={PANEL_MIN}
-                        max={PANEL_MAX}
-                        onChange={(value) => {
-                            store.set({ leftWidth: value });
-                        }}
-                    />
+                    {left.fills ? null : (
+                        <ResizeHandle
+                            edge="end"
+                            label="Resize left panel"
+                            value={left.width}
+                            defaultValue={left.defaultWidth}
+                            min={PANEL_MIN}
+                            max={left.max}
+                            onChange={left.setWidth}
+                        />
+                    )}
                 </aside>
-                <main className="ws-main" hidden={!panels}>
+                <main className="ws-main" hidden={!panels || left.fills} inert={left.fills}>
                     {/* A region named for the drawing, holding it and its key, so a screen reader can
                         land on it and read it as one place. */}
                     {/* Under the maximized table, the canvas and its tools take no input or focus. */}
@@ -179,7 +191,12 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with
                     the row that opened it (Figma's right panel). */}
                 <Popout.Anchor>
-                    <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
+                    <aside
+                        className="ws-right"
+                        aria-label="Inspector"
+                        hidden={!panels || left.fills}
+                        inert={left.fills}
+                    >
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">
                                 <Inspector />

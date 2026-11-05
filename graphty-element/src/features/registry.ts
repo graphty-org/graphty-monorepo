@@ -9,7 +9,7 @@
  */
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -24,7 +24,9 @@ export interface FeatureDescriptor {
 }
 
 /** Every experiment this build can switch on; empty when there are none. */
-export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([]);
+export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
+    { id: "assistant", plainName: "Assistant", issue: 2000, since: "2026-11-04" },
+]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */
 export const GRADUATED_FEATURES: readonly string[] = Object.freeze([]);

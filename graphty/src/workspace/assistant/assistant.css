@@ -1,0 +1,34 @@
+/* The Assistant's panel: a title row, the log that scrolls, and the composer pinned at the foot.
+   Nothing inside it is boxed; sections part on hairlines. */
+.ws-assistant {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ws-assistant-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 8px 4px 16px;
+}
+
+.ws-assistant-title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.ws-assistant-log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.ws-assistant-composer {
+    min-height: 72px;
+    border-top: 1px solid var(--cm-border);
+}

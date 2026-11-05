@@ -21,10 +21,10 @@ import { type ReactNode, useSyncExternalStore } from "react";
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "notes";
+export type Place = "graph" | "assistant" | "data" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
-type Page = "panels" | "data-page";
+export type Page = "panels" | "data-page";
 
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
@@ -74,6 +74,16 @@ export interface WorkspaceState {
      */
     readonly styleSide: "node" | "edge";
     readonly leftWidth: number;
+    /** The Assistant panel's width once the reader resized it; null for its default. */
+    readonly assistantWidth: number | null;
+    /** Where closing the Assistant returns to; null while it is shut, or after a reload. */
+    readonly assistantFrom: {
+        readonly page: Page;
+        readonly place: Place;
+        readonly focus: HTMLElement | null;
+    } | null;
+    /** How many times something sent the reader to the Assistant's composer: each one focuses it. */
+    readonly composerCalls: number;
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
@@ -233,6 +243,9 @@ const INITIAL: WorkspaceState = {
     tabs: {},
     styleSide: "node",
     leftWidth: PANEL_MIN,
+    assistantWidth: null,
+    assistantFrom: null,
+    composerCalls: 0,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,

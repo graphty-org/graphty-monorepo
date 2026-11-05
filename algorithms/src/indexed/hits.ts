@@ -72,7 +72,7 @@ function maxNormalize(v: Float64Array): void {
  */
 function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: Float64Array): void {
     // Read the arrays once: adj is a snapshot or a reverse view, two shapes, and a property load of
-    // either inside the arc loop cost HITS a third of its time.
+    // either inside the arc loop made HITS 1.2-1.3x slower.
     const { rowPtr, colIdx } = adj;
     for (let v = 0; v < out.length; v++) {
         let sum = 0;

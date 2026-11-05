@@ -757,9 +757,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1973,6 +1982,9 @@ export interface ReadableValue {
 
 // @public
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
+export function resolveFeatures(requested?: readonly string[]): EnabledFeatures;
 
 // @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];

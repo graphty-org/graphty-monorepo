@@ -14,6 +14,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
@@ -162,6 +163,7 @@ function readout(dock: HTMLElement): string {
 
 describe("the timeline on the real element", () => {
     beforeAll(async () => {
+        await siteFeatures(["timeline"]);
         await page.viewport(1366, 768);
     });
 

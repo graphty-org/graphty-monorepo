@@ -23,8 +23,10 @@ export interface FeatureDescriptor {
     readonly since: string;
 }
 
-/** Every experiment this build can switch on; empty when there are none. */
-export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([]);
+/** Every experiment this build can switch on. */
+export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
+    { id: "timeline", plainName: "Timeline", issue: 300, since: "2026-11-04" },
+]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */
 export const GRADUATED_FEATURES: readonly string[] = Object.freeze([]);

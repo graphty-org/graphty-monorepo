@@ -3204,8 +3204,10 @@ export class Graphty extends LitElement {
     get edgeLabelCounts(): EdgeLabelCounts;
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
+    // @beta
     get edgeTimeUnit(): string | undefined;
     set edgeTimeUnit(value: string | undefined);
     get edgeWeightPath(): string | undefined;
@@ -3340,8 +3342,10 @@ export class Graphty extends LitElement {
         height: number;
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
+    // @beta
     get nodeTimeUnit(): string | undefined;
     set nodeTimeUnit(value: string | undefined);
     static get observedAttributes(): string[];
@@ -3353,6 +3357,7 @@ export class Graphty extends LitElement {
     set pixelRatio(value: PixelRatio);
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
@@ -3588,9 +3593,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -4670,6 +4684,8 @@ export abstract class LayoutEngine {
     protected abstract addNode(n: Node_2): void;
     protected addNodes(nodes: Node_2[]): void;
     protected attachPositions(positions: ElementPositions): void;
+    // @internal
+    clusterColumn: ClusterColumn | null;
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
@@ -4732,6 +4748,8 @@ export abstract class LayoutEngine {
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
+    wakeForClusters(): boolean;
+    // @internal
     wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
@@ -4741,6 +4759,8 @@ export abstract class LayoutEngine {
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
     get building(): boolean;
+    // @internal
+    clustersChanged(): void;
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
     drawArrivedPaint: (() => void) | null;

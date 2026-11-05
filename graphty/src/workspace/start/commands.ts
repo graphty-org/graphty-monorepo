@@ -1,4 +1,4 @@
-import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { offeredSamples, START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { type Command, defineRegistration } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { unlessUnsaved } from "../project/actions";
@@ -21,6 +21,7 @@ const SAMPLE_COMMANDS: Command[] = START_SAMPLES.map((sample) => ({
     group: "Project",
     keywords: ["sample", "example", "dataset"],
     description: sample.sentence,
+    shown: () => offeredSamples().includes(sample),
     run: (ctx) => {
         unlessUnsaved(ctx, () => {
             openSample(ctx.workspace, sample);

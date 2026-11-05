@@ -55,7 +55,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
-import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
+import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
@@ -180,7 +180,8 @@ import {
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
 import { numericBound } from "./time/parse";
-import { createTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
+import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
+import { isTimeZone } from "./time/zone";
 import type {
     AccelerationControllerLike,
     CommandOutcome,
@@ -217,7 +218,7 @@ import type {
     TransactionScope,
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
-import type { FilterRunResult, TimeWindow } from "./visibility/filter";
+import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -368,8 +369,8 @@ interface SessionParts {
     readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
-    /** The requested experiments, read once, when `features` is first read. */
-    readonly features: () => readonly string[] | undefined;
+    /** The experiments, settled on first read. */
+    readonly features: () => EnabledFeatures;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** Stops the renumbering delivery from a store someone else built. */
@@ -402,6 +403,8 @@ interface SessionParts {
     readonly visibility: SessionVisibilityApi;
     /** The timeline over the time window. */
     readonly time: TimeApi;
+    /** Whether the timeline experiment is on. */
+    readonly timelineOn: () => boolean;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
     /** The style stack, with the element's own layers already at the bottom of it. */
@@ -485,6 +488,23 @@ function sharingIndexes(execute: RunExecutor, snapshot: () => GraphSnapshot, tok
 }
 
 /**
+ * Whether a command does something only the timeline experiment applies.
+ * @param command - The command.
+ * @returns True for playback settings, a window that names the timeline's options, and a batch
+ *   holding either.
+ */
+function needsTimeline(command: SessionCommand): boolean {
+    if (command.op === "batch") {
+        return command.steps.some(needsTimeline);
+    }
+
+    return (
+        command.op === "visibility.playback" ||
+        (command.op === "visibility.window" && windowNeedsTimeline(command.window))
+    );
+}
+
+/**
  * A graph with no view attached.
  *
  * Build one with {@link createGraphSession} rather than with `new`: the factory is what settles
@@ -554,9 +574,9 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
-    private readonly requestedFeatures: () => readonly string[] | undefined;
-    /** The experiments, settled on first read. */
-    private resolvedFeatures: EnabledFeatures | undefined;
+    private readonly settledFeatures: () => EnabledFeatures;
+    /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
+    private readonly timelineOn: () => boolean;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -570,7 +590,8 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
-        this.requestedFeatures = parts.features;
+        this.settledFeatures = parts.features;
+        this.timelineOn = parts.timelineOn;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -736,8 +757,7 @@ class Session implements ElementSession {
      * @returns The enabled and unknown ids.
      */
     get features(): EnabledFeatures {
-        this.resolvedFeatures ??= resolveFeatures(this.requestedFeatures());
-        return this.resolvedFeatures;
+        return this.settledFeatures();
     }
 
     /**
@@ -818,6 +838,10 @@ class Session implements ElementSession {
             options?: DispatchOptions,
         ) => Promise<void>,
     ): CommandOutcome<C> {
+        if (needsTimeline(command) && !this.timelineOn()) {
+            return Promise.reject(featureOff("timeline", command.op)) as CommandOutcome<C>;
+        }
+
         if (
             command.op === "view.immersive" &&
             command.mode !== null &&
@@ -2511,17 +2535,28 @@ export function createElementSession(
 /**
  * A time window's attribute and numeric bounds, for comparing two windows.
  * @param window - The window, or null.
+ * @param zoneOf - The zone a window's text bounds read in.
  * @returns The bounds, or null for no window.
  */
 function windowBoundsOf(
     window: TimeWindow | null,
+    zoneOf: (attribute: string) => string | undefined,
 ): { readonly attribute: string; readonly from: number; readonly to: number } | null {
-    return window === null
-        ? null
-        : { attribute: window.attribute, from: numericBound(window.from), to: numericBound(window.to) };
+    if (window === null) {
+        return null;
+    }
+
+    const zone = zoneOf(window.attribute);
+
+    return { attribute: window.attribute, from: numericBound(window.from, zone), to: numericBound(window.to, zone) };
 }
 
 function buildSession(options: ElementSessionOptions, internals: SessionInternals = {}): Session {
+    let settledFeatures: EnabledFeatures | undefined;
+    const requested = options.features ?? ((): undefined => undefined);
+    const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
+    // Asked without settling: an element's attributes may still be arriving.
+    const timelineOn = (): boolean => (settledFeatures ?? resolveFeatures(requested())).enabled.includes("timeline");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -2541,6 +2576,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
+    dispatcher.services.timeline = timelineOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -2673,7 +2709,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return kind === "node" ? values.nodeValue(index, path) : values.edgeValue(index, path);
             },
             // Read through calls: the timeline and the visibility are built below.
-            timeParsed: (kind, column) => timeline?.parsedCount(kind, column),
+            timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
+            timeline: () => timelineOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
@@ -2897,12 +2934,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
-    let timeline: TimeInternals | null = null;
+    let timeInternals: TimeInternals | null = null;
+    const timeline = (): TimeInternals | null => (timelineOn() ? timeInternals : null);
+    const boundZone = (attribute: Path): string | undefined => timeline()?.boundZone(attribute);
     /** Told when the reader changes the selection by hand: the select conditions switch off. */
     let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
-        instants: (path: Path) => timeline?.instants(path) ?? null,
+        // Not behind the experiment: a saved window's bounds are instants of the parsed column.
+        instants: (path: Path) => timeInternals?.instants(path) ?? null,
+        boundZone,
+        timeline: timelineOn,
         components,
         dispatcher,
         dependencies,
@@ -2925,7 +2967,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
-            timeline?.visibilityChanged(change);
+            timeline()?.visibilityChanged(change);
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
         },
@@ -2998,7 +3040,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             const data = dataNow();
             // A run over the visible graph records the time window it was computed in.
-            const bounds = spec === "visible" ? windowBoundsOf(visibility.window) : undefined;
+            const bounds =
+                spec === "visible" && timelineOn() ? windowBoundsOf(visibility.window, boundZone) : undefined;
             const summary = bounds === undefined || bounds === null ? null : visibility.summary;
             const window =
                 bounds === undefined
@@ -3016,9 +3059,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),
-        acceptedDigest: (id: RunId, ranOn: string) => timeline?.acceptedDigest(id, ranOn),
-        windowNow: () => windowBoundsOf(visibility.window),
-        acceptedWindow: (id: RunId) => timeline?.acceptedWindow(id),
+        acceptedDigest: (id: RunId, ranOn: string) => timeline()?.acceptedDigest(id, ranOn),
+        timeline: timelineOn,
+        windowNow: () => windowBoundsOf(visibility.window, boundZone),
+        acceptedWindow: (id: RunId) => timeline()?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
@@ -3145,8 +3189,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
+    const readableZone = (zone: string | null | undefined): string | null =>
+        timelineOn() && isTimeZone(zone) ? zone : null;
     const time = createTimeApi({
         snapshot,
+        timeline: timelineOn,
         token: () => dispatcher.state.graph.token,
         dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
@@ -3155,8 +3202,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return {
                 nodeTimePath: known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
+                // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
+                nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
+                edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -3173,7 +3223,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
     });
-    timeline = time.internals;
+    timeInternals = time.internals;
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
@@ -3867,7 +3917,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
-        features: options.features ?? (() => undefined),
+        features: settleFeatures,
+        timelineOn,
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
@@ -3880,7 +3931,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         journal,
         selection,
         visibility,
-        time: time.api,
+        time: gatedTimeApi(time.api, timelineOn),
         stopTime: () => {
             time.internals.dispose();
         },

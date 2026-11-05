@@ -52,9 +52,9 @@ import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
     ARROW_RUNS,
-    type ArrowRunPart,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    type ArrowRunPart,
     arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
@@ -1288,7 +1288,8 @@ function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
         .map(({ type, along, across }) => {
             const size = round((along * pixel) / (CAP_DEPTH.get(type) ?? 1));
             const breadth = across === undefined ? null : round(across / along / (CAP_ASPECT.get(type) ?? 1));
-            return `${type}*${String(size)}${breadth === null ? "" : `x${String(breadth)}`}`;
+            const wide = breadth === null ? "" : `x${String(breadth)}`;
+            return `${type}*${String(size)}${wide}`;
         })
         .join(" ");
 }

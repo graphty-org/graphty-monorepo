@@ -86,7 +86,7 @@ describe("two lines alike, drawn over one another", () => {
 describe("a cap stood back from its line's end", () => {
     const at = (back: number): Pt => [290 - back, 100];
     const oracle = scene("oracle", [line("a->b#0", [head("tee", { at: at(10) })])]);
-    const place = (back: number): number => {
+    const place = (back: number): number | null => {
         const g = scene("graphty", [line("1", [head("tee", { at: at(back), standing: true })])]);
         return compareOracle("t", oracle, g).properties["edge.arrowPlace"].passRate;
     };

@@ -1806,7 +1806,8 @@ function ValueBrush({
                     from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
                     to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
                     // No bound set is the whole range, every bar lit: what the step passes.
-                    highlighted: bin.to > shown[0] && bin.from <= shown[1],
+                    // A one-value bin at the low bound (from = to = min) is in range too.
+                    highlighted: (bin.to > shown[0] || bin.from >= shown[0]) && bin.from <= shown[1],
                 }))}
                 minLabel={formatNumber(low)}
                 maxLabel={formatNumber(high)}

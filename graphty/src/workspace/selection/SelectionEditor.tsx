@@ -1117,15 +1117,16 @@ export function SelectionEditor({
             : "";
     const recipeOpen = recipeTitle && (selected === TITLE || selected === loneStep?.id);
 
+    // A group with no step says where it starts: "All nodes", "No nodes".
+    const startWords = (branch: UnionBranch | undefined): string =>
+        `${branch?.start === "all" ? "All" : "No"} ${NOUNS[side].many}`;
+    const restSummary = empty ? startWords(rule.branches[0]) : cardsWords(session, rule, reading);
     /**
      * The outline's rows: the sidebar's read-only copy at rest ("rest"), or the workspace's
      * outline column ("ws"), whose rows select. The same rows, words and caps in both (spec 3.1).
      * @param where - which outline.
      * @returns the tree.
      */
-    const restSummary = empty
-        ? `${rule.branches[0]?.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
-        : cardsWords(session, rule, reading);
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
@@ -1652,7 +1653,7 @@ export function SelectionEditor({
     // A folded card's summary: its value and conditions in one line.
     const foldedWords = (branch: UnionBranch): string =>
         branch.steps.length === 0
-            ? `${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
+            ? startWords(branch)
             : branch.steps
                   .map((step, index) => {
                       const words = outlineWords.get(step.id ?? "");
@@ -1971,7 +1972,7 @@ export function SelectionEditor({
                                         );
                                     }}
                                 >
-                                    {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
+                                    {startWords(branch)}
                                 </Button>
                             </Tooltip>
                             {(!on || startEmpties(branch, branchRead)) && (

@@ -129,7 +129,7 @@ async function reopenDegree(min: number): Promise<HTMLElement> {
 
 describe("a filter step picked from a run's results", () => {
     // Insight 2: after a run over the 112 nodes showing, the step read a new whole-graph run.
-    it("names the part of the graph the run covered, and stays bound to that run", async () => {
+    it("never reads a run over the visible graph: a filter would move the run it reads", async () => {
         const session = await openSample("data");
         await session.visibility.addCondition({ effect: "keep", rule: degreeCard(10) });
         const showing = session.visibility.nodes.size;
@@ -140,23 +140,43 @@ describe("a filter step picked from a run's results", () => {
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Connected");
-        const entry = await screen.findByRole("option", { name: new RegExp(`\\(${String(showing)} showing\\)`) });
-        await userEvent.click(entry);
-        await waitFor(() => {
-            const step = unionOf(session, 1)?.branches[0]?.steps[0]?.rule;
-            assert.strictEqual(step?.kind, "measure");
-            assert.deepEqual(step?.kind === "measure" ? step.scope : undefined, "visible");
-        });
-        const rule = unionOf(session, 1);
-        if (rule === undefined) {
-            throw new Error("the second card is written");
+        const options = await screen.findAllByRole("option");
+        assert.isFalse(
+            options.some((each) => (each.textContent ?? "").includes(`${String(showing)} showing`)),
+            "the run over what is showing is not offered to a filter",
+        );
+        // graphty-element refuses such a condition outright, so no other door writes one either.
+        let refused = "";
+        try {
+            await session.visibility.addCondition({
+                effect: "keep",
+                rule: {
+                    kind: "union",
+                    side: "nodes",
+                    within: "graph",
+                    branches: [
+                        {
+                            start: "none",
+                            steps: [
+                                {
+                                    op: "add",
+                                    rule: {
+                                        kind: "measure",
+                                        algorithm: "components",
+                                        field: "component",
+                                        scope: "visible",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            });
+        } catch (error) {
+            refused = (error as { code?: string }).code ?? "";
         }
-        const watch = session.scope.watchSteps(rule, () => undefined);
-        await waitFor(() => {
-            assert.strictEqual(watch.current.branches[0]?.steps[0]?.run, run.id, "the step reads the picked run");
-        });
-        watch.end();
-        assert.lengthOf(session.runs.list(), 1, "no second run over the whole graph");
+        assert.strictEqual(refused, "E_BAD_COMMAND");
+        assert.lengthOf(session.visibility.conditions, 1, "only the degree card");
     });
 });
 
@@ -307,8 +327,9 @@ const TWO: UnionLeaf = {
 };
 
 describe("the workspace's calm first states and its header", () => {
-    // Bar 9: a just-added Or group read "C 0" with its untouched range drawn full.
-    it("a new Or group's untested step shows no count and lights no bar", async () => {
+    // Bar 9: a just-added Or group read "C 0" with its untouched range drawn full; the root cause
+    // was graphty-element reading an unbounded range as inert, and now both say every node.
+    it("a new Or group's Degree step counts at once and lights every bar, as its untouched slider shows", async () => {
         const session = await openSample();
         await openLayer(session, "Calm", { "node.color": "#d55e00" }, TWO);
         const ws = await edit();
@@ -317,10 +338,17 @@ describe("the workspace's calm first states and its header", () => {
         await userEvent.keyboard("Degree{Enter}");
         await within(ws).findByRole("textbox", { name: "Degree from, number" });
         const row = await within(ws).findByRole("treeitem", { name: /^C, / });
-        assert.strictEqual(row.querySelector(".sel-count")?.textContent, "", "no count before a test");
-        assert.notMatch(row.getAttribute("aria-label") ?? row.textContent ?? "", /0 of 77/);
-        assert.isNull(ws.querySelector('.sel-ws-props [data-highlighted="true"]'), "no bar lit");
-        assert.notInclude(ws.querySelector(".sel-ws-props")?.textContent ?? "", "so far", "no 0 so far");
+        // An unbounded range passes every node with a degree (graphty-element's reading), so the
+        // group counts all 77 at once, and the brush lights the whole range it shows.
+        await waitFor(() => {
+            assert.strictEqual(row.querySelector(".sel-count")?.textContent, "77", "every node counts");
+        });
+        const bars = ws.querySelectorAll('.sel-ws-props [data-testid="histogram-chart"] [data-highlighted]');
+        assert.isAbove(bars.length, 0);
+        assert.isTrue(
+            [...bars].every((bar) => bar.getAttribute("data-highlighted") === "true"),
+            "every bar is lit",
+        );
     });
 
     it("says And... and Or...; Tab past the last control reaches the header, an F6 stop; Done shows Escape", async () => {

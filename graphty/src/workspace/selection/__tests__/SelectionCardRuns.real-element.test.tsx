@@ -69,6 +69,8 @@ async function pickPageRank(session: GraphSession): Promise<HTMLElement> {
         assert.isNotNull(found, "the modal is open");
         return found;
     });
+    // A new selection opens as one empty card, its value picker shut: the card's Value opens it.
+    await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard("PageRank");
     await userEvent.keyboard("{Enter}");
@@ -90,7 +92,7 @@ describe("runs started from a selection card", () => {
         const layers = session.styles.list().length;
         const modal = await pickPageRank(session);
         assert.strictEqual(session.styles.list().length, layers, "the card's run painted nothing");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel$/ }));
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.strictEqual(pagerankRuns(session), 0, "Cancel removed the run the visit started");
         });

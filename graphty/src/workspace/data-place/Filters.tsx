@@ -524,6 +524,7 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.updateCondition(id, { name: next }));
     };
     const [renaming, setRenaming] = useState(false);
+    const renameProps = cards ? { name: draftName, onRename: rename } : {};
     // A selection is said as its title says it; a rule no editor reads, in its own words.
     const name = title;
     // The box says what the element holds: a saved Select card that is on still selects, so it
@@ -628,7 +629,7 @@ function FilterCard({
                         }
                         titleOff={!on}
                         titleMenu={menu}
-                        {...(cards ? { name: draftName, onRename: rename } : {})}
+                        {...renameProps}
                         titleExtra={
                             draft ? (
                                 // A new card's side; switching starts its selection again on the other side.

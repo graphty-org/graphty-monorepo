@@ -2,8 +2,8 @@
  * The selection editor as a modal over the whole app (the owner, 2026-11-04), on the REAL
  * graphty-element and Les Miserables, driven by real clicks and keys: Edit opens one modal with a
  * scrim, colored group cards on the left (each step's controls inside its card, the card's
- * actions along its bottom) and the drawing over the matches table on the right; Keep adds a step
- * to its card; Or starts a new colored card; a node clicked on the drawing is a step's reference;
+ * actions along its bottom) and the drawing over the matches table on the right; Except adds a step
+ * to its card; "+ Card" starts a new colored card; a node clicked on the drawing is a step's reference;
  * Done keeps every edit and Cancel restores the selection as it was. The owner's review of
  * 2026-11-04: cards fold to their header (a new card folds the others), reorder by their grip or
  * the arrow keys, no "or" between them; a new number step passes its whole range at once; the
@@ -91,6 +91,13 @@ async function openModal(): Promise<HTMLElement> {
  * @param name - what to type.
  */
 async function pickValue(name: string): Promise<void> {
+    // An empty card waits with its value picker shut: its Value opens it. A picker opened by a
+    // card's Add, Keep or Except, or by "+ Card", is open already.
+    if (screen.queryByRole("combobox", { name: "Find attributes, results" }) === null) {
+        const empty = [...document.querySelectorAll<HTMLElement>(".sel-ws [data-new-step] [data-first-focus]")].at(-1);
+        assert.isDefined(empty, "an empty card's Value");
+        await userEvent.click(empty);
+    }
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard(name);
     await userEvent.keyboard("{Enter}");
@@ -126,11 +133,11 @@ describe("the selection modal with colored group cards", () => {
         assert.isNotNull(within(modal).queryByRole("region", { name: "Matches" }), "the matches table is drawn");
     });
 
-    it("a step and the card's Except go inside its card, Or starts a new colored card, and Done keeps both", async () => {
+    it("a step and the card's Except go inside its card, + Card starts a new colored card, and Done keeps both", async () => {
         const { session, layer } = await openLayer();
         const modal = await openModal();
         assert.lengthOf(cards(), 1);
-        // A selection with no step opens with its first step's value picker open.
+        // A selection with no step opens as one empty card; its Value opens the picker.
         await pickValue("Degree");
         await waitFor(() => {
             assert.lengthOf(
@@ -148,11 +155,11 @@ describe("the selection modal with colored group cards", () => {
             assert.lengthOf(cards()[0].querySelectorAll(".sel-card-step [data-step-pane]"), 2);
             assert.deepEqual(
                 unionOf(session, layer.id)?.branches[0]?.steps.map((step) => step.op),
-                ["keep", "except"],
+                ["add", "except"],
             );
         });
 
-        await userEvent.click(within(modal).getByRole("button", { name: /^Group$/ }));
+        await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
         await pickValue("Degree");
         await waitFor(() => {
             assert.lengthOf(cards(), 2, "a second card");
@@ -178,7 +185,7 @@ describe("the selection modal with colored group cards", () => {
         await waitFor(() => {
             assert.lengthOf(unionOf(session, layer.id)?.branches[0]?.steps ?? [], 1, "the edit is live");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel$/ }));
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
         await waitFor(() => {
             assert.isNull(document.querySelector(".sel-ws"));
             const steps = unionOf(session, layer.id)?.branches.flatMap((branch) => branch.steps) ?? [];
@@ -233,7 +240,7 @@ async function twoCards(): Promise<{ session: GraphSession; layer: Layer; modal:
             10,
         );
     });
-    await userEvent.click(within(modal).getByRole("button", { name: /^Group$/ }));
+    await userEvent.click(within(modal).getByRole("button", { name: /^Card$/ }));
     await pickValue("Degree");
     await waitFor(() => {
         assert.lengthOf(unionOf(session, layer.id)?.branches[1]?.steps ?? [], 1);
@@ -262,8 +269,10 @@ describe("the owner's review of the cards (2026-11-04)", () => {
     it("a new Degree card counts at once, the cards before it fold, and no or is drawn between them", async () => {
         const { session, layer } = await twoCards();
         const degree = unionOf(session, layer.id)?.branches[1]?.steps[0]?.rule as { min?: number; max?: number };
-        assert.isDefined(degree.min, "a new number step starts over its whole range");
-        assert.isDefined(degree.max);
+        // No bounds written: graphty-element reads an unbounded range as every measured node, as
+        // the untouched slider shows (the app no longer copies the range into the rule).
+        assert.isUndefined(degree.min, "a new number step writes no bound");
+        assert.isUndefined(degree.max);
         await waitFor(() => {
             assert.match(cards()[1].getAttribute("aria-label") ?? "", /^B, 77 of 77/, "B passes every node at once");
         });

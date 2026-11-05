@@ -50,8 +50,9 @@ export function MatchesStrip({
     const kind: RecordKind = rule.side === "nodes" ? "node" : "edge";
     // Rows are tinted by group: in the workspace always, a single card's rows in its color too (the
     // owner, 2026-11-04); in the outline editor only when there are two groups to tell apart.
+    const fewest = modal ? 1 : 2;
     const groupOf =
-        reading === null || reading.rule.branches.length < (modal ? 1 : 2)
+        reading === null || reading.rule.branches.length < fewest
             ? undefined
             : (id: NodeId | EdgeId): { name: string; color: string } | null => {
                   const branchId = reading.branchOf(id);

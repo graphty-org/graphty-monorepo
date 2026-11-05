@@ -117,17 +117,19 @@ function danglingMass(rank: F64, outW: NumericVector, n: number): number {
 
 /**
  * The rank flowing into `v` along its in-arcs, before damping.
- * @param ps - The iteration inputs
+ * @param rev - The reverse view
+ * @param revW - The reverse-arc weights, or null when unweighted
+ * @param outW - The out-weight of every node
  * @param rank - The current ranks
  * @param v - The node
  * @returns The undamped inflow
  */
-function inflow(ps: PowerStep, rank: F64, v: number): number {
-    const { rev, revW, outW } = ps;
+function inflow(rev: ReverseView, revW: NumericVector | null, outW: NumericVector, rank: F64, v: number): number {
+    const { rowPtr, colIdx } = rev;
     let acc = 0;
-    const end = rev.rowPtr[v + 1];
-    for (let a = rev.rowPtr[v]; a < end; a++) {
-        const u = rev.colIdx[a];
+    const end = rowPtr[v + 1];
+    for (let a = rowPtr[v]; a < end; a++) {
+        const u = colIdx[a];
         const ow = outW[u];
         if (ow > 0) {
             acc += (rank[u] * (revW === null ? 1 : revW[a])) / ow;
@@ -144,14 +146,14 @@ function inflow(ps: PowerStep, rank: F64, v: number): number {
  * @param next - Where the new ranks go
  */
 function powerStep(ps: PowerStep, rank: F64, next: F64): number {
-    const { n, d, p, useMax } = ps;
-    const dangling = danglingMass(rank, ps.outW, n);
+    const { n, d, p, useMax, rev, revW, outW } = ps;
+    const dangling = danglingMass(rank, outW, n);
     // Teleport (1 - d) spread by p or uniformly; the dangling mass d * dangling spread uniformly,
     // and with p scaled by p[v] on top of the uniform 1 / n, as the legacy function does.
     const spread = 1 - d + d * dangling * (p === null ? 1 : 1 / n);
     let delta = 0;
     for (let v = 0; v < n; v++) {
-        next[v] = spread * (p === null ? 1 / n : p[v]) + d * inflow(ps, rank, v);
+        next[v] = spread * (p === null ? 1 / n : p[v]) + d * inflow(rev, revW, outW, rank, v);
         const change = Math.abs(next[v] - rank[v]);
         delta = useMax ? Math.max(delta, change) : delta + change;
     }

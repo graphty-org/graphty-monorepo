@@ -872,6 +872,47 @@ function badZone(field: string, value: unknown): GraphtyError {
 }
 
 /**
+ * Refuse a malformed time source.
+ * @param source - The source.
+ * @throws `E_BAD_COMMAND` naming what is wrong.
+ */
+function assertTimeSource(source: TimeSource): void {
+    if (typeof source.start !== "string" || source.start.length === 0) {
+        throw badCommand("A time source names its column in `start`.", {
+            field: "start",
+            reason: "start",
+            source,
+        });
+    }
+
+    if (source.unit !== undefined && !TIME_UNITS.includes(source.unit)) {
+        throw badCommand(`A time unit is one of ${TIME_UNITS.join(", ")}.`, {
+            field: "unit",
+            reason: "unit",
+            unit: source.unit,
+        });
+    }
+
+    if (source.parseZone !== undefined && !isTimeZone(source.parseZone)) {
+        throw badZone("parseZone", source.parseZone);
+    }
+}
+
+/**
+ * Whether two sources read the same timeline: the same column, unit and zone.
+ * @param a - One, or undefined for none.
+ * @param b - The other.
+ * @returns True when each reads as the other does.
+ */
+function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): boolean {
+    return (
+        a?.start === b?.start &&
+        (a?.unit ?? "ms") === (b?.unit ?? "ms") &&
+        (a?.parseZone ?? UTC_ZONE) === (b?.parseZone ?? UTC_ZONE)
+    );
+}
+
+/**
  * A window's zone as an option to spread: nothing when it names none.
  * @param timeZone - The zone, or undefined.
  * @returns The option.
@@ -2106,28 +2147,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         async setField(field: TimeField | null): Promise<TimeFieldResult> {
-            const sourcesOf = field === null ? [] : [field.nodes, field.edges];
-            for (const source of sourcesOf) {
+            for (const source of field === null ? [] : [field.nodes, field.edges]) {
                 if (source !== undefined) {
-                    if (typeof source.start !== "string" || source.start.length === 0) {
-                        throw badCommand("A time source names its column in `start`.", {
-                            field: "start",
-                            reason: "start",
-                            source,
-                        });
-                    }
-
-                    if (source.unit !== undefined && !TIME_UNITS.includes(source.unit)) {
-                        throw badCommand(`A time unit is one of ${TIME_UNITS.join(", ")}.`, {
-                            field: "unit",
-                            reason: "unit",
-                            unit: source.unit,
-                        });
-                    }
-
-                    if (source.parseZone !== undefined && !isTimeZone(source.parseZone)) {
-                        throw badZone("parseZone", source.parseZone);
-                    }
+                    assertTimeSource(source);
                 }
             }
 
@@ -2196,13 +2218,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             const before = fieldNow();
             const column = (edges ?? nodes)?.start;
-            const changed =
-                before?.nodes?.start !== nodes?.start ||
-                before?.edges?.start !== edges?.start ||
-                (before?.nodes?.unit ?? "ms") !== (nodes?.unit ?? "ms") ||
-                (before?.edges?.unit ?? "ms") !== (edges?.unit ?? "ms") ||
-                (before?.nodes?.parseZone ?? UTC_ZONE) !== (nodes?.parseZone ?? UTC_ZONE) ||
-                (before?.edges?.parseZone ?? UTC_ZONE) !== (edges?.parseZone ?? UTC_ZONE);
+            const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
             api.pause();
             await dispatcher.transaction(
                 "time.field",

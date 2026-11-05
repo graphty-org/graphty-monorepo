@@ -187,6 +187,18 @@ const STRUCTURE: Partial<Record<RuleTree["kind"], string>> = {
 };
 
 /**
+ * The name of a value that takes no test: a structure leaf, the largest component, a state.
+ * @param rule - the step's rule.
+ * @returns the name, or undefined for a value with a test.
+ */
+function testlessName(rule: RuleTree): string | undefined {
+    if (rule.kind === "state") {
+        return STATE_WORDS[rule.state];
+    }
+    return rule.kind === "member" && rule.of === "largest-component" ? "Largest component" : STRUCTURE[rule.kind];
+}
+
+/**
  * A step's value and test, as its row says them: the value ("Degree", "Betweenness", "Within 1 hop
  * of") and the short test ("6 to 10", "Valjean"), or the inert word in its place.
  * @param session - the element's session.
@@ -233,15 +245,9 @@ function ruleStepWords(
     if (isRelative(rule)) {
         return { value: relativeName(rule), test: referenceWords(session, referenceOf(rule)) };
     }
-    const structure = STRUCTURE[rule.kind];
-    if (structure !== undefined) {
-        return { value: structure, test: "" };
-    }
-    if (rule.kind === "member" && rule.of === "largest-component") {
-        return { value: "Largest component", test: "" };
-    }
-    if (rule.kind === "state") {
-        return { value: STATE_WORDS[rule.state], test: "" };
+    const plain = testlessName(rule);
+    if (plain !== undefined) {
+        return { value: plain, test: "" };
     }
     if (rule.kind === "measure") {
         const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);

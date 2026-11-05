@@ -249,6 +249,15 @@ function contentPart(
 }
 
 /**
+ * The part of a `state` leaf: the session's state revision.
+ * @param context - What the resolution reads.
+ * @returns The part.
+ */
+function statePart(context: ResolveContext): string {
+    return `st${String(context.stateRevision?.() ?? "-")}`;
+}
+
+/**
  * The part of a rule's `where`: a query's paths, or each leaf's inputs in tree order.
  * @param where - The query or tree.
  * @param context - What the resolution reads.
@@ -312,7 +321,7 @@ function rulePart(
             // Topology and ids: the serial and the key say it all.
             return "t";
         case "state":
-            return `st${String(context.stateRevision?.() ?? "-")}`;
+            return statePart(context);
         case "source":
             // ponytail: what a load supplied moves with no revision to key it on, so it is never
             // cached; give provenance a revision if a source rule shows up hot.

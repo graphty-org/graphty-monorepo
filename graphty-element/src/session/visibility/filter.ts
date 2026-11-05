@@ -906,6 +906,42 @@ export function windowNeedsTimeline(window: TimeWindow | null): boolean {
 }
 
 /**
+ * Refuse a state leaf, alone or in a union's steps, where nothing follows the reader. A union's
+ * other leaves are checked as it is read; a state never can be there.
+ * @param rule - The leaf.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED`.
+ */
+function assertStatesEvaluable(rule: RuleTree, sources: FilterSources): void {
+    if (sources.inState !== undefined) {
+        return;
+    }
+
+    switch (rule.kind) {
+        case "state":
+            throw unsupported("state", "a view that follows the reader");
+        case "union":
+            for (const branch of rule.branches) {
+                for (const step of branch.steps) {
+                    assertStatesEvaluable(step.rule, sources);
+                }
+            }
+
+            return;
+        case "all":
+        case "any":
+            rule.of.forEach((member) => {
+                assertStatesEvaluable(member, sources);
+            });
+            return;
+        case "not":
+            assertStatesEvaluable(rule.of, sources);
+            return;
+        default:
+    }
+}
+
+/**
  * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
  * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
  * recorded rather than on every later evaluation.
@@ -972,19 +1008,8 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
 
                 return;
             case "state":
-                if (sources.inState === undefined) {
-                    throw unsupported("state", "a view that follows the reader");
-                }
-
-                return;
             case "union":
-                // Its own leaves are checked as it is read; a state never can be here.
-                each.branches
-                    .flatMap((branch) => branch.steps)
-                    .filter((step) => ["state", "all", "any", "not"].includes(step.rule.kind))
-                    .forEach((step) => {
-                        check(step.rule);
-                    });
+                assertStatesEvaluable(each, sources);
                 return;
             case "all":
             case "any":
@@ -1933,6 +1958,25 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
 }
 
 /**
+ * A state leaf's two halves.
+ * @param context - The compile context.
+ * @param state - The state.
+ * @returns The halves.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when nothing here follows the reader.
+ */
+function stateTests(context: CompileContext, state: ElementState): CompiledHalves {
+    const { inState } = context.sources;
+    if (inState === undefined) {
+        throw unsupported("state", "a view that follows the reader");
+    }
+
+    return {
+        node: (index) => inState(state, "node", index),
+        edge: (index) => inState(state, "edge", index),
+    };
+}
+
+/**
  * Compile one filter into its node half and its edge half.
  * @param filter - The filter.
  * @param context - The compile context.
@@ -1962,18 +2006,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
             return sourceTests(context, filter.sources, filter.side);
-        case "state": {
-            const { inState } = context.sources;
-            if (inState === undefined) {
-                throw unsupported("state", "a view that follows the reader");
-            }
-
-            const { state } = filter;
-            return {
-                node: (index) => inState(state, "node", index),
-                edge: (index) => inState(state, "edge", index),
-            };
-        }
+        case "state":
+            return stateTests(context, filter.state);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");

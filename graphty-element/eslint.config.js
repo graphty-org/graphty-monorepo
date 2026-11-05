@@ -89,18 +89,11 @@ export default tseslint.config(
     // ============================================
     // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
     // accessors. Edge.ts keeps its reads until getInterceptPoints works with no mesh. The other
-    // four files move in the two pull requests that follow this rule (#3247). The rule and its
+    // two files move in the pull request that follows this one (#3247). The rule and its
     // reasons: eslint-rules/node-mesh-funnel.mjs.
     {
         files: ["src/**/*.ts"],
-        ignores: [
-            "src/Node.ts",
-            "src/Edge.ts",
-            "src/NodeBehavior.ts",
-            "src/managers/LabelDeclutter.ts",
-            "src/managers/UpdateManager.ts",
-            "src/transitions/LayoutTransitionRunner.ts",
-        ],
+        ignores: ["src/Node.ts", "src/Edge.ts", "src/NodeBehavior.ts", "src/managers/LabelDeclutter.ts"],
         plugins: { local },
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },

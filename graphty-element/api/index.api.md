@@ -4982,6 +4982,9 @@ class Node_2 implements ModelUser {
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
     // @internal
+    get drawnScale(): number;
+    set drawnScale(scale: number);
+    // @internal
     get drawnScene(): Scene;
     // @internal
     get drawnSourceMesh(): AbstractMesh;

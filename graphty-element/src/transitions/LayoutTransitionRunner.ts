@@ -32,12 +32,10 @@ const STILL = 1e-6;
 /** What the runner moves: the part of a node it reads and writes. */
 export interface TransitionSubject {
     readonly index: number;
-    readonly mesh: {
-        readonly position: Vec3;
-        /** The mesh's scale: a particle transition shrinks the node while its cloud is in flight. */
-        readonly scaling?: { readonly x: number; setAll(value: number): unknown };
-        computeWorldMatrix(force?: boolean): unknown;
-    };
+    readonly drawnPosition: Vec3;
+    /** A particle transition shrinks the node while its cloud is in flight. */
+    drawnScale: number;
+    drawnWorldMatrix(force?: boolean): unknown;
     readonly drawnRadius: number;
     readonly paintedColor: { r: number; g: number; b: number; a: number } | null;
     setMeshPosition(x: number, y: number, z: number): void;
@@ -318,9 +316,9 @@ export class LayoutTransitionRunner {
 
         const nodes = [...this.host.nodes()];
         const from = nodes.map((node) => ({
-            x: node.mesh.position.x,
-            y: node.mesh.position.y,
-            z: node.mesh.position.z,
+            x: node.drawnPosition.x,
+            y: node.drawnPosition.y,
+            z: node.drawnPosition.z,
         }));
         const center = { x: 0, y: 0, z: 0 };
         for (const at of from) {
@@ -344,7 +342,7 @@ export class LayoutTransitionRunner {
                     hopFromSelection: hops?.get(node),
                     distanceFromCenter: distances[i] / farthest,
                 }),
-                scale: node.mesh.scaling?.x ?? 1,
+                scale: node.drawnScale,
                 travel: 0,
             });
         });
@@ -431,7 +429,7 @@ export class LayoutTransitionRunner {
         mover.drawn.z = drawn.z;
         mover.travel = t >= 1 ? 1 : travelOf(mover, t);
         if (state.transition.descriptor.drawable === "particles") {
-            node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
+            node.drawnScale = this.hold === undefined ? drawnScale(mover) : mover.scale;
         }
 
         return drawn;
@@ -533,12 +531,12 @@ export class LayoutTransitionRunner {
                 node.setMeshPosition(to.x, to.y, to.z);
                 if (shrinks) {
                     // Picked at its whole size, not shrunk into its cloud.
-                    node.mesh.scaling?.setAll(mover.scale);
+                    node.drawnScale = mover.scale;
                 }
 
                 // Forced: between two frames Babylon keeps the world matrix of the last frame
                 // drawn, so a pick would still see the node where it is drawn.
-                node.mesh.computeWorldMatrix(true);
+                node.drawnWorldMatrix(true);
                 moved.push([node, mover]);
             }
         }
@@ -550,10 +548,10 @@ export class LayoutTransitionRunner {
                 const { drawn } = mover;
                 node.setMeshPosition(drawn.x, drawn.y, drawn.z);
                 if (shrinks) {
-                    node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
+                    node.drawnScale = this.hold === undefined ? drawnScale(mover) : mover.scale;
                 }
 
-                node.mesh.computeWorldMatrix(true);
+                node.drawnWorldMatrix(true);
             }
         }
     }
@@ -562,7 +560,7 @@ export class LayoutTransitionRunner {
     end(): void {
         if (this.state?.transition.descriptor.drawable === "particles") {
             for (const [node, mover] of this.state.movers) {
-                node.mesh.scaling?.setAll(mover.scale);
+                node.drawnScale = mover.scale;
             }
         }
 

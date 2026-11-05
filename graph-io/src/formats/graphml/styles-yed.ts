@@ -250,6 +250,8 @@ export interface YedOutline {
     readonly shape: string;
     /** The polygon's corners as neutral `shapePoints` (`x,y` fractions of the half sizes, y up). */
     readonly points?: string;
+    /** Its corners at a node's width, where they do not scale with it. */
+    readonly pointsAt?: (width: number) => string;
     /** A rounded box's corner radius; `pill` rounds its short sides into half circles. */
     readonly cornerRadius?: number | "pill";
     /** The width over the height of the shape, drawn as large as fits in the middle of the node's box. */
@@ -264,6 +266,8 @@ export interface YedOutline {
     readonly darker?: boolean;
     /** Whether yEd raises it, with Java's `fill3DRect`: light and dark strips of 1 px along its edge. */
     readonly raised?: boolean;
+    /** Whether yEd paints it as a bevel (`putBevelPaint`), its line this far in (`putBevelLine`). */
+    readonly bevelInset?: number;
 }
 
 /**
@@ -330,6 +334,22 @@ function curvePoints(from: [number, number], control: [number, number], to: [num
     });
 }
 
+/**
+ * yEd's display at a width: its curves keep their length whatever the node's width, 18 along the left side's and 4.5
+ * round the right's, on a node 48 wide (gml-specimen-node-shapes-p3) as on one 56 wide.
+ * @param width - the node's width
+ * @returns the outline's points
+ */
+function displayPoints(width: number): string {
+    const unit = 2 / width;
+    const [left, right] = [-1 + 18 * unit, 1 - 4.5 * unit];
+    return [
+        ...curvePoints([-1, 0], [-1 + 4.5 * unit, -0.75], [left, -1]),
+        ...curvePoints([right, -1], [1 + 4.5 * unit, 0], [right, 1]),
+        ...curvePoints([left, 1], [-1 + 4.5 * unit, 0.75], [-1, 0]),
+    ].join(" ");
+}
+
 /** A cloud: a circle of bumps, stretched to the box. */
 const CLOUD = Array.from({ length: 72 }, (_, i) => {
     const t = (2 * Math.PI * i) / 72;
@@ -341,8 +361,8 @@ const CLOUD = Array.from({ length: 72 }, (_, i) => {
 const YED_RIGHT_BULGE = curvePoints([0.84, -1], [1.16, 0], [0.84, 1]);
 
 /** yEd's old bevel nodes: boxes with corners of 3, or of 10 for the second and third. */
-const BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 3 };
-const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10 };
+const BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 3, bevelInset: 2 };
+const ROUND_BEVEL: YedOutline = { shape: "round-rectangle", cornerRadius: 10, bevelInset: 2 };
 
 /**
  * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
@@ -385,17 +405,7 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
         },
     ],
     ["flowchart.delay", { shape: "polygon", points: ["-1,-1", ...YED_RIGHT_BULGE, "-1,1"].join(" ") }],
-    [
-        "flowchart.display",
-        {
-            shape: "polygon",
-            points: [
-                ...curvePoints([-1, 0], [-0.84, -0.75], [-0.36, -1]),
-                ...YED_RIGHT_BULGE,
-                ...curvePoints([-0.36, 1], [-0.84, 0.75], [-1, 0]),
-            ].join(" "),
-        },
-    ],
+    ["flowchart.display", { shape: "polygon", points: displayPoints(56), pointsAt: displayPoints }],
     [
         "flowchart.storeddata",
         {
@@ -611,7 +621,7 @@ export function typeOutline(type: unknown, unknown: string): YedOutline | null {
 export function putOutline(outline: YedOutline, width: number | null, height: number | null, put: PutValue): void {
     const { aspect, cornerRadius } = outline;
     put("shape", outline.shape);
-    put("shapePoints", outline.points ?? null);
+    put("shapePoints", (width === null ? undefined : outline.pointsAt?.(width)) ?? outline.points ?? null);
     put("shapeLines", outline.lines ?? null);
     put("borderWidth", outline.borderWidth ?? null);
     put("fillOpacity", outline.hollow === true ? 0 : null);
@@ -1253,6 +1263,11 @@ function readPicture(real: Realizer, resources: ReadonlyMap<string, string>, put
     put("image", src);
     put("imageFit", "fill");
     put("imageClip", "none");
+    // yEd draws an image node's picture and nothing else, whatever fill and border the file keeps for it
+    if (real.type === "ImageNode") {
+        put("fillOpacity", 0);
+        put("borderWidth", 0);
+    }
 }
 
 /**
@@ -1311,6 +1326,82 @@ export function putRaisedBorder(fill: string | null, put: PutValue): void {
 }
 
 /**
+ * A color a share of the way to white.
+ * @param hex - the `#rrggbb` color
+ * @param share - how far, 0 to 1
+ * @returns the lighter color
+ */
+function towardWhite(hex: string, share: number): string {
+    return hexOf(channelsOf(hex).map((c) => Math.round(c + (255 - c) * share)));
+}
+
+/**
+ * Writes the paint of yFiles' bevel, which yEd's BevelNode family and yEd Live's BevelNodeStyle share: its upper half
+ * a ramp from three quarters of the way to white down to a fifth of the way, its lower half flat in its color
+ * (`yed-graphml-specimen-node-shapes-p2`, `yed-live-graphml-specimen-node-shapes-p2`).
+ * @param color - the `#rrggbb` color
+ * @param put - receives the values
+ */
+export function putBevelPaint(color: string, put: PutValue): void {
+    put("fillGradientColors", `${towardWhite(color, 0.75)} ${towardWhite(color, 0.2)} ${color} ${color}`);
+    put("fillGradientStops", "0 0.5 0.5 1");
+    put("fillGradientAngle", 90);
+}
+
+/**
+ * Writes the line a bevel draws inside its edge, in the node's border color, in place of a border: a box `inset` in
+ * from the node's, its corners `radius` less that. yFiles draws it over a wider, lighter line that is not drawn here.
+ * @param radius - the node's corner radius
+ * @param inset - how far in the line runs
+ * @param put - receives the values
+ */
+export function putBevelLine(radius: number, inset: number, put: PutValue): void {
+    const r = Math.max(0, radius - inset);
+    const steps = r > 0 ? 4 : 0;
+    const side = (sign: number, d: number): string => `${String(sign)}${sign < 0 ? "+" : "-"}${d.toFixed(3)}`;
+    const corners = [
+        [-1, 1],
+        [1, 1],
+        [1, -1],
+        [-1, -1],
+    ].flatMap(([sx, sy], corner) =>
+        Array.from({ length: steps + 1 }, (_, i) => {
+            // the corners of the top right and bottom left run from the top or bottom side to the other
+            const a = ((corner % 2 === 0 ? i : steps - i) / (steps || 1)) * (Math.PI / 2);
+            const [dx, dy] = [inset + r * (1 - Math.cos(a)), inset + r * (1 - Math.sin(a))];
+            return `${side(sx, dx)},${side(sy, dy)}`;
+        }),
+    );
+    put("borderWidth", 0);
+    put("shapeLineWidth", 1);
+    put("shapeLines", [...corners, corners[0]].join(" "));
+}
+
+/**
+ * Writes the paint of yFiles' PanelNodeStyle: a ramp down from three quarters of the way to white into its color, and a
+ * line of 1 in its color at 0.8. yFiles runs that line into the color from top left to bottom right; it is drawn flat.
+ * @param color - the `#rrggbb` color
+ * @param put - receives the values
+ */
+export function putPanelPaint(color: string, put: PutValue): void {
+    put("fill", towardWhite(color, 0.75));
+    put("fillGradient", color);
+    put("fillGradientAngle", 90);
+    put("borderColor", hexOf(channelsOf(color).map((c) => Math.round(c * 0.8))));
+    put("borderWidth", 1);
+}
+
+/**
+ * Whether a border's color has no alpha at all (`#FFFFFF00`, graphml-stm32-func), which yEd draws as no line.
+ * @param raw - the color
+ * @param at - the sites
+ * @returns true for a fully transparent color
+ */
+function seeThrough(raw: unknown, at: SiteOf): boolean {
+    return canonColor(raw, "yed", at("borderColor"))?.alpha === 0;
+}
+
+/**
  * Reads one node realizer.
  * @param real - the realizer
  * @param put - receives the values
@@ -1322,7 +1413,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     readFill(real, put, at);
     const border = treeChild(r, "BorderStyle");
     if (border !== undefined) {
-        if (treeAttr(border, "hasColor") === "false") {
+        if (treeAttr(border, "hasColor") === "false" || seeThrough(treeAttr(border, "color"), at)) {
             put("borderWidth", 0);
         } else {
             readColor(treeAttr(border, "color"), "borderColor", null, put, at);
@@ -1348,6 +1439,12 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     }
     if (outline?.raised === true || treeAttr(treeChild(r, "UML"), "use3DEffect") === "true") {
         putRaisedBorder(unfilled(fill) ? null : color, put);
+    }
+    if (outline?.bevelInset !== undefined) {
+        if (color !== null && !unfilled(fill)) {
+            putBevelPaint(color, put);
+        }
+        putBevelLine(Number(outline.cornerRadius), outline.bevelInset, put);
     }
     if (real.type === "TableNode") {
         readTable(real, put, at);

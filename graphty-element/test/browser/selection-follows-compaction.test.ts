@@ -54,6 +54,7 @@ describe("the selection of a rendered graph across a compacting freeze", () => {
         );
 
         assert.isAbove(manager.nodeVersion, before);
+        graph.dispose();
     });
 
     test("keeps a selected edge whose row moved when the nodes before it went", async () => {

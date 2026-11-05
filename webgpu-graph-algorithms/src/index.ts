@@ -140,6 +140,7 @@ export type {
     DeviceCheck,
     DeviceCheckMismatch,
     GpuCaps,
+    FromOptions,
     GpuContextOptions,
     LimitPolicy,
     PlanCaps,

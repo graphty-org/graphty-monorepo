@@ -334,7 +334,7 @@ async function cosmosAdapter({ dpr }) {
 }
 
 // ---------------------------------------------------------------- graphty-element
-async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }) {
+async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath, renderer }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
     const el = document.createElement("graphty-element");
@@ -346,6 +346,7 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
             throw new Error(`renderPath "${renderPath}" requested, but this build has no renderPath option`);
         el.renderPath = renderPath;
     }
+    if (renderer) el.renderer = renderer;
     el.layout = "fixed";
     el.viewMode = mode === "lean" ? "2d" : "3d";
     el.acceleration = accel === "off" ? "off" : "auto";

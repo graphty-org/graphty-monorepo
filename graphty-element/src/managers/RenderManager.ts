@@ -184,16 +184,22 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * renderer once a frame has been drawn.
  * @param canvas - A canvas that has no context yet; a canvas holding a WebGL context cannot give
  *     out a WebGPU one.
+ * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
+ *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @returns The initialised engine, or the reason there is none.
  */
-export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<RecoveringWebGPUEngine | string> {
+export async function openWebGPUEngine(
+    canvas: HTMLCanvasElement,
+    sharesDevice: (adapter: unknown) => boolean = () => false,
+): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
 
     // Asked first, and apart from the engine: an engine that fails to open is half built, and it
     // has already registered itself as Babylon's last created engine.
-    if ((await navigator.gpu.requestAdapter()) === null) {
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    if (adapter === null || adapter === undefined) {
         return "this browser has WebGPU but no adapter (navigator.gpu.requestAdapter() returned null)";
     }
 
@@ -212,7 +218,12 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<Recov
         );
     }
 
-    const engine = new RecoveringWebGPUEngine(canvas, { antialias: true });
+    const shared = sharesDevice(adapter);
+    const engine = new RecoveringWebGPUEngine(canvas, {
+        antialias: true,
+        ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
+    });
+    engine.sharesDevice = shared;
     try {
         // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
         // is given, though its type and its docs ask for the instance itself.

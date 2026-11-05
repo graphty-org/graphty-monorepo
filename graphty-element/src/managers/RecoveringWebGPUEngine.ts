@@ -12,10 +12,28 @@ import { Mesh, WebGPUEngine } from "@babylonjs/core";
 export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Told when no new device could be had, so nothing will be drawn again. */
     onRestoreFailed: ((error: unknown) => void) | null = null;
+    /** Whether this engine's device was opened to be shared with the layout's accelerator. */
+    sharesDevice = false;
     /** True from a loss until the new device is ready: Babylon's own rebuild is skipped meanwhile. */
     private awaitingDevice = false;
     /** Counts losses, so a device lost while it opens leaves the rebuild to the later loss. */
     private losses = 0;
+    /** Those told of the new device by {@link drawingDevice}. */
+    private readonly waiting: { resolve: (device: GPUDevice) => void; reject: (error: unknown) => void }[] = [];
+
+    /**
+     * The device drawn on, waiting for the new one during a loss. The wait is already set when a
+     * consumer of the same device hears of the loss: Babylon's `device.lost` handler was attached
+     * when the device opened, before anyone could be handed it, so it runs first.
+     * @returns The device.
+     */
+    drawingDevice(): Promise<GPUDevice> {
+        return this.awaitingDevice
+            ? new Promise((resolve, reject) => {
+                  this.waiting.push({ resolve, reject });
+              })
+            : Promise.resolve(this._device);
+    }
 
     protected override _restoreEngineAfterContextLost(initEngine: () => void): void {
         this.awaitingDevice = true;
@@ -34,6 +52,9 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
                 (error: unknown) => {
                     if (loss === this.losses && !this.isDisposed) {
                         this.onRestoreFailed?.(error);
+                        for (const { reject } of this.waiting.splice(0)) {
+                            reject(error);
+                        }
                     }
                 },
             );
@@ -86,6 +107,9 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
         this._rebuildGraphicsResources();
         this._flagContextRestored();
         this.tellCanvas("webglcontextrestored");
+        for (const { resolve } of this.waiting.splice(0)) {
+            resolve(this._device);
+        }
     }
 
     /**

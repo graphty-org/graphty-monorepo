@@ -216,17 +216,30 @@ last landing's CPU measurement, as a uniform. A landing costs 0.8 ms median agai
 Rules of sharing:
 
 - Decide before the engine opens and pass `setMaximumLimits`, `enableAllFeatures`, `high-performance`; the factory waits for the engine.
+  The decision is a registration's `sharesDevice(adapter)`, asked by `openWebGPUEngine`; the device reaches the factory as
+  `AcceleratorFactoryOptions.device`. The element's core cannot tell a software adapter, so that test sits with the peer in `webgpu.ts`.
+  An adopted device takes the caps a device of the accelerator's own would have (`captureCaps` on `device.adapterInfo`), so the same
+  kernels are chosen.
+  `enableAllFeatures` brings `timestamp-query` to the engine, and with it Babylon's frame timing, which `StatsManager` turned on: every
+  `mapAsync` on the device then went unanswered, the layout's readback first, on SwiftShader and on the RTX. Why is not known; a
+  bisection of the features named `timestamp-query`, and no frame timing cleared it on SwiftShader. `StatsManager` no longer asks for it on
+  WebGPU, where it measured nothing before.
 - **A software adapter never shares**: it reports `layoutDevice: "separate"`, decided before the run.
-- `GpuContext.from` skips the `uncapturederror` sink through an additive option, `{ errorSink: false }`; with the sink one Babylon
+- `GpuContext.from` skips the `uncapturederror` sink through an additive third argument, `{ errorSink: false }`; with the sink one Babylon
   validation error fails the layout's next step.
 - Scopes pop synchronously after submit; **a landing waits for its batch's scope result and rejects on error**, or a bad batch lands and
-  the table parts from the lane.
+  the table parts from the lane. The scope holds `encoder.finish` and `queue.submit` only, because the commands before them are recorded
+  across awaits a frame could fall into. A bad bind group is still caught there, at the `finish` of the pass that used it; its first
+  report, at `createBindGroup`, goes to the renderer's log with the renderer's errors.
 - **Recovery decides from `ctx.state`, never the error code** (a step reports `E_DEVICE_LOST`, then `E_DISPOSED`), and **never starts from
-  `onContextRestoredObservable`**. It starts when stage 39's engine has the new device (0.2 s after a destroy, 2.1 s after a crash).
+  `onContextRestoredObservable`**. It starts when stage 39's engine has the new device (0.2 s after a destroy, 2.1 s after a crash):
+  the controller's build awaits `RecoveringWebGPUEngine.drawingDevice()`. The engine hears of a loss first, because Babylon attaches its
+  `device.lost` handler while the device opens, before anyone can be handed it.
 - On the new device rebuild the ring, bind groups, simulation and texture handle, refill the table from the lane, and `ctx.release` the old
   snapshot.
 - **A stale landing skips the copy** (a batch in flight across a reload).
-- The controller disposes before the engine.
+- The controller disposes before the engine: it is a lifecycle manager of its own, disposed after the layout and before the data and the
+  render managers.
 
 **Frames and iterations.** A frame target is p99 on an unloaded card: with no layout at all, 5 of 8 runs at 100,000 rows showed p95 of 74-90
 ms against a p50 of 9-10 ms, while other sessions used the machine. Iterations per batch stay 1 up to 250,000 rows

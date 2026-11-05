@@ -1,12 +1,15 @@
 import {
     AbstractMesh,
     type BaseTexture,
+    type BoundingBox,
     Camera,
     Color3,
     Color4,
     InstancedMesh,
+    type Matrix,
     Mesh,
     MeshBuilder,
+    type Plane,
     type Scene,
     StandardMaterial,
     TransformNode,
@@ -1261,6 +1264,93 @@ export class Node implements ModelUser {
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
         this.syncOverlayPositions();
+    }
+
+    /**
+     * Where the node is drawn, in graph-root's space: live, so read it and never write it
+     * ({@link Node.setMeshPosition} is the only way to move a node). Code outside this class reads
+     * this and the other `drawn*` members, never `mesh`: the `local/node-mesh-funnel` lint rule
+     * reports any other read, so a node can later be drawn with no mesh of its own.
+     * @returns The position.
+     * @internal
+     */
+    get drawnPosition(): Readonly<Vector3> {
+        return this.mesh.position;
+    }
+
+    /**
+     * Where the node is drawn, in world space.
+     * @returns The position.
+     * @internal
+     */
+    get drawnWorldPosition(): Vector3 {
+        return this.mesh.getAbsolutePosition();
+    }
+
+    /**
+     * The matrix that places the node in world space.
+     * @param force - Recompute it even if Babylon already did this frame.
+     * @returns The matrix.
+     * @internal
+     */
+    drawnWorldMatrix(force?: boolean): Matrix {
+        return this.mesh.computeWorldMatrix(force);
+    }
+
+    /**
+     * The mesh that draws this node: the source of its instance, or its own when it is not one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnSourceMesh(): AbstractMesh {
+        const { mesh } = this;
+        return "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+    }
+
+    /**
+     * The box the node is drawn in.
+     * @returns The box.
+     * @internal
+     */
+    get drawnBoundingBox(): BoundingBox {
+        return this.mesh.getBoundingInfo().boundingBox;
+    }
+
+    /**
+     * The node's scale in world space.
+     * @returns The scale on each axis.
+     * @internal
+     */
+    get drawnWorldScaling(): Vector3 {
+        return this.mesh.absoluteScaling;
+    }
+
+    /**
+     * The scene the node is drawn in.
+     * @returns The scene.
+     * @internal
+     */
+    get drawnScene(): Scene {
+        return this.mesh.getScene();
+    }
+
+    /**
+     * Whether the node is inside a view.
+     * @param planes - The view's frustum planes.
+     * @returns True when any of it is inside.
+     * @internal
+     */
+    isDrawnInFrustum(planes: Plane[]): boolean {
+        return this.mesh.isInFrustum(planes);
+    }
+
+    /**
+     * The mesh a graph teardown disposes for this node, with its children.
+     * @returns The mesh.
+     * @internal
+     */
+    get teardownMesh(): AbstractMesh {
+        return this.mesh;
     }
 
     /**

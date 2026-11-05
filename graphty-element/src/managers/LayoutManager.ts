@@ -2543,7 +2543,7 @@ export class LayoutManager implements Manager {
         plane.computeWorldMatrix(true);
         const { minimumWorld: lo, maximumWorld: hi } = plane.getBoundingInfo().boundingBox;
         const words = label.textBounds;
-        const origin = node.mesh.getAbsolutePosition();
+        const origin = node.drawnWorldPosition;
         // the words' fractions run across from the plane's left and down from its top; y runs up
         const w = hi.x - lo.x;
         const h = hi.y - lo.y;

@@ -1255,7 +1255,7 @@ export function SelectionEditor({
                     {!ws && !editing && (
                         <Button
                             size="compact-xs"
-                            variant="subtle"
+                            variant="default"
                             data-edit=""
                             aria-label={`Edit ${name}`}
                             onClick={() => {

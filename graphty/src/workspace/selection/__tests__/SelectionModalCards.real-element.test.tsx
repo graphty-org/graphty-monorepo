@@ -530,3 +530,29 @@ describe("long names in the selection modal (the owner, 2026-11-04)", () => {
         assert.isAbove(text?.scrollWidth ?? 0, text?.clientWidth ?? 0, "the name is cut with an ellipsis");
     });
 });
+
+describe("a style layer's scope at the top of its panel (the owner, 2026-11-04)", () => {
+    it("a new layer shows Edit on Which nodes and Which edges with no hover, and each opens the modal", async () => {
+        await openLayer();
+        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+        await screen.findByRole("textbox", { name: "Layer name" });
+        await userEvent.keyboard("{Escape}");
+        const tab = await screen.findByTestId("style-tab");
+        for (const [side, word] of [
+            ["Node", "nodes"],
+            ["Edge", "edges"],
+        ]) {
+            await userEvent.click(within(tab).getByRole("tab", { name: new RegExp(`^${side}`) }));
+            const edit = await within(tab).findByRole("button", { name: `Edit Which ${word}` });
+            assert.strictEqual(getComputedStyle(edit).opacity, "1", `Edit on Which ${word} is drawn at rest`);
+            assert.isAbove(edit.getBoundingClientRect().width, 0);
+            await userEvent.click(edit);
+            const modal = await screen.findByRole("dialog", { name: new RegExp(`Which ${word}`) });
+            await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+            await waitFor(() => {
+                assert.isNull(document.querySelector(".sel-ws"));
+            });
+        }
+    });
+});

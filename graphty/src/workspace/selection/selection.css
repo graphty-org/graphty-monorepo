@@ -451,29 +451,10 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
     flex: 1 1 auto;
 }
 
-/* The sidebar title row's Edit is drawn on hover or focus, over the row's end, so the name keeps
-   the row's width at rest (the row itself opens the workspace too). */
-.sel-rest .sel-title-row {
-    position: relative;
-}
-
-.sel-rest .sel-title-row [data-edit] {
-    position: absolute;
-    inset-inline-end: 4px;
-    background: var(--cm-bg);
-    opacity: 0;
-}
-
-.sel-rest .sel-title-row:hover [data-edit],
-.sel-rest .sel-title-row:focus-within [data-edit],
-.sel-rest .sel-title-row [data-edit]:focus-visible {
-    opacity: 1;
-}
-
-/* Edit takes the count's place, never half of it: the count goes while Edit is drawn. */
-.sel-rest .sel-title-row:hover .sel-count,
-.sel-rest .sel-title-row:focus-within .sel-count {
-    visibility: hidden;
+/* The sidebar title row's Edit is always drawn: it is how a reader finds a layer's selection, as the
+   approved design has it. The title takes the row's width, so Edit and any count sit at its end. */
+.sel-rest .sel-title-row .sel-title {
+    flex: 1 1 0;
 }
 
 .sel-ws-strip {

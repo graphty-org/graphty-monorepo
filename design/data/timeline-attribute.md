@@ -588,8 +588,8 @@ filter change recomputes (1) and then visible in full, as today.
 endpoints. With node time, hiding a node re-tests all its incident edges, so the cost is the sum
 of the degrees of the changed nodes, which on hubs and bursty data approaches m. The step
 therefore estimates its work as changed edges plus the summed degree of changed nodes (degrees are
-in the snapshot's CSR offsets) and falls back to a full evaluation when that exceeds about
-(n + m) / 8.
+in the snapshot's CSR offsets) and rewrites both masks in flat loops when that exceeds about
+(n + m) / 4.
 
 **Interval index (phase 4).** A start index with the maximum duration as a bound: a window
 `[from, to)` takes starts in `[from - maxDuration, to)` and tests their ends. A jump

@@ -196,6 +196,8 @@ export class D3GraphEngine extends LayoutEngine {
     /** The many-body force, kept so a group following its members can be given no charge. */
     private readonly chargeForce = forceManyBody();
     edgeMapping = new Map<Edge, D3Edge>();
+    /** The mapping's edges as an array, rebuilt after the mapping changes. See {@link edges}. */
+    private edgeList: Edge[] | null = null;
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
@@ -315,6 +317,7 @@ export class D3GraphEngine extends LayoutEngine {
 
                 this.edgeMapping.set(e, d3edge);
             }
+            this.edgeList = null;
             this.newEdgeMap.clear();
 
             // Clear reheat flag so we don't keep reheating every tick
@@ -537,11 +540,16 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
-     * Get all edges in the simulation
-     * @returns Iterable of edges
+     * Get all edges in the simulation.
+     *
+     * An array, because an edge joins the simulation at a `refresh`, after the store told it. The
+     * frame loop sees that only by the array's length, and an edge it missed would stay unplaced
+     * for as long as its nodes held still.
+     * @returns The edges
      */
     get edges(): Iterable<Edge> {
-        return this.edgeMapping.keys();
+        this.edgeList ??= [...this.edgeMapping.keys()];
+        return this.edgeList;
     }
 
     /**
@@ -716,6 +724,7 @@ export class D3GraphEngine extends LayoutEngine {
      */
     override removeEdge(e: Edge): void {
         this.edgeMapping.delete(e);
+        this.edgeList = null;
         this.newEdgeMap.delete(e);
         this.edgesByNode.get(e.srcId)?.delete(e);
         this.edgesByNode.get(e.dstId)?.delete(e);

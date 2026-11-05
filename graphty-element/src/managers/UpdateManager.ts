@@ -326,6 +326,12 @@ const STYLE_FRAME_BUDGET_MS = 16;
 /** How many nodes are painted between two looks at the clock. */
 const NODE_PAINT_BATCH = 128;
 
+/**
+ * The share of the nodes past which a frame walks every edge rather than finding the moved nodes'
+ * edges one node at a time, a lookup that costs several times one step of the walk.
+ */
+const MOST_MOVED_SHARE = 1 / 16;
+
 /** How many edges are painted between two looks at the clock. */
 const EDGE_PAINT_BATCH = 1024;
 
@@ -2307,6 +2313,9 @@ export class UpdateManager implements Manager {
     /** How many edges the last walk saw, so an added or removed one forces the next. */
     private lastWalkedEdgeCount = -1;
 
+    /** The edge set (`DataManager.edgeVersion`) the last walk saw, for the same reason. */
+    private lastWalkedEdgeVersion = -1;
+
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
@@ -2331,6 +2340,7 @@ export class UpdateManager implements Manager {
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
         const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
+        const everyEdge = walk === true;
         // support points move after their nodes stop, until they come to rest, and their edges with them
         const bowed =
             !this.dataManager.drawHeld &&
@@ -2338,16 +2348,19 @@ export class UpdateManager implements Manager {
                 () => Array.from(this.layoutManager.nodes, (node) => node.drawnPosition),
                 this.layoutManager.edges,
                 (edge) => edge.supportEdge(),
-                walk,
+                // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
+                // need not read every edge to ask.
+                everyEdge || (walk !== false && this.dataManager.supportPoints.hasEdges),
             );
         this.sceneChanged ||= bowed;
-        if (walk || bowed) {
+        if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             for (const edge of this.layoutManager.edges) {
                 edge.update();
             }
         } else {
+            this.updateEdgesOf(walk === false ? [] : walk);
             for (const edge of this.edgesToPlace) {
                 edge.update();
             }
@@ -2359,7 +2372,20 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether this frame has to visit every edge at all.
+     * Update the edges at some nodes. An edge between two of them is visited twice; the second
+     * visit finds it placed.
+     * @param nodes - The nodes.
+     */
+    private updateEdgesOf(nodes: readonly Node[]): void {
+        for (const node of nodes) {
+            for (const id of this.dataManager.incidentEdgeIds(node)) {
+                this.dataManager.edges.get(id)?.update();
+            }
+        }
+    }
+
+    /**
+     * Which edges this frame has to visit.
      *
      * WHY THIS EXISTS. An edge that has not moved decides so in a few field reads, but the graph
      * is walked whether or not anything moved, and at the declared ceiling that walk is a million
@@ -2374,9 +2400,14 @@ export class UpdateManager implements Manager {
      * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
      * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
      * million, and ten edges per node is the shape of every graph this is about.
-     * @returns True when at least one endpoint may have moved, or the graph itself has changed.
+     *
+     * WHY MOVED NODES ARE NAMED. An edge left alone by a frame is one neither of whose ends moved,
+     * and `Edge.update` would do nothing for it, so a drag visits the dragged node's edges and not
+     * the million others (see {@link nodesMoved}).
+     * @returns True for every edge, when the graph itself has changed or most of it moved; the
+     *     nodes whose edges are to be visited when only those moved; false for none.
      */
-    private edgesNeedWalking(): boolean {
+    private edgesNeedWalking(): boolean | readonly Node[] {
         if (this.edgeWalkForced) {
             this.edgeWalkForced = false;
             this.lastWalkedEdgeCount = -1;
@@ -2386,45 +2417,53 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
-        // be the million-edge walk this method exists to avoid. A layout engine that hands back
-        // something that is not an array cannot be counted cheaply, so it always walks.
+        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // added, which leave a count alone. An engine's array is counted as well, for an engine
+        // that takes an edge up after the store told it: read off the array's own length, since
+        // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
+        // engine that hands back an iterator has to hold every edge the moment it is told.
         const { edges } = this.layoutManager;
         const edgeCount = Array.isArray(edges) ? edges.length : -1;
+        const { edgeVersion } = this.dataManager;
 
-        if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
+        if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
             this.lastWalkedEdgeCount = edgeCount;
+            this.lastWalkedEdgeVersion = edgeVersion;
             this.sceneChanged = true;
 
             return true;
         }
 
-        if (this.anyNodeMoved()) {
-            this.sceneChanged = true;
+        const moved = this.nodesMoved();
 
-            return true;
+        if (moved !== false) {
+            this.sceneChanged = true;
         }
 
-        return false;
+        return moved;
     }
 
     /**
-     * Whether any node's mesh sits somewhere other than where it sat at the last edge walk.
+     * Which nodes' meshes sit somewhere other than where they sat at the last edge walk.
      *
      * The positions are kept in one typed array rather than a vector per node, so the scan is a
      * linear read of three floats against three floats and allocates nothing. A node whose index
-     * is past the end of the array has never been seen, which counts as moved and grows the array.
-     * @returns True when at least one node has moved.
+     * is past the end of the array has never been seen, which grows the array.
+     * @returns The nodes that moved; true when one was never seen, or so many moved that walking
+     *     every edge is cheaper than finding theirs; false when none did.
      */
-    private anyNodeMoved(): boolean {
-        let moved = false;
+    private nodesMoved(): boolean | readonly Node[] {
+        const moved: Node[] = [];
+        let unseen = false;
+        let nodeCount = 0;
         let highest = -1;
 
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
+            nodeCount++;
 
             if (index === INVALID_INDEX) {
-                moved = true;
+                unseen = true;
                 continue;
             }
 
@@ -2435,7 +2474,7 @@ export class UpdateManager implements Manager {
             const at = index * 3;
 
             if (at + 2 >= this.lastNodePositions.length) {
-                moved = true;
+                unseen = true;
                 continue;
             }
 
@@ -2446,14 +2485,30 @@ export class UpdateManager implements Manager {
                 this.lastNodePositions[at + 1] !== position.y ||
                 this.lastNodePositions[at + 2] !== position.z
             ) {
-                moved = true;
+                this.lastNodePositions[at] = position.x;
+                this.lastNodePositions[at + 1] = position.y;
+                this.lastNodePositions[at + 2] = position.z;
+                moved.push(node);
             }
         }
 
-        if (!moved) {
+        if (unseen) {
+            this.noteEveryNode(highest);
+            return true;
+        }
+
+        if (moved.length === 0) {
             return false;
         }
 
+        return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Note where every node sits, making room for nodes never seen.
+     * @param highest - The highest node index.
+     */
+    private noteEveryNode(highest: number): void {
         if ((highest + 1) * 3 > this.lastNodePositions.length) {
             const grown = new Float64Array(Math.max((highest + 1) * 3, this.lastNodePositions.length * 2, 96));
             grown.set(this.lastNodePositions);
@@ -2474,8 +2529,6 @@ export class UpdateManager implements Manager {
             this.lastNodePositions[at + 1] = position.y;
             this.lastNodePositions[at + 2] = position.z;
         }
-
-        return true;
     }
 
     /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
@@ -2797,7 +2850,7 @@ export class UpdateManager implements Manager {
      * appears stuck, one that is hidden stays on screen, one that is added never appears, and one
      * that the camera turns towards is missing because it was culled when the list was taken. So
      * everything that can change any of those has to say so, and this method trusts nothing it was
-     * not told -- except movement, which it reads off the nodes themselves in `anyNodeMoved`, and
+     * not told -- except movement, which it reads off the nodes themselves in `nodesMoved`, and
      * the camera, which it reads here. The frame is drawn AFTER this runs, so an unfreeze decided
      * here takes effect on the same frame that needed it.
      */

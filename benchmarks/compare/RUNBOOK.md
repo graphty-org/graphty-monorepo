@@ -117,8 +117,8 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 ## What a row holds
 
 `results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `floor` (the
-cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `memory`, `hover`,
-`layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, and `stepUndrawn`, the step with the frame loop stopped), and `failure` when it ended early. The order of the stages is fixed: still, moving,
+cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
+`layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, and `stepUndrawn`, the step with the frame loop stopped), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
 memory, hover, layout. Hover comes before the layout so both libraries hover the same scene.
 
 Screenshots of the last run of each configuration are in `../results/<label>/shots/`, which git ignores.

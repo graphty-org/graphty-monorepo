@@ -53,6 +53,24 @@ numbers from 1000 to 2999 are years, epochs are seconds or milliseconds, and any
 plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that read as time, and
 `time.notices()` reports values that did not.
 
+Before a load, a draft says which columns look like time, and applies nothing. A column looks like
+time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,
+`timestamp`, `year`, `start`, `end`, `created`, `sent`) and every sampled number fits an epoch or a
+calendar year.
+
+```js
+const draft = await g.session.data.prepare(source);
+const found = draft.findings.find((f) => f.code === "time.found");
+if (found) {
+    console.log(found.params.column, found.params.from, found.params.to);
+    await draft.load({ mapping: { tables: { [found.params.table]: { time: found.params.column } } } });
+}
+```
+
+`from` and `to` are epoch milliseconds. Each such column also has `looksLike: "time"` in
+`draft.tables`. A column the element already gave a role is not reported, and a load with no `time`
+role designates nothing.
+
 ## Reading the data's time
 
 After `await time.ready`, these answer at once:

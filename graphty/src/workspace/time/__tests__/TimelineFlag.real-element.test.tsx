@@ -281,7 +281,7 @@ describe("the timeline's switch in the app", () => {
 
     it("offers the time role on the Data page with the experiment on", async () => {
         await siteFeatures(["timeline"]);
-        assert.include(await loadRoles(), "Date or time");
+        assert.include(await loadRoles(), "Date or time (suggested)");
     });
 
     it("offers nothing that works the timeline over a project's time field with the experiment off", async () => {

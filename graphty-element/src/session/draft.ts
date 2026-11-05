@@ -25,7 +25,9 @@ import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join"
 import { historyMark } from "./loadLine";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
+import type { CodedFact } from "./shared";
 import { HELD_READERS } from "./styles/fileStyles/apply";
+import { looksLikeTime, readInstant } from "./time/parse";
 import type {
     ColumnRole,
     DraftColumn,
@@ -864,6 +866,7 @@ export class Draft implements LoadDraft {
     readonly mapping: LoadMappingRead;
     readonly graphtyDocument?: "project" | "document";
     readonly styles: LoadDraft["styles"];
+    readonly findings: LoadDraft["findings"];
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
@@ -903,9 +906,12 @@ export class Draft implements LoadDraft {
 
         const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
         this.mapping = Object.freeze({ tables: Object.freeze(tables) });
+        const findings: CodedFact<"time.found">[] = [];
         this.tables = Object.freeze(
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
+                const found = host.timeline() ? timeFindings(held, roles) : [];
+                findings.push(...found);
                 const own = this.mapping.tables[held.table.id];
                 const weightCandidate = weightCandidateOf(
                     held,
@@ -917,12 +923,19 @@ export class Draft implements LoadDraft {
                     columns: Object.freeze(
                         held.table.columns.map((column) => {
                             const suggested = roles.get(column.name);
-                            return Object.freeze(suggested === undefined ? column : { ...column, suggested });
+                            return Object.freeze({
+                                ...column,
+                                ...(suggested === undefined ? {} : { suggested }),
+                                ...(found.some((fact) => fact.params.column === column.name)
+                                    ? { looksLike: "time" as const }
+                                    : {}),
+                            });
                         }),
                     ),
                 });
             }),
         );
+        this.findings = Object.freeze(findings);
     }
 
     /**
@@ -1479,6 +1492,42 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
     set("edgeId", roles.edgeId);
     set("kind", roles.kind);
     return out;
+}
+
+/**
+ * The columns of a table that look like time, with the span of their values. A column the element
+ * already gave a role is not offered as anything else.
+ * @param held - The table.
+ * @param roles - The role of each column.
+ * @returns One finding per column; only a look at the sample, and a walk of the rows that pass.
+ */
+function timeFindings(held: HeldTable, roles: ReadonlyMap<string, unknown>): readonly CodedFact<"time.found">[] {
+    const found: CodedFact<"time.found">[] = [];
+    for (const { name, sampleValues } of held.table.columns) {
+        const unit = roles.has(name) ? undefined : looksLikeTime(name, sampleValues);
+        if (unit === undefined) {
+            continue;
+        }
+
+        let from = Infinity;
+        let to = -Infinity;
+        for (const row of held.rows) {
+            const { at } = readInstant(row[name], unit);
+            if (!Number.isNaN(at)) {
+                from = Math.min(from, at);
+                to = Math.max(to, at);
+            }
+        }
+
+        found.push(
+            Object.freeze({
+                code: "time.found",
+                params: Object.freeze({ table: held.table.id, column: name, from, to }),
+            }),
+        );
+    }
+
+    return found;
 }
 
 /**

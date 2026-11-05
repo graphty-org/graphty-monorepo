@@ -1831,6 +1831,15 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
+     * What the element noticed in the file and applied nowhere. `time.found` is one column that
+     * {@link DraftColumn.looksLike} time; `params` holds `table` (the table's id), `column`, and
+     * `from` and `to`, the earliest and latest instant in it as epoch milliseconds. Empty with the
+     * timeline experiment off.
+     * @experimental timeline
+     * @beta
+     */
+    readonly findings: readonly CodedFact<"time.found">[];
+    /**
      * Every table's roles as a load with these choices reads them: the reader's mapping over the
      * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
      * this is where the key, the endpoints and the rest the element now reads are found.
@@ -1958,6 +1967,15 @@ export interface DraftColumn extends Pick<
 > {
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
+    /**
+     * Set when the column has no role and its values look like time, with the timeline experiment
+     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * epoch or a calendar year. It applies nothing: a load designates the column only when the
+     * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
+     * @experimental timeline
+     * @beta
+     */
+    readonly looksLike?: "time";
 }
 
 /**

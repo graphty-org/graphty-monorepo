@@ -8,6 +8,7 @@
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import {
     type ColumnRole,
+    type DraftColumn,
     type DraftTable,
     LOAD_ROLES,
     type LoadChoices,
@@ -106,6 +107,19 @@ export function elementRole(
         return undefined;
     }
     return table.columns.find((each) => each.name === column)?.suggested ?? "attribute";
+}
+
+/**
+ * Whether a column should say it looks like time: graphty-element found it so, and the reader has
+ * not made it the time column yet.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param column - the column.
+ * @param choices - the page's choices.
+ * @returns true when the mark shows.
+ */
+export function timeMarked(draft: LoadDraft, table: DraftTable, column: DraftColumn, choices: PageChoices): boolean {
+    return column.looksLike === "time" && roleOf(draft, table, column.name, choices) !== "time";
 }
 
 /**

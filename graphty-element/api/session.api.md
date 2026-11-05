@@ -767,6 +767,8 @@ export { defineSource }
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+    // @beta
+    readonly looksLike?: "time";
     readonly suggested?: ColumnRole;
 }
 
@@ -3020,6 +3022,8 @@ export interface LoadChoices extends ImportOptions {
 // @public
 export interface LoadDraft {
     dispose(): void;
+    // @beta
+    readonly findings: readonly CodedFact<"time.found">[];
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;

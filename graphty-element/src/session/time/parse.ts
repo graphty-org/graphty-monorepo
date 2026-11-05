@@ -298,6 +298,44 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
     return unitOfTally(tally);
 }
 
+/**
+ * A column name that speaks of time, as whole words: `sent_at` and `startDate` do, `friend` and
+ * `candidate` do not. Run on the name with its camel case split and lowered.
+ */
+const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent)s?(?:$|[^a-z])/; // NOSONAR(S5843): one flat list of words between two word edges
+
+/**
+ * Whether a value is a date on its face, with no help from its column's name: a number written as
+ * text is not, though `2021` is strict ISO 8601.
+ * @param value - The value.
+ * @returns True for a `Date` or strict ISO text.
+ */
+function isStrictDate(value: unknown): boolean {
+    return (
+        value instanceof Date ||
+        (typeof value === "string" && !isNumericText(value) && readInstant(value, "ms").how === "strict")
+    );
+}
+
+/**
+ * How a column reads as time, judged from a sample of its non-empty values: every one is a strict
+ * date, or the column is named for time and every number fits an epoch or a calendar year. Never
+ * from the name alone.
+ * @param name - The column's name.
+ * @param samples - Its sampled values.
+ * @returns The unit its values read in (a date's is `"ms"`, which text ignores), or undefined when
+ *     the column does not look like time.
+ */
+export function looksLikeTime(name: string, samples: readonly unknown[]): TimeUnit | undefined {
+    const unit = inferUnit(samples);
+    if (unit !== undefined) {
+        const named = TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+        return named && unit !== "ordinal" ? unit : undefined;
+    }
+
+    return samples.length > 0 && samples.every(isStrictDate) ? "ms" : undefined;
+}
+
 /** What the present values of a column have looked like so far, for {@link unitOfTally}. */
 export interface UnitTally {
     count: number;

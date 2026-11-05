@@ -70,6 +70,7 @@ import {
     setRowsAre,
     setTimeUnit,
     setWeightMeaning,
+    timeMarked,
     weightHolder,
 } from "./choices";
 import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
@@ -100,6 +101,8 @@ import {
     replaceWords,
     roleWords,
     SEPARATORS,
+    SUGGESTED_TIME,
+    TIMELINE_CANDIDATE,
     tooLargeRefusal,
     UNMATCHED_HINTS,
 } from "./words";
@@ -1026,6 +1029,17 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
 }
 
 /**
+ * A role option as a column that looks like time shows it: Time carries the mark.
+ * @param option - The option.
+ * @param option.value - Its role.
+ * @param option.label - Its words.
+ * @returns The option, marked when it is Time.
+ */
+function markTimeOption(option: { value: string; label: string }): { value: string; label: string } {
+    return option.value === "time" ? { ...option, label: SUGGESTED_TIME } : option;
+}
+
+/**
  * Each column's role (section 2.10, item 4). The grid's header cannot hold a menu, so the roles
  * are listed above it, one per column, in the grid's order.
  * @param props - Component props
@@ -1060,6 +1074,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
                 const current = chosen ?? own ?? "auto";
+                const marked = timeMarked(draft, table, column, page.choices);
                 // A role the file sets is a fact, not a choice: plain words, never a box to open.
                 if (table.fixed) {
                     return (
@@ -1081,7 +1096,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
                                 value={current}
-                                data={options}
+                                data={marked ? options.map(markTimeOption) : options}
                                 allowDeselect={false}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
@@ -1099,6 +1114,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         </Group>
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
+                            {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
                         {timelineOn(session) &&

@@ -369,14 +369,17 @@ export interface TimeApi {
     candidates(): readonly TimeCandidate[];
     /**
      * What the designated field's values held: the same notices `setField` returns, also for a
-     * field designated by an import or an element attribute.
-     * @returns The notices; empty with no field.
+     * field designated by an import or an element attribute. It starts no build it would wait on:
+     * after a load, or over a column of 50,000 rows or more, wait on {@link TimeApi.ready} first.
+     * @returns The notices; empty with no field, and until the index is ready.
      */
     notices(): readonly CodedFact<TimeNoticeCode>[];
     /**
      * Read text as an instant the way the designated field reads its values (a date with no
      * offset reads in the field's `parseZone`; ordinal time reads numbers). A caller showing dates
-     * in another zone passes it, so a date a reader types means what the readout shows.
+     * in another zone passes it, so a date a reader types means what the readout shows. To answer
+     * now it finishes a background build at once, which over a big column holds the thread; during
+     * a load it starts no build, and reads numbers in the unit the field gives or last read in.
      * @param text - Such as `"2025-03-09"`, `"Mar 9, 2025"` or `"1998"`.
      * @param options - The zone to read in instead of `parseZone`.
      * @param options.timeZone - An IANA zone name.
@@ -386,8 +389,9 @@ export interface TimeApi {
     parse(text: string, options?: { readonly timeZone?: string }): number | null;
     /**
      * Resolves once the designated field is indexed, so the facts below answer synchronously. It
-     * waits for a load running, and for the last build when the field or the data changes while one
-     * runs: it never rejects for that. With nothing to build it resolves at once.
+     * waits for a load running, for a {@link TimeApi.setField} running, and for the last build when
+     * the field or the data changes while one runs: it never rejects for that. With nothing to
+     * build it resolves at once.
      */
     readonly ready: Promise<void>;
     /**
@@ -407,7 +411,9 @@ export interface TimeApi {
     bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
     /**
      * The time span of the given elements, half-open, ready to pass to {@link TimeApi.window}. With
-     * `incident`, the edges at the given nodes count too, as in {@link TimeBinsOptions.of}.
+     * `incident`, the edges at the given nodes count too, as in {@link TimeBinsOptions.of}. To
+     * answer now it finishes a background build at once, which over a big column holds the thread.
+     * During a load it starts no build and gives null unless the index is ready.
      * @param of - The elements, such as `session.selection`'s `nodes` and `edges`.
      * @param of.nodes - The nodes.
      * @param of.edges - The edges.
@@ -796,6 +802,88 @@ function withUnit(source: TimeSource | undefined, unit: TimeUnit | undefined): T
 }
 
 /**
+ * Refuse a field whose two kinds name different columns.
+ * @param asked - The sources.
+ * @param asked.nodes - The node source.
+ * @param asked.edges - The edge source.
+ * @throws `E_BAD_COMMAND` with `reason: "time-paths-differ"`.
+ */
+function assertOneColumn(asked: { readonly nodes?: TimeSource; readonly edges?: TimeSource }): void {
+    if (
+        asked.nodes !== undefined &&
+        asked.edges !== undefined &&
+        columnOf(asked.nodes.start) !== columnOf(asked.edges.start)
+    ) {
+        // ponytail: one path for both kinds, because a window reads one attribute; two
+        // paths need a window per kind.
+        throw badCommand("Nodes and edges name the same time column.", {
+            field: "start",
+            reason: "time-paths-differ",
+            nodes: asked.nodes.start,
+            edges: asked.edges.start,
+        });
+    }
+}
+
+/**
+ * Refuse a column declared as something other than time.
+ * @param asked - The sources.
+ * @param asked.nodes - The node source.
+ * @param asked.edges - The edge source.
+ * @param declarations - The declarations, by kind and column.
+ * @throws `E_BAD_COMMAND` with `reason: "declared-not-time"`.
+ */
+function assertDeclaredTime(
+    asked: { readonly nodes?: TimeSource; readonly edges?: TimeSource },
+    declarations: ReturnType<TimeSources["declarations"]>,
+): void {
+    for (const [kind, source] of [
+        ["node", asked.nodes],
+        ["edge", asked.edges],
+    ] as const) {
+        const declared = source === undefined ? undefined : declarations.get(`${kind}:${columnOf(source.start)}`);
+        if (declared !== undefined && declared.measurement !== "time") {
+            throw badCommand(`The column is declared ${declared.measurement}, not time.`, {
+                field: "start",
+                reason: "declared-not-time",
+                kind,
+                column: source?.start ?? null,
+                measurement: declared.measurement,
+            });
+        }
+    }
+}
+
+/**
+ * Refuse a column with values none of which reads as time: it is no timeline.
+ * @param proposed - The index built for it, or null.
+ * @param field - The sources.
+ * @param field.nodes - The node source.
+ * @param field.edges - The edge source.
+ * @throws `E_BAD_COMMAND` with `reason: "no-times"`.
+ */
+function assertHoldsTimes(
+    proposed: FieldIndex | null,
+    field: { readonly nodes?: TimeSource; readonly edges?: TimeSource },
+): void {
+    for (const [kind, source] of [
+        ["node", field.nodes],
+        ["edge", field.edges],
+    ] as const) {
+        const tried = proposed?.[kind] ?? null;
+        if (tried !== null && tried.counts.timed === 0 && tried.counts.unparsed > 0) {
+            throw badCommand("None of the column's values reads as a time.", {
+                field: "start",
+                reason: "no-times",
+                kind,
+                column: source?.start ?? null,
+                examples: tried.examples,
+            });
+        }
+    }
+}
+
+/**
  * A field with only the kinds it names.
  * @param field - The sources, either possibly undefined.
  * @param field.nodes - The node source.
@@ -1046,6 +1134,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let job: { readonly key: string; readonly work: IndexWork<FieldIndex>; done: Promise<void> } | null = null;
     /** What `ready` holds: settles when no build is left to run. */
     let following: Promise<void> | null = null;
+    /** The `setField` calls under way, one after another, so the last caller's choice stands. */
+    let fieldCalls: Promise<void> | null = null;
     let lastChanges: (() => TimeChanges) | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     /** The window on screen while it is played smoothly or dragged, before it is recorded. */
@@ -1225,6 +1315,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * The work of {@link workFor}, landing its index in the step it ends: no one can come between
+     * the two and run work that has finished.
+     * @param field - The field.
+     * @yields After each chunk.
+     * @returns The work.
+     */
+    function* landing(field: TimeField): IndexWork<FieldIndex> {
+        return land(yield* workFor(field), field);
+    }
+
+    /**
      * The index of the designated field over the graph as it stands, however it must be had: a
      * build under way is run to its end here, because a window needed now cannot wait for it.
      * @returns The index, or null when nothing is designated.
@@ -1241,7 +1342,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return index;
         }
 
-        return land(drain(job?.key === key ? job.work : workFor(field)), field);
+        return drain(job?.key === key ? job.work : landing(field));
     };
 
     /**
@@ -1255,7 +1356,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return job.done;
         }
 
-        const running = { key, work: workFor(field), done: Promise.resolve() };
+        const running = { key, work: landing(field), done: Promise.resolve() };
         job = running;
         const dropped = (): boolean => {
             const now = fieldNow();
@@ -1267,10 +1368,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 keyOf(now) !== running.key
             );
         };
-        running.done = inSlices(running.work, dropped).then((built) => {
-            if (built !== null) {
-                land(built, field);
-            } else if (job === running) {
+        running.done = inSlices(running.work, dropped).then(() => {
+            if (job === running) {
                 job = null;
             }
         });
@@ -1279,16 +1378,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Wait until the index fits the graph: past any load running, through a build, and through
-     * whatever build replaces one that was dropped, so a caller holding this never sees a drop.
+     * Wait until the index fits the graph: past any `setField` and any load running, through a
+     * build, and through whatever build replaces one that was dropped, so a caller holding this
+     * never sees a drop.
      */
     const settle = async (): Promise<void> => {
         await Promise.resolve();
         while (!disposed) {
-            const load = sources.loading?.() ?? null;
+            const before = fieldCalls ?? sources.loading?.() ?? null;
             const field = fieldNow();
-            if (load !== null) {
-                await load;
+            if (before !== null) {
+                await before;
             } else if (field === null || index?.key === keyOf(field)) {
                 return;
             } else if (sliced(field)) {
@@ -1338,6 +1438,31 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * Whether a read that wants an answer now should still start no build: rows are arriving, so it
+     * would read the column only to read it again. With the timeline off, reads go on as they were.
+     * @returns True during a load.
+     */
+    const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
+
+    /**
+     * The unit the designated field reads in, for a read that needs only that. During a load it
+     * comes from the designation or the last index of this reading, since no build may start.
+     * @returns The unit, or undefined when nothing says yet.
+     */
+    const unitNow = (): TimeUnit | undefined => {
+        if (!loadHoldsBuilds()) {
+            return indexNow()?.unit;
+        }
+
+        const field = fieldNow();
+        if (field === null) {
+            return undefined;
+        }
+
+        return (field.edges ?? field.nodes)?.unit ?? (index?.reading === readingOf(field) ? index.unit : undefined);
+    };
+
+    /**
      * The index once a field is designated: the one built for it beforehand, when the data has not
      * moved since, under the key the designation gives it.
      * @param field - The field designated, or null.
@@ -1353,13 +1478,17 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * An index for a field not yet designated, a slice at a time over a big column. Data that lands
-     * meanwhile starts it over.
+     * An index for a field not yet designated, a slice at a time over a big column, once any load
+     * has settled. Data that lands meanwhile starts it over.
      * @param field - The field.
      * @returns The index.
      */
     const indexFor = async (field: TimeField): Promise<FieldIndex> => {
         for (;;) {
+            for (let load = sources.loading?.() ?? null; load !== null; load = sources.loading?.() ?? null) {
+                await load;
+            }
+
             const plan = planOf(field);
             const work = buildField(plan);
             const built = sliced(field) ? await inSlices(work, () => keyOf(field) !== plan.key) : drain(work);
@@ -1458,7 +1587,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const parseZoneNow = (): string => {
         const field = fieldNow();
 
-        return indexNow()?.unit === "year" ? UTC_ZONE : ((field?.edges ?? field?.nodes)?.parseZone ?? UTC_ZONE);
+        return unitNow() === "year" ? UTC_ZONE : ((field?.edges ?? field?.nodes)?.parseZone ?? UTC_ZONE);
     };
 
     /**
@@ -2231,6 +2360,84 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         });
     };
 
+    /**
+     * Designate a field, or clear it: the work of one `setField` call.
+     * @param field - The field, or null.
+     * @returns What it found.
+     */
+    const designate = async (field: TimeField | null): Promise<TimeFieldResult> => {
+        for (const source of field === null ? [] : [field.nodes, field.edges]) {
+            if (source !== undefined) {
+                assertTimeSource(source);
+            }
+        }
+
+        // A column designated again without a unit takes the one the reader gave it before.
+        const remembered = (source: TimeSource | undefined): TimeSource | undefined => {
+            const unit = source === undefined ? undefined : (source.unit ?? units.get(columnOf(source.start)));
+            return source === undefined || unit === undefined ? source : { ...source, unit };
+        };
+        const asked = { nodes: remembered(field?.nodes), edges: remembered(field?.edges) };
+        assertOneColumn(asked);
+        assertDeclaredTime(asked, sources.declarations());
+
+        // Read once: the unit its values call for, the refusal below, and the index itself.
+        const proposed = asked.nodes === undefined && asked.edges === undefined ? null : await indexFor(present(asked));
+        const nodes = withUnit(asked.nodes, proposed?.inferred.node);
+        const edges = withUnit(asked.edges, proposed?.inferred.edge);
+        assertHoldsTimes(proposed, { nodes, edges });
+        for (const source of [nodes, edges]) {
+            if (source?.unit !== undefined) {
+                units.set(columnOf(source.start), source.unit);
+            }
+        }
+
+        const before = fieldNow();
+        const column = (edges ?? nodes)?.start;
+        const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
+        api.pause();
+        await dispatcher.transaction(
+            "time.field",
+            async (tx) => {
+                await tx.dispatch({
+                    op: "config.set",
+                    values: {
+                        data: {
+                            knownFields: {
+                                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+                                nodeTimeUnit: nodes?.unit ?? null,
+                                nodeTimeParseZone: nodes?.parseZone ?? null,
+                                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+                                edgeTimeUnit: edges?.unit ?? null,
+                                edgeTimeParseZone: edges?.parseZone ?? null,
+                            },
+                        },
+                    },
+                });
+                // Another field, or another reading of it, is another timeline: the window goes.
+                if (changed && visibility.window !== null) {
+                    await tx.dispatch({ op: "visibility.window", window: null });
+                }
+            },
+            {
+                fact:
+                    column === undefined
+                        ? { code: "time.clear-field", params: {} }
+                        : { code: "time.field", params: { column: columnOf(column) } },
+            },
+        );
+        const designated = fieldNow();
+        sources.emit("time:field", { field: designated });
+        const built = adopted(designated, proposed);
+
+        return Object.freeze({
+            field: designated,
+            ...(built?.node ? { nodes: built.node.counts } : {}),
+            ...(built?.edge ? { edges: built.edge.counts } : {}),
+            notices: noticesOf(built),
+        });
+    };
+
     const api: TimeApi = {
         get field() {
             const field = fieldNow();
@@ -2255,123 +2462,20 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         async setField(field: TimeField | null): Promise<TimeFieldResult> {
-            for (const source of field === null ? [] : [field.nodes, field.edges]) {
-                if (source !== undefined) {
-                    assertTimeSource(source);
-                }
-            }
-
-            // A column designated again without a unit takes the one the reader gave it before.
-            const remembered = (source: TimeSource | undefined): TimeSource | undefined => {
-                const unit = source === undefined ? undefined : (source.unit ?? units.get(columnOf(source.start)));
-                return source === undefined || unit === undefined ? source : { ...source, unit };
-            };
-            const asked = { nodes: remembered(field?.nodes), edges: remembered(field?.edges) };
-            if (
-                asked.nodes !== undefined &&
-                asked.edges !== undefined &&
-                columnOf(asked.nodes.start) !== columnOf(asked.edges.start)
-            ) {
-                // ponytail: one path for both kinds, because a window reads one attribute; two
-                // paths need a window per kind.
-                throw badCommand("Nodes and edges name the same time column.", {
-                    field: "start",
-                    reason: "time-paths-differ",
-                    nodes: asked.nodes.start,
-                    edges: asked.edges.start,
-                });
-            }
-
-            const declarations = sources.declarations();
-            for (const [kind, source] of [
-                ["node", asked.nodes],
-                ["edge", asked.edges],
-            ] as const) {
-                const declared =
-                    source === undefined ? undefined : declarations.get(`${kind}:${columnOf(source.start)}`);
-                if (declared !== undefined && declared.measurement !== "time") {
-                    throw badCommand(`The column is declared ${declared.measurement}, not time.`, {
-                        field: "start",
-                        reason: "declared-not-time",
-                        kind,
-                        column: source?.start ?? null,
-                        measurement: declared.measurement,
-                    });
-                }
-            }
-
-            // Read once: the unit its values call for, the refusal below, and the index itself.
-            const proposed =
-                asked.nodes === undefined && asked.edges === undefined ? null : await indexFor(present(asked));
-            const nodes = withUnit(asked.nodes, proposed?.inferred.node);
-            const edges = withUnit(asked.edges, proposed?.inferred.edge);
-            for (const [kind, source] of [
-                ["node", nodes],
-                ["edge", edges],
-            ] as const) {
-                // A column with values none of which reads as time is no timeline.
-                const tried = proposed?.[kind] ?? null;
-                if (tried !== null && tried.counts.timed === 0 && tried.counts.unparsed > 0) {
-                    throw badCommand("None of the column's values reads as a time.", {
-                        field: "start",
-                        reason: "no-times",
-                        kind,
-                        column: source?.start ?? null,
-                        examples: tried.examples,
-                    });
-                }
-            }
-
-            for (const source of [nodes, edges]) {
-                if (source?.unit !== undefined) {
-                    units.set(columnOf(source.start), source.unit);
-                }
-            }
-
-            const before = fieldNow();
-            const column = (edges ?? nodes)?.start;
-            const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
-            api.pause();
-            await dispatcher.transaction(
-                "time.field",
-                async (tx) => {
-                    await tx.dispatch({
-                        op: "config.set",
-                        values: {
-                            data: {
-                                knownFields: {
-                                    nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                                    nodeTimeUnit: nodes?.unit ?? null,
-                                    nodeTimeParseZone: nodes?.parseZone ?? null,
-                                    edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                                    edgeTimeUnit: edges?.unit ?? null,
-                                    edgeTimeParseZone: edges?.parseZone ?? null,
-                                },
-                            },
-                        },
-                    });
-                    // Another field, or another reading of it, is another timeline: the window goes.
-                    if (changed && visibility.window !== null) {
-                        await tx.dispatch({ op: "visibility.window", window: null });
-                    }
-                },
-                {
-                    fact:
-                        column === undefined
-                            ? { code: "time.clear-field", params: {} }
-                            : { code: "time.field", params: { column: columnOf(column) } },
-                },
+            const run = (): Promise<TimeFieldResult> => designate(field);
+            const call = fieldCalls === null ? run() : fieldCalls.then(run);
+            const settled = call.then(
+                () => undefined,
+                () => undefined,
             );
-            const designated = fieldNow();
-            sources.emit("time:field", { field: designated });
-            const built = adopted(designated, proposed);
-
-            return Object.freeze({
-                field: designated,
-                ...(built?.node ? { nodes: built.node.counts } : {}),
-                ...(built?.edge ? { edges: built.edge.counts } : {}),
-                notices: noticesOf(built),
+            fieldCalls = settled;
+            void settled.then(() => {
+                if (fieldCalls === settled) {
+                    fieldCalls = null;
+                }
             });
+
+            return call;
         },
 
         candidates(): readonly TimeCandidate[] {
@@ -2384,7 +2488,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {
-            return noticesOf(indexNow());
+            return noticesOf(indexIfReady());
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
@@ -2399,7 +2503,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return null;
             }
 
-            return readTimeValue(trimmed, indexNow()?.unit ?? "ms", zone);
+            return readTimeValue(trimmed, unitNow() ?? "ms", zone);
         },
 
         get ready() {
@@ -2475,7 +2579,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         spanOf(of: TimeElements): { readonly from: number; readonly to: number } | null {
-            const built = indexNow();
+            const built = loadHoldsBuilds() ? indexIfReady() : indexNow();
             let from = Number.POSITIVE_INFINITY;
             let last = Number.NEGATIVE_INFINITY;
             for (const kind of ["node", "edge"] as const) {

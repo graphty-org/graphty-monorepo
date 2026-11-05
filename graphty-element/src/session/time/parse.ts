@@ -129,14 +129,24 @@ const DATE_LENGTH = 10;
 const DATE_TIME_LENGTH = 24;
 
 /**
+ * One character's code, in text whose length has been checked.
+ * @param text - The text.
+ * @param at - Where.
+ * @returns The code.
+ */
+function codeAt(text: string, at: number): number {
+    return text.charCodeAt(at); // NOSONAR(S7758): only ASCII matters here, and codePointAt's undefined would need a check per character on a path run a million times
+}
+
+/**
  * Two decimal digits as a number.
  * @param text - The text.
  * @param at - Where they start.
  * @returns The number, negative when either is no digit.
  */
 function twoDigits(text: string, at: number): number {
-    const tens = text.charCodeAt(at) - CHAR_0;
-    const ones = text.charCodeAt(at + 1) - CHAR_0;
+    const tens = codeAt(text, at) - CHAR_0;
+    const ones = codeAt(text, at + 1) - CHAR_0;
 
     return tens >= 0 && tens <= 9 && ones >= 0 && ones <= 9 ? tens * 10 + ones : -1;
 }
@@ -150,8 +160,8 @@ function twoDigits(text: string, at: number): number {
 export function isDateShaped(text: string): boolean {
     return (
         (text.length === DATE_LENGTH || text.length === DATE_TIME_LENGTH) &&
-        text.charCodeAt(4) === CHAR_DASH &&
-        text.charCodeAt(7) === CHAR_DASH
+        codeAt(text, 4) === CHAR_DASH &&
+        codeAt(text, 7) === CHAR_DASH
     );
 }
 
@@ -164,14 +174,14 @@ function exactClock(text: string): number {
     const hour = twoDigits(text, 11);
     const minute = twoDigits(text, 14);
     const second = twoDigits(text, 17);
-    const hundreds = text.charCodeAt(20) - CHAR_0;
+    const hundreds = codeAt(text, 20) - CHAR_0;
     const rest = twoDigits(text, 21);
     if (
-        text.charCodeAt(10) !== CHAR_T ||
-        text.charCodeAt(13) !== CHAR_COLON ||
-        text.charCodeAt(16) !== CHAR_COLON ||
-        text.charCodeAt(19) !== CHAR_DOT ||
-        text.charCodeAt(23) !== CHAR_Z ||
+        codeAt(text, 10) !== CHAR_T ||
+        codeAt(text, 13) !== CHAR_COLON ||
+        codeAt(text, 16) !== CHAR_COLON ||
+        codeAt(text, 19) !== CHAR_DOT ||
+        codeAt(text, 23) !== CHAR_Z ||
         hour < 0 ||
         hour > 23 ||
         minute < 0 ||
@@ -380,6 +390,48 @@ function looseIn(text: string, zone: string): number {
 }
 
 /**
+ * Read text as an instant, as {@link readInstant} says.
+ * @param value - The text.
+ * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in.
+ * @returns The instant (NaN when there is none) and how it was read.
+ */
+function readText(
+    value: string,
+    unit: TimeUnit,
+    timeZone: string | undefined,
+): { readonly at: number; readonly how: InstantReading } {
+    // Only a caller naming a zone reads this way, which with the timeline off none does.
+    if (timeZone !== undefined) {
+        const exact = exactIso(value);
+        if (!Number.isNaN(exact)) {
+            const dated = value.length === DATE_LENGTH;
+            return { at: dated ? instantOfWall(exact, zoneUnder(unit, timeZone)) : exact, how: "strict" };
+        }
+    }
+
+    const text = value.trim();
+    const numeric = NUMERIC.test(text);
+    if (numeric && unit !== "ms") {
+        return { at: numberOf(Number(text), unit), how: "strict" };
+    }
+
+    const zone = zoneUnder(unit, timeZone ?? UTC_ZONE);
+    const iso = strictIso(text, zone);
+    if (iso !== null) {
+        return { at: iso, how: "strict" };
+    }
+
+    if (numeric) {
+        return { at: numberOf(Number(text), unit), how: "strict" };
+    }
+
+    const loose = timeZone === undefined ? Date.parse(text) : looseIn(text, zone);
+
+    return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
+}
+
+/**
  * Read one value as an instant.
  *
  * 1. A number: by the unit. 2. A `Date`: its time. 3. Text: strict ISO 8601 first (except under
@@ -410,38 +462,7 @@ export function readInstant(
         return { at, how: Number.isNaN(at) ? "unparsed" : "strict" };
     }
 
-    if (typeof value !== "string") {
-        return { at: Number.NaN, how: "unparsed" };
-    }
-
-    // Only a caller naming a zone reads this way, which with the timeline off none does.
-    if (timeZone !== undefined) {
-        const exact = exactIso(value);
-        if (!Number.isNaN(exact)) {
-            const dated = value.length === DATE_LENGTH;
-            return { at: dated ? instantOfWall(exact, zoneUnder(unit, timeZone)) : exact, how: "strict" };
-        }
-    }
-
-    const text = value.trim();
-    const numeric = NUMERIC.test(text);
-    if (numeric && unit !== "ms") {
-        return { at: numberOf(Number(text), unit), how: "strict" };
-    }
-
-    const zone = zoneUnder(unit, timeZone ?? UTC_ZONE);
-    const iso = strictIso(text, zone);
-    if (iso !== null) {
-        return { at: iso, how: "strict" };
-    }
-
-    if (numeric) {
-        return { at: numberOf(Number(text), unit), how: "strict" };
-    }
-
-    const loose = timeZone === undefined ? Date.parse(text) : looseIn(text, zone);
-
-    return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
+    return typeof value === "string" ? readText(value, unit, timeZone) : { at: Number.NaN, how: "unparsed" };
 }
 
 /**

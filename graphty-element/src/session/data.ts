@@ -5111,7 +5111,7 @@ export function sliceRecords(
     snapshot: () => GraphSnapshot,
     lastImport: () => LoadReport | null,
     fallback: SessionRecordSource | null,
-): SessionRecordSource {
+): ColumnRecords {
     return {
         nodeAttributes: (index, id) => slice().nodes.get(id) ?? fallback?.nodeAttributes(index, id),
         edgeAttributes: (index) => {
@@ -5119,7 +5119,43 @@ export function sliceRecords(
             const record = typeof column === "number" ? slice().edges.get(edgeIdOf(column)) : undefined;
             return record === undefined ? fallback?.edgeAttributes(index) : withoutEndpointKeys(record, lastImport());
         },
+        column: (kind, key) => {
+            const graph = snapshot();
+            const { nodes, edges } = slice();
+            if (kind === "node") {
+                const { ids } = graph;
+                return (row) => {
+                    const id = ids.idOf(row);
+                    return (nodes.get(id) ?? fallback?.nodeAttributes(row, id))?.[key];
+                };
+            }
+
+            const endpoints = lastImport()?.endpoints;
+            const counters = graph.edges.typed(EDGE_ID_COLUMN, "u32")?.data;
+            const endpoint =
+                key === "source" || key === "target" || key === endpoints?.source || key === endpoints?.target;
+            if (counters === undefined || endpoint) {
+                return null;
+            }
+
+            return (row) => {
+                const record = edges.size === 0 ? undefined : edges.get(edgeIdOf(counters[row]));
+                return (record ?? fallback?.edgeAttributes(row))?.[key];
+            };
+        },
     };
+}
+
+/** The records, and a way to read one column of them row after row. */
+export interface ColumnRecords extends SessionRecordSource {
+    /**
+     * A reader of one column over the graph as it stands, for a pass over every row: what each
+     * read would look up again is looked up once.
+     * @param kind - Nodes or edges.
+     * @param key - The record's key.
+     * @returns The reader, or null for a column only the per-row reads answer: an edge's ends.
+     */
+    column(kind: "node" | "edge", key: string): ((row: number) => unknown) | null;
 }
 
 /** The element-assigned edge id column. */

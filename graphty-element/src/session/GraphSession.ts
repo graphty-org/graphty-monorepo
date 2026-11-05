@@ -3197,6 +3197,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         token: () => dispatcher.state.graph.token,
         rewrites: () => dispatcher.graph.rewrites,
         loading: () => dispatcher.services.data?.loading?.() ?? null,
+        column: (kind, key) => records.column(kind, key),
         dataRevision,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {

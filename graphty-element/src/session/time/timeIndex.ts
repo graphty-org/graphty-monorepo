@@ -54,6 +54,13 @@ export const timeIndexCounters = { parsed: 0 };
 /** A build or a part of one: yields where it can be paused. */
 export type IndexWork<T> = Generator<undefined, T, undefined>;
 
+/** The sort's keys in their current order: a float's bits as two words, and the row of each. */
+interface RadixKeys {
+    readonly low: Uint32Array;
+    readonly high: Uint32Array;
+    readonly order: Uint32Array;
+}
+
 /** What a column's values have looked like so far: what a later row can change the reading of. */
 interface ColumnTally extends UnitTally {
     /** Text that is not a number. */
@@ -180,18 +187,51 @@ export async function inSlices<T>(work: IndexWork<T>, dropped: () => boolean): P
  * 1970 sorts backwards) and a positive one's sign is set. A digit every key shares costs no pass.
  * @param rows - Each row's instant.
  * @param ids - The rows to sort; none of them NaN.
+ * @yields After each chunk.
  * @returns The rows, ascending.
  */
 export function* radixArgsort(rows: Float64Array, ids: Uint32Array): IndexWork<Uint32Array> {
-    const size = ids.length;
+    const keys: RadixKeys = {
+        low: new Uint32Array(ids.length),
+        high: new Uint32Array(ids.length),
+        order: ids.slice(),
+    };
+    const spare: RadixKeys = {
+        low: new Uint32Array(ids.length),
+        high: new Uint32Array(ids.length),
+        order: new Uint32Array(ids.length),
+    };
+    const counts = yield* radixKeysOf(rows, ids, keys);
+    let from = keys;
+    let into = spare;
+    for (let pass = 0; pass < 4; pass++) {
+        const places = counts.subarray(pass * RADIX, (pass + 1) * RADIX);
+        const digits = pass < 2 ? from.low : from.high;
+        const shift = (pass & 1) * 16;
+        if (ids.length > 0 && places[(digits[0] >>> shift) & 0xffff] !== ids.length) {
+            yield* radixPass(pass, places, from, into);
+            // What the pass left unmoved no later pass reads.
+            [from, into] = [into, from];
+        }
+    }
+
+    return from.order;
+}
+
+/**
+ * Turn instants into sortable bits, and count each pass's digits.
+ * @param rows - Each row's instant.
+ * @param ids - The rows to sort.
+ * @param keys - Where the bits go.
+ * @returns The four passes' digit counts, one after another.
+ */
+function* radixKeysOf(rows: Float64Array, ids: Uint32Array, keys: RadixKeys): IndexWork<Uint32Array> {
     const float = new Float64Array(1);
     const words = new Uint32Array(float.buffer);
     const counts = new Uint32Array(4 * RADIX);
-    let low = new Uint32Array(size);
-    let high = new Uint32Array(size);
-    let order = ids.slice();
-    for (let from = 0; from < size; from += CHUNK) {
-        const to = Math.min(from + CHUNK, size);
+    const { low, high } = keys;
+    for (let from = 0; from < ids.length; from += CHUNK) {
+        const to = Math.min(from + CHUNK, ids.length);
         for (let at = from; at < to; at++) {
             // Adding 0 makes -0 the 0 it equals.
             float[0] = rows[ids[at]] + 0;
@@ -209,49 +249,45 @@ export function* radixArgsort(rows: Float64Array, ids: Uint32Array): IndexWork<U
         yield;
     }
 
-    let nextLow = new Uint32Array(size);
-    let nextHigh = new Uint32Array(size);
-    let nextOrder = new Uint32Array(size);
-    for (let pass = 0; pass < 4; pass++) {
-        const digits = pass < 2 ? low : high;
-        const shift = (pass & 1) * 16;
-        const places = counts.subarray(pass * RADIX, (pass + 1) * RADIX);
-        if (size === 0 || places[(digits[0] >>> shift) & 0xffff] === size) {
-            continue;
-        }
+    return counts;
+}
 
-        let place = 0;
-        for (let digit = 0; digit < RADIX; digit++) {
-            const held = places[digit];
-            places[digit] = place;
-            place += held;
+/**
+ * One pass of the sort: move every key to its digit's next place. A key's low bits move only on the
+ * first pass and its high bits not on the last, since nothing after reads them.
+ * @param pass - Which digit, lowest first.
+ * @param places - The digit's counts; becomes its places.
+ * @param from - The keys.
+ * @param into - Where they go.
+ */
+function* radixPass(pass: number, places: Uint32Array, from: RadixKeys, into: RadixKeys): IndexWork<void> {
+    let place = 0;
+    for (let digit = 0; digit < RADIX; digit++) {
+        const held = places[digit];
+        places[digit] = place;
+        place += held;
+    }
+
+    yield;
+    const digits = pass < 2 ? from.low : from.high;
+    const shift = (pass & 1) * 16;
+    const size = digits.length;
+    for (let start = 0; start < size; start += CHUNK) {
+        const end = Math.min(start + CHUNK, size);
+        for (let at = start; at < end; at++) {
+            const target = places[(digits[at] >>> shift) & 0xffff]++;
+            into.order[target] = from.order[at];
+            if (pass === 0) {
+                into.low[target] = from.low[at];
+            }
+
+            if (pass < 3) {
+                into.high[target] = from.high[at];
+            }
         }
 
         yield;
-        for (let from = 0; from < size; from += CHUNK) {
-            const to = Math.min(from + CHUNK, size);
-            for (let at = from; at < to; at++) {
-                const target = places[(digits[at] >>> shift) & 0xffff]++;
-                nextOrder[target] = order[at];
-                // What no later pass reads stays where it is.
-                if (pass === 0) {
-                    nextLow[target] = low[at];
-                }
-
-                if (pass < 3) {
-                    nextHigh[target] = high[at];
-                }
-            }
-
-            yield;
-        }
-
-        [low, nextLow] = [nextLow, low];
-        [high, nextHigh] = [nextHigh, high];
-        [order, nextOrder] = [nextOrder, order];
     }
-
-    return order;
 }
 
 /**
@@ -417,10 +453,18 @@ function* parseInto(
     zone: string | undefined,
     tally: ParseTally,
 ): IndexWork<void> {
+    // A finite number under these units is its own instant.
+    const plain = !datesOnly && (unit === "ms" || unit === "ordinal");
     for (let from = 0; from < raw.length; from += CHUNK) {
         const to = Math.min(from + CHUNK, raw.length);
         for (let at = from; at < to; at++) {
             const value = raw[at];
+            if (plain && typeof value === "number" && Number.isFinite(value)) {
+                rows[start + at] = value;
+                tally.whole &&= Number.isInteger(value);
+                continue;
+            }
+
             const reading =
                 datesOnly && isBareNumber(value)
                     ? { at: Number.NaN, how: "unparsed" as const }

@@ -524,6 +524,8 @@ export interface TimeSources {
      */
     readonly dataRevision?: () => unknown;
     readonly values: FilterValueSource;
+    /** A reader of a whole column, faster than `values` over every row; null when it has none. */
+    readonly column?: (kind: "node" | "edge", key: string) => ((row: number) => unknown) | null;
     /** The designation, as `data.knownFields` holds it. */
     readonly knownFields: () => KnownTimeFields;
     readonly declarations: () => ReadonlyMap<string, MeasurementDeclaration>;
@@ -1129,6 +1131,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         // With the timeline off no zone is named, and text reads as it did before zones.
         const zoneFor = (source: TimeSource): string | undefined =>
             sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
+        // With the timeline off the values are read as they always were.
+        const columnReader = (kind: "node" | "edge"): KindPlan["read"] | null =>
+            sources.timeline?.() === false ? null : (sources.column?.(kind, path) ?? null);
         const kindOf = (source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => ({
             count,
             read,
@@ -1145,11 +1150,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             node:
                 field.nodes === undefined
                     ? null
-                    : kindOf(field.nodes, graph.nodeCount, (row) => sources.values.nodeValue(row, attribute)),
+                    : kindOf(
+                          field.nodes,
+                          graph.nodeCount,
+                          columnReader("node") ?? ((row) => sources.values.nodeValue(row, attribute)),
+                      ),
             edge:
                 field.edges === undefined
                     ? null
-                    : kindOf(field.edges, graph.edgeCount, (row) => sources.values.edgeValue(row, attribute)),
+                    : kindOf(
+                          field.edges,
+                          graph.edgeCount,
+                          columnReader("edge") ?? ((row) => sources.values.edgeValue(row, attribute)),
+                      ),
         };
     };
 

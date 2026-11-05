@@ -69,6 +69,7 @@ import {
     configurationOutline,
     FONT_STYLES,
     putOutline,
+    putRaisedBorder,
     typeOutline,
     type ValueColumns,
     valueColumns,
@@ -549,6 +550,10 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
         } else {
             putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+            if (outline.raised === true) {
+                const fill = Number(g.hasFill) === 0 ? undefined : g.fill;
+                putRaisedBorder(canonColor(fill, writer.spelling, at("fill"))?.color ?? null, put);
+            }
         }
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.

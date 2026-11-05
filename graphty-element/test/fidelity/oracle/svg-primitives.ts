@@ -16,6 +16,7 @@ import {
     dented,
     isLettering,
     outlinePaintedAsFill,
+    solidOuter,
     PAINTED_OUTLINE,
     type PBox,
     type PFill,
@@ -322,8 +323,9 @@ function cornersOf(el: SVGElement): number {
         if (/[CcSsQqTtAa]/.test(d)) {
             return roundedPolygonSides(d);
         }
-        // vertices of the first subpath
-        const first = d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "";
+        // vertices of the first subpath, up to its close: lines drawn on from there (yEd's BPMN envelope, its flap after
+        // its box) are no sides of it
+        const first = (d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "").replace(/[Zz].*$/s, "");
         const n = (first.match(/[LlHhVv]/g)?.length ?? 0) + 1;
         const coords = first
             .replace(/[A-Za-z]/g, " ")
@@ -378,11 +380,40 @@ function roundedPolygonSides(d: string): number {
     return straight >= 3 && straight !== 4 && curved === straight ? straight : 0;
 }
 
+/**
+ * Whether a path draws a corner on a corner of its box: a segment ends there, as none of a rectangle with rounded
+ * corners does. Nothing is known of a path with relative commands.
+ * @param d - the path data
+ * @param box - the path's box, in the path's own space
+ * @param box.x - its left
+ * @param box.y - its top
+ * @param box.width - its width
+ * @param box.height - its height
+ * @returns whether it has one
+ */
+export function hasSquareCorner(d: string, box: { x: number; y: number; width: number; height: number }): boolean {
+    if (/[a-y]/.test(d)) {
+        return false;
+    }
+    const near = (v: number, a: number, b: number): boolean => Math.abs(v - a) < 0.01 || Math.abs(v - b) < 0.01;
+    const onCorner = ([x, y]: number[]): boolean =>
+        near(x, box.x, box.x + box.width) && near(y, box.y, box.y + box.height);
+    return [...d.matchAll(/[MLCSQTA]([^A-Z]*)/g)].some((m) =>
+        onCorner(
+            m[1]
+                .trim()
+                .split(/[\s,]+/)
+                .map(Number)
+                .slice(-2),
+        ),
+    );
+}
+
 function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
     if (CLOSED.has(el.localName)) {
         return true;
     }
-    if (el.localName === "path" && /[Zz]\s*$/.test(el.getAttribute("d") ?? "")) {
+    if (el.localName === "path" && /[Zz]\s*([LlHhVv]|$)/.test(el.getAttribute("d") ?? "")) {
         return true;
     }
     const a = pts[0];
@@ -1249,8 +1280,13 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
+            const nonzero = cs.fillRule !== "evenodd";
             const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
-            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
+            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths, nonzero) : null;
+            const solid = subpaths !== null && nonzero ? solidOuter(subpaths) : null;
+            if (solid !== null) {
+                points = [...solid];
+            }
             if (fill !== null && painted !== null) {
                 stroke = {
                     color: fill.color,
@@ -1278,6 +1314,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
+                ...(el.localName === "path" &&
+                hasSquareCorner(el.getAttribute("d") ?? "", (el as SVGGraphicsElement).getBBox())
+                    ? { squareCorner: true }
+                    : {}),
                 fill: closed ? fill : null,
                 stroke,
                 text: null,

@@ -193,6 +193,8 @@ export interface Prim {
      * edge, a dotted border) is read from. Absent for everything else.
      */
     subpaths?: Pt[][];
+    /** Whether an outline with curves has a corner on a corner of its box. */
+    squareCorner?: boolean;
     /**
      * A closed path that is a row of letters drawn as outlines (`isLettering`): words, filled or stroked as a halo,
      * that are no arrowhead, band or body. Absent for everything else.
@@ -930,15 +932,37 @@ function crossedWave(subpaths: readonly (readonly Pt[])[], [a, b]: readonly PBox
 }
 
 /**
+ * What two nested subpaths wound the same way fill under the nonzero rule: all the outer one holds.
+ * @param subpaths - the path's subpaths
+ * @returns the outer subpath, or null for anything else
+ */
+export function solidOuter(subpaths: readonly (readonly Pt[])[]): readonly Pt[] | null {
+    if (subpaths.length !== 2 || signedArea(subpaths[0]) * signedArea(subpaths[1]) <= 0) {
+        return null;
+    }
+    const [a, b] = subpaths.map((q) => boxOfPoints(q));
+    if (holds(a, b)) {
+        return subpaths[0];
+    }
+    return holds(b, a) ? subpaths[1] : null;
+}
+
+/**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
  * stroke's own outline, filled: a ring of two subpaths, or many pieces round the node. Read as a fill, it is larger
  * than the node's body and takes its place.
+ * Two subpaths wound the same way under the nonzero rule fill all the inner one holds: a disc, no ring (yEd's
+ * intermediate BPMN event and transaction write their body's two outlines in one path).
  * @param subpaths - the path's subpaths, each sampled evenly by arc length in the side's frame
+ * @param nonzero - whether the path is filled by the nonzero rule, where unset nothing is known of its rule
  * @returns the outline, or null when the path is no such outline
  */
-export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): PaintedOutline | null {
+export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonzero = false): PaintedOutline | null {
     if (subpaths.length < 2 || subpaths.some((q) => q.length < 3)) {
+        return null;
+    }
+    if (nonzero && solidOuter(subpaths) !== null) {
         return null;
     }
     const box = boxOfPoints(subpaths.flat());

@@ -57,6 +57,7 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
+import { GHOST_ROW_ID } from "./styles/rows";
 import type {
     DataSourceInput,
     GraphSession,
@@ -1378,6 +1379,14 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
     // Every row of the style tree, folders with their layers; the element's own layers stay.
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
+    }
+
+    // With the timeline off a Ghost row is in no tree, and it must not outlive its project either.
+    const ghosts = tx.styles
+        .list()
+        .filter(({ source }) => source.by === "template" && source.templateId === GHOST_ROW_ID);
+    for (const row of new Set(ghosts.map((layer) => layer.row ?? layer.id))) {
+        await tx.styles.deleteRow(row);
     }
 
     for (const set of tx.sets.list()) {

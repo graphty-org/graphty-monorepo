@@ -353,6 +353,30 @@ describe("autosave with the timeline off", () => {
 });
 
 describe("a project saved with the timeline on, opened with it off", () => {
+    it("leaves no Ghost row behind when the next project opens", async () => {
+        const saved = createGraphSession(ON);
+        await saved.data.import({ type: "csv", config: { data: "source,target,sent\nA,B,2026-01-01\n" } });
+        await saved.config.set({ startingRows: true });
+        await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
+        const { text: timed } = await saved.project.save();
+        const plain = createGraphSession(OFF);
+        const { text: untimed } = await plain.project.save();
+        const ghostLayers = (each: GraphSession): number =>
+            each.styles.list().filter(({ source }) => source.by === "template" && source.templateId === GHOST).length;
+        const once = ghostLayers(saved);
+        assert.isAbove(once, 0);
+
+        const session = createGraphSession(OFF);
+        await session.project.open(timed, { discard: true });
+        await session.project.open(timed, { discard: true });
+        assert.strictEqual(ghostLayers(session), once, "opening it again adds none");
+        await session.project.open(untimed, { discard: true });
+        assert.strictEqual(ghostLayers(session), 0, "a project with none holds none");
+        for (const each of [saved, plain, session]) {
+            each.dispose();
+        }
+    });
+
     it("keeps its time field, its settings and its Ghost row, and draws no ghosts", async () => {
         const saved = await loaded(ON);
         await saved.config.set({ startingRows: true });

@@ -13,6 +13,7 @@ function stats(xs) {
         n: s.length,
         median: +q(0.5).toFixed(2),
         p95: +q(0.95).toFixed(2),
+        p99: +q(0.99).toFixed(2),
         min: +s[0].toFixed(2),
         max: +s[s.length - 1].toFixed(2),
     };

@@ -181,13 +181,22 @@ async function switchView(mode: "2D" | "3D"): Promise<void> {
 }
 
 /**
+ * Picks the form's Shape, the one 3D | 2D control.
+ * @param popover - the Layout popover.
+ * @param shape - the shape.
+ */
+async function pickShape(popover: HTMLElement, shape: "2D" | "3D"): Promise<void> {
+    await userEvent.click(within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByText(shape));
+}
+
+/**
  * Lays the airports out on the map, from the location the element finds.
  * @param element - the element.
  */
-async function layOutOnMap(element: Element, mapType?: "2D map"): Promise<void> {
+async function layOutOnMap(element: Element, shape?: "2D"): Promise<void> {
     const popover = await openMapForm();
-    if (mapType !== undefined) {
-        await pick(popover, "Map type", mapType);
+    if (shape !== undefined) {
+        await pickShape(popover, shape);
     }
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
     await waitFor(() => {
@@ -240,11 +249,7 @@ describe("the location map", () => {
             assert.strictEqual(element.mapFrame?.dimensions, 2);
         });
         const popover = await openMapForm();
-        const type = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Map type" });
-        assert.strictEqual(type.value, "2D map", "the form shows the 2D map in 2D");
-        await userEvent.click(type);
-        const offered = (await within(popover).findAllByRole("option")).map((option) => option.textContent);
-        assert.deepEqual(offered, ["2D map"], "and offers no 3D map there");
+        assert.isNull(within(popover).queryByRole("radiogroup", { name: "Shape" }), "2D draws only the 2D map");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
@@ -254,10 +259,10 @@ describe("the location map", () => {
         });
     });
 
-    it("draws the 2D map with arcs above it when the reader picks 2D map in 3D, and keeps it", async () => {
+    it("draws the 2D map with arcs above it when the reader picks Shape 2D in 3D, and keeps it", async () => {
         const element = await openAirports();
         const popover = await openMapForm();
-        await pick(popover, "Map type", "2D map");
+        await pickShape(popover, "2D");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.strictEqual(element.mapFrame?.mapDimension, "2d");
@@ -278,7 +283,7 @@ describe("the location map", () => {
         await screen.findByRole("combobox", { name: "Lighting" });
         assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "Graph settings has no map");
 
-        await layOutOnMap(element, "2D map");
+        await layOutOnMap(element, "2D");
         const where = (): string => JSON.stringify(element.nodeScreenPosition("JFK"));
         const before = where();
         const popover = await openMapForm();
@@ -541,7 +546,7 @@ describe("the location map", () => {
     it("leaves the bundled picture under world data on a 2D map", async () => {
         const flat = await openAirports();
         const popover = await openMapForm();
-        await pick(popover, "Map type", "2D map");
+        await pickShape(popover, "2D");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.notStrictEqual(flat.basemapStatus.state, "off", "the map is drawn");
@@ -564,6 +569,22 @@ describe("the location map", () => {
         await waitFor(() => {
             assert.isNull(within(popover).queryByRole("combobox", { name: "Format" }), "the pop-out closed");
         });
-        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Map type" }), "still in the Map form");
+        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Fit" }), "still in the Map form");
+    });
+
+    it("has one 3D | 2D control, no Map type and no Projection, with Advanced at the top of the form", async () => {
+        await openAirports();
+        const popover = await openMapForm();
+        assert.isNull(within(popover).queryByRole("combobox", { name: "Map type" }));
+        const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
+        const back = within(popover).getByRole("button", { name: "Back to layouts" });
+        const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
+        const [cog, title, top] = [advanced, back, shape].map((each) => each.getBoundingClientRect());
+        assert.isBelow(cog.top, top.top, "above the form's fields");
+        assert.isAbove(cog.left, title.right, "at the far end of the title's row");
+        assert.isAtLeast(cog.bottom, title.top, "on the title's row");
+        await userEvent.click(advanced);
+        await within(popover).findByRole("combobox", { name: "Format" });
+        assert.isNull(within(popover).queryByRole("combobox", { name: "Projection" }));
     });
 });

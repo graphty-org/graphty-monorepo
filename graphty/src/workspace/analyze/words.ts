@@ -377,7 +377,6 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "location-map.location": { label: "Location", empty: "Automatic" },
     "location-map.latitude": { label: "Latitude", empty: "Automatic" },
     "location-map.longitude": { label: "Longitude", empty: "Automatic" },
-    "location-map.mapDimension": { label: "Map type", choices: { "2d": "2D map", "3d": "3D map" } },
     "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
     "location-map.format": {
         label: "Format",
@@ -396,10 +395,6 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
         },
     },
     "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
-    "location-map.projection": {
-        label: "Projection",
-        choices: { auto: "Automatic", "web-mercator": "Web Mercator", equirectangular: "Equirectangular" },
-    },
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },

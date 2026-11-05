@@ -353,13 +353,14 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
   the whole globe, which fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
-  than `size` makes it while nodes and edges keep their size (in scene units, or on screen with
-  `nodeScale: "screen"`), so a dense region (an airline network over the United States or
+  than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
-  three times the room between neighbors. The camera still opens framed on the whole map.
+  three times the room between neighbors. The camera still opens framed on the whole map. With
+  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
+  gives the same room; a globe's keep their size on screen.
 - **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
   so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
-  whatever the zoom, measured at the map's surface, with its arrowheads in proportion.
+  (`1 / (size * mapScale)` on a flat map) whatever the zoom, measured at the map's surface, with its arrowheads in proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
   draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view

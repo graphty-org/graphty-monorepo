@@ -319,14 +319,15 @@ describe("the location map layout", () => {
         assert.closeTo(six.viewHeight / one.viewHeight, 6, 0.6, "the default view still frames the whole map");
         assert.isAtLeast(six.viewHeight, six.mapHeight, "the whole map is in view");
 
-        // on screen: a screen-sized node keeps its size on screen, so it does not shrink with the map
+        // on screen: the map is framed whole, so a map six times larger only gives its nodes room
+        // when a node screen-sized against the drawn map is six times smaller against the view
         const screenOne = await measure(1, "screen");
         const screenSix = await measure(6, "screen");
         assert.closeTo(
             screenSix.nodeWorld / screenSix.viewHeight / (screenOne.nodeWorld / screenOne.viewHeight),
-            1,
+            1 / 6,
             0.01,
-            "a node keeps its size on screen",
+            "a node is six times smaller against the map in view",
         );
     });
 

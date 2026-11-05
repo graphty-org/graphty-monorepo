@@ -2546,9 +2546,11 @@ export class UpdateManager implements Manager {
         }
 
         // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
-        // A map drawn `mapScale` times larger keeps its nodes their size on screen, so they spread
-        // apart rather than grow with it.
-        const extent = frame.size / frame.mapScale;
+        // A flat map is framed whole, so `mapScale` shows only if its nodes stay the same size
+        // against the drawn map: dividing the scale back out left them touching at any scale.
+        // ponytail: a globe still divides it out, so `mapScale` does not thin its nodes; dropping
+        // the division there too makes them six times smaller at the app's scale.
+        const extent = frame.surface === "flat" ? frame.size : frame.size / frame.mapScale;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
             return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }

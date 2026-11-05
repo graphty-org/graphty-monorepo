@@ -127,7 +127,8 @@ const locationMapOptionsSchema = defineOptions({
             label: "Map Scale",
             description:
                 "How many times larger the map (flat or globe) is drawn than Size makes it, with nodes " +
-                "and edges kept their size, so nodes close together draw further apart",
+                "and edges kept their size, so nodes close together draw further apart; on a flat map a " +
+                "node kept to one size on screen is drawn that many times smaller against the view",
             advanced: true,
         },
     },

@@ -13,10 +13,10 @@ const S = process.env.BENCH_SOURCE;
 export default defineConfig(({ command }) => {
     if (!label) throw new Error("set BENCH_LABEL");
     if (command === "build" && !S) throw new Error("set BENCH_SOURCE to the checkout to measure");
-    const git = (...a) =>
-        execFileSync("git", ["-C", S, ...a])
-            .toString()
-            .trim(); // NOSONAR(S4036): a local measuring tool, run from the owner's PATH
+    const git = (...a) => {
+        const out = execFileSync("git", ["-C", S, ...a]); // NOSONAR(S4036): the developer's own git
+        return out.toString().trim();
+    };
     const build = S
         ? {
               label,

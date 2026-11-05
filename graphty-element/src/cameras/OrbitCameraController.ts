@@ -392,7 +392,7 @@ export class OrbitCameraController {
      */
     public followPoint(point: Vector3, frames = 1): boolean {
         // The point's own place on a map's plane: what stands above the map, the pivot never reaches.
-        const target = point.add(this.#forward().scale(this.#alongToPlane(point)));
+        const target = this.#onPlane(point);
         this.pivotController.center = target;
         const moved = glideTowards(this.pivot.position, target, frames);
         this.updateCameraPosition();
@@ -478,6 +478,23 @@ export class OrbitCameraController {
     }
 
     /**
+     * Where the line of sight through a point meets the {@link surfacePlane}. Its z is exactly 0,
+     * not the last bits of a tilted view's sum: a glide ends when the pivot equals its target.
+     * @param point - The point, in world space.
+     * @returns The place on the plane, or the point itself with no plane, or edge on.
+     */
+    #onPlane(point: Vector3): Vector3 {
+        const along = this.#alongToPlane(point);
+        if (along === 0) {
+            return point;
+        }
+
+        const place = point.add(this.#forward().scale(along));
+        place.z = 0;
+        return place;
+    }
+
+    /**
      * Slide the pivot along the line of sight onto the {@link surfacePlane}, the camera staying
      * where it is.
      */
@@ -487,7 +504,7 @@ export class OrbitCameraController {
             return;
         }
 
-        this.pivot.position.addInPlace(this.#forward().scale(along));
+        this.pivot.position.copyFrom(this.#onPlane(this.pivot.position));
         this.pivot.computeWorldMatrix(true);
         this.cameraDistance = this.clampDistance(this.cameraDistance + along);
     }

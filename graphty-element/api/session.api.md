@@ -4363,6 +4363,7 @@ export interface ResultSummary {
     readonly caveats: Caveats;
     readonly count: number;
     readonly durationMs: number;
+    readonly groupCount?: number;
     readonly groups?: readonly SummaryGroup[];
     readonly max: number | null;
     readonly mean: number | null;

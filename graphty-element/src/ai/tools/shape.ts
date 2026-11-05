@@ -220,7 +220,7 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
         ...(summary.groups === undefined
             ? {}
             : {
-                  groups: summary.groups.length,
+                  groups: summary.groupCount ?? summary.groups.length,
                   largest: summary.groups.slice(0, 10).map((group) => toJson(group)),
               }),
     };

@@ -119,10 +119,14 @@ const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
  * @param session - the element's session.
  * @returns the group runs.
  */
-function groupRuns(session: GraphSession): { id: string; label: string; groups: readonly SummaryGroup[] }[] {
+function groupRuns(
+    session: GraphSession,
+): { id: string; label: string; groups: readonly SummaryGroup[]; groupCount: number }[] {
     return session.runs.list().flatMap((run) => {
-        const groups = run.result?.summary().groups;
-        return groups === undefined ? [] : [{ id: run.id, label: runName(session, run), groups }];
+        const { groups, groupCount } = run.result?.summary() ?? {};
+        return groups === undefined || groupCount === undefined
+            ? []
+            : [{ id: run.id, label: runName(session, run), groups, groupCount }];
     });
 }
 
@@ -505,6 +509,15 @@ function MaximizeButton({
 /** One group run's tab. */
 type GroupRun = ReturnType<typeof groupRuns>[number];
 
+/**
+ * The caption over a run's groups, which says so when the list stops short of them all.
+ * @param run - the group run.
+ * @returns the caption.
+ */
+function groupCaption(run: GroupRun): string {
+    return run.groups.length < run.groupCount ? `Largest ${String(run.groups.length)}` : "Largest group first";
+}
+
 /** What the dock lists: its tab, record kind, group run and scope. */
 interface DockScope {
     readonly groups: GroupRun[];
@@ -845,7 +858,7 @@ export function TableDock(): React.JSX.Element {
             actions: actionsFor(column),
         });
 
-    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
+    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groupCount, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
     const tabValues = tabValuesOf(hasEdges, groups);
@@ -898,7 +911,7 @@ export function TableDock(): React.JSX.Element {
                 {close}
             </div>
             <Text size="xs" c="dimmed" className="ws-table-caption">
-                {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : "Largest group first"}
+                {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : groupCaption(groupRun)}
             </Text>
             {tabValues
                 .filter((value) => value !== active)

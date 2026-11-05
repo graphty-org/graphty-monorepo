@@ -1313,6 +1313,13 @@ function arrowStackOf(
     return words.length === 0 ? null : words.join(" ");
 }
 
+/**
+ * The programs that stroke an open arrowhead (Graphviz's obox, odiamond, odot, onormal, oinv; Cytoscape.js's hollow
+ * shapes) with the edge's own pen, so its outline is as thick as the line (#5800). The element's own open caps keep
+ * their thin frame unless `outlineWidth` is set.
+ */
+const OPEN_ARROWS_STROKED: ReadonlySet<string> = new Set(["graphviz", "cytoscape-js"]);
+
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     node: new Set(),
@@ -3208,6 +3215,13 @@ class KindTranslation {
                 imageHeight: none,
             },
         };
+        const { tool } = extracted.styles.source;
+        const stroked = tool !== null && OPEN_ARROWS_STROKED.has(tool);
+        // the line's width as the element draws it (the `width` plan), where the file gives one
+        const lineWidth = (i: number): number | null => {
+            const w = width[i];
+            return typeof w === "number" && w > 0 ? round(w * this.#factor) : null;
+        };
         const { rule, bucket } = last;
         const layer = this.#layerFor(
             { ...rule, id: `${rule.id}.arrowSizes` },
@@ -3236,6 +3250,17 @@ class KindTranslation {
                 `edge.arrow${end}Width`,
                 sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, i)),
             );
+            // an open cap stroked with the line's pen, as thick as the line; a part of a row behind it takes its outline
+            if (stroked) {
+                encode(
+                    `edge.arrow${end}OutlineWidth`,
+                    sides.shapes.map((shape, i) =>
+                        typeof shape === "string" && (ARROW_SHAPES.get(shape) ?? "none") !== "none"
+                            ? lineWidth(i)
+                            : null,
+                    ),
+                );
+            }
             // each part of a row behind the end cap at its own size and width, measured as the end cap is
             if (end === "Head" || end === "Tail") {
                 encode(

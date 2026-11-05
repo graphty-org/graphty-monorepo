@@ -1235,6 +1235,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
@@ -1493,6 +1494,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
@@ -1755,6 +1757,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1798,6 +1801,7 @@ export const EdgeStyle: z.ZodObject<{
             left: "left";
             right: "right";
         }>>;
+        outlineWidth: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{

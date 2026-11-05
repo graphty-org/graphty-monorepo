@@ -8,11 +8,11 @@ import { z } from "zod";
 
 import type { AiEffect, AiTarget } from "../../../catalog/ai";
 import { algorithmKeyOf } from "../../../catalog/algorithms";
-import type { LayerId } from "../../../catalog/types";
+import type { LayerId, Scope } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { GraphSession, TransactionScope } from "../../../session/types";
 import { foundEffects } from "../effects";
-import { resolveRun, text, WHERE_HELP, whereField } from "../fields";
+import { requireTarget, resolveRun, scopeOf, text, WHERE_HELP, whereField } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
 import { limitOf, offsetOf, pageOf, summarizeRun, toJson } from "../shape";
@@ -115,6 +115,27 @@ export function settleRun(run: Run, params: JsonObject): ActionResult {
 }
 
 /**
+ * The scope a call names, its selector settled as a target's is: repaired, and limited to the
+ * selection a message is bound to. No scope stays no scope, which a bound message may ask too.
+ * @param tx - The session.
+ * @param args - The call.
+ * @returns The scope and what was repaired.
+ */
+function runScope(tx: TransactionScope, args: Record<string, unknown>): { scope?: Scope; notes: JsonObject } {
+    const { set, where } = (args.scope ?? {}) as { set?: string; where?: string };
+    if (set !== undefined) {
+        return { scope: { set }, notes: {} };
+    }
+
+    if (where === undefined) {
+        return { notes: {} };
+    }
+
+    const { target, notes } = requireTarget(tx, { ...args, where }, "node");
+    return { scope: scopeOf(target), notes };
+}
+
+/**
  * Start a run and wait for it.
  * @param context - The action's context.
  * @param args - The call.
@@ -157,13 +178,7 @@ async function runAlgorithm(
         ...resolved.params,
         ...checkOptions(tx, descriptor.options, (args.options ?? {}) as Record<string, unknown>),
     };
-    const scopeArg = args.scope as { set?: string; where?: string } | undefined;
-    let scope: { set: string } | { where: string } | undefined;
-    if (scopeArg?.set !== undefined) {
-        scope = { set: scopeArg.set };
-    } else if (scopeArg?.where !== undefined) {
-        scope = { where: scopeArg.where };
-    }
+    const { scope, notes } = runScope(tx, args);
     const estimate = tx.estimate({
         op: "algo.run",
         algorithm: descriptor.key,
@@ -200,7 +215,7 @@ async function runAlgorithm(
         }),
     );
     message.runs.add(run.id);
-    return settleRun(run, { run: run.id, algorithm: descriptor.key });
+    return settleRun(run, { run: run.id, algorithm: descriptor.key, ...notes });
 }
 
 /**

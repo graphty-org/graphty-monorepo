@@ -371,6 +371,8 @@ const OFF_SHARDS = [
         "test-command": `cd graphty-element && GRAPHTY_ORACLE_SLICE=${n}/4 pnpm exec vitest run --project=fidelity test/fidelity/oracle-report.test.ts ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         "full-run-only": true,
+        // every oracle's rasterized PNG, Git LFS objects (about 48 MB)
+        lfs: "graph-io/test/fidelity/oracles/*.png",
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),

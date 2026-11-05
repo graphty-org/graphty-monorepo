@@ -395,6 +395,49 @@ export function databaseRim(
 }
 
 /**
+ * A raised border's strips along the inside of a node's box, as Java's `fill3DRect` lays them, each corner in one strip.
+ * @param raised - The node style's raised border.
+ * @param width - The node's width.
+ * @param height - The node's height.
+ * @param scale - World units per unit of the style's lengths.
+ * @returns The left, top, bottom and right strips, none without a width.
+ */
+export function raisedStrips(
+    raised: NodeStyleConfig["raisedBorder"],
+    width: number,
+    height: number,
+    scale = 1,
+): (ColorPiece & { readonly box: PieceBox })[] {
+    const line = (raised?.width ?? 0) * scale;
+    if (!isPositive(line)) {
+        return [];
+    }
+    const [hw, hh] = [width / 2, height / 2];
+    const strip = (color: string | undefined, fallback: string, box: PieceBox): ColorPiece & { box: PieceBox } => {
+        const c = toColorValue(color ?? fallback) ?? { r: 0, g: 0, b: 0, a: 1 };
+        const { x0, y0, x1, y1 } = box;
+        return {
+            outline: [
+                [x0, y0],
+                [x1, y0],
+                [x1, y1],
+                [x0, y1],
+            ],
+            rgb: [c.r / 255, c.g / 255, c.b / 255],
+            opacity: c.a,
+            box,
+        };
+    };
+    const [light, dark] = [raised?.lightColor, raised?.darkColor];
+    return [
+        strip(light, "#ffffff", { x0: -hw, y0: -hh, x1: -hw + line, y1: hh }),
+        strip(light, "#ffffff", { x0: -hw + line, y0: hh - line, x1: hw - line, y1: hh }),
+        strip(dark, "#000000", { x0: -hw + line, y0: -hh, x1: hw, y1: -hh + line }),
+        strip(dark, "#000000", { x0: hw - line, y0: -hh + line, x1: hw, y1: hh }),
+    ];
+}
+
+/**
  * Lists of points as `node.shapeParts` and `node.shapeLines` write them: `x,y` pairs separated by spaces, one list
  * after another separated by ";", each coordinate a fraction optionally followed by a signed length (`-1+24`). A list
  * with a pair that is not two coordinates is dropped.

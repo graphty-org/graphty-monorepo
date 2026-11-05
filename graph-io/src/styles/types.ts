@@ -322,6 +322,15 @@ export interface NodeStyleValues {
      */
     readonly outerBorderCount: number;
     /**
+     * The width of a raised border: strips along the inside of the node's edge, light on its left and top and dark on
+     * its bottom and right (a length; yEd's `use3DEffect` and `rectangle3d`, 1 px); 0 or absent draws none.
+     */
+    readonly raisedBorderWidth: number;
+    /** A raised border's color on the node's left and top. */
+    readonly raisedBorderLightColor: StyleColor;
+    /** A raised border's color on the node's bottom and right. */
+    readonly raisedBorderDarkColor: StyleColor;
+    /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
      */

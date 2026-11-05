@@ -51,6 +51,7 @@ import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
+    ARROW_ROWS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
     arrowShapesOf,
@@ -3239,7 +3240,7 @@ class KindTranslation {
                 encode(
                     `edge.arrow${end}Stack`,
                     parts[end].map((value, i) =>
-                        arrowStackOf(value, (shape) => {
+                        arrowStackOf(value ?? ARROW_ROWS.get(sides.shapes[i] as string) ?? null, (shape) => {
                             const part: ArrowEnd = {
                                 ...sides,
                                 shapes: sides.shapes.map((_s, j) => (j === i ? shape : null)),

@@ -1527,6 +1527,7 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["circle-open", "white_circle"],
     ["square", "skewed_dash"],
     ["crow", "crows_foot_many"],
+    ["other:open-vee", "plain"],
 ]);
 
 /** yEd's internal label model positions by neutral position: the center, and against a side or in a corner inside. */

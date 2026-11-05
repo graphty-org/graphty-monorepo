@@ -11,6 +11,7 @@
 import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
+    crossedStrokes,
     dashClassOf,
     dented,
     isLettering,
@@ -1255,6 +1256,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 };
                 fill = null;
             }
+            // two stroked subpaths are read apart only as a cross: their outline, run from one to the other, makes no shape
+            const twoStrokes =
+                stroke !== null && subpaths === null && (el.getAttribute("d")?.split("M").length ?? 0) === 3
+                    ? subpathsOf(el, m)
+                    : null;
             const panel = panelFillOf(el, root, opacities, m);
             prims.push({
                 index: i,
@@ -1274,6 +1280,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 },
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
+                ...(twoStrokes !== null && crossedStrokes(twoStrokes) ? { subpaths: twoStrokes } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
             });

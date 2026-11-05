@@ -234,11 +234,13 @@ function isMemberName(tokens: readonly Token[], i: number, inStruct: boolean): b
 /**
  * Rename identifiers in a GLSL text, in place, keeping every other character -- comments, spaces
  * and line breaks -- so line numbers stay. A field after `.` and a struct member keep their names,
- * unless the name is in `fields`, and a name in `calls` keeps it where it is called.
+ * unless the name is in `fields`, and a name in `calls` keeps it where it is called, as does each
+ * token in `kept`.
  * @param text - The text.
  * @param rename - The new name of each identifier to rename.
  * @param fields - Names renamed as fields and struct members too.
  * @param calls - Names left alone directly before a `(`.
+ * @param kept - Indexes of tokens left alone.
  * @returns The renamed text.
  */
 export function renameIdentifiers(
@@ -246,6 +248,7 @@ export function renameIdentifiers(
     rename: ReadonlyMap<string, string>,
     fields: ReadonlySet<string> = new Set(),
     calls: ReadonlySet<string> = new Set(),
+    kept: ReadonlySet<number> = new Set(),
 ): string {
     const { tokens } = tokenize(text, { line: 1, column: 1 });
     const lineStarts = lineStartsOf(text);
@@ -256,7 +259,7 @@ export function renameIdentifiers(
         const to = token.kind === "id" ? rename.get(token.text) : undefined;
         const field = tokens[i - 1]?.text === "." || isMemberName(tokens, i, inStruct[i]);
         const call = calls.has(token.text) && tokens[i + 1]?.text === "(";
-        if (to === undefined || call || (field && !fields.has(token.text))) {
+        if (to === undefined || call || kept.has(i) || (field && !fields.has(token.text))) {
             continue;
         }
 
@@ -398,6 +401,72 @@ function wgslRenames(tokens: readonly Token[]): {
 }
 
 /**
+ * The names a body's `const` declarations give a value: each name before a `=` or a `[`, up to the
+ * `;`, or the `)` that ends a parameter, whose value is not constant.
+ * @param tokens - The body's tokens.
+ * @returns The names.
+ */
+function constantNames(tokens: readonly Token[]): Set<string> {
+    const names = new Set<string>();
+    let declaring = false;
+    tokens.forEach(({ kind, text }, i) => {
+        if (text === "const") {
+            declaring = true;
+        } else if (text === ";" || text === ")") {
+            declaring = false;
+        } else if (declaring && kind === "id" && ["=", "["].includes(tokens[i + 1]?.text ?? "")) {
+            names.add(text);
+        }
+    });
+    return names;
+}
+
+/**
+ * Whether the arguments of the call whose name is at `at` are constant: every name in them is a
+ * type, a built-in, a field or a constant. A struct constant's constructor is not seen as one.
+ * @param tokens - The body's tokens.
+ * @param at - The index of the called name.
+ * @param constants - The body's constants.
+ * @returns True for a constant call.
+ */
+function hasConstantArguments(tokens: readonly Token[], at: number, constants: ReadonlySet<string>): boolean {
+    let depth = 0;
+    for (let i = at + 1; i < tokens.length; i++) {
+        const { kind, text } = tokens[i];
+        depth += NESTING.get(text)?.[1] ?? 0;
+        if (depth === 0) {
+            return true;
+        }
+
+        if (kind === "id" && tokens[i - 1].text !== "." && !GLSL_RESERVED.has(text) && !constants.has(text)) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * The calls of a built-in the WebGPU compiler folds away, so they never reach the translator and
+ * need no helper: a constant `isnan` or `isinf`, which a global `const` or an array size may hold,
+ * and a helper may not. `acosh` and its kin are not folded, so a helper loses nothing there.
+ * @param tokens - The body's tokens.
+ * @returns The indexes of the called names.
+ */
+function foldedCalls(tokens: readonly Token[]): Set<number> {
+    const constants = constantNames(tokens);
+    const folded = new Set<number>();
+    tokens.forEach(({ text }, i) => {
+        if ((text === "isnan" || text === "isinf") && tokens[i + 1]?.text === "(") {
+            if (hasConstantArguments(tokens, i, constants)) {
+                folded.add(i);
+            }
+        }
+    });
+    return folded;
+}
+
+/**
  * A body with its own names prefixed `graphty_u_` and its references to the library renamed to
  * the library's prefixed names. A name WGSL will not take ({@link WGSL_NAMES}) is prefixed
  * wherever the body uses it, local, parameter and field alike, so the program also translates
@@ -425,7 +494,7 @@ export function prefixBody(body: string, params: readonly ShaderParamDescriptor[
         calls.delete(param.name);
     }
 
-    return renameIdentifiers(body, rename, fields, calls);
+    return renameIdentifiers(body, rename, fields, calls, foldedCalls(tokens));
 }
 
 /**

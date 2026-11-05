@@ -51,7 +51,7 @@ said in `error.details.messages`. The translator says nothing the element can re
 empty; the page's console holds its line. A shader passed to `defineShader` may use a name
 WGSL or the Vulkan GLSL compiler reserves, such as `pass`, `target`, `fn` or `image2D`: the element
 renames it for you. One thing still differs: a `const` at the top of a shader may not call `acosh`,
-`asinh`, `atanh`, `isnan` or `isinf` under WebGPU, so move it into the function that uses it.
+`asinh` or `atanh` under WebGPU, so move it into the function that uses it.
 
 ## What differs under WebGPU
 

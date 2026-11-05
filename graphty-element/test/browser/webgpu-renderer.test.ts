@@ -620,6 +620,15 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.equal(red, 0);
     });
 
+    it("draws a constant isnan or isinf, which only the built-in can be", async () => {
+        await assertDraws(
+            "webgpu-renderer/constant-built-ins",
+            "const float Z = 0.0; const bool K = isnan(Z / Z); const int N = isinf(1.5) ? 2 : 3; " +
+                "vec4 shade(NodeInput n) { float s[N]; s[0] = K ? 0.5 : 1.0; s[1] = isnan(1.0) ? 0.0 : 0.5; " +
+                "return vec4(n.color.rgb, s[0] + s[1]); }",
+        );
+    });
+
     it("draws derivatives in a branch, in the library's fillAA and strokeAA too", async () => {
         // Every body runs behind a branch of the wrapper's, so even the plain `fillAA` call needs this.
         await assertDraws(

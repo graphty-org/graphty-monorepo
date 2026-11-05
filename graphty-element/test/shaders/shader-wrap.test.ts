@@ -133,6 +133,17 @@ describe("the shader wrapper", () => {
         assert.isBelow(library.indexOf("graphty_acosh(float x)"), library.indexOf("#ifndef WEBGPU"));
     });
 
+    it("leaves a constant isnan or isinf to the built-in, which the compiler folds and a helper would not", () => {
+        const out = prefixBody(
+            "const float Z = 0.0, Y = 1.0; const bool K = isnan(Z / Y) || isinf(vec2(1.5).x);\n" +
+                "float f(const float x) { float s[isnan(1.5) ? 2 : 3]; return isinf(x) || isnan(s[0] + Z) ? 0.0 : 1.0; }",
+            [],
+        );
+        assert.include(out, "const bool graphty_u_K = isnan(graphty_u_Z / graphty_u_Y) || isinf(vec2(1.5).x);");
+        assert.include(out, "float s[isnan(1.5) ? 2 : 3];");
+        assert.include(out, "return graphty_isinf(x) || graphty_isnan(s[0] + graphty_u_Z)");
+    });
+
     it("renames a Vulkan GLSL keyword as a local and a field and leaves its calls alone", () => {
         assert.strictEqual(
             prefixBody("float image2D = s.atomic_uint + texture1D(1.0);", []),

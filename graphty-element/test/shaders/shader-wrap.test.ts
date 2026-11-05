@@ -133,15 +133,27 @@ describe("the shader wrapper", () => {
         assert.isBelow(library.indexOf("graphty_acosh(float x)"), library.indexOf("#ifndef WEBGPU"));
     });
 
-    it("leaves a constant isnan or isinf to the built-in, which the compiler folds and a helper would not", () => {
+    it("leaves isnan and isinf the built-in wherever GLSL takes only a constant expression", () => {
         const out = prefixBody(
-            "const float Z = 0.0, Y = 1.0; const bool K = isnan(Z / Y) || isinf(vec2(1.5).x);\n" +
-                "float f(const float x) { float s[isnan(1.5) ? 2 : 3]; return isinf(x) || isnan(s[0] + Z) ? 0.0 : 1.0; }",
+            "struct S { float a; float b[isnan(1.5) ? 2 : 3]; }; const bool K = isnan(S(1.0).a) || isinf(1.5);\n" +
+                "float g[isinf(1.5) ? 2 : 3];\n" +
+                "float f(const float x) { const bool L = isnan(S(1.0).a), M = isinf(1.5); float s[isnan(1.5) ? 2 : 3]; " +
+                "float u[2], v[isinf(1.5) ? 2 : 3]; float[isnan(1.5) ? 1 : 2] w; " +
+                "switch (1) { case isnan(1.5) ? 1 : 2: break; } return 0.0; }",
             [],
         );
-        assert.include(out, "const bool graphty_u_K = isnan(graphty_u_Z / graphty_u_Y) || isinf(vec2(1.5).x);");
-        assert.include(out, "float s[isnan(1.5) ? 2 : 3];");
-        assert.include(out, "return graphty_isinf(x) || graphty_isnan(s[0] + graphty_u_Z)");
+        assert.notInclude(out, "graphty_isnan");
+        assert.notInclude(out, "graphty_isinf");
+    });
+
+    it("sends every other isnan and isinf in a function to the helper", () => {
+        const out = prefixBody(
+            "float f(float x, float a[2]) { bool b = isnan(x) || isinf(1.5); a[isnan(x) ? 0 : 1] = 1.0; " +
+                "switch (int(x)) { case 1: b = isinf(x) ? b : !b; break; } " +
+                "return isnan(a[0]) ? a[isinf(x) ? 0 : 1] : 1.0; }",
+            [],
+        );
+        assert.notMatch(out, /[^_](?:isnan|isinf)\(/);
     });
 
     it("renames a Vulkan GLSL keyword as a local and a field and leaves its calls alone", () => {

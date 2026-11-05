@@ -629,6 +629,15 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         );
     });
 
+    it("draws an isnan of a struct constant in a global const, where only a constant expression will do", async () => {
+        await assertDraws(
+            "webgpu-renderer/constant-struct",
+            "struct S { float a; }; const S s = S(1.0); const bool b = isnan(s.a) || isinf(S(1.0).a); " +
+                "vec4 shade(NodeInput n) { const bool c = isinf(s.a); float t[isnan(s.a) ? 2 : 3]; t[0] = 0.5; " +
+                "return vec4(n.color.rgb, b || c ? 0.0 : t[0] + 0.5); }",
+        );
+    });
+
     it("draws derivatives in a branch, in the library's fillAA and strokeAA too", async () => {
         // Every body runs behind a branch of the wrapper's, so even the plain `fillAA` call needs this.
         await assertDraws(

@@ -150,6 +150,10 @@ const NESTING: ReadonlyMap<string, readonly [number, number]> = new Map([
     [")", [0, -1]],
 ]);
 
+/** The brackets that open and close a nested span. */
+const OPENERS = new Set(["(", "[", "{"]);
+const CLOSERS = new Set([")", "]", "}"]);
+
 /** Tokens after which an identifier is being declared, not used. */
 const DECLARATOR_FOLLOWERS = new Set(["(", "=", ",", ";", "["]);
 
@@ -401,69 +405,99 @@ function wgslRenames(tokens: readonly Token[]): {
 }
 
 /**
- * The names a body's `const` declarations give a value: each name before a `=` or a `[`, up to the
- * `;`, or the `)` that ends a parameter, whose value is not constant.
- * @param tokens - The body's tokens.
- * @returns The names.
+ * The index of the first `stop` after `from` outside any bracket, or of the bracket that closes the
+ * one `from` is in. A ternary's `:` is not a stop.
+ * @param tokens - The tokens.
+ * @param from - The index to start at.
+ * @param stop - The token to look for.
+ * @returns The index, or the last one when the text ends first.
  */
-function constantNames(tokens: readonly Token[]): Set<string> {
-    const names = new Set<string>();
-    let declaring = false;
-    tokens.forEach(({ kind, text }, i) => {
-        if (text === "const") {
-            declaring = true;
-        } else if (text === ";" || text === ")") {
-            declaring = false;
-        } else if (declaring && kind === "id" && ["=", "["].includes(tokens[i + 1]?.text ?? "")) {
-            names.add(text);
-        }
-    });
-    return names;
-}
-
-/**
- * Whether the arguments of the call whose name is at `at` are constant: every name in them is a
- * type, a built-in, a field or a constant. A struct constant's constructor is not seen as one.
- * @param tokens - The body's tokens.
- * @param at - The index of the called name.
- * @param constants - The body's constants.
- * @returns True for a constant call.
- */
-function hasConstantArguments(tokens: readonly Token[], at: number, constants: ReadonlySet<string>): boolean {
+function endOf(tokens: readonly Token[], from: number, stop: string): number {
     let depth = 0;
-    for (let i = at + 1; i < tokens.length; i++) {
-        const { kind, text } = tokens[i];
-        depth += NESTING.get(text)?.[1] ?? 0;
-        if (depth === 0) {
-            return true;
+    let ternaries = 0;
+    for (let i = from; i < tokens.length; i++) {
+        const { text } = tokens[i];
+        depth += OPENERS.has(text) ? 1 : 0;
+        depth -= CLOSERS.has(text) ? 1 : 0;
+        ternaries += text === "?" ? 1 : 0;
+        if (depth < 0 || (depth === 0 && text === stop && ternaries === 0)) {
+            return i;
         }
 
-        if (kind === "id" && tokens[i - 1].text !== "." && !GLSL_RESERVED.has(text) && !constants.has(text)) {
-            return false;
-        }
+        ternaries -= text === ":" && ternaries > 0 ? 1 : 0;
     }
 
-    return false;
+    return tokens.length - 1;
 }
 
 /**
- * The calls of a built-in the WebGPU compiler folds away, so they never reach the translator and
- * need no helper: a constant `isnan` or `isinf`, which a global `const` or an array size may hold,
- * and a helper may not. `acosh` and its kin are not folded, so a helper loses nothing there.
+ * Whether the `[` at `open` may give an array's size. Only what is certainly an index says no, so
+ * a doubtful bracket keeps the built-in, which at worst is refused as it was before the helper.
+ * @param tokens - The tokens.
+ * @param open - The index of the bracket.
+ * @returns False for an index.
+ */
+function maySizeAnArray(tokens: readonly Token[], open: number): boolean {
+    const before = tokens[open - 2];
+    const after = tokens[endOf(tokens, open + 1, "]") + 1];
+    return (
+        tokens[open - 1]?.kind !== "id" ||
+        before?.text === "," ||
+        (before?.kind === "id" && !["return", "else"].includes(before.text)) ||
+        after?.kind === "id" ||
+        after?.text === "("
+    );
+}
+
+/**
+ * The last token of the span of a function body that must be a constant expression, if one starts
+ * at `i`: a `const` declaration, a `case` label or an array's size.
+ * @param tokens - The tokens.
+ * @param i - The index.
+ * @returns The index, or -1 when none starts here.
+ */
+function constantSpanEnd(tokens: readonly Token[], i: number): number {
+    const { text } = tokens[i];
+    if (text === "const") {
+        return endOf(tokens, i, ";");
+    }
+
+    if (text === "case") {
+        return endOf(tokens, i, ":");
+    }
+
+    return text === "[" && maySizeAnArray(tokens, i) ? endOf(tokens, i + 1, "]") : -1;
+}
+
+/**
+ * The calls of `isnan` and `isinf` that stay the built-in: all but those in a function body's
+ * ordinary code. Everywhere else GLSL takes only a constant expression, which a helper cannot be
+ * and which the WebGPU compiler folds, so such a call never reaches the translator. Its answer does
+ * not depend on recognizing the arguments. `acosh` and its kin are not folded, so a helper loses
+ * nothing there.
  * @param tokens - The body's tokens.
  * @returns The indexes of the called names.
  */
-function foldedCalls(tokens: readonly Token[]): Set<number> {
-    const constants = constantNames(tokens);
-    const folded = new Set<number>();
+function constantCalls(tokens: readonly Token[]): Set<number> {
+    const kept = new Set<number>();
+    let depth = 0;
+    let inFunction = false;
+    let spanEnd = -1;
     tokens.forEach(({ text }, i) => {
-        if ((text === "isnan" || text === "isinf") && tokens[i + 1]?.text === "(") {
-            if (hasConstantArguments(tokens, i, constants)) {
-                folded.add(i);
-            }
+        if (text === "{") {
+            inFunction ||= depth === 0 && tokens[i - 1]?.text === ")";
+            depth++;
+        } else if (text === "}") {
+            depth--;
+            inFunction &&= depth > 0;
+        }
+
+        spanEnd = Math.max(spanEnd, inFunction ? constantSpanEnd(tokens, i) : -1);
+        if ((text === "isnan" || text === "isinf") && tokens[i + 1]?.text === "(" && (!inFunction || i <= spanEnd)) {
+            kept.add(i);
         }
     });
-    return folded;
+    return kept;
 }
 
 /**
@@ -494,7 +528,7 @@ export function prefixBody(body: string, params: readonly ShaderParamDescriptor[
         calls.delete(param.name);
     }
 
-    return renameIdentifiers(body, rename, fields, calls, foldedCalls(tokens));
+    return renameIdentifiers(body, rename, fields, calls, constantCalls(tokens));
 }
 
 /**

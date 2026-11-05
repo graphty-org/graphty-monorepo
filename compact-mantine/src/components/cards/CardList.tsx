@@ -352,9 +352,14 @@ export function CardList({
     };
 
     return (
-        <div ref={list} className="cm-card-list" role="group" aria-label={label}>
+        <div // NOSONAR(S6819): a named group of card regions; a fieldset would draw a form's border and legend
+            ref={list}
+            className="cm-card-list"
+            role="group"
+            aria-label={label}
+        >
             {header}
-            {items.length === 0 ? empty : items.map(card)}
+            {items.length === 0 ? empty : items.map((item, at) => card(item, at))}
             {add !== undefined && <div className="cm-card-add">{add}</div>}
             {footer}
         </div>

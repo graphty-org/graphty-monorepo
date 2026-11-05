@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided by the team: what a rule reads, and how many groups a run found (graphty-element)
+
+**What.** Three changes, none of them for the owner.
+
+- A lone `true`, `false` or `null` word in a selector or a rule reads as that value. `data.false` still names a
+  column.
+- In the query engine, a `{ where }` half whose kind answers none of the expression's paths matches nothing, so a rule
+  about a node column no longer selects every edge.
+- `summary()` gains `groupCount`, the number of groups before the list stops at ten. Additive.
+
+**Why not breaking.** The first two change what an expression returns, so they were checked as breaking first.
+Neither takes a working result away. Before, `x == false` compared `x` with a value no element can hold, since every
+value sits under `data.` or `results.`, and it matched every edge. `query.ts` already states that a path nothing
+answers matches nothing, so the second brings the engine to its own promise. Bringing a shipped API to its written
+contract is a fix, not a break (2026-10-28, the location map's `mapDimension`).
+
+**Alternatives.** Refusing the bare word with a suggestion, as a bare number is refused: it leaves Find failing on
+what a reader naturally types. Counting only nodes in the Assistant's chips: it fixes one consumer and leaves Find,
+peek and selection wrong.
+
 ## 2026-11-05 -- Decided by the team: what an application no longer does for the assistant (graphty-element)
 
 All additive, tagged `@experimental assistant` where new. Each replaces code the app held:
@@ -105,6 +125,7 @@ Landing the Assistant changes nothing for a consumer of graphty-element that doe
   mock provider matches it when present, so with no facts it matches `content` as before.
 - A saved tool result's `origin` takes `"command"`, the marker that a model reads the result as it
   is, in no envelope.
+
 ## 2026-10-30 -- For the owner: two compact-mantine behaviors the tier 4 round faulted (compact-mantine)
 
 From the tier 4 round 1 fix pass (`tier4/rounds/round-1/scores.md`). Both change how a Figma-locked

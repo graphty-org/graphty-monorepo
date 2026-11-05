@@ -167,3 +167,56 @@ evidence; the old entry stays. The design they belong to is `design.md` beside t
   voice, spoken replies, links in prose, guess chips, Regenerate, token use, conversation export.**
   (2026-11-04.) Reason: each is optional in the element and the window works without it; small and
   coherent first, with room left for each. Evidence: `design.md` section 9.
+
+## Settled by the first dry run (2026-11-05, build 8fa33aa786)
+
+None of these reverses an entry above. Evidence: `dry-run-r1-1.md`.
+
+- **A lone `true`, `false` or `null` in a rule is that value; `data.false` still names a column.**
+  (2026-11-05.) Reason: a reader and a model both write it so, and read as a column it matches no node
+  and every edge. Evidence: reproduced on `compileExpressionPredicate`; T91 A, `No matches for
+data.trained == false.` on nine false rows.
+- **A rule about a column one kind does not carry matches none of that kind.** (2026-11-05.) Reason:
+  `query.ts` already promises that a path nothing answers matches nothing, and a chip that counts
+  every edge is a false number. Evidence: reproduced; T93 B's 361, T93 A's 63.
+- **A turn keeps the words the reader read: a reply beside a request, a reply beside a failure, and a
+  question once answered.** (2026-11-05.) Reason: this applies "No turn folds" to words that were
+  never saved; readers use them as memory, and on T95 the sentence lost can be the only caveat.
+  Evidence: T92 A, T93 A, T93 B, T95 A.
+- **Send again goes with what the scope line says now, not the failed message's scope.** (2026-11-05.)
+  Reason: the scope line always states what a message is about, so a resend must obey it. Evidence:
+  T91 B and T93 B, a selection over nothing under a line reading Whole graph.
+- **The x on the scope line lasts for one message and clears nothing.** (2026-11-05.) Reason: it
+  unbinds the message; the selection stays, and the line offers Use selection. A complaint that it
+  does not last or does not clear is classed no change. Evidence: `design.md`, section on the scope
+  line ("The x lasts for one message, or until the selection changes").
+- **A selection is not a change to the graph, so it does not hide a turn's chip row; the row is the
+  last result that found something; a selection of nothing draws no line.** (2026-11-05.) Reason: this
+  narrows "a turn that changed the graph shows it in the change line" to what it was for. A selection
+  adds no undo step and is not saved. A turn with a real change keeps its line alone. Evidence:
+  T92 B success path; `tools/families/select.ts`.
+- **A grouping run's count is all its groups; the list below it may stop at ten and says so.**
+  (2026-11-05.) Reason: a value never misstates what it describes. Evidence: T93 B, Groups 10 beside
+  Components 26.
+- **What the Assistant exports is saved as a file.** (2026-11-05.) Reason: the element's event hands
+  the document to the application, which must take it. Evidence: T95 A; `AiExportReadyEvent`.
+- **A conversation reopened reads Undone for every message whose steps no longer stand.**
+  (2026-11-05.) Reason: Undo works with any conversation showing, so the mark cannot depend on which
+  one was open. Evidence: T94 B.
+- **With the flag on and a provider saved, Settings' Privacy names the Assistant and the provider.**
+  (2026-11-05.) Reason: "a value never misstates what it describes", the same reason as the privacy
+  chip. Off, it does not change. Evidence: T90 A, T90 B.
+- **The key card is an overlay: it may cover a node, and the canvas is not reframed around it.**
+  (2026-11-05.) Reason: framing uses the canvas alone; the panel entry above names the same rule.
+  `answers.md` rates a count of 8 from the drawing as decided by the build. Evidence: T91 A, T94 A.
+- **Kept for the first round by the answer key: the refused key reading as a connection failure, the
+  `name` starter, no shape check on a Google key, an analysis asked as a question repainting the
+  network, and a selection surviving Undo.** (2026-11-05.) Reason: each is what a task measures or was
+  ruled to wait for the round. Fix after it. Evidence: `answers.md`, "Seen while writing this key" and
+  T90's route.
+- **A message taken back by its own rollback stays the design: a failed write that nothing fixed
+  undoes the message's writes.** (2026-11-05.) Reason: the fault on T92 A is the failing call, not the
+  rule. Evidence: `design/ai/assistant-coverage-design.md` 4.3.
+- **An answer goes on with the message it answers, so its turn and the question's turn share one
+  undo step.** (2026-11-05.) Reason: one step per message. Two Undo buttons for that step are backlog,
+  not a wrong step. Evidence: `design/ai/assistant-coverage-design.md` 4.3; T95 A.

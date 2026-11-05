@@ -58,6 +58,7 @@ const WKT = new RegExp(
 const ISO =
     /^([+-])(\d{2}(?:\d{2}){0,2})(\.\d+)?([+-])(\d{3}(?:\d{2}){0,2})(\.\d+)?(?:[+-]\d+(?:\.\d+)?)?(?:CRS[\w:.]+)?\/?$/;
 const GEOHASH = /^[0-9b-hjkmnp-z]{1,12}$/i;
+const DMS_SHAPE = /[NSEW\s,;\u00b0'"\u2032\u2033]|deg/i;
 const MGRS = /^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d\d){0,5}$/i;
 
 /**
@@ -185,6 +186,12 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
         }),
     dms: (value) =>
         fromString(value, (text) => {
+            // A coordinate has a hemisphere, a degree, minute or second mark, or a space or comma
+            // between its parts; digits joined by a dash ("555-0101", a phone number) have none,
+            // and the lenient reader below would take them for 5 55' N, 101 W.
+            if (!DMS_SHAPE.test(text)) {
+                return locationError("syntax", value);
+            }
             try {
                 const parsed = new CoordinateParser(text.replaceAll(/deg/gi, "°"));
                 return checked(parsed.getLatitude(), parsed.getLongitude(), value);

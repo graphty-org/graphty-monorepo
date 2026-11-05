@@ -2012,6 +2012,7 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly as?: "time";
     readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";

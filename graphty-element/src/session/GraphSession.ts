@@ -2985,6 +2985,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
         },
         dataDigest: () => dataNow(),
+        defaultWeight: () => data.weightKey(),
         acceptedDigest: (id: RunId, ranOn: string) => timeline?.acceptedDigest(id, ranOn),
         windowNow: () => windowBoundsOf(visibility.window),
         acceptedWindow: (id: RunId) => timeline?.acceptedWindow(id),

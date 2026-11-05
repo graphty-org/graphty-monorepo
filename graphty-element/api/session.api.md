@@ -528,6 +528,12 @@ export interface ColorWrite {
 }
 
 // @public
+export const COLUMN_ROLES: Readonly<Record<"node" | "edge", {
+    readonly inPlace: readonly ColumnRole[];
+    readonly atLoad: readonly ColumnRole[];
+}>>;
+
+// @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
     readonly values?: Readonly<Record<string, string | number>>;
@@ -1212,6 +1218,7 @@ export interface FilterCondition {
     readonly id: string;
     readonly on: boolean;
     readonly rule: RuleTree;
+    readonly within?: FilterSelectWithin;
 }
 
 // @beta
@@ -1253,6 +1260,9 @@ export interface FilterResult {
         readonly edges: number;
     };
 }
+
+// @public
+export type FilterSelectWithin = "graph" | "picture";
 
 // @public
 export interface FilterStep {
@@ -2627,6 +2637,7 @@ export interface JoinChoices {
     readonly keys: readonly JoinKey[];
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
+    readonly unknownEnds?: "add" | "leave-out";
     readonly via?: SourceKey;
 }
 
@@ -2666,11 +2677,16 @@ export interface JoinReport {
     readonly newNodes: number;
     readonly notInGraph: number;
     readonly repeatedKeys: number;
+    readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
+    readonly unknownEndRows: number;
     readonly updatedNodes: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
+
+// @public
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
 
 // @public
 export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
@@ -4415,6 +4431,7 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly as?: "time";
     readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";

@@ -69,6 +69,7 @@ import {
     visibilityCycle,
 } from "../sets/dependencies";
 import { normalizeText, textMatcher } from "../text";
+import { readTimeValue } from "../time/parse";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -581,6 +582,10 @@ function assertFilter(filter: RuleTree): void {
             assertPath(filter.attribute, filter.kind);
             assertBounds(filter.min, filter.max, filter.kind);
             assertNodesChoice(filter.nodes, filter.kind);
+
+            if (filter.as !== undefined && (filter.as as string) !== "time") {
+                throw malformed('A "range" filter\'s as is "time", or absent to compare numbers.', { as: filter.as });
+            }
 
             return;
         case "categories":
@@ -1106,9 +1111,36 @@ function compileAttribute(
     context: CompileContext,
     filter: Extract<RuleTree, { kind: "range" | "categories" }>,
 ): CompiledHalves {
+    if (filter.kind === "range" && filter.as === "time") {
+        return compileTimeRange(context, filter);
+    }
+
     const accept = filter.kind === "range" ? inRange(filter.min, filter.max) : inCategories(filter.values);
 
     return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept);
+}
+
+/**
+ * A `range` leaf with `as: "time"`: each value read as an instant. The designated time field's
+ * instants, parsed once by the timeline, are read where they exist, so the leaf and the timeline
+ * agree on every value; any other column is read by the session's time parser.
+ * @param context - The compile context.
+ * @param filter - The leaf.
+ * @returns The halves.
+ */
+function compileTimeRange(context: CompileContext, filter: Extract<RuleTree, { kind: "range" }>): CompiledHalves {
+    const within = inRange(filter.min, filter.max);
+    const indexed = context.sources.instants?.(filter.attribute) ?? null;
+    const rowsOf = (parsed: TimeInstants | null | undefined): ((index: number) => unknown) | undefined =>
+        parsed === null || parsed === undefined
+            ? undefined
+            : (index) => (Number.isNaN(parsed.rows[index]) ? undefined : parsed.rows[index]);
+    const accept = (value: unknown): boolean => within(typeof value === "number" ? value : readTimeValue(value, "ms"));
+
+    return compileValueLeaf(context, filter.kind, filter.attribute, filter.nodes, accept, {
+        node: rowsOf(indexed?.node),
+        edge: rowsOf(indexed?.edge),
+    });
 }
 
 /**
@@ -1140,6 +1172,9 @@ function compileText(context: CompileContext, filter: Extract<RuleTree, { kind: 
  * @param attribute - The value path.
  * @param nodes - Which nodes the leaf keeps when the value lives on edges.
  * @param accept - The test of one value.
+ * @param readers - Reads one element's value instead of the value source, per half.
+ * @param readers.node - Reads one node's value.
+ * @param readers.edge - Reads one edge's value.
  * @returns The halves.
  */
 function compileValueLeaf(
@@ -1148,12 +1183,13 @@ function compileValueLeaf(
     attribute: Path,
     nodes: AttributeLeafNodes | undefined,
     accept: (value: unknown) => boolean,
+    readers: { readonly node?: (index: number) => unknown; readonly edge?: (index: number) => unknown } = {},
 ): CompiledHalves {
     const { graph } = context;
     const values = valuesOf(context, kind);
     const mark = markFor(context, attribute);
-    const readNode = (index: number): unknown => values.nodeValue(index, attribute);
-    const readEdge = (index: number): unknown => values.edgeValue(index, attribute);
+    const readNode = readers.node ?? ((index: number): unknown => values.nodeValue(index, attribute));
+    const readEdge = readers.edge ?? ((index: number): unknown => values.edgeValue(index, attribute));
     const known = values.halvesOf?.(attribute);
     const onNodes = known?.node ?? carries(graph.nodeCount, readNode);
     const onEdges = known?.edge ?? carries(graph.edgeCount, readEdge);

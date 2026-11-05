@@ -113,27 +113,58 @@ export function showNotices(
 }
 
 /**
+ * Makes a text column about to become the time a date column, when every one of its values reads
+ * as a date (the element's preview says so): the column's kind and the timeline then say the same
+ * thing (tier 4 round 1: a time drawn as dates over a column still marked text was a false done).
+ * @param session - the element's session.
+ * @param field - the field about to be designated.
+ * @returns settles once any conversion is recorded.
+ */
+async function asDates(session: GraphSession, field: TimeField | null): Promise<void> {
+    const sides = [
+        ["node", field?.nodes],
+        ["edge", field?.edges],
+    ] as const;
+    for (const [kind, source] of sides) {
+        if (source === undefined || source.unit !== undefined) {
+            continue;
+        }
+        const name = source.start.replace(/^data\./, "");
+        const column = session.data.attributes().find((each) => each.kind === kind && each.name === name);
+        if (column?.type !== "string") {
+            continue;
+        }
+        const preview = session.data.previewType({ kind, name }, "date");
+        if (preview.fails === 0) {
+            await session.data.setType({ kind, name }, "date");
+        }
+    }
+}
+
+/**
  * Designates a column as the time field (or none), and says what the element found in it or why
- * it refused.
+ * it refused. A text column whose values all read as dates becomes a date column first.
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param field - the field, or null.
  */
 export function designate(session: GraphSession, store: WorkspaceStore, field: TimeField | null): void {
     session.time.pause();
-    session.time.setField(field).then(
-        (result) => {
-            if (field !== null) {
-                store.set({ timelineOpen: true });
-            }
-            showNotices(session, store, result.notices);
-        },
-        (error: unknown) => {
-            const column = field?.edges?.start ?? field?.nodes?.start ?? "";
-            const reason = (error as { details?: { reason?: unknown } }).details?.reason;
-            store.set({ notice: { message: refusalWords(column, reason) } });
-        },
-    );
+    // A Time window card added for the last field does not come back on its own for this one.
+    store.set({ timeWindowCard: false });
+    asDates(session, field)
+        .then(async () => session.time.setField(field))
+        .then(
+            (result) => {
+                // Setting the field sets only the field: the dock opens from the toolbar's clock button.
+                showNotices(session, store, result.notices);
+            },
+            (error: unknown) => {
+                const column = field?.edges?.start ?? field?.nodes?.start ?? "";
+                const reason = (error as { details?: { reason?: unknown } }).details?.reason;
+                store.set({ notice: { message: refusalWords(column, reason) } });
+            },
+        );
 }
 
 /**
@@ -176,20 +207,23 @@ export function reportTimeError(store: WorkspaceStore): (error: unknown) => void
 }
 
 /**
- * A value of the designated time column in the timeline's date words, as the dock writes them;
- * any other value as it is.
- * @param session - the element's session.
- * @param kind - nodes or edges.
- * @param column - the column.
+ * A value of a column typed date in the timeline's date words, written to the day; any other
+ * value as it is. A column's kind alone decides: the Time role on a text or number column leaves
+ * its values as they are, as its header's glyph and sort caption say.
+ * @param session - the element's session, which reads the date.
  * @param value - the value.
- * @returns "Jan 31, 2025" for a time, else the value.
+ * @param date - whether the column is typed date.
+ * @returns "Jan 31, 2025" for a date, else the value.
  */
-export function timeValue(session: GraphSession, kind: "node" | "edge", column: string, value: unknown): unknown {
-    const { field } = session.time;
-    const source = kind === "node" ? field?.nodes : field?.edges;
-    if (source?.start !== column || value === null || value === undefined || value === "") {
+export function timeValue(session: GraphSession, value: unknown, date: boolean): unknown {
+    if (!date || value === null || value === undefined || value === "") {
         return value;
     }
-    const at = typeof value === "string" || typeof value === "number" ? session.time.parse(String(value)) : null;
-    return at === null ? value : instantWords(at, unitOf(session));
+    let at: number | null = null;
+    if (value instanceof Date) {
+        at = value.getTime();
+    } else if (typeof value === "string" || typeof value === "number") {
+        at = session.time.parse(String(value));
+    }
+    return at === null ? value : instantWords(at, "ms");
 }

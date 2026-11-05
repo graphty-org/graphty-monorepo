@@ -219,6 +219,31 @@ export function readInstant(value: unknown, unit: TimeUnit): { readonly at: numb
 }
 
 /**
+ * Read one value as an instant the way the session's time parser reads typed text: as
+ * {@link readInstant} does, except that a date written loosely with no zone is read in UTC, as the
+ * time field reads date-times.
+ * @param value - The value, or typed text.
+ * @param unit - How numbers are read.
+ * @returns Epoch milliseconds (or the ordinal value), or null when it names no instant.
+ */
+export function readTimeValue(value: unknown, unit: TimeUnit): number | null {
+    const text = typeof value === "string" ? value.trim() : value;
+    const reading = readInstant(text, unit);
+    if (reading.how === "strict") {
+        return reading.at;
+    }
+
+    if (typeof text === "string" && text !== "") {
+        const utc = Date.parse(`${text} UTC`);
+        if (!Number.isNaN(utc)) {
+            return utc;
+        }
+    }
+
+    return reading.how === "loose" ? reading.at : null;
+}
+
+/**
  * A window bound as a number: text is read as a date-time is read in a time column.
  * @param bound - The bound.
  * @returns The number, NaN when the text names no instant.

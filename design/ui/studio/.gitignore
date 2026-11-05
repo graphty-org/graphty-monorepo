@@ -11,3 +11,11 @@ tmp/
 !**/rounds/*/pilot/**/
 !**/rounds/pilot/**/
 !**/rounds/**/*.md
+
+# Study rounds keep their .md reports in git; their walk screenshots and step files go under the
+# main checkout's tmp/design-studio/<tier>/rounds/<round>/ (owner, 2026-10-21).
+**/rounds/round-*/expert/**
+**/rounds/round-*/repro/**
+**/rounds/round-*/sessions/**
+!**/rounds/round-*/**/
+!**/rounds/**/*.md

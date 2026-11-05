@@ -121,7 +121,8 @@ export function Overview(): React.JSX.Element | null {
         return null;
     }
     const statistics = session.data.statistics();
-    // With no time field yet, the column the element reads as time is offered once.
+    // With no time field yet, the column the element reads as time is offered once: a door to its
+    // home, Data > Fields, with the Time entry added and that column chosen.
     const found = session.time.field === null ? session.time.candidates().at(0) : undefined;
     const timeFound =
         found === undefined ? null : (
@@ -137,10 +138,12 @@ export function Overview(): React.JSX.Element | null {
                                 found.unit === undefined
                                     ? { start: found.column }
                                     : { start: found.column, unit: found.unit };
-                            designate(session, store, found.kind === "edge" ? { edges: source } : { nodes: source });
+                            const side = found.kind === "edge" ? "edges" : "nodes";
+                            designate(session, store, { [side]: source });
+                            store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
                         }}
                     >
-                        Set as time
+                        Set in Data
                     </Button>
                 }
             />

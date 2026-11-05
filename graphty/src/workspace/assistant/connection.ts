@@ -5,6 +5,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
+import { fileName, saveBlob } from "../export/choices";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
 import { effectLine, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
@@ -14,6 +15,9 @@ const WORKING_AFTER_MS = 1000;
 
 /** Each element's assistant, set up or on its way: a project's element is new, so it sets up anew. */
 const links = new WeakMap<GraphtyElement, Promise<void>>();
+
+/** The elements whose exports are already saved, so setting one up again saves each file once. */
+const saving = new WeakSet<GraphtyElement>();
 
 /** Results that end a message for now and wait on the reader. */
 const WAITING = new Set<AiResultCode>(["AI_CONFIRMATION_NEEDED", "AI_QUESTION_ASKED"]);
@@ -30,6 +34,26 @@ export type ScopeKind = NonNullable<AiCommandOptions["scope"]>;
 export function scopeKind(session: GraphSession | null, dropped: boolean): ScopeKind {
     const { nodes = [], edges = [] } = session?.selection ?? {};
     return nodes.length + edges.length > 0 && !dropped ? "selection" : "graph";
+}
+
+/**
+ * Saves what the assistant exports, with the panel open or not: a graph's document, a picture or a
+ * video, named `<project>_<format>.<ext>`.
+ * @param element - the element.
+ * @param store - the workspace store.
+ */
+function saveExports(element: GraphtyElement, store: WorkspaceStore): void {
+    if (saving.has(element)) {
+        return;
+    }
+    saving.add(element);
+    element.addEventListener("ai-export-ready", ({ detail: { format, data } }) => {
+        // A picture's or a video's format is no catalog entry: its id is its extension.
+        const entry = element.session.catalog.formats().find((each) => each.id === format);
+        const extension = entry?.extensions[0]?.replace(/^\./, "") ?? format;
+        const name = fileName(store.get().project?.name ?? "untitled", format, extension);
+        saveBlob(typeof data === "string" ? new Blob([data], { type: entry?.mimeTypes[0] ?? "" }) : data, name);
+    });
 }
 
 /**
@@ -61,6 +85,7 @@ export function link(
         })
         .then(() => {
             watchWaiting(element, store);
+            saveExports(element, store);
             store.set((state) => ({ assistantLinks: state.assistantLinks + 1 }));
         });
     links.set(element, ready);

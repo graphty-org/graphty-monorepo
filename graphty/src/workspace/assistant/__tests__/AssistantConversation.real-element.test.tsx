@@ -17,6 +17,7 @@ import { cleanup, render, screen, waitFor, within } from "../../../test/test-uti
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { link } from "../connection";
 
 /** The experiment on, as a site.json that lists it. */
 const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
@@ -286,6 +287,41 @@ describe("talking to the Assistant", () => {
         assert.notInclude(log.textContent, "overview");
         assert.notInclude(log.textContent, "{");
         assert.isNull(log.closest("[aria-live]"));
+    });
+
+    it("saves what the assistant exports once, named from the project and the format", async () => {
+        const choice = { provider: "mock", model: "mock", remember: false } as const;
+        writeAssistantChoice(choice);
+        const store = await open();
+        await openPanel();
+        await composer();
+        // Setting the same element up again must not save each file twice.
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        await link(element, store, choice);
+
+        const blobs: Blob[] = [];
+        const names: string[] = [];
+        const realUrl = URL.createObjectURL.bind(URL);
+        vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
+            blobs.push(blob as Blob);
+            return realUrl(blob);
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function save(this: HTMLAnchorElement) {
+            names.push(this.download);
+        });
+        model.turns = [
+            {
+                text: "Exporting.",
+                toolCalls: [{ id: "c1", name: "export_graph", arguments: { action: "export", format: "graphml" } }],
+            },
+            { text: "Exported.", toolCalls: [] },
+        ];
+        await say("Save this graph");
+        await screen.findByText(/Exported\./);
+
+        assert.deepEqual(names, ["talk_graphml.graphml"]);
+        assert.include(await blobs[0].text(), "<graphml");
     });
 
     it("draws what the model wrote as text, never as HTML", async () => {

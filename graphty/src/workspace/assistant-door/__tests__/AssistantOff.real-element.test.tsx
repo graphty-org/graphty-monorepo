@@ -69,6 +69,19 @@ describe("the Assistant with its experiment off", () => {
         assert.isNull(within(dialog).queryByText("Ctrl+I"));
     });
 
+    it("leaves Settings' Privacy as it was, even with a provider saved", async () => {
+        writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
+        await open();
+        await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
+        await within(dialog).findByText("Files you open: read on this computer, never uploaded.");
+        await within(dialog).findByText("Usage data: off. Nothing is sent.");
+        await within(dialog).findByText("No file contents ever leave your computer.");
+        assert.isNull(within(dialog).queryByText(/^Assistant:/));
+        writeAssistantChoice(null);
+    });
+
     it("leaves Mod+I to the browser and does nothing", async () => {
         const store = await open();
         const field = screen.getByRole("combobox", { name: "Find" });

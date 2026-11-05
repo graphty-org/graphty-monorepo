@@ -15,9 +15,11 @@ import React, { useEffect, useState } from "react";
 
 import { AI_PROVIDER_SECTION, AiProviderPage } from "../assistant-door/AssistantPlace";
 import { assistantOn } from "../assistant-door/commands";
+import { providerDisclosure } from "../assistant-door/provider";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
+import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { setNumberFormat, useNumberFormats } from "./numberFormat";
 import {
@@ -95,11 +97,14 @@ function General(): React.JSX.Element {
 }
 
 /**
- * Privacy: the usage data switch with the owner's words, and where the reader's data goes.
+ * Privacy: the usage data switch with the owner's words, and where the reader's data goes. With
+ * the assistant experiment on and a provider saved, the provider is named and no line says otherwise.
  * @returns The section
  */
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
+    const sendsTo = useAssistantSendsTo();
+    const usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -110,18 +115,21 @@ function Privacy(): React.JSX.Element {
                         answerUsageData(event.currentTarget.checked ? "share" : "declined");
                     }}
                 />
-                <UsageDataText headline={false} />
+                <UsageDataText headline={false} assistantSends={sendsTo !== null} />
             </Stack>
             <Stack gap={4}>
                 <Text size="sm" fw={600}>
                     Where your data goes
                 </Text>
-                <Text size="xs">Files you open: read on this computer, never uploaded.</Text>
+                <Text size="xs">
+                    {sendsTo === null
+                        ? "Files you open: read on this computer, never uploaded."
+                        : "Files you open: read on this computer. Only what the assistant reads from them is sent."}
+                </Text>
+                {sendsTo === null ? null : <Text size="xs">Assistant: {providerDisclosure(sendsTo)}</Text>}
                 <Text size="xs">Your project: saved where you save it.</Text>
                 <Text size="xs">
-                    {on
-                        ? "Usage data: sent with content masked, only while Share usage data is on."
-                        : "Usage data: off. Nothing is sent."}
+                    {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
             </Stack>
         </Stack>

@@ -1,11 +1,10 @@
 import { Button, Tooltip } from "@mantine/core";
 import type React from "react";
 
-import { assistantOn } from "../assistant-door/commands";
-import { providerDescriptor, useAssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useUsageAnswer } from "./usageData";
+import { useAssistantSendsTo } from "./useAssistantSendsTo";
 
 /**
  * The privacy chip (tier1-design.md section 2.1): "Local only", or "Usage data on, content
@@ -15,12 +14,10 @@ import { useUsageAnswer } from "./usageData";
  * @returns The chip
  */
 export function PrivacyChip(): React.JSX.Element {
-    const { run, element } = useWorkspace();
+    const { run } = useWorkspace();
     const on = useUsageAnswer() === "share";
-    const choice = useAssistantChoice();
     const usage = on ? "Usage data is sent, content masked" : "Nothing is sent";
-    const sendsTo =
-        assistantOn(element) === true && choice !== null ? providerDescriptor(choice.provider).plainName : null;
+    const sendsTo = useAssistantSendsTo();
     const usageWords = on ? "Usage data on, content masked" : "Local only";
     const glyph =
         on || sendsTo !== null ? <GLYPHS.shared size={12} aria-hidden /> : <GLYPHS.private size={12} aria-hidden />;

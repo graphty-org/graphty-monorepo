@@ -107,6 +107,15 @@ export function useAssistantChoice(): AssistantChoice | null {
 }
 
 /**
+ * What a saved provider receives: the AI provider section and Settings' Privacy say the same words.
+ * @param provider - its name.
+ * @returns the sentences.
+ */
+export const providerDisclosure = (provider: string): string =>
+    `Your messages and what the assistant reads from the graph (column names, node ids, labels and ` +
+    `values) go straight to ${provider}. ${provider} charges your key.`;
+
+/**
  * A provider's catalog entry.
  * @param provider - its id.
  * @returns the entry.

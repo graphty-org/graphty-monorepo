@@ -92,6 +92,29 @@ describe("the Assistant with its experiment on", () => {
         await within(dialog).findByText("Ctrl+I");
     });
 
+    it("names the saved provider in Settings' Privacy, and no line there says nothing leaves", async () => {
+        writeAssistantChoice({ provider: "google", model: "gemini-3.8-flash", remember: false });
+        await open();
+        await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
+        await within(dialog).findByText(/^Assistant: .* go straight to Google\. Google charges your key\.$/);
+        await within(dialog).findByText(/^Files you open: .* Only what the assistant reads from them is sent\.$/);
+        await within(dialog).findByText("Usage data: off.");
+        await within(dialog).findByText("Usage data holds no file contents.");
+        assert.notMatch(dialog.textContent, /never uploaded|Nothing is sent|ever leave/);
+    });
+
+    it("keeps Settings' Privacy as it was with no provider saved", async () => {
+        writeAssistantChoice(null);
+        await open();
+        await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Privacy" }));
+        await within(dialog).findByText("Files you open: read on this computer, never uploaded.");
+        assert.isNull(within(dialog).queryByText(/^Assistant:/));
+    });
+
     it("opens on the rail button with focus in the composer, and the active button closes it", async () => {
         const store = await open();
         const door = screen.getByRole("button", { name: "Assistant" });

@@ -19,6 +19,7 @@ import {
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
+import { providerDisclosure } from "../assistant-door/provider";
 import { formatNumber } from "../settings/numberFormat";
 import { attributeName, channelWord } from "../style/words";
 
@@ -308,9 +309,7 @@ export const runningWords = (name: string): string => `Running ${name}`;
  * @returns the section's sentences and link.
  */
 export const providerWords = (provider: string): { readonly disclosure: string; readonly link: string } => ({
-    disclosure:
-        `Your messages and what the assistant reads from the graph (column names, node ids, labels and ` +
-        `values) go straight to ${provider}. ${provider} charges your key.`,
+    disclosure: providerDisclosure(provider),
     link: `Get a key from ${provider}`,
 });
 

@@ -534,3 +534,42 @@ function readable(
         return null;
     }
 }
+
+/**
+ * Whether a rule holds a `measure` that reads a run over the visible graph. A filter condition
+ * decides what is visible, so such a measure would read its own output: each run over the new
+ * picture moves the picture again, and the runs never settle.
+ * @param rule - The rule, or any part of it.
+ * @returns True when one does.
+ */
+function readsVisibleRun(rule: unknown): boolean {
+    if (Array.isArray(rule)) {
+        return rule.some(readsVisibleRun);
+    }
+
+    if (typeof rule !== "object" || rule === null) {
+        return false;
+    }
+
+    const node = rule as Readonly<Record<string, unknown>>;
+    if (node.kind === "measure" && node.scope === "visible") {
+        return true;
+    }
+
+    return Object.values(node).some(readsVisibleRun);
+}
+
+/**
+ * Refuse a filter condition whose rule reads a run over the visible graph: the picture would
+ * depend on itself (see {@link readsVisibleRun}).
+ * @param rule - The condition's rule.
+ * @throws A `GraphtyError` (`E_BAD_COMMAND`) when it does.
+ */
+export function assertNotCircular(rule: RuleTree): void {
+    if (readsVisibleRun(rule)) {
+        throw bad(
+            'A filter condition cannot read a run over the visible graph ("scope": "visible"): what it hides would change the run it reads. Read the run over "graph", or name another scope.',
+            { rule },
+        );
+    }
+}

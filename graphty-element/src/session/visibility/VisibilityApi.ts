@@ -98,6 +98,7 @@ import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
+    assertNotCircular,
     combinedRule,
     conditionOf,
     conditionsOfSteps,
@@ -1535,6 +1536,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             }
 
             const rule = sources.admit === undefined ? shaped.rule : sources.admit(shaped.rule);
+            assertNotCircular(rule);
             assertVisibility(rule, null, sources.dependencies);
             return Object.freeze(conditionOf(shaped, rule));
         });

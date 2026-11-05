@@ -439,6 +439,31 @@ describe("filter conditions", () => {
         session.dispose();
     });
 
+    it("refuses a condition that reads a run over the visible graph, which it would move itself", async () => {
+        const session = await graph();
+        const circular = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "none",
+                    steps: [
+                        { op: "add", rule: { kind: "measure", algorithm: "degree", field: "value", scope: "visible" } },
+                    ],
+                },
+            ],
+        } as const;
+        try {
+            await session.visibility.addCondition({ effect: "keep", rule: circular });
+            assert.fail("a circular condition is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+        }
+        assert.lengthOf(session.visibility.conditions, 0);
+        session.dispose();
+    });
+
     it("keeps a condition's name: a rename is one undo step and changes nothing it matches", async () => {
         const session = await graph();
         const { id } = await session.visibility.addCondition({ effect: "keep", rule: HOSTS });

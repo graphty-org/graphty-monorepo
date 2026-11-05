@@ -84,6 +84,12 @@ async function load(url: string, format: string): Promise<Graph> {
     await vi.waitFor(() => {
         assert.lengthOf(graph.getSession().history.pending, 0);
     });
+    // A placed DOT file's edges are routed by Graphviz: its layout's answer arrives once the routes do, and is
+    // published in a frame, which the stopped render loop does not draw by itself
+    await vi.waitFor(() => {
+        graph.update();
+        assert.isTrue(graph.getLayoutManager().isSettled, "the layout's answer is published");
+    });
     return graph;
 }
 

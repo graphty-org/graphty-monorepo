@@ -169,8 +169,10 @@ describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () =
 
     it("reads yFiles 3's STEALTH and ELLIPSE arrows as 2.6's DEFAULT and CIRCLE, which they were renamed from", async () => {
         const { edge } = await sheet("specimen-arrows.graphml");
-        expect(edge("targetArrow", "target-stealth")).toBe("triangle");
-        expect(edge("sourceArrow", "source-stealth")).toBe("triangle");
+        // STEALTH is "notched on the side opposite its tip": a vee, not the plain triangle TRIANGLE draws
+        expect(edge("targetArrow", "target-stealth")).toBe("vee");
+        expect(edge("sourceArrow", "source-stealth")).toBe("vee");
+        expect(edge("targetArrow", "target-triangle")).toBe("triangle");
         expect(edge("targetArrow", "target-ellipse")).toBe("circle");
         expect(edge("sourceArrow", "source-ellipse")).toBe("circle");
     });

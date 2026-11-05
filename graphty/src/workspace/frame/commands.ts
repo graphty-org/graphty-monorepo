@@ -118,7 +118,7 @@ export const registration = defineRegistration({
             keys: ["Mod+A"],
             disabled: ({ session }) => nothingDrawn(session),
             run: async ({ session }) => {
-                await session?.selection.apply({ scope: "visible" });
+                await session?.selection.apply({ scope: "visible" }, "replace", { cause: "user" });
             },
         },
         {
@@ -141,7 +141,7 @@ export const registration = defineRegistration({
                 // Says what went, so an Escape pressed for something else is not silent; a rule in
                 // the find box stays there, so Enter brings the selection back.
                 const message = selectionClearedWords(session.selection.nodes.length, session.selection.edges.length);
-                session.selection.clear();
+                session.selection.clear({ cause: "user" });
                 workspace.set({ notice: { message, endsWithSelection: true } });
             },
         },

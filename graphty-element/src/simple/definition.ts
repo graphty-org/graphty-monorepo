@@ -14,7 +14,7 @@
 import { GraphtyError, type GraphtyErrorSource, isGraphtyError } from "../errors";
 
 /** The four verbs of the simple tier graphty-element builds. */
-export type SimpleVerb = "defineAlgorithm" | "defineLayout" | "definePalette" | "defineLogDestination";
+export type SimpleVerb = "defineAlgorithm" | "defineLayout" | "definePalette" | "defineLogDestination" | "defineShader";
 
 /**
  * The id rule: lower-case words of letters and digits joined by single hyphens, starting with a

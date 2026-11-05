@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """gen_repros.py <corpus/styles dir>: small files that reproduce, in the same structure, defects
-found in corpus files that may not be committed (their licenses do not allow redistribution).
-Seeded; written for this project, MIT.
+found in corpus files whose licenses do not allow redistribution or state none. The original files
+are in the corpus too (corpus/styles/*/SOURCES.md); each reproduction isolates one defect in an MIT
+file. Seeded; written for this project, MIT.
 
 - cx/fidelity/repro-locked-own-size.cx (like DDRAM, CC BY-NC-ND): "lock node width and height" on,
   a continuous size mapping, and every node but two setting its own width and height. Cytoscape

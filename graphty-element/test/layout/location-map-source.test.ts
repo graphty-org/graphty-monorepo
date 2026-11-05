@@ -174,14 +174,15 @@ describe("the session's location facts", () => {
         harness.session.dispose();
     });
 
-    it("says Surface is not in effect in the 2D view", () => {
+    it("says the map's dimension is not in effect in the 2D view, which draws the 2D map", () => {
         const harness = makeSession();
         const { layout } = harness.session;
-        assert.deepInclude(layout.optionInEffect("location-map", "surface", "2d"), {
+        assert.deepEqual(layout.optionInEffect("location-map", "mapDimension", "2d"), {
             inEffect: false,
             code: "setting.notIn2d",
+            params: { setting: "mapDimension", drawn: "2d" },
         });
-        assert.isTrue(layout.optionInEffect("location-map", "surface", "3d").inEffect);
+        assert.isTrue(layout.optionInEffect("location-map", "mapDimension", "3d").inEffect);
         assert.isTrue(layout.optionInEffect("location-map", "extent", "2d").inEffect);
         harness.session.dispose();
     });

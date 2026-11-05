@@ -23,10 +23,13 @@ const IMPLEMENTED = [
     "layouts",
     "logSinks",
     "metrics",
+    "models",
     "optionsFor",
     "palettes",
     "scales",
     "screenshotPresets",
+    "shaders",
+    "transitions",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
 
 describe("session.catalog", () => {

@@ -38,6 +38,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    LayerId,
     LayoutId,
     MeasurementDeclaration,
     Path,
@@ -53,14 +54,21 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
-import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
+import type {
+    GraphBackgroundConfig,
+    GraphSelectionStyleConfig,
+    GraphSelectionStyleInput,
+    LayoutTransitionConfig,
+} from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
+import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
+import type { NetworkApi, NetworkRequest } from "./network";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -82,6 +90,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
+import type { RenderQualityChange, SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
@@ -1238,7 +1247,7 @@ export interface SessionDataApi {
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
      * @returns How many nodes and edges went and stayed.
-     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @throws A `GraphtyError` (as a rejection) with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -1647,10 +1656,12 @@ export interface SessionDataApi {
      * const [load] = session.data.loads();
      * if (load.next !== null) await session.data.more({ load: load.key });
      * ```
-     * @param options - The load options; `load` names the load to page (a key from `loads()`),
-     *     else the newest load that has more. The load's own caps apply unless `limits` is given.
+     * @param options - The load options; `load` names the load to page (its `sources()` key, or
+     *     its key in `loads()`), else the newest load that has more and is not waiting to run. The
+     *     load's own caps apply unless `limits` is given.
      * @returns Settles once the page is in the graph, or at once when the load has no more;
-     *     rejects with `E_SOURCE_UNKNOWN` for a `load` that `loads()` does not list.
+     *     rejects with `E_LOAD_UNKNOWN` for a `load` neither lists, and `E_SOURCE_PENDING` for a
+     *     load of an opened project that has not run since it opened.
      */
     more(options?: SourceMoreOptions): Promise<void>;
     /**
@@ -1669,10 +1680,11 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns `{ changed }`; null when the source cannot tell (it has no cheap check, or the
-     *     load recorded nothing to compare). Rejects with `E_SOURCE_UNKNOWN` for an unknown key.
+     *     load recorded nothing to compare). Rejects with `E_LOAD_UNKNOWN` for an unknown key and
+     *     `E_SOURCE_PENDING` for a load of an opened project that has not run since it opened.
      */
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     /**
@@ -1685,10 +1697,11 @@ export interface SessionDataApi {
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
-     *     `E_SOURCE_UNKNOWN` for an unknown key, else with the source's code.
+     *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project
+     *     that has not run since it opened, else with the source's code.
      */
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
@@ -1863,10 +1876,11 @@ export interface LoadDraft {
      */
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     /**
-     * Load the held rows as one undoable step, without reading the source again. For a graph
-     * file (every table `fixed`), a load with no `mapping` loads what `data.import` of the same
-     * source loads, and also sets `data.knownFields.nodeLabelPath` to the file's `label` field
-     * when no label path is configured.
+     * Load the held rows as one undoable step, without reading the source again. A load with no
+     * `mapping` loads what `data.import` of the same source loads: for a graph file (every table
+     * `fixed`) it sets `data.knownFields.nodeLabelPath` to `label` when no label path is configured
+     * and the load is not a merge, as `data.import` does; a CSV file's id and endpoint cells load
+     * as text, as `data.import` reads them.
      * @param choices - The column roles, how to treat the graph already there, and the rest.
      * @returns Settles once the rows are in the graph.
      */
@@ -2274,8 +2288,9 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly reloadable?: true;
     /**
-     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
-     * `data.refresh` and `data.checkSource` take.
+     * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
+     * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
+     * save and reopen never changes.
      * @since 3.30.0
      */
     readonly loadKey?: string;
@@ -2291,6 +2306,12 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly total?: number;
+    /**
+     * For a network source's load: how many edges the source holds for it, when the source counted
+     * them or a complete read did.
+     * @since 3.30.0
+     */
+    readonly totalEdges?: number;
 }
 
 /**
@@ -2448,11 +2469,14 @@ export interface JoinRecord {
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
-/** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
-export type LoadedSourceKind = "file" | "server" | "sample" | "join";
-
-/** One entry of `session.data.sources()`: the name the data prototype's design uses for it. */
-export type SourceEntry = LoadedSource;
+/**
+ * Where a load came from, as {@link LoadedSource.kind} says: a file the reader gave (or inline
+ * text), a URL, a network source, a generated or sample graph, or a table joined onto an earlier
+ * load. A saved project's `graphty-sources` entry names the same kinds `file`, `url`, `source`
+ * (for `server`) and `sample`, and a join as a `file` entry with `joinedOnto`. OPEN UNION: kinds
+ * may be added.
+ */
+export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
 /**
  * What `session.data.removeSource(key)` did.
@@ -2572,7 +2596,7 @@ export interface ProjectConfig {
     readonly data: SessionDataConfig;
     /** Whether the algorithms in `data.algorithms` run once data has loaded. */
     readonly runAlgorithmsOnLoad: boolean;
-    /** What the graph is drawn against: a colour or a skybox. */
+    /** What the graph is drawn against: a colour or a skybox, and a shader over either. */
     readonly background: GraphBackgroundConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
@@ -2642,6 +2666,46 @@ export interface ProjectConfig {
     readonly author?: string;
     /** The project's name, which a project file carries. Absent when none is set, never blank. */
     readonly name?: string;
+    /**
+     * How nodes travel to a new layout: a transition from `catalog.transitions()`, its duration
+     * and parameters. Absent (the default), a new layout's positions are drawn in one frame.
+     * @since 3.36.0
+     */
+    readonly layoutTransition?: LayoutTransitionConfig;
+    /**
+     * How far the 2D view is turned: the angle the whole drawing (nodes, edges and labels alike) is
+     * turned counterclockwise on screen, in degrees, about the view's center. Absent (the default),
+     * the drawing is upright. Every fit frames the turned drawing, and the 3D view ignores it. A
+     * file's own turn sets it on import, as Graphviz's `rotate=90` and `landscape` do (90).
+     *
+     * ```ts
+     * await session.config.set({ viewRotation: 90 }); // a quarter turn, as Graphviz draws landscape
+     * ```
+     * @since 3.38.0
+     */
+    readonly viewRotation?: number;
+    /**
+     * How the element frames the graph on its own and on `zoomToFit()`: after a load, a layout change and a 2D/3D
+     * switch. Absent (the default), every visible node is framed whole with its labels, inside a small margin.
+     * `extent: "centers"` frames the nodes' centers alone, so a big node at the edge of the graph may run past the
+     * canvas and labels are not counted. `padding`, in CSS pixels, is the room kept clear at each end of the canvas's
+     * shorter side (the longer side keeps the same share), in place of the margin. A file's own framing sets it on
+     * import when the load asks for it (file style option `framing: "file"`): sigma.js fits node centers 30 px in.
+     *
+     * ```ts
+     * await session.config.set({ framing: { extent: "centers", padding: 30 } }); // as sigma.js frames a graph
+     * ```
+     * @since 3.38.0
+     */
+    readonly framing?: GraphFraming;
+}
+
+/** How the element frames the graph: see {@link ProjectConfig.framing}. */
+export interface GraphFraming {
+    /** What each node counts as: `"drawn"` the box it is drawn in, with its labels; `"centers"` its center alone. */
+    readonly extent: "drawn" | "centers";
+    /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
+    readonly padding?: number;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2670,6 +2734,12 @@ export interface ProjectConfigPatch {
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
+    readonly layoutTransition?: LayoutTransitionConfig;
+    /** See {@link ProjectConfig.viewRotation}; `undefined` turns the view upright. */
+    readonly viewRotation?: number;
+    /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
+    readonly framing?: GraphFraming;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -2689,6 +2759,13 @@ export interface SessionConfig extends ProjectConfig {
      *     setting or a value is one its setting refuses; nothing is changed then.
      */
     set(values: ProjectConfigPatch): Promise<void>;
+    /**
+     * The color the element draws the background in, beneath any image or shader, as hex: the
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
+     * the background sets no color of its own.
+     * @since 3.36.0
+     */
+    readonly backgroundColor: string;
     /** What the consumer asked of the hardware. */
     readonly acceleration: {
         /** Use an accelerator when one is available, never look, or refuse to run without one. */
@@ -2740,6 +2817,21 @@ export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
 export interface SettingEffect extends CodedFact<SettingEffectCode> {
     /** Whether the setting changes the drawing now. */
     readonly inEffect: boolean;
+}
+
+/**
+ * A click on a group outline a style layer draws (a use at the place `group` on its
+ * `node.shaders`): its layer, its shader, and the group's `groupBy` value (null for a use drawing
+ * one outline).
+ * @since 3.36.0
+ */
+export interface GroupOutlineClick {
+    /** The layer whose outline was clicked. */
+    readonly layer: LayerId;
+    /** The outline's shader. */
+    readonly shader: string;
+    /** The group's `groupBy` value; null for a use drawing one outline. */
+    readonly group: string | number | boolean | null;
 }
 
 /**
@@ -2797,6 +2889,13 @@ export interface SessionEventMap {
      * @since 3.33.0
      */
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
+    /**
+     * A click landed on a group outline a style layer draws (a use at the place `group`), and on
+     * no node or edge: the layer, the shader, and the group's `groupBy` value (null for a use
+     * drawing one outline). The topmost outline under the pointer is the one reported.
+     * @since 3.36.0
+     */
+    "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /** The time window moved through `session.time`: where it is now and what entered and left. */
@@ -2867,9 +2966,20 @@ export interface SessionEventMap {
     /**
      * Project state changed: the slices written and what wrote them. Fires synchronously, as
      * soon as the state has changed and before the picture has caught up; the per-domain events
-     * (`style:changed` and the rest) follow once it has.
+     * (`style:changed` and the rest) follow once it has, then `project:derived`.
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * The picture has caught up with every project change made so far: published once nothing is
+     * left to derive or repaint -- after the per-domain events, and after any repaint the element
+     * put off or started on its own -- with every slice changed or derived since the last one
+     * (changes made in one burst share one event; `cause` is the latest change's). THE event
+     * for a consumer that re-reads derived state -- `styles.legend()`, `styles.counts()`,
+     * `styles.explain()` -- after any change, including an edit to data alone, which publishes no
+     * `style:changed`. Read on `project:changed`, those answer for the previous pass.
+     * @since 3.37.0
+     */
+    "project:derived": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
     /**
      * A kept set was created, renamed, redefined or removed: one event per set a write touched,
      * after the write committed. A write that was refused publishes nothing.
@@ -2905,6 +3015,44 @@ export interface SessionEventMap {
      */
     "project:status": ProjectStatus;
     /**
+     * A project shader's status changed: it started compiling, became ready, failed, was held,
+     * approved, or turned off. Mirrored on the element as `graphty-shader-status`.
+     * @since 3.36.0
+     */
+    "shader:status": { readonly id: string } & ShaderStatus;
+    /**
+     * Shaders arrived that wait for approval: a project or style file opened, an AI command, or
+     * an undo brought them back. Mirrored as `graphty-shader-held`.
+     * @since 3.36.0
+     */
+    "shader:held": { readonly ids: readonly string[] };
+    /**
+     * A shader's text was approved to run: the reader added it, or `approve` ran it. An
+     * application that remembers approvals stores the hash and passes it back in
+     * `shaderSettings.trustedHashes`. Mirrored as `graphty-shader-approved`.
+     * @since 3.36.0
+     */
+    "shader:approved": { readonly id: string; readonly hash: string };
+    /**
+     * The frame guard changed how much shader work the element does: it stepped quality down,
+     * paused motion or turned heavy shaders off on a GPU that fell behind, or stepped back up.
+     * Mirrored on the element as `graphty-render-quality`; the quality now is
+     * `element.renderQuality`.
+     * @since 3.36.0
+     */
+    "render:quality": RenderQualityChange;
+    /**
+     * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
+     * event per model and state, never one per node. Mirrored on the element as
+     * `graphty-model-change`.
+     */
+    "model:changed": ModelChange;
+    /**
+     * A fetch the page's code did not ask for waits for an answer (`session.network.allow` or
+     * `deny`). Once per URL.
+     */
+    "network:pending": NetworkRequest;
+    /**
      * The session was disposed: `dispose()` was called, or its element left the page. Published
      * once, the last event it publishes, with `status.ready` already false; its data verbs throw
      * `E_DISPOSED` once `dispose()` returns. A host that handed the session to readers (a view, a
@@ -2913,6 +3061,30 @@ export interface SessionEventMap {
      */
     "session:disposed": Readonly<Record<string, never>>;
 }
+
+/**
+ * What happened to one model a style layer names (`node.model`), for `model:changed` and the
+ * element's `graphty-model-change`.
+ */
+export interface ModelChange {
+    /** What the layer named: the URL or the asset id, exactly as written. */
+    readonly ref: string;
+    /** The asset's id, once the session holds it. */
+    readonly id?: AssetId;
+    /** The layers that name it. */
+    readonly layerIds: readonly LayerId[];
+    /**
+     * `pending` while it is fetched or loaded; `accepted` once its files passed the checks;
+     * `drawn` once the scene shows it; `rejected` when its files were refused (or its URL was not
+     * fetched); `failed` when it could not be drawn. Nodes keep `node.shape` until `drawn`.
+     */
+    readonly state: ModelState;
+    /** Why it was refused or failed (`E_MODEL_*`), and what is worth knowing (`W_MODEL_*`). */
+    readonly problems: readonly CodedFact[];
+}
+
+/** Where a model a layer names stands; see {@link ModelChange.state}. */
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 /**
  * The parts of a project. Everything a project file saves lives in one of these, and a change
@@ -2934,7 +3106,8 @@ export type ProjectSlice =
     | "views"
     | "notes"
     | "attributes"
-    | "valueLabels";
+    | "valueLabels"
+    | "shaders";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -2981,6 +3154,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
+ * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
@@ -2999,8 +3173,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
- * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
- * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id (an edit made through `setSteps`) |
+ * | `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove` | `id`: the filter condition's id; `effect`: its effect (`"keep"`, `"exclude"` or `"select"`) |
+ * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
+ * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
@@ -3082,6 +3258,9 @@ export type HistoryCode =
     | "style.hide-row"
     | "style.delete-row"
     | "style.restore-starting-rows"
+    | "shader.add"
+    | "shader.replace"
+    | "shader.remove"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -3093,6 +3272,11 @@ export type HistoryCode =
     | "visibility.step-on"
     | "visibility.step-off"
     | "visibility.step-remove"
+    | "visibility.condition-add"
+    | "visibility.condition-edit"
+    | "visibility.condition-on"
+    | "visibility.condition-off"
+    | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
     | "time.field"
@@ -3309,6 +3493,8 @@ export interface CommandOutcomeMap {
     "style.encode": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.template": Promise<void>;
+    /** Settles once the shader's text is recorded. */
+    "shader.set": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -3317,6 +3503,12 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /**
+     * Settles once the conditions are recorded and the pass that evaluates the masks has run.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */
@@ -3500,8 +3692,9 @@ export interface SessionLayout {
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
-     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
-     * an option not in effect disabled, with words for the code.
+     * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
+     * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
+     * effect disabled, or offering only that value, with words for the code.
      * @param id - The layout's catalogue id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
@@ -3660,6 +3853,19 @@ export interface GraphSession {
      */
     readonly notes: NotesApi;
     /**
+     * The 3D model files a style layer can draw nodes as: add one (a URL, a File, a folder, a
+     * .zip or bytes), wait for one, read what it holds, remove it. Adding checks the files and
+     * draws nothing; assets are not commands, so they are kept out of the history and recipes.
+     */
+    readonly assets: AssetsApi;
+    /**
+     * The fetches the page's code did not ask for, waiting for the reader: a model URL a project
+     * file, an AI command or the data names, and a reopened project's network-source loads. Each
+     * is a `W_URL_NEEDS_APPROVAL` fact, published as `network:pending`; nothing is fetched until
+     * `allow`. Private, loopback and link-local addresses are refused whatever the answer.
+     */
+    readonly network: NetworkApi;
+    /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command
      * wrote. Undo does not read it; `history` is the undo record.
@@ -3699,6 +3905,13 @@ export interface GraphSession {
      * change.
      */
     readonly styles: StylesApi;
+    /**
+     * The shaders that belong to the project -- pasted, or carried in by a file -- and whether
+     * each may run. Presets and registered shaders are in `catalog.shaders()`; this adds, checks,
+     * approves and removes the project's own (design: shaders as style features).
+     * @since 3.36.0
+     */
+    readonly shaders: SessionShaders;
     /**
      * The saved camera views, by name: camera states kept under a name of the consumer's
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
@@ -3930,6 +4143,11 @@ export interface ElementSession extends GraphSession {
      */
     readonly paint: ElementPaint;
     /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void;
+    /**
      * Publishes `canvas:empty-click`; the renderer calls it for a click on empty canvas.
      * @param at - Where the click landed.
      * @param at.x - Its distance from the drawing's left edge, in CSS pixels.
@@ -3942,6 +4160,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
+     * @param target - The outline's layer, shader and group.
+     */
+    groupOutlineClick(target: GroupOutlineClick): void;
 }
 
 /**

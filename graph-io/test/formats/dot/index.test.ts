@@ -9,8 +9,13 @@ describe("the dot subpath entry", () => {
             "DOT_LOSS",
             "DOT_STYLE_BLOCK_ATTRIBUTE",
             "DOT_STYLE_CAPABILITIES",
+            "RANK_COLUMN",
+            "RANK_SET_COLUMN",
             "dotExporter",
+            "dotFileLayout",
             "dotImporter",
+            "graphvizFont",
+            "graphvizPosBends",
         ]);
         expect(dot.dotImporter.format).toBe("dot");
         expect(dot.dotExporter.format).toBe("dot");

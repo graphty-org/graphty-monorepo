@@ -1,10 +1,16 @@
 import "@testing-library/jest-dom/vitest";
 import "@mantine/core/styles.css";
 
+import { configure } from "@testing-library/react";
 import { beforeAll } from "vitest";
 import { commands } from "vitest/browser";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { ensureCompactStyles } from "../src/theme/global-styles";
+
+// Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
+// a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // The package's stylesheet (tokens, Inter, shared classes) is injected by the first themed
 // component to render; injecting it up front means a test that reads a token before rendering

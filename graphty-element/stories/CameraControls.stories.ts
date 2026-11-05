@@ -5,7 +5,7 @@ import { html } from "lit";
 import { ref } from "lit/directives/ref.js";
 
 import { Graphty } from "../src/graphty-element";
-import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, holds } from "./assertions";
+import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, eventually, holds } from "./assertions";
 import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /**
@@ -54,22 +54,18 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     const before = where();
 
     buttons[0].click();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    const afterPreset = where();
-
-    await holds(
-        afterPreset !== before,
+    await eventually(
+        () => where() !== before,
         `Camera Controls ${story}: pressing "${buttons[0].textContent.trim()}" left the camera at ` +
             `(${before}), where it already was`,
     );
+    await scene.element.waitForStableFrame();
+    const afterPreset = where();
 
     // The last button is Reset, which must bring it back somewhere else again.
     buttons[buttons.length - 1].click();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    await holds(
-        where() !== afterPreset,
+    await eventually(
+        () => where() !== afterPreset,
         `Camera Controls ${story}: pressing "${buttons[buttons.length - 1].textContent.trim()}" left ` +
             `the camera where the preset put it (${afterPreset})`,
     );
@@ -455,16 +451,21 @@ const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"
     await element.graph.zoomStep("in");
     await element.graph.zoomStep("in");
     await element.applyCameraView("fitToGraph");
-    await new Promise((resolve) => setTimeout(resolve, 300));
 
+    // Screen positions are read from the last frame drawn: the stable frame draws the fitted camera.
+    await element.waitForStableFrame();
     const { width, height } = element.graph.canvas.getBoundingClientRect();
-    for (const node of element.graph.getNodes()) {
-        const at = element.nodeScreenPosition(node.id);
-        await holds(
-            at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height,
-            `Camera Controls ${story}: after Fit, node ${String(node.id)} is not drawn inside the canvas`,
-        );
-    }
+    const outside = element.graph
+        .getNodes()
+        .filter((node) => {
+            const at = element.nodeScreenPosition(node.id);
+            return !(at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height);
+        })
+        .map((node) => String(node.id));
+    await holds(
+        outside.length === 0,
+        `Camera Controls ${story}: after Fit, nodes ${outside.join(", ")} are not drawn inside the canvas`,
+    );
 };
 
 /**

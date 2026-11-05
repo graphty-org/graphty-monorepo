@@ -335,6 +335,22 @@ describe("per-tool readers", () => {
         expect(s.gaps[0].property).toBe("labelText");
     });
 
+    it("Gephi: leaves self-loops out and gives a node its id with spaces, as the items dump keeps it", async () => {
+        const { sceneFromGephi } = await load<{ sceneFromGephi: (svg: string, items: unknown) => SceneParts }>(
+            "gephi.mjs",
+        );
+        const svg = `<path class="id_Big_A id_b" d="M 0,0 L 10,0"/><path class="id_b" d="M 10,0 L 10,0"/>
+            <circle r="5" cx="0" class="id_Big_A" cy="0"/><circle r="5" cx="10" class="id_b" cy="0"/>`;
+        const s = sceneFromGephi(svg, {
+            node: [{ _id: "Big A" }, { _id: "b" }],
+            edge: [{ _src: "Big A", _dst: "b", directed: "true" }],
+        });
+        expect(s.nodes.map((n) => n.id)).toEqual(["Big A", "b"]);
+        expect(s.edges).toHaveLength(1);
+        expect(s.edges[0]).toMatchObject({ id: "Big A->b", source: "Big A", arrow: { target: "filled-triangle" } });
+        expect(s.gaps.map((g) => g.property)).toContain("edgePath");
+    });
+
     it("Cytoscape desktop: fans the parallel edges after a bundle's first round ding's anchors", async () => {
         const { autoAnchors, anchoredPath } = await load<{
             autoAnchors: (t: unknown, rows: unknown[], geo: Map<string, unknown[]>) => Map<string, number[]>;
@@ -385,7 +401,13 @@ describe("per-tool readers", () => {
             NODE_LABEL_COLOR: "#000000",
         });
         const s = sceneFromCyrest({
-            nodes: [row(1, 0, "A"), row(2, 100, "B")],
+            nodes: [
+                row(1, 0, "A"),
+                {
+                    ...row(2, 100, "B"),
+                    NODE_CUSTOMGRAPHICS_1: 'org.cytoscape.RadialGradient:{"cy_gradientColors":["#FFFFFF","#A50F15"]}',
+                },
+            ],
             edges: [
                 {
                     SUID: 9,
@@ -422,6 +444,8 @@ describe("per-tool readers", () => {
             label: { position: "below" },
         });
         expect(s.nodes[0].fillOpacity).toBeCloseTo(128 / 255);
+        // a gradient custom graphic is painted over the second node's fill; the first has none
+        expect(s.nodes.map((n) => n.paintedOver)).toEqual([undefined, true]);
         expect(s.edges[0]).toMatchObject({
             id: "x->x#1",
             points: [

@@ -65,10 +65,7 @@ export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()
             started.push({ pid: one.window.pid, startTime: identify(one.window.pid)?.startTime ?? "" });
             // Wait for the first draw, so a capture sees the screen.
             if (one.ok) {
-                await vi.waitFor(() => expect(capturePane(one.window)).toContain("\u2500"), {
-                    timeout: 2000,
-                    interval: 20,
-                });
+                await vi.waitFor(() => expect(capturePane(one.window)).toContain("\u2500"));
             }
             return one;
         },
@@ -83,9 +80,7 @@ export function fakeWorkers({ socket = `githerd-test-${process.pid}-${Date.now()
         async cleanup() {
             killServer(socket);
             const live = () => started.filter((s) => running(s.pid, s.startTime)).map((s) => s.pid);
-            const left = await vi
-                .waitFor(() => expect(live()).toEqual([]), { timeout: 2000, interval: 20 })
-                .then(() => [], live);
+            const left = await vi.waitFor(() => expect(live()).toEqual([])).then(() => [], live);
             rmSync(dir, { recursive: true, force: true });
             if (left.length) throw new Error(`fake workers left running: ${left.join(", ")}`);
         },

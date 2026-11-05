@@ -62,19 +62,19 @@ interface MaxFlowOptions extends Record<string, unknown> {
  * Computes the maximum flow from a source to a sink node in a flow network.
  */
 export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
-    static namespace = "graphty";
-    static type = "max-flow";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "max-flow";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "capacity" as const;
     /** Flows within the run's scope: the node and edge lists come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
 
     /**
      * Options schema for Max Flow algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

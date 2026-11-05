@@ -16,9 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** A hub "a" with three spokes, and what each gave. */
 const NODES = [
     { id: "a", name: "Ava", donations: 12000, role: "staff" },
@@ -58,13 +55,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -80,7 +74,7 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
  * @returns the box.
  */
 async function focusFind(): Promise<HTMLInputElement> {
-    const find = await screen.findByRole("combobox", { name: "Find" }, { timeout: TIMEOUT_MS });
+    const find = await screen.findByRole("combobox", { name: "Find" });
     await userEvent.click(find);
     return find as HTMLInputElement;
 }
@@ -109,8 +103,8 @@ describe("the find box says columns as the screen does", () => {
             await focusFind();
             await userEvent.keyboard("=degree > 2");
 
-            const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-            const offer = await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+            const list = await screen.findByRole("listbox", { name: "Find results" });
+            const offer = await within(list).findByRole("group", { name: "Rule" });
             await waitFor(() => {
                 assert.include(offer.textContent, "Degree > 2");
                 assert.include(offer.textContent, "Select the 1 node");
@@ -141,12 +135,9 @@ describe("the find box says columns as the screen does", () => {
         await focusFind();
         await userEvent.keyboard("zzzz");
 
-        await waitFor(
-            () => {
-                assert.match(findBoxWords(), /type a rule such as donations >= \d+/);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(findBoxWords(), /type a rule such as donations >= \d+/);
+        });
     });
 
     it("says No match on Enter over text that matches nothing, on screen and aloud", async () => {
@@ -154,12 +145,9 @@ describe("the find box says columns as the screen does", () => {
         await focusFind();
         await userEvent.keyboard("zzzz");
         // Typing settles first: its own No match is said once the element has read the text.
-        await waitFor(
-            () => {
-                assert.isTrue(said.some((each) => each.words.includes("To select by a value")));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(said.some((each) => each.words.includes("To select by a value")));
+        });
         said = [];
 
         await userEvent.keyboard("{Enter}");
@@ -178,8 +166,8 @@ describe("the find box says columns as the screen does", () => {
         await focusFind();
         await userEvent.keyboard("donations >= 10000");
 
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await within(list).findByRole("group", { name: "Rule" });
         await waitFor(() => {
             assert.include(said.at(-1)?.words, "2 nodes");
         });
@@ -191,8 +179,8 @@ describe("the find box says columns as the screen does", () => {
         await openWithGraph();
         await focusFind();
         await userEvent.keyboard("donations >= 10000");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await within(list).findByRole("group", { name: "Rule" });
         assert.isNotNull(screen.queryByText("Select by a value:"));
 
         const element = document.querySelector("graphty-element");
@@ -209,8 +197,8 @@ describe("the find box says columns as the screen does", () => {
         const { session } = await openWithGraph();
         await focusFind();
         await userEvent.keyboard("donations >= 10000");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await within(list).findByRole("group", { name: "Rule" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 2);
@@ -230,7 +218,7 @@ describe("the find box says columns as the screen does", () => {
         const { session } = await openWithGraph();
         const find = await focusFind();
         await userEvent.keyboard("b");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
         // Two value rows: the one Enter would pick is current (and so aria-selected); the other is picked.
         const rows = [
             within(list).getByRole("option", { name: /role is board/ }),

@@ -562,6 +562,14 @@ html.ws-land-page #root {
     font-size: 12.5px;
 }
 
+/* Kept on the page while empty, so its first line is announced; it draws nothing then. */
+.ws-land-said:empty {
+    padding: 0;
+    border: 0;
+    background: none;
+    backdrop-filter: none;
+}
+
 .ws-land-said p {
     margin: 0;
 }

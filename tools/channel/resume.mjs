@@ -161,6 +161,21 @@ function acceptOnlyFrom(candidate, approval) {
 }
 
 /**
+ * The approval to promote: P with the merges of master on top of it peeled off (an approval branch that merged master
+ * after the owner's Finish: its accept and signed approval commits come before the merges, and the signature covers
+ * their baselines tree). Only merges are peeled, so a P that brings anything else is still refused, never swapped for
+ * an older, unsigned commit.
+ * @param candidate H
+ * @param approval P
+ * @returns the approval
+ */
+function acceptPrefix(candidate, approval) {
+    let p = approval;
+    while (p !== candidate && gitOk("rev-parse", "--verify", "--quiet", `${p}^2`)) p = git("rev-parse", `${p}^1`);
+    return p !== candidate && p !== approval && acceptOnlyFrom(candidate, p) ? p : approval;
+}
+
+/**
  * The git facts resumeDecision needs about an approval, from the run's master checkout.
  * @param candidate H
  * @param accept P
@@ -200,13 +215,15 @@ async function check(env) {
         return;
     }
     const hold = r.data.hold ?? null;
-    const { candidate, accept } = approvalToCheck(env, hold);
-    if (!accept && env.MODE !== "promote-nightly") {
+    const found = approvalToCheck(env, hold);
+    const { candidate } = found;
+    if (!found.accept && env.MODE !== "promote-nightly") {
         output({ resume: "false", why: "no approved candidate is waiting" });
         return;
     }
-    if (!/^[0-9a-f]{40}$/.test(candidate ?? "") || !/^[0-9a-f]{40}$/.test(accept ?? ""))
+    if (!/^[0-9a-f]{40}$/.test(candidate ?? "") || !/^[0-9a-f]{40}$/.test(found.accept ?? ""))
         throw new Error("CANDIDATE and ACCEPT must be full commit ids");
+    const accept = acceptPrefix(candidate, found.accept);
     const latest = (r.data.recent ?? []).find((v) => v.sha === candidate) ?? null;
     const d = resumeDecision({ candidate, accept, hold, latest, ...approvalFacts(candidate, accept) });
     if (!d.run) {

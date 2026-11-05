@@ -22,6 +22,7 @@ import type {
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
 import { faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
+import { sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
@@ -116,6 +117,37 @@ function rows(names: string[]): { source: PageSource; apply: (session: GraphSess
 }
 
 describe("choosing what to restore", () => {
+    it("restores the models a layer names, from their own parts", async () => {
+        const store = memoryAutosaveStore();
+        const ids: string[] = [];
+        const { id, session: before } = await earlier(store, async (session) => {
+            for (const files of [new Map([["ball.glb", sphereGlb(8, 4)]]), texturedGltfSet()]) {
+                const asset = await session.assets.add({ files });
+                ids.push(asset.id);
+                await session.styles.add({
+                    name: asset.id,
+                    target: "node",
+                    selector: { match: "ids", nodes: [ids.length === 1 ? "a" : "b"] },
+                    set: { "node.model": asset.id },
+                });
+            }
+        });
+        const parts = Object.keys((await raw(store, id))?.parts ?? {});
+        assert.sameMembers(
+            parts.filter((name) => name.startsWith("asset:")),
+            ids,
+            "one part per model, named by its digest",
+        );
+
+        const page = load(store);
+        const restored = await page.saver.recover();
+        assert.strictEqual(restored?.entry.id, id);
+        assert.deepStrictEqual(await saveOf(page.session), await saveOf(before));
+        for (const asset of ids as `asset:${string}`[]) {
+            assert.strictEqual(page.session.assets.get(asset)?.state, "accepted");
+        }
+    });
+
     it("restores the newest entry into a fresh load, as it was saved", async () => {
         const store = memoryAutosaveStore();
         const { id, session: before } = await earlier(store, async (session) => {
@@ -149,6 +181,40 @@ describe("choosing what to restore", () => {
 
         assert.sameMembers([ra?.entry.id, rb?.entry.id], [first.id, second.id]);
         assert.sameMembers([a.session.project.name, b.session.project.name], ["First", "Second"]);
+    });
+
+    it("of a tab reloaded and a new tab opened at once, the one that loses the claim is told (#4148)", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        // Both list the key before either claims: neither sees the other's lock in the listing.
+        const locks = new FakeLocks();
+        const reloaded = load(store, locks);
+        const opened = load(store, locks);
+        const [ra, rb] = await Promise.all([reloaded.saver.recover({ own: id }), opened.saver.recover()]);
+
+        assert.strictEqual(ra?.entry.id, id, "the reloaded tab restores its own entry");
+        assert.isNull(rb, "the new tab restores nothing");
+        assert.deepStrictEqual(
+            opened.available.map((each) => [each.entry.id, each.reason, each.entry.live]),
+            [[id, "held-by-other-tab", true]],
+            "the new tab is told the entry is open in another tab",
+        );
+    });
+
+    it("a tab whose own entry was claimed first by a new tab copies it, as when the listing shows it held", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        const locks = new FakeLocks();
+        const opened = load(store, locks);
+        const reloaded = load(store, locks);
+        const [rb, ra] = await Promise.all([opened.saver.recover(), reloaded.saver.recover({ own: id })]);
+
+        assert.strictEqual(rb?.entry.id, id, "the new tab claimed it first");
+        assert.strictEqual(ra?.copiedFrom, id, "the reloaded tab copies its own entry, never shares it");
+        assert.notStrictEqual(ra?.entry.id, id);
+        assert.strictEqual(reloaded.session.project.name, "Mine");
     });
 
     it("this tab's own entry wins over a newer one another tab wrote", async () => {
@@ -217,27 +283,66 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
-    it("a clear asked for while the restore waits cancels it, reports nothing and takes the attempt back", async () => {
+    it("a load the page asked for before the restore opens wins: the attempt is taken back and the work offered", async () => {
         const store = memoryAutosaveStore();
-        const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Kept out at startup" }));
         const page = load(store);
         const line = loadLineOf(dispatcherOf(page.session));
-        // A load the page started, still reading: the restore's open waits behind it.
+        // A load the page started, still reading: the restore would queue behind it and replace it.
         const reading = line.join();
-        const recovering = page.saver.recover();
-        await vi.waitFor(() => {
-            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
-        });
 
-        await page.session.data.clear();
+        assert.isNull(await page.saver.recover());
         reading.leave();
 
-        assert.isNull(await recovering);
-        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
-        assert.strictEqual(
-            Number((await store.read(id))?.meta.restoreAttempts ?? 0),
-            0,
-            "the cancelled attempt was taken back",
+        assert.strictEqual(line.size, 0, "the restore took no place in line");
+        assert.deepStrictEqual(
+            page.available.map((each) => [each.entry.id, each.reason]),
+            [[id, "page-data-changed"]],
+            "the work is offered instead",
+        );
+        assert.strictEqual(Number((await store.read(id))?.meta.restoreAttempts ?? 0), 0, "the attempt was taken back");
+    });
+
+    it("a page that leaves while the entry is read releases the entry's lock", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Left at startup" }));
+        let reading = (): void => undefined;
+        const reached = new Promise<void>((resolve) => {
+            reading = resolve;
+        });
+        let finish = (): void => undefined;
+        const finished = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const slow: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            read: async (entry: string) => {
+                reading();
+                await finished;
+                return memory.read(entry);
+            },
+        });
+        const page = load(slow);
+        const recovering = page.saver.recover();
+        await reached;
+        page.session.dispose();
+        finish();
+
+        assert.isNull(await recovering, "the restore settles instead of throwing");
+        assert.isFalse((await page.locks.held()).has(lockName(KEY, id)), "the entry's lock was released");
+    });
+
+    it("a graph the page already holds is not replaced by the restore at the start", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Older work" }));
+        const page = load(store);
+        await page.session.data.addNodes([{ id: "fresh" }]);
+
+        assert.isNull(await page.saver.recover());
+        assert.strictEqual(page.session.data.snapshot().nodeCount, 1, "the page's graph stays");
+        assert.notStrictEqual(page.session.project.name, "Older work");
+        assert.deepStrictEqual(
+            page.available.map((each) => [each.entry.id, each.reason]),
+            [[id, "page-data-changed"]],
         );
     });
 
@@ -268,7 +373,56 @@ describe("a restore that does not finish", () => {
         );
     });
 
-    it("a clear that cancels the restore of a copied entry removes the copy", async () => {
+    it("keeps the graph imported right after a clear cancels a restore(id) waiting in line (#3674)", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
+        // The cancelled restore takes its attempt back with a commit a real store takes a while to
+        // land: it is held here until the page's import is in.
+        let takingBack: () => void = () => undefined;
+        let landed: () => void = () => undefined;
+        const reached = new Promise<void>((resolve) => {
+            takingBack = resolve;
+        });
+        const held = new Promise<void>((resolve) => {
+            landed = resolve;
+        });
+        const store: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            commit: async (writes: readonly AutosaveWrite[], options?: Parameters<AutosaveStore["commit"]>[1]) => {
+                if (writes.some((write) => write.id === id && Number(write.meta.restoreAttempts ?? 0) === 0)) {
+                    takingBack();
+                    await held;
+                }
+                return memory.commit(writes, options);
+            },
+        });
+        const page = load(store);
+        assert.isNull(await page.saver.recover({ restore: "manual" }));
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true).catch((error: unknown) => (error as { code?: string }).code);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        // The page clears and loads at once, while the cancelled restore unwinds.
+        const clearing = page.session.data.clear();
+        const importing = rows(["a", "b"]).apply(page.session)();
+        reading.leave();
+        await Promise.all([clearing, importing, reached]);
+        landed();
+        assert.strictEqual(await restoring, "E_SUPERSEDED");
+
+        await page.saver.flush();
+        assert.isNotNull(page.saver.status.entry, "the imported graph started an entry");
+        const written = page.saver.status.entry ?? "";
+        page.saver.stop();
+
+        const reload = load(memory);
+        await reload.saver.restore(written, true);
+        assert.strictEqual(reload.session.data.snapshot().nodeCount, 2, "the imported graph was written");
+    });
+
+    it("a copied entry the restore gives way to a page load for is removed again", async () => {
         const store = memoryAutosaveStore();
         const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));
         const before = await raw(store, own.id);
@@ -277,19 +431,14 @@ describe("a restore that does not finish", () => {
         const page = load(store, locks);
         const line = loadLineOf(dispatcherOf(page.session));
         const reading = line.join();
-        const recovering = page.saver.recover({ own: own.id });
-        await vi.waitFor(() => {
-            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
-        });
 
-        await page.session.data.clear();
+        assert.isNull(await page.saver.recover({ own: own.id }));
         reading.leave();
 
-        assert.isNull(await recovering);
         assert.deepStrictEqual(
             (await store.list(KEY)).map((each) => each.id),
             [own.id],
-            "the cancelled copy was not removed",
+            "the copy made for the restore was removed",
         );
         assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
     });

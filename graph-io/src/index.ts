@@ -24,6 +24,9 @@ export {
     INVALID_INDEX,
 } from "@graphty/graph-format";
 
+// The tool a file's layout names (`FileLayout.tool`).
+export type { GraphTool } from "./common/units.js";
+
 // ============================================================ a line format in one function
 export { defineLineFormat, type LineAttributes, type LineFormat, type LineGraph } from "./common/line-format.js";
 
@@ -35,6 +38,7 @@ export {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -119,7 +123,9 @@ export {
     type AwsSigV4Options,
     type CredentialBind,
     credentials,
+    credentialSlots,
     fromStorableCredential,
+    type SlotValue,
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
@@ -166,6 +172,7 @@ export {
     type RetryOptions,
     type SourceBase,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
     type SourceFeature,
@@ -230,14 +237,21 @@ export {
     type CysImportOptions,
 } from "./formats/cys/index.js";
 export {
+    type BendPoint,
     DOT_ISSUE,
     DOT_LOSS,
     DOT_STYLE_BLOCK_ATTRIBUTE,
     DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
+    dotFileLayout,
     dotImporter,
     type DotImportOptions,
+    type GraphvizFont,
+    graphvizFont,
+    graphvizPosBends,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,

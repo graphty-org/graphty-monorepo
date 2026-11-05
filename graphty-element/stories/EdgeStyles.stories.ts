@@ -27,6 +27,7 @@ import {
     edgeSpanPx,
     holds,
     pixelsOfColour,
+    pixelsOfColours,
 } from "./assertions";
 import { arrowTypes, eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
@@ -2331,28 +2332,19 @@ const BENDS_LAYERS: LayerSpec[] = [
 ];
 
 /**
- * A pair of nodes per angle and look, the angles across and the looks down, and four small nodes
- * at the corners: the camera frames the nodes, not the bends, and the sharpest bends reach well
- * above their row.
+ * A pair of nodes per angle and look, the angles across and the looks down. The sharpest bends
+ * reach well above their row, and the camera frames them with the nodes.
  */
-const BENDS_NODES = [
-    ...BEND_LOOKS.flatMap((look, row) =>
-        BEND_ANGLES.flatMap((angle, column) => {
-            const x = (column - 2) * 4;
-            const y = (1 - row) * 5 - 1.5;
-            return [
-                { id: `${look.kind}-${String(angle)}-a`, position: { x: x - 1.2, y, z: 0 } },
-                { id: `${look.kind}-${String(angle)}-b`, position: { x: x + 1.2, y, z: 0 } },
-            ];
-        }),
-    ),
-    ...[
-        [-10, 8],
-        [10, 8],
-        [-10, -7.5],
-        [10, -7.5],
-    ].map(([x, y], i) => ({ id: `frame-${String(i)}`, position: { x, y, z: 0 } })),
-];
+const BENDS_NODES = BEND_LOOKS.flatMap((look, row) =>
+    BEND_ANGLES.flatMap((angle, column) => {
+        const x = (column - 2) * 4;
+        const y = (1 - row) * 5 - 1.5;
+        return [
+            { id: `${look.kind}-${String(angle)}-a`, position: { x: x - 1.2, y, z: 0 } },
+            { id: `${look.kind}-${String(angle)}-b`, position: { x: x + 1.2, y, z: 0 } },
+        ];
+    }),
+);
 
 const BENDS_EDGES = BEND_LOOKS.flatMap((look) =>
     BEND_ANGLES.map((angle) => ({
@@ -2573,6 +2565,125 @@ export const TwoDPortsAndLoopRoutes: Story = {
         setup: storySetup({ viewMode: "2d", node: { "node.shape": "box", "node.size": 1 }, layers: ROUTE_LAYERS }),
         nodeData: ROUTE_NODES,
         edgeData: ROUTE_EDGES,
+        layout: "fixed",
+    },
+};
+
+/** Two tight rings of nodes, each with its short edges, and long edges joining one to the other. */
+const RINGS = 8;
+const RING_NODES = [-6, 6].flatMap((cx) =>
+    Array.from({ length: RINGS }, (_, i) => ({
+        id: `${cx < 0 ? "left" : "right"}-${String(i)}`,
+        position: {
+            x: cx + 1.5 * Math.cos((2 * Math.PI * i) / RINGS),
+            y: 1.5 * Math.sin((2 * Math.PI * i) / RINGS),
+            z: 0,
+        },
+    })),
+);
+const RING_EDGES = Array.from({ length: RINGS }, (_, i) => [
+    { src: `left-${String(i)}`, dst: `left-${String((i + 1) % RINGS)}`, blends: "yes" },
+    { src: `right-${String(i)}`, dst: `right-${String((i + 1) % RINGS)}`, blends: "no" },
+    { src: `left-${String(i)}`, dst: `right-${String((i + 3) % RINGS)}`, blends: "no" },
+]).flat();
+
+/**
+ * Two clusters joined by long edges, with `edge.fadeEnd` fading each line by its length on screen.
+ *
+ * WHAT TO LOOK FOR: the short edges around each ring are solid black and the long edges between
+ * the rings are a faint gray, so the two clusters read through them. Zooming changes which lines
+ * fade, because the fade follows the length on screen.
+ */
+export const FadeLongEdges: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge FadeLongEdges");
+
+        await assertGraphLoaded(scene, { nodes: RING_NODES.length, edges: RING_EDGES.length });
+        await assertViewMode(scene, "2d");
+
+        const span = edgeSpanPx(scene, "left-0", "right-3");
+        const [solid, faded] = await pixelsOfColours(scene, ["#000000", "#b8b8b8"]);
+        await holds(solid > 0, "Styles/Edge FadeLongEdges: no short edge is drawn at full strength");
+        await holds(
+            faded / span > 2,
+            `Styles/Edge FadeLongEdges: the canvas holds ${(faded / span).toFixed(2)} pixels at a quarter of ` +
+                "black over the background per pixel of a long edge, so the long edges are not faded",
+        );
+
+        await assertDistinctPicture(scene, "Styles/Edge", `fade solid=${String(Math.round(solid / 100))}h`);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.shape": "box", "node.size": 0.3 },
+            layers: [
+                {
+                    name: "fade long edges",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: {
+                        "edge.color": "#000000",
+                        "edge.width": 3,
+                        "edge.arrowHead": "none",
+                        "edge.fadeStart": 100,
+                        "edge.fadeEnd": 300,
+                        "edge.fadeOpacity": 0.25,
+                    },
+                },
+            ],
+        }),
+        nodeData: RING_NODES,
+        edgeData: RING_EDGES,
+        layout: "fixed",
+    },
+};
+
+/**
+ * Half-strength edges with `edge.blending` false on the right ring's and the long ones.
+ *
+ * WHAT TO LOOK FOR: the left ring's edges are half strength; every other edge is full-strength blue
+ * and stays one even color where it crosses another, because a line that does not blend ignores its
+ * opacity.
+ */
+export const BlendingOff: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Edge BlendingOff");
+
+        await assertGraphLoaded(scene, { nodes: RING_NODES.length, edges: RING_EDGES.length });
+        await assertViewMode(scene, "2d");
+
+        const span = edgeSpanPx(scene, "left-0", "right-3");
+        const [opaque, blended] = await pixelsOfColours(scene, ["#0000ff", "#7b7bfa"]);
+        await holds(
+            opaque / span > 2,
+            `Styles/Edge BlendingOff: the canvas holds ${(opaque / span).toFixed(2)} pixels of full-strength ` +
+                "blue per pixel of a long edge, so the lines with blending off are not drawn opaque",
+        );
+        await holds(blended > 0, "Styles/Edge BlendingOff: no edge is left blending at half strength");
+
+        await assertDistinctPicture(scene, "Styles/Edge", `blending opaque=${String(Math.round(opaque / 100))}h`);
+    },
+    args: {
+        setup: storySetup({
+            viewMode: "2d",
+            node: { "node.shape": "box", "node.size": 0.3 },
+            layers: [
+                {
+                    name: "half-strength edges",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.color": "#0000ff", "edge.width": 3, "edge.opacity": 0.5, "edge.arrowHead": "none" },
+                },
+                {
+                    name: "no blending on the right ring and the long edges",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.blends == 'no'" },
+                    set: { "edge.blending": false },
+                },
+            ],
+        }),
+        nodeData: RING_NODES,
+        edgeData: RING_EDGES,
         layout: "fixed",
     },
 };

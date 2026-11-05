@@ -2,7 +2,7 @@
  * Tests for random number generator utilities
  */
 
-import { describe, expect, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { RandomNumberGenerator } from "../src/utils/random";
 
@@ -11,32 +11,33 @@ describe("Random Utils", () => {
         describe("constructor", () => {
             it("should use provided seed", () => {
                 const rng = new RandomNumberGenerator(12345);
-                expect(rng.seed).toBe(12345);
+                assert.strictEqual(rng.seed, 12345);
             });
 
             it("should honour an explicit seed of 0", () => {
                 const rng1 = new RandomNumberGenerator(0);
                 const rng2 = new RandomNumberGenerator(0);
-                expect(rng1.seed).toBe(0);
-                expect([rng1._next(), rng1._next()]).toEqual([rng2._next(), rng2._next()]);
+                assert.strictEqual(rng1.seed, 0);
+                assert.deepEqual([rng1._next(), rng1._next()], [rng2._next(), rng2._next()]);
             });
 
             it("should generate random seed when none provided", () => {
                 const rng1 = new RandomNumberGenerator();
                 const rng2 = new RandomNumberGenerator();
                 // Seeds should be different (very high probability)
-                expect(rng1.seed).not.toBe(rng2.seed);
+                assert.notStrictEqual(rng1.seed, rng2.seed);
             });
 
             it("should initialize state properly", () => {
                 const rng = new RandomNumberGenerator(42);
-                expect(rng._state).toBe(42);
+                // The state starts at the seed, so the first draw is one LCG step from 42
+                assert.strictEqual(rng._next(), (185852 * 42 + 1) / (2 ** 35 - 31));
             });
 
             it("should handle large seeds", () => {
                 const largeSeed = 999999999;
                 const rng = new RandomNumberGenerator(largeSeed);
-                expect(rng.seed).toBe(largeSeed);
+                assert.strictEqual(rng.seed, largeSeed);
             });
         });
 
@@ -45,8 +46,8 @@ describe("Random Utils", () => {
                 const rng = new RandomNumberGenerator(123);
                 for (let i = 0; i < 100; i++) {
                     const value = rng._next();
-                    expect(value).toBeGreaterThanOrEqual(0);
-                    expect(value).toBeLessThan(1);
+                    assert.isAtLeast(value, 0);
+                    assert.isBelow(value, 1);
                 }
             });
 
@@ -57,7 +58,7 @@ describe("Random Utils", () => {
                 const sequence1 = Array.from({ length: 10 }, () => rng1._next());
                 const sequence2 = Array.from({ length: 10 }, () => rng2._next());
 
-                expect(sequence1).toEqual(sequence2);
+                assert.deepEqual(sequence1, sequence2);
             });
 
             it("should produce different sequences for different seeds", () => {
@@ -67,7 +68,7 @@ describe("Random Utils", () => {
                 const sequence1 = Array.from({ length: 10 }, () => rng1._next());
                 const sequence2 = Array.from({ length: 10 }, () => rng2._next());
 
-                expect(sequence1).not.toEqual(sequence2);
+                assert.notDeepEqual(sequence1, sequence2);
             });
         });
 
@@ -75,57 +76,57 @@ describe("Random Utils", () => {
             it("should return single number when no shape provided", () => {
                 const rng = new RandomNumberGenerator(789);
                 const value = rng.rand() as number;
-                expect(typeof value).toBe("number");
-                expect(value).toBeGreaterThanOrEqual(0);
-                expect(value).toBeLessThan(1);
+                assert.strictEqual(typeof value, "number");
+                assert.isAtLeast(value, 0);
+                assert.isBelow(value, 1);
             });
 
             it("should return single number when null shape provided", () => {
                 const rng = new RandomNumberGenerator(789);
                 const value = rng.rand(null) as number;
-                expect(typeof value).toBe("number");
-                expect(value).toBeGreaterThanOrEqual(0);
-                expect(value).toBeLessThan(1);
+                assert.strictEqual(typeof value, "number");
+                assert.isAtLeast(value, 0);
+                assert.isBelow(value, 1);
             });
 
             it("should return 1D array when given number shape", () => {
                 const rng = new RandomNumberGenerator(101112);
                 const values = rng.rand(5) as number[];
-                expect(Array.isArray(values)).toBe(true);
-                expect(values).toHaveLength(5);
+                assert.strictEqual(Array.isArray(values), true);
+                assert.lengthOf(values, 5);
                 values.forEach((v) => {
-                    expect(v).toBeGreaterThanOrEqual(0);
-                    expect(v).toBeLessThan(1);
+                    assert.isAtLeast(v, 0);
+                    assert.isBelow(v, 1);
                 });
             });
 
             it("should return empty array for zero length", () => {
                 const rng = new RandomNumberGenerator(123);
-                expect(rng.rand(0)).toEqual([]);
+                assert.deepEqual(rng.rand(0), []);
             });
 
             it("should return 1D array when given single-element array shape", () => {
                 const rng = new RandomNumberGenerator(131415);
                 const values = rng.rand([4]) as number[];
-                expect(Array.isArray(values)).toBe(true);
-                expect(values).toHaveLength(4);
+                assert.strictEqual(Array.isArray(values), true);
+                assert.lengthOf(values, 4);
                 values.forEach((v) => {
-                    expect(v).toBeGreaterThanOrEqual(0);
-                    expect(v).toBeLessThan(1);
+                    assert.isAtLeast(v, 0);
+                    assert.isBelow(v, 1);
                 });
             });
 
             it("should return 2D array when given 2D shape", () => {
                 const rng = new RandomNumberGenerator(161718);
                 const values = rng.rand([2, 3]) as number[][];
-                expect(Array.isArray(values)).toBe(true);
-                expect(values).toHaveLength(2);
+                assert.strictEqual(Array.isArray(values), true);
+                assert.lengthOf(values, 2);
                 values.forEach((row) => {
-                    expect(Array.isArray(row)).toBe(true);
-                    expect(row).toHaveLength(3);
+                    assert.strictEqual(Array.isArray(row), true);
+                    assert.lengthOf(row, 3);
                     row.forEach((v) => {
-                        expect(v).toBeGreaterThanOrEqual(0);
-                        expect(v).toBeLessThan(1);
+                        assert.isAtLeast(v, 0);
+                        assert.isBelow(v, 1);
                     });
                 });
             });
@@ -133,17 +134,17 @@ describe("Random Utils", () => {
             it("should return 3D array when given 3D shape", () => {
                 const rng = new RandomNumberGenerator(192021);
                 const values = rng.rand([2, 2, 2]) as number[][][];
-                expect(Array.isArray(values)).toBe(true);
-                expect(values).toHaveLength(2);
+                assert.strictEqual(Array.isArray(values), true);
+                assert.lengthOf(values, 2);
                 values.forEach((plane) => {
-                    expect(Array.isArray(plane)).toBe(true);
-                    expect(plane).toHaveLength(2);
+                    assert.strictEqual(Array.isArray(plane), true);
+                    assert.lengthOf(plane, 2);
                     plane.forEach((row) => {
-                        expect(Array.isArray(row)).toBe(true);
-                        expect(row).toHaveLength(2);
+                        assert.strictEqual(Array.isArray(row), true);
+                        assert.lengthOf(row, 2);
                         row.forEach((v) => {
-                            expect(v).toBeGreaterThanOrEqual(0);
-                            expect(v).toBeLessThan(1);
+                            assert.isAtLeast(v, 0);
+                            assert.isBelow(v, 1);
                         });
                     });
                 });
@@ -151,9 +152,9 @@ describe("Random Utils", () => {
 
             it("should handle edge cases with zeros in shape", () => {
                 const rng = new RandomNumberGenerator(222324);
-                expect(rng.rand([0])).toEqual([]);
-                expect(rng.rand([3, 0])).toEqual([[], [], []]);
-                expect(rng.rand([0, 3])).toEqual([]);
+                assert.deepEqual(rng.rand([0]), []);
+                assert.deepEqual(rng.rand([3, 0]), [[], [], []]);
+                assert.deepEqual(rng.rand([0, 3]), []);
             });
 
             it("should be deterministic across calls with same seed", () => {
@@ -163,7 +164,7 @@ describe("Random Utils", () => {
                 const values1 = rng1.rand([2, 3]) as number[][];
                 const values2 = rng2.rand([2, 3]) as number[][];
 
-                expect(values1).toEqual(values2);
+                assert.deepEqual(values1, values2);
             });
 
             it("should handle single element arrays", () => {
@@ -171,9 +172,9 @@ describe("Random Utils", () => {
                 const value1D = rng.rand(1) as number[];
                 const value2D = rng.rand([1, 1]) as number[][];
 
-                expect(value1D).toHaveLength(1);
-                expect(value2D).toHaveLength(1);
-                expect(value2D[0]).toHaveLength(1);
+                assert.lengthOf(value1D, 1);
+                assert.lengthOf(value2D, 1);
+                assert.lengthOf(value2D[0], 1);
             });
 
             it("should produce different values in sequence", () => {
@@ -182,7 +183,7 @@ describe("Random Utils", () => {
 
                 // Check that not all values are the same (very high probability)
                 const uniqueValues = new Set(values);
-                expect(uniqueValues.size).toBeGreaterThan(1);
+                assert.isAbove(uniqueValues.size, 1);
             });
         });
 
@@ -192,13 +193,13 @@ describe("Random Utils", () => {
 
                 // Test typical usage patterns in layout algorithms
                 const initialPositions = rng.rand([5, 2]) as number[][];
-                expect(initialPositions).toHaveLength(5);
+                assert.lengthOf(initialPositions, 5);
                 initialPositions.forEach((pos) => {
-                    expect(pos).toHaveLength(2);
-                    expect(pos[0]).toBeGreaterThanOrEqual(0);
-                    expect(pos[0]).toBeLessThan(1);
-                    expect(pos[1]).toBeGreaterThanOrEqual(0);
-                    expect(pos[1]).toBeLessThan(1);
+                    assert.lengthOf(pos, 2);
+                    assert.isAtLeast(pos[0], 0);
+                    assert.isBelow(pos[0], 1);
+                    assert.isAtLeast(pos[1], 0);
+                    assert.isBelow(pos[1], 1);
                 });
             });
 
@@ -213,8 +214,8 @@ describe("Random Utils", () => {
 
                 // Basic statistical tests
                 const mean = values.reduce((a, b) => a + b) / values.length;
-                expect(mean).toBeGreaterThan(0.4); // Should be around 0.5
-                expect(mean).toBeLessThan(0.6);
+                assert.isAbove(mean, 0.4); // Should be around 0.5
+                assert.isBelow(mean, 0.6);
 
                 // Check distribution across range
                 const firstQuartile = values.filter((v) => v < 0.25).length;
@@ -223,14 +224,14 @@ describe("Random Utils", () => {
                 const fourthQuartile = values.filter((v) => v >= 0.75).length;
 
                 // Each quartile should have roughly 1/4 of values (allow some variance)
-                expect(firstQuartile).toBeGreaterThan(200);
-                expect(firstQuartile).toBeLessThan(300);
-                expect(secondQuartile).toBeGreaterThan(200);
-                expect(secondQuartile).toBeLessThan(300);
-                expect(thirdQuartile).toBeGreaterThan(200);
-                expect(thirdQuartile).toBeLessThan(300);
-                expect(fourthQuartile).toBeGreaterThan(200);
-                expect(fourthQuartile).toBeLessThan(300);
+                assert.isAbove(firstQuartile, 200);
+                assert.isBelow(firstQuartile, 300);
+                assert.isAbove(secondQuartile, 200);
+                assert.isBelow(secondQuartile, 300);
+                assert.isAbove(thirdQuartile, 200);
+                assert.isBelow(thirdQuartile, 300);
+                assert.isAbove(fourthQuartile, 200);
+                assert.isBelow(fourthQuartile, 300);
             });
         });
     });

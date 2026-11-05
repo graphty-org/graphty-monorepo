@@ -254,7 +254,8 @@ export class GpuContext {
     static from(device: GPUDevice, info?: Partial<GpuCaps>): GpuContext {
         const caps = capsFromDevice(device, info);
         assertPlanLimits(caps);
-        const deviceLabel: string = device.label ?? "";
+        const { label }: { label: unknown } = device;
+        const deviceLabel = typeof label === "string" ? label : "";
         return new GpuContext({
             device,
             caps,

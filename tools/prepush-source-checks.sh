@@ -104,7 +104,20 @@ bg_report() {
     local i="$1" rc
     echo -e "${YELLOW}> ${BG_NAMES[$i]}${NC}"
     if [ "${2:-}" = follow ]; then
-        tail -n +1 -f --pid="${BG_PIDS[$i]}" "${BG_LOGS[$i]}"
+        # By byte offset, not `tail -f --pid`: tail can see the step gone and exit before reading what it
+        # wrote last (#4262). The size is read after the liveness check, so the last pass prints the rest.
+        local off=0 size alive
+        while :; do
+            alive=0
+            kill -0 "${BG_PIDS[$i]}" 2>/dev/null && alive=1
+            size=$(wc -c <"${BG_LOGS[$i]}")
+            if [ "$size" -gt "$off" ]; then
+                tail -c +$((off + 1)) "${BG_LOGS[$i]}" | head -c $((size - off))
+                off=$size
+            fi
+            [ "$alive" = 1 ] || break
+            sleep 0.2
+        done
     else
         cat "${BG_LOGS[$i]}"
     fi
@@ -211,6 +224,10 @@ else
     # Every tool a package's scripts run or its *.config.* files import is declared by that package,
     # not only by the root, where hoisting hides the gap until the package builds somewhere else.
     run_step "Declared build tools" "pnpm run check:declared-tools"
+
+    # No branch removes or changes an outcome check of the dry run (graphty/acceptance/), or the code
+    # that decides one passes, except a check-change branch (graphty/acceptance/README.md). Under a second.
+    run_step "Dry-run outcome checks kept" "pnpm run check:dry-run-checks"
 
     # release-hold.json names only real nx projects, each with a reason and a date.
     run_step "Release hold list" "pnpm run check:release-hold"

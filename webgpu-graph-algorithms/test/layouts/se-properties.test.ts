@@ -28,7 +28,6 @@ import { seededScenePositions } from "../oracle/forceatlas2.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const NUM_RUNS = 200;
-const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 
@@ -139,50 +138,45 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         ctx.release(s);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "fixed nodes never move: a random mask set between steps keeps every pinned row and its velocity bitwise where they were",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    async (bits, before, after) => {
-                        const mask = makeMask(n);
-                        bits.forEach((b, i) => {
-                            maskSet(mask, i, b);
-                        });
-                        await withSe(ctx, BASE, async (sim) => {
-                            const read = inspector(sim);
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            await sim.step(before);
-                            const pinnedAt = Float32Array.from(positions);
-                            sim.setFixed(mask);
-                            const velocityAt = asF32(await read("velocity"));
-                            await sim.step(after);
-                            const velocityNow = asF32(await read("velocity"));
-                            for (let i = 0; i < n; i++) {
-                                if (!bits[i]) {
-                                    continue;
-                                }
-                                if (!rowIs(positions, pinnedAt, i)) {
-                                    throw new Error(`pinned node ${i} moved`);
-                                }
-                                if (!rowIs(velocityNow, velocityAt, i)) {
-                                    throw new Error(`pinned node ${i}'s velocity changed`);
-                                }
+    it("fixed nodes never move: a random mask set between steps keeps every pinned row and its velocity bitwise where they were", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.array(fc.boolean(), { minLength: n, maxLength: n }),
+                fc.integer({ min: 1, max: stepBound() }),
+                fc.integer({ min: 1, max: stepBound() }),
+                async (bits, before, after) => {
+                    const mask = makeMask(n);
+                    bits.forEach((b, i) => {
+                        maskSet(mask, i, b);
+                    });
+                    await withSe(ctx, BASE, async (sim) => {
+                        const read = inspector(sim);
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        await sim.step(before);
+                        const pinnedAt = Float32Array.from(positions);
+                        sim.setFixed(mask);
+                        const velocityAt = asF32(await read("velocity"));
+                        await sim.step(after);
+                        const velocityNow = asF32(await read("velocity"));
+                        for (let i = 0; i < n; i++) {
+                            if (!bits[i]) {
+                                continue;
                             }
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                            if (!rowIs(positions, pinnedAt, i)) {
+                                throw new Error(`pinned node ${i} moved`);
+                            }
+                            if (!rowIs(velocityNow, velocityAt, i)) {
+                                throw new Error(`pinned node ${i}'s velocity changed`);
+                            }
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("the all-fixed mask: nothing moves and settled is reported within settleWindow + 1 single-iteration steps", async (t) => {
         requireGpu(t);
@@ -207,202 +201,179 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the Windows WARP host lane, 12 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "setPosition is visible in the next readback, never clobbered by an older batch, and does not reset the dragged row's velocity",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    bitwiseStableFloat(-2, 2),
-                    bitwiseStableFloat(-2, 2),
-                    async (i, x, y) => {
-                        await withSe(ctx, { ...BASE, maxInFlight: 2 }, async (sim) => {
-                            const read = inspector(sim);
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            sim.setFixed(pinMask(n, i));
-                            await sim.step(1);
-                            // the velocity is not reset by the call (the spring analogue of "speed is not reset")
-                            const velocityBefore = asF32(await read("velocity"));
-                            sim.setPosition(i, x, y, 0);
-                            const velocityAfter = asF32(await read("velocity"));
-                            expectBitwiseEqual(velocityAfter, velocityBefore, "velocity untouched by setPosition");
-                            // the override list: a write between two in-flight batches lands in both readbacks
-                            const submittedBefore = sim.lastSubmittedBatchId;
-                            const older = sim.step(2);
-                            while (sim.lastSubmittedBatchId === submittedBefore) {
-                                await tick();
-                            }
-                            sim.setPosition(i, x, y, 0);
-                            expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
-                                sim.lastSubmittedBatchId,
-                            );
-                            const newer = sim.step(2);
-                            await older;
-                            expect(positions[3 * i], "x after the older batch landed").toBe(x);
-                            expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
-                            await newer;
-                            expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(
-                                x,
-                            );
-                            expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
-                            expect(positions[3 * i + 2]).toBe(0);
-                            expect(
-                                sim.overrides.has(i),
-                                "the override is cleared by a batch newer than the write",
-                            ).toBe(false);
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 54 s on the Windows WARP host lane, 25 s on lavapipe on the dev box under load, 14 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "run({ maxIter, batch: 1 }) stops at maxIter exactly with stats.iteration agreeing; the preset has no budget option, so `settled` is the shared rule alone (false with settling disabled)",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
-                    await withSe(ctx, BASE, async (sim) => {
+    it("setPosition is visible in the next readback, never clobbered by an older batch, and does not reset the dragged row's velocity", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                bitwiseStableFloat(-2, 2),
+                bitwiseStableFloat(-2, 2),
+                async (i, x, y) => {
+                    await withSe(ctx, { ...BASE, maxInFlight: 2 }, async (sim) => {
+                        const read = inspector(sim);
                         const positions = Float32Array.from(start);
                         sim.load(s, positions);
-                        const stats = await sim.run({ maxIter, batch: 1 });
-                        expect(sim.iterationsDone).toBe(maxIter);
-                        expect(stats.iteration).toBe(maxIter);
-                        expect(stats.trace).toHaveLength(1);
-                        expect(sim.inFlight).toBe(0);
-                        // SpringElectricalOptions carries no maxIter / iterations: the run-level cap ends the
-                        // run() call, and `settled` reports the 7.17 rule only (settleThreshold 0 never fires)
-                        expect(sim.settled).toBe(false);
-                        // a later step() continues the layout from where run() stopped
+                        sim.setFixed(pinMask(n, i));
                         await sim.step(1);
-                        expect(sim.iterationsDone).toBe(maxIter + 1);
+                        // the velocity is not reset by the call (the spring analogue of "speed is not reset")
+                        const velocityBefore = asF32(await read("velocity"));
+                        sim.setPosition(i, x, y, 0);
+                        const velocityAfter = asF32(await read("velocity"));
+                        expectBitwiseEqual(velocityAfter, velocityBefore, "velocity untouched by setPosition");
+                        // the override list: a write between two in-flight batches lands in both readbacks
+                        const submittedBefore = sim.lastSubmittedBatchId;
+                        const older = sim.step(2);
+                        while (sim.lastSubmittedBatchId === submittedBefore) {
+                            await tick();
+                        }
+                        sim.setPosition(i, x, y, 0);
+                        expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
+                            sim.lastSubmittedBatchId,
+                        );
+                        const newer = sim.step(2);
+                        await older;
+                        expect(positions[3 * i], "x after the older batch landed").toBe(x);
+                        expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
+                        await newer;
+                        expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(x);
+                        expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
+                        expect(positions[3 * i + 2]).toBe(0);
+                        expect(sim.overrides.has(i), "the override is cleared by a batch newer than the write").toBe(
+                            false,
+                        );
                     });
-                }),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "reheat on unpin, setPosition and load, not on pin (D8); the velocities are bitwise unchanged across a reheat (onReheat is empty)",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    fc.integer({ min: 1, max: stepBound() + 1 }),
-                    async (row, steps) => {
+    it("run({ maxIter, batch: 1 }) stops at maxIter exactly with stats.iteration agreeing; the preset has no budget option, so `settled` is the shared rule alone (false with settling disabled)", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
+                await withSe(ctx, BASE, async (sim) => {
+                    const positions = Float32Array.from(start);
+                    sim.load(s, positions);
+                    const stats = await sim.run({ maxIter, batch: 1 });
+                    expect(sim.iterationsDone).toBe(maxIter);
+                    expect(stats.iteration).toBe(maxIter);
+                    expect(stats.trace).toHaveLength(1);
+                    expect(sim.inFlight).toBe(0);
+                    // SpringElectricalOptions carries no maxIter / iterations: the run-level cap ends the
+                    // run() call, and `settled` reports the 7.17 rule only (settleThreshold 0 never fires)
+                    expect(sim.settled).toBe(false);
+                    // a later step() continues the layout from where run() stopped
+                    await sim.step(1);
+                    expect(sim.iterationsDone).toBe(maxIter + 1);
+                });
+            }),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("reheat on unpin, setPosition and load, not on pin (D8); the velocities are bitwise unchanged across a reheat (onReheat is empty)", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                fc.integer({ min: 1, max: stepBound() + 1 }),
+                async (row, steps) => {
+                    await withSe(ctx, BASE, async (sim) => {
+                        const read = inspector(sim);
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        await sim.step(steps);
+                        expect(sim.iterationsDone).toBe(steps);
+                        const velocity = asF32(await read("velocity"));
+                        sim.setFixed(pinMask(n, row));
+                        expect(sim.iterationsDone, "a pin does not reheat").toBe(steps);
+                        sim.setFixed(makeMask(n));
+                        expect(sim.iterationsDone, "an unpin reheats").toBe(0);
+                        expectBitwiseEqual(asF32(await read("velocity")), velocity, "velocity across the unpin");
+                        sim.reheat();
+                        expect(sim.iterationsDone).toBe(0);
+                        expectBitwiseEqual(asF32(await read("velocity")), velocity, "velocity across reheat()");
+                        await sim.step(1);
+                        expect(sim.iterationsDone).toBe(1);
+                        sim.setPosition(row, 0.1, 0.2, 0);
+                        expect(sim.iterationsDone, "setPosition reheats").toBe(0);
+                        await sim.step(1);
+                        expect(sim.iterationsDone).toBe(1);
+                        sim.load(s, positions);
+                        expect(sim.iterationsDone, "load reheats").toBe(0);
+                        const rest = asF32(await read("velocity"));
+                        expect(
+                            rest.every((v) => v === 0),
+                            "load() starts every velocity at 0",
+                        ).toBe(true);
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: n - 1 }),
+                fc.integer({ min: 0, max: n - 2 }),
+                async (a, bRaw) => {
+                    const b = Math.min(bRaw, a - 1);
+                    const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
+                    const derived = s.inducedSubgraph(keep);
+                    const next = derived.snapshot;
+                    const remap = derived.nodeRemap;
+                    if (remap === null) {
+                        throw new Error("inducedSubgraph without a node remap");
+                    }
+                    try {
                         await withSe(ctx, BASE, async (sim) => {
-                            const read = inspector(sim);
                             const positions = Float32Array.from(start);
                             sim.load(s, positions);
-                            await sim.step(steps);
-                            expect(sim.iterationsDone).toBe(steps);
-                            const velocity = asF32(await read("velocity"));
-                            sim.setFixed(pinMask(n, row));
-                            expect(sim.iterationsDone, "a pin does not reheat").toBe(steps);
-                            sim.setFixed(makeMask(n));
-                            expect(sim.iterationsDone, "an unpin reheats").toBe(0);
-                            expectBitwiseEqual(asF32(await read("velocity")), velocity, "velocity across the unpin");
-                            sim.reheat();
-                            expect(sim.iterationsDone).toBe(0);
-                            expectBitwiseEqual(asF32(await read("velocity")), velocity, "velocity across reheat()");
-                            await sim.step(1);
-                            expect(sim.iterationsDone).toBe(1);
-                            sim.setPosition(row, 0.1, 0.2, 0);
-                            expect(sim.iterationsDone, "setPosition reheats").toBe(0);
-                            await sim.step(1);
-                            expect(sim.iterationsDone).toBe(1);
-                            sim.load(s, positions);
-                            expect(sim.iterationsDone, "load reheats").toBe(0);
-                            const rest = asF32(await read("velocity"));
-                            expect(
-                                rest.every((v) => v === 0),
-                                "load() starts every velocity at 0",
-                            ).toBe(true);
+                            sim.setFixed(pinMask(n, a));
+                            await sim.step(2);
+                            const nextPositions = new Float32Array(3 * next.nodeCount);
+                            for (let i = 0; i < n; i++) {
+                                const j = remap[i];
+                                if (j === INVALID_INDEX) {
+                                    continue;
+                                }
+                                nextPositions[3 * j] = positions[3 * i];
+                                nextPositions[3 * j + 1] = positions[3 * i + 1];
+                                nextPositions[3 * j + 2] = positions[3 * i + 2];
+                            }
+                            const aNew = remap[a];
+                            expect(aNew).toBe(a - 1);
+                            sim.load(next, nextPositions);
+                            sim.setFixed(pinMask(next.nodeCount, aNew));
+                            const held = [
+                                nextPositions[3 * aNew],
+                                nextPositions[3 * aNew + 1],
+                                nextPositions[3 * aNew + 2],
+                            ];
+                            await sim.step(3);
+                            expect(nextPositions[3 * aNew]).toBe(held[0]);
+                            expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
+                            expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
+                            if (b !== aNew) {
+                                const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
+                                expect(
+                                    moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
+                                    "the remapped neighbour moves",
+                                ).toBe(true);
+                            }
                         });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work took 11.5 s on the Windows WARP host lane in release run 38029503050, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: n - 1 }),
-                    fc.integer({ min: 0, max: n - 2 }),
-                    async (a, bRaw) => {
-                        const b = Math.min(bRaw, a - 1);
-                        const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
-                        const derived = s.inducedSubgraph(keep);
-                        const next = derived.snapshot;
-                        const remap = derived.nodeRemap;
-                        if (remap === null) {
-                            throw new Error("inducedSubgraph without a node remap");
-                        }
-                        try {
-                            await withSe(ctx, BASE, async (sim) => {
-                                const positions = Float32Array.from(start);
-                                sim.load(s, positions);
-                                sim.setFixed(pinMask(n, a));
-                                await sim.step(2);
-                                const nextPositions = new Float32Array(3 * next.nodeCount);
-                                for (let i = 0; i < n; i++) {
-                                    const j = remap[i];
-                                    if (j === INVALID_INDEX) {
-                                        continue;
-                                    }
-                                    nextPositions[3 * j] = positions[3 * i];
-                                    nextPositions[3 * j + 1] = positions[3 * i + 1];
-                                    nextPositions[3 * j + 2] = positions[3 * i + 2];
-                                }
-                                const aNew = remap[a];
-                                expect(aNew).toBe(a - 1);
-                                sim.load(next, nextPositions);
-                                sim.setFixed(pinMask(next.nodeCount, aNew));
-                                const held = [
-                                    nextPositions[3 * aNew],
-                                    nextPositions[3 * aNew + 1],
-                                    nextPositions[3 * aNew + 2],
-                                ];
-                                await sim.step(3);
-                                expect(nextPositions[3 * aNew]).toBe(held[0]);
-                                expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
-                                expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
-                                if (b !== aNew) {
-                                    const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
-                                    expect(
-                                        moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
-                                        "the remapped neighbour moves",
-                                    ).toBe(true);
-                                }
-                            });
-                        } finally {
-                            ctx.release(next);
-                        }
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                    } finally {
+                        ctx.release(next);
+                    }
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("2D writes z === center.z whatever z was uploaded, for random z and random center.z", async (t) => {
         requireGpu(t);

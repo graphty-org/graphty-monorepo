@@ -87,6 +87,11 @@ const SUBJECT_TREE = "Styles/";
  * typography at all, so it picks out no one subject. Those stories are still checked under
  * "size" and "weight".
  *
+ * "effect" joined it with the first shader channels, whose effects map meant the shader effects
+ * a layer added; in a story name -- `WireframeEffectLayers` -- it is the name of the style editor's
+ * Effects group, which holds the outline, the glow, the halo and the wireframe too, so it picks
+ * out no one subject. Those stories are still checked under "wireframe", "glow" and the rest.
+ *
  * "on" came with `labelOnTop`, where it is a preposition joining "label" to "top"; in a story
  * name -- `OnHover`, `OnOneNodeOnly` -- it is a preposition too, naming when, not what. That
  * channel's stories are still checked under "top".
@@ -99,8 +104,24 @@ const SUBJECT_TREE = "Styles/";
  * "screen" came with `labelMinScreenSize`, the screen size below which a label is hidden; in a
  * story name -- `ScreenSizedLabels` -- it is the label style's `sizeMode: "screen"`, a value
  * rather than a channel. The minimum-size stories are still checked under "min" and "size".
+ *
+ * "left" came with `groupMinWidthBiasLeft`, which side of a group a minimum width grows from; in
+ * a story name -- `StudioAboveLeftFront` -- it is the direction a light shines from. The bias
+ * stories are still checked under "bias".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on", "line", "box", "screen"]);
+const NOT_A_SUBJECT = new Set([
+    "node",
+    "edge",
+    "style",
+    "text",
+    "font",
+    "effect",
+    "on",
+    "line",
+    "box",
+    "screen",
+    "left",
+]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

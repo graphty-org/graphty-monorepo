@@ -13,6 +13,8 @@ import type {
     TimeWindow,
 } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
+
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
@@ -143,22 +145,33 @@ export const OUTSIDE_CHOICES = [
 ] as const;
 
 /**
+ * The date formats, each made once: a formatter costs far more to make than to use, and the dock
+ * writes two dates for every bar of its histogram on every frame of a play (#4196).
+ */
+const DATE_FORMATS = {
+    minute: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }),
+    month: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", year: "numeric", month: "short" }),
+    year: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", year: "numeric" }),
+    day: new Intl.DateTimeFormat(undefined, { timeZone: "UTC", dateStyle: "medium" }),
+};
+
+/**
  * How finely a date is written for a step: to the minute below a day, to the month for months
  * and quarters, to the year for years, else to the day.
  * @param step - the window's step, or undefined.
- * @returns the format options.
+ * @returns the formatter.
  */
-function dateFormat(step: TimeStep | undefined): Intl.DateTimeFormatOptions {
+function dateFormat(step: TimeStep | undefined): Intl.DateTimeFormat {
     if (step === "hour" || (typeof step === "number" && step < DAY)) {
-        return { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" };
+        return DATE_FORMATS.minute;
     }
     if (step === "month" || step === "quarter") {
-        return { timeZone: "UTC", year: "numeric", month: "short" };
+        return DATE_FORMATS.month;
     }
     if (step === "year") {
-        return { timeZone: "UTC", year: "numeric" };
+        return DATE_FORMATS.year;
     }
-    return { timeZone: "UTC", dateStyle: "medium" };
+    return DATE_FORMATS.day;
 }
 
 /**
@@ -174,7 +187,7 @@ export function instantWords(at: number, unit: TimeUnit, step?: TimeStep): strin
     }
     // A field of years is written as years unless a step finer than a year asks for more.
     const grain = unit === "year" && (step === undefined || stepAtLeastYear(step)) ? "year" : step;
-    return Number.isFinite(at) ? new Intl.DateTimeFormat(undefined, dateFormat(grain)).format(at) : "";
+    return Number.isFinite(at) ? dateFormat(grain).format(at) : "";
 }
 
 /**
@@ -223,7 +236,7 @@ export function windowWords(window: TimeWindow, unit: TimeUnit): string {
  * @returns "1 edge", "12 edges".
  */
 export function countWords(count: number, noun: string): string {
-    return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
+    return `${formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** The step and speed a play step happens at: 1x is one step a second. */

@@ -2,18 +2,41 @@
  * A name cut short by its row gets the whole string as a themed tooltip on hover; a name drawn
  * whole gets none. Real layout in Chromium, so the ellipsis is real.
  */
-import { screen } from "@testing-library/react";
+import { Tooltip } from "@mantine/core";
+import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { DataRow } from "../../../src/components/rows";
 import { Tree } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
-import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
 const LONG = "Mrs_Henderson_from_the_house_on_the_corner_of_the_street";
+
+/** The label of {@link Probe}'s tooltip. */
+const PROBE = "probe";
+
+/**
+ * A themed tooltip on `target`, an element inside a row. The pointer enters the row before the
+ * element, so a tooltip of the row's starts its open delay first and shows no later than this one.
+ * @param props - Component props
+ * @param props.target - a selector for the element inside the row
+ * @returns the tooltip
+ */
+function Probe({ target }: Readonly<{ target: string }>): React.JSX.Element {
+    return <Tooltip label={PROBE} target={target} />;
+}
+
+/** Wait for the probe's tooltip to show, then check that it is the only tooltip that opened. */
+async function onlyTheProbeOpens(): Promise<void> {
+    const tips = (): (string | null)[] => screen.queryAllByRole("tooltip").map((tip) => tip.textContent);
+    await waitFor(() => {
+        expect(tips()).toContain(PROBE);
+    });
+    expect(tips()).toEqual([PROBE]);
+}
 
 describe("a name that ellipsizes", () => {
     it("shows the whole name as a tooltip while a DataRow cuts it short", async () => {
@@ -23,7 +46,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe(LONG);
     });
 
     it("wraps a stat's long name onto more lines, never cutting it", async () => {
@@ -41,12 +64,11 @@ describe("a name that ellipsizes", () => {
         await renderThemed(
             <div style={{ width: 240 }}>
                 <DataRow stat name="Nodes" value="77" />
+                <Probe target='[data-testid="data-row-name"]' />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-name"));
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        expect(screen.queryByRole("tooltip")).toBeNull();
+        await onlyTheProbeOpens();
     });
 
     it("shows the whole name as a tooltip while a Tree row cuts it short", async () => {
@@ -56,7 +78,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByText(LONG));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe(LONG);
     });
 
     it("keeps the name whole and shortens the count first, and shows both in the cut row's tooltip", async () => {
@@ -89,9 +111,7 @@ describe("a name that ellipsizes", () => {
         // The cut count still shows a stub with its ellipsis, not nothing.
         expect(count.clientWidth).toBeGreaterThan(20);
         await userEvent.hover(screen.getByText("friends-v2.csv"));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(
-            "friends-v2.csv20 nodes, 41 edges",
-        );
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("friends-v2.csv20 nodes, 41 edges");
     });
 
     it("cuts the name only after the count is down to its stub", async () => {
@@ -120,7 +140,7 @@ describe("a name that ellipsizes", () => {
         const name = screen.getByText("Node table");
         expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
         await userEvent.hover(screen.getByTestId("tree-count"));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(`Node table${quiet}`);
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe(`Node table${quiet}`);
     });
 
     it("shuts the tooltip when the row is pressed, though the pointer stays on it", async () => {
@@ -131,9 +151,9 @@ describe("a name that ellipsizes", () => {
         );
         const name = screen.getByText(LONG);
         await userEvent.hover(name);
-        await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        await screen.findByRole("tooltip", {});
         await userEvent.click(name);
-        await expect.poll(() => screen.queryByRole("tooltip"), { timeout: 3000 }).toBeNull();
+        await expect.poll(() => screen.queryByRole("tooltip")).toBeNull();
     });
 
     it("shows the whole name when the pointer rests on the rest of a Tree row, such as its count", async () => {
@@ -157,9 +177,7 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByText("20 to 19 nodes"));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(
-            "shared_chapters is at least 5",
-        );
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("shared_chapters is at least 5");
     });
 
     it("leaves a control in the row to its own tooltip", async () => {
@@ -180,12 +198,11 @@ describe("a name that ellipsizes", () => {
                         },
                     ]}
                 />
+                <Probe target='input[aria-label="Apply step"]' />
             </div>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Apply step" }));
-        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        expect(screen.queryByRole("tooltip")).toBeNull();
+        await onlyTheProbeOpens();
     });
 
     it("shows the whole name when the pointer rests on a DataRow's value", async () => {
@@ -196,6 +213,6 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(LONG);
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe(LONG);
     });
 });

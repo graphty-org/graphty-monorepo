@@ -27,6 +27,11 @@ describe("acceptsIn", () => {
         ];
         assert.deepEqual(acceptsIn(commits), [{ accept: A, candidate: H }]);
     });
+
+    it("ignores a rolling approval parented on the commit it names (it promotes nothing)", () => {
+        const rolling = `test(workspace): rolling approval of visual baselines rendered at ${H.slice(0, 12)}`;
+        assert.deepEqual(acceptsIn([{ sha: A, parents: [H], subject: rolling }]), []);
+    });
 });
 
 describe("resumeDecision", () => {
@@ -69,7 +74,7 @@ describe("resumeDecision", () => {
 describe("resume.mjs check, on a real repository and a stand-in store", () => {
     // master: base -> H -> newer -> merge of the approval P (the accept A on H, then the signed approval record);
     // channel/nightly at base
-    function repo({ extra } = {}) {
+    function repo({ extra, mergedMaster } = {}) {
         const dir = mkdtempSync(join(tmpdir(), "resume-"));
         const git = (...a) =>
             execFileSync("git", a, {
@@ -92,7 +97,15 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
         if (extra) writeFileSync(join(dir, "code.js"), "1\n");
         git("add", ".");
         git("commit", "-q", "-m", "test(workspace): approve the visual baselines of the candidate");
-        const p = git("rev-parse", "HEAD");
+        let p = git("rev-parse", "HEAD");
+        if (mergedMaster) {
+            // the approval branch merged master after the owner's Finish: P is now that merge
+            git("switch", "-q", "master");
+            git("commit", "-q", "--allow-empty", "-m", "master meanwhile");
+            git("switch", "-q", "accept");
+            git("merge", "-q", "--no-ff", "-m", "Merge branch master into accept", "master");
+            p = git("rev-parse", "HEAD");
+        }
         git("switch", "-q", "master");
         git("commit", "-q", "--allow-empty", "-m", "newer master");
         git("merge", "-q", "--no-ff", "-m", "Merge the accept", "accept");
@@ -152,6 +165,15 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
         assert.equal(code, 0);
         assert.equal(out.resume, "false");
         assert.match(out.why, /accept-only/);
+    });
+
+    it("promote-nightly promotes the signed approval under an approval branch that merged master", async () => {
+        const { dir, h, p, git } = repo({ mergedMaster: true });
+        const signed = git("rev-parse", `${p}^1`);
+        const store = { hold: null, recent: [{ sha: h, state: "green-images", runId: 42 }] };
+        const { code, out } = await check({ cwd: dir, MODE: "promote-nightly", CANDIDATE: h, ACCEPT: p }, store);
+        assert.equal(code, 0);
+        assert.deepEqual([out.resume, out.sha, out.tested], ["true", signed, h]);
     });
 
     it("a full slot does not catch up while a publish hold is open, or with nothing held", async () => {

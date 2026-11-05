@@ -304,7 +304,9 @@ export class LabelDeclutter {
      * the counts it drew, and a wait for the finished picture would wait for ever.
      */
     private releaseFrames: (() => void) | null = null;
-    private published: NodeLabelCounts = NO_NODE_LABELS;
+    private announced: NodeLabelCounts = NO_NODE_LABELS;
+    /** Someone asked {@link LabelDeclutter.published} while the counts were not: publish early. */
+    private wanted = false;
     /** Callers of {@link LabelDeclutter.whenPublished} waiting for the next publish. */
     private readonly waiters: (() => void)[] = [];
     private camera: Camera | null = null;
@@ -457,7 +459,7 @@ export class LabelDeclutter {
 
             this.quiet = 0;
             this.releaseFrames ??= animatesEveryFrame(this.scene);
-        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0) {
+        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0 || this.wanted) {
             // Someone waiting for the counts (`waitForStableFrame`) gets them on the first frame
             // with nothing to re-decide: the labels have settled, and the QUIET_FRAMES wait only
             // keeps a gesture from publishing every frame. Counting those frames instead made the
@@ -479,13 +481,30 @@ export class LabelDeclutter {
      * @returns A promise that resolves when nothing is left to publish.
      */
     whenPublished(): Promise<void> {
+        if (this.published()) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            this.waiters.push(resolve);
+        });
+    }
+
+    /**
+     * Whether the counts of the last pass have been published, asked without waiting: the entry a
+     * graph's record of pending work asks (issue #4219). Asking it while they are not makes the next
+     * frame with nothing to re-decide publish them, as a {@link LabelDeclutter.whenPublished} waiter
+     * does.
+     * @returns True when nothing is left to publish.
+     */
+    published(): boolean {
         // A setting switched since the last pass is a pass still to come: without this check a
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges || this.styledLabels > 0;
         const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
-        if (settled && sameCounts(this.counts, this.published)) {
-            return Promise.resolve();
+        if (settled && sameCounts(this.counts, this.announced)) {
+            return true;
         }
 
         // The caller waits for the finished picture, and a frame has been drawn since the last
@@ -497,19 +516,19 @@ export class LabelDeclutter {
             this.publish();
             this.releaseFrames?.();
             this.releaseFrames = null;
-            return Promise.resolve();
+            return true;
         }
 
-        return new Promise((resolve) => {
-            this.waiters.push(resolve);
-        });
+        this.wanted = true;
+        return false;
     }
 
     /** Tell the context the counts, when they differ from the last it was told. */
     private publish(): void {
         const { counts } = this;
-        if (!sameCounts(counts, this.published)) {
-            this.published = counts;
+        this.wanted = false;
+        if (!sameCounts(counts, this.announced)) {
+            this.announced = counts;
             this.context.onNodeLabelCounts?.notifyObservers(counts);
         }
 
@@ -1649,13 +1668,13 @@ function cell(at: number, size: number, count: number): number {
 }
 
 /**
- * The texts an edge is drawing: its label and its end captions, each with a live plane.
+ * The texts an edge is drawing: its label, its external label and its end captions, each with a live plane.
  * @param edge - The edge.
  * @returns The texts, in that order.
  */
 function edgeTexts(edge: Edge): RichTextLabel[] {
     const texts: RichTextLabel[] = [];
-    for (const text of [edge.label, edge.arrowHeadText, edge.arrowTailText]) {
+    for (const text of [edge.label, edge.xlabelLabel, edge.arrowHeadText, edge.arrowTailText]) {
         const mesh = text?.labelMesh;
         // a text with no words (an empty label column) has a plane of no size, placed nowhere a
         // number can say (NaN): it draws nothing, so it is neither counted nor watched

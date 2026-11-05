@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { pageRank, personalizedPageRank } from "../../../src/indexed/pagerank.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { PageRankResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

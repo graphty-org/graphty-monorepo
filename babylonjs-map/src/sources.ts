@@ -58,6 +58,7 @@ export type MapSourceId =
     | "openstreetmap"
     | "opentopomap"
     | "nasa-gibs-blue-marble"
+    | "nasa-gibs-blue-marble-bathymetry"
     | "usgs-topo"
     | "usgs-imagery"
     | "eox-s2cloudless-2016";
@@ -67,7 +68,7 @@ const OSM_URL = "https://www.openstreetmap.org/copyright";
 const NATURAL_EARTH = new URL("../assets/natural-earth.jpg", import.meta.url).href;
 
 /**
- * Free map sources usable from a static page with no key. `natural-earth` is a 2048 x 1024
+ * Free map sources usable from a static page with no key. `natural-earth` is a 4096 x 2048
  * public-domain world image shipped in this package, so it contacts no third party;
  * `natural-earth-gray` is the same picture drawn as a plain light gray backdrop. The network
  * sources ask for light use: this package only loads the tiles in view and never prefetches.
@@ -101,6 +102,15 @@ export const mapSources: Readonly<Record<MapSourceId, MapSource>> = {
     },
     "nasa-gibs-blue-marble": {
         tiles: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_NextGeneration/default/2004-08-01/500m/{z}/{y}/{x}.jpeg",
+        attribution: "NASA EOSDIS GIBS",
+        attributionUrl: "https://earthdata.nasa.gov/gibs",
+        projection: "equirectangular",
+        tileSize: 512,
+        tileExtent: 0.8,
+        maxZoom: 7,
+    },
+    "nasa-gibs-blue-marble-bathymetry": {
+        tiles: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/default/2004-08-01/500m/{z}/{y}/{x}.jpeg",
         attribution: "NASA EOSDIS GIBS",
         attributionUrl: "https://earthdata.nasa.gov/gibs",
         projection: "equirectangular",
@@ -245,7 +255,7 @@ export function resolveSource(source: MapSource): ResolvedSource {
                 s: subdomains.length > 0 ? subdomains[(x + t.y) % subdomains.length] : "",
                 r: "",
             };
-            return source.tiles.replace(/\{(z|x|y|-y|s|r)\}/g, (_, key: string) => String(values[key])); // NOSONAR(S7781): babylonjs-map's lib is ES2020, which has no String#replaceAll
+            return source.tiles.replaceAll(/\{(z|x|y|-y|s|r)\}/g, (_, key: string) => String(values[key]));
         },
     };
 }

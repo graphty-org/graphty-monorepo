@@ -12,6 +12,7 @@ import {
     evaluateCommonNeighbors,
     getTopAdamicAdarCandidatesForNode,
     getTopCandidatesForNode,
+    type LinkPredictionOptions,
     type LinkPredictionResult,
 } from "../../../src/indexed/link-prediction.js";
 import { legacyResult } from "../../helpers/golden.js";
@@ -76,7 +77,12 @@ function cases(): Case[] {
     ];
 }
 
-const OPTIONS = [{}, { directed: true }, { includeExisting: true }, { directed: true, includeExisting: true, topK: 7 }];
+const OPTIONS: readonly LinkPredictionOptions[] = [
+    {},
+    { directed: true },
+    { includeExisting: true },
+    { directed: true, includeExisting: true, topK: 7 },
+];
 
 function toLegacy(s: GraphSnapshot, r: LinkPredictionResult): LinkPredictionScore[] {
     return Array.from(r.scores, (score, k) => ({
@@ -178,6 +184,37 @@ function evaluationSets(c: Case): {
     return { test, non };
 }
 
+/**
+ * The directed ranking by hand: every ordered pair (u, v), u != v, in index order, without an arc
+ * u -> v unless `includeExisting`, with a positive score, stably sorted highest first, then `topK`.
+ */
+function directedRanking(
+    s: GraphSnapshot,
+    o: { includeExisting?: boolean; topK?: number },
+    forPairs: (
+        s: GraphSnapshot,
+        pairs: { sources: number[]; targets: number[] },
+        o: { directed: true },
+    ) => ArrayLike<number>,
+): LinkPredictionScore[] {
+    const sources: number[] = [];
+    const targets: number[] = [];
+    for (let u = 0; u < s.nodeCount; u++) {
+        for (let v = 0; v < s.nodeCount; v++) {
+            if (u !== v && (o.includeExisting === true || !s.hasArc(u, v))) {
+                sources.push(u);
+                targets.push(v);
+            }
+        }
+    }
+    const scores = forPairs(s, { sources, targets }, { directed: true });
+    const list = sources
+        .map((u, k) => ({ source: s.ids.idOf(u), target: s.ids.idOf(targets[k]), score: scores[k] }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score);
+    return o.topK !== undefined && o.topK > 0 ? list.slice(0, o.topK) : list;
+}
+
 describe("indexed link prediction, against legacy", () => {
     for (const c of cases()) {
         describe(c.name, () => {
@@ -187,6 +224,30 @@ describe("indexed link prediction, against legacy", () => {
                 // A topK that is not positive keeps every pair.
                 for (const o of [...OPTIONS, { topK: 0 }, { topK: -2 }]) {
                     const at = `${c.name} ${JSON.stringify(o)}`;
+                    if (o.directed === true) {
+                        // 2.x scored only (u, v) with u < v, so its records are half of the ordered pairs
+                        // (#961). Every recorded pair is in the full ranking with its recorded score.
+                        for (const [predict, forPairs] of [
+                            [commonNeighborsPrediction, commonNeighborsForPairs],
+                            [adamicAdarPrediction, adamicAdarForPairs],
+                        ] as const) {
+                            const full = toLegacy(s, predict(s, { ...o, topK: undefined }));
+                            expect(toLegacy(s, predict(s, o)), at).toEqual(directedRanking(s, o, forPairs));
+                            const recorded = legacyResult() as LinkPredictionScore[];
+                            if (o.topK === undefined) {
+                                for (const x of recorded) {
+                                    const hit = full.find((y) => y.source === x.source && y.target === x.target);
+                                    expect(hit, `${at} ${String(x.source)}-${String(x.target)}`).toBeDefined();
+                                    expectClose(hit?.score ?? Number.NaN, x.score, at);
+                                }
+                            }
+                            if (predict === adamicAdarPrediction) {
+                                // The per-pair records of the Adamic-Adar ranking.
+                                recorded.forEach(() => legacyResult());
+                            }
+                        }
+                        continue;
+                    }
                     expectScoresMatch(
                         toLegacy(s, commonNeighborsPrediction(s, o)),
                         legacyResult() as LinkPredictionScore[],
@@ -382,7 +443,7 @@ describe("indexed link prediction", () => {
             sources: pairs.map(([u]) => s.ids.indexOf(u)),
             targets: pairs.map(([, v]) => s.ids.indexOf(v)),
         });
-        const o = { includeExisting: true };
+        const o: LinkPredictionOptions = { includeExisting: true };
         const scores = adamicAdarForPairs(s, indexed([...test, ...non]), o);
         expect(new Set(scores).size).toBe(1);
         (legacyResult() as LinkPredictionScore[]).forEach((x, k) => {
@@ -463,6 +524,29 @@ describe("indexed link prediction, uniquePairs", () => {
             s.validate({ checksum: true });
         });
     }
+
+    it("scores every ordered pair with directed: true (#961)", () => {
+        // c -> b -> a: c reaches a through b, whatever order the nodes were added in.
+        for (const order of [
+            ["a", "b", "c"],
+            ["c", "b", "a"],
+        ]) {
+            const b = new GraphBuilder({ directed: true });
+            for (const id of order) {
+                b.addNode(id);
+            }
+            b.addEdge("c", "b");
+            b.addEdge("b", "a");
+            const s = b.freeze({ checksum: true });
+            const c = s.ids.requireIndex("c");
+            const a = s.ids.requireIndex("a");
+            for (const predict of predictions) {
+                expect(asList(predict(s, { directed: true }))).toEqual([[c, a, 1]]);
+            }
+            expect(asList(getTopCandidatesForNode(s, c, { directed: true }))).toEqual([[c, a, 1]]);
+            s.validate({ checksum: true });
+        }
+    });
 
     it("returns topK distinct pairs on an undirected graph", () => {
         const b = new GraphBuilder({ directed: false });

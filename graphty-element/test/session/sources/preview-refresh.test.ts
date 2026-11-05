@@ -191,10 +191,10 @@ describe("data.previewSource", () => {
                 preview.columns.filter((c) => c.kind === "node").map((c) => c.name),
                 "name",
             );
-            assert.strictEqual(preview.facts.product, "Neo4j");
             assert.deepInclude(preview.serverFacts, { code: "source.product", params: { value: "Neo4j" } });
             assert.strictEqual(preview.rows.length, 25);
-            assert.isTrue(preview.rows.every((row) => typeof row.name === "string"));
+            // with no label path configured, a row is labelled as data.name labels a node: by its id
+            assert.isTrue(preview.rows.every((row) => row.name === String(row.id)));
             assert.isFalse(
                 preview.columns.some((c) => c.name.startsWith("_source.")),
                 "no bookkeeping column in a preview",
@@ -203,6 +203,24 @@ describe("data.previewSource", () => {
             assert.strictEqual(session.data.nodes().length, 0);
             assert.strictEqual(session.history.steps.length, 0);
             assert.strictEqual(session.data.loads().length, 0);
+        });
+    });
+
+    it("names its rows by the configured label path, as data.name labels a loaded node", async () => {
+        people = [
+            { id: "a", name: "Ana", knows: [] },
+            { id: "b", name: "", knows: [] },
+        ];
+        await withSession(async (session) => {
+            await session.config.set({ data: { knownFields: { nodeLabelPath: "name" } } });
+            const preview = await session.data.previewSource({ source: "people-live", config: {} }, { maxNodes: 2 });
+            assert.deepEqual(
+                preview.rows.map((row) => [row.id, row.name]),
+                [
+                    ["a", "Ana"],
+                    ["b", "b"],
+                ],
+            );
         });
     });
 
@@ -305,7 +323,7 @@ describe("data.more({ load })", () => {
                 () => null,
                 (e: unknown) => e as GraphtyError,
             );
-            assert.strictEqual(error?.code, "E_SOURCE_UNKNOWN");
+            assert.strictEqual(error?.code, "E_LOAD_UNKNOWN");
         });
     });
 });

@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { EdgeLinePattern } from "../../../src/catalog/types";
+import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
@@ -20,6 +20,7 @@ import {
     DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
+    modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
     toColorValue,
@@ -64,6 +65,7 @@ const DECLARED = [
     "node.labelOffsetY",
     "node.labelShiftX",
     "node.labelShiftY",
+    "node.labelShiftOf",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -79,12 +81,14 @@ const DECLARED = [
     "node.haloScale",
     "node.haloOpacity",
     "node.wireframe",
+    "node.meshDetail",
     "node.flat",
     "node.unlit",
     "node.marker",
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
@@ -101,6 +105,7 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -152,32 +157,61 @@ const DECLARED = [
     "node.chartMax",
     "node.chartHorizontal",
     "node.chartSize",
+    "node.chartWidth",
+    "node.chartHeight",
+    "node.chartOffsetX",
+    "node.chartOffsetY",
     "node.chartMargin",
     "node.chartGap",
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
+    "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeRotation",
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
+    "node.labelTable",
     "node.shapeLineWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.texture",
     "edge.color",
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -204,9 +238,18 @@ const DECLARED = [
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.supportModel",
+    "edge.supportSpringLength",
+    "edge.supportSpringConstant",
+    "edge.supportRepulsion",
+    "edge.supportCentralGravity",
+    "edge.supportUnit",
+    "edge.supportScale",
     "edge.route",
     "edge.arcHeight",
     "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -215,6 +258,7 @@ const DECLARED = [
     "edge.arrowHeadSide",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
+    "edge.arrowHeadStack",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
@@ -236,6 +280,7 @@ const DECLARED = [
     "edge.arrowTailSide",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
+    "edge.arrowTailStack",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
@@ -310,6 +355,21 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "edge.labelShiftOf",
+    "node.shaders",
+    "edge.shaders",
+    "edge.taper",
+    "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
+    "edge.xlabel",
+    "edge.xlabelStyle",
+    "edge.xlabelLocation",
+    "edge.xlabelOffsetX",
+    "edge.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -336,9 +396,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-one node channels and one hundred and thirty-two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 151);
-        assert.strictEqual(channelsFor("edge").length, 132);
+    it("splits into one hundred and eighty-six node channels and one hundred and fifty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 186);
+        assert.strictEqual(channelsFor("edge").length, 156);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -559,15 +619,32 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
+        // Unset, a group reaches its largest member's radius past its members.
+        "node.groupPadding",
+        "node.groupPaddingRatio",
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
+        "node.labelTable",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
+        // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
+        "edge.xlabel",
+        "edge.xlabelStyle",
+        "edge.xlabelLocation",
+        "edge.xlabelOffsetX",
+        "edge.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",
@@ -584,6 +661,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
         "node.shapePoints",
+        // Unset, a chart's plot is as wide and as tall as `node.chartSize` says.
+        "node.chartWidth",
+        "node.chartHeight",
         // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
         // bands, and an image's width, height and pixel size, follow from the rest.
         "node.image",
@@ -611,6 +691,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
+        // Unset, a node draws its shape and no model.
+        "node.model",
+        // Unset, a node draws its own color and no picture.
+        "node.texture",
         "edge.patternCount",
         // Unset, a wave is drawn within its line's width or its border's ring.
         "edge.waveAmplitude",
@@ -627,6 +711,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailImage",
         "edge.arrowMiddleHeadImage",
         "edge.arrowMiddleTailImage",
+        // Unset, an end cap is drawn alone, with no row of caps behind it.
+        "edge.arrowHeadStack",
+        "edge.arrowTailStack",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",
@@ -640,6 +727,14 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
+        // Unset, a curved edge has no support point, and the support's numbers have nothing to place.
+        "edge.supportModel",
+        "edge.supportSpringLength",
+        "edge.supportSpringConstant",
+        "edge.supportRepulsion",
+        "edge.supportCentralGravity",
+        "edge.supportUnit",
+        "edge.supportScale",
         // Unset, the layout decides the route: straight but on a geographic map.
         "edge.route",
         "edge.sourcePort",
@@ -683,6 +778,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        // Unset, no shader parameter is set and no effect is drawn.
+        "node.shaders",
+        "edge.shaders",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -711,6 +809,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
+        "node.labelShiftOf",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -738,6 +837,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
+        "edge.labelShiftOf",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -996,6 +1096,38 @@ describe("the arrow-end channels", () => {
             } else {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
+        }
+    });
+});
+
+describe("modelBindingProblem", () => {
+    const at = "encode.node.model";
+
+    it("accepts a value map of asset ids that skips unlisted categories", () => {
+        assert.isNull(modelBindingProblem({ by: "data.kind", map: { a: "asset:a" }, unmapped: "skip" }, at));
+        assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
+    });
+
+    it("accepts http(s) URLs among the listed values, and a value read from the data", () => {
+        const url = "https://example.com/x.glb";
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: url }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
+            { by: "data.url", scale: "passthrough" },
+            { template: ["{data.url}"] },
+        ];
+        for (const binding of bindings) {
+            assert.isNull(modelBindingProblem(binding, at));
+        }
+    });
+
+    it("refuses a listed value that is neither an asset id nor an http(s) URL", () => {
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: "rack.glb" }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: "file:///etc/x.glb" } },
+        ];
+        for (const binding of bindings) {
+            assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
         }
     });
 });

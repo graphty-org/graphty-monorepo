@@ -36,10 +36,15 @@ import {
     LABEL_ATTRIBUTE,
     PARENT_COLUMN,
     POS_ATTRIBUTE,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
 import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+
+/** The node columns written as rank subgraphs rather than as node attributes. */
+const RANK_COLUMNS: ReadonlySet<string> = new Set([RANK_COLUMN, RANK_SET_COLUMN]);
 
 /** What the writer takes: the format's options, the common ones and the styles. */
 type DotWriteOptions = DotExportOptions & CommonExportOptions & ExporterStyleOptions;
@@ -461,6 +466,22 @@ function positionNotes(snapshot: GraphSnapshot, position: Column | null, note: D
     }
 }
 
+/**
+ * Visit every set cell of a string or dict column as a "value" text; other columns have none.
+ * @param column - the column
+ * @param visit - the visitor
+ */
+function visitTextCells(column: Column, visit: (text: string, kind: string) => void): void {
+    if (column.dtype !== "string" && column.dtype !== "dict") {
+        return;
+    }
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r)) {
+            visit(column.value(r) as string, "value");
+        }
+    }
+}
+
 class ExportPlan {
     private readonly snapshot: GraphSnapshot;
 
@@ -611,7 +632,7 @@ class ExportPlan {
      */
     private writesNodeColumn(column: Column): boolean {
         const { name, role } = column.meta;
-        if (!isTextualDtype(column) || name === CLUSTER_COLUMN) {
+        if (!isTextualDtype(column) || name === CLUSTER_COLUMN || RANK_COLUMNS.has(name)) {
             return false;
         }
         if (role !== null && SKIPPED_NODE_ROLES.has(role)) {
@@ -837,22 +858,12 @@ class ExportPlan {
         for (const columns of [this.nodeColumns, this.edgeColumns, this.graphColumns]) {
             for (const column of columns) {
                 visit(this.attributeName(column), "attribute name");
-                if (column.dtype === "string" || column.dtype === "dict") {
-                    for (let r = 0; r < column.length; r++) {
-                        if (column.isSet(r)) {
-                            visit(column.value(r) as string, "value");
-                        }
-                    }
-                }
+                visitTextCells(column, visit);
             }
         }
         for (const column of [this.edgeId, this.sourcePort, this.targetPort]) {
-            if (column !== null && (column.dtype === "string" || column.dtype === "dict")) {
-                for (let r = 0; r < column.length; r++) {
-                    if (column.isSet(r)) {
-                        visit(column.value(r) as string, "value");
-                    }
-                }
+            if (column !== null) {
+                visitTextCells(column, visit);
             }
         }
     }
@@ -875,8 +886,39 @@ class ExportPlan {
         for (let i = 0; i < snapshot.nodeCount; i++) {
             yield* this.writeNode(i, 1, emitted);
         }
+        yield* this.writeRanks();
         yield* this.writeEdges();
         yield "}\n";
+    }
+
+    /**
+     * Write each rank subgraph the `graphty.rank` and `graphty.rankSet` columns hold, after the nodes: a named one
+     * under its name, an anonymous one (`%<n>`) as an anonymous subgraph.
+     * @yields the statements
+     * @returns nothing
+     */
+    private *writeRanks(): Generator<string> {
+        const { nodes } = this.snapshot;
+        const rank = nodes.get(RANK_COLUMN);
+        const set = nodes.get(RANK_SET_COLUMN);
+        if (rank === null || set === null) {
+            return;
+        }
+        const sets = new Map<string, { rank: string; members: string[] }>();
+        for (let i = 0; i < this.snapshot.nodeCount; i++) {
+            if (rank.isSet(i) && set.isSet(i)) {
+                const key = String(set.value(i));
+                const entry = sets.get(key) ?? { rank: String(rank.value(i)), members: [] };
+                entry.members.push(writeId(this.idText(i)));
+                sets.set(key, entry);
+            }
+        }
+        // anonymous ones in their number's order, so the file read back numbers them the same
+        const order = (key: string): number => (key.startsWith("%") ? Number(key.slice(1)) : -1);
+        for (const [key, entry] of [...sets].sort(([a], [b]) => order(a) - order(b))) {
+            const head = key.startsWith("%") ? "" : `subgraph ${quoteDotId(key)} `;
+            yield `${this.indent}${head}{ rank=${quoteDotId(entry.rank)}; ${entry.members.join("; ")}; }\n`;
+        }
     }
 
     /**

@@ -6,17 +6,11 @@ import {
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import type {
-    FilterStep,
-    GraphSession,
-    NodeId,
-    SelectionDirection,
-    SelectionStatistics,
-} from "@graphty/graphty-element/session";
+import type { GraphSession, NodeId, SelectionDirection, SelectionStatistics } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { newId, writeSteps } from "../data-place/filterSteps";
+import { writeCondition } from "../data-place/filterCards";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { focusInspectorTitle } from "../frame/focus";
 import type { WorkspaceStore } from "../state/store";
@@ -213,6 +207,14 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                             stat
                             name={run.label}
                             value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                            // A reading a keyboard reader reaches by Tab, as every other row here:
+                            // it opens the run it comes from, as a Memberships row opens its group.
+                            onClick={() => {
+                                store.set({ inspected: { kind: "measure-row", id: run.id } });
+                                requestAnimationFrame(() => {
+                                    focusInspectorTitle();
+                                });
+                            }}
                         />
                     ))}
                 </ControlSection>
@@ -266,7 +268,7 @@ async function showNeighborhood(
     hops: 1 | 2 | 3,
     direction: SelectionDirection,
 ): Promise<void> {
-    await session.selection.apply({ neighborsOf: [center], depth: hops, direction });
+    await session.selection.apply({ neighborsOf: [center], depth: hops, direction }, "replace", { cause: "user" });
     const around = session.selection.nodes.filter((node) => node !== center).length;
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
@@ -379,10 +381,14 @@ export function NeighborList({
             />
         ));
     }
-    // The neighborhood step seeded on this center, at any reach: one center has one such step, so
-    // pressing never adds a second. The step at this reach wins.
-    const seeded = session.visibility.steps.filter(
-        (s) => s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
+    // The neighbors card seeded on this center, at any reach: one center has one such card, so
+    // pressing never adds a second. The card at this reach wins.
+    const seeded = session.visibility.conditions.filter(
+        (s) =>
+            s.effect === "keep" &&
+            s.rule.kind === "neighborhood" &&
+            s.rule.seeds.length === 1 &&
+            s.rule.seeds[0] === center,
     );
     const filtered = seeded.find((s) => s.rule.kind === "neighborhood" && s.rule.depth === reach) ?? seeded.at(0);
     // That step already on at the reach shown: a press would change nothing, so the command is drawn
@@ -462,16 +468,16 @@ export function NeighborList({
                                     if (applied) {
                                         return;
                                     }
-                                    // A command, never a toggle: it adds this center's step at the
-                                    // reach shown, or turns that step on; only the step's own checkbox
+                                    // A command, never a toggle: it adds this center's card at the
+                                    // reach shown, or turns that card on; only the card's own checkbox
                                     // in Filters turns it off.
-                                    const { steps } = session.visibility;
                                     const rule = { kind: "neighborhood", seeds: [center], depth: reach } as const;
-                                    const next: FilterStep[] =
+                                    const { visibility } = session;
+                                    void writeCondition(store, () =>
                                         filtered === undefined
-                                            ? [...steps, { id: newId(steps), on: true, rule }]
-                                            : steps.map((s) => (s.id === filtered.id ? { ...s, on: true, rule } : s));
-                                    void writeSteps(session, store, next);
+                                            ? visibility.addCondition({ effect: "keep", rule })
+                                            : visibility.updateCondition(filtered.id, { on: true, rule }),
+                                    );
                                 }}
                             >
                                 Filter to neighbors

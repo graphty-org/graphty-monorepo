@@ -10,12 +10,6 @@
     overflow: auto;
 }
 
-/* A key that scrolls takes focus: its ring, as every other focusable box draws it. */
-.ws-legend-card:focus-visible {
-    outline: 2px solid var(--mantine-primary-color-filled);
-    outline-offset: 1px;
-}
-
 /* A key chit's ring, so a black chit on the dark card or a white one on the light card still
    shows its edge (WCAG 1.4.11, 3:1 against the card). */
 .ws-legend-chit {

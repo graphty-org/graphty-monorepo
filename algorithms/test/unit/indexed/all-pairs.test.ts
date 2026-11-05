@@ -1,4 +1,4 @@
-import { expandEdges, GraphBuilder, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
+import { expandEdges, type F64, GraphBuilder, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { PathWalkError } from "../../../src/errors.js";
@@ -59,7 +59,7 @@ describe("indexed.allPairsShortestPath -- input checks", () => {
 
     it("refuses a NaN or infinite weight and an override of the wrong length", () => {
         const s = checksummedSnapshot(threePath());
-        const bad = (x: number): Float64Array => new Float64Array(s.arcCount).fill(1).fill(x, 0, 1);
+        const bad = (x: number): F64 => new Float64Array(s.arcCount).fill(1).fill(x, 0, 1);
         expect(() => allPairsShortestPath(s, { weights: bad(NaN) })).toThrow(RangeError);
         expect(() => allPairsShortestPath(s, { weights: bad(Infinity) })).toThrow(RangeError);
         expect(() => allPairsShortestPath(s, { weights: new Float64Array(s.arcCount + 1) })).toThrow(RangeError);
@@ -302,7 +302,7 @@ function isUnit(w: NumericVector | null): boolean {
     return w === null || Array.from(w).every((x) => x === 1);
 }
 
-function allTwos(s: GraphSnapshot): Float64Array {
+function allTwos(s: GraphSnapshot): F64 {
     return new Float64Array(s.arcCount).fill(2);
 }
 
@@ -468,7 +468,7 @@ function pathMismatches(s: GraphSnapshot, r: ApspResult, arcWeights: NumericVect
 function pairMismatch(
     s: GraphSnapshot,
     el: ReturnType<GraphSnapshot["edgeList"]>,
-    edgeWeight: Float64Array,
+    edgeWeight: F64,
     r: ApspResult,
     i: number,
     j: number,

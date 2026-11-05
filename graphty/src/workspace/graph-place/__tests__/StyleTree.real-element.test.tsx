@@ -17,9 +17,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { findTreeRow } from "../rows";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * A new project with a small graph, the starting rows on, and two layers of the reader's own:
  * Key people (nodes 1 and 2 in red) under Degree (every node's size).
@@ -28,14 +25,11 @@ const TIMEOUT_MS = 90_000;
 async function openTree(): Promise<{ session: GraphSession; key: string; degree: string }> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -78,7 +72,7 @@ function tree(): HTMLElement {
  * @returns the row.
  */
 async function row(name: string): Promise<HTMLElement> {
-    return within(tree()).findByRole("treeitem", { name: new RegExp(`^${name}, `) }, { timeout: TIMEOUT_MS });
+    return within(tree()).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
 }
 
 /**
@@ -313,7 +307,7 @@ describe("the style tree on the real element", () => {
         assert.isNotNull(glyph);
         await userEvent.hover(glyph);
         // The tooltip opens after the theme's open delay.
-        assert.equal((await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS })).textContent, "Paints edges");
+        assert.equal((await screen.findByRole("tooltip", {})).textContent, "Paints edges");
         // The inspector's header writes the kind in words under the name.
         await userEvent.click(item);
         const inspector = screen.getByRole("complementary", { name: "Inspector" });

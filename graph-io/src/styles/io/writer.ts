@@ -11,6 +11,7 @@ import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
 import { styleFingerprint } from "../plan/features.js";
+import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
 import type {
     ExtractedStyles,
@@ -250,8 +251,8 @@ class LostInputs {
     /** The style columns, the copies added. */
     readonly columns: { readonly node: Map<string, StyleColumn>; readonly edge: Map<string, StyleColumn> };
 
-    /** Whether the rule being carried read a lost input. */
-    private touched = false;
+    /** How many lost inputs the rules carried so far read: a rule that adds none reads none. */
+    private touched = 0;
 
     /**
      * A carrier for one export.
@@ -277,11 +278,11 @@ class LostInputs {
      * @returns the rule read from copies, or the rule itself when it reads no lost input
      */
     carry(rule: StyleRule): StyleRule {
-        this.touched = false;
+        const before = this.touched;
         const { ext, ...given } = rule;
         const map = this.carryMap(rule);
         const where = this.walk(rule, given.where);
-        if (!this.touched) {
+        if (this.touched === before) {
             return rule;
         }
         const { map: _given, ...unmapped } = given;
@@ -313,9 +314,9 @@ class LostInputs {
             const lostColumn = typeof name === "string" && this.lost.has(name) && table.has(name);
             const values = lostColumn ? this.cells(rule.target, name, canonicalFor(rule.target, property)) : null;
             if (values !== null && !values.some((v) => v !== null)) {
-                this.touched = true;
+                this.touched++;
             } else if (values !== null && this.isLost(rule.target, name)) {
-                this.touched = true;
+                this.touched++;
                 map[property] = { ...mapping, by: this.copy(rule.target, `${property}.data.${name}`, () => values) };
             } else {
                 map[property] = mapping;
@@ -347,14 +348,14 @@ class LostInputs {
         const ref = v as { data?: unknown; computed?: unknown };
         if (this.isLost(rule.target, ref.data)) {
             const name = ref.data;
-            this.touched = true;
+            this.touched++;
             return this.copy(rule.target, `data.${name}`, () =>
                 this.cells(rule.target, name, (raw) => (isStyleScalar(raw) ? raw : null)),
             );
         }
         const which = ref.computed;
         if ((which === "indegree" || which === "outdegree") && this.direction && rule.target === "node") {
-            this.touched = true;
+            this.touched++;
             return this.copy(rule.target, `computed.${which}`, () => degreeValues(this.snapshot, which));
         }
         return v;
@@ -486,25 +487,8 @@ function lossNotes(
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
     snapshot: GraphSnapshot,
 ): LossNote[] {
-    const notes: LossNote[] = [];
     const kept = keepsStyleBlock(exporter);
-    for (const target of TARGETS) {
-        const written = new Set<string>(caps?.[target] ?? []);
-        for (const property of ruleProperties(extracted.styles.rules, target)) {
-            // a property only graphty draws is written into the block alone: lost only when the block is
-            if (written.has(property) || (kept && property.startsWith("graphty:"))) {
-                if (target === "edge") {
-                    notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
-                }
-            } else {
-                // a rule whose property no element ends up carrying loses nothing
-                const note = notWrittenNote(target, property, exporter, picture);
-                if (note.count !== 0) {
-                    notes.push(note);
-                }
-            }
-        }
-    }
+    const notes = TARGETS.flatMap((target) => targetLossNotes(target, extracted, exporter, caps, picture, snapshot));
     notes.push(...graphLossNotes(extracted, exporter, caps));
     if (kept) {
         notes.push(...styleBlockLosses(writeStyleBlock(extracted, { snapshot }), extracted.styles.rules.length));
@@ -517,6 +501,46 @@ function lossNotes(
                 count: extracted.styles.rules.length,
             }),
         );
+    }
+    return notes;
+}
+
+/**
+ * The losses of one target's properties: W_STYLE_NOT_WRITTEN for one the format does not write, W_STYLE_APPROXIMATED
+ * for an edge property whose undirected halves differ.
+ * @param target - nodes or edges
+ * @param extracted - the styles
+ * @param exporter - the exporter
+ * @param caps - its style capabilities, or null
+ * @param picture - each element's value of a property
+ * @param snapshot - the graph
+ * @returns the notes
+ */
+function targetLossNotes(
+    target: StyleTarget,
+    extracted: ExtractedStyles,
+    exporter: GraphExporter,
+    caps: StyleWriteCapabilities | null,
+    picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+    snapshot: GraphSnapshot,
+): LossNote[] {
+    const notes: LossNote[] = [];
+    const kept = keepsStyleBlock(exporter);
+    const written = new Set<string>(caps?.[target] ?? []);
+    const drawn = drawnAnyway(caps?.tool, target, extracted.styles.units.length);
+    for (const property of ruleProperties(extracted.styles.rules, target)) {
+        // a property only graphty draws is written into the block alone: lost only when the block is
+        if (written.has(property) || (kept && property.startsWith("graphty:"))) {
+            if (target === "edge") {
+                notes.push(...pairNotes(snapshot, exporter, property, picture("edge", property as StyleProperty)));
+            }
+        } else {
+            // a rule whose property no element ends up carrying loses nothing
+            const note = notWrittenNote(target, property, exporter, picture, drawn[property]);
+            if (note.count !== 0) {
+                notes.push(note);
+            }
+        }
     }
     return notes;
 }
@@ -566,11 +590,13 @@ function ruleProperties(rules: readonly StyleRule[], target: StyleTarget): Set<s
 }
 
 /**
- * W_STYLE_NOT_WRITTEN for a property the format has no place for.
+ * W_STYLE_NOT_WRITTEN for a property the format has no place for, counting the elements whose value the program the
+ * format is written for would not draw anyway.
  * @param target - nodes or edges
  * @param property - the property
  * @param exporter - the exporter
  * @param picture - each element's value of a property
+ * @param drawn - the value that program draws when the file leaves the property unset, if it has a constant one
  * @returns the note
  */
 function notWrittenNote(
@@ -578,8 +604,9 @@ function notWrittenNote(
     property: string,
     exporter: GraphExporter,
     picture: (target: StyleTarget, property: StyleProperty) => readonly (StyleValue | null)[],
+    drawn: StyleValue | undefined,
 ): LossNote {
-    const count = picture(target, property as StyleProperty).filter((v) => v !== null).length;
+    const count = picture(target, property as StyleProperty).filter((v) => v !== null && v !== drawn).length;
     return Object.freeze({
         code: STYLE_ISSUE.NOT_WRITTEN,
         message: `${target} ${property} is not written: the ${exporter.format} format has no place for it (${String(count)} ${target}${plural(count)} ${agree(count, "has", "have")} a value)`,

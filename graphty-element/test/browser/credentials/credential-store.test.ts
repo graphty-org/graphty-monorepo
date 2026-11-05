@@ -116,6 +116,40 @@ describe("CredentialStore", () => {
         assert.deepEqual(store.list(), []);
     });
 
+    it("a credential saved without a slot fills slot default, and is saved under it on first read", async () => {
+        // Saved as a store did before credentials had slots: no slot on the entry.
+        const before = createCredentialStore();
+        before.ai?.enablePersistence();
+        await before.remember(NEO4J, credentials.basic("neo4j", SECRET));
+        assert.isUndefined(before.list().find((info) => info.namespace === "source" && info.slot !== undefined));
+
+        const reopened = createCredentialStore();
+        assert.strictEqual((await reopened.lookup("neo4j", NEO4J.endpoint, "default"))?.username, "neo4j");
+        const migrated = createCredentialStore();
+        assert.strictEqual((await migrated.lookup("neo4j", NEO4J.endpoint, "default"))?.kind, "basic");
+        assert.deepEqual(
+            migrated.list().filter((info) => info.namespace === "source"),
+            [
+                {
+                    namespace: "source",
+                    source: "neo4j",
+                    origin: "https://db.example.com:7473",
+                    kind: "basic",
+                    username: "neo4j",
+                    slot: "default",
+                },
+            ],
+        );
+    });
+
+    it("prefers a credential remembered for the slot over one remembered for none", async () => {
+        const store = createCredentialStore();
+        await store.remember(NEO4J, credentials.bearer("unslotted"));
+        await store.remember({ ...NEO4J, slot: "api_key" }, credentials.apiKey({ query: "api_key" }, SECRET));
+        assert.strictEqual((await store.lookup("neo4j", NEO4J.endpoint, "api_key"))?.kind, "api-key");
+        assert.strictEqual((await store.lookup("neo4j", NEO4J.endpoint))?.kind, "bearer");
+    });
+
     it("works in memory when its key manager cannot load", async () => {
         const store = new CredentialStore(Promise.reject(new Error("no encrypt-storage")));
         await store.remember(NEO4J, credentials.apiKey({ header: "X-Key" }, SECRET));

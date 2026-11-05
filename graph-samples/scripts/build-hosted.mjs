@@ -11,10 +11,11 @@
  * (or else graphty.app) publishes with the SHA-256 recorded in src/datasets/hosted.ts is taken from there and its sources are never
  * fetched, so a deploy does not depend on the third-party hosts; only a dataset whose recorded
  * checksum changed (or is not published yet) is built from its sources. Sources come from this
- * repository's GitHub release graph-samples-sources-v1 (scripts/hosted-sources.mjs), never from
- * their original hosts unless --from-original-hosts is given; the release is filled by the
- * graph-samples-sources.yml workflow, dispatched by hand. A source whose terms do not clearly allow
- * redistribution is not in the release: rebuild its dataset by hand with --from-original-hosts.
+ * repository's GitHub releases graph-samples-source-<sha256> (scripts/hosted-sources.mjs), and from their
+ * original hosts only when the release has no copy with the recorded SHA-256 (or always, with
+ * --from-original-hosts); the releases are created by the graph-samples-sources.yml workflow, dispatched
+ * by hand. A source whose terms do not clearly allow redistribution has no release and always
+ * comes from its original host. When neither has it, the build fails naming what to do.
  *
  * For every dataset below it fetches the sources once into the cache directory (default:
  * <repo>/tmp/graph-samples-sources), refuses a source whose SHA-256 is not the one recorded here,

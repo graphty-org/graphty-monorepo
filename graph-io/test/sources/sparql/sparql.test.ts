@@ -108,6 +108,20 @@ describe("N-Triples and queries", () => {
         ).toMatchObject({ form: "describe", ownLimit: false });
         expect(readQuery("SELECT * WHERE { ?s ?p ?o }").form).toBe("select");
     });
+
+    it("reads the form after the prologue and gives an update no form, whatever names it holds", () => {
+        const update =
+            "PREFIX ex: <http://e/> DELETE WHERE { ?s ?p ?o . ?s ex:CONSTRUCT ?x } ; " +
+            "LOAD <http://169.254.169.254/latest/meta-data/> INTO GRAPH ex:LIMIT";
+        expect(readQuery(update).form).toBeNull();
+        expect(readQuery("CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o } ; CLEAR ALL").form).toBeNull();
+        expect(readQuery("PREFIX ex: <http://e/> INSERT DATA { ex:a ex:b ex:c }").form).toBeNull();
+        // names that spell a keyword are names, not keywords
+        expect(
+            readQuery("PREFIX ex: <http://e/> CONSTRUCT { ?s ex:delete ?o } WHERE { ?s ex:LIMIT ?o ; ex:p ?DROP }"),
+        ).toMatchObject({ form: "construct", ownLimit: false });
+        expect(readQuery("BASE <http://e/> PREFIX : <http://e/> DESCRIBE :x").form).toBe("describe");
+    });
 });
 
 describe("the sparql source against a local endpoint", () => {
@@ -278,6 +292,16 @@ describe("the sparql source against a local endpoint", () => {
         const at = { endpoint: fixture.endpoint };
         const select = await rejection(loadFromSource(sparqlSource, { query: "SELECT * WHERE { ?s ?p ?o }" }, at));
         expect(select.issue?.params).toEqual({ name: "query", reason: "form" });
+        const update = await rejection(
+            loadFromSource(
+                sparqlSource,
+                {
+                    query: "PREFIX ex: <http://e/> DELETE WHERE { ?s ex:CONSTRUCT ?x } ; LOAD <http://x/> INTO GRAPH ex:LIMIT",
+                },
+                at,
+            ),
+        );
+        expect(update.issue?.params).toEqual({ name: "query", reason: "form" });
         const blank = await rejection(loadFromSource(sparqlSource, { mode: "neighborhood", ids: ["_:b0"] }, at));
         expect(blank.issue?.params).toEqual({ name: "ids", reason: "iri" });
         const lang = await rejection(loadFromSource(sparqlSource, { language: 'en") || true || ("' }, at));
@@ -298,7 +322,10 @@ describe("the sparql source against a local endpoint", () => {
             ),
         );
         expect(err.issue?.code).toBe("E_SOURCE_QUERY");
-        expect(err.issue?.params).toMatchObject({ serverMessage: expect.stringContaining("BROKEN") });
+        expect(err.issue?.params).toMatchObject({
+            origin: new URL(fixture.endpoint).origin,
+            serverMessage: expect.stringContaining("BROKEN") as unknown,
+        });
     });
 
     it("refuses an answer that is not N-Triples", async () => {
@@ -307,7 +334,11 @@ describe("the sparql source against a local endpoint", () => {
             { method: "POST", url: endpoint, headers: { "content-type": "text/html" }, body: "<html></html>" },
         ]);
         const err = await rejection(loadFromSource(sparqlSource, { query: ADVISORS }, { endpoint, fetch: html }));
-        expect(err.issue?.params).toEqual({ expected: "n-triples", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({
+            origin: "https://sparql.example.org",
+            expected: "n-triples",
+            contentType: "text/html",
+        });
         const turtle = replayFetch([{ method: "POST", url: endpoint, body: "@prefix a: <http://a/> .\n" }]);
         const bad = await rejection(loadFromSource(sparqlSource, { query: ADVISORS }, { endpoint, fetch: turtle }));
         expect(bad.issue?.code).toBe("E_SOURCE_RESPONSE");

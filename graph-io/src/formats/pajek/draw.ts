@@ -45,7 +45,8 @@ export interface PajekDrawOptions {
      * Options of Pajek's ini file by the names its SAVEINI writes; a flag is on when given as "", true, or a value
      * other than "0" or false. Read: `Form8.MarkVerticesUsing` (1 labels, 2 vertex numbers, 3 no labels, 4 no labels
      * and no arrows), `Form8.SizeofVertices` (8), `TransparencyofVertices` and `TransparencyofLines` (the SVG
-     * export's opacities, 0 to 1), `Form10.StraightLinesOnly1` (every line straight) and `Form10.ColorGradientLines`
+     * export's opacities, 0 to 1), `Form10.StraightLinesOnly1` (every line straight), `Form10.LinesFinishedatBorder` (a Bezier arc
+     * starts at its source's outline) and `Form10.ColorGradientLines`
      * (each line a gradient of its end vertices' colors), `Form8.withLabels1` (the lines' labels drawn; without it
      * none is) and `Form10.effect3d` (each vertex filled with a gradient down to half its color). Any other option is
      * ignored.
@@ -139,6 +140,27 @@ export function drawsLineLabels(draw: PajekDraw | null): boolean {
 }
 
 /**
+ * Whether Pajek starts a line where it leaves its source's outline: under Lines finished at Vertex Border
+ * (`Form10.LinesFinishedatBorder`, `pajek-specimen-arrows-p3` against `pajek-specimen-arrows`).
+ * @param draw - the settings, or null when the import names none (Pajek's defaults)
+ * @returns true when its lines start at the border
+ */
+export function finishesLinesAtBorder(draw: PajekDraw | null): boolean {
+    return draw !== null && flag(draw, "Form10.LinesFinishedatBorder");
+}
+
+/**
+ * Whether Pajek draws the arcs it would bow apart (a mutual pair, parallel arcs) straight: under Export Line Default /
+ * Straight Lines (`Form10.StraightLinesOnly1`, `pajek-specimen-edges-lines-p4` against `-p2`). A line's own Bezier
+ * route stays curved.
+ * @param draw - the settings, or null when the import names none (Pajek's defaults)
+ * @returns true when they are drawn straight
+ */
+export function drawsStraightLines(draw: PajekDraw | null): boolean {
+    return draw !== null && flag(draw, "Form10.StraightLinesOnly1");
+}
+
+/**
  * An ini number.
  * @param draw - the settings
  * @param name - the option
@@ -206,7 +228,7 @@ const VERTEX_FILL = "#ffd9bc";
 const SIZE_OF_VERTICES = 8;
 
 /** Per-element values by property, as the style reader builds them. */
-type Values = Record<string, (StyleValue | null)[]>;
+type Values = Partial<Record<string, (StyleValue | null)[]>>;
 
 /**
  * The node column a project file's n-th object of a kind went to (`meta.extra.pajek.objects`).
@@ -272,7 +294,7 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
     }
     markVertices(draw, node, n);
     for (const property of ["width", "height"]) {
-        if (node[property].every((v) => v === null)) {
+        if (column(node, property, n).every((v) => v === null)) {
             Reflect.deleteProperty(node, property);
         }
     }
@@ -441,7 +463,7 @@ export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values
     if (flag(draw, "Form10.ColorGradientLines")) {
         // each line runs from its source vertex's fill to its target's, and an arrowhead is its own end vertex's fill
         // (`pajek-specimen-edges-lines-p5`)
-        const fill = node.fill as (StyleValue | null)[] | undefined;
+        const { fill } = node;
         const fillOf = (i: number): string => (typeof fill?.[i] === "string" ? fill[i] : VERTEX_FILL);
         const colors = column(edge, "gradientColors", m);
         const kind = column(edge, "gradientKind", m);

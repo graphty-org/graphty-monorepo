@@ -150,6 +150,9 @@ expectTypeOf<keyof ForceAtlas2Options>().toEqualTypeOf<
     | "nodeSize"
     | "weight"
     | "dissuadeHubs"
+    // the CPU simulation's Barnes-Hut repulsion; the GPU simulation computes every pair and ignores them
+    | "barnesHutOptimize"
+    | "barnesHutTheta"
 >();
 expectTypeOf<keyof FruchtermanReingoldOptions>().toEqualTypeOf<
     keyof CommonLayoutOptions | keyof SimulationOptions | "k" | "iterations" | "fixed" | "cooling"

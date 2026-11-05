@@ -61,15 +61,16 @@ const ALL: Recording[] = [
 /** The node page of mode "all" capped at one node, after a key or not. */
 const ONE_NODE = (after: boolean): string =>
     `MATCH (n) WITH n, id(n) AS key${after ? " WHERE key > $after" : ""} RETURN n, key, size([(n)--() | 1]) AS degree ORDER BY key LIMIT 1`;
-/** The relationships among the nodes loaded so far. */
-const AMONG = (after: boolean): string =>
-    `MATCH (a)-[r]->(b) WITH a, r, b, id(a) AS ka, id(b) AS kb WHERE ka <= $last AND kb <= $last${after ? " AND (ka > $after OR kb > $after)" : ""} RETURN a, r, b`;
+/** The relationships touching a node page, with their other end loaded already. */
+const AMONG =
+    "MATCH (a)-[r]->(b) WHERE id(a) IN $keys AND id(b) <= $last RETURN a, r, b UNION ALL " +
+    "MATCH (a)-[r]->(b) WHERE id(b) IN $keys AND id(a) <= $last AND NOT id(a) IN $keys RETURN a, r, b";
 /** Mode "all" capped at one node: a page per node, each with the relationships it completes. */
 const CAPPED: Recording[] = [
     cypherCall(ONE_NODE(false), { results: [{ n: ANC, key: "151", degree: 1 }] }),
-    cypherCall(AMONG(false), { results: [] }, 200, { last: "151" }),
+    cypherCall(AMONG, { results: [] }, 200, { keys: ["151"], last: "151" }),
     cypherCall(ONE_NODE(true), { results: [{ n: SEA, key: "22", degree: 1 }] }, 200, { after: "151" }),
-    cypherCall(AMONG(true), { results: [{ a: SEA, r: ROUTE, b: ANC }] }, 200, { last: "22", after: "151" }),
+    cypherCall(AMONG, { results: [{ a: SEA, r: ROUTE, b: ANC }] }, 200, { keys: ["22"], last: "22" }),
     cypherCall(ONE_NODE(true), { results: [] }, 200, { after: "22" }),
 ];
 
@@ -108,7 +109,12 @@ describe("neptune over HTTPS (recorded shapes)", () => {
         ]);
         const err = await rejection(loadFromSource("neptune", { query: q }, { endpoint: DB, fetch }));
         expect(err.issue?.code).toBe("E_SOURCE_QUERY");
-        expect(err.issue?.params).toMatchObject({ serverCode: "MalformedQueryException", line: 1, column: 10 });
+        expect(err.issue?.params).toMatchObject({
+            origin: DB,
+            serverCode: "MalformedQueryException",
+            line: 1,
+            column: 10,
+        });
     });
 
     it("finds an error appended to a 200 answer cut short", async () => {
@@ -117,7 +123,7 @@ describe("neptune over HTTPS (recorded shapes)", () => {
         const fetch = replayFetch([cypherCall(q, cut)]);
         const err = await rejection(loadFromSource("neptune", { query: q }, { endpoint: DB, fetch }));
         expect(err.issue?.code).toBe("E_SOURCE_TIMEOUT");
-        expect(err.issue?.params).toEqual({ timeoutMs: null, serverSide: true });
+        expect(err.issue?.params).toEqual({ origin: DB, timeoutMs: null, serverSide: true });
     });
 
     it("probe reads the engine version from /status", async () => {
@@ -142,7 +148,7 @@ describe("neptune over HTTPS (recorded shapes)", () => {
                 issue: expect.objectContaining({
                     code: "E_SOURCE_RUNTIME",
                     params: { runtime: "browser", reason: "cors" },
-                }),
+                }) as unknown,
             }),
         );
     });

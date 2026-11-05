@@ -7,6 +7,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 /**
@@ -64,11 +65,14 @@ const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webk
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
 /**
- * The per-test budget of the node project. A recording run (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
- * committed noise fixtures) runs the writer cases, which measure the UNSCALED fixtures and take up to tens of minutes
- * on one adapter; every other run skips them and keeps the 30 s budget.
+ * A project's name. A noise-floor recording (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
+ * committed noise fixtures) is a measurement, not a test run: its writer cases measure the unscaled fixtures
+ * for up to tens of minutes. So every project is then named bench-<name> (`--project=bench-node`), and a
+ * bench project runs with no time limit, outside the one hang guard (tools/test-wait-guard.mjs).
+ * @param name - The project's name in a test run.
+ * @returns The name for this run.
  */
-const nodeTestTimeout = noiseFloorWrite === "1" ? 1_800_000 : 30_000;
+const projectName = (name: string): string => (noiseFloorWrite === "1" ? `bench-${name}` : name);
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -288,7 +292,7 @@ const nodeForks = Math.min(
     workerShare() ?? Infinity,
 );
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({
             // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
@@ -318,12 +322,10 @@ export default defineConfig({
         projects: [
             {
                 test: {
-                    name: "node",
+                    name: projectName("node"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: nodeTestTimeout,
-                    hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
@@ -339,12 +341,10 @@ export default defineConfig({
                     // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
                     // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
                     // honours fileParallelism per project, so this does not serialise the `node` project.
-                    name: "node-gpu-alone",
+                    name: projectName("node-gpu-alone"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: nodeTestTimeout,
-                    hookTimeout: 60_000,
                     include: [...GPU_ALONE_TESTS],
                     fileParallelism: false,
                     sequence: { groupOrder: 1 },
@@ -363,12 +363,10 @@ export default defineConfig({
                     // takes eleven files with it instead of the hundred and ten that were running beside it, the
                     // `node` project still reports and still writes its coverage, and the file that died is the one
                     // the run was on -- a dead worker leaves only "Channel closed" with no file name.
-                    name: "node-device-errors",
+                    name: projectName("node-device-errors"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 30_000,
-                    hookTimeout: 60_000,
                     include: [...DEVICE_ERROR_TESTS],
                     setupFiles: ["test/setup/gpu.ts"],
                     globalSetup: ["test/setup/global.ts"],
@@ -378,12 +376,10 @@ export default defineConfig({
                 test: {
                     // The multi-gigabyte limit files. One file at a time, in an invocation of their own (serialRun
                     // above), so an out-of-memory test never shares the GPU with the main suite.
-                    name: "node-limits",
+                    name: projectName("node-limits"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 600_000,
-                    hookTimeout: 120_000,
                     include: ["test/limits/**/*.test.ts"],
                     setupFiles: ["test/setup/gpu.ts"],
                 },
@@ -395,11 +391,9 @@ export default defineConfig({
                     "import.meta.env.GRAPHTY_NOISE_FLOOR_WRITE": JSON.stringify(noiseFloorWrite),
                 },
                 test: {
-                    name: "browser",
+                    name: projectName("browser"),
                     globals: true,
                     include: ["test/browser/**/*.test.ts"],
-                    testTimeout: 120_000,
-                    hookTimeout: 120_000,
                     env: {
                         GRAPHTY_GPU_REQUIRE: gpuRequire,
                         GRAPHTY_BROWSER_GPU: browserGpu,
@@ -435,3 +429,6 @@ export default defineConfig({
         ],
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -208,7 +208,7 @@ export function layoutTool(catalog: CatalogView): ToolDefinition {
         name: "layout",
         plainName: "Layout",
         core: true,
-        description: "Arranges nodes: layouts, scope, pins, positions. 2D or 3D: view.",
+        description: "Arranges nodes. 2D or 3D: view.",
         example: { action: "set", name: "circular" },
         actions,
     };

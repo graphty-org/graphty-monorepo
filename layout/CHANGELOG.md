@@ -1,3 +1,76 @@
+## 2.5.15 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+
+## 2.5.14 (2026-11-01)
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+
+## 2.5.13 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+
+## 2.5.12 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+
+## 2.5.11 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **ci:** name a shard group's members in the test matrix so story-tests legs find them ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+- clear the last SonarQube findings (NaN-safe comparisons, readonly props, vector normalising) ([703577afbc](https://github.com/graphty-org/graphty-monorepo/commit/703577afbc))
+- clear the SonarQube findings on the studio branch's changed lines ([9de6080dbd](https://github.com/graphty-org/graphty-monorepo/commit/9de6080dbd))
+- **graphty-element:** lay out Spectral by the smallest Laplacian eigenvectors ([4dcee7c739](https://github.com/graphty-org/graphty-monorepo/commit/4dcee7c739))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.40
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 2.5.10 (2026-10-21)
 
 ### 🧱 Updated Dependencies

@@ -26,6 +26,7 @@ interface GraphtyDocument {
     extensions?: Record<string, unknown>; // reverse-domain keys; see "Extensions"
 }
 
+type Member = StyleMember | RecipeMember | DataMember | NotesMember | AssetsMember | { kind: string; version: number };
 type Member = StyleMember | RecipeMember | DataMember | NotesMember | SourcesMember | { kind: string; version: number };
 ```
 
@@ -38,6 +39,7 @@ Every member has a `kind` and an integer `version`. Version 1 defines five kinds
 | `graphty-recipe` | [recipe.md](recipe.md) | a journal of analysis commands |
 | `graphty-data` | this page | a graph embedded in a graph-io JSON dialect |
 | `graphty-notes` | [notes.md](notes.md) | people's notes about the graph, its elements, sets and results |
+| `graphty-assets` | [assets.md](assets.md) | the 3D model files the style layers name, embedded as given; listed in `requires` whenever it is written |
 | `graphty-sources` | [sources.md](sources.md) | the record of every load in the graph: a file, a URL, a network source or a sample, its mapping and options, when and into which graph; version 2 (version 1 was experimental) |
 
 Member kinds starting `graphty-` are reserved for graphty-element. Any other kind MUST be a
@@ -109,6 +111,7 @@ catalogue). The closed objects are the exceptions:
 | a recipe command and its `scope` | skips the command, `E_UNKNOWN_OPTION`, and every later one (recipe.md, "Replaying" rule 3) |
 | a recipe's `table` | refuses an import through the recipe, `E_UNKNOWN_OPTION` at the member's pointer; the commands are unaffected (recipe.md, "Table data" rule 5) |
 | a data member | skips it, `E_BAD_DOCUMENT` ("The data member" rule 2) |
+| an assets member, and each of its entries and files | the member: refuses it, and so the file (it is required), `E_BAD_DOCUMENT`; an entry or a file: skips that entry, `E_BAD_DOCUMENT` (assets.md, "Reading" rules 1 and 3) |
 | a sources member, and each of its entries | the member: skips it, `E_BAD_DOCUMENT`; an entry, a part of one or an expansion: keeps that entry and never runs it (sources.md, "Reading" rules 1 and 2) |
 | a style's selectors, bindings and carried palettes | reports `W_UNKNOWN_MEMBER`, applies the layer, writes the member back; the schema refuses it, so a validator catches the misspelling |
 | the keys of a layer's `set` and `encode` | channel names: style.md, "Reading and applying" rule 2 |

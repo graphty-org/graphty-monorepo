@@ -15,7 +15,7 @@ import { nonPlanarCases, planarCases } from "./planar-cases";
 // relative to the package root, where vitest runs
 const recorded = JSON.parse(
     readFileSync(resolve("test/layouts/fixtures/planar-characterization.json"), "utf8"),
-) as Record<string, { d2: number[]; d3: number[] }>;
+) as Partial<Record<string, { d2: number[]; d3: number[] }>>;
 
 describe("planar: recorded output", () => {
     for (const [name, s] of planarCases()) {

@@ -23,21 +23,23 @@ import { ciReporters } from "./vitest.ci-junit.mjs";
 process.env.FC_FONTATIONS ??= "1";
 
 const TEST_SLOTS = fileURLToPath(new URL("./tools/test-slots.mjs", import.meta.url));
+const DEPS_RELOAD = fileURLToPath(new URL("./tools/vitest-deps-reload.mjs", import.meta.url));
 
 /**
  * The shared part of a config's `test` block: spread it in, then add the project's own settings.
  * Types and option docs: vitest.base.d.mts.
  * @param options - the config's own parts
  * @param options.reporters - the reporters before the CI ones
- * @param options.globalSetup - the config's own global setup files, after the test slot
+ * @param options.globalSetup - the config's own global setup files, after the shared ones
  * @param options.maxWorkers - defaults to this run's share of the cores
  * @param options.junit - options for the CI junit reporter
  * @returns the `globalSetup`, `maxWorkers` and `reporters` of a `test` block
  */
 export function baseTest({ reporters = ["default"], globalSetup = [], maxWorkers = workerShare(), junit = {} } = {}) {
     return {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: [TEST_SLOTS, ...globalSetup],
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions),
+        // and a failed run when Vite finds a dependency mid-run and reloads a test page (#4145).
+        globalSetup: [TEST_SLOTS, DEPS_RELOAD, ...globalSetup],
         maxWorkers,
         reporters: [...reporters, ...ciReporters(junit)],
     };

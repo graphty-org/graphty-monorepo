@@ -13,11 +13,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { IssueItem } from "../../src/model/items.js";
+import { issuesPage, issuesSummary } from "../../src/views/issue-sections.js";
 import type {
     CategoryStatus,
+    ChannelOutcome,
+    ChannelTile,
     Cmp,
     Episode,
     Fact,
+    IssueRange,
     Member,
     MemberRef,
     OverviewResponse,
@@ -36,14 +41,27 @@ import type {
     Value,
 } from "../src/contract";
 
+/**
+ * A GitHub Actions expression, `${{ body }}`, as a workflow file spells it.
+ * @param body - the expression inside the braces
+ * @returns the expression with its braces
+ */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
 // HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
 const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
 const GEN = "2026-10-25T23:30:00Z";
 
-/** A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25"). */
+/**
+ * A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25").
+ * @param s - The time, "HH:MM" or "MM-DD HH:MM".
+ * @returns The time as an ISO string in UTC.
+ */
 function t(s: string): string {
     const m = /^(?:(\d\d)-(\d\d) )?(\d\d):(\d\d)$/.exec(s);
-    if (!m) throw new Error(`bad time ${s}`);
+    if (!m) {
+        throw new Error(`bad time ${s}`);
+    }
     const [, mo = "10", d = "25", h, mi] = m;
     return `2026-${mo}-${d}T${h}:${mi}:00Z`;
 }
@@ -57,29 +75,46 @@ const cmp = (op: Cmp["op"], n: number, unit?: Cmp["unit"]): Cmp => (unit ? { op,
 function ramp(a: number, b: number, n: number): number[] {
     return Array.from({ length: n }, (_, i) => +(a + ((b - a) * i) / Math.max(1, n - 1)).toFixed(2));
 }
-const flat = (v: number, n: number): number[] => Array(n).fill(v);
-const nulls = (n: number): null[] => Array(n).fill(null);
+const flat = (v: number, n: number): number[] => new Array<number>(n).fill(v);
+const nulls = (n: number): null[] => new Array<null>(n).fill(null);
 
-/** Green when the target holds, red when the red comparison holds, yellow between. */
-function judge(v: number | null, sla: Sla): "warn" | "bad" | null {
-    if (v === null || !("op" in sla.target)) return null;
-    const holds = (c: Cmp) =>
-        c.op === "<="
-            ? v <= c.n
-            : c.op === "<"
-              ? v < c.n
-              : c.op === ">="
-                ? v >= c.n
-                : c.op === ">"
-                  ? v > c.n
-                  : v === c.n;
-    if (holds(sla.target)) return null;
+/** A sparkline point's mark: yellow, red, or none. */
+type Mark = "warn" | "bad" | null;
+
+/**
+ * Green when the target holds, red when the red comparison holds, yellow between.
+ * @param v - The value to judge, or null when there is none.
+ * @param sla - The target and red comparisons to judge it against.
+ * @returns null when the target holds, "bad" when the red comparison holds, else "warn".
+ */
+function judge(v: number | null, sla: Sla): Mark {
+    if (v === null || !("op" in sla.target)) {
+        return null;
+    }
+    const holds = (c: Cmp): boolean => {
+        switch (c.op) {
+            case "<=":
+                return v <= c.n;
+            case "<":
+                return v < c.n;
+            case ">=":
+                return v >= c.n;
+            case ">":
+                return v > c.n;
+            default:
+                return v === c.n;
+        }
+    };
+    if (holds(sla.target)) {
+        return null;
+    }
     return sla.red && "op" in sla.red && holds(sla.red) ? "bad" : "warn";
 }
 
 function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null, target?: number): Spark {
-    if (ctx.length !== 18 || trend.length !== 24)
+    if (ctx.length !== 18 || trend.length !== 24) {
         throw new Error(`spark needs 18 + 24, got ${ctx.length} + ${trend.length}`);
+    }
     const tgt = target ?? (sla && "op" in sla.target ? sla.target.n : undefined);
     return {
         step: "15m",
@@ -94,7 +129,13 @@ function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null
 
 type M = Omit<Member, "state" | "window" | "sla" | "link"> & Partial<Pick<Member, "state" | "window" | "sla" | "link">>;
 function member(m: M): Member {
-    return { state: "ok", window: "now", sla: null, link: "/", ...m };
+    const out: Member = { state: "ok", window: "now", sla: null, link: "/", ...m };
+    // A 7- or 28-day member is judged like any other: its state is its value against its SLA.
+    if (out.state !== "slow") {
+        return out;
+    }
+    const v = out.value && "n" in out.value ? (out.value.n ?? null) : null;
+    return { ...out, state: (out.sla && judge(v, out.sla)) || "ok" };
 }
 
 const SLA = {
@@ -352,7 +393,7 @@ const ciMembers: Member[] = [
         id: "ci.pr_duration",
         window: "1h6h",
         value: num(0.9, "x"),
-        value6h: num(1.0, "x"),
+        value6h: num(1, "x"),
         n: 6,
         minN: 5,
         sla: SLA.prDuration,
@@ -420,6 +461,41 @@ ciMembers.push(
         sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
         link: "/ci/benchmarks",
     }),
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    member({
+        id: "ci.screenshot_set_age",
+        window: "7d",
+        state: "slow",
+        value: num(2.4, "h"),
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 12, "h") },
+        link: "/ci",
+    }),
+    ...(
+        [
+            ["ci.slice_base_budget", 41],
+            ["ci.slice_idle_budget", 63],
+            ["ci.slice_idle_hour_budget", 24],
+        ] as const
+    ).map(([id, pct]) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(pct, "pct"),
+            sla: { target: cmp("<=", 100, "pct"), red: cmp(">", 125, "pct") },
+            link: "/ci",
+        }),
+    ),
+    ...(["ci.slice_contended", "ci.slice_queue_wait"] as const).map((id) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(id === "ci.slice_contended" ? 5 : 0, "min"),
+            sla: { target: cmp("<=", 35, "min"), red: cmp(">", 105, "min") },
+            link: "/ci/runners",
+        }),
+    ),
 );
 const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
 
@@ -435,7 +511,7 @@ const flakeRate = member({
     sla: SLA.flakeRate,
     spark: spark(
         nulls(18),
-        [...nulls(10), 0.9, 0.9, 1.0, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
+        [...nulls(10), 0.9, 0.9, 1, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
         SLA.flakeRate,
     ),
     note: f("flaky.flake_rate.note", { since: t("20:42") }),
@@ -478,6 +554,13 @@ const flakyMembers: Member[] = [
         sla: SLA.detected,
         link: "/flaky",
     }),
+    member({
+        id: "data-sources.stress_run",
+        state: "bad",
+        value: { word: "filed", n: 0 },
+        sla: SLA.stress,
+        link: "/flaky/stress",
+    }),
 ];
 
 // Releases
@@ -491,6 +574,12 @@ const lanesRed = member({
 });
 const releaseMembers: Member[] = [
     lanesRed,
+    member({
+        id: "releases.review_wait",
+        value: num(0, "h"),
+        sla: { target: cmp("<", 6, "h") },
+        link: "/releases/lanes",
+    }),
     member({
         id: "releases.workflows_failing",
         state: "bad",
@@ -526,6 +615,44 @@ const releaseMembers: Member[] = [
         sla: SLA.channels,
         reason: f("unblock.channels", { issue: 3418 }),
         link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "releases.review_lag",
+        window: "7d",
+        state: "slow",
+        value: num(3.5, "h"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 24, "h") },
+        link: "/releases",
+    }),
+    member({
+        id: "releases.slots_unreviewed",
+        window: "7d",
+        state: "slow",
+        value: num(50, "pct"),
+        n: 4,
+        minN: 3,
+        sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.green_clean",
+        window: "7d",
+        state: "slow",
+        value: num(17, "pct"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.nightly_promotions",
+        window: "7d",
+        state: "slow",
+        value: num(1.3),
+        sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        link: "/releases",
     }),
 ];
 
@@ -577,13 +704,6 @@ const costMembers: Member[] = [
 
 // Data sources
 const dataMembers: Member[] = [
-    member({
-        id: "data-sources.stress_run",
-        state: "bad",
-        value: { word: "filed", n: 0 },
-        sla: SLA.stress,
-        link: "/data-sources/stress",
-    }),
     member({
         id: "data-sources.past_age",
         value: num(0),
@@ -659,7 +779,9 @@ const ref = (m: Member, fact?: Fact): MemberRef => ({
 });
 const byId = (list: Member[], id: Member["id"]): Member => {
     const m = list.find((x) => x.id === id);
-    if (!m) throw new Error(`no member ${id}`);
+    if (!m) {
+        throw new Error(`no member ${id}`);
+    }
     return m;
 };
 
@@ -673,6 +795,7 @@ const categories: CategoryStatus[] = [
         ),
         others: [ref(greenTime)],
         headline: greenTime,
+        driver: byId(masterMembers, "master.same_check"),
     },
     { id: "pull-requests", state: "ok", others: [], headline: ttm },
     {
@@ -686,8 +809,12 @@ const categories: CategoryStatus[] = [
         id: "flaky",
         state: "bad",
         setBy: ref(byId(flakyMembers, "flaky.blocked"), f("short.blocked", { prs: 3 })),
-        others: [ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 }))],
+        others: [
+            ref(byId(flakyMembers, "data-sources.stress_run"), f("short.stress_filed", { filed: 0, failures: 27 })),
+            ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 })),
+        ],
         headline: flakeRate,
+        driver: byId(flakyMembers, "flaky.blocked"),
     },
     {
         id: "releases",
@@ -695,7 +822,11 @@ const categories: CategoryStatus[] = [
         setBy: ref(lanesRed, f("short.lanes_red", { lanes: ["audit", "t4"] })),
         others: [
             ref(byId(releaseMembers, "releases.workflows_failing")),
+            ref(byId(releaseMembers, "releases.train_first_pass")),
+            ref(byId(releaseMembers, "releases.green_clean")),
             ref(byId(releaseMembers, "releases.train_skipped")),
+            ref(byId(releaseMembers, "releases.slots_unreviewed")),
+            ref(byId(releaseMembers, "releases.nightly_promotions")),
         ],
         headline: lanesRed,
     },
@@ -703,10 +834,11 @@ const categories: CategoryStatus[] = [
     {
         id: "data-sources",
         state: "bad",
-        setBy: ref(dataMembers[0], f("short.stress_filed", { filed: 0, failures: 27 })),
+        setBy: { member: "data-sources.sources_not_ok", state: "bad", value: { n: 1, of: 8 } },
         others: [],
         headline: member({
             id: "data-sources.sources_not_ok",
+            state: "bad",
             value: { n: 1, of: 8 },
             sla: { target: cmp("==", 0), red: cmp(">=", 1) },
             spark: spark([...flat(0, 9), ...flat(1, 9)], flat(1, 24), { target: cmp("==", 0), red: cmp(">=", 1) }, 0),
@@ -778,13 +910,13 @@ const episodes: Episode[] = [
     },
     {
         id: "e7",
-        category: "data-sources",
+        category: "flaky",
         member: "data-sources.stress_run",
         worst: "bad",
         start: t("08:42"),
         end: null,
         fact: f("ep.stress_filing", { filed: 0, failures: 27, cap: 25 }),
-        link: "/data-sources/stress",
+        link: "/flaky/stress",
     },
     {
         id: "e8",
@@ -831,7 +963,62 @@ const sources: SourceAge[] = [
     { id: "local", lastWrite: t("14:30"), limitS: null, state: "idle" },
 ];
 
-const overview: OverviewResponse = { page: "overview", range: "1h", generated: GEN, categories, episodes, sources };
+// ---------------------------------------------------------------- release channels
+
+/**
+ * Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`.
+ * @param spec - The outcomes, one letter each, oldest first.
+ * @param last - The time of the newest attempt, as t() reads it.
+ * @param everyMin - The minutes between attempts.
+ * @param run - The run number of the oldest attempt; later ones count up.
+ * @returns The attempts, oldest first.
+ */
+function attempts(spec: string, last: string, everyMin: number, run: number): ChannelTile["attempts"] {
+    const OUT: Record<string, ChannelOutcome> = { o: "ok", x: "bad", h: "held", c: "cancelled" };
+    const end = Date.parse(t(last));
+    return Array.from(spec).map((c, i) => ({
+        at: new Date(end - (spec.length - 1 - i) * everyMin * 60_000).toISOString(),
+        outcome: OUT[c],
+        run: run + i,
+    }));
+}
+
+const channels: ChannelTile[] = [
+    {
+        id: "canary",
+        state: "ok",
+        sha: "3f2a91c0d5e4b7a8c9d0e1f2a3b4c5d6e7f8a9b0",
+        at: t("22:48"),
+        attempts: attempts("oooooooooooxoo", "22:48", 25, 40245000001),
+        link: "/releases",
+    },
+    {
+        id: "nightly",
+        state: "warn",
+        sha: "9c41d07e2b8a6f3c1d5e7a9b0c2d4e6f8a1b3c5d",
+        at: t("12:41"),
+        attempts: attempts("ooxoohoooh", "18:24", 360, 40240000001),
+        link: "/releases",
+    },
+    {
+        id: "production",
+        state: "ok",
+        sha: "b7e03a1f9d2c4e6a8b0c1d3e5f7a9b2c4d6e8f0a",
+        at: t("10-22 17:05"),
+        attempts: attempts("ocxo", "10-22 17:05", 1440, 40200000001),
+        link: "/releases",
+    },
+];
+
+const overview: OverviewResponse = {
+    page: "overview",
+    range: "1h",
+    generated: GEN,
+    categories,
+    episodes,
+    sources,
+    channels,
+};
 
 // ---------------------------------------------------------------- sections
 
@@ -1038,8 +1225,8 @@ const prSections: Section[] = [
 
 function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
     const k = range === "28d" ? 1.03 : 1;
-    const s = (min: number) => Math.round(min * 60 * k);
-    if (runKind === "pr-bins")
+    const s = (min: number): number => Math.round(min * 60 * k);
+    if (runKind === "pr-bins") {
         return {
             kind: "shards",
             id: "shards",
@@ -1066,6 +1253,7 @@ function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
             ],
             more: { count: 9, allWithin: true },
         };
+    }
     return {
         kind: "shards",
         id: "shards",
@@ -1174,7 +1362,7 @@ const ciSections: Section[] = [
         rows: (
             [
                 ["Performance Benchmarks", 14, 10],
-                ["Story tests (${{ matrix.name || matrix.project }})", 212, 9],
+                [`Story tests (${ghExpr("matrix.name || matrix.project")})`, 212, 9],
                 ["Visual report", 160, 0],
                 ["Flaky screenshots", 0, 0],
             ] as const
@@ -1477,7 +1665,8 @@ const releaseSections: Section[] = [
                 cells: {
                     attempt: cell.time("10-24 18:15"),
                     candidate: { t: "sha", v: "a870943ef" },
-                    lanes: cell.fact("train.tested_failed", { lanes: ["audit", "t4"] }),
+                    lanes: cell.bad(cell.fact("train.tested_failed", { lanes: ["audit", "t4"] })),
+                    nightly: cell.fact("train.not_promoted"),
                 },
             },
             {
@@ -1662,25 +1851,37 @@ function costSections(range: SlowRange): Section[] {
     ];
 }
 
-function srcRow(
-    code: string,
-    what: Fact,
-    write: string | null,
-    limit: TableRow["cells"][string],
-    volume: TableRow["cells"][string],
-    error: TableRow["cells"][string],
-    state: TableRow["cells"][string],
-    past = false,
-): TableRow {
+type SrcCell = TableRow["cells"][string];
+
+/** A row of the Data sources table; a cell left out is empty. */
+interface SrcRow {
+    /** The source's label code; its description is `<code>.what`. */
+    code: string;
+    /** When it last wrote, "HH:MM". */
+    write: string;
+    limit?: SrcCell;
+    volume?: SrcCell;
+    error?: SrcCell;
+    state?: SrcCell;
+    /** True when the row is past (folded). */
+    past?: boolean;
+}
+
+/**
+ * A row of the Data sources table.
+ * @param r - The row's source, last write and cells.
+ * @returns The row.
+ */
+function srcRow(r: SrcRow): TableRow {
     return {
-        ...(past ? { past } : {}),
+        ...(r.past ? { past: r.past } : {}),
         cells: {
-            source: cell.sub({ t: "label", code }, { t: "fact", fact: what }),
-            write: write ? { t: "ago", at: t(write) } : { t: "none" },
-            limit,
-            volume,
-            error,
-            state,
+            source: cell.sub({ t: "label", code: r.code }, { t: "fact", fact: f(`${r.code}.what`) }),
+            write: { t: "ago", at: t(r.write) },
+            limit: r.limit ?? none,
+            volume: r.volume ?? none,
+            error: r.error ?? none,
+            state: r.state ?? none,
         },
     };
 }
@@ -1728,64 +1929,47 @@ const dataSections: Section[] = [
         kind: "table",
         id: "sources",
         rows: [
-            srcRow(
-                "source.collector",
-                f("source.collector.what"),
-                "23:28",
-                { t: "dur", s: 900 },
-                { t: "num", n: 100, unit: "pct" },
-                none,
-                none,
-            ),
-            srcRow(
-                "source.ci-results",
-                f("source.ci-results.what"),
-                "23:26",
-                cell.fact("source.limit_runs", { h: 2 }),
-                cell.fact("source.since_no_history", { since: t("20:42") }),
-                none,
-                none,
-            ),
-            srcRow(
-                "source.ci-timings",
-                f("source.ci-timings.what"),
-                "23:26",
-                cell.fact("source.limit_runs", { h: 2 }),
-                { t: "num", n: 96, unit: "pct" },
-                none,
-                none,
-            ),
-            srcRow(
-                "source.releases",
-                f("source.releases.what"),
-                "18:24",
-                { t: "dur", s: 25200 },
-                cell.fact("source.trains", { got: 4, of: 4 }),
-                none,
-                none,
-            ),
-            srcRow("source.npm", f("source.npm.what"), "22:52", { t: "dur", s: 10800 }, none, none, none),
-            srcRow(
-                "source.stress",
-                f("source.stress.what"),
-                "09:30",
-                { t: "dur", s: 691200 },
-                none,
-                cell.fact("source.error.filing"),
-                { t: "state", state: "bad" },
-            ),
-            srcRow("source.hosts", f("source.hosts.what"), "04:30", { t: "dur", s: 108000 }, none, none, none),
-            srcRow("source.billing", f("source.billing.what"), "13:30", { t: "dur", s: 129600 }, none, none, none),
-            srcRow(
-                "source.local",
-                f("source.local.what"),
-                "14:30",
-                none,
-                cell.fact("source.no_local_gate", { since: t("10-25 00:00") }),
-                none,
-                { t: "state", state: "idle" },
-                true,
-            ),
+            srcRow({
+                code: "source.collector",
+                write: "23:28",
+                limit: { t: "dur", s: 900 },
+                volume: { t: "num", n: 100, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.ci-results",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: cell.fact("source.since_no_history", { since: t("20:42") }),
+            }),
+            srcRow({
+                code: "source.ci-timings",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: { t: "num", n: 96, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.releases",
+                write: "18:24",
+                limit: { t: "dur", s: 25200 },
+                volume: cell.fact("source.trains", { got: 4, of: 4 }),
+            }),
+            srcRow({ code: "source.npm", write: "22:52", limit: { t: "dur", s: 10800 } }),
+            srcRow({
+                code: "source.stress",
+                write: "09:30",
+                limit: { t: "dur", s: 691200 },
+                error: cell.fact("source.error.filing"),
+                state: { t: "state", state: "bad" },
+            }),
+            srcRow({ code: "source.hosts", write: "04:30", limit: { t: "dur", s: 108000 } }),
+            srcRow({ code: "source.billing", write: "13:30", limit: { t: "dur", s: 129600 } }),
+            srcRow({
+                code: "source.local",
+                write: "14:30",
+                volume: cell.fact("source.no_local_gate", { since: t("10-25 00:00") }),
+                state: { t: "state", state: "idle" },
+                past: true,
+            }),
         ],
     },
     {
@@ -1834,8 +2018,8 @@ const page = (p: Omit<PageResponse, "generated" | "range"> & { range?: PageRespo
     range: "1h",
     ...p,
 });
-const cat = (id: CategoryStatus["id"]) => categories.find((c) => c.id === id) as CategoryStatus;
-const head = (id: CategoryStatus["id"]) => ({
+const cat = (id: CategoryStatus["id"]): CategoryStatus => categories.find((c) => c.id === id) as CategoryStatus;
+const head = (id: CategoryStatus["id"]): Pick<CategoryStatus, "state" | "setBy" | "others"> => ({
     state: cat(id).state,
     ...(cat(id).setBy ? { setBy: cat(id).setBy } : {}),
     others: cat(id).others,
@@ -1885,8 +2069,8 @@ const pages: PageResponse[] = [
         page: "flaky",
         ...head("flaky"),
         notes: [f("flaky.note.judged_again", { since: t("20:42") })],
-        // Every flaky source (design 4.4): CI's rerun rate and the stress run are shown here too, judged elsewhere.
-        members: [...flakyMembers, byId(ciMembers, "ci.reruns"), byId(dataMembers, "data-sources.stress_run")],
+        // Every flaky source (design 4.4): CI's rerun rate is shown here too, judged on CI.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns")],
         sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
     }),
     page({
@@ -1901,13 +2085,17 @@ const pages: PageResponse[] = [
         ...head("data-sources"),
         notes: [f("data.note.notsetup", { n: 4 })],
         members: dataMembers,
-        sections: dataSections,
+        sections: dataSections.filter((s) => s.id !== "stress"),
     }),
 ];
 
 // ---------------------------------------------------------------- ranges
 
-/** The hourly mean of four 15-minute buckets. */
+/**
+ * The hourly mean of four 15-minute buckets.
+ * @param v - The 15-minute values; null where a bucket has none.
+ * @returns One value per hour, null when the hour has no values.
+ */
 function hourly(v: (number | null)[]): (number | null)[] {
     const out: (number | null)[] = [];
     for (let i = 0; i < v.length; i += 4) {
@@ -1916,16 +2104,24 @@ function hourly(v: (number | null)[]): (number | null)[] {
     }
     return out;
 }
-function worst(b: ("warn" | "bad" | null)[]): ("warn" | "bad" | null)[] {
-    const out: ("warn" | "bad" | null)[] = [];
+function worst(b: Mark[]): Mark[] {
+    const out: Mark[] = [];
     for (let i = 0; i < b.length; i += 4) {
-        const xs = b.slice(i, i + 4);
-        out.push(xs.includes("bad") ? "bad" : xs.includes("warn") ? "warn" : null);
+        const xs = new Set(b.slice(i, i + 4));
+        if (xs.has("bad")) {
+            out.push("bad");
+        } else if (xs.has("warn")) {
+            out.push("warn");
+        } else {
+            out.push(null);
+        }
     }
     return out;
 }
 function sparkFor(s: Spark | undefined, range: Range): Spark | undefined {
-    if (!s || range !== "24h" || s.step !== "15m") return s;
+    if (!s || range !== "24h" || s.step !== "15m") {
+        return s;
+    }
     return {
         ...s,
         step: "1h",
@@ -1934,11 +2130,18 @@ function sparkFor(s: Spark | undefined, range: Range): Spark | undefined {
         breach: [...s.ctx.map(() => null), ...worst(s.breach)],
     };
 }
-/** A member at range 6 h or 24 h: a 1 h member shows its trend value (fixtures hold no 24 h values). */
+/**
+ * A member at range 6 h or 24 h: a 1 h member shows its trend value (fixtures hold no 24 h values).
+ * @param m - The member as the 1 h fixture holds it.
+ * @param range - The range to show it at.
+ * @returns The member as that range would show it.
+ */
 function memberFor(m: Member, range: Range): Member {
     const spark = sparkFor(m.spark, range);
     const out: Member = { ...m, ...(spark ? { spark } : {}) };
-    if (range === "1h" || (m.window !== "1h" && m.window !== "1h6h")) return out;
+    if (range === "1h" || (m.window !== "1h" && m.window !== "1h6h")) {
+        return out;
+    }
     const covered = m.covered6h;
     return {
         ...out,
@@ -1948,13 +2151,14 @@ function memberFor(m: Member, range: Range): Member {
     };
 }
 function sectionFor(s: Section, range: Range): Section {
-    if (s.kind === "strip" && range === "24h")
+    if (s.kind === "strip" && range === "24h") {
         return {
             ...s,
             from: "2026-10-24T23:30:00Z",
             spans: [{ start: "2026-10-24T23:30:00Z", end: s.spans[0].end, state: "green" }, ...s.spans.slice(1)],
         };
-    if (s.kind === "jobs" && range === "24h")
+    }
+    if (s.kind === "jobs" && range === "24h") {
         return {
             ...s,
             step: "1h",
@@ -1962,9 +2166,10 @@ function sectionFor(s: Section, range: Range): Section {
             running: [...flat(6, 9), 8, 14, 20, 26, 30, 32, 34, 36, 38, 44, 50, 54, 57, 57, 57, 57],
             queued: [...flat(0, 9), 1, 2, 4, 6, 8, 10, 12, 14, 18, 34, 69, 113, 165, 201, 235, 235],
         };
+    }
     if (s.widened && range !== "1h") {
         const { widened: _w, ...rest } = s;
-        return rest as Section;
+        return rest;
     }
     return s;
 }
@@ -1972,7 +2177,7 @@ function sectionFor(s: Section, range: Range): Section {
 function write(name: string, body: unknown): void {
     const file = join(OUT, `${name}.json`);
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(body, null, 1) + "\n");
+    writeFileSync(file, `${JSON.stringify(body, null, 1)}\n`);
 }
 
 const RANGES: Range[] = ["1h", "6h", "24h"];
@@ -1982,15 +2187,37 @@ for (const range of RANGES) {
         ...overview,
         range,
         categories: categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        issues: issuesSummary(fixtureIssues(), Date.parse(GEN)),
     } satisfies OverviewResponse);
-    for (const p of pages)
+    for (const p of pages) {
         write(`${p.page}.${range}`, {
             ...p,
             range,
             members: p.members.map((m) => memberFor(m, range)),
             sections: p.sections.map((s) => sectionFor(s, range)),
         } satisfies PageResponse);
+    }
 }
+// The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
+write("runners.jobs.7d", {
+    page: "runners",
+    range: "7d",
+    generated: GEN,
+    section: {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: "2026-10-24T20:30:00Z",
+        running: [4, 2, 0, 0, 0, 6, 9, 24, 41, 57, 57, 52],
+        queued: [0, 0, 0, 0, 0, 0, 0, 0, 12, 30, 18, 4],
+        runningMax: [6, 4, 2, 0, null, 8, 12, 30, 52, 60, 60, 57],
+        queuedMax: [0, 0, 0, 0, null, 0, 0, 3, 26, 79, 40, 18],
+        longestQueuedMs: [0, 0, 0, 0, null, 0, 0, 40_000, 260_000, 610_000, 540_000, 120_000],
+        saturatedMs: [0, 0, 0, 0, null, 0, 0, 0, 0, 600_000, 900_000, 300_000],
+        limit: 60,
+        peak: { n: 60, at: "2026-10-24T22:45:00Z" },
+    },
+} satisfies SectionResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     write(
         `costs.${range}`,
@@ -2003,13 +2230,14 @@ for (const range of ["7d", "28d"] as SlowRange[]) {
             sections: costSections(range),
         }),
     );
-    for (const runKind of ["full", "pr-bins"] as const)
+    for (const runKind of ["full", "pr-bins"] as const) {
         write(`ci.shards.${runKind}.${range}`, {
             page: "ci",
             range,
             generated: GEN,
             section: shardsSection(range, runKind),
         } satisfies SectionResponse);
+    }
     write(`flaky.hotspots.${range}`, {
         page: "flaky",
         range,
@@ -2071,6 +2299,122 @@ const history: TestHistoryResponse = {
 };
 write("test-history", history);
 
+// ---------------------------------------------------------------- Issues
+
+/**
+ * The repository's issues as they stood on 2026-11-01 (tmp/health-issues/plan.md), scaled to this fixture's day:
+ * 2,903 issues since 2026-03-05, 2,343 of them opened in the last 28 days, and 510 open, of which 130 bugs (16
+ * critical, 33 high, 42 medium, 41 low) and 262 enhancements. Times and closes are drawn from a seeded generator, so
+ * the file is the same on every build, and the page is built by the backend's own issuesPage().
+ * @returns every issue
+ */
+function fixtureIssues(): IssueItem[] {
+    let seed = 20261101;
+    const rnd = (): number => {
+        seed = (seed + 0x6d2b79f5) | 0; // NOSONAR(S7767): wraps to int32 (mulberry32), which Math.trunc does not
+        let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+    const now = Date.parse(GEN);
+    const recent = now - 28 * 86_400_000;
+    const first = Date.parse("2026-03-05T09:00:00Z");
+    // [type, how many, priority weights critical/high/medium/low/none, open: by priority or in all]
+    const kinds: [string, number, number[], number[] | number][] = [
+        ["bug", 1300, [30, 25, 25, 20, 0], [16, 33, 42, 41, 0]],
+        ["enhancement", 1100, [2, 20, 40, 37, 1], [2, 40, 120, 99, 1]],
+        ["documentation", 120, [0, 20, 40, 40, 0], 25],
+        ["research", 90, [0, 20, 40, 40, 0], 30],
+        ["infrastructure", 150, [5, 30, 40, 25, 0], 40],
+        ["tracking", 60, [0, 30, 40, 30, 0], 12],
+        ["sonarqube", 40, [0, 0, 50, 50, 0], 6],
+        ["dead-links", 10, [0, 0, 50, 50, 0], 1],
+        ["ci-budget", 8, [0, 50, 50, 0, 0], 0],
+        ["intermittent", 20, [50, 50, 0, 0, 0], 2],
+        ["", 5, [0, 0, 50, 50, 0], 2],
+    ];
+    const prios = ["critical", "high", "medium", "low", ""];
+    const pick = (w: number[]): number => {
+        let u = rnd() * w.reduce((a, x) => a + x, 0);
+        return Math.max(
+            0,
+            w.findIndex((x) => (u -= x) < 0),
+        );
+    };
+    const specs = kinds.flatMap(([type, n, w]) => Array.from({ length: n }, () => ({ type, prio: pick(w) })));
+    // Shuffle, then the first 560 are the old ones, rising toward the 28 days; the rest fill the 28 days.
+    for (let i = specs.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [specs[i], specs[j]] = [specs[j], specs[i]];
+    }
+    const issues = specs.map((sp, i): IssueItem & { prio: number; type: string } => {
+        const at = i < 560 ? first + (recent - first) * Math.sqrt(rnd()) : recent + (now - recent) * rnd();
+        const labels = [sp.type, sp.prio < 4 ? `priority:${prios[sp.prio]}` : "", "effort:medium"].filter(Boolean);
+        return {
+            kind: "issue",
+            id: "",
+            attempt: 1,
+            repo: "graphty-org/graphty-monorepo",
+            number: 0,
+            labels,
+            createdAt: Math.round(at),
+            ...sp,
+        };
+    });
+    issues.sort((a, b) => a.createdAt - b.createdAt);
+    const open = new Set<IssueItem>();
+    for (const [type, , , want] of kinds) {
+        const mine = issues.filter((i) => i.type === type);
+        const groups =
+            typeof want === "number"
+                ? [[mine, want] as const]
+                : want.map((n, p) => [mine.filter((i) => i.prio === p), n] as const);
+        for (const [pool, n] of groups) {
+            // Open issues lean recent: drawn from the newest half of their pool when it is large enough.
+            const from = pool.slice(pool.length > 4 * n ? Math.floor(pool.length / 2) : 0);
+            while ([...from].filter((i) => open.has(i)).length < n) {
+                open.add(from[Math.floor(rnd() * from.length)]);
+            }
+        }
+    }
+    const statuses = ["in-progress", "blocked", "needs-decision", "needs-info"];
+    const titles = [
+        "Flaky: graphty-element-browser layout story",
+        "Full run red: ci on",
+        "Load-sensitive test in",
+        "Style panel loses",
+        "Release held: publish failed on",
+        "Airline sample renders",
+        "Shard over budget:",
+        "Dataset download fails in",
+    ];
+    return issues.map(({ prio: _p, type: _t, ...i }, k) => {
+        const number = 1 + k * 2;
+        const base = {
+            ...i,
+            id: `graphty-org/graphty-monorepo#${number}`,
+            number,
+            title: `${titles[k % titles.length]} #${number}`,
+        };
+        if (open.has(issues[k])) {
+            const status = rnd() < 0.3 ? [statuses[Math.floor(rnd() * statuses.length)]] : [];
+            return { ...base, labels: [...i.labels, ...status] };
+        }
+        // Closed after an exponential wait (bugs sooner), or, when that would be after now, at a uniform time before it.
+        const wait = -Math.log(1 - rnd()) * (i.labels.includes("bug") ? 2 : 6) * 86_400_000;
+        const closedAt = i.createdAt + wait < now ? i.createdAt + wait : i.createdAt + (now - i.createdAt) * rnd();
+        const reason = ["completed", "not_planned", "duplicate"][pick([84, 14, 2])];
+        return { ...base, closedAt: Math.round(closedAt), stateReason: reason };
+    });
+}
+{
+    const issues = fixtureIssues();
+    const open = issues.filter((i) => i.closedAt === undefined).length;
+    for (const range of ["1h", "6h", "1d", "7d", "28d", "all"] as IssueRange[]) {
+        write(`issues.${range}`, issuesPage(issues, range, Date.parse(GEN), open) satisfies PageResponse);
+    }
+}
+
 // ---------------------------------------------------------------- the gray scenario
 
 const grayCosts: CategoryStatus = {
@@ -2095,20 +2439,31 @@ const grayPrs: CategoryStatus = {
 };
 const grayStatus = {
     generated: GEN,
-    categories: categories.map((c) => (c.id === "costs" ? grayCosts : c.id === "pull-requests" ? grayPrs : c)),
+    categories: categories.map((c) => {
+        if (c.id === "costs") {
+            return grayCosts;
+        }
+        return c.id === "pull-requests" ? grayPrs : c;
+    }),
     episodes,
     sources: sources.map((s) =>
         s.id === "billing" ? { ...s, lastWrite: "2026-10-24T06:30:00Z", state: "nodata" as const } : s,
     ),
 };
 write("gray/status", grayStatus);
-for (const range of RANGES)
+for (const range of RANGES) {
     write(`gray/overview.${range}`, {
         ...grayStatus,
         page: "overview",
         range,
         categories: grayStatus.categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        channels: [
+            channels[0],
+            { id: "nightly", state: "nodata", sha: null, at: null, attempts: [], link: "/releases" },
+            channels[2],
+        ],
     } satisfies OverviewResponse);
+}
 for (const range of ["7d", "28d"] as SlowRange[]) {
     const secs = costSections(range).map((s) =>
         s.kind === "table" && s.id === "money"
@@ -2160,19 +2515,21 @@ for (const range of RANGES) {
     write(`gray/data-sources.${range}`, {
         ...p,
         range,
-        members: p.members.map((m) =>
-            m.id === "data-sources.app_rate"
-                ? {
-                      ...m,
-                      state: "nodata",
-                      value: null,
-                      reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
-                  }
-                : m.id === "data-sources.thin"
-                  ? { ...m, state: "partial", value: null, covered: { h: 0.4, of: 1 } }
-                  : memberFor(m, range),
-        ),
+        members: p.members.map((m): Member => {
+            if (m.id === "data-sources.app_rate") {
+                return {
+                    ...m,
+                    state: "nodata",
+                    value: null,
+                    reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
+                };
+            }
+            if (m.id === "data-sources.thin") {
+                return { ...m, state: "partial", value: null, covered: { h: 0.4, of: 1 } };
+            }
+            return memberFor(m, range);
+        }),
     } satisfies PageResponse);
 }
 
-console.log("fixtures written to", OUT);
+process.stdout.write(`fixtures written to ${OUT}\n`);

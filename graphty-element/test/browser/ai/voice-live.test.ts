@@ -175,12 +175,9 @@ function socket(): FakeGeminiSocket {
  * Wait until the microphone's audio is streaming to the socket.
  */
 async function streaming(): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isAtLeast(socket().audioFrames(), 3, "audio frames are sent while held");
-        },
-        { timeout: 10_000 },
-    );
+    await vi.waitFor(() => {
+        assert.isAtLeast(socket().audioFrames(), 3, "audio frames are sent while held");
+    });
     assert.deepStrictEqual(starts, [{ type: "ai-voice-start", mode: "live" }]);
 }
 

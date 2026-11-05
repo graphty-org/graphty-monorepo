@@ -16,15 +16,11 @@
  * again is added again, and its issue gets a comment.
  *
  * Where it runs:
- *  - The gate (tools/prepush-tests.mjs) runs every shard through `run ... --via-run-tests`, and after each
- *    shard updates the local state in <main checkout>/tmp/test-quarantine/state.json (afterShard): new
- *    entries and their issues, pass counts, failures by shard input key, closed issues. The gate applies the
- *    checkout's list together with that state, so a new entry holds at once on this machine.
- *  - CI (tools/ci-test-matrix.mjs, plan()) runs every shard through `run`, applying the checkout's list
- *    only: CI never files issues or writes state.
- *  - `node tools/test-quarantine.mjs write` puts the local list into this checkout's
- *    tools/test-quarantine.json; commit that file alone and land it, so CI and every other checkout apply it
- *    too. `status` prints the list and the counts.
+ *  - CI (tools/ci-test-matrix.mjs, plan(); tools/results/run-group.mjs) runs every shard through `run`, applying
+ *    the checkout's list; run-group files the flaky tests' issues and ends the entries whose issue closed.
+ *  - Run locally, `run` also applies the entries in <main checkout>/tmp/test-quarantine/state.json, if any.
+ *  - `node tools/test-quarantine.mjs write` puts the active list into this checkout's
+ *    tools/test-quarantine.json. `status` prints the list and the counts.
  *
  * ON by default (the owner's decision of 2026-10-22, design/ci/ci-cd-plan.md 9). GRAPHTY_TEST_QUARANTINE=0
  * switches it off, for debugging: then `run` runs the shard's command and returns its exit code, nothing more:
@@ -36,17 +32,7 @@
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    realpathSync,
-    renameSync,
-    rmSync,
-    statSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
@@ -62,8 +48,8 @@ import {
     parseJunit,
 } from "./test-ledger.mjs";
 import { selectedCommand } from "./test-select.mjs";
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
 
-const DAY = 86_400_000;
 export const PASSES_TO_LEAVE = 20;
 export const MAX_RETRY_FILES = 5; // more failing files than this is a breakage, not a flake: no retry
 const GPU_FAMILY = /^webgpu-graph-algorithms/;
@@ -80,7 +66,6 @@ export const quarantineEnabled = (env = process.env) => env.GRAPHTY_TEST_QUARANT
 const keyOf = (t) => `${t.family}\0${t.file}\0${t.name}`;
 const idOf = (t) => `${t.file} > ${t.name}`;
 const today = () => new Date().toISOString().slice(0, 10);
-const plusDays = (date, n) => new Date(Date.parse(date) + n * DAY).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------- the list
 
@@ -266,7 +251,7 @@ export function shardOfRun(root, listed, command) {
  * @param [o.logBudget] the most bytes the first run's output may hold (shard-verdict.mjs); a larger one fails
  *   the shard whatever it exited with, here as in CI, whose test job judges shards only through this wrapper
  * @param [o.list] the quarantine in force, in place of the committed list and the local state (the results store's)
- * @param [o.judge] `(decision, { firstOutcome }) => decision` in place of blameChange(): the pull request rules of
+ * @param [o.judge] `(decision, { firstOutcome, unretried }) => decision` in place of blameChange(): the pull request rules of
  *   tools/results/run-group.mjs; a decision with `lines` prints those instead of the [FLAKY] and [FAIL] lines
  * @param [o.family] the family the quarantine list is matched by, in place of the shard's own (run-group.mjs's
  *   groupFamily(), which keeps a screenshot run apart)
@@ -289,11 +274,11 @@ export async function runShard(
     let code = r1.code;
     try {
         const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-        const shard = shardOfRun(
-            root,
-            SHARDS.find((s) => s.shard === shardName),
-            command,
-        );
+        // a pull request's light-check bin (`<family>-<n>`, tools/test-select.mjs lightPlan()) is no SHARDS entry:
+        // it is retried as a shard of its family, whose slices differ only by --shard, which a retry drops (#5128)
+        const listed =
+            SHARDS.find((s) => s.shard === shardName) ?? SHARDS.find((s) => familyOf(s.shard) === familyOf(shardName));
+        const shard = shardOfRun(root, listed, command);
         reports.pkg = shard?.package;
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
@@ -317,10 +302,11 @@ export async function runShard(
             postFlaky(env, shardName, family, failedFirst(raw.flaky, first));
             await flushHealth();
         }
-        const d = judge ? judge(raw, { firstOutcome }) : blameChange(raw, root, family, env);
+        const unretried = retry ? "" : notRetried(firstOutcome, first, list, family);
+        const d = judge ? judge(raw, { firstOutcome, unretried }) : blameChange(raw, root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;
-        printDecision(shardName, d, env, retry ? "" : notRetried(firstOutcome, first, list, family));
+        printDecision(shardName, d, env, unretried);
         if (d.pass) code = flood;
     } catch (e) {
         console.log(
@@ -415,8 +401,22 @@ function notRetried(outcome, first, list, family) {
     if (outcome !== "failed") return `not retried: the run ended "${outcome}", not in test failures alone`;
     const open = new Set((first?.failures ?? []).filter((f) => !quarantined(list, family, f)).map((f) => f.file));
     if (open.size > MAX_RETRY_FILES) return `not retried: ${open.size} files failed, more than ${MAX_RETRY_FILES}`;
+    const hung = waitedOutGuard(first?.failures ?? []);
+    if (hung.length > 0) {
+        const s = Math.round(WAIT_GUARD_MS / 1000);
+        return `not retried: ${hung.map((f) => f.name).join(", ")} waited out the ${s} s hang guard, and a retry would wait it out again`;
+    }
     return "not retried: its command cannot be narrowed to the failed files";
 }
+
+/**
+ * The failures that ran as long as the wait guard (tools/test-wait-guard.mjs): a wait that never came true.
+ * Their retry waits the guard out again, and two guards do not fit in a CI test job, which GitHub then
+ * cancels with no result recorded (#5255: 15 min first, the retry cancelled at the job's 30 min).
+ * @param failures parseJunit() failures
+ * @returns those that hit the guard
+ */
+export const waitedOutGuard = (failures) => failures.filter((f) => (f.ms ?? 0) >= WAIT_GUARD_MS);
 
 /**
  * Runs the failed test files of a shard once more, when there are a few and one of them is not quarantined.
@@ -435,7 +435,8 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const failed = first?.failures ?? [];
     const open = [...new Set(failed.filter((f) => !quarantined(list, family, f)).map((f) => f.file))];
     const files = [...new Set(failed.map((f) => f.file))];
-    const cmd = shard && open.length > 0 && open.length <= MAX_RETRY_FILES ? selectedCommand(root, shard, files) : null;
+    const retryable = open.length > 0 && open.length <= MAX_RETRY_FILES && waitedOutGuard(failed).length === 0;
+    const cmd = shard && retryable ? selectedCommand(root, shard, files) : null;
     if (!cmd) return null;
     console.log(`${RETRY_MARK} the ${files.length} failed test file(s) of ${shard.shard} once: ${files.join(", ")}`);
     const retryId = reports.id ? `${reports.id}.retry` : null;
@@ -490,23 +491,13 @@ function printDecision(shard, d, env, unretried) {
     }
     for (const f of d.caused ?? []) {
         console.log(
-            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
+            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and ${d.causedWhy ?? "the ledger has no failure of it before this change"}: the change made it intermittent`,
         );
     }
     const how = unretried ? `failed (${unretried})` : "failed every time";
     for (const f of d.failing.filter((x) => !d.caused?.includes(x))) {
         console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} ${how}`);
     }
-}
-
-/**
- * The part of a shard's log before its retry (the ledger records the two runs apart).
- * @param log the whole log
- * @returns `{ first, retry }`
- */
-export function splitLog(log) {
-    const at = log.indexOf(RETRY_MARK);
-    return at === -1 ? { first: log, retry: "" } : { first: log.slice(0, at), retry: log.slice(at) };
 }
 
 // ---------------------------------------------------------------- the local state
@@ -537,43 +528,6 @@ export function readState(main) {
         return { ...emptyState(), ...JSON.parse(readFileSync(stateFile(main), "utf8")) };
     } catch {
         return emptyState();
-    }
-}
-
-/**
- * Changes the state under a lock (several gates run at once), atomically.
- * @param main the main checkout
- * @param change `(state) => void`, changes it in place
- * @returns the new state
- */
-export function updateState(main, change) {
-    const file = stateFile(main);
-    mkdirSync(dirname(file), { recursive: true });
-    const lock = `${file}.lock`;
-    for (let i = 0; ; i++) {
-        try {
-            mkdirSync(lock);
-            break;
-        } catch {
-            // ponytail: a busy-wait lock; a holder that died leaves it, so one older than 30 s is taken over
-            let stale = i > 3000;
-            try {
-                stale ||= Date.now() - statSync(lock).mtimeMs > 30_000;
-            } catch {
-                // released meanwhile
-            }
-            if (stale) rmSync(lock, { recursive: true, force: true });
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
-        }
-    }
-    try {
-        const state = readState(main);
-        change(state);
-        writeFileSync(`${file}.tmp`, JSON.stringify(state, null, 1));
-        renameSync(`${file}.tmp`, file);
-        return state;
-    } finally {
-        rmSync(lock, { recursive: true, force: true });
     }
 }
 
@@ -620,6 +574,7 @@ export function fileIssue(t, had, gh) {
     try {
         if (had) {
             gh(["issue", "comment", String(had), "--body", `Quarantined again on ${t.since}.\n\n${body}`]);
+            raiseToCritical(had, gh);
             return had;
         }
         const url = gh([
@@ -643,155 +598,23 @@ export function fileIssue(t, had, gh) {
     }
 }
 
-const ghCli = (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-
 /**
- * The gate's bookkeeping after one shard: quarantines its flaky tests (filing their issues), counts passes of
- * quarantined tests, and remembers failures by input key so a later run of the same inputs that passes them
- * proves them flaky. Never throws.
- * @param o the facts
- * @param o.main the main checkout
- * @param o.root the checkout under test
- * @param o.shard the shard
- * @param o.inputKey the shard's input key, or undefined
- * @param o.result the wrapper's result (runShard)
- * @param [o.gh] `(args) => stdout`
- * @param [o.day] ISO date
- * @returns `{ added: entries, left: [{ id, why }] }`
+ * A quarantine issue is priority:critical (owner, 2026-10-22: a test that fails under load or timing is a critical
+ * defect), so a repeat quarantine raises an earlier issue that was filed or re-triaged lower (#3311). Never throws:
+ * the comment has already landed.
+ * @param number the issue
+ * @param gh `(args) => stdout`
  */
-export function afterShard({ main, root, shard, inputKey, result, gh = ghCli, day = today() }) {
-    const family = familyOf(shard);
-    const out = { added: [], left: [] };
-    if (GPU_FAMILY.test(family) || !result) return out;
+function raiseToCritical(number, gh) {
     try {
-        const committed = committedList(root, day);
-        const failedNow = new Set([...(result.failed ?? []), ...(result.failing ?? [])].map(idOf));
-        const proven = provenFlaky(result, inputKey ? readState(main).failedByKey[inputKey] : [], failedNow);
-        const fresh = [];
-        updateState(main, (state) => {
-            const list = activeList(committed, state, day);
-            for (const f of proven) {
-                if (quarantined(list, family, f) || fresh.some((e) => idOf(e) === idOf(f))) continue;
-                fresh.push({
-                    file: f.file,
-                    name: f.name,
-                    family,
-                    issue: state.issues[idOf(f)] ?? 0,
-                    reason: `is flaky: it ${f.how}`,
-                    since: day,
-                    expires: plusDays(day, 14),
-                    excerpt: f.excerpt,
-                    suspects: result.suspects,
-                });
-            }
-            if (inputKey && result.failing?.length) state.failedByKey[inputKey] = result.failing;
-            else if (inputKey) delete state.failedByKey[inputKey];
-            const ran = list.filter((e) => e.family === family && result.ran?.includes(e.file));
-            out.left = countPasses(state, ran, failedNow, day);
-        });
-        out.added.push(...addEntries(main, fresh, gh));
+        const lower = ["priority:high", "priority:medium", "priority:low"].flatMap((l) => ["--remove-label", l]);
+        gh(["issue", "edit", String(number), "--add-label", "priority:critical", ...lower]);
     } catch (e) {
-        console.log(`test-quarantine: ${shard}: bookkeeping failed (${e.message.split("\n")[0]})`);
+        console.log(`test-quarantine: could not raise #${number} to priority:critical (${e.message.split("\n")[0]})`);
     }
-    return out;
 }
 
-// Files each new entry's issue (one call each, outside the state lock) and adds the entry to this machine's list;
-// an entry GitHub refused is left out. Returns the entries added.
-function addEntries(main, fresh, gh) {
-    const added = [];
-    for (const { suspects, ...e } of fresh) {
-        const issue = fileIssue({ ...e, suspects }, e.issue || undefined, gh);
-        if (!issue) continue;
-        const entry = { ...e, issue };
-        updateState(main, (state) => {
-            state.added[keyOf(entry)] = entry;
-            state.issues[idOf(entry)] = issue;
-            delete state.removed[keyOf(entry)];
-            state.passes[keyOf(entry)] = 0;
-        });
-        added.push(entry);
-    }
-    return added;
-}
-
-/**
- * Quarantines tests another tool proved flaky (verification's confirming runs: a test that failed, then passed on
- * the same commit), as afterShard does for the gate's own: an entry and its issue each. GPU tests never.
- * @param main the main checkout
- * @param tests `[{ file, name, family, how, excerpt, suspects }]`; `suspects`, `[{ sha, branch }]`, go in the issue
- * @param [gh] `(args) => stdout`
- * @param [day] ISO date
- * @returns the tests' entries now in force (added now or already listed); a test left out was refused
- */
-export function quarantineTests(main, tests, gh = ghCli, day = today()) {
-    const list = activeList(committedList(main, day), readState(main), day);
-    const state = readState(main);
-    const listed = [];
-    const fresh = [];
-    for (const t of tests.filter((x) => !GPU_FAMILY.test(x.family))) {
-        const had = quarantined(list, t.family, t);
-        if (had) listed.push(had);
-        else if (!fresh.some((e) => keyOf(e) === keyOf(t))) {
-            const { file, name, family, excerpt, suspects } = t;
-            const reason = `is flaky: it ${t.how}`;
-            fresh.push({
-                file,
-                name,
-                family,
-                suspects,
-                issue: state.issues[idOf(t)] ?? 0,
-                reason,
-                since: day,
-                expires: plusDays(day, 14),
-                excerpt,
-            });
-        }
-    }
-    return [...listed, ...addEntries(main, fresh, gh)];
-}
-
-/**
- * The tests one shard run proves flaky: those its retry disagreed with, and those an earlier run of the same
- * input key failed every time that passed in this one.
- * @param result the wrapper's result
- * @param earlier the earlier run's failing tests (state.failedByKey), or undefined
- * @param failedNow the ids of the tests that failed in this run
- * @returns tests, each with `how`
- */
-function provenFlaky(result, earlier, failedNow) {
-    const within = (result.flaky ?? []).map((f) => ({
-        ...f,
-        how: "failed and passed within one gate run (the retry)",
-    }));
-    const across = (earlier ?? [])
-        .filter((f) => result.ran?.includes(f.file) && !failedNow.has(idOf(f)))
-        .map((f) => ({ ...f, how: "failed in one gate run and passed in another of the same inputs" }));
-    return [...within, ...across];
-}
-
-/**
- * Counts one gate run of quarantined tests whose file ran: a pass adds one, a failure starts again from 0; an
- * entry at PASSES_TO_LEAVE leaves the list.
- * @param state the state, changed in place
- * @param ran the active entries whose file ran
- * @param failedNow the ids of the tests that failed in this run
- * @param day ISO date
- * @returns the entries that left, `{ id, why }`
- */
-function countPasses(state, ran, failedNow, day) {
-    const left = [];
-    for (const q of ran) {
-        const k = keyOf(q);
-        state.passes[k] = failedNow.has(idOf(q)) ? 0 : (state.passes[k] ?? 0) + 1;
-        if (state.passes[k] < PASSES_TO_LEAVE) continue;
-        state.removed[k] = { at: day, why: `passed ${PASSES_TO_LEAVE} gate runs in a row` };
-        delete state.added[k];
-        delete state.passes[k];
-        left.push({ id: idOf(q), why: state.removed[k].why });
-    }
-    return left;
-}
+const ghCli = (args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
 /**
  * The closed ones among some issues, in one GraphQL query.
@@ -810,37 +633,6 @@ export function closedIssues(issues, gh = ghCli) {
         console.log(`test-quarantine: could not read the quarantine issues (${e.message.split("\n")[0]})`);
         return null;
     }
-}
-
-/**
- * Ends the entries whose issue was closed: at most once an hour, one GraphQL query for every issue on the list.
- * Never throws.
- * @param main the main checkout
- * @param root the checkout under test
- * @param [gh] `(args) => stdout`
- * @param [now] ms
- * @returns the ids that left
- */
-export function closeFinished(main, root, gh = ghCli, now = Date.now()) {
-    const state = readState(main);
-    if (now - (state.issueCheck.at ?? 0) < 3_600_000) return [];
-    const list = activeList(committedList(root), state);
-    const issues = [...new Set(list.map((q) => Number(q.issue)).filter((n) => n > 0))];
-    updateState(main, (s) => (s.issueCheck = { at: now }));
-    if (issues.length === 0) return [];
-    const closed = closedIssues(issues, gh);
-    if (!closed) return [];
-    const left = list.filter((q) => closed.has(Number(q.issue)));
-    if (left.length === 0) return [];
-    const day = today();
-    updateState(main, (s) => {
-        for (const q of left) {
-            s.removed[keyOf(q)] = { at: day, why: `issue #${q.issue} closed` };
-            delete s.added[keyOf(q)];
-            delete s.passes[keyOf(q)];
-        }
-    });
-    return left.map((q) => `${idOf(q)} (issue #${q.issue} closed)`);
 }
 
 // ---------------------------------------------------------------- the command line

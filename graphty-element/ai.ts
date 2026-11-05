@@ -21,6 +21,10 @@
  * `@graphty/graphty-element/catalog`, which is.
  */
 
+// encrypt-storage, which ApiKeyManager persists with: this entry point's consumers construct it
+// synchronously (src/ai/keys/encryptStorage.ts).
+import "./src/ai/keys/withEncryptStorage";
+
 // AI Status
 export type {
     AiStage,

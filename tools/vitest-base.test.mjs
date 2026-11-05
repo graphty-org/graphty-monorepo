@@ -4,25 +4,18 @@
 //
 //   node --test tools/vitest-base.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { trackedFiles } from "./tracked-files.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const BASE = join(ROOT, "vitest.base.mjs");
 
-// Every vitest*.config.* outside dependencies, build output and scratch directories.
-const SKIP = new Set(["node_modules", "dist", "tmp", "coverage", "storybook-static"]);
-function findConfigs(dir) {
-    return readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
-        if (d.name.startsWith(".") || SKIP.has(d.name)) return [];
-        const path = join(dir, d.name);
-        if (d.isDirectory()) return findConfigs(path);
-        return /^vitest[^/]*\.config\.[cm]?[jt]s$/.test(d.name) ? [relative(ROOT, path)] : [];
-    });
-}
-const configs = findConfigs(ROOT);
+// Every tracked vitest*.config.* (an untracked scratch config is no one else's problem).
+const configs = trackedFiles(/(^|\/)vitest[^/]*\.config\.[cm]?[jt]s$/);
 
 describe("vitest.base.mjs", () => {
     it("finds the configs", () => {
@@ -46,7 +39,11 @@ describe("vitest.base.mjs", () => {
         const { baseTest } = await import(pathToFileURL(BASE).href);
         assert.equal(process.env.FC_FONTATIONS, "1");
         const test = baseTest({ reporters: ["verbose"], globalSetup: ["own.mjs"] });
-        assert.deepEqual(test.globalSetup, [join(ROOT, "tools/test-slots.mjs"), "own.mjs"]);
+        assert.deepEqual(test.globalSetup, [
+            join(ROOT, "tools/test-slots.mjs"),
+            join(ROOT, "tools/vitest-deps-reload.mjs"),
+            "own.mjs",
+        ]);
         assert.equal(test.reporters[0], "verbose");
         assert.ok(test.reporters.some((r) => Array.isArray(r) && r[0] === "junit"));
     });

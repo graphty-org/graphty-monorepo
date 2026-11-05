@@ -20,6 +20,7 @@ import { type GraphSink } from "@graphty/graph-format";
 
 import { throwIfAborted } from "../../common/input.js";
 import { type ImportReport } from "../../types.js";
+import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { SPARQL_SOURCE_ID } from "../ids.js";
@@ -78,6 +79,7 @@ async function send(ctx: SourceContext, query: string): Promise<Triple[]> {
     if (response.status === 400) {
         const text = (await response.text()).trim().slice(0, 500);
         failOn(ctx.report, "E_SOURCE_QUERY", "the endpoint refused the query", {
+            origin: endpointOrigin(ctx.endpoint),
             serverCode: null,
             line: null,
             column: null,
@@ -87,6 +89,7 @@ async function send(ctx: SourceContext, query: string): Promise<Triple[]> {
     const contentType = response.headers.get("content-type");
     const notTriples = (): never =>
         failOn(ctx.report, "E_SOURCE_RESPONSE", "the endpoint did not answer N-Triples", {
+            origin: endpointOrigin(ctx.endpoint),
             expected: "n-triples",
             contentType,
         });
@@ -231,12 +234,27 @@ function write(graphed: Graphed, sink: GraphSink, ctx: SourceContext): void {
 }
 
 /**
+ * Order strings by UTF-16 code units, as `Array.prototype.sort` does with no compare function, so
+ * a content hash never depends on the locale.
+ * @param a - one string
+ * @param b - the other
+ * @returns negative, zero or positive
+ */
+function byCodeUnits(a: string, b: string): number {
+    if (a === b) {
+        return 0;
+    }
+
+    return a < b ? -1 : 1;
+}
+
+/**
  * The content hash of some triples, in any order.
  * @param triples - the triples
  * @returns the SHA-256, hex
  */
 function hashOf(triples: readonly Triple[]): Promise<string> {
-    return sha256Hex(triples.map(canonicalTriple).sort().join("\n")); // NOSONAR(S2871): code-unit order is the point: a locale-free, stable order for the hash
+    return sha256Hex(triples.map(canonicalTriple).sort(byCodeUnits).join("\n"));
 }
 
 /**

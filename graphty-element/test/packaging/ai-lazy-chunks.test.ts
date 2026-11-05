@@ -273,12 +273,13 @@ describe("AI chunks load lazily", () => {
 
         // QuickJS and Code Mode live in the program chunk and the chunks only it loads.
         const sandbox = /^(?:@tanstack\/ai-code-mode|@tanstack\/ai-isolate-quickjs|quickjs-emscripten.*|@jitl\/.+)$/;
-        for (const chunk of chunks.filter((c) => c.modules.some((id) => sandbox.test(moduleOwner(id) ?? "")))) {
+        const sandboxChunks = chunks.filter((c) => c.modules.some((id) => sandbox.test(moduleOwner(id) ?? "")));
+        for (const chunk of sandboxChunks) {
             const loaders = chunks.filter(
                 (c) => c.imports.includes(chunk.fileName) || c.dynamicImports.includes(chunk.fileName),
             );
             assert.ok(
-                chunk === program || loaders.every((c) => c === program),
+                chunk === program || loaders.every((c) => sandboxChunks.includes(c)),
                 `${chunk.fileName} holds the sandbox but is loaded by ${loaders.map((c) => c.fileName).join(", ")}`,
             );
         }

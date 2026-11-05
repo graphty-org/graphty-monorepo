@@ -18,9 +18,6 @@ import { IMPORT_FILE_STYLES } from "../../workspace/settings/preferences";
 import { createWorkspaceStore } from "../../workspace/state/store";
 import { Workspace } from "../../workspace/Workspace";
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Twelve nodes in two groups, each group with its own viz color: red for x, blue for y. The first
  * node is an image, which graphty draws as Gephi's disc and notes, so the load has a difference to
@@ -80,16 +77,13 @@ function colorOf(session: GraphSession, id: string): string | undefined {
  */
 async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            // The start screen draws a graph of its own; the project's element is the other one.
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        // The start screen draws a graph of its own; the project's element is the other one.
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -104,12 +98,9 @@ async function elementSession(): Promise<GraphSession> {
  * @param session - the element's session.
  */
 async function loadedTwelve(session: GraphSession): Promise<void> {
-    await waitFor(
-        () => {
-            assert.equal(session.data.lastImport()?.counts.nodes, 12);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(session.data.lastImport()?.counts.nodes, 12);
+    });
     await session.styles.settled();
 }
 
@@ -127,7 +118,7 @@ async function dataPageWith(file: File): Promise<GraphSession> {
     await screen.findByRole("heading", { name: "Open as a new graph" });
     const session = await elementSession();
     dropOn(screen.getByRole("region", { name: "Data page" }), file);
-    await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+    await screen.findByTestId("model-strip", {});
     return session;
 }
 
@@ -162,16 +153,13 @@ describe("import styles from files, on the real element", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Load" }));
         await loadedTwelve(session);
-        await waitFor(
-            () => {
-                assert.isNotEmpty(fileLayers(session));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotEmpty(fileLayers(session));
+        });
         assert.equal(colorOf(session, "n1"), "#ff0000");
         assert.equal(colorOf(session, "n0"), "#0000ff");
         // The paint tree words each of the file's layers from its facts.
-        assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}, { timeout: TIMEOUT_MS }));
+        assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}));
         // Gephi's disc is drawn as the flat ellipse of the same name, so the load names no shape drawn as a nearest one.
         assert.isNull(screen.queryByText(/drawn as the nearest one graphty has \(node shape\)/));
     });
@@ -215,18 +203,11 @@ describe("import styles from files, on the real element", () => {
             const session = await elementSession();
             await loadedTwelve(session);
             if (preference === "on") {
-                await waitFor(
-                    () => {
-                        assert.equal(colorOf(session, "n1"), "#ff0000");
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
+                await waitFor(() => {
+                    assert.equal(colorOf(session, "n1"), "#ff0000");
+                });
                 assert.isNotEmpty(fileLayers(session));
-                await screen.findByText(
-                    /The file's styles are drawn, with these differences/,
-                    {},
-                    { timeout: TIMEOUT_MS },
-                );
+                await screen.findByText(/The file's styles are drawn, with these differences/, {});
             } else {
                 assert.deepEqual(fileLayers(session), []);
                 assert.isNull(screen.queryByText(/The file's styles are drawn/));

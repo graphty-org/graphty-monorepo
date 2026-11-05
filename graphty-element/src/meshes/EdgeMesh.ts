@@ -16,16 +16,17 @@ import {
     VertexBuffer,
     VertexData,
 } from "@babylonjs/core";
-import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
+import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder.js";
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { parseArrowStack } from "./arrowStack";
+import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
-import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -375,7 +376,7 @@ void main() {
             {
                 width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
                 color: options.color,
-                opacity: style.line?.opacity ?? 1,
+                opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
                 patternCount: style.line?.patternCount, // undefined means follow the spacing rule
                 wave: this.waveOf(style),
@@ -403,22 +404,66 @@ void main() {
 
     /**
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
-     * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
-     * line through bends or round a self-loop, is a joined line in a batch.
+     * slot in a line batch: every patterned type, laid along whatever route the edge takes
+     * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
+     * which is a joined line in a batch that measures its dashes along the whole route.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
      */
     static drawsAsPattern(style: EdgeStyleConfig, loop = false): boolean {
         const lineType = style.line?.type ?? "solid";
-        if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
+        if (!PATTERNED_TYPES.has(lineType)) {
             return false;
         }
 
         const { line } = style;
         const routed =
-            loop || [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
+            loop ||
+            line?.bezier === true ||
+            [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
+     * The fade a style asks its line to be drawn with. A line that does not blend has none.
+     * @param style - The style.
+     * @returns The fade, or undefined for none.
+     */
+    static fadeOf(style: EdgeStyleConfig | null): EdgeFade | undefined {
+        const { fade, blending } = style?.line ?? {};
+        if (fade?.end === undefined || blending === false) {
+            return undefined;
+        }
+
+        return { start: fade.start ?? 0, end: fade.end, opacity: fade.opacity ?? 0.25 };
+    }
+
+    /**
+     * The opacity a style's line is drawn at: its own, or full strength when it does not blend.
+     * @param style - The style.
+     * @returns The opacity.
+     */
+    static opacityOf(style: EdgeStyleConfig): number {
+        return this.drawsOpaque(style) ? 1 : (style.line?.opacity ?? 1);
+    }
+
+    /**
+     * Whether a style's line is drawn without alpha blending.
+     * @param style - The style.
+     * @returns True for `line.blending` false.
+     */
+    static drawsOpaque(style: EdgeStyleConfig): boolean {
+        return style.line?.blending === false;
+    }
+
+    /**
+     * Whether a scene draws its lines as the 2D view does: flat rectangles in world units.
+     * @param scene - The scene.
+     * @returns True in the 2D view.
+     */
+    static drawsFlat(scene: Scene): boolean {
+        return this.is2DMode(scene);
     }
 
     /**
@@ -442,6 +487,9 @@ void main() {
      * @param options - Edge mesh options including styleId, width, and color.
      * @param style - Full edge style configuration.
      * @param scene - Babylon.js scene.
+     * @param widened - A batch whose slots carry a taper (`edge.taper`): a joined line with the
+     *     static attributes (`EdgeLineBatch`), in a batch of its own. An animated line is drawn
+     *     still when widened.
      * @param loop - Whether the edge is a self-loop (see {@link EdgeMesh.drawsAsPattern}).
      * @returns The batch to take a slot in, or null for a patterned line.
      */
@@ -450,12 +498,17 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
+        widened = false,
         loop = false,
     ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
-        const key = `edge-style-${options.styleId}`;
-        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
+        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
+        // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
+        // which is not one, does not fade.
+        const fade = widened ? this.fadeOf(style) : undefined;
+        const opaque = this.drawsOpaque(style);
 
         if (this.drawsAsPattern(style, loop)) {
             return null;
@@ -476,9 +529,12 @@ void main() {
                         {
                             width,
                             color: options.color,
-                            opacity: style.line?.opacity ?? 1,
+                            opacity: this.opacityOf(style),
                             worldWidth: true,
+                            widened,
                             minScreenWidth: style.line?.minScreenWidth,
+                            fade,
+                            opaque,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -503,15 +559,17 @@ void main() {
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
-                        style.line?.opacity ?? 1,
+                        this.opacityOf(style),
                         scene,
+                        widened,
                         style.line?.minScreenWidth,
+                        { fade, opaque },
                     ),
                 scene,
             );
         }
 
-        if (!curve && style.line?.animationSpeed) {
+        if (!curve && !widened && style.line?.animationSpeed) {
             return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
@@ -784,18 +842,22 @@ void main() {
         scene: Scene,
 
         _cache: MeshCache,
+        widened = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
-        if (this.USE_CUSTOM_RENDERER) {
+        if (this.USE_CUSTOM_RENDERER || widened) {
             // A joined line: a straight edge is one piece with square ends, as it always was; a
             // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
             return CustomLineRenderer.createJoinedLineMesh(
                 {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
-                    opacity: style.line?.opacity,
+                    opacity: this.opacityOf(style),
+                    widened,
                     minScreenWidth: style.line?.minScreenWidth,
+                    fade: widened ? this.fadeOf(style) : undefined,
+                    opaque: this.drawsOpaque(style),
                 },
                 scene,
             );
@@ -1017,12 +1079,88 @@ void main() {
     }
 
     /**
+     * How far back from its tip a vee's line stops, as a fraction of the vee's length: at its notch (half) while the
+     * line's square end stays inside the vee's body, further back for a line wider than half the vee, and at the
+     * vee's back for a line as wide as the vee or wider, so a thick line never covers the vee's barbs.
+     * @param cap - The line's width and the vee's size and breadth; absent, the element's defaults
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The vee's size multiple
+     * @param cap.breadth - The vee's width multiple
+     * @returns The fraction, from 1/2 to 1
+     */
+    static veeLineStop(cap?: { lineWidth?: number; size?: number; breadth?: number }): number {
+        // a solid line's thickness in scene units is its width over 40 (see createPatternedLine)
+        const line = (cap?.lineWidth ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) / 40;
+        const vee =
+            EDGE_CONSTANTS.NORMAL_ARROW_ASPECT * this.calculateArrowLength() * (cap?.size ?? 1) * (cap?.breadth ?? 1);
+        return vee > 0 ? Math.min(1, Math.max(1 / 2, line / vee)) : 1;
+    }
+
+    /**
      * Get geometry metadata for an arrow type
      * This is the single source of truth for arrow positioning and line length calculations
      * @param arrowType - The arrow type to get geometry metadata for
+     * @param cap - The line's width and the cap's size and breadth, which decide how far a vee's line runs on
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The cap's size multiple
+     * @param cap.stack - The caps drawn in a row behind it (`stack`), past which the line runs to the last
+     * @param cap.breadth - The cap's width multiple
      * @returns Arrow geometry configuration including positioning mode and offsets
      */
-    static getArrowGeometry(arrowType: string): ArrowGeometry {
+    static getArrowGeometry(
+        arrowType: string,
+        cap?: { lineWidth?: number; size?: number; breadth?: number; stack?: string },
+    ): ArrowGeometry {
+        const own = EdgeMesh.ownArrowGeometry(arrowType, cap);
+        const parts = parseArrowStack(cap?.stack);
+        const last = parts.at(-1);
+        if (last === undefined) {
+            return own;
+        }
+
+        // a cap with a row behind it (`stack`): the line runs past it and every part but the last, and stops where
+        // the last one's own line would
+        const size = cap?.size ?? 1;
+        let stop = EdgeMesh.capExtent(arrowType, size);
+        for (const part of parts.slice(0, -1)) {
+            stop += EdgeMesh.capExtent(part.type, part.size ?? size);
+        }
+        const lastSize = last.size ?? size;
+        const lastOwn = EdgeMesh.ownArrowGeometry(last.type, {
+            lineWidth: cap?.lineWidth,
+            size: lastSize,
+            breadth: last.width,
+        });
+        stop += this.calculateArrowLength() * lastSize * (lastOwn.scaleFactor ?? 1) * (lastOwn.lineStop ?? 1);
+        return { ...own, lineStop: stop / (this.calculateArrowLength() * size * (own.scaleFactor ?? 1)) };
+    }
+
+    /**
+     * How long a cap is drawn along its line, from its tip to its back, in scene units: its size's length, a tee's bar
+     * shallower, a 3D sphere dot smaller. A cap in an end cap's row (`stack`) starts where the one before it ends.
+     * @param arrowType - The cap's type.
+     * @param size - Its size.
+     * @returns The length.
+     */
+    static capExtent(arrowType: string, size: number): number {
+        const depth = arrowType === "tee" ? TEE_DEPTH : 1;
+        const scale = EdgeMesh.ownArrowGeometry(arrowType).scaleFactor ?? 1;
+        return this.calculateArrowLength() * size * depth * scale;
+    }
+
+    /**
+     * Geometry metadata for one cap of an arrow type, without the row a `stack` draws behind it.
+     * @param arrowType - The arrow type.
+     * @param cap - The cap's line width, size and breadth, where its line stop depends on them.
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The cap's size multiple
+     * @param cap.breadth - The cap's width multiple
+     * @returns The cap's positioning mode and offsets.
+     */
+    private static ownArrowGeometry(
+        arrowType: string,
+        cap?: { lineWidth?: number; size?: number; breadth?: number },
+    ): ArrowGeometry {
         switch (arrowType) {
             // Center-based arrows (all use same positioning, no scaling)
             case "dot":
@@ -1051,12 +1189,32 @@ void main() {
                     lineStop: 2 / 3,
                 };
 
+            // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
+            // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
+            // under the vee
+            case "vee":
+                return {
+                    positioningMode: "tip",
+                    needsRotation: false,
+                    positionOffset: 0,
+                    lineStop: EdgeMesh.veeLineStop(cap),
+                };
+
+            // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
+            // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
+            // meets it 0.4 of the cap back from the tip, the half barb's stroke its own length back
+            case "half-open":
+            case "half-open-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_OPEN_MEETS };
+            case "half-barb":
+            case "half-barb-flipped":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: HALF_BARB };
+
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin
             case "normal":
-            case "vee":
             case "tee":
-            case "half-open":
+            case "inverted-vee":
             case "crow":
             case "open-normal":
             case "open-diamond":
@@ -1068,7 +1226,6 @@ void main() {
             case "triangle-tee":
             case "triangle-cross":
             case "circle-triangle":
-            case "half-open-flipped":
             case "open-box":
             case "open-inverted":
             case "image":

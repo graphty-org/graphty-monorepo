@@ -34,6 +34,7 @@ import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
@@ -156,7 +157,7 @@ const DEFAULT_WEIGHT_NAME = "weight";
 type NoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
 
 /** The GraphML attr.type values and the dtype each maps to, for restoring origin.type. */
-const TYPE_DTYPES: Readonly<Record<string, string>> = {
+const TYPE_DTYPES: Readonly<Partial<Record<string, string>>> = {
     boolean: "bool",
     int: "i32",
     long: "f64",
@@ -266,7 +267,8 @@ function resolveFormatOptions(options: GraphmlExportOptions | undefined): Format
             found: typeof pretty,
         });
     }
-    const edgedefault = options?.edgedefault ?? null;
+    // a JavaScript caller can pass any value
+    const edgedefault: unknown = options?.edgedefault ?? null;
     if (edgedefault !== null && edgedefault !== "directed" && edgedefault !== "undirected") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
@@ -481,11 +483,11 @@ function planKeys(all: readonly ColumnPlan[], keyIds: KeyIds): KeyPlan[] {
     const keys: KeyPlan[] = [];
     const byOrigin = new Map<string, ColumnPlan[]>();
     for (const plan of all) {
-        const { origin } = plan.column.meta;
-        if (origin !== null && origin.format === FORMAT && origin.id !== null) {
-            const group = byOrigin.get(origin.id) ?? [];
+        const originId = graphmlOriginId(plan);
+        if (originId !== null) {
+            const group = byOrigin.get(originId) ?? [];
             group.push(plan);
-            byOrigin.set(origin.id, group);
+            byOrigin.set(originId, group);
         }
     }
     const planned = new Set<ColumnPlan>();
@@ -493,35 +495,53 @@ function planKeys(all: readonly ColumnPlan[], keyIds: KeyIds): KeyPlan[] {
         if (planned.has(plan)) {
             continue;
         }
-        const { origin } = plan.column.meta;
-        const group =
-            origin !== null && origin.format === FORMAT && origin.id !== null
-                ? (byOrigin.get(origin.id) ?? [plan])
-                : [plan];
+        const originId = graphmlOriginId(plan);
+        const group = originId === null ? [plan] : (byOrigin.get(originId) ?? [plan]);
         const shared = group.length > 1 && group.every((other) => other === plan || sameKey(plan, other));
         const members = shared ? group : [plan];
-        const id = keyIds.next(origin !== null && origin.format === FORMAT ? origin.id : null);
+        const id = keyIds.next(originId);
         for (const member of members) {
             member.keyId = id;
             planned.add(member);
         }
-        const domains = members.map((member) => member.domain);
-        // a yfiles key carries attr.name only when the column name is not the key id (yEd writes none)
-        const yfilesName = plan.column.meta.origin?.title ?? plan.column.meta.name;
-        let { attrName } = plan;
-        if (plan.yfiles) {
-            attrName = yfilesName === id ? null : yfilesName;
-        }
-        keys.push({
-            id,
-            domains: domains.length > 1 ? ["graph", "node", "edge"] : domains,
-            attrName,
-            attrType: plan.attrType,
-            yfilesType: plan.yfilesType,
-            column: plan.column,
-        });
+        keys.push(keyPlanFor(plan, members, id));
     }
     return keys;
+}
+
+/**
+ * The GraphML key id a column was read from.
+ * @param plan - the column plan
+ * @returns the origin key id when the column came from GraphML, else null
+ */
+function graphmlOriginId(plan: ColumnPlan): string | null {
+    const { origin } = plan.column.meta;
+    return origin !== null && origin.format === FORMAT ? origin.id : null;
+}
+
+/**
+ * The `<key>` of a column plan and the members sharing it.
+ * @param plan - the first plan of the key
+ * @param members - every plan written under the key
+ * @param id - the key id
+ * @returns the key
+ */
+function keyPlanFor(plan: ColumnPlan, members: readonly ColumnPlan[], id: string): KeyPlan {
+    const domains = members.map((member) => member.domain);
+    // a yfiles key carries attr.name only when the column name is not the key id (yEd writes none)
+    const yfilesName = plan.column.meta.origin?.title ?? plan.column.meta.name;
+    let { attrName } = plan;
+    if (plan.yfiles) {
+        attrName = yfilesName === id ? null : yfilesName;
+    }
+    return {
+        id,
+        domains: domains.length > 1 ? ["graph", "node", "edge"] : domains,
+        attrName,
+        attrType: plan.attrType,
+        yfilesType: plan.yfilesType,
+        column: plan.column,
+    };
 }
 
 /**
@@ -689,93 +709,149 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
     const plans: ColumnPlan[] = [];
     const columns = [...table];
     const names = new Set(columns.map((column) => column.meta.name));
+    const ctx: TablePlanContext = { domain, columns, names, notes, note };
     for (const column of columns) {
-        const { meta } = column;
-        const { role, name } = meta;
-        if (isGraphicsColumn(meta)) {
-            const stale = domain === "graph" ? 0 : staleGraphicsRows(column, columns, domain);
-            if (stale > 0) {
-                note(
-                    GRAPHML_LOSS.YFILES_GRAPHICS_STALE,
-                    `${stale} value${plural(stale)} of ${domain} column "${name}" differ from the yFiles tree it was read from; only the tree is written, so they are lost`,
-                    name,
-                    stale,
-                );
-            }
-            continue;
+        if (!skipColumn(column, ctx)) {
+            plans.push(planColumn(column, ctx));
         }
-        if (role === "parents") {
-            note(
-                GRAPHML_LOSS.PARENTS_DROPPED,
-                `${domain} column "${name}" (parents) cannot be written: nested graphs hold one parent per node`,
-                name,
-                column.length - column.nullCount,
-            );
-            continue;
-        }
-        if (
-            role !== null &&
-            (STRUCTURAL_ROLES.has(role) || DROPPED_ROLES.has(role) || SLOT_ROLES_BY_DOMAIN[domain].has(role))
-        ) {
-            continue;
-        }
-        if (role !== null && role !== "label" && SLOT_ROLES.has(role)) {
-            // the slot belongs to another domain (an edge id on a node, a port on a graph)
-            withdrawNameChange(notes, name);
-            note(
-                LOSS.ROLE,
-                `${domain} column "${name}" (${role}) is written as a plain attribute; GraphML has no ${role} slot for a ${domain} and the role is lost`,
-                name,
-                column.length - column.nullCount,
-            );
-        }
-        const yfiles = meta.dtype === "json" && meta.origin?.namespace === "yfiles";
-        if (meta.dtype === "json" && !yfiles) {
-            note(
-                LOSS.JSON,
-                `${domain} column "${name}" holds nested values; written as JSON text, which reads back as string`,
-                name,
-                column.length - column.nullCount,
-            );
-        }
-        if (yfiles) {
-            const bad = countBadTrees(column);
-            if (bad > 0) {
-                note(
-                    GRAPHML_LOSS.YFILES_TREE,
-                    `${bad} value${plural(bad)} of yfiles column "${name}" ${agree(bad, "is", "are")} not XML trees; the save fails with E_COLUMN_TYPE`,
-                    name,
-                    bad,
-                );
-            }
-        }
-        const { origin } = meta;
-        const fromGraphml = origin !== null && origin.format === FORMAT;
-        let attrName: string | null = null;
-        if (!yfiles) {
-            attrName = fromGraphml && origin.title !== null ? origin.title : name;
-            if (role === "label" && domain !== "graph" && attrName !== LABEL_COLUMN) {
-                attrName = labelSlot(column, domain, names, notes, note);
-            } else if (role === null && domain !== "graph" && attrName === LABEL_COLUMN) {
-                note(
-                    LOSS.ROLE_ASSUMED,
-                    `${domain} column "${name}" has no role but is titled "${LABEL_COLUMN}", which the importer reads back with the label role`,
-                    name,
-                    column.length - column.nullCount,
-                );
-            }
-        }
-        plans.push({
-            column,
-            domain,
-            keyId: "",
-            attrType: yfiles ? null : attrTypeFor(column),
-            attrName,
-            yfilesType: yfiles ? (origin?.type ?? DEFAULT_YFILES_TYPES[domain]) : null,
-            yfiles,
-        });
     }
     return plans;
+}
+
+/** What planTable() hands its per-column helpers. */
+interface TablePlanContext {
+    domain: Domain;
+    columns: readonly Column[];
+    names: ReadonlySet<string>;
+    notes: LossNote[];
+    note: NoteFn;
+}
+
+/**
+ * Whether a column is not written as a key of its own (a yfiles graphics column, a parents
+ * column, a structural, dropped or slot role column), noting what it loses.
+ * @param column - the column
+ * @param ctx - the table context
+ * @returns true when the column is skipped
+ */
+function skipColumn(column: Column, ctx: TablePlanContext): boolean {
+    const { domain, columns, note } = ctx;
+    const { meta } = column;
+    const { role, name } = meta;
+    if (isGraphicsColumn(meta)) {
+        const stale = domain === "graph" ? 0 : staleGraphicsRows(column, columns, domain);
+        if (stale > 0) {
+            note(
+                GRAPHML_LOSS.YFILES_GRAPHICS_STALE,
+                `${stale} value${plural(stale)} of ${domain} column "${name}" differ from the yFiles tree it was read from; only the tree is written, so they are lost`,
+                name,
+                stale,
+            );
+        }
+        return true;
+    }
+    if (role === "parents") {
+        note(
+            GRAPHML_LOSS.PARENTS_DROPPED,
+            `${domain} column "${name}" (parents) cannot be written: nested graphs hold one parent per node`,
+            name,
+            column.length - column.nullCount,
+        );
+        return true;
+    }
+    return (
+        role !== null &&
+        (STRUCTURAL_ROLES.has(role) || DROPPED_ROLES.has(role) || SLOT_ROLES_BY_DOMAIN[domain].has(role))
+    );
+}
+
+/**
+ * Plan one written column, noting what it loses.
+ * @param column - the column
+ * @param ctx - the table context
+ * @returns the plan
+ */
+function planColumn(column: Column, ctx: TablePlanContext): ColumnPlan {
+    const { domain, notes, note } = ctx;
+    const { meta } = column;
+    const { role, name } = meta;
+    if (role !== null && role !== "label" && SLOT_ROLES.has(role)) {
+        // the slot belongs to another domain (an edge id on a node, a port on a graph)
+        withdrawNameChange(notes, name);
+        note(
+            LOSS.ROLE,
+            `${domain} column "${name}" (${role}) is written as a plain attribute; GraphML has no ${role} slot for a ${domain} and the role is lost`,
+            name,
+            column.length - column.nullCount,
+        );
+    }
+    const yfiles = meta.dtype === "json" && meta.origin?.namespace === "yfiles";
+    if (meta.dtype === "json" && !yfiles) {
+        note(
+            LOSS.JSON,
+            `${domain} column "${name}" holds nested values; written as JSON text, which reads back as string`,
+            name,
+            column.length - column.nullCount,
+        );
+    }
+    if (yfiles) {
+        noteBadTrees(column, note);
+    }
+    const { origin } = meta;
+    const attrName = yfiles ? null : plainAttrName(column, ctx);
+    return {
+        column,
+        domain,
+        keyId: "",
+        attrType: yfiles ? null : attrTypeFor(column),
+        attrName,
+        yfilesType: yfiles ? (origin?.type ?? DEFAULT_YFILES_TYPES[domain]) : null,
+        yfiles,
+    };
+}
+
+/**
+ * Note the values of a yfiles column that are not XML trees.
+ * @param column - the yfiles column
+ * @param note - the note recorder
+ */
+function noteBadTrees(column: Column, note: NoteFn): void {
+    const { name } = column.meta;
+    const bad = countBadTrees(column);
+    if (bad > 0) {
+        note(
+            GRAPHML_LOSS.YFILES_TREE,
+            `${bad} value${plural(bad)} of yfiles column "${name}" ${agree(bad, "is", "are")} not XML trees; the save fails with E_COLUMN_TYPE`,
+            name,
+            bad,
+        );
+    }
+}
+
+/**
+ * The attr.name of a column that is not a yfiles tree: its GraphML title, or its name, or the
+ * label slot for a label column.
+ * @param column - the column
+ * @param ctx - the table context
+ * @returns the attr.name
+ */
+function plainAttrName(column: Column, ctx: TablePlanContext): string {
+    const { domain, names, notes, note } = ctx;
+    const { role, name, origin } = column.meta;
+    const fromGraphml = origin !== null && origin.format === FORMAT;
+    const attrName = fromGraphml && origin.title !== null ? origin.title : name;
+    if (role === "label" && domain !== "graph" && attrName !== LABEL_COLUMN) {
+        return labelSlot(column, domain, names, notes, note);
+    }
+    if (role === null && domain !== "graph" && attrName === LABEL_COLUMN) {
+        note(
+            LOSS.ROLE_ASSUMED,
+            `${domain} column "${name}" has no role but is titled "${LABEL_COLUMN}", which the importer reads back with the label role`,
+            name,
+            column.length - column.nullCount,
+        );
+    }
+    return attrName;
 }
 
 /**
@@ -1102,7 +1178,7 @@ function cellText(column: Column, row: number, attrType: string | null): string 
         case "list":
             return JSON.stringify(Array.from(column.sliceOf(row)));
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         default: {
             const dtype: never = column;
             throw new GraphFormatError("E_UNSUPPORTED", `unknown dtype ${String(dtype)}`, {});
@@ -1134,7 +1210,7 @@ function defaultText(column: Column, attrType: string | null): string | null {
         case "string":
             return value;
         default:
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
     }
 }
 
@@ -1274,8 +1350,10 @@ function sanitizeEdgeIds(column: Column | null, mode: "error" | "mangle", edgeCo
     for (const e of bad) {
         const base = mangleNmtoken(edgeIdText(column, e));
         let candidate = base;
-        for (let k = 2; used.has(candidate); k++) {
+        let k = 2;
+        while (used.has(candidate)) {
             candidate = `${base}_${k}`;
+            k++;
         }
         used.add(candidate);
         out[e] = candidate;
@@ -1363,7 +1441,7 @@ function rootElement(plan: Plan): string {
         (yfilesColumns &&
             !Object.values(namespaces).includes(YFILES_NAMESPACE) &&
             // a yFiles 3 file binds `y` to its own namespace, which its kept trees are written in
-            namespaces.y === undefined)
+            !("y" in namespaces))
     ) {
         namespaces.y = YFILES_NAMESPACE;
     }

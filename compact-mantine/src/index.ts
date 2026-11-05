@@ -44,18 +44,21 @@ export { ToggleWithContent } from "./components/ToggleWithContent";
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
 // Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
-// with its drop hook and file picker, and focus put on a field by program with its ring drawn.
+// with its drop hook and file picker, focus put on a field by program with its ring drawn, and the
+// scrub gesture a number field's handle uses, for a property row whose label scrubs its value.
 export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
 export { focusWithRing } from "./components/inputs/listbox";
+export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
-// the toast and the tooltip's shortcut label (8.1-8.6).
+// the toast, the tooltip's shortcut label (8.1-8.6), and the tooltip for a menu's button.
 export {
     ContextMenu,
     MenuCheckItem,
     MenuItemDescription,
     MenuShortcut,
     ModalFooter,
+    TargetTooltip,
     Toast,
     ToastProvider,
     TooltipShortcut,
@@ -290,6 +293,7 @@ export type {
     ContextMenuProps,
     MenuCheckItemProps,
     ModalFooterProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,

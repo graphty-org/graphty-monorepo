@@ -225,7 +225,7 @@ describe("100,000 class tests in one selector", () => {
         expect(spent).toMatchInlineSnapshot(`
           {
             "edge": 0,
-            "node": 52000,
+            "node": 56000,
             "notes": [],
             "rules": 3,
           }

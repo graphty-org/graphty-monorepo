@@ -42,6 +42,7 @@ export type {
     EncodingRun,
     EncodingSource,
     EncodingSpec,
+    ParamEncodingSpec,
 } from "./EncodingSpec";
 export type {
     ChannelAgreement,

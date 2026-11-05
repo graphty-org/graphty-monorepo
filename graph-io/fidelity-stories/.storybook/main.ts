@@ -8,8 +8,13 @@ const element = (path: string): string => fileURLToPath(new URL(`../../../grapht
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.ts"],
     addons: [],
-    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories
-    staticDirs: [{ from: "./brand", to: "/" }],
+    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories. The specimen
+    // sheets that name pictures beside them (DOT, GML) are served with them by their own file names
+    // (stories/fidelity.ts, #5344).
+    staticDirs: [
+        { from: "./brand", to: "/" },
+        ...["dot", "gml"].map((f) => ({ from: `../../test/fidelity/specimens/${f}`, to: `/fidelity/specimens/${f}` })),
+    ],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},
@@ -29,7 +34,9 @@ const config: StorybookConfig = {
             optimizeDeps: {
                 exclude: ["@mlc-ai/web-llm"],
                 // Pre-bundled rather than discovered mid-run (graphty-element/.storybook/main.ts says why).
-                include: ["lit/directives/ref.js"],
+                // The DOT stories load Graphviz on first use, which the start-up scan does not see: found
+                // mid-run, it reloaded the test page in every story-test run (#4145).
+                include: ["lit/directives/ref.js", "@hpcc-js/wasm-graphviz"],
             },
             resolve: {
                 // graphty-element loads the in-browser LLM from a CDN at run time; the stories never use it

@@ -2,12 +2,14 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_GLOBE_LOOK } from "../../constants/globe";
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { LAYOUT_SEED } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
+import { bindShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspaceState } from "../state/WorkspaceContext";
 import { useSizeBound } from "./useSizeBound";
 
@@ -72,12 +74,15 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
             node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
             rendering: { onDemand: true },
-            camera: { pivotOnSelection: true },
+            // The inspector opens beside the canvas and narrows it, before or after the first
+            // framing is final; framing again on a resize draws the same picture either way (#5097).
+            camera: { pivotOnSelection: true, refitOnResize: true },
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
     // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
-    // prefers less motion gets camera moves without the glide. View settings, written on the
+    // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth
+    // from space (constants/globe.ts). View settings, written on the
     // element; they record no step.
     const still = useReducedMotion();
     useEffect(() => {
@@ -87,6 +92,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }
 
         element.cameraTransitionDuration = still ? 0 : undefined;
+        element.globeLook = APP_GLOBE_LOOK;
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         const dock = canvas?.querySelector<HTMLElement>(".ws-toolbar-dock");
         if (canvas === null || canvas === undefined || dock === null || dock === undefined) {
@@ -134,6 +140,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         if (defined && element !== null && session?.status.ready === true) {
             // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
             session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+            // The reader's shader preferences and remembered approvals (Graph settings).
+            const unbindShaders = bindShaderSettings(element);
             setHosted(session);
             onReady(element, session);
             // The element disposes its session when it leaves the page, which React does not always
@@ -143,6 +151,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
                 onReady(null, null);
             });
             return () => {
+                unbindShaders();
                 off();
                 // Already handed down when the element left the page first.
                 if (session.status.ready) {

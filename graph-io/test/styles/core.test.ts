@@ -90,6 +90,7 @@ describe("the published style surface", () => {
             "readAnnotations",
             "readCytoscapeStyles",
             "readImageAnnotations",
+            "resolveRule",
             "resolveStyles",
             "styleFingerprint",
             "toCytoscapeStylesheet",

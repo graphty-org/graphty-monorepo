@@ -15,9 +15,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Five people, three with "bob" in their name, spread out on a line so each is easy to click. */
 const NODES = [
     { id: "a", name: "Bob", age: 31 },
@@ -47,13 +44,10 @@ async function openWithGraph(): Promise<Opened> {
     const store = createWorkspaceStore({ project: { name: "People", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -80,9 +74,9 @@ function readerLayers(session: GraphSession): Layer[] {
  */
 async function newLayerFromSelection(hex: string): Promise<void> {
     const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-    await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+    const tab = await screen.findByTestId("style-tab", {});
     // Fill's "+" adds Color; typing its hex writes it.
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
     const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
@@ -190,7 +184,7 @@ describe("selection as a way into a rule", () => {
     it("a selection made by a rule makes a layer with that rule", async () => {
         const { session } = await openWithGraph();
         const before = readerLayers(session).length;
-        const find = await screen.findByRole("combobox", { name: "Find" }, { timeout: TIMEOUT_MS });
+        const find = await screen.findByRole("combobox", { name: "Find" });
         await userEvent.click(find);
         await userEvent.keyboard("=age > `30`{Enter}");
         await waitFor(() => {

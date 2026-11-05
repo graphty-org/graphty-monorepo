@@ -26,6 +26,7 @@
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     Binding,
     BindingNumberFormat,
@@ -69,6 +70,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StyleDocument,
     ThemeDescriptor,
@@ -97,10 +99,12 @@ export type {
     BasemapSourceId,
     BasemapStatus,
     EdgeStyleConfig,
+    GlobeLook,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
     ImageData,
+    LayoutTransitionConfig,
     Lighting,
     LocationSourceFact,
     MapFrameFact,

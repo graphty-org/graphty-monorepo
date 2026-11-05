@@ -197,6 +197,40 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
     });
 
+    it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
+        // a NodeLabel with no modelName is in yEd's internal model, whose places are inside the node; the exterior
+        // places are the compass names (yFiles InteriorLabelModel and ExteriorLabelModel)
+        const places = ["t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
+        const doc = [
+            YED_HEAD,
+            ...places.map(
+                (p) =>
+                    `<node id="${p}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+                    `<y:NodeLabel modelPosition="${p}">${p}</y:NodeLabel></y:ShapeNode></data></node>`,
+            ),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual([
+            "inside-top",
+            "inside-bottom",
+            "inside-left",
+            "inside-right",
+            "inside-top-left",
+            "inside-top-right",
+            "inside-bottom-left",
+            "inside-bottom-right",
+            "top",
+            "bottom",
+            "right",
+            "left",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+        ]);
+    });
+
     it("keeps an outside label's distance from its node and a free label's offset, from the stored box", async () => {
         // a 40 x 26 node and a 22.6 x 17 label, as yEd writes them on the labels-p2 specimen sheet
         const node = (id: string, label: string): string =>
@@ -401,13 +435,15 @@ describe("GraphML styles: yEd", () => {
             `${YED_HEAD}<node id="a"/><node id="b"/>
             <edge source="a" target="b"><data key="d10"><y:BezierEdge><y:Path sx="0" sy="0" tx="0" ty="0"><y:Point x="40" y="60"/></y:Path><y:LineStyle color="#FF0000" type="dashed" width="2.0"/><y:Arrows source="none" target="standard"/></y:BezierEdge></data></edge>
             <edge source="b" target="a"><data key="d10"><y:PolyLineEdge><y:LineStyle color="#00FF0080" type="dotted" width="1.0"/><y:Arrows source="none" target="none"/><y:BendStyle smoothed="false"/></y:PolyLineEdge></data></edge>
+            <edge source="a" target="b"><data key="d10"><y:PolyLineEdge><y:Arrows source="none" target="delta"/></y:PolyLineEdge></data></edge>
             </graph></graphml>`,
         );
-        expect(resolveStyles(styles, "edge", "curved", snapshot)).toEqual([true, false]);
-        expect(resolveStyles(styles, "edge", "lineStyle", snapshot)).toEqual(["dashed", "dotted"]);
-        expect(resolveStyles(styles, "edge", "color", snapshot)).toEqual(["#ff0000", "#00ff00"]);
-        expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([null, 0.501961]);
-        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle", "none"]);
+        expect(resolveStyles(styles, "edge", "curved", snapshot).slice(0, 2)).toEqual([true, false]);
+        expect(resolveStyles(styles, "edge", "lineStyle", snapshot).slice(0, 2)).toEqual(["dashed", "dotted"]);
+        expect(resolveStyles(styles, "edge", "color", snapshot).slice(0, 2)).toEqual(["#ff0000", "#00ff00"]);
+        expect(resolveStyles(styles, "edge", "opacity", snapshot).slice(0, 2)).toEqual([null, 0.501961]);
+        // yEd's standard arrow is a triangle with its back pressed in (a vee); its delta is the plain triangle
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
     });
 
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {
@@ -476,6 +512,24 @@ describe("GraphML styles: yEd", () => {
             "ellipse",
             "diamond",
             "ellipse",
+        ]);
+    });
+
+    it("draws yEd's BPMN data object as a page with a folded corner and its data store as a cylinder, by their type", async () => {
+        const artifact = (id: string, type: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "other:database",
+            "other:com.yworks.bpmn.artifact.withshadow",
+        ]);
+        // the top right corner (y up) is cut
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
+            "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
+            null,
+            null,
         ]);
     });
 

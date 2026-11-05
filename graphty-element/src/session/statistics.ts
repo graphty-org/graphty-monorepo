@@ -14,6 +14,32 @@ import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
+ * Label a node's unlabelled neighbours along one arc direction and push them to walk next.
+ * @param rowPtr - the CSR row pointers of the direction
+ * @param colIdx - the CSR column indices of the direction
+ * @param u - the node whose arcs are followed
+ * @param labels - one component number per node index, -1 while unlabelled; written
+ * @param component - the component being labelled
+ * @param stack - the nodes still to walk; written
+ */
+function labelNeighbours(
+    rowPtr: ArrayLike<number>,
+    colIdx: ArrayLike<number>,
+    u: number,
+    labels: Int32Array,
+    component: number,
+    stack: number[],
+): void {
+    for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+        const v = colIdx[a];
+        if (labels[v] === -1) {
+            labels[v] = component;
+            stack.push(v);
+        }
+    }
+}
+
+/**
  * Label every node with the connected component it belongs to, ignoring arc direction.
  *
  * Direction is ignored because "how many pieces is this network in?" is a question about the
@@ -52,21 +78,8 @@ function labelComponents(snapshot: GraphSnapshot): { labels: Int32Array; count: 
                 break;
             }
 
-            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                const v = colIdx[a];
-                if (labels[v] === -1) {
-                    labels[v] = component;
-                    stack.push(v);
-                }
-            }
-
-            for (let a = reverse.rowPtr[u]; a < reverse.rowPtr[u + 1]; a++) {
-                const v = reverse.colIdx[a];
-                if (labels[v] === -1) {
-                    labels[v] = component;
-                    stack.push(v);
-                }
-            }
+            labelNeighbours(rowPtr, colIdx, u, labels, component, stack);
+            labelNeighbours(reverse.rowPtr, reverse.colIdx, u, labels, component, stack);
         }
     }
 

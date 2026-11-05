@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
 
 import { baseTest } from "../vitest.base.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The monorepo's test slot, core share and CI reporters (vitest.base.mjs), and a check that no test
         // wrote to the real ~/.githerd (test/temp-home.setup.mjs prevents it).
@@ -23,3 +24,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -343,7 +343,7 @@ export const resultsTool: ToolDefinition = {
     name: "results",
     plainName: "Algorithm results",
     core: true,
-    description: "Existing runs: read, rerun, cancel, remove.",
+    description: "Existing runs.",
     example: { action: "top", run: "pagerank" },
     actions: [
         {

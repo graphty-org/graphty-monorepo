@@ -646,6 +646,28 @@ const IGNORE_STEP: SessionCommand = {
 
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
+/** The label column a draft of TINY_JSON names its nodes by, as `data.import` does. */
+const DRAFT_LABEL: SessionCommand = {
+    op: "config.set",
+    values: { data: { knownFields: { nodeLabelPath: "label" } } },
+};
+
+/** A draft of TINY_JSON's load: the rows it held, without reading the source again. */
+const DRAFT_LOAD: SessionCommand = {
+    op: "data.import",
+    source: { type: "json", config: { data: TINY_JSON } },
+    tables: ["json"],
+    mode: "replace",
+    held: {
+        nodes: [{ id: "j1" }, { id: "j2" }],
+        edges: [{ src: "j1", dst: "j2" }],
+        declaredDirection: null,
+        errors: [],
+        errorLimit: 100,
+    },
+    input: "i1",
+};
+
 /**
  * The document's bytes: what a file or a fetched URL is handed to the reader as, for the importer
  * to decode.
@@ -824,11 +846,14 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    assets: READ,
+    network: READ,
     journal: READ,
     selection: READ,
     visibility: READ,
     time: READ,
     styles: READ,
+    shaders: READ,
     views: READ,
     layout: READ,
     positions: READ,
@@ -915,6 +940,29 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     statistics: READ,
 };
 
+/**
+ * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * @param args - The arguments.
+ * @param conditions - The conditions the call must leave.
+ * @returns The door.
+ */
+function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+    return {
+        kind: "dispatches",
+        op: "visibility.conditions",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
+                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                return async () => visibility.setConditions([]);
+            },
+        },
+        expect: [{ op: "visibility.conditions", conditions }],
+    };
+}
+
 /** The rows of `VisibilityApi`, shared with the element's wider form of it. */
 const VISIBILITY_API: Readonly<Record<string, Door>> = {
     nodeMask: READ,
@@ -937,6 +985,31 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
         [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
     ),
+    conditions: READ,
+    setConditions: calls(
+        [[{ id: "c1", effect: "exclude", rule: { kind: "degree", min: 1 } }]],
+        [
+            {
+                op: "visibility.conditions",
+                conditions: [{ id: "c1", on: true, effect: "exclude", rule: { kind: "degree", min: 1 } }],
+            },
+        ],
+    ),
+    addCondition: calls(
+        [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+        [
+            {
+                op: "visibility.conditions",
+                conditions: [{ id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } }],
+            },
+        ],
+    ),
+    updateCondition: conditionDoor(
+        ["c1", { on: false }],
+        [{ id: "c1", on: false, effect: "keep", rule: { kind: "degree", min: 1 } }],
+    ),
+    removeCondition: conditionDoor(["c1"], []),
+    conditionCounts: READ,
 };
 
 /**
@@ -1020,6 +1093,54 @@ const DOOR_LAYER: LayerSpec = {
 };
 
 /** The rows of `StylesApi`, shared with the element's wider form of it. */
+/** A shader the doors add, replace and remove. */
+const DOOR_SHADER = `/* graphty-shader 1
+{ "id": "user/door", "name": "Door" }
+*/
+vec4 shade(NodeInput n) { return n.color; }
+`;
+
+/**
+ * A shader door that acts on the door shader once it is in the project.
+ * @param args - The arguments.
+ * @param expect - The commands it dispatches.
+ * @returns The door.
+ */
+function onDoorShader(args: readonly unknown[], expect: readonly SessionCommand[]): Door {
+    return {
+        kind: "dispatches",
+        op: "shader.set",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                await (target as { add(text: string): PromiseLike<unknown> }).add(DOOR_SHADER);
+                return () => Promise.resolve();
+            },
+        },
+        expect,
+    };
+}
+
+/** The rows of `session.shaders`. */
+const SHADERS_API: Readonly<Record<string, Door>> = {
+    add: calls([DOOR_SHADER], [{ op: "shader.set", id: "user/door", text: DOOR_SHADER }]),
+    check: READ,
+    replace: onDoorShader(
+        ["user/door", DOOR_SHADER.replace("return n.color;", "return n.color * 0.5;")],
+        [{ op: "shader.set", id: "user/door", text: DOOR_SHADER.replace("return n.color;", "return n.color * 0.5;") }],
+    ),
+    remove: onDoorShader(["user/door"], [{ op: "shader.set", id: "user/door", text: null }]),
+    source: READ,
+    list: READ,
+    status: READ,
+    availability: READ,
+    approve: exempt(
+        "Lets a shader the project already holds run; whether it may run is the reader's trust, never saved in a project file.",
+    ),
+    thumbnail: CAPTURE,
+};
+
 const STYLES_API: Readonly<Record<string, Door>> = {
     list: READ,
     get: READ,
@@ -1271,6 +1392,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
+            shaderSettings: exempt(
+                "The reader's shader preferences and trust, never saved in a project file and never read from one.",
+            ),
+            renderQuality: READ,
             lighting: VIEW_SETTING,
             autoRotate: VIEW_SETTING,
             fitInsets: VIEW_SETTING,
@@ -1287,6 +1412,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             basemapStatus: READ,
             mapFrame: READ,
             attributionOffset: CAMERA,
+            globeLook: VIEW_SETTING,
             cameraTransitionDuration: CAMERA,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
@@ -1391,6 +1517,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodesInRect: READ,
             screenToWorld: READ,
             elementAt: READ,
+            groupOutlineAt: READ,
+            drawnShaders: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
                 batchOf("Set the graph data", addNodes({ id: "d1" })),
@@ -1609,6 +1737,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setZoomToPointer: CAMERA,
             getLighting: READ,
             setLighting: VIEW_SETTING,
+            getGlobeLook: READ,
+            setGlobeLook: VIEW_SETTING,
             getViewInsets: READ,
             setViewInsets: CAMERA,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
@@ -1629,6 +1759,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodeScreenPosition: READ,
             screenToWorld: READ,
             elementAt: READ,
+            groupOutlineAt: READ,
+            drawnShaders: READ,
             getCameraController: READ,
             getNodeMesh: READ,
             waitForSettled: READ,
@@ -1729,14 +1861,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             update: RENDER,
             setMeshPosition: RENDER,
             updateStyle: RENDER,
+            refreshFonts: RENDER,
+            refitPicture: RENDER,
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
+            modelDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
+            shaderStateChanged: RENDER,
+            shaderStateBits: RENDER,
+            refreshShaderPaint: RENDER,
             refreshScreenBorder: RENDER,
             pin: calls([], [PIN_N1]),
             unpin: calls([], [UNPIN_N1]),
@@ -1748,11 +1886,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             roundRadius: READ,
             drawnFill: READ,
             drawnRadius: READ,
+            layoutRadius: READ,
+            paintedColor: READ,
             borderReach: READ,
-            framingHalf: READ,
+            framingBounds: READ,
             drawnHalfExtents: READ,
+            surfaceIsBox: READ,
+            outlineHalfExtents: READ,
+            groupSizing: READ,
+            wordedLabel: READ,
             decorationPieces: READ,
             shapeTextLabels: RENDER,
+            xlabelLabel: RENDER,
+            syncXlabelPlace: RENDER,
             isDrawnAsGroup: READ,
             groupDrawnForAnotherCamera: READ,
         },
@@ -1780,19 +1926,26 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             arrowTailMesh: RENDER,
             ray: RENDER,
             label: RENDER,
+            xlabelLabel: RENDER,
             arrowHeadText: RENDER,
             arrowTailText: RENDER,
             parallelRank: RENDER,
             parallelCount: RENDER,
             drawnLine: READ,
             drawnCurve: READ,
+            drawnEffects: READ,
+            refreshShaderPaint: RENDER,
+            shaderDataChanged: RENDER,
             drawnPattern: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            arrowHeadStackCaps: READ,
+            arrowTailStackCaps: READ,
             drawnGradient: READ,
             invalidatePositionCache: RENDER,
             update: RENDER,
             updateStyle: RENDER,
+            refreshFonts: RENDER,
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
@@ -1803,6 +1956,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             transformEdgeMesh: RENDER,
             transformArrowCap: RENDER,
             getInterceptPoints: READ,
+            supportEdge: READ,
         },
     },
     {
@@ -1818,8 +1972,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            groupOutlineClick: EVENTS,
         },
     },
     {
@@ -1870,6 +2026,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
+            rankSets: READ,
+            supportPoints: RENDER,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
@@ -1966,6 +2124,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: LIFECYCLE,
             isCurrent: READ,
             building: READ,
+            preStepsInFlight: READ,
             loadArrangement: DERIVED,
             dimension: READ,
             step: TRANSPORT,
@@ -1994,8 +2153,20 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "SupportPoints",
+        file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "UpdateManager",
         file: "src/managers/UpdateManager.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "PendingWork",
+        file: "src/managers/PendingWork.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -2176,6 +2347,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            getUpdateManager: READ,
             onNodeLabelCounts: READ,
         },
     },
@@ -2775,26 +2947,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
-            // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
-            load: calls(
-                [],
-                [
-                    {
-                        op: "data.import",
-                        source: { type: "json", config: { data: TINY_JSON } },
-                        tables: ["json"],
-                        mode: "replace",
-                        held: {
-                            nodes: [{ id: "j1" }, { id: "j2" }],
-                            edges: [{ src: "j1", dst: "j2" }],
-                            declaredDirection: null,
-                            errors: [],
-                            errorLimit: 100,
-                        },
-                        input: "i1",
-                    },
-                ],
-            ),
+            // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
+            // nodes named by the file's label column, as `data.import` names them.
+            load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
             dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
         },
     },
@@ -2977,6 +3132,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             name: READ,
+            id: READ,
             dirty: READ,
             rename: {
                 kind: "dispatches",
@@ -3032,6 +3188,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
         },
+    },
+    {
+        name: "AssetsApi",
+        file: "src/session/assets/AssetsApi.ts",
+        half: "session",
+        whole: exempt(
+            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+        ),
+    },
+    {
+        name: "NetworkApi",
+        file: "src/session/network.ts",
+        half: "session",
+        whole: exempt(
+            "Answers to a waiting fetch are the reader's trust, not graph content: no step and no recipe entry. Nothing of it is saved in the project file: what a reader remembers for a project the page keeps and hands back with setProjectHosts.",
+        ),
     },
     {
         name: "JournalApi",
@@ -3103,12 +3275,16 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             data: READ,
             runAlgorithmsOnLoad: READ,
             background: READ,
+            backgroundColor: READ,
             selectionStyle: READ,
             pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
             runPlacement: READ,
             layoutBehavior: READ,
+            layoutTransition: READ,
+            viewRotation: READ,
+            framing: READ,
             author: READ,
             name: READ,
             acceleration: READ,
@@ -3202,16 +3378,35 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            restoreConditions: calls(
+                [[{ id: "c1", on: true, effect: "select", rule: { kind: "degree", min: 1 } }]],
+                [
+                    {
+                        op: "visibility.conditions",
+                        conditions: [{ id: "c1", on: true, effect: "select", rule: { kind: "degree", min: 1 } }],
+                    },
+                ],
+            ),
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            commitWindow: calls(
+                [{ attribute: "data.t", from: 0, to: 1 }],
+                [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 }, ownStep: true }],
+            ),
             slideWindow: exempt(
                 "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
             ),
         },
+    },
+    {
+        name: "SessionShaders",
+        file: "src/session/shaders.ts",
+        half: "session",
+        doors: SHADERS_API,
     },
     {
         name: "SessionStylesApi",
@@ -3220,6 +3415,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...STYLES_API,
             compiled: READ,
+            modelUrlFromCode: READ,
         },
     },
     {
@@ -3244,6 +3440,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             init: LIFECYCLE,
             getNodePosition: READ,
             getEdgePosition: READ,
+            getNodeXlabelOffset: READ,
+            isNodeXlabelLeftOut: READ,
             step: TRANSPORT,
             nodes: READ,
             edges: READ,
@@ -3407,7 +3605,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             sync: RENDER,
             status: READ,
+            loading: READ,
             attributionOffset: CAMERA,
+            globeLook: VIEW_SETTING,
             dispose: LIFECYCLE,
         },
     },
@@ -3431,10 +3631,41 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawNow: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
+            backgroundOverride: RENDER,
+            bindShaderScene: RENDER,
+            pickGroupOutline: READ,
+            shaderPasses: READ,
+            shaderPicturePending: READ,
             applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
+            canvasInView: READ,
+            shaderGuard: RENDER,
         },
+    },
+    {
+        name: "ShaderGuard",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "RenderTargetBudget",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashCounter",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashReadback",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "DefaultGraphContext",
@@ -3524,13 +3755,12 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
  * - `edit`: it takes its place in line when called, and lands on what the loads ahead of it
  *   loaded; a clear asked for after it while it waits cancels it.
  * - `clear`: it cancels every load and edit still waiting, and lands at once.
- * - `{ direct: issue }`: it still dispatches at once, outside the line, until that issue routes it.
  *
  * `test/session/load-entry.test.ts` fails on any row, of either half, that dispatches a graph op
  * and has no entry here, and calls every session entry with a load held in line to check the door
  * keeps to it.
  */
-export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { readonly direct: number }>> = {
+export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
     "SessionDataApi.updateNodes": "edit",
@@ -3557,7 +3787,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { r
     "LoadDraft.load": "load",
     // The autosave restore opens through it.
     "ProjectApi.open": "load",
-    // The renderer half: its loads and clear take the line; its edits do not yet.
+    // The renderer half: its loads, edits and clears take the same line (issue #3604).
     "Graph.addDataFromSource": "load",
     "Graph.loadFromFile": "load",
     "Graph.loadFromUrl": "load",
@@ -3571,36 +3801,36 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { r
     "Graphty.clearData": "clear",
     "Graphty.nodeData": "edit",
     "Graphty.edgeData": "edit",
-    "Graph.addNode": { direct: 3604 },
-    "Graph.addNodes": { direct: 3604 },
-    "Graph.addEdge": { direct: 3604 },
-    "Graph.addEdges": { direct: 3604 },
-    "Graph.removeNodes": { direct: 3604 },
-    "Graph.removeEdges": { direct: 3604 },
-    "Graph.updateNodes": { direct: 3604 },
-    "Graph.updateEdges": { direct: 3604 },
-    "Graph.batchOperations": { direct: 3604 },
-    "Graph.setData": { direct: 3604 },
-    "Graph.setNodes": { direct: 3604 },
-    "Graph.setEdges": { direct: 3604 },
-    "Graphty.addNode": { direct: 3604 },
-    "Graphty.addNodes": { direct: 3604 },
-    "Graphty.addEdge": { direct: 3604 },
-    "Graphty.addEdges": { direct: 3604 },
-    "Graphty.removeNodes": { direct: 3604 },
-    "Graphty.removeEdges": { direct: 3604 },
-    "Graphty.updateNodes": { direct: 3604 },
-    "Graphty.updateEdges": { direct: 3604 },
-    "Graphty.batchOperations": { direct: 3604 },
-    "Graphty.setData": { direct: 3604 },
-    "DataManager.addNode": { direct: 3604 },
-    "DataManager.addNodes": { direct: 3604 },
-    "DataManager.addEdge": { direct: 3604 },
-    "DataManager.addEdges": { direct: 3604 },
-    "DataManager.removeEdge": { direct: 3604 },
-    "DataManager.removeNodeAndIncidentEdges": { direct: 3604 },
-    "DataManager.setNodes": { direct: 3604 },
-    "DataManager.setEdges": { direct: 3604 },
-    "DataManager.clear": { direct: 3604 },
-    "DataManager.addDataFromSource": { direct: 3604 },
+    "Graph.addNode": "edit",
+    "Graph.addNodes": "edit",
+    "Graph.addEdge": "edit",
+    "Graph.addEdges": "edit",
+    "Graph.removeNodes": "edit",
+    "Graph.removeEdges": "edit",
+    "Graph.updateNodes": "edit",
+    "Graph.updateEdges": "edit",
+    "Graph.batchOperations": "edit",
+    "Graph.setData": "edit",
+    "Graph.setNodes": "edit",
+    "Graph.setEdges": "edit",
+    "Graphty.addNode": "edit",
+    "Graphty.addNodes": "edit",
+    "Graphty.addEdge": "edit",
+    "Graphty.addEdges": "edit",
+    "Graphty.removeNodes": "edit",
+    "Graphty.removeEdges": "edit",
+    "Graphty.updateNodes": "edit",
+    "Graphty.updateEdges": "edit",
+    "Graphty.batchOperations": "edit",
+    "Graphty.setData": "edit",
+    "DataManager.addNode": "edit",
+    "DataManager.addNodes": "edit",
+    "DataManager.addEdge": "edit",
+    "DataManager.addEdges": "edit",
+    "DataManager.removeEdge": "edit",
+    "DataManager.removeNodeAndIncidentEdges": "edit",
+    "DataManager.setNodes": "edit",
+    "DataManager.setEdges": "edit",
+    "DataManager.clear": "clear",
+    "DataManager.addDataFromSource": "load",
 };

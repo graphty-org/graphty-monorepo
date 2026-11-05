@@ -42,7 +42,14 @@ import type {
 import type { LossNote } from "../../types.js";
 import { graphvizFontName, postscriptFont } from "../dot/drawing.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { drawLines, drawsLineLabels, drawVertices, type PajekDraw } from "./draw.js";
+import {
+    drawLines,
+    drawsLineLabels,
+    drawsStraightLines,
+    drawVertices,
+    finishesLinesAtBorder,
+    type PajekDraw,
+} from "./draw.js";
 import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN, VALUE_COLUMN } from "./syntax.js";
 
 /**
@@ -79,6 +86,7 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "arrowSize",
         "arrowPosition",
         "label",
         "labelColor",
@@ -107,6 +115,14 @@ const PAJEK_FIGURES: ReadonlyMap<string, readonly [number, number]> = new Map([
     ["other:man", [2.502, 6.487]],
     ["other:woman", [3.003, 6.478]],
 ]);
+
+/**
+ * The factor Pajek draws a man or a woman at along an axis whose `x_fact` or `y_fact` the line leaves unset: 0.3, not
+ * the 1 of every other shape (`pajek-synth-vertices`: a man that sets neither, vertices 24, 48 and 81, is drawn 15.02
+ * across, 0.3 of the 50.05 of `x_fact 1`, and 30.55 tall from his feet to his head, 0.3 of `y_fact 1`'s 101.83; a woman
+ * that sets neither, vertices 9, 33 and 57, 16.30 across, 0.3 of `x_fact 1`'s 54.35).
+ */
+const PAJEK_FIGURE_UNSET_FACTOR = 0.3;
 
 /**
  * Points per coordinate unit: "When Postscript picture is obtained, the square [0,1]x[0,1] is transformed to
@@ -151,11 +167,12 @@ const CARRIED: Readonly<Record<StyleTarget, readonly string[]>> = {
 };
 
 /**
- * What Pajek 6.02 carries from line to line as it reads: not the pattern `p`, which the writer still restates
- * (`pajek-synth-lines`: edge `3 10` after `1 8 ... p Dots` and arc `5 6 -1` after a `p Solid` are drawn as if no line
- * before set one).
+ * What Pajek 6.02 carries from line to line as it reads: not the pattern `p` nor the arrowhead's place `ap`, which the
+ * writer still restates (`pajek-synth-lines`: edge `3 10` after `1 8 ... p Dots` and arc `5 6 -1` after a `p Solid`
+ * are drawn as if no line before set one; arcs `11 12` after `10 11 ... ap 0.5` and `18 19` after `17 18 ... ap 0.25`
+ * have their arrowheads at their targets).
  */
-const CARRIED_LINE: readonly string[] = CARRIED.edge.filter((key) => key !== "p");
+const CARRIED_LINE: readonly string[] = CARRIED.edge.filter((key) => key !== "p" && key !== "ap");
 
 /** The width Pajek draws an edge (undirected) at for each unit of `w`; an arc is drawn `w` wide. */
 const EDGE_WIDTH_PER_W = 2;
@@ -205,6 +222,7 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "shape",
         "shapePoints",
         "shapePointsStretch",
+        "shapeRotation",
         "fill",
         "fillOpacity",
         "borderColor",
@@ -318,14 +336,23 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readFont(get("font"), put, at);
-    readLabelPosition(get, put, at);
-    readLabelAngle(get("la"), put, at, place);
-    if (shape === "none") {
-        // an `empty` vertex's label is drawn white at size 1 on its center, whatever the line sets
-        // (`pajek-synth-vertices` `empty *`, `pajek-lin-rel4` v226 to v233)
-        for (const [property, value] of EMPTY_LABEL) {
-            put(property, value);
+    const empty = shape === "none";
+    const turn = readLabelAngle(get("la"), put, at, place);
+    readLabelPosition(get, put, at, empty ? EMPTY_LABEL_SIZE : null, turn);
+    if (empty) {
+        // an `empty` vertex's label is drawn white at size 1 where the line does not say otherwise, in the place
+        // `lr` and `lphi` give as any label's (`pajek-synth-vertices` `empty *`: `fos 18`, `lc Yellow`, `lr 12 lphi
+        // 225` all drawn; `pajek-lin-rel4` v226 to v233)
+        if (get("fos") === null) {
+            put("labelSize", EMPTY_LABEL_SIZE);
         }
+        if (get("lc") === null) {
+            put("labelColor", "#ffffff");
+        }
+        // and has no size: Pajek draws its lines to its center, whatever x_fact and y_fact say (`pajek-lin-rel4`
+        // v228 -> v23, `pajek-synth-vertices` 6 -> 7); a sized box stops graphty's lines short of it
+        put("width", 0);
+        put("height", 0);
     }
 }
 
@@ -370,14 +397,20 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 /** A diamond's `q` where the line sets none (Pajek's shipped SHAPES.CFG). */
 const PAJEK_DIAMOND_Q = 0.001;
 
+/** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
  * cut `q` of its half width wide (`pajek-specimen-node-shapes`: `q 0.001` by default, `q 0.5` a hexagon, `q 1` a
  * square, `q 2` a bow tie twice as wide), and `phi` turns a box, a triangle, a house or a diamond `phi` degrees
  * counterclockwise about its center (`phi-30-box`, `phi-90-triangle`: Pajek draws the shape at its size, then turns
  * it). ponytail: the corners are fractions of the size the line gives (`x_fact`, `y_fact`); a turned shape whose width
- * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. A turned ellipse,
- * man or woman is drawn unturned: an outline of corners would draw an ellipse as a polygon.
+ * and height the Draw window's Size of Vertices or vectors scale apart is turned in the wrong box. An ellipse keeps
+ * its shape and is turned whole (`shapeRotation`, clockwise): `pajek-specimen-node-shapes` `phi-30-ellipse-wide` is
+ * drawn 30 x 20 turned 30 degrees. So are a cross, a man and a woman (`TURNED_WHOLE`): `pajek-synth-vertices` v5, a
+ * cross 20 x 30 at `phi 60`, is drawn 27.8 x 22.9, and woman 41 at `phi 60` lies on her side, as do
+ * `pajek-specimen-node-shapes` `phi-30-man` and `phi-90-man`.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param shape - its shape
@@ -394,7 +427,13 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
         [-q, -1],
     ];
     const corners = shape === "diamond" ? diamond : PAJEK_OUTLINES.get(String(shape));
-    if (corners === undefined || (shape !== "diamond" && phi % 360 === 0)) {
+    if (corners === undefined) {
+        if (phi % 360 !== 0 && TURNED_WHOLE.has(String(shape))) {
+            put("shapeRotation", -phi);
+        }
+        return;
+    }
+    if (shape !== "diamond" && phi % 360 === 0) {
         return;
     }
     // turned in the drawn box, x_fact by y_fact, and back to fractions of it
@@ -410,15 +449,8 @@ function readOutline(get: Param, put: Put, shape: StyleValue | null): void {
     put("shapePointsStretch", false);
 }
 
-/** How Pajek 6.02's SVG export draws an `empty` vertex's label. */
-const EMPTY_LABEL: readonly (readonly [string, StyleValue])[] = [
-    ["labelSize", 1],
-    ["labelColor", "#ffffff"],
-    ["labelPosition", "center"],
-    ["labelOffsetX", 0],
-    ["labelOffsetY", 0],
-    ["labelShiftX", 0],
-];
+/** The size Pajek 6.02's SVG export draws an `empty` vertex's label at when the line sets no `fos`. */
+const EMPTY_LABEL_SIZE = 1;
 
 /** A vertex's place in the file's own coordinates, 0..1 across and down. */
 type Place = readonly [x: number, y: number];
@@ -454,15 +486,19 @@ function readFont(raw: unknown, put: Put, at: At): void {
  * @param put - receives the value
  * @param at - the sites
  * @param place - the vertex's place in the file's coordinates, or null
+ * @returns the rotation, degrees clockwise, or null when unread
  */
-function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): void {
+function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): number | null {
     let a = raw === null ? null : canonNumber(raw, at("labelRotation"));
     if (a !== null && a >= 360) {
         a = place === null ? null : (Math.atan2(0.5 - place[1], place[0] - 0.5) * 180) / Math.PI + a - 360;
     }
-    if (a !== null) {
-        put("labelRotation", Number(((((360 - a) % 360) + 360) % 360).toPrecision(12)));
+    if (a === null) {
+        return null;
     }
+    const turn = Number(((((360 - a) % 360) + 360) % 360).toPrecision(12));
+    put("labelRotation", turn);
+    return turn;
 }
 
 /**
@@ -470,7 +506,7 @@ function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): vo
  * that sets neither is left to the default beneath. The manual (p. 89) calls `s_size` "default size", but Pajek 6.02
  * draws a vertex the same size whatever its `s_size` (`pajek-specimen-node-sizes-opacity`: `s_size` 0.5, 2 and 3 all
  * drawn 36 across at `x_fact 1.8`), so it is not read. A man or a woman is the box of the figure Pajek draws for
- * that size (`PAJEK_FIGURES`), set or not.
+ * that size (`PAJEK_FIGURES`), set or not, at `PAJEK_FIGURE_UNSET_FACTOR` along an axis the line sets no factor for.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
@@ -485,7 +521,8 @@ function readSize(get: Param, put: Put, at: At, figure?: readonly [number, numbe
         if (f === null && figure === undefined) {
             continue;
         }
-        const factor = f === null ? 1 : canonNumber(f, at(property));
+        const unset = figure === undefined ? 1 : PAJEK_FIGURE_UNSET_FACTOR;
+        const factor = f === null ? unset : canonNumber(f, at(property));
         const over = figure?.[k] ?? 1;
         put(property, factor === null ? null : Number((PAJEK_VERTEX_SIZE * factor * over).toPrecision(15)));
     }
@@ -523,24 +560,34 @@ const NEAREST_SIDES: ReadonlyMap<string, string> = new Map([
  * the vertex center, 0 centering it, and `lphi` its angle in degrees counterclockwise. Pajek 6.02's SVG export starts
  * the text at that point, its baseline through it (`text-anchor` start at y = the point), so the label's left edge is
  * at the point's x (`labelShiftX` 0.5) and its middle `PAJEK_BASELINE_TO_MIDDLE` of its size above the point's y
- * (`pajek-specimen-labels` `lr-*`, `lphi-*`; every corpus label). A vertex that sets none of `lr`, `lphi` and `fos`
- * is left to the default beneath, the same place at the default size.
+ * (`pajek-specimen-labels` `lr-*`, `lphi-*`; every corpus label). A label turned by `la` turns about that point, so
+ * its left middle, which graphty turns it about, turns with it (`pajek-synth-vertices` v39 `la 60 lr 12 lphi 270`:
+ * `translate(140 262) rotate(-60)`). A vertex that sets none of `lr`, `lphi`, `fos` and `la` is left to the default
+ * beneath, the same place at the default size, unless its label's default size is another.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
+ * @param ownSize - the label's size where `fos` is unset, when it is not Pajek's default (an `empty` vertex's), or null
+ * @param turn - the label's rotation, degrees clockwise (`readLabelAngle`), or null
  */
-function readLabelPosition(get: Param, put: Put, at: At): void {
+function readLabelPosition(
+    get: Param,
+    put: Put,
+    at: At,
+    ownSize: number | null = null,
+    turn: number | null = null,
+): void {
     const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
-    if (lr === null && lphi === null && fos === null) {
+    if (lr === null && lphi === null && fos === null && ownSize === null && !turn) {
         return;
     }
     const radius = lr === null ? PAJEK_LABEL_RADIUS : canonNumber(lr, at("labelPosition"));
     const angle = lphi === null ? PAJEK_LABEL_ANGLE : canonNumber(lphi, at("labelPosition"));
-    const size = fos === null ? PAJEK_LABEL_SIZE : canonNumber(fos, at("labelSize"));
+    const size = fos === null ? (ownSize ?? PAJEK_LABEL_SIZE) : canonNumber(fos, at("labelSize"));
     if (radius === null || angle === null || size === null) {
         return;
     }
-    const [x, y] = labelOffset(radius, angle, size);
+    const [x, y] = labelOffset(radius, angle, size, turn ?? 0);
     put("labelPosition", "center");
     put("labelOffsetX", x);
     put("labelOffsetY", y);
@@ -549,19 +596,23 @@ function readLabelPosition(get: Param, put: Put, at: At): void {
 
 /**
  * Where Pajek's polar label parameters put a label, from the vertex center, y down: the middle of its left edge, or
- * its middle when `lr` is 0, which centers it.
+ * its middle when `lr` is 0, which centers it. The middle is above the baseline's start in the label's own frame,
+ * turned with it.
  * @param radius - `lr`
  * @param angle - `lphi`, degrees counterclockwise
  * @param size - the label's size
+ * @param turn - the label's rotation, degrees clockwise
  * @returns the offset across and down
  */
-function labelOffset(radius: number, angle: number, size: number): [number, number] {
+function labelOffset(radius: number, angle: number, size: number, turn = 0): [number, number] {
     if (radius === 0) {
         return [0, 0];
     }
     const t = (angle * Math.PI) / 180;
+    const u = (turn * Math.PI) / 180;
+    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
     const round = (v: number): number => Number(v.toFixed(9)) + 0;
-    return [round(radius * Math.cos(t)), round(-radius * Math.sin(t) - PAJEK_BASELINE_TO_MIDDLE * size)];
+    return [round(radius * Math.cos(t) + rise * Math.sin(u)), round(-radius * Math.sin(t) - rise * Math.cos(u))];
 }
 
 /**
@@ -620,7 +671,7 @@ function readLine(
     }
     // an arrowhead is 6 x `s` long and 5 x `s` wide; `s` 1, Pajek's normal size, is 6 long (the pajek tool arrowhead)
     readNumber(get("s"), "arrowSize", put, at);
-    readArrowPosition(get("ap"), put, at);
+    readArrowPosition(get("ap"), put, at, run, get("s"));
     // a loop is drawn as the Bezier route of a line PAJEK_POINTS_PER_UNIT long to the right, its two ends on the node
     const line = loop === null ? get : loopParam(get);
     const controls = loop === null ? null : readLoop(line, put, loop);
@@ -810,47 +861,95 @@ function readBezier(get: Param, put: Put, run: Run | null): void {
     put("bends", controls.map(([along, across]) => `${fraction(along)},${fraction(across)}`).join(" "));
 }
 
+/** How far back from its target's outline, as the file sizes it, Pajek 6.02 draws a Bezier arc's arrowhead tip. */
+const PAJEK_TIP_BACK = 1.5;
+
 /**
  * Where Pajek 6.02's SVG export ends an arc's Bezier route (`readBezier`): at its arrowhead's back, not at its target's
  * center. It places the arrowhead as on a straight arc, its tip 1.5 short of where the straight line meets the
  * target's outline, turns it `-a2` degrees about that point, and runs the curve from the source's center to the
  * arrowhead's back, its control points measured on that shorter line (`pajek-specimen-edges-lines-p2`
  * `route-bezier-opposite-arc`: the arrowhead's back at (347.02, 124.32), 6.5 back from the outline at (352, 128.5),
- * turned 40 degrees; `route-bezier-same-arc` at (571.02, 132.68), turned -40). graphty draws the route to the target's
- * center and stops it at the outline, so the curve's control points are written in the frame of that line.
- * ponytail: the outline is the ellipse of the vertex's width and height, as the file sizes it (before the Draw
- * window's Size of Vertices or vectors), whatever its shape.
+ * turned 40 degrees; `route-bezier-same-arc` at (571.02, 132.68), turned -40). The curve's control points are written
+ * in the frame of the line between the two centers, which graphty places bends in, and the route ends at a target port
+ * on the arrowhead's tip, 1.5 back from the outline along the turned arrowhead, so graphty's curve runs through the
+ * same control points to where Pajek's arrowhead ends: drawn to the target's center instead, the curve bowed 0.135 of
+ * its chord where Pajek's bows 0.196 (`pajek-specimen-arrows` `arrow-bezier`). ponytail: the outline is the ellipse
+ * of the vertex's width and height, as the file sizes it (before the Draw window's Size of Vertices or vectors),
+ * whatever its shape. Under Lines finished at Vertex Border the curve starts where the straight line leaves the
+ * source's outline instead, its control points measured on the line from there (`pajek-specimen-arrows-p3`
+ * `arrow-bezier`: M 64 709.33, 6 right of the source's center, against M 58 709.33 on the default page), and the route
+ * starts at a source port there.
  * @param get - the line's parameters
  * @param put - receives the values
  * @param run - the line from its source's center to its target's, in drawn units, y down
  * @param target - the target vertex's width and height
+ * @param source - the source vertex's width and height under Lines finished at Vertex Border, else null
+ * @returns whether the arc's route ends at its arrowhead's tip (a target port)
  */
-function readArcEnd(get: Param, put: Put, run: Run, target: readonly [number, number]): void {
+function readArcEnd(
+    get: Param,
+    put: Put,
+    run: Run,
+    target: readonly [number, number],
+    source: readonly [number, number] | null = null,
+): boolean {
     const ap = numberOrNull(get("ap")) ?? 0;
     const length = Math.hypot(run[0], run[1]);
     if (ap !== 0 || length === 0 || bezierControls(get, run) === null) {
-        return;
+        return false;
     }
     const [ux, uy] = [run[0] / length, run[1] / length];
     // the straight line meets the outline r from the target's center; the arrowhead's back is 1.5 + 5 s before it
     const r = 1 / Math.hypot(ux / (target[0] / 2), uy / (target[1] / 2));
-    const back = 1.5 + 5 * (numberOrNull(get("s")) ?? 1);
+    const back = PAJEK_TIP_BACK + 5 * (numberOrNull(get("s")) ?? 1);
     const turn = (-(numberOrNull(get("a2")) ?? 0) * Math.PI) / 180;
     const [c, s] = [Math.cos(turn), Math.sin(turn)];
-    // the arrowhead's back, from the source's center
-    const end: Run = [run[0] - r * ux - back * (ux * c - uy * s), run[1] - r * uy - back * (ux * s + uy * c)];
+    // where the curve starts, from the source's center: there, or on its outline
+    const rs = source === null ? 0 : 1 / Math.hypot(ux / (source[0] / 2), uy / (source[1] / 2));
+    const start: Run = [rs * ux, rs * uy];
+    // the arrowhead's back, from where the curve starts
+    const end: Run = [
+        run[0] - r * ux - back * (ux * c - uy * s) - start[0],
+        run[1] - r * uy - back * (ux * s + uy * c) - start[1],
+    ];
     const controls = bezierControls(get, end);
     if (controls === null) {
-        return;
+        return false;
     }
     // each control point on screen from the source's center, then along and to the left of the line to the target
     const L2 = length * length;
     const fraction = (x: number): string => String(Math.round(x * 1e4) / 1e4 || 0);
+    if (source !== null) {
+        put("sourcePort", `${fraction(start[0] / (source[0] / 2))},${fraction(-start[1] / (source[1] / 2))}`);
+    }
     const bends = controls.map(([along, left]) => {
-        const [x, y] = [along * end[0] + left * end[1], along * end[1] - left * end[0]];
+        const [x, y] = [start[0] + along * end[0] + left * end[1], start[1] + along * end[1] - left * end[0]];
         return `${fraction((x * run[0] + y * run[1]) / L2)},${fraction((x * run[1] - y * run[0]) / L2)}`;
     });
     put("bends", bends.join(" "));
+    // the tip, from the target's center: 1.5 back from the outline along the turned arrowhead; a port is a fraction of
+    // the half width and half height, y up
+    const tip: Run = [-r * ux - PAJEK_TIP_BACK * (ux * c - uy * s), -r * uy - PAJEK_TIP_BACK * (ux * s + uy * c)];
+    put("targetPort", `${fraction(tip[0] / (target[0] / 2))},${fraction(-tip[1] / (target[1] / 2))}`);
+    return true;
+}
+
+/** How far short of its target's outline, border and all, Pajek 6.02 stops an arc's arrowhead, in px. */
+const PAJEK_TIP_GAP = 1;
+
+/**
+ * Where an arc's arrowhead stops: PAJEK_TIP_GAP short of its target's outline, whatever the arrowhead's size `s` (6
+ * x `s` long), so a share of its length of 1 / (6 `s`) (`pajek-synth-lines`: every arc's tip 1.25 from the center
+ * of a vertex 20 across with a border 0.5 wide, `s` 1 to 5; the specimen sheets' 1.5 with a border 1 wide).
+ * @param get - the line's parameters
+ * @param put - receives the value
+ */
+function readTipGap(get: Param, put: Put): void {
+    const s = numberOrNull(get("s")) ?? 1;
+    if (s > 0) {
+        put("targetArrowGap", Number((PAJEK_TIP_GAP / (6 * s)).toPrecision(6)));
+    }
 }
 
 /**
@@ -1014,26 +1113,48 @@ function numberOrNull(raw: unknown): number | null {
     return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
+/** How far ahead of the point `ap` names, toward the target, Pajek 6.02 draws a part-way arrowhead's tip, per `s`. */
+const PAJEK_AP_TIP_AHEAD = 5;
+
+/** The least share a part-way arrowhead is placed at: above 0, which is graphty's arrowhead at the end. */
+const PAJEK_AP_LEAST = 1e-6;
+
 /**
  * Where a line's arrowhead sits, Pajek's `ap` (manual p. 90): a fraction of the line from its end up to 1 (0.5 is the
- * middle); a value above 1 is a distance from the end, which the vocabulary does not hold, so it is noted and not read.
+ * middle); a value above 1 is a distance from the target's center in px (`pajek-synth-lines` arc `3 4 ... ap 20`),
+ * read as its share of a placed line and noted on an unplaced one. Pajek 6.02's SVG export draws the head from 1 `s`
+ * behind that point to its tip 5 `s` ahead of it, toward the target (`pajek-specimen-arrows` arc 27 28 `ap 0.5`: the
+ * point at the middle, x 432, the tip at 437), while graphty's `arrowPosition` places the tip; so a placed line gets
+ * its tip's share. An unplaced line keeps the fraction: its length is graphty's layout's.
  * @param raw - the parameter's value, or null
  * @param put - receives the value
  * @param at - the sites
+ * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
+ * @param size - the arrowhead's size `s`, or null for Pajek's 1
  */
-function readArrowPosition(raw: unknown, put: Put, at: At): void {
+function readArrowPosition(raw: unknown, put: Put, at: At, run: Run | null = null, size: unknown = null): void {
     if (raw === null) {
         return;
     }
     const ap = canonNumber(raw, at("arrowPosition"));
-    if (ap !== null && ap > 1) {
-        noteAt(at("arrowPosition"), STYLE_ISSUE.NOT_CARRIED, `ap ${String(ap)}`);
+    // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
+    if (ap === null || ap === 0) {
         return;
     }
-    // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
-    if (ap !== 0) {
-        put("arrowPosition", ap);
+    const length = run === null ? 0 : Math.hypot(run[0], run[1]);
+    if (length === 0) {
+        if (ap > 1) {
+            noteAt(at("arrowPosition"), STYLE_ISSUE.NOT_CARRIED, `ap ${String(ap)}`);
+        } else {
+            put("arrowPosition", ap);
+        }
+        return;
     }
+    const tip = (ap > 1 ? ap : ap * length) - PAJEK_AP_TIP_AHEAD * (numberOrNull(size) ?? 1);
+    // a tip past the target's center is drawn at the node, the line still running on under it as Pajek's does. ponytail:
+    // the share is of the line between the centers, graphty's of the line between the outlines: off by up to a node's
+    // radius, and Lines finished at Vertex Border (`pajek-specimen-arrows-p3`) is not read
+    put("arrowPosition", Number(Math.min(1, Math.max(PAJEK_AP_LEAST, tip / length)).toPrecision(6)));
 }
 
 /**
@@ -1074,6 +1195,81 @@ function directedEdges(snapshot: GraphSnapshot): boolean[] {
     return out;
 }
 
+/** The Bezier route Pajek 6.02 draws an arc on that shares its two vertices with another arc. */
+const SHARED_ARC_BOW: Readonly<Record<string, number>> = { a1: 15, k1: 0.25, a2: 15, k2: 0.25 };
+
+/**
+ * The arcs Pajek 6.02 bows apart, and to which side: an arc that shares its two vertices with another arc, either way
+ * round, is drawn as `a1 15 k1 0.25 a2 15 k2 0.25` (`pajek-synth-lines`: 20 -> 30 and 30 -> 20, each bowed to the
+ * same side of its own way, so apart; `pajek-iliad` 14 -> 72 and 72 -> 14), and of two that run the same way the first is bowed the
+ * other way, `a1 -15 a2 -15` (`pajek-iliad`: the two arcs 250 -> 123). ponytail: three or more arcs the same way
+ * alternate sides, the last at `a1 15`; Pajek's drawing of them was not measured.
+ * @param snapshot - the graph
+ * @param directed - whether each edge is an arc
+ * @returns each bowed arc's side: 1 for `a1 15 a2 15`, -1 for `a1 -15 a2 -15`
+ */
+function sharedArcBows(snapshot: GraphSnapshot, directed: readonly boolean[]): Map<number, 1 | -1> {
+    const byPair = new Map<string, number[]>();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const [u, v] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+        if (directed[e] && u !== v) {
+            const key = u < v ? `${String(u)} ${String(v)}` : `${String(v)} ${String(u)}`;
+            byPair.set(key, [...(byPair.get(key) ?? []), e]);
+        }
+    }
+    const out = new Map<number, 1 | -1>();
+    for (const arcs of byPair.values()) {
+        if (arcs.length < 2) {
+            continue;
+        }
+        for (const e of arcs) {
+            const same = arcs.filter((x) => snapshot.edgeSource(x) === snapshot.edgeSource(e));
+            out.set(e, (same.length - 1 - same.indexOf(e)) % 2 === 0 ? 1 : -1);
+        }
+    }
+    return out;
+}
+
+/**
+ * A bowed arc's parameters (`sharedArcBows`): its own Bezier route when it sets one, else Pajek's bow to its side.
+ * @param get - the line's parameters
+ * @param side - 1 for `a1 15 a2 15`, -1 for `a1 -15 a2 -15`
+ * @returns the parameters
+ */
+function bowedParams(get: Param, side: 1 | -1): Param {
+    if (Object.keys(SHARED_ARC_BOW).some((key) => get(key) !== null)) {
+        return get;
+    }
+    return (key) => {
+        const bow = SHARED_ARC_BOW[key] as number | undefined;
+        if (bow === undefined) {
+            return get(key);
+        }
+        return key.startsWith("a") ? side * bow : bow;
+    };
+}
+
+/**
+ * An edge's parameters as seen from its other end. Pajek 6.02 starts an undirected line at its lower-numbered vertex
+ * and applies `a1` and `k1` there, whichever way the file writes it (`*Edges` `2 1 1 a1 45 k1 1 a2 75 k2 1` is drawn
+ * from 1, as `1 2` is; `pajek-c` `33 14` from 14). Seen from the higher-numbered end the same curve has its two ends'
+ * values swapped and its angles negated, so `bezierControls` places it in graphty's frame, from the line's source.
+ * @param get - the line's parameters, as the file writes them
+ * @returns the parameters from the line's other end
+ */
+function fromOtherEnd(get: Param): Param {
+    const swap: Readonly<Record<string, string>> = { a1: "a2", a2: "a1", k1: "k2", k2: "k1" };
+    return (key) => {
+        const other = swap[key] as string | undefined;
+        if (other === undefined) {
+            return get(key);
+        }
+        const value = get(other);
+        const angle = key.startsWith("a") ? numberOrNull(value) : null;
+        return angle === null ? value : -angle;
+    };
+}
+
 /**
  * The columns of a table that hold styles.
  * @param table - the node or edge table
@@ -1097,12 +1293,9 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     const labels = drawsLineLabels(draw);
     const place = places(snapshot);
     // Pajek stretches the file's 0..1 to its Draw window one axis at a time, 500 x 500 without one
-    const window = draw ?? { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
+    const window = draw ?? PAJEK_SQUARE;
     const loops = new Map<number, LoopControls>();
-    const runOf = (e: number): Run | null => {
-        const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
-        return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
-    };
+    const runOf = lineRuns(snapshot, window);
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -1135,14 +1328,35 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
                       loops.set(i, controls);
                   }
                 : null;
-        readLine(get, put, at, directed[i], labels, run, loop);
-        if (directed[i] && loop === null && run !== null) {
-            readArcEnd(get, put, run, targetSize(snapshot.edgeTarget(i)));
+        const bow = bows.get(i);
+        const [u, v] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
+        const own = !directed[i] && u > v ? fromOtherEnd(get) : get;
+        const line = bow === undefined ? own : bowedParams(own, bow);
+        readLine(line, put, at, directed[i], labels, run, loop);
+        // an arc's arrowhead stops short of its target: at the port on its tip of a Bezier route, else by its gap (a
+        // file graphty wrote keeps its gaps in its block)
+        const ported =
+            directed[i] &&
+            run !== null &&
+            readArcEnd(
+                line,
+                put,
+                run,
+                targetSize(snapshot.edgeTarget(i)),
+                atBorder ? targetSize(snapshot.edgeSource(i)) : null,
+            );
+        if (directed[i] && loop === null && !ported && block === null) {
+            readTipGap(get, put);
         }
         readLineValue(lineValue(i), get, put, directed[i]);
         readHooks(get, put, keywords[snapshot.edgeSource(i)], keywords[snapshot.edgeTarget(i)]);
     };
     const directed = directedEdges(snapshot);
+    const atBorder = finishesLinesAtBorder(draw);
+    // Straight Lines draws the arcs Pajek would bow apart straight, and a file graphty wrote keeps its routes in its
+    // block
+    const bows =
+        drawsStraightLines(draw) || block !== null ? new Map<number, 1 | -1>() : sharedArcBows(snapshot, directed);
     const keywords: unknown[] = [];
     const weights = explicitWeights(snapshot);
     // the line's value: its weight, or the `value` column when the import kept the value as an attribute
@@ -1164,7 +1378,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     }
     layLoops(snapshot, loops, node, edge);
     if (block !== null) {
-        exactFromBlock(snapshot, block, { node, edge }, labels);
+        exactFromBlock(snapshot, block, { node, edge }, labels, runOf);
     }
     // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
     const rules: StyleRule[] = [];
@@ -1207,7 +1421,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
 function places(snapshot: GraphSnapshot): (i: number) => Place | null {
     const col = snapshot.nodes.byRole("position");
     return (i) => {
-        const v: unknown = col === null || col === undefined ? null : col.value(i);
+        const v: unknown = col === null ? null : col.value(i);
         if (v === null || typeof v !== "object" || !("length" in v)) {
             return null;
         }
@@ -1215,6 +1429,29 @@ function places(snapshot: GraphSnapshot): (i: number) => Place | null {
         return typeof x === "number" && typeof y === "number" ? [x, y] : null;
     };
 }
+
+/**
+ * Each line from its source's center to its target's, in drawn units, as Pajek stretches the file's 0..1 to its Draw
+ * window, or null where either end is unplaced.
+ * @param snapshot - the graph
+ * @param window - the Draw window's size
+ * @param window.width - its width
+ * @param window.height - its height
+ * @returns the line of an edge
+ */
+function lineRuns(
+    snapshot: GraphSnapshot,
+    window: { readonly width: number; readonly height: number },
+): (e: number) => Run | null {
+    const place = places(snapshot);
+    return (e) => {
+        const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
+        return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
+    };
+}
+
+/** The Draw window a file is read in without the `pajekDraw` option. */
+const PAJEK_SQUARE = { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT } as const;
 
 /**
  * What the import kept for the styles: the `graphty.styles` block, the Draw window of the `pajekDraw` option, and the
@@ -1450,8 +1687,13 @@ function vertexSizeParams(get: Get, out: Map<string, Written>): void {
     ] as const;
     // a man's or a woman's box is the figure's, which reaches past the size its x_fact and y_fact give (readSize)
     const figure = PAJEK_FIGURES.get(String(get("shape")));
+    // an empty vertex has no size whatever it says (readVertex): none is written
+    const sized = get("shape") !== "none";
     for (const [property, key, per] of numbers) {
         const v = get(property);
+        if (!sized && key !== "fos") {
+            continue;
+        }
         let over = 1;
         if (figure !== undefined && key !== "fos") {
             over = figure[key === "x_fact" ? 0 : 1];
@@ -1548,9 +1790,15 @@ function lineDefaults(directed: boolean): {
  * @param get - the line's values
  * @param directed - whether the line is an arc
  * @param approximate - records approximations
+ * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
  * @returns the parameters
  */
-function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<string, Written> {
+function lineParams(
+    get: Get,
+    directed: boolean,
+    approximate: Approximate,
+    run: Run | null = null,
+): Map<string, Written> {
     const out = new Map<string, Written>();
     opaque(get, ["opacity"], approximate);
     const defaults = lineDefaults(directed);
@@ -1566,10 +1814,7 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, out, directed, approximate)) {
         out.set("p", "Dots");
     }
-    const position = get("arrowPosition");
-    if (typeof position === "number" && position > 0) {
-        out.set("ap", position);
-    }
+    arrowParams(get, out, run);
     lineLabelParams(get, out, approximate);
     const target = get("targetArrow");
     if (target !== null && target !== (directed ? "triangle" : "none")) {
@@ -1580,6 +1825,29 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         approximate("sourceArrow", source);
     }
     return out;
+}
+
+/**
+ * A line's arrowhead parameters: its size `s`, which also places a Bezier arc's end (`readArcEnd`), and its place `ap`.
+ * @param get - the line's values
+ * @param out - the parameters, changed in place
+ * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
+ */
+function arrowParams(get: Get, out: Map<string, Written>, run: Run | null = null): void {
+    const arrowSize = get("arrowSize");
+    if (typeof arrowSize === "number" && arrowSize !== 1) {
+        out.set("s", arrowSize);
+    }
+    const position = get("arrowPosition");
+    if (typeof position !== "number" || position <= 0) {
+        return;
+    }
+    // the point `ap` names is 5 s behind the tip graphty places (`readArrowPosition`): a share up to 1, past it a
+    // distance from the target's center
+    const length = run === null ? 0 : Math.hypot(run[0], run[1]);
+    const ahead = PAJEK_AP_TIP_AHEAD * (typeof arrowSize === "number" ? arrowSize : 1);
+    const share = length === 0 ? position : position + ahead / length;
+    out.set("ap", Number((share <= 1 ? share : position * length + ahead).toPrecision(6)));
 }
 
 /**
@@ -1642,12 +1910,14 @@ function pajekDots(
  * @param read.node - the node values
  * @param read.edge - the edge values
  * @param labels - whether the lines' labels are drawn
+ * @param runOf - each line from its source's center to its target's, or null when unplaced
  */
 function exactFromBlock(
     snapshot: GraphSnapshot,
     text: string,
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
     labels: boolean,
+    runOf: (e: number) => Run | null,
 ): void {
     const notes = new StyleNotes();
     const directed = directedEdges(snapshot);
@@ -1656,19 +1926,18 @@ function exactFromBlock(
         properties: READ[target],
         writes: PAJEK_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
-            const back = writtenAndReadBack(target, want, directed[i], notes, labels);
+            const back = writtenAndReadBack(
+                target,
+                want,
+                directed[i],
+                notes,
+                labels,
+                target === "edge" ? runOf(i) : null,
+            );
             return (property) => back.get(property) ?? null;
         },
-        // a label the block places by a side clears the offsets its `lphi` reads back as
-        take: (property, wanted) => wanted !== null || LABEL_PLACE.has(property) || OUTLINE.has(property),
     }));
 }
-
-/** The outline a shape written as `diamond` reads back as, which the block's own shape clears. */
-const OUTLINE: ReadonlySet<string> = new Set(["shapePoints", "shapePointsStretch"]);
-
-/** The label place properties a side written as `lphi` reads back as. */
-const LABEL_PLACE: ReadonlySet<string> = new Set(["labelOffsetX", "labelOffsetY", "labelShiftX"]);
 
 /**
  * An element's values written as the writer writes them and read back as the reader reads them.
@@ -1677,6 +1946,7 @@ const LABEL_PLACE: ReadonlySet<string> = new Set(["labelOffsetX", "labelOffsetY"
  * @param directed - for a line, whether it is an arc
  * @param notes - a scratch for the notes the round trip makes
  * @param labels - whether the lines' labels are drawn
+ * @param run - for a line, from its source's center to its target's, or null when unplaced
  * @returns the values read back, by property
  */
 function writtenAndReadBack(
@@ -1685,9 +1955,10 @@ function writtenAndReadBack(
     directed: boolean,
     notes: StyleNotes,
     labels: boolean,
+    run: Run | null = null,
 ): Map<string, StyleValue> {
     const ignore: Approximate = () => undefined;
-    const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore);
+    const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore, run);
     const back = new Map<string, StyleValue>();
     const label = target === "node" ? want("label") : null;
     if (typeof label === "string") {
@@ -1713,6 +1984,8 @@ function writtenAndReadBack(
         readVertex(get, put, at);
     } else {
         readLine(get, put, at, directed, labels);
+        // the arrowhead's place is read on the placed line, as the file's is
+        readArrowPosition(get("ap"), put, at, run, get("s"));
     }
     return back;
 }
@@ -1744,6 +2017,8 @@ export function pajekStyledExport(
     }
     const approximated = new StyleApproximations();
     const out = snapshot.withColumns();
+    // the lines as a reader without the `pajekDraw` option places them
+    const runOf = lineRuns(snapshot, PAJEK_SQUARE);
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
         const table = target === "node" ? out.nodes : out.edges;
@@ -1753,7 +2028,9 @@ export function pajekStyledExport(
         const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
-            target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
+            target === "node"
+                ? vertexParams(get(i), approximate)
+                : lineParams(get(i), directed[i], approximate, runOf(i));
         const columns = paramColumns(n, params);
         if (target === "edge") {
             keepLineLabels(snapshot, columns);
@@ -1908,6 +2185,8 @@ function lineRestated(key: string, directed: boolean): Written {
             return directed ? Number(defaults.width) : Number(defaults.width) / EDGE_WIDTH_PER_W;
         case "p":
             return "Solid";
+        case "s":
+            return 1;
         default:
             return 0;
     }

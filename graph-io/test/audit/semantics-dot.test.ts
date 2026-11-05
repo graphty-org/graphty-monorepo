@@ -8,6 +8,7 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { itemAt } from "../../src/common/text.js";
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
 import { readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
 
@@ -59,7 +60,7 @@ describe("DOT corpus facts: root.gv (1054 node statements, 1083 edge statements)
     ].map((m) => ({
         source: unquote(m[1]),
         target: unquote(m[2]),
-        attrs: attrsOf(m[3] ?? ""),
+        attrs: attrsOf(itemAt(m, 3) ?? ""),
     }));
 
     it("the raw file: a digraph named G_component_0 with 1054 distinct nodes and 1083 edges, no undeclared endpoint", () => {
@@ -520,9 +521,10 @@ describe("DOT quirks from DOTDataSource, the Graphviz grammar and research note 
         expect(cluster.snapshot.nodes.value("label", 0)).toBe("L");
         expect(cluster.snapshot.nodes.value("color", 0)).toBe("red");
         expect(cluster.snapshot.nodes.byRole("parent")?.value(1)).toBe(0);
-        const rank = await parse("digraph { { rank=same; a; b } a -> b }");
+        const rank = await parse("digraph { { rank=same; a; b } { color=red; a } a -> b }");
         expect(rank.snapshot.nodeCount).toBe(2);
-        expect(rank.report.issues.map((i) => i.code)).toContain("W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED");
+        expect(rank.snapshot.nodes.value("graphty.rank", 1)).toBe("same");
+        expect(rank.report.issues.map((i) => i.code)).toEqual(["W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED"]);
         const named = await parse("digraph { subgraph s { a; b } }");
         expect(named.snapshot.ids.toArray()).toEqual(["a", "b"]);
     });

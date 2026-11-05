@@ -15,13 +15,17 @@
  * and `config.set` refuses it. See design/undo/undo-design.md sections 3.1, 3.2 and 10.1.
  */
 
-import type { GraphBackgroundConfig, GraphSelectionStyleConfig } from "../../config/GraphStyle";
+import {
+    type GraphBackgroundConfig,
+    type GraphSelectionStyleConfig,
+    type LayoutTransitionConfig,
+} from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
-import type { ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -171,16 +175,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= (path === "startingRows" || path === "editableBase") && value === true;
-            // Designating or clearing a time field adds or takes away the Ghost row, and setting or
-            // clearing the pinned look the Pinned row. Only a change does: writing the value already
-            // in effect (a project opened over the same settings) adds nothing, so a project read
-            // into a cleared tree gets exactly the rows it saved.
-            restore ||=
-                !same &&
-                (path === "data.knownFields.nodeTimePath" ||
-                    path === "data.knownFields.edgeTimePath" ||
-                    path === "pinnedStyle");
+            restore ||= restoresStartingRows(path, value, same);
         }
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once
@@ -190,6 +185,28 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         }
     },
 };
+
+/**
+ * Whether writing a config key asks for the starting rows to be restored.
+ * @param path - The key.
+ * @param value - The value written (undefined to clear it).
+ * @param same - Whether the write leaves the value the key already reads as.
+ * @returns True when the starting rows are to be restored.
+ */
+function restoresStartingRows(path: string, value: unknown, same: boolean): boolean {
+    if ((path === "startingRows" || path === "editableBase") && value === true) {
+        return true;
+    }
+
+    // Designating or clearing a time field adds or takes away the Ghost row, and setting or
+    // clearing the pinned look the Pinned row. Only a change does: writing the value already
+    // in effect (a project opened over the same settings) adds nothing, so a project read
+    // into a cleared tree gets exactly the rows it saved.
+    return (
+        !same &&
+        (path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath" || path === "pinnedStyle")
+    );
+}
 
 /**
  * The project settings a slice holds, with every absent key at its default.
@@ -216,6 +233,9 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     Object.freeze(data.knownFields);
     const author = slice.get("author");
     const name = slice.get("name");
+    const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
+    const viewRotation = read("viewRotation") as number | undefined;
+    const framing = read("framing") as GraphFraming | undefined;
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -231,6 +251,9 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
+        ...(layoutTransition === undefined ? {} : { layoutTransition }),
+        ...(viewRotation === undefined ? {} : { viewRotation }),
+        ...(framing === undefined ? {} : { framing }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

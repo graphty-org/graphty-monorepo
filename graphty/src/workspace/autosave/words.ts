@@ -167,3 +167,12 @@ export function reopenedSentence(entry: AutosaveEntry, now = Date.now()): string
 export function dataCountsFact(nodes: number, edges: number): string {
     return `${String(nodes)} ${nodes === 1 ? "node" : "nodes"}, ${String(edges)} ${edges === 1 ? "edge" : "edges"}`;
 }
+
+/**
+ * What the status line says once this tab's own work reopened after a reload.
+ * @param name - the project's name.
+ * @returns the sentence.
+ */
+export function reopenedTabSentence(name: string): string {
+    return `Reopened ${name}`;
+}

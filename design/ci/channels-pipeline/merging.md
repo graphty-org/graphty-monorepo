@@ -148,8 +148,8 @@ running selected files instead of whole shards, and the build by caching.
 
 Critical path for a change inside one package: checkout and `pnpm install` 1.5 min, plan about 1
 (graphs from cache), Build 3 min (most packages cache hits; `graphty:build` never hits, because it
-hashes the commit), then the selected tests' bins and stories in parallel, each under 8 min: about
-10 to 15 minutes, plus queue time while a full run holds runners (recorded separately).
+hashes the commit), then the selected tests' bins and stories in parallel, each under 4 min: about
+10 minutes, plus queue time while a full run holds runners (recorded separately).
 
 A graphty-element `src/` change (59 of the last 200 merges) or a global input is different, and
 nothing measured supports a few minutes of tests for it: it selects nearly every test file of

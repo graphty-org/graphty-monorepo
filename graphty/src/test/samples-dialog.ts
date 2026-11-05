@@ -3,12 +3,16 @@
  */
 import { userEvent } from "vitest/browser";
 
+import { sampleTile } from "./sample-tile";
 import { screen } from "./test-utils";
 
+export { sampleTile };
+
 /**
- * Opens one of the start page's samples by its tile.
+ * Opens one of the start page's samples by its tile, once the start page shows (it waits for the
+ * check for this tab's kept work).
  * @param name - the sample's name.
  */
 export async function pickSample(name: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: `Open the ${name} sample` }));
+    await userEvent.click(await screen.findByRole("button", { name: sampleTile(name) }));
 }

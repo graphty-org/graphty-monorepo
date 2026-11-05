@@ -57,14 +57,13 @@ jobs:
             actions: read # the run's approvals: who approved is promotedBy
             contents: write # gh release edit
             issues: read # the publish hold
-            id-token: write # the results store's record
+            id-token: write # the results store's record, and npm's trusted publishing for the dist-tags
         outputs:
             version_commit: ${{ steps.check.outputs.version_commit }}
             rollback: ${{ steps.check.outputs.rollback }}
             tag: ${{ steps.check.outputs.tag }}
         env:
             GH_TOKEN: ${{ github.token }}
-            HAS_DIST_TAG_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN != '' }}
         steps:
             # The runner context is not available in a job's env, so WORK is set here.
             - run: echo "WORK=$RUNNER_TEMP/promote" >> "$GITHUB_ENV"
@@ -73,12 +72,17 @@ jobs:
               with:
                   persist-credentials: false
 
+            # No registry URL input: it writes an npmrc that expects a token, which gets in the way of OIDC.
             - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
-            # npm reads the token from the environment of the two steps that need it, never from a file.
-            - run: echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+            # npm moves a dist-tag with trusted publishing (OIDC, no stored token) from 11.21.0 on. Each package
+            # needs a trusted publisher for promote.yml, environment production, with "Allow npm dist-tag" ticked.
+            - name: Upgrade npm for dist-tags with trusted publishing
+              run: |
+                  npm install -g npm@11.21.1
+                  npm --version
 
             - name: Check that production asks the owner
               run: |
@@ -110,20 +114,14 @@ jobs:
                   echo "rollback=$(jq -r .rollback "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
                   echo "tag=$(jq -r '.tag // empty' "$WORK/plan.json")" >> "$GITHUB_OUTPUT"
 
-            # Before anything moves, so an expired or under-scoped token fails with nothing changed. A dry run
-            # checks the token too once it exists.
-            - name: Check the dist-tag token
-              if: ${{ inputs.config_only != true && (inputs.dry_run != true || env.HAS_DIST_TAG_TOKEN == 'true') }}
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN }}
-                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
-              run: node tools/channel/promote.mjs token "$WORK/plan.json"
+            # Before anything moves (a dry run too): re-sets each moved package's tag to the version it already has,
+            # so a package whose trusted publisher is missing or lacks "Allow npm dist-tag" fails with nothing moved.
+            - name: Check npm trusts this workflow for every package
+              if: ${{ inputs.config_only != true }}
+              run: node tools/channel/promote.mjs trust "$WORK/plan.json"
 
             - name: Move the dist-tags
               if: ${{ inputs.dry_run != true && inputs.config_only != true }}
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_DIST_TAG_TOKEN }}
-                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
               run: node tools/channel/promote.mjs move "$WORK/plan.json"
 
             - name: Write deployed.json and channel.json

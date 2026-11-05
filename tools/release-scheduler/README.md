@@ -13,7 +13,8 @@ a release train"** with the slot time, the HTTP status and GitHub's response. If
 already open, it comments on it instead of opening another.
 
 Once a day, at 03:17 UTC, it checks that the repository holds exactly one write deploy key, the
-release key (id 164375816). Master's ruleset lets every write deploy key bypass it, so any other
+release key (id 167635448, "release deploy key 2026-10-25", the key in environment `release`'s
+`RELEASE_DEPLOY_KEY`). Master's ruleset lets every write deploy key bypass it, so any other
 write key could push to master and the release tags. When the check finds another write key, finds
 the release key missing, or cannot read the keys, it opens a `priority:critical` issue titled
 **"graphty-monorepo's write deploy keys are not exactly the release key"** listing each write key's

@@ -96,6 +96,11 @@ export interface ProviderOptions {
      * refuses one beside thinking). Ignored by the other providers.
      */
     thinkingBudgetTokens?: number;
+    /**
+     * The fetch the provider sends its HTTP requests with, for a proxy, a request log or a test's
+     * transport. Default: the global fetch.
+     */
+    fetch?: typeof globalThis.fetch;
 }
 
 /**

@@ -45,7 +45,7 @@ import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
@@ -69,7 +69,7 @@ import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
@@ -172,6 +172,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     // (undocumented)
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
+    // (undocumented)
+    "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
     // (undocumented)
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
     // (undocumented)
@@ -286,6 +288,7 @@ export interface GraphtyElementJSXProps {
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     features?: Graphty["features"];
     fitInsets?: Graphty["fitInsets"];
+    globeLook?: Graphty["globeLook"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];
@@ -308,6 +311,7 @@ export interface GraphtyElementJSXProps {
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
+    shaderSettings?: Graphty["shaderSettings"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];

@@ -125,6 +125,10 @@ const css = `
 .cm-tree-row:hover .cm-tree-caret,
 .cm-tree-row[data-state="hover"] .cm-tree-caret,
 .cm-tree-row[aria-expanded="true"] .cm-tree-caret { visibility: visible; }
+/* A touch screen has no hover to reveal the carets, so they stay visible. */
+@media (hover: none) {
+    .cm-tree-caret { visibility: visible; }
+}
 .cm-tree-check {
     flex: none;
     display: flex;

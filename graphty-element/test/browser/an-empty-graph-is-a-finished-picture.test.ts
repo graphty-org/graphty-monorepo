@@ -11,12 +11,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
 
-/** How long the element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 15000;
-
-/** Far longer than an empty graph needs, far shorter than the 30 s default. */
-const STABLE_TIMEOUT_MS = 5000;
-
 let container: HTMLDivElement | null = null;
 
 /**
@@ -38,12 +32,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }
@@ -57,7 +48,7 @@ describe("an element with no data", () => {
     it("reports a stable frame", async () => {
         const element = await mount();
 
-        await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await element.waitForStableFrame();
 
         assert.isTrue(element.isFrameStable, "an empty graph has nothing left to move");
     });

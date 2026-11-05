@@ -94,6 +94,20 @@ describe("a slid time window", () => {
         });
     }
 
+    it("records a committed slide as its own step, even right after a window step (#4400)", async () => {
+        const harness = timed(40, 3, 500);
+        await harness.session.time.setField({ edges: { start: "w" } });
+        // A window step, then a drag let go at once: well inside the history's coalescing window.
+        await harness.session.time.window({ from: 0, to: 50, step: 50 });
+        const before = harness.session.history.position;
+        await harness.session.time.seek(100, { commit: false });
+        await harness.session.time.commit();
+
+        assert.strictEqual(harness.session.history.position, before + 1, "the drag is a step of its own");
+        await harness.session.undo();
+        assert.strictEqual(harness.session.visibility.window?.from, 0, "undo returns to where the drag began");
+    });
+
     it("puts back the recorded window's masks when a slide is dropped", async () => {
         const harness = timed(40, 3, 500);
         await harness.session.time.setField({ edges: { start: "w" } });

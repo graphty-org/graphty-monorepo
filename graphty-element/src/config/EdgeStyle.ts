@@ -47,6 +47,13 @@ export const EdgeArrowTypes = z.enum([
     "open-cross-delta",
     // the inverted triangle's outline (Graphviz oinv, invempty)
     "open-inverted",
+    // half-open's arm drawn as one thin stroke, the line running on under it to where it meets the line
+    // (Cytoscape HALF_TOP), and that barb on the line's other side (HALF_BOTTOM)
+    "half-barb",
+    "half-barb-flipped",
+    // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
+    // along the line (vis-network crow)
+    "inverted-vee",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -79,6 +86,16 @@ const ArrowStyle = z.strictObject({
      */
     gap: z.number().nonnegative().optional(),
     /**
+     * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
+     * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
+     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
+     * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
+     * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
+     * row there too.
+     */
+    stack: z.string().optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
@@ -107,7 +124,7 @@ const ArrowStyle = z.strictObject({
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */
-const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true });
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true, stack: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.
@@ -183,6 +200,28 @@ const LineStyle = z.strictObject({
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
+     * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
+     * `linkVisibilityDistanceRange`): a line of `start` pixels or fewer draws at its `opacity`, one of
+     * `end` or more at that times `fade.opacity`, and one between at a value between. No `end` draws
+     * no fade; `start` defaults to 0 and `opacity` to 0.25. A faded line does not animate. The line
+     * alone fades, not its arrowheads or bands, and a line drawn as separate pattern elements or as
+     * a gradient does not fade.
+     */
+    fade: z
+        .strictObject({
+            start: z.number().nonnegative().optional(),
+            end: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * `false` draws the line without alpha blending (cosmos.gl's `linkBlending`), which costs less
+     * on a dense graph and keeps overlapping lines from muddying: every pixel it covers is its
+     * color at full strength, so `opacity` and `fade` have no effect and a line under a pixel wide is
+     * drawn at full strength. Unset or `true`, the line blends.
+     */
+    blending: z.boolean().optional(),
+    /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the
      * line's own width units (half of it each side), `color` and `opacity` its paint, `type` its
@@ -244,6 +283,10 @@ const LineStyle = z.strictObject({
      * a loop whose points all lie inside its node is drawn as the usual loop.
      */
     bends: z.string().optional(),
+    /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
+    taper: z.number().min(0).max(4).optional(),
+    /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
+    lift: z.number().optional(),
     /**
      * How far apart, at their middle, neighboring curved edges between the same two nodes are drawn,
      * in the scene's units. Unset, they are two node radii apart (the larger node's), closer when the
@@ -282,6 +325,39 @@ const LineStyle = z.strictObject({
      */
     arcRadius: z.number().min(0.5).optional(),
     /**
+     * Draws a curved line (`bezier`) as one quadratic curve through a support point that a force
+     * simulation places, under this force law: `"barnesHut"`, every node and every other support
+     * point pushes it away by `supportRepulsion / d^2` and it is pulled toward the middle of the
+     * nodes by a constant `supportCentralGravity`; `"forceAtlas2"`, pushed by `supportRepulsion / d`
+     * and pulled by `supportCentralGravity * d`. Two springs of half `supportSpringLength`, of
+     * stiffness `supportSpringConstant`, tie it to the edge's two nodes. The nodes stay where the
+     * layout puts them and only the support points move, so an edge bows away from crowding and
+     * edges between the same two nodes bow apart (as vis-network draws its "dynamic" smooth
+     * edges: barnesHut and forceAtlas2Based are its solvers of those names). Unset, no support
+     * point. A file's setting arrives here through its style layer.
+     */
+    supportModel: z.enum(["barnesHut", "forceAtlas2"]).optional(),
+    /** The support point's springs, together, rest at this length (in `supportUnit`s; 95 when unset). */
+    supportSpringLength: z.number().nonnegative().optional(),
+    /** How hard the support point's springs pull per unit they are stretched (0.04 when unset). */
+    supportSpringConstant: z.number().nonnegative().optional(),
+    /** How hard nodes and other support points push the support point away (2000 when unset). */
+    supportRepulsion: z.number().nonnegative().optional(),
+    /** How hard the support point is pulled toward the middle of the nodes (0.3 when unset). */
+    supportCentralGravity: z.number().nonnegative().optional(),
+    /**
+     * How many scene units one unit of the support's lengths and forces is (1 when unset or 0): a
+     * file's constants keep their meaning however its lengths are scaled into the scene.
+     */
+    supportUnit: z.number().nonnegative().optional(),
+    /**
+     * What unit the support's lengths and forces are in: `"unit"` (when unset), `supportUnit`'s;
+     * `"drawing"`, the drawing's own, the size at which the forces hold the drawn nodes in balance,
+     * so a curve bows among nodes any layout placed as among nodes those forces placed themselves
+     * (a file whose program lays its nodes out under the same forces, drawn by another layout).
+     */
+    supportScale: z.enum(["unit", "drawing"]).optional(),
+    /**
      * The path the line takes between its nodes, whether or not it is curved: unset, the active
      * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
@@ -292,8 +368,9 @@ const LineStyle = z.strictObject({
     route: z.enum(["straight", "arc", "great-circle"]).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
-     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
-     * great circle; 0 draws it flat.
+     * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc
+     * and 0.1 for a great circle, which then rises at most a fifth of the globe's radius; 0 draws it
+     * flat.
      */
     arcHeight: z.number().nonnegative().optional(),
     /**
@@ -302,6 +379,13 @@ const LineStyle = z.strictObject({
      * outline. A self-loop ignores it. A file's setting (Gephi's `edge.radius`) arrives here through its style layer.
      */
     nodeGap: z.number().nonnegative().optional(),
+    /**
+     * How far from its source node's outline the line stops, in place of `nodeGap` at that end (Cytoscape.js
+     * `source-distance-from-node`). Unset, `nodeGap`.
+     */
+    sourceNodeGap: z.number().nonnegative().optional(),
+    /** How far from its target node's outline the line stops, in place of `nodeGap` at that end; see `sourceNodeGap`. */
+    targetNodeGap: z.number().nonnegative().optional(),
     /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
@@ -347,6 +431,13 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
+     * on by its words. It is drawn in the label's look -- font, size, color, outline -- and any field set here wins
+     * over the label's. Unset `location`, it sits up and left of the line's middle, its lower right corner on it, or
+     * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the

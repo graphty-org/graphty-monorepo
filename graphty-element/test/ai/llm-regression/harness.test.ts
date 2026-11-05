@@ -9,6 +9,8 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
+import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { TurnEvent } from "../../../src/ai/engine/types";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
@@ -43,30 +45,45 @@ describe("LlmRegressionTestHarness", () => {
             });
 
             it("defaults to google, as the release job runs, and its key variable and model", () => {
-                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", "");
-                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");
+                vi.stubEnv("LLM_REGRESSION_PROVIDER", "");
+                vi.stubEnv("LLM_REGRESSION_MODEL", "");
                 assert.strictEqual(getLlmRegressionProvider(), "google");
-                assert.strictEqual(getLlmRegressionKeyVariable(), "VITE_GOOGLE_API_KEY");
+                assert.strictEqual(getLlmRegressionKeyVariable(), "GOOGLE_API_KEY");
                 assert.strictEqual(getLlmRegressionModel(), "gemini-3.8-flash");
             });
 
             it.each([
-                ["openai", "VITE_OPENAI_API_KEY", "gpt-4o-mini"],
-                ["anthropic", "VITE_ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001"],
+                ["openai", "OPENAI_API_KEY", "gpt-4o-mini"],
+                ["anthropic", "ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001"],
             ])("%s reads %s and defaults to %s", (provider, keyVariable, model) => {
-                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", provider);
-                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");
+                vi.stubEnv("LLM_REGRESSION_PROVIDER", provider);
+                vi.stubEnv("LLM_REGRESSION_MODEL", "");
                 assert.strictEqual(getLlmRegressionKeyVariable(), keyVariable);
                 assert.strictEqual(getLlmRegressionModel(), model);
             });
 
-            it("VITE_LLM_REGRESSION_MODEL overrides the default model", () => {
-                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "some-model");
+            it("LLM_REGRESSION_MODEL overrides the default model", () => {
+                vi.stubEnv("LLM_REGRESSION_MODEL", "some-model");
                 assert.strictEqual(getLlmRegressionModel(), "some-model");
             });
 
+            it("names the key to set, and the rename when only the old VITE_ name is set", () => {
+                vi.stubEnv("LLM_REGRESSION_PROVIDER", "google");
+                vi.stubEnv("GOOGLE_API_KEY", "");
+                vi.stubEnv("VITE_GOOGLE_API_KEY", "");
+                assert.strictEqual(
+                    getSkipReason(),
+                    "LLM regression tests require the GOOGLE_API_KEY environment variable to be set",
+                );
+                vi.stubEnv("VITE_GOOGLE_API_KEY", "AIza-old");
+                assert.strictEqual(skipIfNoApiKey(), true);
+                assert.match(getSkipReason(), /VITE_GOOGLE_API_KEY is set, .* rename it to GOOGLE_API_KEY$/);
+                vi.stubEnv("GOOGLE_API_KEY", "AIza-new");
+                assert.strictEqual(getLlmRegressionApiKey(), "AIza-new");
+            });
+
             it("rejects a provider the element does not support", () => {
-                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", "mistral");
+                vi.stubEnv("LLM_REGRESSION_PROVIDER", "mistral");
                 assert.throws(() => getLlmRegressionProvider(), /must be one of openai, anthropic, google/);
             });
         });
@@ -246,6 +263,9 @@ describe("LlmRegressionTestHarness", () => {
             assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", 400)));
             assert.isFalse(isTransientFailure(failure("AI_KEY_REJECTED", 401)));
             assert.isFalse(isTransientFailure({ code: "AI_FAILED", params: {}, message: "failed" }));
+            // The transport already retried these: asking again only waits past the case's limit.
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_FLEX_CAPACITY: fetch failed")));
+            assert.isFalse(isTransientFailure(failure("AI_PROVIDER_ERROR", undefined, "E_LLM_REQUEST_TIMEOUT: socket")));
         });
     });
 
@@ -440,6 +460,67 @@ describe("LlmRegressionTestHarness", () => {
             } else {
                 assert.strictEqual(isLlmRegressionEnabled(), true);
             }
+        });
+    });
+    describe("a 400 on a message's first request (#4220)", () => {
+        /**
+         * Gemini's 400 as the engine reports it.
+         * @yields The error.
+         */
+        async function* invalidArgument(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({
+                type: "error",
+                code: "AI_PROVIDER_ERROR",
+                params: { provider: "google", status: 400 },
+                cause: new Error("Request contains an invalid argument."),
+            });
+        }
+        const text = "There are 5 nodes.";
+        async function* answer(): AsyncGenerator<TurnEvent> {
+            yield await Promise.resolve({ type: "text", delta: text });
+            yield { type: "finish", reason: "stop" };
+        }
+
+        beforeEach(() => {
+            vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
+            vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            vi.unstubAllEnvs();
+            vi.restoreAllMocks();
+        });
+
+        it("sends the unchanged first request once more and returns its answer", async () => {
+            const turn = vi
+                .spyOn(ProviderApiEngine.prototype, "turn")
+                .mockImplementationOnce(invalidArgument)
+                .mockImplementationOnce(answer);
+            const harness = await LlmRegressionTestHarness.create();
+
+            const result = await harness.testPrompt("How many nodes are there?");
+
+            assert.strictEqual(turn.mock.calls.length, 2);
+            assert.deepStrictEqual(turn.mock.calls[1][0], turn.mock.calls[0][0]);
+            assert.strictEqual(result.llmText, text);
+            harness.dispose();
+        });
+
+        it("fails when the resent request is refused too", async () => {
+            const turn = vi.spyOn(ProviderApiEngine.prototype, "turn").mockImplementation(invalidArgument);
+            const harness = await LlmRegressionTestHarness.create();
+
+            let thrown: unknown;
+            try {
+                await harness.testPrompt("How many nodes are there?", undefined, { maxRetries: 0 });
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
+            assert.strictEqual(turn.mock.calls.length, 2);
+            harness.dispose();
         });
     });
 });

@@ -153,11 +153,12 @@ export function Overview(): React.JSX.Element | null {
         );
     }
     const select = (scope: ScopeInput) => () => {
-        void session.selection.apply({ scope });
+        void session.selection.apply({ scope }, "replace", { cause: "user" });
     };
     const weight = session.data.loadedWeight();
-    // A time window limits what is showing exactly as a filter step does.
-    const filtered = session.visibility.steps.some((step) => step.on) || session.visibility.window !== null;
+    // A time window limits what is showing exactly as a filter card does.
+    const filtered =
+        session.visibility.conditions.some((c) => c.on && c.effect !== "select") || session.visibility.window !== null;
     const showing = session.visibility.summary;
 
     const whole = (

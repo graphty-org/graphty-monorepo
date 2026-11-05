@@ -73,8 +73,9 @@ async function httpError(response: Response): Promise<Error> {
  */
 async function getToken(settings: ProviderApiSettings, model: string, signal: AbortSignal): Promise<RealtimeToken> {
     const key = settings.apiKey ?? "";
+    const send = settings.fetch ?? globalThis.fetch;
     if (settings.provider === "openai") {
-        const response = await globalThis.fetch("https://api.openai.com/v1/realtime/client_secrets", {
+        const response = await send("https://api.openai.com/v1/realtime/client_secrets", {
             method: "POST",
             headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
             body: JSON.stringify({ session: { type: "realtime", model } }),
@@ -89,7 +90,7 @@ async function getToken(settings: ProviderApiSettings, model: string, signal: Ab
     }
 
     const now = Date.now();
-    const response = await globalThis.fetch("https://generativelanguage.googleapis.com/v1alpha/auth_tokens", {
+    const response = await send("https://generativelanguage.googleapis.com/v1alpha/auth_tokens", {
         method: "POST",
         headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
         body: JSON.stringify({

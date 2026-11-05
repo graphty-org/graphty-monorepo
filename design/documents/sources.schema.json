@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-sources/v2.json",
     "title": "graphty sources member, version 2",
-    "description": "The record of every load still in a project's graph: a file, a URL, a network source or a sample, with its mapping and options, when it loaded and into which graph (sources.md). Normative for what a writer produces. The member, each entry, each kind part, each expansion and the validators are closed: a reader that meets a member this schema does not list keeps the entry and never runs it. options, params, next, a sample's params and every extensions are open maps. It never holds a credential, a user name or an approval: a load that used a credential names only its credentialSlot. Version 1 was an experimental shape, read and upgraded by sources.md, 'Reading version 1', and never written. String lengths count Unicode code points. The member saved as JSON is at most 16 MiB, and options, params, next and a sample's params at most 256 KB each (rules this schema cannot express).",
+    "description": "The record of every load still in a project's graph: a file, a URL, a network source or a sample, with its mapping and options, when it loaded and into which graph (sources.md). Normative for what a writer produces. The member, each entry, each kind part, each expansion and the validators are closed: a reader that meets a member this schema does not list keeps the entry and never runs it. options, mapping, params, next, a sample's params, a join's choices and before, and every extensions are open maps. It never holds a credential, a user name or an approval: a load that used a credential names only its credentialSlot. Version 1 was an experimental shape, read and upgraded by sources.md, 'Reading version 1', and never written. String lengths count Unicode code points. The member saved as JSON is at most 16 MiB, and options, mapping, params, next and a sample's params at most 256 KB each (rules this schema cannot express).",
     "type": "object",
     "required": ["kind", "version", "loads"],
     "properties": {
@@ -95,7 +95,7 @@
                 "trigger": { "enum": ["none", "click", "double-click"] },
                 "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
                 "direction": { "$ref": "#/$defs/direction" },
-                "limit": { "type": "integer", "minimum": 1 },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "relationshipTypes": { "$ref": "#/$defs/names" },
                 "layout": { "enum": ["continue", "none"] }
             },
@@ -118,7 +118,7 @@
                 },
                 "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
                 "direction": { "$ref": "#/$defs/direction" },
-                "limit": { "type": "integer", "minimum": 1 },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "relationshipTypes": { "$ref": "#/$defs/names" },
                 "at": { "$ref": "#/$defs/time" },
                 "next": { "$ref": "#/$defs/cursor" },
@@ -128,7 +128,6 @@
         },
         "file": {
             "type": "object",
-            "required": ["size"],
             "properties": {
                 "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
                 "size": { "$ref": "#/$defs/count" },
@@ -223,6 +222,49 @@
                 }
             ]
         },
+        "columns": {
+            "type": "array",
+            "maxItems": 4096,
+            "items": { "type": "string", "maxLength": 1024 }
+        },
+        "join": {
+            "type": "object",
+            "required": ["shape", "choices", "rows", "matched", "columns", "table"],
+            "properties": {
+                "shape": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "What the table's rows were read as: values for nodes, values for edges, or edges between nodes."
+                },
+                "choices": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The choices the join was made with, as given: the key pairs, ignoreCase, ignoreSpaces, the columns brought, clash, repeated, via. An open map the join feature checks when the join is made again."
+                },
+                "rows": { "$ref": "#/$defs/count" },
+                "matched": { "$ref": "#/$defs/count" },
+                "columns": {
+                    "$ref": "#/$defs/columns",
+                    "description": "The names the join wrote its values under."
+                },
+                "table": {
+                    "type": "object",
+                    "required": ["name", "columns", "rows"],
+                    "properties": {
+                        "name": { "type": "string", "maxLength": 1024 },
+                        "columns": { "$ref": "#/$defs/columns" },
+                        "rows": { "type": "array", "items": { "type": "object" } }
+                    },
+                    "additionalProperties": false,
+                    "description": "The joined table as read, which the join is made again from."
+                },
+                "before": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "For values: each element's values before the join wrote over them, by id, null for one it did not have."
+                }
+            },
+            "additionalProperties": false
+        },
         "entry": {
             "type": "object",
             "required": ["id", "kind", "loadedAt", "mode", "added"],
@@ -234,7 +276,7 @@
                     "maxLength": 128,
                     "description": "file, url, source or sample; an open list. A reader keeps an entry of a kind it does not know and never runs it."
                 },
-                "name": { "type": "string", "maxLength": 1024 },
+                "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
                 "graph": {
                     "$ref": "#/$defs/id",
                     "description": "The id of the data member the load went into; absent: the file's one graph."
@@ -259,13 +301,19 @@
                     },
                     "description": "The importer's own options as the load was given them: column roles, delimiter, idPrefix, columnPrefix, joinOn, keep, existing, limits. Never the data, where to read it, a credential, the write flag or per-call state."
                 },
+                "mapping": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The column roles a table load was given, as given: one table's roles (rowsAre, key, label, source, target, weight, time, edgeId), or each table's by id under tables."
+                },
                 "tables": { "$ref": "#/$defs/names" },
                 "tableRows": {
                     "type": "array",
                     "maxItems": 256,
-                    "items": { "enum": ["nodes", "edges"] }
+                    "items": { "enum": ["nodes", "edges"] },
+                    "description": "What each of tables held, in the same order: only with tables, and as long as it (a rule this schema cannot express)."
                 },
                 "joinedOnto": { "$ref": "#/$defs/id" },
+                "join": { "$ref": "#/$defs/join" },
                 "added": {
                     "type": "object",
                     "required": ["nodes", "edges"],
@@ -326,8 +374,16 @@
                             "anyOf": [{ "required": ["file"] }, { "required": ["url"] }, { "required": ["source"] }]
                         }
                     }
+                },
+                {
+                    "if": { "properties": { "kind": { "not": { "enum": ["file", "url", "source", "sample"] } } } },
+                    "then": {
+                        "patternProperties": { "": {} },
+                        "description": "A kind of a later version: its part is the member named by its kind, which this version cannot describe; the common members above still hold."
+                    }
                 }
             ],
+            "dependentRequired": { "tableRows": ["tables"] },
             "unevaluatedProperties": false
         }
     }

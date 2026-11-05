@@ -48,7 +48,8 @@ A layer id the list does not hold throws a `GraphtyError` with code `E_UNKNOWN_L
 
 The counts follow the data, the run results and the layers. Read them again after a
 `style:batch-changed` event (once per repaint, however many edits it carried; `style:changed`
-fires once per edit) and after a data change:
+fires once per edit) and after a `project:derived` event, which follows every change -- a data
+edit included -- once the picture has caught up with it:
 
 ```ts
 session.on("style:batch-changed", () => {

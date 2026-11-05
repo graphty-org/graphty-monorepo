@@ -13,9 +13,9 @@ describe("a new graph's name", () => {
     const load = (tables: string[], name?: string) => ({
         key: "s1",
         kind: "file" as const,
-        counts: { nodes: 1, edges: 1 },
         tables,
         added: { nodes: 1, edges: 1 },
+        counts: { nodes: 1, edges: 1 },
         ...(name === undefined ? {} : { name }),
     });
 

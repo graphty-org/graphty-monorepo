@@ -13,6 +13,7 @@ import type { NodeId, SourceKey } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import type { CodedFact } from "../shared";
 import type { LoadedSource } from "../types";
+import { isRecordableEndpoint } from "./endpoint";
 import { SOURCE_RECORD_MEMBER, SOURCES_MEMBER_VERSION } from "./ids";
 import type { SourceLoadRecord } from "./types";
 
@@ -25,8 +26,32 @@ const DEFAULT_SLOT = "default";
 /** The names an entry's `options` never holds (sources.md, "Options" rules 1 and 2). */
 const FORBIDDEN_OPTIONS = ["data", "file", "url", "credential", "write", "signal", "fetch", "cursor", "retry"];
 
-/** A query parameter whose name marks a credential (sources.md, "URLs" rule 2). */
-const SECRET_PARAM = /^(key|apikey|api_key|api-key|token|access_token|auth|password|secret|signature|sig|x-amz-.*)$/i;
+/**
+ * Whether a query parameter's name marks a credential (sources.md, "URLs" rule 2): one of the
+ * names below, a name holding `token`, `secret`, `signature`, `credential`, `password`, `passwd`,
+ * `session` or `apikey`/`api_key`/`api-key`, or one starting with `x-amz-`, `x-goog-` or `x-ms-`.
+ * @param name - The parameter's name.
+ * @returns True when it does.
+ */
+export function isSecretParam(name: string): boolean {
+    const lower = name.toLowerCase();
+    return (
+        ["key", "auth", "sig", "jwt", "code", "sid", "policy", "key-pair-id"].includes(lower) ||
+        [
+            "token",
+            "secret",
+            "signature",
+            "credential",
+            "password",
+            "passwd",
+            "session",
+            "apikey",
+            "api_key",
+            "api-key",
+        ].some((part) => lower.includes(part)) ||
+        ["x-amz-", "x-goog-", "x-ms-"].some((prefix) => lower.startsWith(prefix))
+    );
+}
 
 /** An entry id: 1 to 64 of [A-Za-z0-9._-], starting with a letter or digit. */
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -45,6 +70,7 @@ const LIMITS = {
     bytes: 16 * 1024 * 1024,
     map: 262_144,
     extensions: 65_536,
+    expandLimit: 10_000,
 } as const;
 
 /** What an entry's kind part is, by kind. */
@@ -65,7 +91,7 @@ export interface LoadFacts {
     /** The bytes a file load read. */
     readonly file?: {
         readonly name?: string;
-        readonly size: number;
+        readonly size?: number;
         readonly sha256?: string;
         readonly mediaType?: string;
     };
@@ -156,24 +182,55 @@ function jsonBytes(value: unknown): number {
  * @returns The address and the parameter names left out.
  */
 export function redactUrl(raw: string): { address: string; dropped: string[] } {
+    if (raw.startsWith("//")) {
+        const { address, dropped } = redactUrl(`https:${raw}`);
+        return { address: address.slice("https:".length), dropped };
+    }
+
     let url: URL;
     try {
         url = new URL(raw);
     } catch {
-        // ponytail: a relative URL is written as given, without its fragment; resolve it against
-        // the page if a relative URL load ever needs its credentials stripped.
-        return { address: raw.split("#")[0] ?? raw, dropped: [] };
+        return redactRelative(raw);
     }
 
     url.username = "";
     url.password = "";
     url.hash = "";
-    const dropped = [...new Set(url.searchParams.keys())].filter((name) => SECRET_PARAM.test(name));
+    const dropped = [...new Set(url.searchParams.keys())].filter(isSecretParam);
     for (const name of dropped) {
         url.searchParams.delete(name);
     }
 
     return { address: url.toString(), dropped };
+}
+
+/**
+ * A relative URL as an entry writes it: its path as given, without its fragment or the query
+ * parameters whose names mark a credential.
+ * @param raw - The URL.
+ * @returns The address and the parameter names left out.
+ */
+function redactRelative(raw: string): { address: string; dropped: string[] } {
+    const [kept = ""] = raw.split("#");
+    const at = kept.indexOf("?");
+    if (at < 0) {
+        return { address: kept, dropped: [] };
+    }
+
+    const params = new URLSearchParams(kept.slice(at + 1));
+    const dropped = [...new Set(params.keys())].filter(isSecretParam);
+    if (dropped.length === 0) {
+        return { address: kept, dropped };
+    }
+
+    for (const name of dropped) {
+        params.delete(name);
+    }
+
+    const query = params.toString();
+    const path = kept.slice(0, at);
+    return { address: query === "" ? path : `${path}?${query}`, dropped };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -232,11 +289,102 @@ function validatorsOf(values: unknown): Record<string, unknown> {
 }
 
 /**
+ * A JSON value with every absolute URL in it redacted ({@link redactUrl}): a cursor's next-page
+ * link, which a service may write with a key in it.
+ * @param value - The value.
+ * @param dropped - Collects the parameter names left out.
+ * @returns The copy.
+ */
+function withoutSecretUrls(value: unknown, dropped: Set<string>): unknown {
+    if (typeof value === "string" && /^https?:\/\//i.test(value)) {
+        const redacted = redactUrl(value);
+        for (const name of redacted.dropped) {
+            dropped.add(name);
+        }
+
+        return redacted.address;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((each) => withoutSecretUrls(each, dropped));
+    }
+
+    return isObject(value)
+        ? Object.fromEntries(Object.entries(value).map(([name, each]) => [name, withoutSecretUrls(each, dropped)]))
+        : value;
+}
+
+/**
+ * An object without the members whose names mark a credential and whose values are written out
+ * rather than filled from a template (`"{work}"` is the load's own data, not a key).
+ * @param value - The object, or anything else, returned as it is.
+ * @param dropped - Collects the names left out.
+ * @returns The copy.
+ */
+function withoutSecretNames(value: unknown, dropped: Set<string>): unknown {
+    if (!isObject(value)) {
+        return value;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).filter(([name, each]) => {
+            const secret = isSecretParam(name) && !(typeof each === "string" && each.includes("{"));
+            if (secret) {
+                dropped.add(name);
+            }
+
+            return !secret;
+        }),
+    );
+}
+
+/**
+ * A network load's params as an entry writes them: a REST mapping without a key written into its
+ * endpoint, a request's query or the top level of its body, and every URL redacted
+ * (sources.md, "Network loads" rule 3).
+ * @param config - The params.
+ * @param dropped - Collects the names left out.
+ * @returns The params.
+ */
+function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
+    const params = withoutSecretUrls(jsonOf(config) ?? {}, dropped) as Record<string, unknown>;
+    const { mapping } = params;
+    if (!isObject(mapping) || !isObject(mapping.requests)) {
+        return params;
+    }
+
+    const requests = Object.fromEntries(
+        Object.entries(mapping.requests).map(([name, request]) => [
+            name,
+            isObject(request)
+                ? defined({
+                      ...request,
+                      query: request.query === undefined ? undefined : withoutSecretNames(request.query, dropped),
+                      body: request.body === undefined ? undefined : withoutSecretNames(request.body, dropped),
+                  })
+                : request,
+        ]),
+    );
+    return { ...params, mapping: { ...mapping, requests } };
+}
+
+/**
+ * A load's params or configuration as a file keeps it ({@link paramsOf}), for the data member's
+ * legacy description of a load.
+ * @param config - The params.
+ * @returns The params, without what marks a credential.
+ */
+export function redactedParams(config: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    return paramsOf(config, new Set());
+}
+
+/**
  * The network part of an entry.
  * @param record - The load's record.
  * @param id - The entry's id.
  * @param slot - The credential slot it filled, when one did.
  * @param rename - Collects each expansion's key and the id it is written as.
+ * @param dropped - Collects the names of the secrets left out of its params and cursors.
  * @returns The part.
  */
 function sourcePart(
@@ -244,6 +392,7 @@ function sourcePart(
     id: string,
     slot: string | undefined,
     rename: Map<string, string>,
+    dropped: Set<string>,
 ): Record<string, unknown> {
     const expansions = record.expansions.map((expansion, at) => {
         const written = `${id}/x${String(at + 1)}`;
@@ -255,7 +404,7 @@ function sourcePart(
             direction: expansion.direction,
             limit: expansion.limit,
             at: expansion.at,
-            next: jsonOf(expansion.next) ?? null,
+            next: withoutSecretUrls(jsonOf(expansion.next) ?? null, dropped),
             validators: validatorsOf(expansion.validators),
         });
     });
@@ -263,14 +412,36 @@ function sourcePart(
         id: record.source,
         sourceVersion: record.version,
         endpoint: record.endpoint,
-        params: jsonOf(record.config) ?? {},
-        credentialSlot: record.credential === null ? slot : DEFAULT_SLOT,
+        params: paramsOf(record.config, dropped),
+        credentialSlot: record.credential === null ? slot : (record.credential.slot ?? DEFAULT_SLOT),
         pages: Math.max(1, record.pages),
-        next: jsonOf(record.next) ?? null,
+        next: withoutSecretUrls(jsonOf(record.next) ?? null, dropped),
         validators: validatorsOf(record.validators),
         expand: record.expand === undefined ? undefined : jsonOf(record.expand),
         expansions,
     });
+}
+
+/**
+ * A joined table's join, as a load carries it: how it was joined, and the table it joins again
+ * from. The join feature owns the type; the member keeps it whole, less what the entry already
+ * says (`source` is the entry's id, `onto` its `joinedOnto`).
+ */
+type CarriedJoin = Readonly<Record<string, unknown>> & { readonly source?: unknown; readonly onto?: unknown };
+
+/**
+ * The join an entry records, when its load is a joined table.
+ * @param load - The listed load.
+ * @returns The join, or undefined.
+ */
+function joinOf(load: LoadedSource): Record<string, unknown> | undefined {
+    const { join } = load as LoadedSource & { readonly join?: CarriedJoin };
+    if (!isObject(join)) {
+        return undefined;
+    }
+
+    const { source: _source, onto: _onto, ...rest } = join;
+    return jsonOf(rest) as Record<string, unknown>;
 }
 
 /** One entry as written, and what writing it found. */
@@ -313,7 +484,7 @@ function localPart(
         kind: "file",
         part: defined({
             name: file?.name,
-            size: file?.size ?? load.size ?? 0,
+            size: file?.size ?? load.size,
             sha256: file?.sha256,
             mediaType: file?.mediaType,
         }),
@@ -342,7 +513,8 @@ function entryOf(
 
     const local = network ? undefined : localPart(load, facts);
     const kind = local?.kind ?? "source";
-    const part = local?.part ?? sourcePart(record as SourceLoadRecord, load.key, facts.credentialSlot, rename);
+    const secrets = new Set<string>();
+    const part = local?.part ?? sourcePart(record as SourceLoadRecord, load.key, facts.credentialSlot, rename, secrets);
     const { mode: _mode, ...recorded } = record?.options ?? {};
     const options = optionsOf(network ? recorded : { ...load.config, ...facts.options });
     const entry = defined({
@@ -354,13 +526,20 @@ function entryOf(
         format: network || load.type === undefined ? undefined : load.type,
         [kind]: part,
         options,
+        // The roles as given (`choices.mapping`), not the element's whole reading of them.
+        mapping: load.choices?.mapping === undefined ? undefined : jsonOf(load.choices.mapping),
         tables: load.tables.length === 0 ? undefined : [...load.tables],
         tableRows: load.tableRows === undefined ? undefined : [...load.tableRows],
         joinedOnto: load.joinedOnto,
+        join: joinOf(load),
         added: { nodes: load.added.nodes, edges: load.added.edges },
-        total: record?.total === undefined ? undefined : { nodes: record.total },
+        leftOut: load.leftOut === undefined ? undefined : jsonOf(load.leftOut),
+        total:
+            record?.total === undefined && record?.totalEdges === undefined
+                ? undefined
+                : defined({ nodes: record.total, edges: record.totalEdges }),
     });
-    return { entry, dropped: local?.dropped ?? [] };
+    return { entry, dropped: local?.dropped ?? [...secrets] };
 }
 
 /**
@@ -501,6 +680,24 @@ interface ShapeList {
 }
 
 /**
+ * Whether an RFC 3339 time names a day the calendar has: `Date.parse` takes 2026-02-30 and rolls
+ * it into March.
+ * @param value - The time, already of the form `TIME` reads.
+ * @returns True for a real date.
+ */
+function isCalendarDate(value: string): boolean {
+    const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+    const last = new Date(Date.UTC(year ?? 0, month ?? 0, 0)).getUTCDate();
+    return (
+        (month ?? 0) >= 1 &&
+        (month ?? 0) <= 12 &&
+        (day ?? 0) >= 1 &&
+        (day ?? 0) <= last &&
+        !Number.isNaN(Date.parse(value))
+    );
+}
+
+/**
  * The number of Unicode code points in a string.
  * @param text - The string.
  * @returns The count.
@@ -530,7 +727,7 @@ const pattern =
     (form: RegExp): Check =>
     (value) =>
         typeof value === "string" && form.test(value);
-const time: Check = (value) => pattern(TIME)(value) && !Number.isNaN(Date.parse(value as string));
+const time: Check = (value) => pattern(TIME)(value) && isCalendarDate(value as string);
 const openMap: Check = isObject;
 const cursor: Check = (value) => value === null || isObject(value);
 const names: Check = (value) => Array.isArray(value) && value.length <= 256 && value.every(text(1, 1024));
@@ -552,7 +749,7 @@ const EXPAND: Shape = {
         trigger: oneOf("none", "click", "double-click"),
         depth: integer(1, 10),
         direction,
-        limit: integer(1),
+        limit: integer(1, LIMITS.expandLimit),
         relationshipTypes: names,
         layout: oneOf("continue", "none"),
     },
@@ -567,7 +764,7 @@ const EXPANSION: Shape = {
             value.every((id) => typeof id === "string" || typeof id === "number"),
         depth: integer(1, 10),
         direction,
-        limit: integer(1),
+        limit: integer(1, LIMITS.expandLimit),
         relationshipTypes: names,
         at: time,
         next: cursor,
@@ -578,11 +775,38 @@ const EXPANSION: Shape = {
 
 const COUNTS: Shape = { fields: { nodes: count, edges: count } };
 
+/**
+ * A table's column names: any text, a column may be named "".
+ * @param value - The value.
+ * @returns True when it is a list of column names.
+ */
+const columns: Check = (value) => Array.isArray(value) && value.length <= 4096 && value.every(text(0, 1024));
+
+/** A joined table's join (sources.md, "Joins"). */
+const JOIN: Shape = {
+    fields: {
+        shape: text(1, 128),
+        choices: openMap,
+        rows: count,
+        matched: count,
+        columns,
+        table: {
+            fields: {
+                name: text(0, 1024),
+                columns,
+                rows: (value) => Array.isArray(value) && value.every(isObject),
+            },
+            required: ["name", "columns", "rows"],
+        },
+        before: openMap,
+    },
+    required: ["shape", "choices", "rows", "matched", "columns", "table"],
+};
+
 /** Each kind part's shape. */
 const PART_SHAPES: Readonly<Record<(typeof PARTS)[number], Shape | Check>> = {
     file: {
         fields: { name: text(1, 1024), size: count, sha256: pattern(SHA256), mediaType: text(0, 255) },
-        required: ["size"],
     },
     url: {
         fields: {
@@ -599,7 +823,7 @@ const PART_SHAPES: Readonly<Record<(typeof PARTS)[number], Shape | Check>> = {
         fields: {
             id: text(1, 128),
             sourceVersion: integer(1),
-            endpoint: (value) => value === null || text(0, 8192)(value),
+            endpoint: (value) => value === null || (text(1, 8192)(value) && isRecordableEndpoint(value as string)),
             params: openMap,
             credentialSlot: pattern(ID),
             pages: integer(1),
@@ -624,17 +848,20 @@ const ENTRY: Shape = {
     fields: {
         id: pattern(ID),
         kind: text(1, 128),
-        name: text(0, 1024),
+        name: text(1, 1024),
         graph: pattern(ID),
         loadedAt: time,
         mode: oneOf("replace", "merge"),
         format: text(1, 128),
         options: openMap,
+        mapping: openMap,
         tables: names,
         tableRows: (value) =>
             Array.isArray(value) && value.length <= 256 && value.every((rows) => rows === "nodes" || rows === "edges"),
         joinedOnto: pattern(ID),
+        join: JOIN,
         added: { ...COUNTS, required: ["nodes", "edges"] },
+        leftOut: openMap,
         total: COUNTS,
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
@@ -724,6 +951,7 @@ function overLimit(member: Record<string, unknown>, loads: readonly unknown[]): 
         const sample = isObject(entry.sample) ? entry.sample : {};
         return [
             entry.options,
+            entry.mapping,
             source.params,
             source.next,
             sample.params,
@@ -804,20 +1032,24 @@ interface ReadEntry {
  * @returns The load, in the data member's legacy `sources` shape.
  */
 function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
-    const kinds: Readonly<Record<string, string>> = { file: "file", url: "file", source: "server", sample: "sample" };
+    const kinds: Readonly<Record<string, string>> = { file: "file", url: "url", source: "server", sample: "sample" };
     const kind = typeof raw.kind === "string" ? raw.kind : "file";
     const { size } = partOf(raw, "file");
     const joinedOnto = typeof raw.joinedOnto === "string" ? raw.joinedOnto : undefined;
+    const join = isObject(raw.join) ? { source: raw.id, onto: joinedOnto ?? null, ...raw.join } : undefined;
     return defined({
         ...describedOf(raw, kind === "source"),
         name: typeof raw.name === "string" ? raw.name : undefined,
         size: typeof size === "number" ? size : undefined,
         key: raw.id,
-        kind: joinedOnto === undefined ? (kinds[kind] ?? kind) : "join",
+        kind: joinedOnto === undefined && join === undefined ? (kinds[kind] ?? kind) : "join",
         joinedOnto,
+        join,
         tables: Array.isArray(raw.tables) ? raw.tables : [],
         tableRows: Array.isArray(raw.tableRows) ? raw.tableRows : undefined,
+        choices: isObject(raw.mapping) ? { mapping: raw.mapping } : undefined,
         added: countsOf(raw.added),
+        leftOut: isObject(raw.leftOut) ? raw.leftOut : undefined,
     });
 }
 
@@ -886,13 +1118,28 @@ function readFacts(raw: Record<string, unknown>, now: string): LoadFacts {
 }
 
 /**
+ * A file's expand behavior without its `trigger`: only the page's own configuration or code turns
+ * click-to-expand on, so a received file cannot make a click fetch (sources.md, "Reopening").
+ * @param expand - The entry's `expand`, as read.
+ * @returns The rest of it, or undefined when nothing is left.
+ */
+function expandOf(expand: unknown): Record<string, unknown> | undefined {
+    if (!isObject(expand)) {
+        return undefined;
+    }
+
+    const { trigger: _trigger, ...rest } = expand;
+    return Object.keys(rest).length === 0 ? undefined : rest;
+}
+
+/**
  * The record the session keeps for a network entry that can run.
  * @param raw - The entry.
  * @returns The record.
  */
 function recordOf(raw: Record<string, unknown>): SourceLoadRecord {
     const source = raw.source as Record<string, unknown>;
-    const total = raw.total as { nodes?: number } | undefined;
+    const total = raw.total as { nodes?: number; edges?: number } | undefined;
     return defined({
         key: raw.id,
         source: source.id,
@@ -911,8 +1158,20 @@ function recordOf(raw: Record<string, unknown>): SourceLoadRecord {
             key: expansion.id,
         })),
         total: total?.nodes,
-        expand: source.expand,
+        totalEdges: total?.edges,
+        expand: expandOf(source.expand),
     }) as unknown as SourceLoadRecord;
+}
+
+/**
+ * An entry's members that every kind shares: what an entry of a later kind is checked by.
+ * @param raw - The entry.
+ * @returns Those members.
+ */
+function commonOf(raw: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+        Object.entries(raw).filter(([name]) => name in ENTRY.fields && !(PARTS as readonly string[]).includes(name)),
+    );
 }
 
 /**
@@ -934,11 +1193,21 @@ function entryProblems(
         params: { kind: KIND, pointer: at, ...more },
     });
     if (!(PARTS as readonly unknown[]).includes(raw.kind)) {
-        return [problem("W_UNKNOWN_KIND", pointer, { found: raw.kind })];
+        // A later kind's part is beyond this version, but its common members are not.
+        const common: string[] = [];
+        checkShape(commonOf(raw), ENTRY, pointer, common);
+        return [
+            problem("W_UNKNOWN_KIND", pointer, { found: raw.kind }),
+            ...common.map((at) => problem("E_BAD_DOCUMENT", at)),
+        ];
     }
 
     const bad: string[] = [];
     checkShape(raw, ENTRY, pointer, bad);
+    const tables = Array.isArray(raw.tables) ? raw.tables.length : undefined;
+    if (Array.isArray(raw.tableRows) && raw.tableRows.length !== tables) {
+        bad.push(`${pointer}/tableRows`);
+    }
     for (const other of PARTS) {
         if (raw[other] !== undefined && other !== raw.kind) {
             bad.push(`${pointer}/${other}`);
@@ -963,7 +1232,7 @@ function entryProblems(
 
     const source = raw.source as Record<string, unknown> | undefined;
     if (problems.length === 0 && raw.kind === "source" && !isRegistered(String(source?.id))) {
-        problems.push(problem("E_SOURCE_UNKNOWN", pointer, { id: raw.id, source: source?.id }));
+        problems.push(problem("W_SOURCE_UNREGISTERED", pointer, { id: raw.id, source: source?.id }));
     }
 
     return problems;
@@ -1136,10 +1405,15 @@ function readVersion2(
     const rename = upgrade?.rename ?? new Map<string, string>();
     const legacy = upgrade?.provenance ?? {};
     if (member.data === "steps") {
-        // ponytail: steps-only rebuilds are not built yet; a file that also embeds the graph opens embedded.
+        // The file embeds the graph too (a steps-only file without it is refused on open), so it
+        // opens embedded. `graph` is the data member's id; null is the file's one graph.
         problems.push({
             code: "W_SOURCE_STEPS_IGNORED",
-            params: { kind: KIND, pointer: `${ctx.pointer}/data`, graph: null },
+            params: {
+                kind: KIND,
+                pointer: `${ctx.pointer}/data`,
+                graph: typeof ctx.data.id === "string" ? ctx.data.id : null,
+            },
         });
     }
 
@@ -1163,9 +1437,12 @@ function readVersion2(
         key: _key,
         kind: _kind,
         joinedOnto: _onto,
+        join: _join,
+        choices: _choices,
         tables: _tables,
         tableRows: _rows,
         added: _added,
+        leftOut: _leftOut,
         ...source
     } = last?.loaded ?? {};
     return {
@@ -1299,6 +1576,7 @@ function entryFromItem(
         tableRows: item.tableRows,
         joinedOnto: item.joinedOnto,
         added: item.added,
+        leftOut: item.leftOut,
         total: joined?.total,
     });
 }
@@ -1335,17 +1613,23 @@ function itemPart(
     }
 
     if (item.kind === "sample") {
-        return { sample: ctx.isGenerator(name) ? { generator: name, params: {} } : { dataset: name } };
+        // A generator's params are its version 1 configuration, so running it again gives the same graph.
+        const { url: _url, ...params } = config;
+        return { sample: ctx.isGenerator(name) ? { generator: name, params } : { dataset: name } };
     }
 
     if (typeof config.url === "string") {
-        return { url: { address: redactUrl(config.url).address, fetchedAt: loadedAt } };
+        const { address, dropped } = redactUrl(config.url);
+        return {
+            url: defined({ address, fetchedAt: loadedAt, dropped: dropped.length === 0 ? undefined : dropped }),
+        };
     }
 
+    // A size version 1 did not record is left out: unknown, never 0.
     return {
         file: defined({
             name: typeof item.name === "string" ? item.name : undefined,
-            size: typeof item.size === "number" ? item.size : 0,
+            size: typeof item.size === "number" ? item.size : undefined,
         }),
     };
 }
@@ -1360,6 +1644,32 @@ function carrying(ctx: SourcesReadContext, key: string): { nodes: number; edges:
     const has = (row: Record<string, unknown>): boolean =>
         Array.isArray(row["_source.loads"]) && (row["_source.loads"] as unknown[]).includes(key);
     return { nodes: ctx.nodes.filter(has).length, edges: ctx.links.filter(has).length };
+}
+
+/**
+ * The `_source.loads` keys each legacy item's nodes carry, by the item's key: what joins an item to
+ * the version 1 record whose key its nodes carry, read once.
+ * @param ctx - The file.
+ * @param legacy - The data member's legacy `provenance`.
+ * @returns The keys, by item key.
+ */
+function keysCarried(ctx: SourcesReadContext, legacy: Record<string, unknown>): Map<string, Set<unknown>> {
+    const rows = new Map(ctx.nodes.map((row) => [String(row.id), row]));
+    const carried = new Map<string, Set<unknown>>();
+    for (const [key, supplied] of Object.entries(legacy)) {
+        const keys = new Set<unknown>();
+        const ids = isObject(supplied) && Array.isArray(supplied.nodes) ? (supplied.nodes as unknown[]) : [];
+        for (const id of ids) {
+            const loads = rows.get(String(id))?.["_source.loads"];
+            for (const each of Array.isArray(loads) ? loads : []) {
+                keys.add(each);
+            }
+        }
+
+        carried.set(key, keys);
+    }
+
+    return carried;
 }
 
 /**
@@ -1382,18 +1692,17 @@ function upgradeVersion1(
     }
 
     const items = (Array.isArray(ctx.data.sources) ? ctx.data.sources : []).filter(isObject);
-    const legacy = isObject(ctx.data.provenance) ? ctx.data.provenance : {};
-    const rows = new Map(ctx.nodes.map((row) => [String(row.id), row]));
-    const claims = (item: Record<string, unknown>, key: string): boolean => {
-        const supplied = legacy[String(item.key)];
-        const ids = isObject(supplied) && Array.isArray(supplied.nodes) ? (supplied.nodes as unknown[]) : [];
-        return ids.some((id) => {
-            const loads = rows.get(String(id))?.["_source.loads"];
-            return Array.isArray(loads) && loads.includes(key);
-        });
-    };
-    const rename = new Map<string, string>();
+    // The limits hold before any work, so a crafted file cannot make the join itself slow.
+    if (records.length > LIMITS.entries || items.length > LIMITS.entries) {
+        problems.push({ code: "E_TOO_LARGE", params: { kind: KIND, pointer: ctx.pointer, limit: "entries" } });
+        return { problems, records: [], facts: new Map(), skipped: member };
+    }
+
     const claimed = new Set<string>();
+    const carried = keysCarried(ctx, isObject(ctx.data.provenance) ? ctx.data.provenance : {});
+    const claims = (item: Record<string, unknown>, key: string): boolean =>
+        carried.get(String(item.key))?.has(key) === true;
+    const rename = new Map<string, string>();
     const loads = items.map((item, at) => {
         const record =
             item.kind === "server"
@@ -1420,6 +1729,7 @@ function upgradeVersion1(
         );
     }
 
+    const legacy = isObject(ctx.data.provenance) ? ctx.data.provenance : {};
     const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
     for (const [key, supplied] of Object.entries(legacy)) {
         if (isObject(supplied) && Array.isArray(supplied.nodes) && Array.isArray(supplied.edges)) {

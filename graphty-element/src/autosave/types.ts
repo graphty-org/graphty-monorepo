@@ -218,6 +218,12 @@ export interface AutosaveEntry {
     readonly dirty: boolean;
     /** Whether a live tab or element is writing it now. */
     readonly live: boolean;
+    /**
+     * Whether this is the entry this tab was writing and this tab now holds it: true after a reload,
+     * or after the browser discarded the tab and loaded it again; false in a duplicated tab whose
+     * original still writes it, and in any other tab. Filled in by `listAutosaves`.
+     */
+    readonly own?: boolean;
     /** `"replaced"` once its tab moved on to another project; such an entry is never restored automatically. */
     readonly ended?: "replaced";
 }
@@ -249,7 +255,8 @@ export interface AutosaveAvailable {
     /** The entry. */
     readonly entry: AutosaveEntry;
     /**
-     * `"page-data-changed"`: the page loaded different data, which replaced the restored work.
+     * `"page-data-changed"`: the page loaded different data, which replaced the restored work, or
+     * which it asked for before the restore could open, so the work was not reopened over it.
      * `"held-by-other-tab"`: another tab is writing it. `"restore-failed"`: it could not be read,
      * was written by newer code, or its restore did not finish twice (`problem` says which).
      * `"manual"`: automatic restore is off.

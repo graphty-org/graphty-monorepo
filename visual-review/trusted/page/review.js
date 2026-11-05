@@ -938,11 +938,19 @@ const isLocal = () => state.target?.local === true;
 const scale = () => state.data?.results.scale ?? 1;
 // The default branch's name, as the server reports it.
 const branchName = (t = state.target) => t?.defaultBranch ?? state.list?.defaultBranch ?? "master";
+// The default branch's target: the held candidate (`serve --candidate next`) by its commit, the rolling renders
+// of one commit, else a seed.
+const masterLabel = (commit, t, rolling = Boolean(t?.rolling)) => {
+    if (!commit) {
+        return `${branchName(t)} seed`;
+    }
+    return `${branchName(t)} ${rolling ? "rolling" : "candidate"} ${commit.slice(0, 10)}`;
+};
 const labelOf = (t) => {
     if (t.local) {
         return "Local preview";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`;
+    return t.pr === null ? masterLabel(t.candidate?.commit, t) : `#${t.pr}`;
 };
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
@@ -1506,7 +1514,7 @@ function inboxView(inbox) {
                         openTarget(r.id, true);
                     },
                 },
-                el("strong", {}, `#${r.pr} `),
+                el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
                 el("span", { class: "inbox-title" }, r.title),
                 el(
                     "span",
@@ -1522,7 +1530,7 @@ function inboxView(inbox) {
         el(
             "li",
             { class: "inbox-bad", "data-inbox": r.id },
-            el("strong", {}, `#${r.pr} `),
+            el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
             el("span", { class: "inbox-title" }, r.title),
             el("span", { class: "meta" }, `${r.project}: ${r.reason}`),
             r.logUrl ? link(r.logUrl, "Job log") : null,
@@ -1530,7 +1538,9 @@ function inboxView(inbox) {
         );
     const groups = inbox.groups ?? [];
     const grouped = new Set(groups.flatMap((g) => g.ids));
-    const ready = inbox.ready.filter((r) => !grouped.has(r.id)).map(readyRow);
+    // The held candidate above everything: nightly waits on it.
+    const held = inbox.ready.filter((r) => r.pr === null).map(readyRow);
+    const ready = inbox.ready.filter((r) => r.pr !== null && !grouped.has(r.id)).map(readyRow);
     const notReady = inbox.notReady.filter((r) => !grouped.has(r.id)).map(badRow);
     const groupRows = groups.map((g) => {
         const rows = g.ids.map((id, n) => {
@@ -1600,6 +1610,7 @@ function inboxView(inbox) {
         "section",
         { class: "inbox", "aria-label": "Waiting for you" },
         el("h2", {}, readyCount > 0 ? `Ready for you (${readyCount})` : "Nothing waiting for you"),
+        held.length > 0 ? el("ul", { class: "inbox-list" }, held) : null,
         groupRows.length > 0 ? el("ul", { class: "inbox-list" }, groupRows) : null,
         ready.length > 0 ? el("ul", { class: "inbox-list" }, ready) : null,
         notReady.length > 0 ? [el("h3", {}, "Not ready"), el("ul", { class: "inbox-list" }, notReady)] : null,
@@ -1836,7 +1847,7 @@ function targetHeading(t) {
     if (t.local) {
         return "Local preview ";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+    return t.pr === null ? `${masterLabel(t.candidate?.commit, t)} ` : `#${t.pr} `;
 }
 
 // A target card's title: a link to the pull request when there is one.
@@ -4866,7 +4877,7 @@ async function updateTarget(t) {
 }
 
 const isUpdate = (job) => job?.kind === "update";
-const jobLabel = (job) => (job.pr === null ? `${branchName()} seed` : `#${job.pr}`);
+const jobLabel = (job) => (job.pr === null ? masterLabel(job.candidate, undefined, job.rolling) : `#${job.pr}`);
 
 // ---------------------------------------------------------------- Finish
 
@@ -4889,6 +4900,15 @@ function statusWhy(f) {
     return ` (${parts.filter(Boolean).join("; ")})`;
 }
 
+// The branch a default-branch Finish pushes: a candidate's or a rolling render's is replaced by each Finish, which
+// keeps its open pull request; a seed's is dated.
+function seedBranch(t) {
+    if (!t.candidate) {
+        return `visual/seed-${new Date().toISOString().slice(0, 10)}`;
+    }
+    return `visual/approve-${t.rolling ? "rolling-" : ""}${t.candidate.commit.slice(0, 12)}`;
+}
+
 // What a Finish commits and posts, as the sheet's first lines.
 function commitAndPostLines(t, f) {
     const seed = t.pr === null;
@@ -4900,9 +4920,7 @@ function commitAndPostLines(t, f) {
     if (kinds.length === 0) {
         lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
     } else if (seed) {
-        const day = new Date().toISOString().slice(0, 10);
-        // A candidate's branch is replaced by each Finish, which keeps its open pull request.
-        const branch = t.candidate ? `visual/approve-${t.candidate.commit.slice(0, 12)}` : `visual/seed-${day}`;
+        const branch = seedBranch(t);
         lines.push(
             `Push ${branch} with ${kinds.join(" and ")} and open its pull request` +
                 `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`,
@@ -5388,7 +5406,7 @@ function drawFinishPanel() {
     const step = state.job.step ?? "";
     const now = steps.findIndex(([, , match]) => match.test(step));
     const count = /\((\d+) of (\d+) done\)/.exec(step);
-    const label = state.job.pr === null ? `${branchName()} seed` : `#${state.job.pr}`;
+    const label = jobLabel(state.job);
     const panel = el(
         "section",
         { class: "finish-panel", id: "finish-panel" },
@@ -5486,13 +5504,19 @@ function finishStatusLine(out) {
     ];
 }
 
+// The target a job was about. A Finish of an earlier candidate is not about the one offered now.
+function jobTarget(job) {
+    const candidate = job.candidate ?? null;
+    return state.list?.targets?.find((x) => x.id === job.target && (x.candidate?.commit ?? null) === candidate);
+}
+
 function finishOutcome() {
     const job = state.job;
     if (!job || job.running || state.dismissed === job.id) {
         return null;
     }
-    const label = job.pr === null ? `${branchName()} seed` : `#${job.pr}`;
-    const t = state.list?.targets?.find((x) => x.id === job.target);
+    const label = jobLabel(job);
+    const t = jobTarget(job);
     const dismiss = el(
         "button",
         {

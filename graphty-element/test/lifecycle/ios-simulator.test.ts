@@ -20,16 +20,23 @@
  * draw; a page whose WebGL fails is covered by the "No WebGL" lifecycle test and, here, by the switch
  * scenario's "page terminated by WebKit" path.
  *
+ * And the discard-and-return check: a tab whose web content process iOS killed in the background is
+ * loaded again when the reader returns to Safari. It must keep its session storage, so
+ * `listAutosaves` still finds the entry this tab was writing and marks it `own` -- the premise of
+ * reopening a discarded tab straight into its work. When Safari itself exits in the background
+ * before the reader returns (the Simulator's GPU process can hang it until RunningBoard ends it), no
+ * tab was discarded: the check then asserts only that the entry survived, and says so in the run.
+ *
  * The Simulator has no memory-pressure killer and no 7-day storage rule; those are the iPad
  * protocol's (design/work-protection/ipad-protocol.md).
  */
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { afterAll, assert, beforeAll, beforeEach, describe, it, onTestFailed } from "vitest";
 
 import { kill } from "./engines";
 import { type Fixture, startFixture } from "./fixture";
@@ -92,20 +99,43 @@ function pickDevice(): string {
  * When a scenario fails, keep what the Simulator showed and what Safari and WebKit logged, in
  * test-results/ios/<tab> (the workflow uploads it): whether the app switch happened and what became of
  * the page's reports cannot be read from the page.
+ * The log covers only the scenario's own minutes and goes straight to the file: `--last 20m`
+ * buffered in memory overflowed execFileSync's 256 MB buffer (ENOBUFS) after blocking the test
+ * process for 13 minutes, until the job hit its time limit (issue #5225).
  * @param udid - The Simulator.
  * @param tab - The scenario.
+ * @param since - When the scenario started (ms since the epoch).
  */
-function diagnose(udid: string, tab: string): void {
+function diagnose(udid: string, tab: string, since: number): void {
     const dir = join("test-results", "ios", tab);
     mkdirSync(dir, { recursive: true });
     try {
         simctl("io", udid, "screenshot", join(dir, "screen.png"));
         const predicate =
             'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"';
-        writeFileSync(
-            join(dir, "log.txt"),
-            simctl("spawn", udid, "log", "show", "--last", "20m", "--style", "compact", "--predicate", predicate),
-        );
+        const minutes = Math.ceil((Date.now() - since) / 60_000) + 1;
+        const out = openSync(join(dir, "log.txt"), "w");
+        try {
+            execFileSync(
+                "xcrun",
+                [
+                    "simctl",
+                    "spawn",
+                    udid,
+                    "log",
+                    "show",
+                    "--last",
+                    `${minutes}m`,
+                    "--style",
+                    "compact",
+                    "--predicate",
+                    predicate,
+                ],
+                { stdio: ["ignore", out, "pipe"] },
+            );
+        } finally {
+            closeSync(out);
+        }
         // A WebKit process that crashed (the GPU process on a virtual GPU) leaves its report on the host.
         const reports = join(homedir(), "Library", "Logs", "DiagnosticReports");
         for (const name of existsSync(reports) ? readdirSync(reports) : []) {
@@ -132,15 +162,16 @@ interface SafariLog {
 /**
  * Follow Safari's log in the Simulator for the facts a page cannot report: that Safari became active
  * (UIKit's "deactivation reasons: N -> 0"), that a URL reached it ("UIOpenURLAction"), that Safari's
- * scene went to the background, and that
+ * scene went to the background, that
  * WebKit terminated a page's web process (after the GPU process crashed too many times, Safari shows
- * its own error page in place of the page).
+ * its own error page in place of the page), and that Safari started a new network process
+ * ("NetworkProcessProxy::NetworkProcessProxy"), which holds the tabs' session storage.
  * @param udid - The Simulator.
  * @returns The log.
  */
 function followSafari(udid: string): SafariLog {
     const predicate =
-        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons" OR eventMessage CONTAINS "UIOpenURLAction")';
+        'process == "MobileSafari" AND (eventMessage CONTAINS "UISceneDidEnterBackground" OR eventMessage CONTAINS "processDidTerminate" OR eventMessage CONTAINS "deactivation reasons" OR eventMessage CONTAINS "UIOpenURLAction" OR eventMessage CONTAINS "NetworkProcessProxy::NetworkProcessProxy")';
     const child: ChildProcess = ownChild(
         spawn("xcrun", ["simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate], {
             stdio: ["ignore", "pipe", "pipe"],
@@ -228,7 +259,6 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     let safariLog: SafariLog;
 
     beforeAll(async () => {
-        fx = await startFixture();
         udid = pickDevice();
         try {
             simctl("boot", udid);
@@ -253,7 +283,22 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             // Not booted.
         }
 
-        await fx?.close();
+        await Promise.all(servers.map((server) => server.close()));
+    });
+
+    // A fixture server, so an origin, per test. Safari keeps the tabs of earlier tests and reloads
+    // them in the background when it relaunches; on a shared origin such a self-driving page wrote
+    // to the same autosave database and iOS suspended it mid-transaction, and every write of the
+    // next test queued behind that transaction until the watchdog reported E_AUTOSAVE_STALLED
+    // (issue #5148). Each origin has its own database, so such a tab works on its own. The servers
+    // stay up until the end, so a tab Safari reloads later still gets its page, as before #5148,
+    // never a refused connection, and no test waits on closing a server Safari is connected to.
+    const servers: Fixture[] = [];
+    let started = 0;
+    beforeEach(async () => {
+        started = Date.now();
+        fx = await startFixture();
+        servers.push(fx);
     });
 
     /**
@@ -272,12 +317,11 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      * openurl's own time limit is not the test: when it gives up (code 60, "Operation timed out"),
      * wait for this Safari process to log that it received the URL. Any other failure is thrown.
      * @param url - The page.
+     * @returns The pid of the Safari process the page opened in.
      */
-    async function openInSafari(url: string): Promise<void> {
+    async function openInSafari(url: string): Promise<string> {
         const from = safariLog.lines.length;
-        // `simctl launch` prints "com.apple.mobilesafari: <pid>".
-        const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
-        assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
+        const pid = launchSafari();
         const change = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> \\d+;`);
         const active = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`);
         const last = safariLog.lines.filter((line) => change.test(line)).at(-1);
@@ -299,6 +343,19 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
                 sent,
             );
         }
+
+        return pid;
+    }
+
+    /**
+     * Bring Safari to the front, as a reader returning to it does.
+     * @returns The pid of the Safari process now running: a new one when Safari had exited.
+     */
+    function launchSafari(): string {
+        // `simctl launch` prints "com.apple.mobilesafari: <pid>".
+        const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
+        assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
+        return pid;
     }
 
     /**
@@ -312,7 +369,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tab = key;
         onTestFailed(() => {
             console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
-            diagnose(udid, tab);
+            diagnose(udid, tab, started);
         });
         const from = safariLog.lines.length;
         await openInSafari(fx.url({ key, tab, auto: 3, tail: 1, delay: 600_000, webgl: "off" }));
@@ -321,28 +378,53 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const tail = await fx.waitFor((e) => e.tab === tab && e.type === "auto-tail");
 
         const what = await between(from);
-        const lastSaved = fx.lastSaved(tab);
+        // The "saved" reports are separate requests that may still be on their way: the auto-saved
+        // report already says what was saved.
+        const lastSaved = Math.max(fx.lastSaved(tab), saved.revision as number);
         const mark = fx.log.length;
 
-        // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
-        await openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
+        // Opened again. Safari may also reload the tab it had, in the background, at the same moment:
+        // then the two pages start on the key together, the old one with this entry as its own (#4148).
+        // The reopened page is in front, so it always reports: the wait ends on its ready, or on a
+        // restore the old tab reported first -- never on the old tab alone, which iOS may suspend.
+        const reopened = `${tab}.reopened`;
+        const entry = saved.entry as string;
+        await openInSafari(fx.url({ key, tab: reopened, webgl: "off" }));
         const ready = await fx.waitFor(
             (e) =>
-                e.seq >= mark &&
-                e.type === "ready" &&
-                e.tab.startsWith(tab) &&
-                (e.restored as { revision: number } | null) !== null,
+                e.seq >= mark && e.type === "ready" && (e.tab === reopened || (e.tab === tab && e.restored !== null)),
         );
-        const restored = ready.restored as { revision: number };
-        assert.isAtLeast(restored.revision, lastSaved, "the restored revision is at least the last one saved");
-        assert.deepEqual(ready.probes, [restored.revision], "every node's probe equals the restored revision");
+        const restored = ready.restored as { revision: number } | null;
+        let revision: number;
+        let by: string;
+        if (restored === null) {
+            // The old tab claimed its own entry first. iOS suspends a tab in the background, so it may
+            // never report; the reopened page was told who holds the work and read that entry.
+            assert.deepEqual(
+                ready.available,
+                [{ reason: "held-by-other-tab", id: entry }],
+                `the reopened page restored nothing, so it must be told the other tab holds the work: ${JSON.stringify(ready)}`,
+            );
+            const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find(
+                (e) => e.id === entry,
+            );
+            assert.isTrue(held?.live, `the saved entry is held by the reloaded tab: ${JSON.stringify(ready.entries)}`);
+            revision = held?.revision ?? 0;
+            assert.isAtLeast(revision, lastSaved, "the held entry's revision is at least the last one saved");
+            by = "held by the old tab, reloaded in the background";
+        } else {
+            ({ revision } = restored);
+            assert.isAtLeast(revision, lastSaved, "the restored revision is at least the last one saved");
+            assert.deepEqual(ready.probes, [revision], "every node's probe equals the restored revision");
+            by = `restored by ${ready.tab === tab ? "the old tab, reloaded" : "the reopened tab"}`;
+        }
 
         const hidden = fx.log.filter((e) => e.tab === tab && e.type === "visibility" && e.state === "hidden");
         console.log(
             `[ios] ${tab}: hidden reported by ${hidden.map((e) => `${(e.via as string | undefined) ?? "fetch"} at +${(e.at as number) - (tail.at as number)} ms`).join(", ") || "nothing"}`,
         );
-        const landed = restored.revision >= (tail.revision as number);
-        const line = `iOS Simulator, ${what}: restored revision ${restored.revision}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
+        const landed = revision >= (tail.revision as number);
+        const line = `iOS Simulator, ${what}: revision ${revision} ${by}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
         console.log(`[ios] ${line}`);
         if (process.env.GITHUB_STEP_SUMMARY) {
             appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);
@@ -390,6 +472,75 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             simctl("spawn", udid, "notifyutil", "-p", "com.apple.UIKit.SimulatorMemoryWarning");
             return `memory warning in the background (page ${how}), Safari ${terminateSafari(udid)}`;
         });
+    });
+
+    it("keeps the tab's session storage and its own entry when the reader returns to a discarded tab", async () => {
+        const tab = "ios-return";
+        onTestFailed(() => {
+            console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
+            diagnose(udid, tab, started);
+        });
+        const from = safariLog.lines.length;
+        const safari = await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));
+        const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
+        assert.strictEqual(saved.state, "saved", "the page saved its edits");
+        const entry = saved.entry as string | undefined;
+        assert.isString(entry, "the page reported the entry it writes");
+        const stored = safariLog.lines.length;
+
+        // Discard: switch away, then kill the page's web content process, as iOS does to a
+        // background tab. Returning to Safari loads the tab again, in the same tab.
+        await appSwitch(tab, from);
+        const pages = processes().filter(
+            (proc) => proc.cmdline.includes("CoreSimulator") && proc.cmdline.includes("WebKit.WebContent"),
+        );
+        kill(pages);
+        const mark = fx.log.length;
+        const returned = launchSafari();
+        const listed = await fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === "listed");
+        const entries = listed.entries as { id: string; own?: boolean }[];
+        // WebKit keeps session storage in Safari's network process, not in Safari's own. Safari may end
+        // that process while it is in the background and start a new one (run 41344334606: "NetworkProcess
+        // with PID 10572 became unresponsive, terminating it" once it was suspended), and session storage is
+        // gone with it although Safari is the same process: then the returned tab's session storage was not
+        // what the discard tested.
+        const newNetwork = safariLog.lines
+            .slice(stored)
+            .some((l) => l.includes("NetworkProcessProxy::NetworkProcessProxy"));
+        let line: string;
+        if (returned === safari && !newNetwork) {
+            assert.strictEqual(listed.item, entry, "session storage survived the discard");
+            assert.deepEqual(
+                entries.filter((e) => e.own === true).map((e) => e.id),
+                [entry],
+                "the returned tab owns its entry",
+            );
+            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): session storage kept, own entry found`;
+        } else {
+            // Safari itself exited in the background before the reader returned (issue #4304: its GPU
+            // process stopped answering, its main thread blocked for 24 s, and RunningBoard ended it once
+            // it was suspended), so `simctl launch` started a new Safari that reopened the tab from its
+            // saved tabs. That is Safari terminated, not a discarded tab: session storage lives in the
+            // Safari process and is gone with it, so the tab is not this tab any more. What must hold
+            // then is the restore's premise: the entry is still there for the reopened page to find.
+            assert.include(
+                entries.map((e) => e.id),
+                entry,
+                "the entry survived Safari's exit",
+            );
+            const why =
+                returned === safari
+                    ? `Safari ${safari} replaced its network process in the background, which held session storage`
+                    : `Safari ${safari} exited in the background and Safari ${returned} reopened the tab`;
+            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): ${why}, so session storage was not tested; entry kept`;
+            // Loud in the run, so a lane where Safari always exits is seen: the discard check did not run.
+            console.log(`::warning::${line}`);
+        }
+
+        console.log(`[ios] ${line}`);
+        if (process.env.GITHUB_STEP_SUMMARY) {
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);
+        }
     });
 
     it("restores the saved work after Safari's web content process is killed", async () => {

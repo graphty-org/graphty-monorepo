@@ -148,6 +148,8 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`                                            | none                                                       |
 | `visibility.show-context`, `visibility.hide-context`                                                                 | none                                                       |
 | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id` (the filter step's id)                                |
+| `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove`     | `id`, `effect` (the filter condition's id and effect)      |
+| `visibility.condition-edit`                                                                                          | `id`, `effect`, `previousEffect`                           |
 | `visibility.steps` (several steps changed at once, or a reorder)                                                     | none                                                       |
 | `set.create`                                                                                                         | `name` (or null)                                           |
 | `set.rename`                                                                                                         | `set` (its name before, or its id), `name`                 |
@@ -332,6 +334,10 @@ A host that mirrors graph state in its own UI listens for the change itself, wha
   each with a `cause`: `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A run that an
   undo takes away arrives with the phase `"removed"`, and one a redo brings back with
   `"restored"`.
+- `project:derived` fires with the same `{ slices, cause }` once the picture has caught up with
+  every change made so far, after those per-domain events; a burst of changes shares one. Read derived values --
+  `styles.legend()`, `styles.counts()` -- here: on `project:changed` they still answer for the
+  previous picture.
 - The element's `data-added`, `elements-removed` and `data-loaded` events fire for undo and redo
   too, with the same `cause`. A listener that starts work when data arrives should check that
   `cause` is absent or `"command"`, or it will start that work again on every undo.

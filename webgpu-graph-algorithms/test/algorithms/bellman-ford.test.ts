@@ -293,7 +293,6 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         ctx.release(s);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("a planted negative cycle reachable from the source is reported (dist and predArc are the last round's, chains acyclic); the same cycle unreachable from the source is NOT (the naive case); a zero-weight cycle is not; an undirected negative edge is a negative cycle of length two", async (t) => {
         const ctx = await context(t);
         const planted = snapshotOf(gridWithCycle(-3, true), {
@@ -338,7 +337,7 @@ describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
         const two = await checkRun(ctx, "karate with a negative edge from 0", undirected, 0);
         expect(two.result.hasNegativeCycle).toBe(true);
         ctx.release(undirected);
-    }, 300_000);
+    });
 
     it("cutoff on the non-negative integer grid, exactly as sssp: an integer distance some node attains is reached (the <= case), -1 is the source alone, Infinity is no cap, NaN is E_INVALID_ARGUMENT { argument: 'cutoff' } before any device work", async (t) => {
         const ctx = await context(t);

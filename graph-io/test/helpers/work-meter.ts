@@ -185,7 +185,8 @@ export async function charactersExamined(
  * @param body - the work to run
  */
 async function alone(body: () => Promise<void> | void): Promise<void> {
-    let yielded: string | null = null;
+    // set by the hook, which TypeScript does not see change it
+    let yielded = null as string | null;
     const turns = createHook({
         before(): void {
             const resource: unknown = executionAsyncResource();

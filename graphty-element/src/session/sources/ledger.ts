@@ -48,10 +48,14 @@ export interface LoadFacts {
     readonly next?: SourceCursor | null;
     readonly validators?: SourceValidators;
     readonly credential?: Credential | null;
+    /** The credential slot the credential filled. */
+    readonly credentialSlot?: string;
     /** When it finished; now when absent. */
     readonly loadedAt?: string;
     /** How many nodes the source holds for it, when known. */
     readonly total?: number;
+    /** How many edges the source holds for it, when known. */
+    readonly totalEdges?: number;
     /** The load's own expand behavior. */
     readonly expand?: ExpandBehavior;
 }
@@ -94,9 +98,14 @@ function plain<T>(value: T): T {
  * Who a credential was, never what it was.
  * @param credential - the credential
  * @param endpoint - the load's endpoint
+ * @param slot - the credential slot it filled
  * @returns the identity, or null
  */
-function identityOf(credential: Credential | null | undefined, endpoint: Endpoint): SourceCredentialIdentity | null {
+function identityOf(
+    credential: Credential | null | undefined,
+    endpoint: Endpoint,
+    slot: string | undefined,
+): SourceCredentialIdentity | null {
     if (credential === null || credential === undefined) {
         return null;
     }
@@ -106,6 +115,7 @@ function identityOf(credential: Credential | null | undefined, endpoint: Endpoin
         kind: credential.kind,
         origin,
         ...(credential.username === undefined ? {} : { username: credential.username }),
+        ...(slot === undefined ? {} : { slot }),
     };
 }
 
@@ -147,9 +157,10 @@ export class SourceLedger {
             pages: facts.pages ?? 1,
             next: facts.next ?? null,
             validators: plain(facts.validators ?? {}),
-            credential: identityOf(facts.credential, facts.endpoint),
+            credential: identityOf(facts.credential, facts.endpoint, facts.credentialSlot),
             expansions: [],
             ...(facts.total === undefined ? {} : { total: facts.total }),
+            ...(facts.totalEdges === undefined ? {} : { totalEdges: facts.totalEdges }),
             ...(facts.expand === undefined ? {} : { expand: plain(facts.expand) }),
         };
         this.set([...this.records, record]);
@@ -204,12 +215,17 @@ export class SourceLedger {
      * @param facts.next - where it continues now
      * @param facts.validators - what tells whether it changed
      * @param facts.credential - the credential used, for its identity
+     * @param facts.credentialSlot - the credential slot it filled
      * @param facts.endpoint - the endpoint it ran against
      * @param facts.total - how many nodes the source holds for it, when the run found out
+     * @param facts.totalEdges - how many edges, when the run found out
      */
     refreshLoad(
         loadKey: string,
-        facts: Pick<LoadFacts, "next" | "validators" | "credential" | "endpoint" | "total"> & {
+        facts: Pick<
+            LoadFacts,
+            "next" | "validators" | "credential" | "credentialSlot" | "endpoint" | "total" | "totalEdges"
+        > & {
             readonly pages?: number;
         },
     ): void {
@@ -217,11 +233,13 @@ export class SourceLedger {
         this.replace(loadKey, {
             ...load,
             ...(facts.total === undefined ? {} : { total: facts.total }),
+            ...(facts.totalEdges === undefined ? {} : { totalEdges: facts.totalEdges }),
             loadedAt: new Date().toISOString(),
             pages: load.pages + (facts.pages ?? 0),
             next: facts.next ?? null,
             validators: plain(facts.validators ?? load.validators),
-            credential: identityOf(facts.credential, facts.endpoint ?? load.endpoint) ?? load.credential,
+            credential:
+                identityOf(facts.credential, facts.endpoint ?? load.endpoint, facts.credentialSlot) ?? load.credential,
         });
     }
 

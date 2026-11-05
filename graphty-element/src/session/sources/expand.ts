@@ -17,7 +17,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { SourceCollapseCommand, SourceExpandCommand } from "../commands/source-expand";
 import type { CodedFact, CodedFactParam } from "../shared";
 import { resolve as storedCredential } from "./credentialLookup";
-import { toGraphtyError } from "./errors";
+import { notYetRun, toGraphtyError } from "./errors";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, sourceFactKeys, sourceFactsOf, sourceLoadsOf } from "./ids";
 import type { CollapseResult, ExpandOptions, SourceExpandResult, SourceLoadRecord } from "./types";
@@ -191,8 +191,9 @@ async function expandFresh(host: SourceHost, ids: readonly NodeId[], options: Ex
         }
 
         const load = host.ledger.loadOf(sourceLoadsOf(record));
-        if (load === undefined) {
-            const error = notFromSource([record.id]);
+        // A load an opened project holds fetches nothing until the application ran it.
+        if (load === undefined || host.pending.has(load.key)) {
+            const error = load === undefined ? notFromSource([record.id]) : notYetRun(load.key);
             host.emit("source:expand-failed", { code: error.code, params: factParams(error.details) });
             throw error;
         }
@@ -372,13 +373,17 @@ function mergeCommand(
         return facts;
     };
 
-    const fresh = (rows.nodes as Record<string, unknown>[]).filter((row) => host.node(row.id as NodeId) === undefined);
+    const freshCount = (rows.nodes as Record<string, unknown>[]).filter(
+        (row) => host.node(row.id as NodeId) === undefined,
+    ).length;
+    // Each new node's slot on the ring, counted in row order (an indexOf per row was quadratic).
+    let slot = 0;
     for (const row of rows.nodes as Record<string, unknown>[]) {
         const incoming = Object.fromEntries(Object.entries(row).filter(([name]) => !isSourceFactKey(name)));
         const held = host.node(row.id as NodeId);
         if (held === undefined) {
             const id = row.id as NodeId;
-            const position = startNear(host, seeds[0], key, fresh.indexOf(row), fresh.length);
+            const position = startNear(host, seeds[0], key, slot++, freshCount);
             const record = {
                 ...incoming,
                 ...(position === undefined ? {} : { position }),

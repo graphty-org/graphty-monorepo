@@ -112,14 +112,14 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * its position, which is what keeps a node with no incoming paths from scoring zero.
  */
 export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptions> {
-    static namespace = "graphty";
-    static type = "katz";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "katz";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = katzCentralityOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = katzCentralityOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         alpha: {
             type: "number",
             default: 0.1,

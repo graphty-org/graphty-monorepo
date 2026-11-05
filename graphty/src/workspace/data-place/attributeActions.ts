@@ -3,7 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { NEW, openStepEditor } from "./filterSteps";
+import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
@@ -63,7 +63,7 @@ function attributeActions(
             },
         });
     }
-    // A number or a category column can be filtered on; the editor opens with it filled.
+    // A number or a category column can be filtered on: a new filter card opens on it.
     const descriptor = session?.data.attributes().find((a) => a.kind === column.kind && a.name === column.name);
     if (
         descriptor !== undefined &&
@@ -73,7 +73,7 @@ function attributeActions(
             label: "Filter to...",
             disabledReason: null,
             run: () => {
-                openStepEditor(store, `${NEW}:${descriptor.kind}:${descriptor.path}`);
+                openFilterDraft(store, `${descriptor.kind}:${descriptor.path}`);
             },
         });
     }

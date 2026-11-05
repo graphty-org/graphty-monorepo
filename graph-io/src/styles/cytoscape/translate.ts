@@ -156,9 +156,10 @@ function defaultValues(
         set.width = size ?? 50;
         set.height = size ?? 50;
     }
-    if (deps.matched && set.color !== undefined) {
-        set.sourceArrowColor = set.color;
-        set.targetArrowColor = set.color;
+    const given: Partial<Record<string, StyleValue>> = set;
+    if (deps.matched && given.color !== undefined) {
+        set.sourceArrowColor = given.color;
+        set.targetArrowColor = given.color;
     }
     // EDGE_CURVED only rounds bends: with no default bends, the default edge is straight
     if (set.curved === true && bendParser(s.defaults.get(EDGE_BEND_VP), site("curved")) !== true) {

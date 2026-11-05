@@ -6,7 +6,6 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ContextMenu as ContextMenuComponent, MenuCheckItem, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 // ContextMenu is imported under another name so the story that shows it can be called
 // `ContextMenu`, which is what a reader types into the sidebar search.
@@ -292,7 +291,7 @@ export const ContextMenuInteractions: Story = {
         area.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         const body = within(canvasElement.ownerDocument.body);
-        await waitFor(() => expect(body.getByRole("menuitem", { name: /Copy/ })).toHaveFocus(), storyWaitOptions(1000));
+        await waitFor(() => expect(body.getByRole("menuitem", { name: /Copy/ })).toHaveFocus());
     },
 };
 
@@ -347,21 +346,15 @@ export const FromAButtonInteractions: Story = {
         const trigger = canvas.getByRole("button", { name: "Main menu" });
         await userEvent.click(trigger);
         const body = within(canvasElement.ownerDocument.body);
-        await waitFor(() => expect(body.getByRole("menu")).toBeVisible(), storyWaitOptions(1000));
+        await waitFor(() => expect(body.getByRole("menu")).toBeVisible());
         // Opened by a click, the menu itself has focus and no row is highlighted (Figma); ArrowDown
         // reaches the first row.
-        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus(), storyWaitOptions(1000));
+        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus());
         await userEvent.keyboard("{ArrowDown}");
-        await waitFor(
-            () => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus(),
-            storyWaitOptions(1000),
-        );
+        await waitFor(() => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus());
         await userEvent.keyboard("{ArrowDown}{ArrowRight}");
         // Rows with a shortcut carry it in their accessible name ("New design fileCtrl+Alt+N").
-        await waitFor(
-            () => expect(body.getByRole("menuitem", { name: /^New design file/ })).toHaveFocus(),
-            storyWaitOptions(1000),
-        );
+        await waitFor(() => expect(body.getByRole("menuitem", { name: /^New design file/ })).toHaveFocus());
     },
 };
 
@@ -396,9 +389,6 @@ export const LongMenuInteractions: Story = {
     play: async ({ canvasElement }) => {
         await userEvent.click(within(canvasElement).getByRole("button", { name: "Object" }));
         const body = within(canvasElement.ownerDocument.body);
-        await waitFor(
-            () => expect(body.getByRole("menu")).toHaveAttribute("data-cm-scroll-down"),
-            storyWaitOptions(1000),
-        );
+        await waitFor(() => expect(body.getByRole("menu")).toHaveAttribute("data-cm-scroll-down"));
     },
 };

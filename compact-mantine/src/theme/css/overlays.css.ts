@@ -13,6 +13,7 @@
  * and this sheet is appended after Mantine's, so a single `cm-*` class wins. The few Mantine
  * rules that are stronger are answered with a matching selector, noted where they occur.
  */
+import { VIEWPORT_CAP } from "../../components/overlays/viewportCap";
 import { cmFont } from "../tokens";
 import { ROW_LIT, ROW_UNLIT } from "./00-foundation.css";
 
@@ -226,14 +227,34 @@ const css = `
 
 /* ---------------------------------------------------------------- 8.4 light popover */
 
-/* Mantine Popover and HoverCard dropdowns: the foundation's cm-popover-surface, padding 8. */
-.cm-popover { padding: 8px; }
+/* Mantine Popover and HoverCard dropdowns, and every Combobox dropdown (a Popover dropdown): the
+   foundation's cm-popover-surface, padding 8. Never taller than the visual viewport's cap
+   (viewportCap.ts): the contents scroll inside, and a Combobox search field at the top stays in
+   view. A dropdown with an arrow is not made a scroll container, which would clip the arrow.
+   ponytail: an arrowed popover taller than the cap is cut, not scrolled; scroll an inner box if
+   one ever is. */
+.cm-popover { padding: 8px; max-height: ${VIEWPORT_CAP}; }
+.cm-popover:not(:has(> .cm-popover-arrow)) { overflow-y: auto; }
+.cm-popover > .mantine-Combobox-search:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--cm-bg);
+    /* Paints over the dropdown's 8px top padding, which rows would otherwise scroll through. */
+    box-shadow: 0 -8px 0 0 var(--cm-bg);
+}
 .cm-popover-arrow { border: 0; }
 
 /* The Popout panel. Never taller than the window: the header stays and the body scrolls, so every
    field can be reached, and focus moving to a field scrolls it into view. */
-/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx). */
-.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 6px); }
+/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx), and never above the
+   visual viewport's cap (viewportCap.ts). */
+.cm-popout {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(100vh - 6px), ${VIEWPORT_CAP});
+}
 .cm-popout > .cm-popout-header { flex-shrink: 0; }
 .cm-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cm-popout:focus { outline: none; }

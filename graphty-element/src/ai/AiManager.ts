@@ -52,6 +52,9 @@ import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
 import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
+// Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
+export { loadEncryptStorage } from "./keys";
+
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
 

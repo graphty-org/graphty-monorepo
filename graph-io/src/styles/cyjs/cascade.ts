@@ -22,6 +22,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { StyleBudget } from "../budget.js";
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -1354,6 +1355,7 @@ function evaluateTarget(
     if (kind === "node") {
         const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
         nodeSizes(graph, read, drawn);
+        groupBoxes(graph, read, drawn);
         mixedLabelPlaces(graph, read, drawn);
     }
     if (kind === "edge") {
@@ -1524,9 +1526,9 @@ function drawnValues(
     rendered: CyjsStyleInput["rendered"],
     notes: StyleNotes,
     spend: (ops: number) => void,
-): Record<string, (StyleValue | null)[]> {
+): Partial<Record<string, (StyleValue | null)[]>> {
     const out = order.length;
-    const values: Record<string, (StyleValue | null)[]> = {};
+    const values: Partial<Record<string, (StyleValue | null)[]>> = {};
     const words = new Map<string, (string | null)[]>();
     const drawnOf: DrawnRead = { kind, els, cells, order, rendered, notes };
     for (const [name, spec] of cyjsProperties(kind)) {
@@ -1542,8 +1544,7 @@ function drawnValues(
             );
             continue;
         }
-        values[spec.property] ??= new Array<StyleValue | null>(out).fill(null);
-        const target = values[spec.property];
+        const target = (values[spec.property] ??= new Array<StyleValue | null>(out).fill(null));
         col.forEach((v, k) => {
             if (v !== null && v !== undefined) {
                 target[k] = v;
@@ -1554,9 +1555,9 @@ function drawnValues(
     if (kind === "node") {
         cyjsPolygonShapes(values);
     }
-    const drawn: Record<string, (StyleValue | null)[]> = {};
+    const drawn: Partial<Record<string, (StyleValue | null)[]>> = {};
     for (const [p, col] of Object.entries(values)) {
-        if (col.some((v) => v !== null)) {
+        if (col?.some((v) => v !== null) === true) {
             drawn[p] = col;
         }
     }
@@ -1787,6 +1788,8 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "target-text-margin-y",
     "source-text-rotation",
     "target-text-rotation",
+    "source-distance-from-node",
+    "target-distance-from-node",
 ]);
 
 /**
@@ -1922,7 +1925,7 @@ function combineParts(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     // the element's own opacity, before an edge's line opacity is multiplied in: its label is drawn at it
@@ -1979,7 +1982,7 @@ function combineParts(
 function combineLabelOpacity(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const text = words.get("_textOpacity");
     const whole = values.opacity;
@@ -2008,7 +2011,7 @@ function combineLabelOpacity(
 function combineNodeOpacity(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const whole = values.opacity;
     for (const [part, p] of [
@@ -2043,7 +2046,7 @@ function combineDashes(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     // the line or border, and a node's outline, which is always dashed 4 2 with butt ends (`drawOutline`)
     const lines: [string, string, number, string, boolean][] =
@@ -2121,7 +2124,11 @@ function dashedLook(
  * @param n - the element count
  * @returns its values
  */
-function columnOf(values: Record<string, (StyleValue | null)[]>, property: string, n: number): (StyleValue | null)[] {
+function columnOf(
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+    property: string,
+    n: number,
+): (StyleValue | null)[] {
     let column = values[property];
     if (column === undefined) {
         column = new Array<StyleValue | null>(n).fill(null);
@@ -2143,7 +2150,7 @@ function combineVisibility(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const vis = words.get("_visibility");
     const disp = words.get("_display");
@@ -2183,7 +2190,7 @@ function combineLabelText(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     transformLabels(n, words.get("_transform"), values.label);
     // cytoscape.js 3.34.3 `labelJustification`: auto lines the lines up against the node, a label beside it on the
@@ -2257,7 +2264,7 @@ function combineEdgeJustification(
     n: number,
     justification: readonly (string | null)[],
     wrap: readonly (string | null)[] | undefined,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const SHIFT: Readonly<Record<string, number>> = { left: -0.5, right: 0.5 };
     for (let i = 0; i < n; i++) {
@@ -2285,7 +2292,7 @@ function combineLabelDress(
     kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
     whole: readonly (StyleValue | null)[],
 ): void {
@@ -2420,7 +2427,7 @@ function cyjsAngleDegrees(text: string): number | null {
         return null;
     }
     const x = Number(m[1]);
-    const deg = m[2]?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
+    const deg = itemAt(m, 2)?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
     // the neutral rotation runs from 0 up to 360
     return Math.round((((deg % 360) + 360) % 360) * 1e6) / 1e6 + 0;
 }
@@ -2435,7 +2442,7 @@ function cyjsAngleDegrees(text: string): number | null {
 function combineLineOpacity(
     n: number,
     line: readonly (string | null)[] | undefined,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     if (line === undefined) {
         return;
@@ -2480,7 +2487,7 @@ const GRADIENT_ANGLES: ReadonlyMap<string, number> = new Map([
 function combineBackgroundGradient(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     const fill = words.get("_backgroundFill");
@@ -2555,7 +2562,7 @@ function edgeRoutes(
     read: DrawnRead,
     curves: readonly (StyleValue | null | undefined)[],
     nodes: CyjsTargetStyles,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const words = new Map(ROUTE_PARTS.map(([key, name, spec]) => [key, drawnColumn(read, name, spec)] as const));
     const nodeAt = new Map<CyjsElement, number>();
@@ -2664,7 +2671,7 @@ function edgeNodes(
  * @param degrees - the line's turn
  */
 function autorotateLabels(
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     turned: readonly (readonly [string, (StyleValue | null | undefined)[]])[],
     k: number,
     n: number,
@@ -2807,7 +2814,7 @@ const TEXT_PART: CyjsPropertySpec = { property: "_text", type: "text" };
  * @param read - the nodes' cells
  * @param values - the nodes' values; changed in place
  */
-function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Partial<Record<string, (StyleValue | null)[]>>): void {
     const padding = drawnColumn(read, "padding", TEXT_PART);
     const toLabel = (["width", "height"] as const).map((p) => drawnColumn(read, p, SIZE_PART));
     const n = read.order.length;
@@ -2837,6 +2844,146 @@ function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (St
             col(p)[k] = (typeof v === "number" ? v : 30) + 2 * pad;
         }
     }
+}
+
+/** The words of a compound parent's sizing properties. */
+const PADDING_OF_PART: CyjsPropertySpec = {
+    property: "_paddingOf",
+    type: "enum",
+    enums: ["width", "height", "average", "min", "max"],
+};
+const LABELS_PART: CyjsPropertySpec = { property: "_compoundLabels", type: "enum", enums: ["include", "exclude"] };
+
+/**
+ * A length or a percentage as Cytoscape.js spells it.
+ * @param text - the value, or null
+ * @returns the number and whether it is a percentage, or null for none or a non-number
+ */
+function measureOf(text: StyleValue | null | undefined): { value: number; percent: boolean } | null {
+    if (typeof text !== "string" && typeof text !== "number") {
+        return null;
+    }
+    const value = Number.parseFloat(String(text));
+    return Number.isFinite(value) ? { value, percent: String(text).trim().endsWith("%") } : null;
+}
+
+/**
+ * The share of a minimum's growth on the near side (left, top), as Cytoscape.js 3.34.3 `updateCompoundBounds`
+ * splits it: each bias a percentage, a length read as its percentage of the minimum, the near side's share of
+ * their sum; no bias on either side grows both sides alike.
+ * @param near - the near side's bias
+ * @param far - the far side's bias
+ * @param min - the minimum
+ * @returns the near side's share, or null for half
+ */
+function biasShare(
+    near: StyleValue | null | undefined,
+    far: StyleValue | null | undefined,
+    min: number,
+): number | null {
+    const percent = (text: StyleValue | null | undefined): number => {
+        const m = measureOf(text);
+        if (m === null || m.value <= 0) {
+            return 0;
+        }
+        return m.percent ? m.value : (m.value * 100) / min;
+    };
+    const a = percent(near);
+    const total = a + percent(far);
+    return total > 0 ? a / total : null;
+}
+
+/**
+ * How Cytoscape.js sizes a compound parent round its children (cytoscape.js 3.34.3 `updateCompoundBounds`): its
+ * `padding` past their box (a percentage is of the box, `padding-relative-to`), at least `min-width` by `min-height`
+ * before the padding, grown by the biases' shares, its children's labels counted unless `compound-sizing-wrt-labels`
+ * is `exclude`. Written for every compound parent, so the group is drawn as Cytoscape.js draws it.
+ * @param graph - the core's elements
+ * @param read - the nodes' cells
+ * @param values - the nodes' values; changed in place
+ */
+function groupBoxes(graph: CyjsGraph, read: DrawnRead, values: Partial<Record<string, (StyleValue | null)[]>>): void {
+    const word = (name: string, spec: CyjsPropertySpec = TEXT_PART): (StyleValue | null | undefined)[] =>
+        drawnColumn(read, name, spec);
+    const padding = word("padding");
+    const paddingOf = word("padding-relative-to", PADDING_OF_PART);
+    const labels = word("compound-sizing-wrt-labels", LABELS_PART);
+    const axes = [
+        { min: word("min-width"), near: word("min-width-bias-left"), far: word("min-width-bias-right") },
+        { min: word("min-height"), near: word("min-height-bias-top"), far: word("min-height-bias-bottom") },
+    ];
+    const names = [
+        ["groupMinWidth", "groupMinWidthBiasLeft"],
+        ["groupMinHeight", "groupMinHeightBiasTop"],
+    ];
+    const n = read.order.length;
+    const put = (p: string, k: number, v: StyleValue): void => {
+        const column = values[p] ?? new Array<StyleValue | null>(n).fill(null);
+        values[p] = column;
+        column[k] = v;
+    };
+    for (let k = 0; k < n; k++) {
+        const core = read.order[k];
+        if (core < 0 || graph.children[core].length === 0) {
+            continue;
+        }
+        for (const [p, v] of groupPaddingValues(padding[k], paddingOf[k])) {
+            put(p, k, v);
+        }
+        put("groupIncludeLabels", k, labels[k] !== "exclude");
+        axes.forEach((axis, a) => {
+            for (const [p, v] of groupMinValues(axis.min[k], axis.near[k], axis.far[k], names[a])) {
+                put(p, k, v);
+            }
+        });
+    }
+}
+
+/**
+ * A compound parent's padding as neutral values: a length, or a fraction of the side `padding-relative-to` names.
+ * @param padding - the padding as Cytoscape.js spells it
+ * @param of - its `padding-relative-to`
+ * @returns the properties and their values
+ */
+function groupPaddingValues(
+    padding: StyleValue | null | undefined,
+    of: StyleValue | null | undefined,
+): [string, StyleValue][] {
+    const pad = measureOf(padding);
+    if (pad?.percent !== true) {
+        return [["groupPadding", Math.max(0, pad?.value ?? 0)]];
+    }
+    return [
+        ["groupPaddingRatio", Math.max(0, pad.value / 100)],
+        ["groupPaddingOf", typeof of === "string" ? of : "width"],
+    ];
+}
+
+/**
+ * A compound parent's minimum size on one axis and the share of its growth on the near side, as neutral values.
+ * @param min - the minimum as Cytoscape.js spells it
+ * @param near - the near side's bias (left, top)
+ * @param far - the far side's bias
+ * @param names - the neutral names of the minimum and of the near side's share
+ * @returns the properties and their values; none without a minimum
+ */
+function groupMinValues(
+    min: StyleValue | null | undefined,
+    near: StyleValue | null | undefined,
+    far: StyleValue | null | undefined,
+    names: readonly string[],
+): [string, StyleValue][] {
+    const m = measureOf(min);
+    if (m === null || m.percent || m.value <= 0) {
+        return [];
+    }
+    const share = biasShare(near, far, m.value);
+    return share === null
+        ? [[names[0], m.value]]
+        : [
+              [names[0], m.value],
+              [names[1], share],
+          ];
 }
 
 /** The label alignments read as Cytoscape.js's words. */
@@ -2880,7 +3027,11 @@ function pinnedAxis(align: string, half: number, pad: number): { offset: number;
  * @param read - the nodes' cells
  * @param values - the nodes' values, sizes already drawn (`nodeSizes`); changed in place
  */
-function mixedLabelPlaces(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+function mixedLabelPlaces(
+    graph: CyjsGraph,
+    read: DrawnRead,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
     const va = drawnColumn(read, "text-valign", VALIGN_PART);
     const ha = drawnColumn(read, "text-halign", HALIGN_PART);
     const padding = drawnColumn(read, "padding", TEXT_PART);
@@ -2949,7 +3100,7 @@ const CURVE_PART: CyjsPropertySpec = { property: "_curve", type: "enum", enums: 
  */
 function noArrowsOnHaystacks(
     curves: readonly (StyleValue | null | undefined)[],
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const n = curves.length;
     for (const p of ["targetArrow", "sourceArrow"]) {
@@ -3008,7 +3159,7 @@ function hollowArrowsOfRule(set: Record<string, StyleValue>, all: readonly Entry
 function combineArrowFills(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
     notes: StyleNotes,
 ): void {
     for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
@@ -3086,7 +3237,7 @@ function buildRules(
     applied: readonly { entry: Entry; list: readonly number[]; props: EntryProperty[] }[],
     core: { readonly els: readonly CyjsElement[]; readonly order: Int32Array; readonly coreToOut: Int32Array },
     input: CyjsStyleInput,
-    truth: Readonly<Record<string, readonly (StyleValue | null)[]>>,
+    truth: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
     env: { readonly matcher: Matcher; readonly notes: StyleNotes; readonly spend: (ops: number) => void },
 ): { rules: StyleRule[]; columns: Map<string, StyleColumn>; rawColumns: string[] } {
     const { els, order, coreToOut } = core;
@@ -3130,7 +3281,7 @@ interface RuleContext {
     readonly out: number;
     readonly snapshot: GraphSnapshot | undefined;
     /** What a live core drew, when given: the values a function-valued property is copied from. */
-    readonly truth: Readonly<Record<string, readonly (StyleValue | null)[]>> | null;
+    readonly truth: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>> | null;
     readonly matcher: Matcher;
     readonly notes: StyleNotes;
     readonly spend: (ops: number) => void;

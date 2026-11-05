@@ -17,9 +17,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace, with a layer "Picked" holding a name condition and a color,
  * opened in the inspector's Style tab.
@@ -28,14 +25,11 @@ const TIMEOUT_MS = 90_000;
 async function openPicked(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -48,7 +42,7 @@ async function openPicked(): Promise<GraphSession> {
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
     return session;
 }
@@ -58,7 +52,7 @@ async function openPicked(): Promise<GraphSession> {
  * @returns The row button.
  */
 async function whichRow(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: /^Which nodes, / });
 }
 
 describe("focus in the condition cards and property lines, on the real element", () => {
@@ -94,7 +88,7 @@ describe("focus in the condition cards and property lines, on the real element",
 
     it("removing a line hands focus to its own section's +", async () => {
         await openPicked();
-        const remove = await screen.findByRole("button", { name: "Remove node color" }, { timeout: TIMEOUT_MS });
+        const remove = await screen.findByRole("button", { name: "Remove node color" });
         const section = remove.closest<HTMLElement>("[data-section]")?.dataset.section;
         assert.isDefined(section);
         await userEvent.click(remove);

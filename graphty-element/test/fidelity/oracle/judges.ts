@@ -73,7 +73,11 @@ export const SHEET_JUDGES: Readonly<Record<string, SheetJudges>> = Object.fromEn
  * @returns the setting id, or null
  */
 export function settingOf(id: string): string | null {
-    // graphty's own extra node is named by its node id; a primitive no element owns by its tag and index
+    // graphty's own extra node is named by its node id; a primitive no element owns by its tag and index (graphty's)
+    // or its tag and box (the oracle's, `shapeId`)
+    if (/^[a-z]+@-?\d+,-?\d+,-?\d+,-?\d+(~\d+)?$/.test(id)) {
+        return null;
+    }
     const bare = id.replace(/^(graphty|edge|node|group):/, "").replace(/@(source|target|middle)$/, "");
     if (/^[a-z]+#\d+$/.test(bare)) {
         return null;

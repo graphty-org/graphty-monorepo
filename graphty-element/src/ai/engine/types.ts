@@ -283,6 +283,8 @@ export interface ProviderApiSettings {
     readonly reasoningEffort?: AiReasoningEffort;
     /** Anthropic's extended thinking budget; absent, no extended thinking. */
     readonly thinkingBudgetTokens?: number;
+    /** What every HTTP request goes through; absent, the page's `fetch`, read at request time. */
+    readonly fetch?: typeof globalThis.fetch;
 }
 
 /**

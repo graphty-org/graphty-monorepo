@@ -13,6 +13,7 @@ import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
 import type { StylePainter } from "./StylePainter";
+import type { UpdateManager } from "./UpdateManager";
 
 /**
  * GraphContext provides controlled access to graph services
@@ -135,6 +136,13 @@ export interface GraphContext {
      * @since 2.0.0
      */
     getAcceleration?(): AccelerationController;
+
+    /**
+     * The frame loop's manager; absent on a context built without a graph. A node whose surface
+     * changes outside a style pass (a model landing) asks it to visit every edge on the next frame.
+     * @since 3.31.1
+     */
+    getUpdateManager?(): UpdateManager;
 }
 
 /**

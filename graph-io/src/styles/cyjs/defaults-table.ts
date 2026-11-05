@@ -63,6 +63,7 @@ export const CYJS_DEFAULT_STYLESHEET: readonly {
         selector: ":parent",
         style: {
             shape: "rectangle",
+            padding: "10px",
             "background-color": "rgb(238,238,238)",
             "border-color": "rgb(204,204,204)",
             "border-width": "1px",

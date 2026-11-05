@@ -250,6 +250,7 @@ A channel is one visual property with one name. These are all of them:
 | `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
 | `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
 | `node.depth`                  | 0 or more: the depth (3D), in the units of `node.size`                                                                                           |
+| `node.relativeExtents`        | true or false: read width, height and depth as multiples of `node.size`, so a size change keeps the stretch                                      |
 | `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
 | `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
@@ -293,55 +294,59 @@ A channel is one visual property with one name. These are all of them:
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
 
-| Edge channel                  | Takes                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `edge.color`                  | any CSS colour                                                                                               |
-| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                   |
-| `edge.opacity`                | 0 to 1                                                                                                       |
-| `edge.style`                  | `solid`, `dash`, `dot`, `zigzag`, `double`, `forward-slash`, `separate-arrow`, ... (`EdgeLineTypes.options`) |
-| `edge.patternCount`           | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it)                                   |
-| `edge.curvature`              | true or false (a bezier)                                                                                     |
-| `edge.bends`                  | points the line runs through, `"along,across ..."` from source to target                                     |
-| `edge.fanSpacing`             | 0 or more: how far apart curved parallel edges are at their middle                                           |
-| `edge.fanned`                 | false draws a curved edge as its own curve, ignoring the edges beside it                                     |
-| `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                 |
-| `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                   |
-| `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                    |
-| `edge.arrowHeadColor`         | a colour                                                                                                     |
-| `edge.arrowHeadOpacity`       | 0 to 1                                                                                                       |
-| `edge.arrowHeadText`          | words drawn beside the head cap                                                                              |
-| `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                         |
-| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                              |
-| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                          |
-| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                           |
-| `edge.arrowTail`              | the same arrows                                                                                              |
-| `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                   |
-| `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                 |
-| `edge.arrowTailColor`         | a colour                                                                                                     |
-| `edge.arrowTailOpacity`       | 0 to 1                                                                                                       |
-| `edge.arrowTailText`          | words drawn beside the tail cap                                                                              |
-| `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                         |
-| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                              |
-| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                               |
-| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                               |
-| `edge.animationSpeed`         | a number                                                                                                     |
-| `edge.label`                  | the words to draw                                                                                            |
-| `edge.labelStyle`             | as `node.labelStyle`                                                                                         |
-| `edge.labelColor`             | as `node.labelColor`                                                                                         |
-| `edge.labelSize`              | as `node.labelSize`                                                                                          |
-| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                    |
-| `edge.labelFont`              | as `node.labelFont`                                                                                          |
-| `edge.labelWeight`            | as `node.labelWeight`                                                                                        |
-| `edge.labelItalic`            | as `node.labelItalic`                                                                                        |
-| `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                     |
-| `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                             |
-| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                  |
-| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                  |
-| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                |
-| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                      |
-| `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                 |
-| `edge.labelOnTop`             | as `node.labelOnTop`                                                                                         |
-| `edge.labelRotation`          | as `node.labelRotation`                                                                                      |
+| Edge channel                  | Takes                                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `edge.color`                  | any CSS colour                                                                                                   |
+| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
+| `edge.opacity`                | 0 to 1                                                                                                           |
+| `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
+| `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
+| `edge.fadeOpacity`            | 0 to 1: what the fade multiplies the longest lines' opacity by (0.25)                                            |
+| `edge.blending`               | false draws the line without alpha blending, at full strength; `edge.opacity` and the fade have no effect (true) |
+| `edge.style`                  | `solid`, `dash`, `dot`, `zigzag`, `double`, `forward-slash`, `separate-arrow`, ... (`EdgeLineTypes.options`)     |
+| `edge.patternCount`           | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it)                                       |
+| `edge.curvature`              | true or false (a bezier)                                                                                         |
+| `edge.bends`                  | points the line runs through, `"along,across ..."` from source to target                                         |
+| `edge.fanSpacing`             | 0 or more: how far apart curved parallel edges are at their middle                                               |
+| `edge.fanned`                 | false draws a curved edge as its own curve, ignoring the edges beside it                                         |
+| `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                     |
+| `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                       |
+| `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                        |
+| `edge.arrowHeadColor`         | a colour                                                                                                         |
+| `edge.arrowHeadOpacity`       | 0 to 1                                                                                                           |
+| `edge.arrowHeadText`          | words drawn beside the head cap                                                                                  |
+| `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                             |
+| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                                  |
+| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                              |
+| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                               |
+| `edge.arrowTail`              | the same arrows                                                                                                  |
+| `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                       |
+| `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                     |
+| `edge.arrowTailColor`         | a colour                                                                                                         |
+| `edge.arrowTailOpacity`       | 0 to 1                                                                                                           |
+| `edge.arrowTailText`          | words drawn beside the tail cap                                                                                  |
+| `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                             |
+| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                                  |
+| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                                   |
+| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                                   |
+| `edge.animationSpeed`         | a number                                                                                                         |
+| `edge.label`                  | the words to draw                                                                                                |
+| `edge.labelStyle`             | as `node.labelStyle`                                                                                             |
+| `edge.labelColor`             | as `node.labelColor`                                                                                             |
+| `edge.labelSize`              | as `node.labelSize`                                                                                              |
+| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                        |
+| `edge.labelFont`              | as `node.labelFont`                                                                                              |
+| `edge.labelWeight`            | as `node.labelWeight`                                                                                            |
+| `edge.labelItalic`            | as `node.labelItalic`                                                                                            |
+| `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                         |
+| `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                                 |
+| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                      |
+| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                      |
+| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                    |
+| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                          |
+| `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                     |
+| `edge.labelOnTop`             | as `node.labelOnTop`                                                                                             |
+| `edge.labelRotation`          | as `node.labelRotation`                                                                                          |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -350,6 +355,31 @@ color, alpha included. On `node.glow` it fades the glow. An outline cannot be dr
 `node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
 report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
 halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
+
+On a dense graph, long edges cross the whole drawing and hide its structure. Two line options help,
+and both are off until you set them. Each is an ordinary channel, so a layer can give them to some
+edges and not others:
+
+```js
+await element.session.styles.add({
+    name: "Dense graph",
+    target: "edge",
+    selector: { match: "everything" },
+    set: { "edge.fadeStart": 50, "edge.fadeEnd": 150, "edge.fadeOpacity": 0.25 },
+});
+```
+
+Here a line 50 CSS pixels long on screen or shorter draws at its own opacity, one 150 or longer at a
+quarter of it, and one between them at a value between. The fade follows the length on screen, so
+zooming in fades more lines and zooming out fewer. A curved or bent edge fades by its whole length.
+A faded line does not animate. The line alone fades, not its arrowheads or its outline, underlay and
+overlay bands, and a line drawn as separate pattern elements (a straight dash, dot, star, diamond,
+box, dash-dot, zigzag or sinewave) or as a gradient does not fade.
+
+`"edge.blending": false` draws the line without alpha blending, which costs less fill rate on a
+graph with many overlapping lines and keeps them from muddying. The line is drawn at its color's
+full strength, so `edge.opacity` and the fade have no effect on it, and a line under a pixel wide is
+not drawn fainter.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
@@ -409,7 +439,9 @@ await element.session.styles.add({
 box, an octahedron, a diamond -- is drawn 1.5 units wide (the default icosphere's width), so a
 diamond and a sphere of one size look one size. `node.width`, `node.height` and `node.depth` set
 the extent along one axis in the same units, so a node of width 4 is as wide as a node of size 4;
-an axis left unset keeps the shape's own proportions at `node.size`.
+an axis left unset keeps the shape's own proportions at `node.size`. With `node.relativeExtents` on, the
+three are multiples of `node.size` instead, so changing the size keeps the stretch: a node of width
+2 and height 1 at size 1 is drawn 4 wide and 2 tall at size 2.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
 `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, and Pajek's `cross`, `house`,

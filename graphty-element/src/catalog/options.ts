@@ -29,7 +29,7 @@ import type { OptionDescriptor } from "./types";
 
 /** Which extension point is being configured, which is what a failure message names. */
 export interface OptionContext {
-    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink";
+    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
     readonly id: string;
 }
 

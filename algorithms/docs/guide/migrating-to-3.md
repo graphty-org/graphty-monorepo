@@ -214,6 +214,8 @@ graphs named:
   throws. `allPairsShortestPath` refuses more than 5,792 nodes unless `maxNodes` is raised.
 - **Link prediction.** Adamic-Adar scores agree with 2.x within 1e-9, but tied pairs rank in another order, so a `topK`
   cut can keep other pairs and the evaluation metrics can differ where a held-out edge ties a non-edge.
+  With `directed: true`, `commonNeighborsPrediction` and `adamicAdarPrediction` score every ordered pair (u, v), where
+  2.x scored only the pairs whose u was added before v, so they list the pairs 2.x missed too.
 - **Clustering.** `modularity` is Newman's modularity over weighted degrees, where `calculateMCLModularity` ignored
   weights and summed the null model over the edges only. `spectralClustering` solves the Laplacian to a tolerance and
   gives other clusters on most graphs. `teraHAC` indexes its distances by node, where 2.x looked them up by

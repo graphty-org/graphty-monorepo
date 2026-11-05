@@ -13,12 +13,11 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
+import { HeroTurns } from "../../start/heroTurns";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
@@ -40,11 +39,17 @@ function forgetAutosave(): Promise<void> {
 }
 
 /**
- * Mounts the workspace on its start screen with autosave on, as the application does.
+ * Mounts the workspace on its start screen with autosave on, as the application does, with the
+ * start screen's graph holding still as in Storybook: turning, it draws a frame forever, and every
+ * real click on the page waits behind each frame (issue #4139).
  * @returns the render result.
  */
-function mountWorkspace(): ReturnType<typeof render> {
-    return render(<Workspace store={createWorkspaceStore({ autosave: true })} />);
+function mountWorkspace(store: WorkspaceStore): ReturnType<typeof render> {
+    return render(
+        <HeroTurns.Provider value={false}>
+            <Workspace store={store} />
+        </HeroTurns.Provider>,
+    );
 }
 
 /**
@@ -53,13 +58,10 @@ function mountWorkspace(): ReturnType<typeof render> {
  */
 async function openElement(): Promise<ElementUnderTest> {
     let found: ElementUnderTest | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -67,34 +69,34 @@ async function openElement(): Promise<ElementUnderTest> {
 }
 
 /**
- * Opens a sample from the start screen by clicking it, and waits for its nodes.
+ * Brings a sample into the open project through the Data place's own door, Sources "+" >
+ * Samples..., and waits for it to open.
+ * @param store - the workspace store.
  * @param name - the sample's name.
- * @param nodes - how many nodes it has.
  * @returns the element.
  */
-async function openSample(name: string, nodes: number): Promise<ElementUnderTest> {
-    await userEvent.click(
-        await screen.findByRole("button", { name: `Open the ${name} sample` }, { timeout: TIMEOUT_MS }),
-    );
+async function loadSample(store: WorkspaceStore, name: string): Promise<ElementUnderTest> {
     const element = await openElement();
-    await waitFor(
-        () => {
-            assert.equal(element.session.data.statistics().nodeCount, nodes);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+    const samples = await screen.findByRole("dialog", { name: "Samples" });
+    await openBy(store, () => userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) })));
+    // A real click waits behind every frame drawn while the layout moves: start clicking once the
+    // picture is at rest, as a reader would.
+    await element.waitForStableFrame();
     return element;
 }
 
 /**
- * The Data place's Fields section, opened from the rail when it is not open.
+ * The Data place's Fields section, opened from the rail. The rail's Data button only selects the
+ * Data place, so it is clicked whether or not the place is already open: a reloaded workspace can
+ * reopen the place on its own between a check and a click.
  * @returns queries inside it.
  */
 async function fields(): Promise<ReturnType<typeof within>> {
-    if (screen.queryByRole("region", { name: "Data place" }) === null) {
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
-    }
-    const place = await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
+    // Exact, so "Data place" (the region) does not also match.
+    await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+    const place = await screen.findByRole("region", { name: "Data place" });
     return within(within(place).getByRole("group", { name: "Fields" }));
 }
 
@@ -140,16 +142,15 @@ function drop(file: File): void {
  * @returns the session.
  */
 async function dropCsv(csv: string): Promise<GraphSession> {
-    render(<Workspace store={createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" })} />);
-    const element = await openElement();
-    drop(new File([csv], "places.csv"));
-    await waitFor(
-        () => {
-            assert.isAbove(element.session.data.statistics().nodeCount, 0);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    return element.session;
+    const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+    render(<Workspace store={store} />);
+    await openElement();
+    const session = await openBy(store, async () => {
+        drop(new File([csv], "places.csv"));
+        await Promise.resolve();
+    });
+    assert.isAbove(session.data.statistics().nodeCount, 0);
+    return session;
 }
 
 describe("Data > Fields as a + list on the real element", () => {
@@ -160,20 +161,31 @@ describe("Data > Fields as a + list on the real element", () => {
     afterEach(forgetAutosave);
 
     it("lists the airline sample's label, location and weight with no action from the reader", async () => {
-        const view = mountWorkspace();
-        await openSample("OpenFlights airline routes", 3214);
+        // The sample comes in through the Data place's own door, Sources "+" > Samples..., in an
+        // empty project, and the list is read as the load lands. Every click here is made while
+        // the element draws nothing: a real click is several round trips to the page, and each
+        // waits behind the frame being drawn. Through the start screen, one click waited on the
+        // turning start-page graph and one on the airline's 36,906 edges laying out; on a
+        // software GPU each frame held the page for 100 to 600 ms, so on a loaded runner each
+        // click took 3 to 6 s and the test passed its 15 s limit (issue #3981).
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const element = await openElement();
         const section = await fields();
-        await waitFor(
-            () => {
-                assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
-                assert.include(entries(section, "edges"), "weight");
-            },
-            { timeout: TIMEOUT_MS },
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
+        await openBy(store, () =>
+            userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
+        assert.equal(element.session.data.statistics().nodeCount, 3214);
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
+            assert.include(entries(section, "edges"), "weight");
+        });
         assert.equal(shown(section, "Node label"), "label");
         assert.equal(shown(section, "Node latitude column"), "latitude");
         assert.equal(shown(section, "Node longitude column"), "longitude");
-        view.unmount();
     });
 
     it("shows an empty list for a CSV with nothing to detect", async () => {
@@ -187,8 +199,12 @@ describe("Data > Fields as a + list on the real element", () => {
     });
 
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
-        const first = mountWorkspace();
-        const element = await openSample("Paper citations", 159);
+        // The sample comes in through the Data place's own door, as in the airline test above, so
+        // no click waits behind the start screen's turning graph or the sample's layout.
+        const store = createWorkspaceStore({ autosave: true, project: { name: "Fields", id: 1 }, place: "data" });
+        const first = render(<Workspace store={store} />);
+        const element = await loadSample(store, "Paper citations");
+        assert.equal(element.session.data.statistics().nodeCount, 159);
         let section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });
@@ -213,22 +229,17 @@ describe("Data > Fields as a + list on the real element", () => {
         });
 
         // The work is saved, then the page goes away and comes back: a reload.
-        await waitFor(
-            () => {
-                assert.strictEqual(element.autosaver.status.state, "saved");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
         first.unmount();
-        const second = mountWorkspace();
-        await userEvent.click(await screen.findByRole("button", { name: "Restore" }, { timeout: TIMEOUT_MS }));
+        // This tab's own work reopens straight into the workspace, with no offer to answer.
+        const kept = createWorkspaceStore({ autosave: true });
+        const second = mountWorkspace(kept);
+        await openBy(kept, () => Promise.resolve());
         const restored = await openElement();
-        await waitFor(
-            () => {
-                assert.equal(restored.session.data.statistics().nodeCount, 159);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.equal(restored.session.data.statistics().nodeCount, 159);
+        await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });
@@ -241,12 +252,9 @@ describe("Data > Fields as a + list on the real element", () => {
     it("lists a detected city and the country narrowing it as two entries, and their minuses stop the search", async () => {
         const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();
-        await waitFor(
-            () => {
-                assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
+        });
         assert.equal(shown(section, "Node city column"), "city");
         assert.equal(shown(section, "Node country column"), "country");
 

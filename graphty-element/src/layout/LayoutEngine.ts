@@ -48,6 +48,37 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+    /**
+     * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
+     * pairs, flat, as `line.bends` holds them. A route the edge's style stores wins over it.
+     */
+    bends?: readonly number[];
+    /**
+     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`, or `xlp` for an external label): `along` of the way from the source
+     * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
+     * label goes at the middle of the edge's line.
+     */
+    labelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the caption at the edge's target end, when it placed one (Graphviz's `head_lp`), given as
+     * {@link EdgePosition.labelAt} is. Absent, or when the caption's style places it itself, it hangs beside the end.
+     */
+    headLabelAt?: readonly [along: number, across: number];
+    /** Where the layout put the caption at the edge's source end (Graphviz's `tail_lp`), as {@link EdgePosition.headLabelAt}. */
+    tailLabelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the edge's external label, drawn beside its label, when it placed one (Graphviz's `xlp`),
+     * given as {@link EdgePosition.labelAt} is. Absent, or when the external label's style places it itself, it sits
+     * up and left of the line's middle.
+     */
+    xlabelAt?: readonly [along: number, across: number];
+    /**
+     * The edge's labels the layout left out, which are not drawn: a Graphviz layout of a graph with
+     * `forcelabels=false` leaves out an external label, an end label or (in every engine but dot) a label that would
+     * cover a node or another label. Absent when none is left out.
+     * @since 3.35.0
+     */
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
 }
 
 /**
@@ -232,7 +263,11 @@ export const layoutEngineInternals = {} as {
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
     /** See `LayoutEngine.setFollowers`. */
-    setFollowers(engine: LayoutEngine, rows: ReadonlySet<number> | null): void;
+    setFollowers(
+        engine: LayoutEngine,
+        rows: ReadonlySet<number> | null,
+        members?: ReadonlyMap<number, readonly number[]>,
+    ): void;
 };
 
 /**
@@ -321,8 +356,8 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
-        layoutEngineInternals.setFollowers = (engine, rows) => {
-            engine.setFollowers(rows);
+        layoutEngineInternals.setFollowers = (engine, rows, members) => {
+            engine.setFollowers(rows, members);
         };
     }
 
@@ -399,6 +434,9 @@ export abstract class LayoutEngine {
     /** The rows the element places itself (group nodes following their members), or null. */
     private followers: ReadonlySet<number> | null = null;
 
+    /** Each follower row's member rows. See {@link LayoutEngine.followerGroups}. */
+    private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
+
     // basic functionality
     abstract init(): Promise<void>;
     // The element's to call: the engine follows the graph slice, and a consumer who added or removed
@@ -414,6 +452,26 @@ export abstract class LayoutEngine {
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
+    /**
+     * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
+     * center, right and down of the node's center, in scene units. Undefined by default: the label then sits against
+     * the node's top left corner.
+     * @param _n - The node.
+     * @returns The offset, or undefined when the layout places no external label.
+     */
+    getNodeXlabelOffset(_n: Node): readonly [right: number, down: number] | undefined {
+        return undefined;
+    }
+    /**
+     * Whether the layout left a node's external label (`xlabel`) out, so it is not drawn: a Graphviz layout of a graph
+     * with `forcelabels=false` leaves out one that would cover another node. False by default.
+     * @param _n - The node.
+     * @returns True when the label is left out.
+     * @since 3.34.0
+     */
+    isNodeXlabelLeftOut(_n: Node): boolean {
+        return false;
+    }
     // for animated layouts
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
@@ -644,9 +702,14 @@ export abstract class LayoutEngine {
      * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
      * the followers up too.
      * @param rows - The follower rows, or null for none.
+     * @param members - Each follower row's member rows, the nodes it holds directly.
      */
-    protected setFollowers(rows: ReadonlySet<number> | null): void {
+    protected setFollowers(
+        rows: ReadonlySet<number> | null,
+        members: ReadonlyMap<number, readonly number[]> = new Map(),
+    ): void {
         this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.followerMembers = members;
         this.setHoldMask(this.hold, this.holdRows);
     }
 
@@ -658,6 +721,16 @@ export abstract class LayoutEngine {
      */
     protected isFollower(index: number): boolean {
         return this.followers?.has(index) === true;
+    }
+
+    /**
+     * The groups the element places round their members (see {@link LayoutEngine.isFollower}),
+     * each with the rows of the members it holds directly: for an engine that keeps a group's
+     * members together itself, as Graphviz does with a cluster.
+     * @returns The groups by row; empty for none.
+     */
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]> {
+        return new Map([...(this.followers ?? [])].map((row) => [row, this.followerMembers.get(row) ?? []]));
     }
 
     /**
@@ -1121,6 +1194,30 @@ function carryRows(rows: NodeMask, change: SnapshotReplacement): NodeMask {
 }
 
 /**
+ * How many edges of a graph join each pair of nodes, with its ends renumbered into the next freeze.
+ * @param graph - the graph before the freeze
+ * @param remap - its node rows to the next freeze's, or null when they kept their rows
+ * @param pair - the key of a pair of renumbered ends
+ * @returns the edge count per pair key
+ */
+function pairCounts(
+    graph: GraphSnapshot,
+    remap: SnapshotReplacement["report"]["nodeRemap"],
+    pair: (a: number, b: number) => number,
+): Map<number, number> {
+    const counts = new Map<number, number>();
+    const had = graph.edgeList();
+    for (let e = 0; e < graph.edgeCount; e++) {
+        const a = remap === null ? had.src[e] : remap[had.src[e]];
+        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
+        const key = pair(a, b);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1156,14 +1253,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
     // edge identity.
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
-    const before = new Map<number, number>();
-    const had = previous.edgeList();
-    for (let e = 0; e < previous.edgeCount; e++) {
-        const a = remap === null ? had.src[e] : remap[had.src[e]];
-        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
-        const key = pair(a, b);
-        before.set(key, (before.get(key) ?? 0) + 1);
-    }
+    const before = pairCounts(previous, remap, pair);
 
     const { src, dst } = next.edgeList();
     let between = 0;

@@ -1,8 +1,8 @@
 // client.mjs -- the test results store's client (design/ci/channels-pipeline/results-service.md).
 //
-// Every call fails open: it never throws, it gives up after 5 s (a plan or a record) or 2 s (a failure
-// event), and a missing answer is `null`, which callers read as "run everything, excuse nothing". An
-// invocation record that could not be sent is written to the spool directory, for a later re-post.
+// Every call fails open: it never throws, each attempt gives up after 5 s (a plan or a record) or 2 s (a failure
+// event), a request with no answer is sent twice more (RETRY_MS), and a missing answer is `null`, which callers
+// read as "run everything, excuse nothing". An invocation record that could not be sent is written to the spool directory, for a later re-post.
 //
 // Configuration, from the environment, then the repository's .env for the local token:
 //   RESULTS_URL             the Worker's URL; unset, the client does nothing
@@ -18,6 +18,7 @@
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +26,9 @@ import { parseEnvFile } from "../sonar/api.mjs";
 
 export const SCHEMA = 1;
 export const RECORD_MS = 5000;
+// The plan read: one per run, and its answer sizes every test bin (no answer packs bins without history, many
+// times too many jobs), so it may take longer than a record write.
+export const PLAN_MS = 20000;
 export const EVENT_MS = 2000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const AUDIENCE = "graphty-results";
@@ -165,7 +169,8 @@ export function postFlaky(env, shard, family, flaky) {
 /**
  * Sends one benchmark job's results to the health API (`POST /v1/benchmarks`), through sendHealth(), so the dashboard
  * keeps each benchmark's trend. Like postFlaky(): only HEALTH_API_URL and an OIDC token in GitHub Actions; anything
- * else sends nothing. Never throws.
+ * else sends nothing. Never throws. Names the machine that measured them (this runner's CPU model): hosted runners
+ * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
  * @param rows the results `{ name, value }`, milliseconds
@@ -184,6 +189,7 @@ export function postBenchmarks(env, source, rows) {
         source,
         unit: "ms",
         ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        ...(cpus()[0]?.model ? { machine: cpus()[0].model.trim() } : {}),
         rows,
     });
     return true;
@@ -197,22 +203,38 @@ export function flushHealth() {
     return Promise.allSettled([...healthPending]);
 }
 
+// A request that got no HTTP response at all (no answer in time, a network error) or a 5xx is sent again after
+// these waits: a Worker cold start, a network blip or one failed store answer must not fail a release job (#4183).
+// One that got any other response (2xx, 4xx) is never sent again. Every write route of the store is idempotent (INSERT OR IGNORE / OR REPLACE on its key, or deduped
+// on it), so a write that arrived but whose answer was lost is safe to send again.
+export const RETRY_MS = [1000, 3000];
+
 /**
- * One request to the store. Never throws.
+ * One request to the store, sent again when no answer or a 5xx came (RETRY_MS). Never throws.
  * @param cfg config()
  * @param method GET, POST or PUT
  * @param path e.g. `/v1/invocations`
  * @param [body] JSON body
- * @param [ms] the timeout for the whole call
+ * @param [ms] the timeout for each attempt
  * @returns `{ ok: true, data }` or `{ ok: false, why }`
  */
 export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) {
     if (!cfg) return { ok: false, why: "results store not configured" };
     if (cfg.health && method === "POST") sendHealth(cfg, path, body);
+    const waits = cfg.retryMs ?? RETRY_MS;
+    for (let i = 0; ; i++) {
+        const r = await attempt(cfg, method, path, body, ms);
+        if (r.answered || i >= waits.length) return r.result;
+        await new Promise((resolve) => setTimeout(resolve, waits[i]));
+    }
+}
+
+async function attempt(cfg, method, path, body, ms) {
     const deadline = AbortSignal.timeout(ms);
+    let res;
     try {
         const auth = await bearer(cfg, deadline);
-        const res = await fetch(cfg.url + path, {
+        res = await fetch(cfg.url + path, {
             method,
             headers: {
                 authorization: `Bearer ${auth}`,
@@ -222,11 +244,12 @@ export async function call(cfg, method, path, body = undefined, ms = RECORD_MS) 
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: deadline,
         });
-        if (!res.ok) return { ok: false, why: `HTTP ${res.status}` };
+        if (!res.ok) return { answered: res.status < 500, result: { ok: false, why: `HTTP ${res.status}` } };
         const text = await res.text();
-        return { ok: true, data: text ? JSON.parse(text) : null };
+        return { answered: true, result: { ok: true, data: text ? JSON.parse(text) : null } };
     } catch (e) {
-        return { ok: false, why: e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message };
+        const why = e.name === "TimeoutError" ? `no answer in ${ms / 1000} s` : e.message;
+        return { answered: res !== undefined, result: { ok: false, why } };
     }
 }
 
@@ -268,6 +291,6 @@ export function postFailures(cfg, invocation, failures) {
 export async function readPlan(cfg, query) {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
-    const r = await call(cfg, "GET", `/v1/plan?${q}`);
+    const r = await call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
     return r.ok ? r.data : null;
 }

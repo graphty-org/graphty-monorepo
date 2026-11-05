@@ -368,7 +368,7 @@ describe("the rest source", () => {
 
     it("restSource refuses a bad mapping when it is made", () => {
         expect(() => restSource({ ...PEOPLE, version: 2 as 1 }, { id: "bad" })).toThrow(
-            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) }),
+            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) as unknown }),
         );
     });
 
@@ -386,6 +386,36 @@ describe("the rest source", () => {
         expect(snapshot.ids.has("ana")).toBe(true);
         expect(report.issues.map((i) => i.code)).toContain("W_SOURCE_AUTH");
         expect(report.source?.next).toMatchObject({ r: "people", at: 2 });
+    });
+
+    it("keeps no API key in a next-page link the service echoes it in", async () => {
+        const linked: RestMapping = {
+            ...PEOPLE,
+            requests: { ...PEOPLE.requests, people: { ...PEOPLE.requests.people, paging: { style: "link-header" } } },
+        };
+        const { report } = await loadFromSource(
+            restSource(linked, { id: "linked-key" }),
+            { team: "core" },
+            {
+                credential: credentials.apiKey({ query: "api_key" }, "K-SECRET-1"),
+                endpoint: API,
+                limits: { maxNodes: 1, onLimit: "stop" },
+                fetch: replayFetch(
+                    [
+                        {
+                            url: `${API}/teams/core/people?api_key=x`,
+                            headers: { link: `<${API}/teams/core/people?p=2&api_key=K-SECRET-1>; rel="next"` },
+                            body: { items: [{ id: "a" }] },
+                        },
+                    ],
+                    { secretQuery: ["api_key"] },
+                ),
+            },
+        );
+        const saved = JSON.stringify(report.source?.next);
+        expect(saved).toContain("p=2");
+        expect(saved).not.toContain("K-SECRET-1");
+        expect(saved).not.toContain("api_key");
     });
 
     it("pages by link header and by a next URL in the body", async () => {
@@ -447,7 +477,7 @@ describe("the rest source", () => {
                 },
             ),
         );
-        expect(err.issue?.params).toEqual({ expected: "json", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({ origin: API, expected: "json", contentType: "text/html" });
     });
 
     it("expands breadth-first with batched {ids}", async () => {

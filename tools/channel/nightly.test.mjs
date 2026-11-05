@@ -1,8 +1,10 @@
 // Tests of the nightly promotion's decisions and records (tools/channel/nightly.mjs).
 // Run: node tools/channel/nightly.test.mjs
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -11,10 +13,16 @@ import { parse as parseYaml } from "yaml";
 import { parseDeployed } from "./site-deploy.mjs";
 import {
     autosaveFormatOf,
+    carrierCommit,
     channelRecord,
     deployedRecord,
     deployState,
+    lastNightlyMove,
+    missedSlot,
+    MISSED_TITLE,
     promotion,
+    siteReleasePlan,
+    slotText,
     stall,
     stampOf,
     STALL_TITLE,
@@ -45,6 +53,14 @@ describe("promotion", () => {
         const refused = promotion({ state: "green-clean", publishHold: "", gate: "failure" });
         assert.equal(refused.promote, false);
         assert.match(refused.why, /screenshot gate refused/);
+        const reason =
+            "graph-io-fidelity: 1 unstable (not accepted; a rejected item needs a code change, not another review)";
+        const named = promotion({ state: "approved", publishHold: "", gate: "failure", gateReason: reason });
+        assert.equal(
+            named.why,
+            `the screenshot gate refused: ${reason}`,
+            "the gate's own reason, not the generic text",
+        );
     });
 
     it("waits while a publish hold is open, and says which", () => {
@@ -127,6 +143,51 @@ describe("the records", () => {
         const d = deployedRecord({ sha: SHA, siteSha256: "f".repeat(64), configRef: "c".repeat(40), now: NOW });
         assert.deepEqual(parseDeployed(JSON.stringify(d)), d);
         assert.equal(d.tag, `site-${SHA}`);
+        const carried = deployedRecord({
+            sha: SHA,
+            siteSha256: "f".repeat(64),
+            configRef: "c".repeat(40),
+            now: NOW,
+            tag: `site-${"b".repeat(40)}`,
+        });
+        assert.deepEqual(parseDeployed(JSON.stringify(carried)), carried);
+    });
+});
+
+describe("the site-<sha> release (immutable releases, #4149)", () => {
+    const HASH = "e".repeat(64);
+    const release = (assets) => ({ tag_name: `site-${SHA}`, immutable: true, assets });
+    it("creates a missing release, reuses one holding this archive, refuses another archive", () => {
+        assert.equal(siteReleasePlan(null, HASH).action, "create");
+        const same = release([{ name: "site.tar.zst", digest: `sha256:${HASH}` }, { name: "channel.json" }]);
+        assert.equal(siteReleasePlan(same, HASH).action, "reuse");
+        const other = release([{ name: "site.tar.zst", digest: `sha256:${"0".repeat(64)}` }]);
+        assert.equal(siteReleasePlan(other, HASH).action, "refuse");
+    });
+
+    it("moves a site whose release was published without it to a carrier commit", () => {
+        assert.equal(siteReleasePlan(release([]), HASH).action, "carrier");
+        assert.equal(siteReleasePlan(release([{ name: "channel.json" }]), HASH).action, "carrier");
+    });
+
+    it("makes the same carrier every time: the candidate's tree, the candidate as its parent", () => {
+        const dir = mkdtempSync(join(tmpdir(), "nightly-carrier-"));
+        const git = (args, env = {}) =>
+            execFileSync("git", ["-C", dir, ...args], {
+                encoding: "utf8",
+                env: { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", ...env },
+            }).trim();
+        git(["init", "-q"]);
+        writeFileSync(join(dir, "a.txt"), "a\n");
+        git(["add", "a.txt"]);
+        git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"]);
+        const sha = git(["rev-parse", "HEAD"]);
+        const carrier = carrierCommit(sha, git);
+        assert.match(carrier, /^[0-9a-f]{40}$/);
+        assert.notEqual(carrier, sha);
+        assert.equal(carrierCommit(sha, git), carrier, "a re-run finds the same commit, and its release");
+        assert.equal(git(["rev-parse", `${carrier}^{tree}`]), git(["rev-parse", `${sha}^{tree}`]));
+        assert.equal(git(["rev-parse", `${carrier}^`]), sha);
     });
 });
 
@@ -165,8 +226,9 @@ describe("the stall alarm", () => {
         canary: { sha: "c".repeat(40) },
         ...extra,
     });
-    it("stays quiet up to 24 hours", () => {
-        assert.equal(stall({ state: state(24 * HOUR, "unjudged"), publishHold: "", now: NOW }), null);
+    it("stays quiet up to one slot and a run (8 hours), the fallback for a slot with no run (#5052)", () => {
+        assert.equal(stall({ state: state(8 * HOUR, "unjudged"), publishHold: "", now: NOW }), null);
+        assert.match(stall({ state: state(9 * HOUR, "unjudged"), publishHold: "", now: NOW }).body, /no run at all/);
         assert.equal(stall({ state: null, publishHold: "", now: NOW }), null);
         const never = { ...state(0, "unjudged"), nightly: null, ageNightlyMs: null };
         assert.equal(stall({ state: never, publishHold: "", now: NOW }), null, "nightly never moved: no alarm");
@@ -210,6 +272,122 @@ describe("the stall alarm", () => {
     });
 });
 
+describe("the missed-slot alarm (#5052)", () => {
+    const STARTED = Date.UTC(2026, 9, 30, 6, 4); // the 06:00 slot's run
+    const ran = (over) => ({ moved: false, pickResult: "success", release: "true", sha: SHA, ...over });
+    it("is quiet when nightly moved, and while attempt 1 waits for its re-run", () => {
+        assert.equal(missedSlot(ran({ moved: true, state: "red" }), STARTED), null);
+        assert.equal(missedSlot(ran({ state: "red", deferred: "true" }), STARTED), null);
+    });
+    it("names the slot by its UTC time and the cause: a red lane with its issue", () => {
+        const a = missedSlot(ran({ state: "red", what: "T4 GPU", issue: "4600" }), STARTED);
+        assert.equal(a.title, `${MISSED_TITLE} 2026-10-30 06:00 UTC: red lane on aaaaaaa: T4 GPU (#4600)`);
+    });
+    it("a candidate held for review names the review page", () => {
+        const a = missedSlot(ran({ state: "green-images", hold: "start" }), STARTED);
+        assert.match(a.cause, /^waiting on the owner's screenshot review of aaaaaaa$/);
+        assert.match(a.detail, /serve --candidate next/);
+        assert.match(a.detail, /&change=master/);
+    });
+    it("a green-images run behind a held candidate awaiting review, and one behind a hold nobody can review", () => {
+        const H = "e87f65b".padEnd(40, "0");
+        const review = missedSlot(
+            ran({ state: "green-images", hold: "none", held: H, heldState: "green-images" }),
+            STARTED,
+        );
+        assert.match(review.cause, /review of the held e87f65b/);
+        const stuck = missedSlot(ran({ state: "green-images", hold: "none", held: H, heldState: "red" }), STARTED);
+        assert.match(stuck.cause, /hold on e87f65b is not reviewable \(red\)/);
+        assert.match(stuck.detail, /nightly-abandon\.yml/);
+    });
+    it("no new candidate, a failed pick, and a green-clean run that did not promote say so", () => {
+        assert.match(
+            missedSlot(ran({ release: "false", pickWhy: "c3 is judged" }), STARTED).cause,
+            /^no new candidate: c3/,
+        );
+        assert.match(missedSlot(ran({ pickResult: "failure" }), STARTED).cause, /the pick failed/);
+        const gc = missedSlot(ran({ state: "green-clean", promote: "false", why: "publish hold #9 is open" }), STARTED);
+        assert.match(gc.cause, /did not promote: publish hold #9/);
+        assert.match(
+            missedSlot(ran({ state: "green-clean", promote: "true" }), STARTED).cause,
+            /failed before it landed/,
+        );
+    });
+    it("is quiet when nightly already holds everything the slot could test, unless the store names a blocker (#5671)", () => {
+        // 2026-11-02: nightly moved at 05:56; the 06:00 slot's newest built commit was older than nightly
+        const current = ran({ release: "false", current: "true", pickWhy: "62928db lacks channel/nightly" });
+        assert.equal(missedSlot(current, STARTED), null);
+        const red = { blocking: "red", red: { sha: SHA, lane: "T4 GPU", issue: 4600 } };
+        assert.match(missedSlot(current, STARTED, red).cause, /^red lane on aaaaaaa: T4 GPU/);
+    });
+});
+
+describe("the missed-slot alarm replays 2026-10-30 (#5135)", () => {
+    const H = "660d4cacbf835e5dee06a69e5a3dd5c981d592a6";
+    // GET /v1/release-state as both runs read it: 660d4ca held for review (#5065), no nightly move recorded
+    const state = {
+        nightly: null,
+        ageNightlyMs: null,
+        blocking: "held",
+        hold: { base: H, head: H, issue: 5065, at: 1793373687260 },
+        offered: { sha: H, state: "green-images" },
+    };
+    // the slot job's env of each run, as logged
+    const full = {
+        moved: false,
+        pickResult: "success",
+        release: "true",
+        pickWhy: "68713aa is not judged yet",
+        resume: "false",
+        sha: "68713aa976b296bead7a5e786741d7285605b761",
+        state: "green-images",
+        deferred: "false",
+        hold: "none",
+        held: H,
+        heldState: "green-images",
+        what: "1749 screenshots differ from master's baselines",
+        issue: "",
+        promote: "false",
+        why: "the verdict is green-images, not green-clean",
+    };
+    const candidate = {
+        moved: false,
+        pickResult: "success",
+        release: "false",
+        pickWhy: "the held head is judged already",
+        resume: "false",
+        sha: H,
+    };
+    it("a candidate run that tested nothing keeps the full run's cause and title (runs 41103133086, 41138164069)", () => {
+        const before = missedSlot(full, Date.parse("2026-10-30T18:00:36Z"), state);
+        const after = missedSlot(candidate, Date.parse("2026-10-30T22:26:41Z"), state);
+        assert.equal(
+            before.title,
+            `${MISSED_TITLE} 2026-10-30 18:00 UTC: waiting on the owner's screenshot review of the held 660d4ca`,
+        );
+        assert.equal(after.title, before.title);
+        assert.match(after.detail, /serve --candidate next/);
+    });
+    it("a no-op run names a red blocker or a hold nobody can review, and says no new candidate only when the store is silent", () => {
+        const red = { blocking: "red", red: { sha: "b".repeat(40), lane: "T4 GPU", issue: 4600 } };
+        assert.match(missedSlot(candidate, 0, red).cause, /^red lane on bbbbbbb: T4 GPU \(#4600\)$/);
+        const stuck = { ...state, offered: null };
+        assert.match(missedSlot(candidate, 0, stuck).cause, /^hold on 660d4ca is not reviewable/);
+        assert.match(missedSlot(candidate, 0, null).cause, /^no new candidate: the held head is judged already$/);
+    });
+    it("names when nightly last moved: the push to channel/nightly when the store has no move (2026-10-29 15:30Z)", () => {
+        const pushed = Date.parse("2026-10-29T15:30:28Z");
+        const now = Date.parse("2026-10-30T22:28:29Z");
+        assert.equal(lastNightlyMove(null, pushed), pushed);
+        assert.equal(lastNightlyMove(pushed + HOUR, pushed), pushed + HOUR);
+        assert.equal(lastNightlyMove(null, Number.NaN), null);
+        const alarm = missedSlot(candidate, now, state);
+        const text = slotText({ mode: "candidate", runUrl: "u", alarm, moved: lastNightlyMove(null, pushed), now });
+        assert.match(text, /Nightly last moved at 2026-10-29 15:30 UTC, 30 hours ago\./);
+        assert.match(slotText({ mode: "full", runUrl: "u", alarm, moved: null, now }), /at an unknown time/);
+    });
+});
+
 describe("nightly.mjs as a command", () => {
     it("refuses an unknown command and names the missing inputs", () => {
         assert.equal(spawnSync(process.execPath, [script, "nope"], { encoding: "utf8" }).status, 2);
@@ -243,8 +421,8 @@ describe("nightly.mjs as a command", () => {
 });
 
 describe("the site job's hang guard", () => {
-    const release = parseYaml(readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8"));
-    const site = release.jobs.site;
+    const workflow = readFileSync(new URL("../../.github/workflows/nightly-site.yml", import.meta.url), "utf8");
+    const site = parseYaml(workflow).jobs.site;
     it("counts the deploy wait from the job's start, not from the wait", () => {
         assert.match(site.steps[0].run, /JOB_STARTED_MS=/, "the first step notes the start");
         assert.equal(waitDeadline({ JOB_STARTED_MS: String(NOW - 6 * 60_000) }, NOW), NOW - 6 * 60_000 + WAIT_LIMIT_MS);

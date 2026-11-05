@@ -1,7 +1,7 @@
 import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { NEW, openStepEditor } from "../data-place/filterSteps";
+import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
@@ -17,15 +17,20 @@ function noNodeSelected(session: GraphSession | null): string | null {
 }
 
 /**
- * How far out a node's neighbor list opens: the reach of an on "Filter to neighbors" step on that
- * node, so the list shows what the drawing keeps; one hop when no such step is on.
+ * How far out a node's neighbor list opens: the reach of an on "Filter to neighbors" card on that
+ * node, so the list shows what the drawing keeps; one hop when no such card is on.
  * @param session - the element's session.
  * @param center - the node at the center.
  * @returns the hop count.
  */
 function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
-    const step = session.visibility.steps.find(
-        (s) => s.on && s.rule.kind === "neighborhood" && s.rule.seeds.length === 1 && s.rule.seeds[0] === center,
+    const step = session.visibility.conditions.find(
+        (s) =>
+            s.on &&
+            s.effect === "keep" &&
+            s.rule.kind === "neighborhood" &&
+            s.rule.seeds.length === 1 &&
+            s.rule.seeds[0] === center,
     );
     const depth = step?.rule.kind === "neighborhood" ? step.rule.depth : 1;
     return depth === 2 || depth === 3 ? depth : 1;
@@ -239,13 +244,13 @@ export const registration = defineRegistration({
             },
         },
         {
-            // A way to Filters from the canvas: the Data place, its step editor open on a new step.
+            // A way to Filters from the canvas: the Data place, its "+" list open.
             id: "filters.open",
             label: "Filters",
             group: "Data",
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {
-                openStepEditor(workspace, NEW);
+                openFilterDraft(workspace, PLUS);
             },
         },
         {
@@ -269,7 +274,7 @@ export const registration = defineRegistration({
                 }
                 const centers = session.selection.nodes;
                 const depth = centers.length === 1 ? filteredReach(session, centers[0]) : 1;
-                await session.selection.apply({ neighborsOf: centers, depth });
+                await session.selection.apply({ neighborsOf: centers, depth }, "replace", { cause: "user" });
                 // The selection changed under the reader, so the change is said: "Ava and 14
                 // connections" for one center, the selection's size for several.
                 const { nodes } = session.selection;
@@ -304,7 +309,7 @@ export const registration = defineRegistration({
                     const edge = session.data.edge(id);
                     return edge === undefined ? [] : [edge.source, edge.target];
                 });
-                await session.selection.apply({ nodes: [...new Set(ends)] });
+                await session.selection.apply({ nodes: [...new Set(ends)] }, "replace", { cause: "user" });
             },
         },
     ],

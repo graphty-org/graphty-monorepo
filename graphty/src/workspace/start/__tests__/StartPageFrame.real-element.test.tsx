@@ -12,27 +12,17 @@ import "@graphty/graphty-element";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
+import { sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
-/**
- * The wait for a scroll to land. A smooth scroll moves on the page's frames, and the hero graph
- * turning above it draws every one of them on the test browser's software GPU. With every core
- * busy, as in the pre-push gate, the page's tasks ran up to 0.8 s and one key press took 0.7 s, so
- * waitFor's own 1-second limit could fail a scroll that was on its way (End, once, in the gate).
- * These waits keep only the hang guard.
- */
-const SCROLL = { timeout: TIMEOUT_MS };
 
 /**
  * Renders the start page and waits for its graph to load.
@@ -41,15 +31,12 @@ const SCROLL = { timeout: TIMEOUT_MS };
 async function startPage(): Promise<WorkspaceStore> {
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
-    await waitFor(
-        () => {
-            const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element[data-start-page]",
-            );
-            assert.equal(hero?.session.data.statistics().nodeCount, 77);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element[data-start-page]",
+        );
+        assert.equal(hero?.session.data.statistics().nodeCount, 77);
+    });
     return store;
 }
 
@@ -95,7 +82,7 @@ async function showSamples(): Promise<HTMLElement> {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.isTrue(ended, "the page came to rest");
-        }, SCROLL);
+        });
     } finally {
         document.removeEventListener("scrollend", onEnd);
     }
@@ -124,13 +111,13 @@ describe("the start page in the app's frame", () => {
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
-        }, SCROLL);
+        });
         // As far as the samples, not past them: the library runs on well below its top.
         const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
         await wheelOver(screen.getByRole("heading", { level: 1 }), samples.getBoundingClientRect().top - header);
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "the wheel scrolled it down");
-        }, SCROLL);
+        });
     });
 
     it("shows the header's own lockup only once the page is scrolled past the big one", async () => {
@@ -151,11 +138,11 @@ describe("the start page in the app's frame", () => {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
-        }, SCROLL);
+        });
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.isUndefined(header?.dataset.scrolled, "back at the top, it hides it again");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples by touch", async () => {
@@ -166,20 +153,68 @@ describe("the start page in the app's frame", () => {
         await swipeOver(screen.getByRole("heading", { name: "Sample library" }), 400);
         await waitFor(() => {
             assert.isBelow(scrolled(), before, "a swipe scrolled it back up");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples, and down again, by keyboard", async () => {
-        await showSamples();
-
-        await userEvent.keyboard("{Home}");
-        await waitFor(() => {
-            assert.equal(scrolled(), 0, "Home scrolled it back up");
-        }, SCROLL);
-        await userEvent.keyboard("{End}");
-        await waitFor(() => {
+        // This test timed out twice in CI (issues #3679 and #4170) and in no run here, and its waits'
+        // hang guard is longer than the test's limit, so a timeout never says which wait was stuck.
+        // Its trail does: each step and every scroll end and key the page saw, printed on a failure.
+        const trail: string[] = [];
+        const start = performance.now();
+        const note = (what: string): void => {
+            const at = Math.round(performance.now() - start);
+            const focus = document.activeElement;
+            trail.push(`${String(at)} ms ${what}: top ${String(scrolled())}, focus ${focus?.tagName ?? "none"}`);
+        };
+        let ends = 0;
+        const onEnd = (): void => {
+            ends++;
+            note("scrollend");
+        };
+        const onKey = (event: KeyboardEvent): void => {
+            note(`keydown ${event.key}${event.defaultPrevented ? " (prevented)" : ""}`);
+        };
+        document.addEventListener("scrollend", onEnd);
+        globalThis.addEventListener("keydown", onKey);
+        onTestFailed(() => {
+            note("failed");
+            console.error(`the keyboard scroll test's trail:\n${trail.join("\n")}`);
+        });
+        try {
+            await showSamples();
+            note("at the samples");
+            // In a text box Home and End move the caret and never scroll, so the waits below would never come
+            // true and this test would fail only at the 900 s hang guard (#5255: Samples once focused the search).
+            assert.isFalse(
+                document.activeElement?.matches("input, textarea, [contenteditable]") ?? false,
+                "Samples left focus out of a text box",
+            );
+            let before = ends;
+            await userEvent.keyboard("{Home}");
+            note("Home pressed");
+            // Home's smooth scroll reaches the top a few frames before it ends, and Chromium drops an
+            // End pressed in those frames: the page stays at the top and only Home's scrollend follows
+            // (issue #4170, full run 41103133086; reproduced here by pressing End as the page reached
+            // the top). A reader presses the next key on a page that has stopped.
+            await waitFor(() => {
+                assert.equal(scrolled(), 0, "Home scrolled it back up");
+                assert.isAbove(ends, before, "Home's scroll came to rest");
+            });
+            note("at the top");
+            before = ends;
+            await userEvent.keyboard("{End}");
+            note("End pressed");
+            // Wait for End's own scroll to end, then read where it left the page, so a lost End fails
+            // at once instead of waiting out the hang guard.
+            await waitFor(() => {
+                assert.isAbove(ends, before, "End's scroll came to rest");
+            });
             assert.isAbove(scrolled(), 0, "End scrolled it down");
-        }, SCROLL);
+        } finally {
+            document.removeEventListener("scrollend", onEnd);
+            globalThis.removeEventListener("keydown", onKey);
+        }
     });
 
     // Full screen, and under Safari's address and tab bars (upright, and on its side).
@@ -226,8 +261,8 @@ describe("the start page in the app's frame", () => {
     it("offers every dataset graph-samples lists that graphty-element opens, and opens one", async () => {
         const store = await startPage();
         const offered = screen
-            .getAllByRole("button", { name: /^Open the .+ sample$/ })
-            .map((button) => button.getAttribute("aria-label"));
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => `${(button.getAttribute("aria-label") ?? "").split(" sample: ")[0]} sample`);
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
@@ -241,17 +276,11 @@ describe("the start page in the app's frame", () => {
             assert.include(offered, `Open the ${title} sample`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" }));
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 62);
-                assert.equal(element?.session.data.statistics().edgeCount, 159);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: sampleTile("Doubtful Sound dolphins") })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 62);
+        assert.equal(opened.data.statistics().edgeCount, 159);
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
         assert.isNull(store.get().notice);
     });
@@ -259,17 +288,11 @@ describe("the start page in the app's frame", () => {
     it("opens the timed campus contacts sample, every hour two students were close an edge", async () => {
         const store = await startPage();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" }));
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 615);
-                assert.equal(element?.session.data.statistics().edgeCount, 8142);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: sampleTile("Campus contacts") })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 615);
+        assert.equal(opened.data.statistics().edgeCount, 8142);
         assert.equal(store.get().project?.name, "Campus contacts");
         assert.isNull(store.get().notice);
         // Every edge's `time` reads as time, so the timeline can take it.
@@ -283,7 +306,7 @@ describe("the start page in the app's frame", () => {
     it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {
         const store = await startPage();
 
-        const large = screen.getByRole("button", { name: "Open the Gene Ontology (go-basic) sample" });
+        const large = screen.getByRole("button", { name: sampleTile("Gene Ontology (go-basic)") });
         assert.include(large.textContent, "48,340 nodes, 71,496 edges");
         assert.include(large.textContent, "Large: 1.4 MB, slower to open");
         await userEvent.click(large);
@@ -308,7 +331,7 @@ describe("the start page in the app's frame", () => {
 
         // A dataset past graphty-element's published ceilings has no tile: it could only open empty.
         for (const dataset of DATASET_DESCRIPTORS) {
-            const tile = screen.queryByRole("button", { name: `Open the ${dataset.title} sample` });
+            const tile = screen.queryByRole("button", { name: sampleTile(dataset.title) });
             const fits = dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn;
             if (!fits) {
                 assert.isNull(tile, `${dataset.name} is left out`);
@@ -337,19 +360,12 @@ describe("the start page in the app's frame", () => {
         assert.equal((nodes as HTMLInputElement).value, "60");
         await userEvent.tripleClick(nodes);
         await userEvent.keyboard("24");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate" }));
-
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 24);
-                // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
-                assert.equal(element?.session.data.statistics().edgeCount, 48);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(within(dialog).getByRole("button", { name: "Generate" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 24);
+        // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
+        assert.equal(opened.data.statistics().edgeCount, 48);
         assert.equal(store.get().project?.name, "Watts-Strogatz");
         assert.isNull(store.get().notice);
     });

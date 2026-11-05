@@ -18,6 +18,10 @@ import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
 import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
+import { SHADER_DEFINITIONS } from "../../src/session/commands/shaders";
+import { STYLE_DEFINITIONS } from "../../src/session/commands/style";
+import { Dispatcher } from "../../src/session/project/Dispatcher";
+import { createSessionShaders } from "../../src/session/shaders";
 import { createStylesApi } from "../../src/session/styles";
 import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -310,7 +314,10 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // stack a test reads back holds exactly the layers the commands put in it. The path
     // directory is what lets a layer be told apart from a layer over a column nothing answers,
     // which is the difference between "this will paint" and "this will paint later, or never".
+    // The style ops and the shader op on one dispatcher, so the project's shaders are real too.
+    const dispatcher = new Dispatcher({ definitions: [...STYLE_DEFINITIONS, ...SHADER_DEFINITIONS] });
     const mockSessionStyles = createStylesApi({
+        dispatcher,
         elements: selectorSource,
         base: [],
         repaint: repaintEngine.repaint,
@@ -323,6 +330,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
+        shaders: createSessionShaders({ dispatcher, styles: mockSessionStyles, publish: () => undefined }).api,
         // A `{ where }` scope or an inline rule set, read by the same expression compiler a style
         // layer uses, so a command that selects nodes reads the same selector language a layer does.
         scope: {

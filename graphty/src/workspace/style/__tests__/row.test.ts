@@ -16,7 +16,9 @@ function addable(): ChannelDescriptor[] {
             descriptor.renderable &&
             "place" in CHANNEL_HOMES[descriptor.channel] &&
             descriptor.accepts !== "labelStyle" &&
-            descriptor.accepts !== "nothing",
+            descriptor.accepts !== "nothing" &&
+            // A shader is added from the gallery, never as a line at a starting value.
+            descriptor.shaderTarget === undefined,
     );
 }
 

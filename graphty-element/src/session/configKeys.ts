@@ -2,7 +2,7 @@
  * @file The keys of the project settings `config.set` writes, one per leaf, named by its dotted
  * path, each with its group and its schema: every leaf of the zod `DataConfig` schema under
  * `data.`, whether the on-load algorithms run, the background, the selection style, the pinned style, the starting rows, the run placement, three
- * layout-behaviour keys, the author stamped on notes, and the project's name. Kept apart from the
+ * layout-behaviour keys, the layout transition, the view rotation, the framing, the author stamped on notes, and the project's name. Kept apart from the
  * command so a reader of the settings (the assistant's `project` tool) loads the schemas alone.
  */
 
@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { DataConfig } from "../config/DataConfig";
 import { GraphBehaviorOpts } from "../config/GraphBehavior";
-import { GraphStyle } from "../config/GraphStyle";
+import { GraphStyle, LayoutTransition } from "../config/GraphStyle";
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
 export type ConfigGroup =
@@ -22,6 +22,9 @@ export type ConfigGroup =
     | "startingRows"
     | "runPlacement"
     | "layoutBehavior"
+    | "layoutTransition"
+    | "viewRotation"
+    | "framing"
     | "author"
     | "name";
 
@@ -82,6 +85,17 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
     ]),
+    ["layoutTransition", { group: "layoutTransition", schema: LayoutTransition.optional() }],
+    ["viewRotation", { group: "viewRotation", schema: z.number().min(-360).max(360).optional() }],
+    [
+        "framing",
+        {
+            group: "framing",
+            schema: z
+                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
+                .optional(),
+        },
+    ],
     // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
     [
         "author",

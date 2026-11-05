@@ -2,13 +2,13 @@
 // sparklines and reasons. States are the engine's; this file only translates them and reads values for the range.
 
 import type {
+    CategoryId,
     Cmp,
     Fact,
     Member,
     MemberId,
     MemberState,
     MemberWindow,
-    PageId,
     Range,
     Route,
     Sla,
@@ -18,12 +18,14 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
-import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../model/items.js";
-import { loadSeries, type MetricWindow, windowValue, type WindowName } from "../model/rollup.js";
-import type { Store } from "../model/store.js";
+import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
+import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
+import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
+import { isLive, type Store } from "../model/store.js";
 import type { Measure, MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
 import {
     type Evaluation,
+    hit,
     measureValue,
     type MemberStatus,
     type Reason,
@@ -44,6 +46,10 @@ interface Spec {
     /** A target or red threshold that is not a plain comparison (catalog codes in web/src/text.ts). */
     target?: Fact;
     red?: Fact;
+    /** A slow member whose value is read now (a cap share, an age), not over 7 days: its window says "now". */
+    now?: boolean;
+    /** The note for a member its own value passes but an `also` metric fails: that metric's value as a fact. */
+    also?: Record<string, (v: number, facts: Record<string, number>) => Fact>;
 }
 
 const PCT = 100;
@@ -51,7 +57,7 @@ const toMin = 1 / MIN;
 const toH = 1 / HOUR;
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
 
-const STRESS_WORD: WordValue[] = [{ word: "passed" }, { word: "filed", n: 0 }, { word: "failed" }];
+const STRESS_WORD: WordValue[] = [{ word: "passed" }, { word: "quiet" }, { word: "failed" }];
 
 /** Engine member id -> its row. The six channel members share one row (all not set up until #3418). */
 export const SPEC: Record<string, Spec> = {
@@ -63,6 +69,7 @@ export const SPEC: Record<string, Spec> = {
         link: "/releases/lanes",
         word: (v) => ({ word: v >= 1 ? "failed" : "passed" }),
         target: f("sla.word", { word: "passed" }),
+        red: f("sla.word", { word: "failed" }),
     },
     "master.untested_age": { id: "master.untested_age", unit: "h", k: toH, link: "/releases/trains" },
     "master.reverts": { id: "master.reverts", unit: "pct", k: PCT, link: "/master" },
@@ -77,7 +84,8 @@ export const SPEC: Record<string, Spec> = {
         id: "pull-requests.screenshot_backlog",
         unit: "h",
         k: toH,
-        link: "/pull-requests/owner",
+        // The owner reviews a changed picture on the held candidate (Releases), not per pull request.
+        link: "/releases",
     },
     "ci.runner_wait": { id: "ci.runner_wait", unit: "min", k: toMin, link: "/ci/runners" },
     "ci.longest_queued": { id: "ci.longest_queued", unit: "min", k: toMin, link: "/ci/runners" },
@@ -89,21 +97,50 @@ export const SPEC: Record<string, Spec> = {
         link: "https://www.githubstatus.com/",
     },
     "ci.first_attempt": { id: "ci.first_attempt", unit: "pct", k: PCT, link: "/ci/causes" },
-    "ci.hangs": { id: "ci.hangs", link: "/master/red" },
+    "ci.hangs": { id: "ci.hangs", link: "/ci/runners" },
     "ci.pr_check_duration": { id: "ci.pr_duration", unit: "x", link: "/ci" },
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
-    "ci.chronic_jobs": { id: "ci.chronic_jobs", link: "/ci/chronic", red: f("sla.any_no_issue") },
+    "ci.chronic_jobs": {
+        id: "ci.chronic_jobs",
+        link: "/ci/chronic",
+        target: f("sla.none"),
+        red: f("sla.any_no_issue"),
+    },
     "ci.bench_regressions": { id: "ci.bench_regressions", link: "/ci/benchmarks" },
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    "slices.set_age": { id: "ci.screenshot_set_age", unit: "h", k: toH, link: "/ci", now: true },
+    "slices.base_budget": { id: "ci.slice_base_budget", unit: "pct", k: PCT, link: "/ci", now: true },
+    "slices.idle_budget": { id: "ci.slice_idle_budget", unit: "pct", k: PCT, link: "/ci", now: true },
+    "slices.idle_hour_budget": { id: "ci.slice_idle_hour_budget", unit: "pct", k: PCT, link: "/ci", now: true },
+    "slices.contended": { id: "ci.slice_contended", unit: "min", link: "/ci/runners" },
+    "slices.queue_wait": { id: "ci.slice_queue_wait", unit: "min", link: "/ci/runners" },
     "flaky.rate": { id: "flaky.flake_rate", unit: "per1000", link: "/flaky/hotspots" },
     "flaky.blocked": { id: "flaky.blocked", link: "/flaky/hotspots", red: f("sla.blocked") },
     "flaky.no_issue": { id: "flaky.no_issue", link: "/flaky/hotspots" },
     "flaky.net_new": { id: "flaky.net_new", link: "/flaky", signed: true },
     "flaky.detected_to_fixed": { id: "flaky.detected_to_fixed", unit: "d", k: 1 / DAY, link: "/flaky" },
-    "release.lanes_red": { id: "releases.lanes_red", link: "/releases/lanes", red: f("sla.lanes_open", { h: 6 }) },
+    "release.lanes_red": {
+        id: "releases.lanes_red",
+        link: "/releases/lanes",
+        red: f("sla.lanes_open", { h: 6 }),
+        also: {
+            "release.hold_open_ms": (v) => f("releases.held.note", { h: round(v * toH) }),
+        },
+    },
+    "release.review_wait": {
+        id: "releases.review_wait",
+        unit: "h",
+        k: toH,
+        link: "/releases/lanes",
+        also: {
+            "release.review_wait_ms": (v, facts) =>
+                f("releases.review_wait.note", { h: round(v * toH), issue: facts["release.review_issue"] ?? 0 }),
+        },
+    },
     "release.workflows_failing": {
         id: "releases.workflows_failing",
         link: "/releases/workflows",
@@ -114,7 +151,12 @@ export const SPEC: Record<string, Spec> = {
         link: "/releases/trains",
         word: (v) => ({ word: v >= 1 ? "yes" : "no" }),
         target: f("sla.word", { word: "no" }),
+        red: f("sla.word", { word: "yes" }),
     },
+    "release.review_lag": { id: "releases.review_lag", unit: "h", k: toH, link: "/releases" },
+    "release.slots_unreviewed": { id: "releases.slots_unreviewed", unit: "pct", k: PCT, link: "/releases/trains" },
+    "release.green_clean": { id: "releases.green_clean", unit: "pct", k: PCT, link: "/releases/trains" },
+    "release.nightly_promotions": { id: "releases.nightly_promotions", link: "/releases" },
     "release.tagged_not_on_npm": { id: "releases.tagged_not_npm", link: "/releases", red: f("sla.after", { min: 30 }) },
     "release.train_first_attempt": { id: "releases.train_first_pass", unit: "pct", k: PCT, link: "/releases/trains" },
     "release.canary_age": {
@@ -131,8 +173,9 @@ export const SPEC: Record<string, Spec> = {
     "cost.cloudflare_usage": { id: "costs.cloudflare_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "cost.sentry_usage": { id: "costs.sentry_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "data.stress_run": {
+        // Judged on Flaky tests since 2026-10-30; the id keeps its old prefix so pages built before then still read.
         id: "data-sources.stress_run",
-        link: "/data-sources/stress",
+        link: "/flaky/stress",
         // stress.state: 0 passed and filed, 1 found nothing three weeks running, 2 filing failed or the run broke.
         word: (v) => STRESS_WORD[Math.min(2, Math.max(0, Math.round(v)))],
         target: f("sla.passed_and_filed"),
@@ -165,7 +208,7 @@ export const LOCAL: Record<string, { measure: Measure; spec: Spec }> = {
 };
 
 /** The engine's category ids, which the config spells with underscores. */
-export const CATEGORY: Record<string, Exclude<PageId, "overview" | "runners" | "local-runs">> = {
+export const CATEGORY: Record<string, CategoryId> = {
     master: "master",
     pull_requests: "pull-requests",
     ci: "ci",
@@ -174,6 +217,8 @@ export const CATEGORY: Record<string, Exclude<PageId, "overview" | "runners" | "
     costs: "costs",
     data_sources: "data-sources",
 };
+
+const BREACH: Partial<Record<MemberStatus["state"], "warn" | "bad">> = { WARNING: "warn", FAILING: "bad" };
 
 const STATE: Record<MemberStatus["state"], MemberState> = {
     OK: "ok",
@@ -186,8 +231,8 @@ const STATE: Record<MemberStatus["state"], MemberState> = {
     IDLE: "idle",
 };
 
-const round = (x: number) => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
-export const iso = (ms: number) => new Date(ms).toISOString();
+const round = (x: number): number => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 100) / 100);
+export const iso = (ms: number): string => new Date(ms).toISOString();
 const RANGE_MS: Record<Range, number> = { "1h": HOUR, "6h": 6 * HOUR, "24h": DAY };
 
 /** Reads shared by every member and section of one build, each store query made once. */
@@ -199,10 +244,11 @@ export class Reads {
     private readonly cache = new Map<string, Promise<unknown>>();
 
     /**
-     * @param store
-     * @param now
-     * @param ev
-     * @param cfg
+     * Reads over one store at one moment, for one evaluation.
+     * @param store - the table to read
+     * @param now - the current time in epoch milliseconds
+     * @param ev - this cycle's evaluation
+     * @param cfg - the SLA definitions
      */
     constructor(store: Store, now: number, ev: Evaluation, cfg: SlaConfig) {
         this.store = store;
@@ -221,18 +267,22 @@ export class Reads {
     }
 
     /**
-     * @param metric
-     * @param w
+     * One metric's rollup over a named window ending now, read once.
+     * @param metric - the metric name
+     * @param w - the window name
+     * @returns the metric's window
      */
     window(metric: string, w: WindowName): Promise<MetricWindow> {
         return this.once(`w:${metric}:${w}`, () => windowValue(this.store, metric, w, this.now));
     }
 
     /**
-     * @param metric
-     * @param step
-     * @param from
-     * @param to
+     * One metric's buckets at a step over a time span, read once.
+     * @param metric - the metric name
+     * @param step - the bucket size
+     * @param from - the span start in epoch milliseconds
+     * @param to - the span end in epoch milliseconds
+     * @returns the buckets by start time
      */
     series(metric: string, step: Step, from: number, to: number): Promise<Map<number, Bucket>> {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
@@ -241,7 +291,37 @@ export class Reads {
     }
 
     /**
-     * @param id
+     * The pull requests behind the PR stocks, as the collector last wrote them.
+     * @returns the snapshot, or undefined before the collector wrote one
+     */
+    prStocks(): Promise<PrStockPrs | undefined> {
+        return this.once("snapshot:pr-stocks", () => readSnapshot(this.store, "pr-stocks"));
+    }
+
+    /**
+     * Every stored issue (the ISSUES partition, about 3,000 items), read once.
+     * @returns the issues, in number order
+     */
+    issues(): Promise<IssueItem[]> {
+        return this.once("issues", async () =>
+            (await this.store.query(ISSUES_PK))
+                .filter((i) => isLive(i, this.now))
+                .map((i) => i as unknown as IssueItem),
+        );
+    }
+
+    /**
+     * GitHub's count of open issues as the collector last recorded it this hour, or undefined when it has not.
+     * @returns the count, or undefined
+     */
+    async githubOpen(): Promise<number | undefined> {
+        return (await this.window("issues.open_github", "1h")).total.last;
+    }
+
+    /**
+     * One member's SLA configuration; throws when the config has no such member.
+     * @param id - the engine member id
+     * @returns the member's configuration
      */
     config(id: string): MemberConfig {
         const c = this.cfg.members.find((m) => m.id === id);
@@ -253,7 +333,8 @@ export class Reads {
 
     /**
      * When every source of a member has written: before it, a bucket is "no history", not zero.
-     * @param c
+     * @param c - the member's configuration
+     * @returns the time the last of its sources first wrote, or undefined before all have
      */
     historyStart(c: MemberConfig): number | undefined {
         let start = -Infinity;
@@ -275,10 +356,17 @@ const cmp = ([op, n]: Threshold, spec: Spec): Cmp => ({
 });
 
 /**
- * @param c
- * @param spec
+ * A member's target and red line as catalog facts.
+ * @param c - the member's configuration
+ * @param spec - how the member is shown
+ * @returns the SLA lines, or null when the member has no target
  */
 export function slaOf(c: MemberConfig, spec: Spec): Sla | null {
+    // A money line red only on real spend: its target is the projection, its red line what is spent (section 7).
+    if (c.measure.type === "month" && c.measure.redOnSpent && c.fail) {
+        const usd = round(c.fail[1] * (spec.k ?? 1));
+        return { target: f("sla.projected_within", { usd }), red: f("sla.spent_over", { usd }) };
+    }
     const target = spec.target ?? (c.ok ? cmp(c.ok, spec) : undefined);
     if (!target) {
         return null;
@@ -288,8 +376,10 @@ export function slaOf(c: MemberConfig, spec: Spec): Sla | null {
 }
 
 /**
- * @param v
- * @param spec
+ * An engine value as the shown value: scaled, rounded and with its unit, or as a word.
+ * @param v - the engine value
+ * @param spec - how the member is shown
+ * @returns the shown value, or null when there is no finite value
  */
 export function valueOf(v: number | undefined, spec: Spec): Value {
     if (v === undefined || !Number.isFinite(v)) {
@@ -308,8 +398,9 @@ export function valueOf(v: number | undefined, spec: Spec): Value {
 
 /**
  * An engine reason as a catalog fact; undefined where the state chip already says it (few, partial).
- * @param r
- * @param reads
+ * @param r - the engine's reason, when it gave one
+ * @param reads - the store reads shared by this build
+ * @returns the reason as a fact, or undefined
  */
 export function reasonFact(r: Reason | undefined, reads: Reads): Fact | undefined {
     if (!r) {
@@ -361,21 +452,20 @@ const MEMBER_WINDOW: Record<MemberConfig["window"], MemberWindow> = {
 };
 
 /**
- * @param s
- * @param c
+ * A member's state as the page draws it; an informational member is info.
+ * @param s - the member's status
+ * @returns the page state
  */
-export function stateOf(s: MemberStatus, c: MemberConfig): MemberState {
+export function stateOf(s: MemberStatus): MemberState {
     if (s.reason?.code === "informational") {
         return "info";
     }
-    const st = STATE[s.state];
-    return c.window === "slow" && (st === "ok" || st === "warn" || st === "bad") ? "slow" : st;
+    return STATE[s.state];
 }
 
-const BREACH: Partial<Record<MemberStatus["state"], "warn" | "bad">> = { WARNING: "warn", FAILING: "bad" };
 const GRAY = new Set<MemberState>(["nodata", "notsetup", "idle", "info"]);
 const BUCKETED = new Set(["rate", "median", "p90", "sum", "share", "last"]);
-const windowed = (c: MemberConfig) => c.window === "1h" || c.window === "1h+6h";
+const windowed = (c: MemberConfig): boolean => c.window === "1h" || c.window === "1h+6h";
 
 function covered(start: number | undefined, now: number, spanMs: number): { h: number; of: number } | undefined {
     if (start === undefined || now - start >= spanMs) {
@@ -386,10 +476,11 @@ function covered(start: number | undefined, now: number, spanMs: number): { h: n
 
 /**
  * A member's sparkline (section 2.3): 6 h in 15-minute buckets with 18 faint hours before, or 24 hours at 24 h.
- * @param reads
- * @param c
- * @param spec
- * @param range
+ * @param reads - the store reads shared by this build
+ * @param c - the member's configuration
+ * @param spec - how the member is shown
+ * @param range - the page range to build for
+ * @returns the sparkline, or undefined when the member has none
  */
 async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range): Promise<Spark | undefined> {
     const m = c.measure;
@@ -434,22 +525,146 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
+ * chronically failing jobs have no open issue (that, not the count, turns the row red).
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @returns the note as a fact, or undefined when there is none
+ */
+async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
+    if (s.id === "ci.chronic_jobs") {
+        const n = s.facts?.["ci.chronic_no_issue"];
+        return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
+        return undefined;
+    }
+    const prs = await reads.prStocks();
+    if (s.id === "pr.oldest_open") {
+        return prs?.oldest === undefined
+            ? undefined
+            : f("note.oldest_pr", { pr: prs.oldest, h: round(s.value / HOUR) });
+    }
+    const list = (s.id === "pr.automerge_green_stuck" ? prs?.greenStuck : prs?.armedLong) ?? [];
+    return list.length ? f("note.prs", { prs: list }) : undefined;
+}
+
+/**
+ * Why a red or yellow member is so when an `also` metric set it (lanes red at 0 while the candidate is held, #5125).
+ * @param c the member's configuration
+ * @param spec how it is shown
+ * @param s its status
+ * @returns `{ note }`, or nothing when its own value set the state
+ */
+function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): { note?: Fact } {
+    if (!spec.also || (s.state !== "FAILING" && s.state !== "WARNING")) {
+        return {};
+    }
+    for (const a of c.also ?? []) {
+        const v = s.facts?.[a.metric];
+        const note = spec.also[a.metric];
+        if (note && v !== undefined && a.fail && hit(v, a.fail)) {
+            return { note: note(v, s.facts ?? {}) };
+        }
+    }
+    return {};
+}
+
+/** What building one member's row reads: the store, its status, configuration and spec, the range, and history start. */
+interface RowContext {
+    reads: Reads;
+    s: MemberStatus;
+    c: MemberConfig;
+    spec: Spec;
+    range: Range;
+    hs: ReturnType<Reads["historyStart"]>;
+}
+
+/**
+ * A windowed member's value, n and coverage over the picked 6 h or 24 h range, read from its buckets.
+ * @param ctx - the row being built
+ * @param m - the member's bucketed measure
+ * @returns the row's value fields
+ */
+async function rangeValues(ctx: RowContext, m: MemberConfig["measure"] & { metric: string }): Promise<Partial<Member>> {
+    const { reads, spec, range } = ctx;
+    const w = await reads.window(m.metric, range);
+    const out: Partial<Member> = {
+        value: valueOf(measureValue(m, w.total, reads.now - w.from), spec),
+        n: w.total.n,
+    };
+    const cov = covered(ctx.hs, reads.now, RANGE_MS[range]);
+    if (cov) {
+        out.covered = cov;
+    }
+    return out;
+}
+
+/**
+ * A member's value, n and coverage as the engine judged them.
+ * @param ctx - the row being built
+ * @param state - the member's page state
+ * @returns the row's value fields
+ */
+function engineValues(ctx: RowContext, state: MemberState): Partial<Member> {
+    const { s, c, spec } = ctx;
+    const out: Partial<Member> = { value: state === "few" ? null : valueOf(s.value, spec) };
+    if (s.n !== undefined && (s.minN !== undefined || windowed(c))) {
+        out.n = s.n;
+    }
+    if (state === "partial" && s.reason) {
+        out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
+    }
+    if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
+        out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
+    }
+    return out;
+}
+
+/**
+ * A windowed member's 6 h value and coverage, read from its buckets when the engine has none.
+ * @param ctx - the row being built
+ * @returns the row's 6 h fields
+ */
+async function sixHourValues(ctx: RowContext): Promise<Partial<Member>> {
+    const { reads, s, c, spec } = ctx;
+    const m = c.measure;
+    let v6 = s.value6h;
+    if (v6 === undefined && BUCKETED.has(m.type) && "metric" in m) {
+        const w6 = await reads.window(m.metric, "6h");
+        v6 = measureValue(m, w6.total, reads.now - w6.from);
+    }
+    const out: Partial<Member> = {};
+    const value6h = valueOf(v6, spec);
+    if (value6h) {
+        out.value6h = value6h;
+    }
+    const cov6 = covered(ctx.hs, reads.now, 6 * HOUR);
+    if (cov6) {
+        out.covered6h = cov6;
+    }
+    return out;
+}
+
+/**
  * One engine member as the page's row at a range: the state is the engine's; at 6 h and 24 h a windowed member's
  * value, n and coverage cover the range (section 8), and the 1 h value stays the judged one.
- * @param reads
- * @param s
- * @param range
- * @param id
+ * @param reads - the store reads shared by this build
+ * @param s - the member's status
+ * @param range - the page range to build for
+ * @param id - the contract id to show it under, when not its own
+ * @returns the member's row
  */
 export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?: MemberId): Promise<Member> {
     const c = reads.config(s.id);
     const spec = SPEC[s.id];
-    const state = stateOf(s, c);
+    const state = stateOf(s);
     const m = c.measure;
     const reason = reasonFact(s.reason, reads);
+    const slowWindow = spec.now ? "now" : (c.slowWindow ?? "7d");
     const out: Member = {
         id: id ?? spec.id,
-        window: c.window === "slow" ? (c.slowWindow ?? "7d") : MEMBER_WINDOW[c.window],
+        window: c.window === "slow" ? slowWindow : MEMBER_WINDOW[c.window],
         state,
         value: null,
         sla: slaOf(c, spec),
@@ -457,46 +672,23 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         ...(s.minN === undefined ? {} : { minN: s.minN }),
         ...(reason ? { reason } : {}),
         ...(s.clearedAt === undefined ? {} : { cleared: iso(s.clearedAt) }),
+        ...alsoNote(c, spec, s),
     };
     if (GRAY.has(state) && state !== "info") {
         return out;
     }
-    const hs = reads.historyStart(c);
-    const bucketed = BUCKETED.has(m.type) && "metric" in m;
-    if (windowed(c) && bucketed && range !== "1h") {
-        const w = await reads.window(m.metric, range);
-        out.value = valueOf(measureValue(m, w.total, reads.now - w.from), spec);
-        out.n = w.total.n;
-        const cov = covered(hs, reads.now, RANGE_MS[range]);
-        if (cov) {
-            out.covered = cov;
-        }
+    const note = await noteOf(reads, s);
+    if (note) {
+        out.note = note;
+    }
+    const ctx: RowContext = { reads, s, c, spec, range, hs: reads.historyStart(c) };
+    if (windowed(c) && BUCKETED.has(m.type) && "metric" in m && range !== "1h") {
+        Object.assign(out, await rangeValues(ctx, m));
     } else {
-        out.value = state === "few" ? null : valueOf(s.value, spec);
-        if (s.n !== undefined && (s.minN !== undefined || windowed(c))) {
-            out.n = s.n;
-        }
-        if (state === "partial" && s.reason) {
-            out.covered = { h: Number(s.reason.params.hours), of: Number(s.reason.params.of) };
-        }
-        if (s.reason?.code === "partial" && s.reason.params.days !== undefined) {
-            out.coveredDays = { d: Number(s.reason.params.days), of: Number(s.reason.params.of) };
-        }
+        Object.assign(out, engineValues(ctx, state));
     }
     if (windowed(c)) {
-        let v6 = s.value6h;
-        if (v6 === undefined && bucketed) {
-            const w6 = await reads.window(m.metric, "6h");
-            v6 = measureValue(m, w6.total, reads.now - w6.from);
-        }
-        const value6h = valueOf(v6, spec);
-        if (value6h) {
-            out.value6h = value6h;
-        }
-        const cov6 = covered(hs, reads.now, 6 * HOUR);
-        if (cov6) {
-            out.covered6h = cov6;
-        }
+        Object.assign(out, await sixHourValues(ctx));
     }
     const spark = await sparkOf(reads, c, spec, range);
     if (spark) {
@@ -507,11 +699,12 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
 
 /**
  * One Local runs member at a range: its value, n and sparkline from the local writer's rollups, in the given state.
- * @param reads
+ * @param reads - the store reads shared by this build
  * @param id - a key of LOCAL
- * @param range
+ * @param range - the page range to build for
  * @param state - the local source's state as a member state; a value is read only when it is "info"
- * @param reason
+ * @param reason - why the local source is not OK, as a fact, when it is not
+ * @returns the member's row
  */
 export async function localMember(
     reads: Reads,
@@ -546,7 +739,8 @@ export async function localMember(
 
 /**
  * A source's state as the page draws it: stale is yellow, red past twice its age limit (section 9).
- * @param s
+ * @param s - the source's status
+ * @returns the page state of the source
  */
 export function sourceState(s: SourceStatus): SourceAge["state"] {
     switch (s.state) {
@@ -565,5 +759,7 @@ export function sourceState(s: SourceStatus): SourceAge["state"] {
                 return "nodata";
             }
             return (s.ageRatio ?? 0) > 2 ? "bad" : "warn";
+        default:
+            throw new Error(`unknown source state ${JSON.stringify(s.state satisfies never)}`);
     }
 }

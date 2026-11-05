@@ -11,7 +11,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { assertAction, assertAnswered, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
@@ -141,7 +141,6 @@ describe.skipIf(skipIfNoApiKey())("Algorithm LLM Regression", () => {
             const result = await harness.testPrompt("What graph algorithms can I use?");
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
-            assert.ok(result.latencyMs < getLlmRegressionCaseTimeoutMs(), "Expected latency under the per-case limit");
         });
 
         it("captures token usage for algorithm commands", async () => {

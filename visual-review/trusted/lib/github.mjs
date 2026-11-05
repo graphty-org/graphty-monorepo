@@ -10,10 +10,21 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { SKIPPED_FILE, validateResults } from "./results.mjs";
+import { artifactReader, zipEntries, zipEntry } from "./zip-range.mjs";
 
 /**
  * Runs a program and resolves with its trimmed stdout. A program that runs longer than
@@ -133,6 +144,54 @@ export const withRetries =
         });
 
 const api = async (gh, path) => JSON.parse(await gh(["api", path]));
+
+/**
+ * A gh runner that answers a `gh api <path>` read from a file in `dir` when an earlier call (of any process given the
+ * same directory) wrote one there: CI finds several projects' references one after another, and their walks over
+ * the default branch read the same runs.
+ * @param {(args: string[], input?: string) => Promise<string>} gh the gh runner
+ * @param {string} dir where the answers are kept
+ * @returns {(args: string[], input?: string) => Promise<string>} the runner
+ */
+export function onceOnDisk(gh, dir) {
+    return async (args, input) => {
+        if (args.length !== 2 || args[0] !== "api" || input !== undefined) {
+            return gh(args, input);
+        }
+        const file = join(dir, `${createHash("sha256").update(args[1]).digest("hex")}.json`);
+        if (existsSync(file)) {
+            return readFileSync(file, "utf8");
+        }
+        const out = await gh(args, input);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(file, out);
+        return out;
+    };
+}
+
+/**
+ * A gh runner that answers a repeated `gh api <path>` read from the first answer.
+ * @param {(args: string[], input?: string) => Promise<string>} gh the gh runner
+ * @returns {(args: string[], input?: string) => Promise<string>} the runner
+ */
+function onceEach(gh) {
+    const seen = new Map();
+    return (args, input) => {
+        if (args.length !== 2 || args[0] !== "api" || input !== undefined) {
+            return gh(args, input);
+        }
+        if (!seen.has(args[1])) {
+            seen.set(
+                args[1],
+                gh(args, input).catch((err) => {
+                    seen.delete(args[1]);
+                    throw err;
+                }),
+            );
+        }
+        return seen.get(args[1]);
+    };
+}
 
 // Every open pull request with its head commit's check suites, one page of 100 at a time. A check
 // suite of GitHub Actions carries its workflow run; GraphQL has no run attempt, so the caller asks
@@ -307,7 +366,7 @@ const whole = (d) => existsSync(join(d, "results.json")) || existsSync(join(d, S
  * @param {string} dir where it goes
  * @returns {Promise<void>} settles when `dir` is complete, or the artifact had no results.json
  */
-function download(gh, runId, name, dir) {
+export function download(gh, runId, name, dir) {
     if (!downloading.has(dir) && !existsSync(join(dir, "results.json")) && whole(dir)) {
         return Promise.resolve(); // The not-affected marker: nothing to validate.
     }
@@ -435,13 +494,27 @@ export async function downloadCaptures(gh, run, projects, tmp, others = [], land
  * request's capture compares stories without a baseline against.
  * ponytail: the newest default-branch run with a complete capture, not the run of the pull
  * request's exact base; a story changed there since then shows as `new` (it blocks, never passes).
- * @param {Function} gh the gh runner
+ * @param {(args: string[], input?: string) => Promise<string>} gh the gh runner
  * @param {string} project the project id
  * @param {string} tmp the download root
  * @param {{ workflow: string, defaultBranch: string }} config the capturing workflow and the branch
+ * @param {{ reader?: ((artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>) | null }} [options]
+ *     `reader` opens an artifact for range reads (by default with GH_TOKEN, in CI), so only results.json and
+ *     the images the capture compares with (`new` and `unseeded` items) are downloaded; without one, or when
+ *     a range read fails, the whole artifact is downloaded
  * @returns {Promise<string | null>} the capture's directory, or null when no run has one
  */
-export async function newestMasterCapture(gh, project, tmp, { workflow, defaultBranch }) {
+export async function newestMasterCapture(
+    gh,
+    project,
+    tmp,
+    { workflow, defaultBranch },
+    { reader = tokenReader() } = {},
+) {
+    // Every Stories job of a pull request ran this walk, so its calls count against the repository's Actions token
+    // (1,000 an hour, #4318): a run's artifact list is read once here, though both the range read and the whole
+    // download below look at it.
+    gh = onceEach(gh);
     // The branch's newest commits, then each one's run: GitHub's list of a workflow's runs filtered
     // by branch now and then answers with a stale page (runs from weeks ago), which made a pull
     // request compare with an old capture or none. Commits and a run by head sha answer consistently.
@@ -463,23 +536,116 @@ export async function newestMasterCapture(gh, project, tmp, { workflow, defaultB
         if (!run) {
             continue;
         }
-        const got = (await downloadCaptures(gh, run, [project], tmp))[project];
-        if (got?.error) {
-            // Not skipped: an older capture would be compared instead of this one.
-            throw new Error(got.error);
-        }
-        const dir = got?.dir;
-        let results = null;
-        try {
-            results = dir ? JSON.parse(readFileSync(join(dir, "results.json"), "utf8")) : null;
-        } catch {
-            // An unreadable capture is skipped like a missing one.
-        }
-        if (results && validateResults(results).length === 0 && results.complete && results.project === project) {
+        const dir = await runCapture(gh, run, project, tmp, reader);
+        if (dir) {
             return dir;
         }
     }
     return null;
+}
+
+/**
+ * One run's complete capture of a project for newestMasterCapture(): the subset when `reader` can read it,
+ * else the whole artifact.
+ * @param {Function} gh the gh runner
+ * @param {{ id: number }} run the run
+ * @param {string} project the project id
+ * @param {string} tmp the download root
+ * @param {((artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>) | null} reader
+ *     opens an artifact for range reads
+ * @returns {Promise<string | null>} the directory, or null when the run has no complete capture
+ */
+async function runCapture(gh, run, project, tmp, reader) {
+    const subset = reader ? await referenceSubset(gh, run, project, tmp, reader).catch(() => null) : null;
+    if (subset !== null) {
+        // false: the run has no complete capture, which a whole download would only confirm at more calls
+        return subset || null;
+    }
+    const got = (await downloadCaptures(gh, run, [project], tmp))[project];
+    if (got?.error) {
+        // Not skipped: an older capture would be compared instead of this one.
+        throw new Error(got.error);
+    }
+    const dir = got?.dir;
+    let results = null;
+    try {
+        results = dir ? JSON.parse(readFileSync(join(dir, "results.json"), "utf8")) : null;
+    } catch {
+        // An unreadable capture is skipped like a missing one.
+    }
+    return results && validateResults(results).length === 0 && results.complete && results.project === project
+        ? dir
+        : null;
+}
+
+function tokenReader() {
+    const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+    return token ? (a) => artifactReader(a.archive_download_url, token) : null;
+}
+
+/**
+ * Downloads from a run's capture of one project only results.json and the images loadReference() in
+ * capture.mjs reads (`new` and `unseeded` items): a large project's capture is hundreds of megabytes,
+ * and a Stories bin compares a few stories.
+ * @param {Function} gh the gh runner
+ * @param {{ id: number }} run the run
+ * @param {string} project the project id
+ * @param {string} tmp the download root
+ * @param {(artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>} reader opens an artifact
+ * @returns {Promise<string | false | null>} the directory; false when the run has no complete capture of the
+ *     project (no artifact, or one without a valid, complete results.json); null when it cannot be read this way
+ */
+export async function referenceSubset(gh, run, project, tmp, reader) {
+    const { artifacts } = await api(gh, `repos/{owner}/{repo}/actions/runs/${run.id}/artifacts?per_page=100`);
+    const pick = (re) =>
+        artifacts
+            .filter((x) => re.test(x.name) && !x.expired)
+            .sort((x, y) => Number(re.exec(y.name)[1]) - Number(re.exec(x.name)[1]))[0];
+    const a =
+        pick(new RegExp(String.raw`^visual-final-${project}-(\d+)$`)) ??
+        pick(new RegExp(String.raw`^visual-${project}-(\d+)$`));
+    if (!a) {
+        return false;
+    }
+    const zip = await reader(a);
+    const entries = zip ? await zipEntries(zip.read, zip.size) : null;
+    const file = async (name) => {
+        const e = entries.get(name);
+        return e ? zipEntry(zip.read, e) : null;
+    };
+    if (!entries) {
+        return null;
+    }
+    // the not-affected marker (skipped.json) has no results.json
+    const json = await file("results.json");
+    if (!json) {
+        return false;
+    }
+    const results = JSON.parse(json.toString("utf8"));
+    if (validateResults(results).length > 0 || !results.complete || results.project !== project) {
+        return false;
+    }
+    const dir = join(tmp, `${run.id}-${a.name.replace(/^visual-/u, "")}-subset`, project);
+    rmSync(dir, { recursive: true, force: true });
+    const part = `${dir}.part`;
+    rmSync(part, { recursive: true, force: true });
+    mkdirSync(part, { recursive: true });
+    const wanted = results.items.filter((i) => i.status === "new" || i.status === "unseeded").map((i) => i.file);
+    // ponytail: 8 range reads at a time, one per image; batch neighbours into one range if a capture has thousands
+    for (let i = 0; i < wanted.length; i += 8) {
+        await Promise.all(
+            wanted.slice(i, i + 8).map(async (name) => {
+                const bytes = await file(name);
+                if (bytes) {
+                    mkdirSync(dirname(join(part, name)), { recursive: true });
+                    writeFileSync(join(part, name), bytes);
+                }
+            }),
+        );
+    }
+    writeFileSync(join(part, "results.json"), json);
+    renameSync(part, dir);
+    return dir;
 }
 
 /**

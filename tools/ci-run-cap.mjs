@@ -3,8 +3,9 @@
 // and every other job of the run waits for it, so a waiting run holds one small runner and nothing else.
 //
 // It waits while CAP or more other pull request runs of ci.yml created before this one are still active
-// (queued or running), and while a release.yml run waits for a GitHub-hosted runner (the full run goes
-// first; GitHub Actions has no job priority). A run whose "All Checks Pass" job has already completed (only its
+// (queued or running), and while a release.yml run waits for a GitHub-hosted runner and holds fewer than
+// RELEASE_SHARE of them (the full run goes first up to its share; GitHub Actions has no job priority; ci.yml's
+// max-parallel keeps the full run's matrices within that share, so past it pull requests take the rest). A run whose "All Checks Pass" job has already completed (only its
 // screenshot tail is left) does not count; one GraphQL query asks that of every counted run. Only earlier runs count, so the oldest waiting run always
 // proceeds: no deadlock. A cancelled or superseded run is completed and frees its place at once.
 //
@@ -27,6 +28,8 @@ export const MAX_WAIT_MINUTES = 25;
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
 const HOSTED = /^(ubuntu|windows|macos)-/;
 const SUMMARY_CHECK = "All Checks Pass";
+// ci.yml's full-run max-parallel: 14 test shards + 6 story test legs
+export const RELEASE_SHARE = 20;
 
 /**
  * The parsed cap.
@@ -79,7 +82,7 @@ export async function unfinished(runs, api) {
 }
 
 /**
- * Whether a release run is waiting for a GitHub-hosted runner.
+ * Whether a release run is waiting for a GitHub-hosted runner while it holds fewer than RELEASE_SHARE of them.
  * @param runs workflow_runs of a release.yml runs listing
  * @param jobsOf run id -> jobs of that run (only asked for a running run)
  * @returns the id of the waiting release run, or null
@@ -89,7 +92,9 @@ export async function releaseWaiting(runs, jobsOf) {
         if (r.status === "queued") return r.id;
         if (r.status !== "in_progress") continue;
         const jobs = await jobsOf(r.id);
-        if (jobs.some((j) => j.status === "queued" && (j.labels ?? []).some((l) => HOSTED.test(l)))) return r.id;
+        const hosted = jobs.filter((j) => (j.labels ?? []).some((l) => HOSTED.test(l)));
+        const running = hosted.filter((j) => j.status === "in_progress").length;
+        if (running < RELEASE_SHARE && hosted.some((j) => j.status === "queued")) return r.id;
     }
     return null;
 }

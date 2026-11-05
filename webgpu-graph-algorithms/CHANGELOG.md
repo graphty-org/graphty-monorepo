@@ -1,3 +1,73 @@
+## 0.6.66 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **webgpu-graph-algorithms:** let each model write the live count, not the simulation ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** mask inert neighbours in attraction instead of branching ([#5539](https://github.com/graphty-org/graphty-monorepo/issues/5539))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated layout to 2.5.15
+
+## 0.6.65 (2026-11-01)
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated layout to 2.5.14
+
+## 0.6.64 (2026-10-31)
+
+### 🩹 Fixes
+
+- let dependency bumps pass and keep their failures out of the flaky readings ([#4147](https://github.com/graphty-org/graphty-monorepo/issues/4147))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated layout to 2.5.13
+
+## 0.6.63 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated layout to 2.5.12
+
+## 0.6.62 (2026-10-28)
+
+### 🚀 Features
+
+- **ci:** pull request rules and quarantine issues from the results store ([#3388](https://github.com/graphty-org/graphty-monorepo/issues/3388))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+- Updated layout to 2.5.11
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.6.61 (2026-10-21)
 
 ### 🧱 Updated Dependencies

@@ -175,46 +175,61 @@ export function treeProblem(value: unknown): string | null {
         return null;
     }
     if (Array.isArray(value)) {
-        for (const item of value) {
-            if (Array.isArray(item)) {
-                return "nested arrays cannot be written as elements";
-            }
-            const problem = treeProblem(item);
-            if (problem !== null) {
-                return problem;
-            }
-        }
-        return null;
+        return arrayTreeProblem(value);
     }
     if (typeof value !== "object") {
         return `a ${typeof value} cannot be written as XML`;
     }
     for (const [key, child] of Object.entries(value)) {
-        if (key === TEXT_KEY) {
-            if (child !== null && typeof child === "object") {
-                return "#text must be a scalar";
-            }
-            continue;
-        }
-        if (key.startsWith(ATTRIBUTE_PREFIX)) {
-            const name = key.slice(ATTRIBUTE_PREFIX.length);
-            if (!isXmlName(name)) {
-                return `"${name}" is not an XML attribute name`;
-            }
-            if (child !== null && typeof child === "object") {
-                return `attribute ${name} must be a scalar`;
-            }
-            continue;
-        }
-        if (!isXmlName(key)) {
-            return `"${key}" is not an XML element name`;
-        }
-        const problem = treeProblem(child);
+        const problem = entryTreeProblem(key, child);
         if (problem !== null) {
             return problem;
         }
     }
     return null;
+}
+
+/**
+ * Why an array is not a serializable tree: a nested array, or the first item that is not a tree.
+ * @param value - the array
+ * @returns a message, or null when every item is a tree
+ */
+function arrayTreeProblem(value: readonly unknown[]): string | null {
+    for (const item of value) {
+        if (Array.isArray(item)) {
+            return "nested arrays cannot be written as elements";
+        }
+        const problem = treeProblem(item);
+        if (problem !== null) {
+            return problem;
+        }
+    }
+    return null;
+}
+
+/**
+ * Why one key of a tree object and its value cannot be written: `#text` must be a scalar, an
+ * attribute needs an XML name and a scalar value, a child element an XML name and a tree value.
+ * @param key - the key
+ * @param child - the value
+ * @returns a message, or null when the entry can be written
+ */
+function entryTreeProblem(key: string, child: unknown): string | null {
+    const scalar = child === null || typeof child !== "object";
+    if (key === TEXT_KEY) {
+        return scalar ? null : "#text must be a scalar";
+    }
+    if (key.startsWith(ATTRIBUTE_PREFIX)) {
+        const name = key.slice(ATTRIBUTE_PREFIX.length);
+        if (!isXmlName(name)) {
+            return `"${name}" is not an XML attribute name`;
+        }
+        return scalar ? null : `attribute ${name} must be a scalar`;
+    }
+    if (!isXmlName(key)) {
+        return `"${key}" is not an XML element name`;
+    }
+    return treeProblem(child);
 }
 
 /**

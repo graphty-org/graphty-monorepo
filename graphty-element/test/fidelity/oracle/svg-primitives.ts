@@ -8,9 +8,12 @@
  *
  * Test code only; nothing here is graphty-element API.
  */
+import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     dashClassOf,
+    dented,
+    isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
     type PBox,
@@ -26,6 +29,8 @@ const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "poly
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/** Points a curved figure's outline is sampled to (`Prim.fine`): a few to a pixel round a node. */
+const FIGURE_SAMPLES = 512;
 /** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
 const PATH_SAMPLES = 128;
 
@@ -639,6 +644,11 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     // CX2's generic `sans-serif`, which Java has no font of and draws in Dialog: "Mitochondria " starts 73.0 px left
     // of its node's middle at 21.38 px in cx2-u2os-hierarchy, half its DejaVu Sans width (146.0 px)
     "sans-serif": "DejaVu Sans",
+    // Calibri, which the oracles' Java has no font of either: cx-radiation-bibliography's `Calibri-Bold` labels lie
+    // where their DejaVu Sans (regular) width centers them on their nodes (within 0.022 em on 52 centered lines), not
+    // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
+    // by its family
+    calibri: "DejaVu Sans",
     times: "DejaVu Serif",
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",
@@ -654,7 +664,8 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
  */
 function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     const [name, javaStyle = ""] = first.split(".");
-    const face = FREEHEP_JAVA_FACES[name];
+    // a PostScript name's style suffix (`Calibri-Bold`) after the family, where the whole name is not a face itself
+    const face = FREEHEP_JAVA_FACES[name] ?? FREEHEP_JAVA_FACES[name.split("-")[0]];
     const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
     if (face === undefined || !desc.includes("FreeHEP")) {
         return () => undefined;
@@ -670,6 +681,42 @@ function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     return () => {
         Object.assign(el.style, { fontFamily, fontWeight, fontStyle });
     };
+}
+
+/** A text drawn under this many screen pixels is laid out again larger for its line box (`lineBoxOf`). */
+const SMALL_TEXT_PX = 6;
+/** How much larger. */
+const SMALL_TEXT_SCALE = 100;
+
+/**
+ * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
+ * lays a text out at the size it is drawn on screen and rounds the font's ascent and descent to whole pixels there, so a
+ * text drawn a pixel high has a line box twice its font size, wholly above its baseline (dot-real-depcruise's 0.8 px
+ * labels: 1.88 em tall, its middle 0.62 em above the words' middle). A text drawn small is laid out again a hundred
+ * times larger, where the rounding is nothing, and its line box taken from there.
+ * @param el - the text
+ * @param size - its font size in user units
+ * @param screenPx - its font size on screen
+ * @returns the box
+ */
+function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect {
+    const bb = el.getBBox();
+    // lines placed by their own y or dy do not move with the font size: such a text is measured as it is
+    const placed = [...el.children].some(
+        (c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),
+    );
+    if (placed || !(screenPx > 0 && screenPx < SMALL_TEXT_PX && bb.height > 0)) {
+        return bb;
+    }
+    const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
+    const before = el.style.fontSize;
+    el.style.fontSize = `${String(size * SMALL_TEXT_SCALE)}px`;
+    const big = el.getBBox();
+    el.style.fontSize = before;
+    if (!(big.height > 0)) {
+        return bb;
+    }
+    return new DOMRect(bb.x, y + (big.y - y) / SMALL_TEXT_SCALE, bb.width, big.height / SMALL_TEXT_SCALE);
 }
 
 function textOf(
@@ -708,8 +755,8 @@ function textOf(
     // A text the browser does not lay out (draw.io's fallback beside a foreignObject) has an empty
     // box: estimate it from its anchor, size and length instead.
     const restore = measureInJavaFace(el, first);
-    const bb = el.getBBox();
     const size = Number.parseFloat(cs.fontSize) || 12;
+    const bb = lineBoxOf(el, size, size * scale);
     const w = 0.55 * size * content.length;
     let x0 = x;
     if (anchor === "middle") {
@@ -844,6 +891,136 @@ function subpathsOf(el: SVGGraphicsElement, m: DOMMatrix): Pt[][] | null {
     }
 }
 
+/**
+ * Whether an element sits in a branch of a `<switch>` the browser does not draw: it draws the switch's first branch
+ * only (draw.io ends every export with a switch whose first branch is an empty `<g>` and whose second is the warning
+ * "Text is not SVG - cannot display", never on the canvas). A fallback beside a first branch that is a foreignObject
+ * stays: it stands for the HTML label drawn there, which this reader cannot read (draw.io's labels).
+ * @param el - the element
+ * @returns whether it is not drawn
+ */
+function inUndrawnBranch(el: Element): boolean {
+    // ponytail: the first child is the drawn one; conditions (systemLanguage, requiredExtensions) are not evaluated,
+    // since no oracle program writes one that fails
+    for (let c = el; c.parentElement !== null; c = c.parentElement) {
+        const drawn = c.parentElement.localName === "switch" ? c.parentElement.firstElementChild : c;
+        if (drawn !== c && drawn?.localName !== "foreignObject") {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** What is defined for later use or not drawn at all, not drawn where it stands. */
+const NOT_DRAWN = "defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata";
+
+/** Marks the `<g>` that stands where a `<use>` stood. */
+const STAMPED = "data-oracle-stamped";
+
+/**
+ * Puts what each drawn `<use>` draws in its place: a `<g>` with the `<use>`'s attributes around a copy of what it names,
+ * so the copy is read like any drawn element, through the `<use>`'s transform and with what it inherits (yEd Live draws
+ * every arrowhead so, from one path in `<defs>`). A `<symbol>` becomes the `<svg>` the specification makes of it
+ * (draw.io's pictures). A `<use>` in a `<defs>` waits for what uses it, and nested ones are put in place on later turns.
+ * @param root - the SVG, in the page
+ */
+function expandUses(root: SVGSVGElement): void {
+    const svgElement = (name: string): SVGElement => document.createElementNS("http://www.w3.org/2000/svg", name);
+    // a `<use>` cycle draws nothing and would grow here for ever
+    for (let turn = 0; turn < 8; turn++) {
+        const uses = [...root.querySelectorAll("use")].filter((u) => u.closest(NOT_DRAWN) === null);
+        if (uses.length === 0) {
+            return;
+        }
+        for (const use of uses) {
+            const href = use.getAttribute("href") ?? use.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+            const named = href?.startsWith("#") ? root.querySelector(`[id="${CSS.escape(href.slice(1))}"]`) : null;
+            if (named === null) {
+                use.remove();
+                continue;
+            }
+            const [x, y] = [use.getAttribute("x") ?? "0", use.getAttribute("y") ?? "0"];
+            const placed = svgElement("g");
+            placed.setAttribute(STAMPED, "");
+            for (const { name, value } of use.attributes) {
+                if (!["x", "y", "width", "height", "href", "xlink:href"].includes(name)) {
+                    placed.setAttribute(name, value);
+                }
+            }
+            placed.setAttribute("transform", `${use.getAttribute("transform") ?? ""} translate(${x} ${y})`);
+            const copy = named.cloneNode(true) as Element;
+            copy.removeAttribute("id");
+            if (copy.localName === "symbol") {
+                const inner = svgElement("svg");
+                inner.append(...copy.childNodes);
+                for (const name of ["viewBox", "preserveAspectRatio"]) {
+                    const value = copy.getAttribute(name);
+                    if (value !== null) {
+                        inner.setAttribute(name, value);
+                    }
+                }
+                inner.setAttribute("width", use.getAttribute("width") ?? "100%");
+                inner.setAttribute("height", use.getAttribute("height") ?? "100%");
+                placed.append(inner);
+            } else {
+                placed.append(copy);
+            }
+            use.replaceWith(placed);
+        }
+    }
+}
+
+/**
+ * A base64 picture's address as the page reads it back: without the breaks written across its lines, whether as white
+ * space or, in yEd's SVGs, as `&#10;` (the page has turned that into white space by then).
+ * @param href - the address, as written or as read
+ * @returns the address, unbroken
+ */
+export const unbrokenHref = (href: string): string => href.replace(/&#1[03];|\s+/g, "");
+
+/**
+ * The PNGs an SVG file embeds, by their unbroken addresses.
+ * @param svg - the file's text
+ * @returns the addresses
+ */
+export function embeddedPngs(svg: string): Set<string> {
+    return new Set((svg.match(/data:image\/png;base64,[^"']+/gi) ?? []).map(unbrokenHref));
+}
+
+/**
+ * Whether a path's subpaths enclose any area.
+ * @param d - the path data
+ * @returns whether they do, or null for a path with a curve, not reckoned here
+ */
+function encloses(d: string): boolean | null {
+    const parts = d.split(/(?=[Mm])/).map((s) => straightPathVertices(s));
+    if (parts.includes(null)) {
+        return null;
+    }
+    return parts.some((q) =>
+        (q ?? []).some(([x, y], i, all) => {
+            const [a, b] = [all[i + 1] ?? all[0], all[0]];
+            return Math.abs((a[0] - b[0]) * (y - b[1]) - (a[1] - b[1]) * (x - b[0])) > 1e-6;
+        }),
+    );
+}
+
+/**
+ * The fill of the panel a yFiles group lays over its tab, which leaves the tab showing as a band round it. The group's
+ * outline carries it too: a tab with a hole for a see-through panel is read as a painted outline, and makes no group.
+ * @param el - the element read
+ * @param root - the SVG
+ * @param opacities - the group opacities read so far
+ * @param m - the element's matrix to the root's pixels
+ * @returns the panel's fill, or null for anything but a tab or outline with a filled panel
+ */
+function panelFillOf(el: Element, root: Element, opacities: Map<Element, number>, m: DOMMatrix): PFill | null {
+    const panel = el.matches(".yfiles-group-node-tab, .yfiles-group-node-stroke")
+        ? el.parentElement?.querySelector<SVGGraphicsElement>(".yfiles-group-node-content")
+        : null;
+    return panel ? fillOf(panel, getComputedStyle(panel), groupOpacity(panel, root, opacities), root, m) : null;
+}
+
 /** The SVG primitives of a document, in document order. */
 export interface SvgPrimitives {
     width: number;
@@ -854,9 +1031,10 @@ export interface SvgPrimitives {
 /**
  * Reads every visible drawing primitive of an SVG document.
  * @param svgText - the SVG file's text
+ * @param pictures - the pictures it embeds, decoded, by their `href`: an image whose pixels are a gradient carries it
  * @returns its rendered size and its primitives
  */
-export function readSvgPrimitives(svgText: string): SvgPrimitives {
+export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string, Pixels> = new Map()): SvgPrimitives {
     const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
     const error = parsed.querySelector("parsererror");
     if (error !== null) {
@@ -875,6 +1053,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
     host.appendChild(root);
     document.body.appendChild(host);
     try {
+        expandUses(root);
         const rect = root.getBoundingClientRect();
         const rootM = root.getScreenCTM();
         // the root's own CTM includes its viewBox; the frame we want is its rendered box
@@ -883,6 +1062,10 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             throw new Error("the oracle SVG has no screen matrix");
         }
         const prims: Prim[] = [];
+        // the `d` of the last filled path read, whose outline a stroke-only twin may draw
+        let lastFilledPath = "";
+        // the geometry read last (a path's `d`, matrix and sample count) and its points
+        let lastGeometry: { key: string; points: Pt[] } = { key: "", points: [] };
         const opacities = new Map<Element, number>();
         // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it: right
         // after it (Cytoscape.js) or after every other outline (Gephi writes all its label outlines, then the labels)
@@ -896,9 +1079,14 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             // #PajekSig: the spider logo Pajek adds to every SVG export, not part of the network
-            if (
-                el.closest("defs, marker, clipPath, mask, pattern, symbol, title, desc, metadata, #PajekSig") !== null
-            ) {
+            if (el.closest(`${NOT_DRAWN}, #PajekSig`) !== null) {
+                continue;
+            }
+            // yFiles (yEd Live) lays a group's panel over its tab: read with the tab (`panelFillOf`), not a box of its own
+            if (el.matches(".yfiles-group-node-content") && el.parentElement?.querySelector(".yfiles-group-node-tab")) {
+                continue;
+            }
+            if (inUndrawnBranch(el)) {
                 continue;
             }
             const cs = getComputedStyle(el);
@@ -953,7 +1141,11 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             if (tag === "image") {
+                const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+                const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
+                const gradient = pixels === undefined ? null : pictureGradient(pixels);
                 prims.push({
+                    ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",
@@ -974,12 +1166,32 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             if (fill === null && stroke === null) {
                 continue;
             }
-            const open = fill === null && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
-            let points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            // vis-network's canvas2svg writes a shape's fill and its outline as two paths of one geometry, the outline
+            // left open where the canvas path it copies was (its database cylinder): the outline of the filled shape
+            // drawn just before it, closed as that shape is
+            const d = tag === "path" ? (el.getAttribute("d") ?? "") : "";
+            const outlineOfFill = fill === null && d !== "" && d === lastFilledPath;
+            lastFilledPath = fill !== null ? d : lastFilledPath;
+            const open =
+                fill === null && !outlineOfFill && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
+            // a path drawn again at once with the same geometry (vis-network's outline over its fill) is not sampled
+            // through the DOM again: the same points, copied
+            const samples = open ? PATH_SAMPLES : SAMPLES;
+            const geometry = d === "" ? "" : [d, m.a, m.b, m.c, m.d, m.e, m.f, samples].join("\u0000");
+            if (geometry === "" || geometry !== lastGeometry.key) {
+                lastGeometry = { key: geometry, points: geometryPoints(el as SVGGeometryElement, m, samples) };
+            }
+            let points = lastGeometry.points.map(([x, y]): Pt => [x, y]);
             const band = fill === null && stroke !== null ? clippedBand(el, root) : null;
             if (band !== null && stroke !== null) {
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
+            }
+            // yEd fills a bar arrowhead's line there and back before stroking it: a fill with nothing inside paints
+            // nothing, and the stroke after it stays next to its line (`index` is what says what follows a line)
+            if (stroke === null && d !== "" && encloses(d) === false) {
+                index = i;
+                continue;
             }
             // a filled shape with no area and no stroke paints nothing (Gephi writes an arrowhead of arrow.size 0 as
             // a polyline of three equal points), nor does a stroked one with butt caps (SVG 1.1 section 11.4: a
@@ -996,8 +1208,22 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
-            const closed = isClosed(el, points) || fill !== null;
-            const subpaths = fill !== null && stroke === null ? subpathsOf(el, m) : null;
+            // and what a `<use>` stamps is a shape however it is drawn, no line of a route: an open stroke (yEd Live's
+            // open and cross arrowheads) is its line there and back, an outline with nothing inside
+            const stamped = el.closest(`[${STAMPED}]`) !== null;
+            if (stamped && open) {
+                points = [...points, ...points.slice(0, -1).reverse()];
+            }
+            const closed = isClosed(el, points) || fill !== null || outlineOfFill || stamped;
+            // a curved figure with a dent (Pajek's man) read again finely, its corners where it draws them (`figureOf`)
+            const fine =
+                closed && points.length === SAMPLES && dented(points)
+                    ? geometryPoints(el as SVGGeometryElement, m, FIGURE_SAMPLES)
+                    : undefined;
+            // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
+            const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
+            const lettering = pieces !== null && isLettering(pieces);
+            const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
             const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
             if (fill !== null && painted !== null) {
                 stroke = {
@@ -1011,12 +1237,14 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 };
                 fill = null;
             }
+            const panel = panelFillOf(el, root, opacities, m);
             prims.push({
                 index: i,
                 tag: painted === null ? tag : PAINTED_OUTLINE,
                 kind: closed ? "shape" : "path",
                 box: painted?.box ?? boxOfPoints(points),
                 points,
+                ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
                 fill: closed ? fill : null,
@@ -1028,6 +1256,8 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 },
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
+                ...(lettering ? { lettering: true as const } : {}),
+                ...(panel === null ? {} : { panel }),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

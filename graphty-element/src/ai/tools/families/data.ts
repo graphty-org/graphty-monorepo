@@ -109,7 +109,7 @@ export const editDataTool: ToolDefinition = {
     name: "edit_data",
     plainName: "Edit data",
     core: true,
-    description: "Adds, changes and removes nodes and edges. To only hide, use filter.",
+    description: "Changes nodes and edges. To only hide: filter.",
     example: { action: "remove_nodes", where: "data.family == 'Medici'" },
     actions: [
         {

@@ -21,7 +21,6 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -359,6 +358,6 @@ export const Connected: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("component");
-        }, storyWaitOptions(5000));
+        });
     },
 };

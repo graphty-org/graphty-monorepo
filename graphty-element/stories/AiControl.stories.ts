@@ -8,6 +8,9 @@
  * - Error retry functionality
  */
 
+// encrypt-storage, as the ./ai and ./credentials entry points register it
+import "../src/ai/keys/withEncryptStorage";
+
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { html, type TemplateResult } from "lit";
 import { userEvent, waitFor } from "storybook/test";
@@ -237,7 +240,8 @@ async function setupShowcase(): Promise<void> {
         return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The element is upgraded, so its graph exists.
+    await customElements.whenDefined("graphty-element");
     const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
     // State
@@ -2080,12 +2084,6 @@ export const RunCode: Story = {
 };
 
 /**
- * How long the first press may take to load the voice chunk and read the page's speech support;
- * later presses take a frame. A budget for a condition, never a wait.
- */
-const VOICE_LOAD_BUDGET_MS = 10_000;
-
-/**
  * Throw unless `condition` holds, for `waitFor` to retry.
  * @param condition - What must hold.
  * @param complaint - What to say when it does not.
@@ -2216,7 +2214,6 @@ async function speak(canvasElement: HTMLElement, utterance: string): Promise<str
                 `"${utterance}" was not heard`,
             );
         },
-        { timeout: VOICE_LOAD_BUDGET_MS },
     );
     await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
     return ended;
@@ -2394,8 +2391,7 @@ export const LiveVoice: Story = {
                     "the press did not start a live conversation",
                 );
             },
-            { timeout: VOICE_LOAD_BUDGET_MS },
-        );
+            );
         await user.pointer({ keys: "[/MouseLeft]", target: talk as HTMLButtonElement });
 
         await waitFor(() => {

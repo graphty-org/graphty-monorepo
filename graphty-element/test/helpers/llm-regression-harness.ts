@@ -33,10 +33,17 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 import { assistantSession } from "./assistant";
 import {
     getLlmRegressionApiKey,
-    getLlmRegressionKeyVariable,
+    getLlmRegressionGeminiTier,
     getLlmRegressionModel,
     getLlmRegressionProvider,
+    getSkipReason,
 } from "./llm-regression-env";
+import {
+    ACCOUNT_REFUSAL_TEXT,
+    FLEX_CAPACITY_CODE,
+    GeminiTransport,
+    REQUEST_TIMEOUT_CODE,
+} from "./llm-regression-gemini";
 
 /** What only a renderer does, answered as one would: the camera, a capture, XR. */
 export const STAND_IN_RENDERER = {
@@ -126,10 +133,12 @@ export interface RequestFailure {
  * Options for retry behavior when API calls fail
  */
 export interface RetryOptions {
-    /** Maximum number of retry attempts (default: 2) */
+    /**
+     * Maximum number of retry attempts (default: 2). A retry is sent at once: each attempt's request
+     * already waits as the provider asks between its own retries (the engine's backoff, which reads
+     * the provider's retry headers), so the harness adds no wait of its own.
+     */
     maxRetries?: number;
-    /** Delay between retry attempts in milliseconds (default: 1000) */
-    retryDelayMs?: number;
     /** Custom function to determine if a failure should trigger a retry */
     retryOn?: (failure: RequestFailure) => boolean;
 }
@@ -159,12 +168,7 @@ export function accountRefusalOf(failure: RequestFailure): string | null {
     // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota, or 402 when its
     // prepayment credits are depleted.
     const text = failure.message.toLowerCase();
-    if (
-        failure.code === "AI_PROVIDER_ERROR" &&
-        /credit balance|insufficient_quota|no credits|credits are depleted|billing|exceeded your current quota/.test(
-            text,
-        )
-    ) {
+    if (failure.code === "AI_PROVIDER_ERROR" && ACCOUNT_REFUSAL_TEXT.test(text)) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }
 
@@ -180,7 +184,13 @@ export function accountRefusalOf(failure: RequestFailure): string | null {
  * @returns True for a transient failure.
  */
 export function isTransientFailure(failure: RequestFailure): boolean {
-    if (failure.code !== "AI_PROVIDER_ERROR") {
+    // The transport already retried Flex's capacity errors as Google documents, and resent a request that
+    // missed its deadline once: asking again only waits past the case's time limit.
+    if (
+        failure.code !== "AI_PROVIDER_ERROR" ||
+        failure.message.includes(FLEX_CAPACITY_CODE) ||
+        failure.message.includes(REQUEST_TIMEOUT_CODE)
+    ) {
         return false;
     }
 
@@ -193,11 +203,26 @@ export function isTransientFailure(failure: RequestFailure): boolean {
 }
 
 /**
+ * The test file's one Gemini transport, so every harness in it shares the cached prefixes; setup.ts closes it
+ * and prints its usage.
+ * @param apiKey - The Google key
+ * @returns The transport
+ */
+function geminiTransport(apiKey: string): GeminiTransport {
+    const shared = globalThis as { __LLM_REGRESSION_GEMINI__?: GeminiTransport };
+    shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({
+        apiKey,
+        tier: getLlmRegressionGeminiTier(),
+        usageFile: process.env.LLM_REGRESSION_USAGE_FILE || undefined,
+    });
+    return shared.__LLM_REGRESSION_GEMINI__;
+}
+
+/**
  * Default retry options
  */
 const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
     maxRetries: 2,
-    retryDelayMs: 1000,
 };
 
 /**
@@ -206,7 +231,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
 export interface LlmRegressionTestHarnessOptions {
     /** Test graph fixture data */
     graphData?: TestGraphFixture;
-    /** Model to use (defaults to VITE_LLM_REGRESSION_MODEL, else the provider's default) */
+    /** Model to use (defaults to LLM_REGRESSION_MODEL, else the provider's default) */
     model?: string;
     /** Temperature setting (defaults to 0 for determinism) */
     temperature?: number;
@@ -297,6 +322,8 @@ export class RecordingEngine implements AiEngine {
     lastRequest: TurnRequest | null = null;
     /** Every request of the current prompt, in order. */
     capturedRequests: TurnRequest[] = [];
+    /** Requests sent since the last clearCaptured(), failed ones included. */
+    requests = 0;
 
     constructor(private readonly inner: AiEngine) {
         this.kind = inner.kind;
@@ -311,6 +338,7 @@ export class RecordingEngine implements AiEngine {
         // Counted per test file and printed by setup.ts, so a run reports what it cost.
         const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+        this.requests++;
         const turn: TranscriptTurn = { text: "", toolCalls: [], end: "none", ms: 0, requests: [] };
         this.capturedTurns.push(turn);
         this.lastRequest = request;
@@ -378,6 +406,7 @@ export class RecordingEngine implements AiEngine {
         this.capturedTurns = [];
         this.lastRequest = null;
         this.capturedRequests = [];
+        this.requests = 0;
     }
 }
 
@@ -408,22 +437,23 @@ export class LlmRegressionTestHarness {
     static async create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
         const apiKey = getLlmRegressionApiKey();
         if (!apiKey) {
-            throw new Error(
-                `${getLlmRegressionKeyVariable()} environment variable is required for LLM regression tests`,
-            );
+            throw new Error(getSkipReason());
         }
 
         if (process.env.LLM_REGRESSION_TRANSCRIPT) {
             recordRequests();
         }
 
-        // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
-        const provider = new VercelAiProvider(getLlmRegressionProvider());
+        // The provider LLM_REGRESSION_PROVIDER names (google by default)
+        const providerType = getLlmRegressionProvider();
+        const provider = new VercelAiProvider(providerType);
         const model = options.model ?? getLlmRegressionModel();
         provider.configure({
             apiKey,
             model,
             temperature: options.temperature ?? 0,
+            // Google's requests go through the run's one transport: the cached prefix, the tier, the deadline, the cost.
+            fetch: providerType === "google" ? geminiTransport(apiKey).fetch : undefined,
         });
 
         // A real session from the fixture, with the stand-in algorithm executor, and a stand-in
@@ -514,9 +544,9 @@ export class LlmRegressionTestHarness {
         }
 
         const maxRetries = retryOptions?.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries;
-        const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
         const shouldRetry = retryOptions?.retryOn ?? isTransientFailure;
         const startTime = Date.now();
+        let resentRejectedFirstRequest = false;
 
         for (let attempt = 0; ; attempt++) {
             this.engine.clearCaptured();
@@ -542,8 +572,22 @@ export class LlmRegressionTestHarness {
                     throw new Error(`${ACCOUNT_REFUSED_MARKER} (${refusal}): ${failure.message}`, { cause: error });
                 }
 
+                // Gemini sometimes answers a valid request with 400 "Request contains an invalid
+                // argument" and accepts the same request a second later (#4220: full run
+                // 40684344927 failed the very first request of "How many nodes are there?", which
+                // the next three tests sent unchanged and had accepted). A message's first request
+                // is built from the prompt alone, so it is sent again once, unchanged: a request
+                // that really is invalid is refused again and fails below. A 400 on a later turn
+                // depends on what the model did and is never resent.
+                if (!resentRejectedFirstRequest && this.engine.requests === 1 && failure.params?.status === 400) {
+                    resentRejectedFirstRequest = true;
+                    console.warn(
+                        `[llm-regression] HTTP 400 on the first request of "${prompt}", sending it again once: ${failure.message}`,
+                    );
+                    continue;
+                }
+
                 if (attempt < maxRetries && shouldRetry(failure)) {
-                    await this.delay(retryDelayMs);
                     continue;
                 }
 
@@ -674,14 +718,6 @@ export class LlmRegressionTestHarness {
             llmText: result.llmText ?? null,
         };
         appendFileSync(path, `${JSON.stringify(line)}\n`);
-    }
-
-    /**
-     * Delay helper for retry logic.
-     */
-    private delay(ms: number): Promise<void> {
-        // eslint-disable-next-line local/no-test-timing -- backoff before calling a remote LLM provider again after a rate limit or transient error; the provider offers no condition to wait on, tracked in #1636
-        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**

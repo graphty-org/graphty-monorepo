@@ -61,7 +61,6 @@ import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../helpers/sabotage.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 /** The free-running twin trace and the number of re-synchronised states. */
 const TRACE_TEN = 10;
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
@@ -214,52 +213,47 @@ describe("FA2 subgroup twins in-process (spec 11.3)", () => {
                 }
             });
 
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 91 s on the T4 lane, 78 s on the dev box's RTX 4070 SUPER under load, 48 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-            it(
-                `${label}: the workgroup twin's ${TRACE_ITERATIONS}-iteration trajectory agrees with the re-synchronised f32 / f64 oracles; the free-running ${TRACE_TEN}-iteration twin trace ${paper ? "printed (chaotic)" : "within fa2-twins.trace"}`,
-                async (t) => {
-                    requireGpu(t);
-                    if (NO_SUBGROUPS_PASS) {
-                        t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                        return;
+            it(`${label}: the workgroup twin's ${TRACE_ITERATIONS}-iteration trajectory agrees with the re-synchronised f32 / f64 oracles; the free-running ${TRACE_TEN}-iteration twin trace ${paper ? "printed (chaotic)" : "within fa2-twins.trace"}`, async (t) => {
+                requireGpu(t);
+                if (NO_SUBGROUPS_PASS) {
+                    t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+                    return;
+                }
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const start = startPositions(s, BASE_OPTIONS, false);
+                    const a = await resyncTrace(withSubgroups, s, start, BASE_OPTIONS, tuning, TRACE_ITERATIONS);
+                    const b = await resyncTrace(withoutSubgroups, s, start, BASE_OPTIONS, tuning, TRACE_ITERATIONS);
+                    const twin = resyncReports(b, `${label}/no-subgroups`);
+                    console.warn(
+                        `[fa2-twins] ${label}: workgroup twin re-synchronised ratio vs f32 ${twin.f32.worst.toExponential(3)}, vs f64 ${twin.f64.worst.toExponential(3)}`,
+                    );
+                    assertCheckPasses(twin.f32);
+                    assertCheckPasses(twin.f64);
+                    const err = stageError(
+                        false,
+                        traceValues(a.trace, 0, TRACE_TEN),
+                        traceValues(b.trace, 0, TRACE_TEN),
+                    );
+                    const report: CheckReport = {
+                        worst: ratioOf(err.rel, toleranceOf("fa2-twins.trace")),
+                        worstLabel: `${label}: free-running trace`,
+                        samples: 6 * TRACE_TEN,
+                    };
+                    // the positions after TRACE_ITERATIONS and the paper-mode trace amplify the controller's
+                    // reduction noise chaotically (spec 7.16; G3-F3), so they are printed, not asserted
+                    const pos = stageError(true, a.positions, b.positions);
+                    console.warn(
+                        `[fa2-twins] ${label}: free-running trace over ${TRACE_TEN} iterations rel ${err.rel.toExponential(3)} ratio ${report.worst.toExponential(3)}${paper ? " (paper mode: informational)" : ""}; positions after ${TRACE_ITERATIONS} iterations differ by rel ${pos.rel.toExponential(3)}`,
+                    );
+                    if (!paper) {
+                        assertCheckPasses(report);
                     }
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const start = startPositions(s, BASE_OPTIONS, false);
-                        const a = await resyncTrace(withSubgroups, s, start, BASE_OPTIONS, tuning, TRACE_ITERATIONS);
-                        const b = await resyncTrace(withoutSubgroups, s, start, BASE_OPTIONS, tuning, TRACE_ITERATIONS);
-                        const twin = resyncReports(b, `${label}/no-subgroups`);
-                        console.warn(
-                            `[fa2-twins] ${label}: workgroup twin re-synchronised ratio vs f32 ${twin.f32.worst.toExponential(3)}, vs f64 ${twin.f64.worst.toExponential(3)}`,
-                        );
-                        assertCheckPasses(twin.f32);
-                        assertCheckPasses(twin.f64);
-                        const err = stageError(
-                            false,
-                            traceValues(a.trace, 0, TRACE_TEN),
-                            traceValues(b.trace, 0, TRACE_TEN),
-                        );
-                        const report: CheckReport = {
-                            worst: ratioOf(err.rel, toleranceOf("fa2-twins.trace")),
-                            worstLabel: `${label}: free-running trace`,
-                            samples: 6 * TRACE_TEN,
-                        };
-                        // the positions after TRACE_ITERATIONS and the paper-mode trace amplify the controller's
-                        // reduction noise chaotically (spec 7.16; G3-F3), so they are printed, not asserted
-                        const pos = stageError(true, a.positions, b.positions);
-                        console.warn(
-                            `[fa2-twins] ${label}: free-running trace over ${TRACE_TEN} iterations rel ${err.rel.toExponential(3)} ratio ${report.worst.toExponential(3)}${paper ? " (paper mode: informational)" : ""}; positions after ${TRACE_ITERATIONS} iterations differ by rel ${pos.rel.toExponential(3)}`,
-                        );
-                        if (!paper) {
-                            assertCheckPasses(report);
-                        }
-                    } finally {
-                        withSubgroups.release(s);
-                        withoutSubgroups.release(s);
-                    }
-                },
-                CASE_TIMEOUT,
-            );
+                } finally {
+                    withSubgroups.release(s);
+                    withoutSubgroups.release(s);
+                }
+            });
         }
     }
 

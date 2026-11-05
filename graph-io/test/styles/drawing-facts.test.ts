@@ -85,11 +85,42 @@ describe("isStyleSlotColumn", () => {
 });
 
 describe("TOOL_DEFAULTS roundedCornerRadius", () => {
-    it("is Cytoscape.js's stated 8 for every program, each citing where it comes from", () => {
-        for (const [tool, d] of TOOL_DEFAULTS) {
-            expect(d.roundedCornerRadius?.value, tool).toBe(8);
-            expect(d.roundedCornerRadius?.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+    // the programs whose own cap is read from their source or their drawing
+    const MEASURED: Readonly<Record<string, number>> = { "cytoscape-js": 8, graphviz: 12, "vis-network": 6 };
+
+    it("is each program's own cap where it is known: Cytoscape.js 8, Graphviz 12 points, vis-network 6", () => {
+        for (const [tool, cap] of Object.entries(MEASURED)) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius?.value, tool).toBe(cap);
         }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerRadius?.source).toMatch(
+            /^cytoscape\.js 3\.34\.3 .* line 4386/,
+        );
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerRadius?.source).toContain("RBCONST 12");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerRadius?.source).toContain("borderRadius 6");
+    });
+
+    it("is Cytoscape.js's 8 elsewhere, its source saying it is unverified for that program and why", () => {
+        for (const [tool, d] of TOOL_DEFAULTS) {
+            if (d.roundedCornerRadius === undefined || tool in MEASURED) {
+                continue;
+            }
+            expect(d.roundedCornerRadius.value, tool).toBe(8);
+            expect(d.roundedCornerRadius.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+            expect(d.roundedCornerRadius.source, tool).toContain(`unverified for ${tool}`);
+        }
+    });
+});
+
+describe("TOOL_DEFAULTS roundedCornerFraction", () => {
+    it("is each program's own share of the shorter side: Cytoscape desktop an eighth with no cap", () => {
+        for (const tool of ["cytoscape", "cytoscape-fallbacks"]) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerFraction?.value, tool).toBe(1 / 8);
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius, tool).toBeUndefined();
+        }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerFraction?.value).toBe(1 / 4);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.value).toBe(1 / 3);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.source).toContain("7.33 on 36 x 22");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerFraction?.value).toBe(1 / 2);
     });
 });
 
@@ -101,6 +132,11 @@ describe("TOOL_DEFAULTS arrowhead", () => {
         // Cytoscape desktop: a DELTA twice (EDGE_*_ARROW_SIZE 6 + width) long, half as wide
         expect(length("cytoscape", 1, 1)).toBe(14);
         expect(length("cytoscape", 1, 2)).toBe(16);
+        // an edge whose source arrow is a half arrow: EDGE_*_ARROW_SIZE times the width, at both ends
+        const half = TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.length;
+        expect(half?.(10 / 6, 1.5, "half")).toBeCloseTo(30, 9);
+        expect(half?.(1, 2, "other:half-bottom")).toBe(24);
+        expect(half?.(1, 2, "triangle")).toBe(16);
         expect(TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.aspect).toBe(0.5);
         // its T bar as wide as the DELTA is long, a tenth of that deep
         expect(TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.shapes?.tee).toEqual({ length: 0.1, aspect: 10 });
@@ -172,5 +208,13 @@ describe("TOOL_DEFAULTS nodeBorderOnScreen", () => {
         const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.nodeBorderOnScreen?.value === true).map(([t]) => t);
         expect(onScreen).toEqual(["vis-network"]);
         expect(TOOL_DEFAULTS.get("vis-network")?.nodeBorderOnScreen?.source).toMatch(/view\.scale/);
+    });
+});
+
+describe("TOOL_DEFAULTS labelSizeOnScreen", () => {
+    it("is set for sigma alone, which draws every label at its size in screen pixels whatever the zoom", () => {
+        const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.labelSizeOnScreen?.value === true).map(([t]) => t);
+        expect(onScreen).toEqual(["sigma"]);
+        expect(TOOL_DEFAULTS.get("sigma")?.labelSizeOnScreen?.source).toMatch(/zoomToLabelSizeRatioFunction/);
     });
 });

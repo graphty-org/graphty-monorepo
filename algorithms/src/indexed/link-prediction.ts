@@ -207,12 +207,14 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
     const sources: number[] = [];
     const targets: number[] = [];
     const scores: number[] = [];
-    // Each unordered pair is scored once as (u, v), u < v; without `directed` or `uniquePairs` the
-    // reverse pair is listed too with the same score. Existence is tested on the arc u -> v only.
-    const mirror = o.directed !== true && o.uniquePairs !== true;
+    // With `directed` every ordered pair (u, v), u != v, is scored: its score is not symmetric. Otherwise
+    // each unordered pair is scored once as (u, v), u < v, and without `uniquePairs` the reverse pair
+    // is listed too with the same score. Existence is tested on the arc u -> v only.
+    const directed = o.directed === true;
+    const mirror = !directed && o.uniquePairs !== true;
     for (let u = 0; u < s.nodeCount; u++) {
-        for (let v = u + 1; v < s.nodeCount; v++) {
-            if (o.includeExisting !== true && s.hasArc(u, v)) {
+        for (let v = directed ? 0 : u + 1; v < s.nodeCount; v++) {
+            if (v === u || (o.includeExisting !== true && s.hasArc(u, v))) {
                 continue;
             }
             const x = score(u, v);

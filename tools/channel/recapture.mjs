@@ -3,20 +3,22 @@
 // release.yml's recapture job shoots again, on a fresh runner, only the stories the CI lane's capture found changed
 // or new, and builds the run's one gated capture, visual-final-<project>, from both.
 //
-//   node tools/channel/recapture.mjs plan --project <p> --captures <dir>
+//   node tools/channel/recapture.mjs plan --project <p> --captures <dir> [--leg <n>/<m>]
 //       the newest visual-<p>-<attempt> capture in <dir>; writes dir=<it> and stories=<ids, comma separated> to
-//       GITHUB_OUTPUT (stories empty: nothing to shoot again)
-//   node tools/channel/recapture.mjs merge --first <dir> --second <dir> --out <dir>
+//       GITHUB_OUTPUT (stories empty: nothing to shoot again). With --leg, only leg n's share of the stories (every
+//       m-th of the sorted list, from the n-th), for a project too large to shoot again in one job
+//   node tools/channel/recapture.mjs merge --first <dir> --second <dir> [--second <dir> ...] --out <dir>
 //       the final capture: the first capture with each re-shot story's verdict replaced, and flaky.json listing the
-//       stories the two shots disagree on
+//       stories the two shots disagree on. One --second per leg that shot its share again
 //   node tools/channel/recapture.mjs nest --captures <dir> --prefix <visual- or visual-final->
 //       after actions/download-artifact with a pattern: when exactly one artifact matched, the action extracts it
 //       straight into <dir> (no <name>/ directory, since v5); this moves it into <prefix><project>-0, the layout
 //       every reader here expects. Several matches are left as they are.
-//   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha>
-//       release.yml's resume job: rewrites each capture's results.json in <dir> so a story whose captured PNG is the
-//       head's (the owner's accept-only pull request's) baseline byte for byte is unchanged; the gate then judges
-//       the approved head as a fresh capture of it would. Reads visual-review.config.json's baselines directory.
+//   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha> --tested <sha>
+//       release.yml's resume job: rewrites each capture's results.json in <dir> rendered from --tested (the
+//       candidate) so a story whose captured PNG is the head's (the owner's accept-only pull request's) baseline byte
+//       for byte is unchanged; the gate then judges the approved head as a fresh capture of it would. A capture
+//       rendered from another commit is left as it is. Reads visual-review.config.json's baselines directory.
 //
 // A story stays changed (or new) only when the second shot draws the same picture as the first. One that matches
 // its baseline the second time was a flake and is unchanged; one that draws a third picture is `unstable`
@@ -63,6 +65,19 @@ export function newestCapture(dir, project) {
  */
 export const reshootIds = (results) =>
     [...new Set((results?.items ?? []).filter((i) => RESHOOT.has(i.status)).map((i) => i.id))].sort();
+
+/**
+ * One leg's share of the stories to shoot again: every m-th of the sorted list, starting at the n-th.
+ * @param ids the sorted story ids
+ * @param leg "n/m", or undefined for every story
+ * @returns the leg's ids
+ */
+export function legShare(ids, leg) {
+    if (!leg) return ids;
+    const [n, m] = leg.split("/").map(Number);
+    if (!(Number.isInteger(n) && Number.isInteger(m) && n >= 1 && n <= m)) throw new Error(`bad --leg ${leg}`);
+    return ids.filter((_, i) => i % m === n - 1);
+}
 
 /**
  * The final verdict of one story shot twice on two runners.
@@ -120,32 +135,37 @@ export function nestSingle(dir, prefix) {
  * Builds the final capture.
  * @param o the directories
  * @param o.first the CI lane's capture (results.json and its images)
- * @param o.second the re-capture of the changed and new stories, or null when there was nothing to shoot again
+ * @param o.second the re-capture of the changed and new stories (a directory, or one per leg), or null when there
+ *     was nothing to shoot again
  * @param o.out where the final capture goes
  * @returns the flaky stories, `[{ file, why }]`
  */
 export async function merge({ first, second, out }) {
     // only a re-capture needs the image comparison, and with it visual-review's dependencies installed
-    const { compareImages } = second ? await import("../../visual-review/trusted/lib/compare.mjs") : {};
+    const seconds = [second ?? []].flat();
+    const { compareImages } = seconds.length ? await import("../../visual-review/trusted/lib/compare.mjs") : {};
     cpSync(first, out, { recursive: true });
     const results = JSON.parse(readFileSync(join(first, "results.json"), "utf8"));
-    const again =
-        second && existsSync(join(second, "results.json"))
-            ? new Map(JSON.parse(readFileSync(join(second, "results.json"), "utf8")).items.map((i) => [i.file, i]))
-            : new Map();
+    // each re-shot story's item and the directory (the leg) that holds its images
+    const again = new Map();
+    for (const dir of seconds) {
+        if (!existsSync(join(dir, "results.json"))) continue;
+        for (const i of JSON.parse(readFileSync(join(dir, "results.json"), "utf8")).items)
+            again.set(i.file, { i, dir });
+    }
     const flaky = [];
     results.items = results.items.map((item) => {
-        const other = again.get(item.file);
+        const { i: other, dir } = again.get(item.file) ?? {};
         const same = () =>
-            compareImages(readFileSync(join(first, item.file)), readFileSync(join(second, other.file)), item).status ===
+            compareImages(readFileSync(join(first, item.file)), readFileSync(join(dir, other.file)), item).status ===
             "unchanged";
         // no re-capture at all: nothing was found to shoot again
-        const f = second ? finalOf({ first: item, second: other, same }) : { item, take: "first", flaky: null };
+        const f = seconds.length ? finalOf({ first: item, second: other, same }) : { item, take: "first", flaky: null };
         if (f.take === "second") {
             for (const sub of ["", "second", "baselines"])
-                copyIfThere(join(second, sub, item.file), join(out, sub, item.file));
+                copyIfThere(join(dir, sub, item.file), join(out, sub, item.file));
         } else if (f.take === "both") {
-            copyIfThere(join(second, item.file), join(out, "second", item.file));
+            copyIfThere(join(dir, item.file), join(out, "second", item.file));
         }
         if (f.flaky) flaky.push({ file: item.file, why: f.flaky });
         return f.item;
@@ -162,11 +182,19 @@ const APPROVABLE = new Set(["changed", "moved", "new", "unseeded"]);
  * PNG is byte for byte the head's baseline (the accept commit copies the captured bytes) becomes unchanged, as a
  * capture of the head would find it, and a removed story whose baseline the head deleted is dropped. Anything else
  * keeps its status, so the gate still refuses it.
+ *
+ * This is a fresh comparison, not a decision carried by image hash (design/visual-testing/early-capture.md, rejected
+ * option b; issue #4986), but only for a capture rendered from the candidate H itself: the head P is H plus
+ * accept-only commits, so a baseline equals such a PNG only where the owner accepted that very render on this
+ * candidate. A capture whose results.json names another commit (a fix forward's re-test carries a project's final
+ * capture over from the run that judged an earlier candidate) is left as it is, so the gate decides it.
  * @param results a final capture's results.json
  * @param oidOf (file) => the SHA-256 of the head's baseline of that file, or null when it has none
+ * @param tested H, the commit the full run tested
  * @returns the number of stories now unchanged; results.items is rewritten in place
  */
-export function acceptedBy(results, oidOf) {
+export function acceptedBy(results, oidOf, tested) {
+    if (results.commit !== tested) return 0;
     const before = results.items.length;
     let n = 0;
     // a removed story whose baseline the owner deleted is gone, as from a fresh capture
@@ -201,29 +229,49 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const { values } = parseArgs({
         args: rest,
         options: Object.fromEntries(
-            ["project", "captures", "first", "second", "out", "head", "prefix"].map((k) => [k, { type: "string" }]),
+            ["project", "captures", "first", "second", "out", "head", "tested", "prefix", "leg"].map((k) => [
+                k,
+                { type: "string", multiple: k === "second" },
+            ]),
         ),
     });
     if (cmd === "plan") {
         const dir = newestCapture(values.captures, values.project);
         const file = dir && join(dir, "results.json");
         const stories = file && existsSync(file) ? reshootIds(JSON.parse(readFileSync(file, "utf8"))) : [];
-        const lines = `dir=${dir ?? ""}\nstories=${stories.join(",")}\n`;
+        const share = legShare(stories, values.leg);
+        const lines = `dir=${dir ?? ""}\nstories=${share.join(",")}\n`;
         if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, lines);
         process.stdout.write(lines);
     } else if (cmd === "merge") {
-        const flaky = await merge({ first: values.first, second: values.second || null, out: values.out });
+        const flaky = await merge({
+            first: values.first,
+            second: values.second?.filter(Boolean) ?? null,
+            out: values.out,
+        });
         for (const f of flaky) console.log(`::warning::flaky story ${f.file}: ${f.why}`);
     } else if (cmd === "nest") {
         const to = nestSingle(values.captures, values.prefix);
         if (to) console.log(`one artifact was extracted straight into ${values.captures}: moved to ${to}`);
     } else if (cmd === "accepted") {
+        if (!/^[0-9a-f]{40}$/.test(values.tested ?? ""))
+            throw new Error("accepted needs --tested <the candidate's sha>");
         const root = JSON.parse(readFileSync("visual-review.config.json", "utf8")).baselines;
         for (const name of readdirSync(values.captures)) {
             const file = join(values.captures, name, "results.json");
             if (!existsSync(file)) continue;
             const results = JSON.parse(readFileSync(file, "utf8"));
-            const n = acceptedBy(results, (f) => baselineOid(values.head, `${root}/${results.project}/${f}`));
+            if (results.commit !== values.tested) {
+                console.log(
+                    `${name}: rendered from ${results.commit ?? "an unknown commit"}, not the candidate: left as is`,
+                );
+                continue;
+            }
+            const n = acceptedBy(
+                results,
+                (f) => baselineOid(values.head, `${root}/${results.project}/${f}`),
+                values.tested,
+            );
             writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
             console.log(`${name}: ${n} ${n === 1 ? "story matches" : "stories match"} the approved baselines`);
         }

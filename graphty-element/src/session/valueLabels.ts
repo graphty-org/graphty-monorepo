@@ -5,13 +5,16 @@
 
 import type { Path } from "../catalog/types";
 
+/** A value a name can be given to: a category as the legend spells it. */
+export type LabelledValue = string | number | boolean;
+
 /**
  * The `valueLabels` slice key one value's name is kept under.
  * @param path - The value path.
  * @param value - The value, spelled as the legend spells it.
  * @returns The key.
  */
-export function valueLabelKey(path: Path, value: string | number | boolean): string {
+export function valueLabelKey(path: Path, value: LabelledValue): string {
     return JSON.stringify([path, String(value)]);
 }
 

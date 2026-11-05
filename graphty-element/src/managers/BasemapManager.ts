@@ -1,7 +1,7 @@
 import { type AbstractMesh, Matrix, Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
-import type { BasemapConfig, BasemapStatus } from "../config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook } from "../config/Basemap";
 import type { BasemapStatusEvent } from "../events";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 
@@ -189,6 +189,37 @@ export class BasemapManager {
         this.#strip.style.bottom = `${String(Math.max(0, pixels))}px`;
     }
 
+    /** How a globe looks beyond its map; see {@link GlobeLook}. */
+    #look: GlobeLook = {};
+
+    /**
+     * How a globe looks beyond its map: its air's glow and its sun. Applied to the globe drawn now,
+     * and to every globe made after.
+     * @param look - The look.
+     */
+    set globeLook(look: GlobeLook) {
+        this.#look = look;
+        if (this.#surface !== null && this.#module !== null) {
+            void this.#module.then((m) => {
+                if (this.#surface instanceof m.Globe) {
+                    this.#lookOf(this.#surface);
+                }
+            });
+        }
+    }
+
+    /**
+     * Gives a globe the look.
+     * @param globe - The globe.
+     */
+    #lookOf(globe: Globe): void {
+        globe.atmosphere = this.#look.atmosphere === true;
+        const sun = this.#look.sun ?? null;
+        if (JSON.stringify(sun) !== JSON.stringify(globe.sun)) {
+            globe.sun = sun;
+        }
+    }
+
     /**
      * Follows the active layout's frame and the basemap setting; cheap when neither changed.
      * @param frame - The geographic frame, or null when the active layout has none.
@@ -237,7 +268,8 @@ export class BasemapManager {
 
     /**
      * What the map is doing. `fallback` when a named source is unknown, or when a tile service
-     * drew no tile and some failed: the bundled world image under it is what shows.
+     * drew no tile and some failed: the bundled world image under it is what shows, told once that
+     * image is drawn.
      * @returns The status.
      */
     get status(): BasemapStatus {
@@ -246,27 +278,11 @@ export class BasemapManager {
             return { source: this.#name, state: this.#pending ? "loading" : "off", attribution: [] };
         }
 
-        const { loading, ready, failed, layers } = surface.status;
-        const { sources } = surface;
-        // A tile service (not a picture) that drew nothing and failed: the base shows instead.
-        const unreachable = layers.some(
-            (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
-        );
-        const meshes = surface.root.getChildMeshes();
         let state: BasemapStatus["state"] = "ready";
-        if (this.#unknown || unreachable) {
-            state = "fallback";
-        } else if (
-            this.#pending ||
-            loading > 0 ||
-            ready + failed === 0 ||
-            !meshes.some((m) => m.isEnabled()) ||
-            meshes.some((m) => m.isEnabled() && !m.isReady(true))
-        ) {
-            // No tile asked for yet (the map was just made or its source changed) is loading too,
-            // and so is a loaded tile not drawn again yet after a source change, and a tile whose
-            // shader is still compiling: it is not on screen yet.
+        if (this.loading) {
             state = "loading";
+        } else if (this.#unknown || this.#unreachable(surface).includes(true)) {
+            state = "fallback";
         }
 
         const attribution = [...surface.attribution];
@@ -277,6 +293,51 @@ export class BasemapManager {
         }
 
         return { source: this.#name, state, attribution };
+    }
+
+    /**
+     * Whether the map is still on its way to the screen: its module is loading, a frame or setting
+     * came in it has not been drawn for, or a tile is. Asked by the graph's record of pending work
+     * every time it asks whether the picture is final, so it reads state and builds nothing.
+     * @returns True while the map's state is `loading`.
+     */
+    get loading(): boolean {
+        if (this.#pending) {
+            return true;
+        }
+
+        const surface = this.#surface;
+        if (surface === null) {
+            return false;
+        }
+
+        const { ready, failed, layers } = surface.status;
+        const unreachable = this.#unreachable(surface);
+        const meshes = surface.root.getChildMeshes();
+        // No tile asked for yet (the map was just made or its source changed) is loading too, and
+        // so is a loaded tile not drawn again yet after a source change, and a tile whose shader is
+        // still compiling: it is not on screen yet. A fallback waits for this too, so it is told
+        // only once the bundled world it falls back to is drawn and credited; the unreachable
+        // service's own retries do not hold it.
+        return (
+            layers.some((layer, i) => !unreachable[i] && layer.loading > 0) ||
+            ready + failed === 0 ||
+            !meshes.some((m) => m.isEnabled()) ||
+            meshes.some((m) => m.isEnabled() && !m.isReady(true))
+        );
+    }
+
+    /**
+     * Which of a surface's layers is a tile service (not a picture) that drew nothing and failed:
+     * the base shows instead.
+     * @param surface - The surface.
+     * @returns One flag per layer.
+     */
+    #unreachable(surface: FlatMap | Globe): boolean[] {
+        const { sources } = surface;
+        return surface.status.layers.map(
+            (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
+        );
     }
 
     /**
@@ -325,6 +386,7 @@ export class BasemapManager {
 
         if (frame.surface === "globe" && surface instanceof m.Globe) {
             surface.radius = frame.radius;
+            this.#lookOf(surface);
             const r = frame.rotation;
             surface.root.rotationQuaternion = Quaternion.FromRotationMatrix(
                 Matrix.FromValues(r[0], r[1], r[2], 0, r[3], r[4], r[5], 0, r[6], r[7], r[8], 0, 0, 0, 0, 1),

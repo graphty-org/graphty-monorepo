@@ -68,6 +68,27 @@ element.autoFrame = true; // back to framing each load (the default)
 records no undo step and is not saved in a project file. It is independent of
 `startingCameraDistance`, which also stops automatic framing but places the camera at a distance.
 
+### How the graph is framed
+
+By default zoom-to-fit frames every node whole, with its labels, inside a small margin. The
+project setting `framing` changes that: `extent: "centers"` fits the node centers alone, so a big
+node at the edge may run past the canvas, and `padding` keeps that many CSS pixels clear at each
+end of the canvas's shorter side (the longer side keeps the same share), as sigma.js frames a graph.
+
+```typescript
+await element.session.config.set({ framing: { extent: "centers", padding: 30 } });
+await element.session.config.set({ framing: undefined }); // back to framing every node whole
+```
+
+A file load can set it to how the file's own program frames it, with the file style option
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+
+```typescript
+await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
+```
+
+The setting is saved in a project file and undone like any other project setting.
+
 ### Zoom In and Out
 
 Move the camera one step nearer or further, the way a zoom button does. The same call works on
@@ -119,6 +140,19 @@ names a node the camera stays where it is:
 ```typescript
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
+
+By default each node counts as its centre, so a big node at the edge of the frame can be cut off,
+and one node is framed in a fixed-size box around its centre. Pass `extent: "drawn"` to measure each
+node by the box it is drawn in instead, so every framed node is whole on screen:
+
+```typescript
+await graph.zoomToNodes("hub", { extent: "drawn" });
+await graph.applyCameraView("isometric", { scope: "selection", extent: "drawn" });
+const state = graph.resolveCameraPreset("topView", { extent: "drawn" });
+```
+
+`extent` works the same for a camera view a third party registered: the box handed to its
+`compute` is measured either way.
 
 `zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
 stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With

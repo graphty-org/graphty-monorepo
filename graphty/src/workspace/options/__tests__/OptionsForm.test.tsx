@@ -5,9 +5,9 @@
  */
 import { BUILT_IN_ALGORITHMS, type OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { render, screen } from "../../../test/test-utils";
 import { optionWords } from "../../analyze/words";

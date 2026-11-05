@@ -129,8 +129,8 @@ describe("Pajek styles: Pajek's rules", () => {
         ]);
         // as Pajek 6.02 draws the file: the vertices that set no size are Pajek's normal 20 points, and each vertex
         // that names a shape starts from the defaults, whatever the one before it set
-        expect(drawn(styles, snapshot, "node", "width")).toEqual([80, 80, 120, 160, 20, 20]);
-        expect(drawn(styles, snapshot, "node", "height")).toEqual([40, 80, 40, 40, 20, 20]);
+        expect(drawn(styles, snapshot, "node", "width")).toEqual([80, 80, 120, 160, 20, 0]);
+        expect(drawn(styles, snapshot, "node", "height")).toEqual([40, 80, 40, 40, 20, 0]);
         expect(drawn(styles, snapshot, "node", "labelColor").slice(0, 3)).toEqual(["#0f75ff", "#000000", "#660000"]);
         expect(drawn(styles, snapshot, "node", "labelSize").slice(0, 3)).toEqual([16, 16, 15]);
         expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(2);
@@ -281,6 +281,25 @@ describe("Pajek styles: Pajek's rules", () => {
     });
 });
 
+describe("Pajek styles: where an arc's arrowhead stops", () => {
+    it("stops an arc's arrowhead 1 px short of its target's outline, whatever its size", async () => {
+        // pajek-synth-lines: every arc's tip 1.25 from a vertex 20 across with a border 0.5 wide, `s` 1 to 5; `s`
+        // carries to the next line, and a loop and an edge draw no arrowhead
+        const { snapshot, styles } = await load(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.2 0.1\n3 c 0.3 0.1\n*Arcs\n1 2\n2 3 s 5\n3 1\n3 3\n*Edges\n1 3\n",
+        );
+        // an edge is kept as a pair of directed edges
+        expect(drawn(styles, snapshot, "edge", "targetArrowGap")).toEqual([
+            0.166667,
+            0.0333333,
+            0.0333333,
+            null,
+            null,
+            null,
+        ]);
+    });
+});
+
 describe("Pajek styles: sizes, label placement and line labels", () => {
     const doc = [
         "*Vertices 4",
@@ -310,6 +329,23 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(drawn(styles, snapshot, "node", "labelShiftX")).toEqual([0, 0.5, 0.5, 0.5]);
         expect(drawn(styles, snapshot, "node", "labelOffsetX")).toEqual([0, 0, 6, 5.176380902]);
         expect(drawn(styles, snapshot, "node", "labelOffsetY")).toEqual([0, -25.1975, 5.194804845, 14.121016526]);
+    });
+
+    it("turns a label turned by la about where its text starts", async () => {
+        // pajek-synth-vertices v39 `la 60 lr 12 lphi 270 fos 10`: translate(140 262) rotate(-60), the text's start 12
+        // below the center; its left middle, 0.3465 of 10 above the baseline in the label's own frame, turns with it
+        const turned =
+            "*Vertices 2\n1 a 0.2 0.2 0.5 ellipse la 60 lr 12 lphi 270 fos 10\n2 b 0.8 0.8 0.5 ellipse la 60\n";
+        const { snapshot, styles } = await load(turned);
+        expect(drawn(styles, snapshot, "node", "labelRotation")).toEqual([300, 300]);
+        const [x, y] = (["labelOffsetX", "labelOffsetY"] as const).map(
+            (property) => drawn(styles, snapshot, "node", property) as number[],
+        );
+        expect(x[0]).toBeCloseTo(-3.0008, 4);
+        expect(y[0]).toBeCloseTo(10.2675, 4);
+        // the default place, 20 out at 285 degrees, at the default size 15
+        expect(x[1]).toBeCloseTo(0.6752, 4);
+        expect(y[1]).toBeCloseTo(16.7198, 4);
     });
 
     it("reads a line's label, its color, size and font, and its width in points", async () => {
@@ -345,6 +381,19 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
         const back = await load(out.replace(/^% graphty\.styles .*\n/m, ""));
         expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.5, null, null]);
+    });
+
+    it("writes a placed line's arrow position back as the ap Pajek reads it, with the block and without", async () => {
+        // a 200 px line: ap 0.5 puts the tip at 0.475 (5 px past the middle); ap 20 at 0.075
+        const arcs = "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.9 0.1\n*Arcs\n1 2 1 ap 0.5\n2 3 1 ap 20\n";
+        const { snapshot, styles } = await load(arcs);
+        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
+        for (const file of [out, out.replace(/^% graphty\.styles .*\n/m, "")]) {
+            const back = await load(file);
+            expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.475, 0.075]);
+        }
     });
 
     it("writes the same sizes, label places and line labels back, read without the block as with it", async () => {
@@ -418,15 +467,16 @@ describe("Pajek files that failed to read before", () => {
 
 describe("Pajek styles: writing", () => {
     it("draws a man or a woman at the size of the figure Pajek draws, and writes back the size it was given", async () => {
-        // pajek-specimen-node-shapes: at x_fact 0.5 Pajek's man is 25.0 across and 64.9 tall, its woman 30.0 by 64.8
+        // pajek-specimen-node-shapes: at x_fact 0.5 Pajek's man is 25.0 across and 64.9 tall, its woman 30.0 by 64.8;
+        // pajek-synth-vertices: a figure that sets no factor is drawn at 0.3 of x_fact 1 and y_fact 1, not at 1
         const { snapshot, styles } = await load(
             '*Vertices 3\n1 "m" 0.1 0.1 0.5 man x_fact 0.5 y_fact 0.5\n2 "w" 0.2 0.1 0.5 woman\n3 "b" 0.3 0.1 0.5 box x_fact 0.5\n',
         );
-        expect(drawn(styles, snapshot, "node", "width")).toEqual([25.02, 60.06, 10]);
-        expect(drawn(styles, snapshot, "node", "height")).toEqual([64.87, 129.56, 20]);
+        expect(drawn(styles, snapshot, "node", "width")).toEqual([25.02, 18.018, 10]);
+        expect(drawn(styles, snapshot, "node", "height")).toEqual([64.87, 38.868, 20]);
         const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
         expect(out).toMatch(/^1 m 0\.1 0\.1 0\.5 man x_fact 0\.5 y_fact 0\.5$/m);
-        expect(out).toMatch(/^2 w 0\.2 0\.1 0\.5 woman x_fact 1\.0 y_fact 1\.0$/m);
+        expect(out).toMatch(/^2 w 0\.2 0\.1 0\.5 woman x_fact 0\.3 y_fact 0\.3$/m);
     });
 
     it("writes the shape keyword and parameters and reads back the same rules and values", async () => {
@@ -437,7 +487,7 @@ describe("Pajek styles: writing", () => {
             /^2 square 0\.8 0\.25 0\.5 box ic SkyBlue lc Black x_fact 4\.0 y_fact 4\.0 fos 16\.0 bw 2\.0$/m,
         );
         // the width arc 4-2 is drawn at, carried from the arc before it, is written on it
-        expect(out).toContain("4 2 -1 c Red w 3.0 p Dots l dotted");
+        expect(out).toContain("4 2 -1 c Red w 3.0 s 2.0 p Dots l dotted");
         const back = await load(out);
         expect(back.styles.styles.source.tool).toBe("graphty");
         expect(plain(back.styles)).toEqual(plain(styles));

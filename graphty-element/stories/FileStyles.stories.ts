@@ -254,8 +254,8 @@ export const GraphmlYed: Story = {
             [],
             { "n0::n0": "Source\nView", "n2::n1": "Recording\nCompositor" },
         );
-        // `y:Arrows target="standard"`.
-        await drewArrows(canvasElement, "GraphmlYed", { "n2::n21->n3::n0": "normal" });
+        // `y:Arrows target="standard"`: yEd's standard arrow is a triangle with an impressed bottom side, a vee.
+        await drewArrows(canvasElement, "GraphmlYed", { "n2::n21->n3::n0": "vee" });
     },
 };
 

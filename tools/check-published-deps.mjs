@@ -41,7 +41,7 @@ import fs from "node:fs";
 import { builtinModules } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import semver from "semver";
 
@@ -115,15 +115,17 @@ const TEXT_NOT_IMPORTS = {
 
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 
-// Static imports and re-exports start at column 0 in both tsc and rollup output; anything
-// indented is inside a string or a comment (graphty-element's bundle carries example code for
-// its AI prompt as template strings). A `[^;]` body lets a multi-line `import {\n a,\n} from`
-// match without running on into the next statement.
+// Static imports and re-exports start at column 0 in both tsc and rollup output, or right after
+// the `;` that ends the statement before them in minified output (`import{a as b}from"x";`);
+// anything indented is inside a string or a comment (graphty-element's bundle carries example
+// code for its AI prompt as template strings). A `[^;]` body lets a multi-line
+// `import {\n a,\n} from` match without running on into the next statement.
 const IMPORT_PATTERNS = [
-    /^(?:import|export)\s[^;]*?\sfrom\s*["']([^"'\n]+)["']/gm,
-    /^import\s*["']([^"'\n]+)["']/gm,
-    /\bimport\(\s*["']([^"'\n]+)["']\s*\)/g,
-    /\brequire\(\s*["']([^"'\n]+)["']\s*\)/g,
+    /(?:^|;)(?:import|export)\b[^;]*?\bfrom\s*["']([^"'\n]+)["']/gm,
+    /(?:^|;)import\s*["']([^"'\n]+)["']/gm,
+    // Rolldown writes a literal dynamic specifier as a template string: import(`x`).
+    /\bimport\(\s*["'`]([^"'`$\n]+)["'`]\s*\)/g,
+    /\brequire\(\s*["'`]([^"'`$\n]+)["'`]\s*\)/g,
     /^\/\/\/\s*<reference\s+types\s*=\s*["']([^"'\n]+)["']/gm,
 ];
 
@@ -185,43 +187,104 @@ function frameworkProblems(allowed, file, text) {
     return problems;
 }
 
-function check(dir, packed, workspaceVersions) {
-    const problems = [];
-    const manifest = JSON.parse(fs.readFileSync(path.join(packed, "package.json"), "utf8"));
-    const deps = manifest.dependencies ?? {};
-    const peers = manifest.peerDependencies ?? {};
-    const declared = new Set([...Object.keys(deps), ...Object.keys(peers)]);
-    const files = walk(packed).map((f) => path.relative(packed, f).split(path.sep).join("/"));
+/**
+ * Rule 4: shipped test or tool configuration.
+ * @param files - The shipped paths, relative and with forward slashes.
+ * @returns One problem per such file.
+ */
+function forbiddenFiles(files) {
+    return files
+        .filter((file) => FORBIDDEN_FILES.some((re) => re.test(file)))
+        .map((file) => `ships ${file}, which is test or tool configuration`);
+}
 
-    for (const file of files) {
-        if (FORBIDDEN_FILES.some((re) => re.test(file)))
-            problems.push(`ships ${file}, which is test or tool configuration`);
-    }
+/**
+ * Whether a specifier names another package, not a relative path, a URL or a node builtin.
+ * @param spec - The import specifier.
+ * @returns True for a package.
+ */
+function isPackageSpecifier(spec) {
+    if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) return false;
+    return !(builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:"));
+}
 
-    const imported = new Map(); // name -> first file that imports it
-    const frameworkAllowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name];
+/**
+ * The package one import names, as the manifest must declare it: in a .d.ts, a declared "@types/x" stands for an
+ * undeclared "x".
+ * @param spec - The import specifier.
+ * @param file - The file importing it.
+ * @param manifest - The package's manifest.
+ * @param declared - Every dependency and peer dependency name.
+ * @returns The name, or null for a name to ignore (invalid, or the package itself).
+ */
+function declaredNameOf(spec, file, manifest, declared) {
+    const name = packageName(spec);
+    if (!VALID_NAME.test(name) || name === manifest.name) return null;
+    const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
+    return /\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types) ? types : name;
+}
+
+/**
+ * Every package the shipped code imports.
+ * @param packed - The unpacked package's directory.
+ * @param files - The shipped paths.
+ * @param manifest - The package's manifest.
+ * @param declared - Every dependency and peer dependency name.
+ * @returns Package name to the first file that imports it.
+ */
+function importedPackages(packed, files, manifest, declared) {
+    const imported = new Map();
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
-        if (file.startsWith("src/")) continue;
-        if (!/\.[cm]?js$|\.d\.[cm]?ts$/.test(file)) continue;
-        const text = fs.readFileSync(path.join(packed, file), "utf8");
-        if (frameworkAllowed) problems.push(...frameworkProblems(frameworkAllowed, file, text));
-        for (const re of IMPORT_PATTERNS) {
-            for (const m of text.matchAll(re)) {
-                const spec = m[1];
-                if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) continue;
-                if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
-                let name = packageName(spec);
-                if (!VALID_NAME.test(name) || name === manifest.name) continue;
-                if (TEXT_NOT_IMPORTS[manifest.name]?.some((t) => t.files.test(file) && t.names.includes(name)))
-                    continue;
-                const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
-                if (/\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
-                if (!imported.has(name)) imported.set(name, file);
-            }
+        if (file.startsWith("src/") || !/\.[cm]?js$|\.d\.[cm]?ts$/.test(file)) continue;
+        addImports(imported, fs.readFileSync(path.join(packed, file), "utf8"), file, manifest, declared);
+    }
+    return imported;
+}
+
+/**
+ * Record each package one file imports that no earlier file did.
+ * @param imported - Package name to the first file that imports it, added to.
+ * @param text - The file's text.
+ * @param file - The file's path.
+ * @param manifest - The package's manifest.
+ * @param declared - Every dependency and peer dependency name.
+ */
+function addImports(imported, text, file, manifest, declared) {
+    for (const re of IMPORT_PATTERNS) {
+        for (const m of text.matchAll(re)) {
+            const name = isPackageSpecifier(m[1]) ? declaredNameOf(m[1], file, manifest, declared) : null;
+            const textOnly = TEXT_NOT_IMPORTS[manifest.name]?.some((t) => t.files.test(file) && t.names.includes(name));
+            if (name !== null && !textOnly && !imported.has(name)) imported.set(name, file);
         }
     }
+}
 
+/**
+ * The AI framework imports the shipped files of a scanned package hold.
+ * @param packed - The unpacked package's directory.
+ * @param files - The shipped paths.
+ * @param manifest - The package's manifest.
+ * @returns One message per problem.
+ */
+function shippedFrameworkProblems(packed, files, manifest) {
+    const allowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name];
+    if (!allowed) return [];
+    return files
+        .filter((file) => !file.startsWith("src/") && /\.[cm]?js$|\.d\.[cm]?ts$/.test(file))
+        .flatMap((file) => frameworkProblems(allowed, file, fs.readFileSync(path.join(packed, file), "utf8")));
+}
+
+/**
+ * Rules 1 and 2: imports nothing declares, and declarations nothing imports.
+ * @param imported - Package name to the first file that imports it.
+ * @param declared - Every dependency and peer dependency name.
+ * @param deps - The dependencies.
+ * @param manifest - The package's manifest.
+ * @returns The problems.
+ */
+function importMismatches(imported, declared, deps, manifest) {
+    const problems = [];
     for (const [name, file] of imported) {
         if (!declared.has(name))
             problems.push(`${file} imports "${name}", which is neither a dependency nor a peer dependency`);
@@ -232,11 +295,30 @@ function check(dir, packed, workspaceVersions) {
             problems.push(`declares ${kind} "${name}", which no shipped file imports`);
         }
     }
-    for (const name of Object.keys(deps)) {
-        if (name in peers && !DEPENDENCY_AND_PEER_ALLOWED.has(name)) {
-            problems.push(`declares "${name}" as both a dependency and a peer dependency`);
-        }
-    }
+    return problems;
+}
+
+/**
+ * Rule 5: a name in both dependencies and peerDependencies.
+ * @param deps - The dependencies.
+ * @param peers - The peer dependencies.
+ * @returns The problems.
+ */
+function dependencyAndPeer(deps, peers) {
+    return Object.keys(deps)
+        .filter((name) => name in peers && !DEPENDENCY_AND_PEER_ALLOWED.has(name))
+        .map((name) => `declares "${name}" as both a dependency and a peer dependency`);
+}
+
+/**
+ * Rule 3: an internal range the workspace version does not satisfy.
+ * @param deps - The dependencies.
+ * @param peers - The peer dependencies.
+ * @param workspaceVersions - Each workspace package's version, by name.
+ * @returns The problems.
+ */
+function staleRanges(deps, peers, workspaceVersions) {
+    const problems = [];
     for (const [section, ranges] of [
         ["dependencies", deps],
         ["peerDependencies", peers],
@@ -297,36 +379,63 @@ function selfTest() {
     }
 }
 
-if (process.argv.includes("--self-test")) {
-    selfTest();
-    process.exit(0);
+/**
+ * Every problem with one unpacked package, in rule order: shipped configuration, import mismatches, names in
+ * both sections, stale internal ranges.
+ * @param dir - The package's workspace directory.
+ * @param packed - The unpacked package's directory.
+ * @param workspaceVersions - Each workspace package's version, by name.
+ * @returns The problems, empty when there are none.
+ */
+export function check(dir, packed, workspaceVersions) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(packed, "package.json"), "utf8"));
+    const deps = manifest.dependencies ?? {};
+    const peers = manifest.peerDependencies ?? {};
+    const declared = new Set([...Object.keys(deps), ...Object.keys(peers)]);
+    const files = walk(packed).map((f) => path.relative(packed, f).split(path.sep).join("/"));
+    const imported = importedPackages(packed, files, manifest, declared);
+    return [
+        ...forbiddenFiles(files),
+        ...shippedFrameworkProblems(packed, files, manifest),
+        ...importMismatches(imported, declared, deps, manifest),
+        ...dependencyAndPeer(deps, peers),
+        ...staleRanges(deps, peers, workspaceVersions),
+    ];
 }
 
-const only = process.argv.slice(2);
-const all = workspacePackages();
-const workspaceVersions = new Map(all.map((p) => [p.manifest.name, p.manifest.version]));
-const published = all.filter((p) => !p.manifest.private && (only.length === 0 || only.includes(p.dir)));
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "check-published-deps-"));
-
-let failed = 0;
-try {
-    for (const { dir, manifest } of published) {
-        const problems = check(dir, pack(dir, scratch), workspaceVersions);
-        if (problems.length === 0) {
-            console.log(`ok    ${manifest.name}`);
-        } else {
-            failed += problems.length;
-            console.log(`FAIL  ${manifest.name}`);
-            for (const p of problems) console.log(`        ${p}`);
-        }
+// Run as a script; imported (by its test), only `check` is used.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+    if (process.argv.includes("--self-test")) {
+        selfTest();
+        process.exit(0);
     }
-} finally {
-    fs.rmSync(scratch, { recursive: true, force: true });
-}
 
-if (failed > 0) {
-    console.error(
-        `\n${failed} problem(s) in published package manifests. See the header of tools/check-published-deps.mjs.`,
-    );
-    process.exit(1);
+    const only = process.argv.slice(2);
+    const all = workspacePackages();
+    const workspaceVersions = new Map(all.map((p) => [p.manifest.name, p.manifest.version]));
+    const published = all.filter((p) => !p.manifest.private && (only.length === 0 || only.includes(p.dir)));
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "check-published-deps-"));
+
+    let failed = 0;
+    try {
+        for (const { dir, manifest } of published) {
+            const problems = check(dir, pack(dir, scratch), workspaceVersions);
+            if (problems.length === 0) {
+                console.log(`ok    ${manifest.name}`);
+            } else {
+                failed += problems.length;
+                console.log(`FAIL  ${manifest.name}`);
+                for (const p of problems) console.log(`        ${p}`);
+            }
+        }
+    } finally {
+        fs.rmSync(scratch, { recursive: true, force: true });
+    }
+
+    if (failed > 0) {
+        console.error(
+            `\n${failed} problem(s) in published package manifests. See the header of tools/check-published-deps.mjs.`,
+        );
+        process.exit(1);
+    }
 }

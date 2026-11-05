@@ -5,7 +5,7 @@
  * (packBins() in tools/test-select.mjs; design/ci/channels-pipeline/merging.md sections 4.1 and 4.2).
  *
  * Each record is one change. Its selected test files, grouped by shard family, are packed into bins of at
- * most 8 minutes; the bins run in parallel, so the change's test time is its longest bin, and its run time
+ * most BIN_LIMIT_MS (4 minutes); the bins run in parallel, so the change's test time is its longest bin, and its run time
  * that plus the setup before the tests (checkout and install, the plan, Build). Each record gets the budget
  * key its pull request would have:
  *   run:ci.yml:pr-wide     a global input changed, or graphty-element's source did (another package's shard is
@@ -33,7 +33,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { familyOf, openLedger } from "./test-ledger.mjs";
-import { BIN_LIMIT_MS, loadRules, packBins } from "./test-select.mjs";
+import { BIN_LIMIT_MS, binCost, loadRules, packBins } from "./test-select.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MIN = 60_000;
@@ -106,7 +106,8 @@ export function replayRecord(record, durations, fileLevel, limitMs = BIN_LIMIT_M
     let bins = 0;
     for (const [family, fam] of familiesOf(record)) {
         const fileMs = durations.get(family) ?? new Map();
-        const packed = packBins(filesToRun(fam, fileMs), fileMs, limitMs);
+        const { overheadMs, scale } = binCost(family);
+        const packed = packBins(filesToRun(fam, fileMs), fileMs, limitMs, overheadMs, scale);
         bins += packed.length;
         longest.push({ package: fam.package, ms: packed[0]?.ms ?? 0 });
     }
@@ -173,7 +174,7 @@ export function summarize(rows) {
  */
 export const markdown = (table) =>
     [
-        "| key | records | p50 min | p90 min | p50 bins | p90 bins | records with a bin over 8 min |",
+        "| key | records | p50 min | p90 min | p50 bins | p90 bins | records with a bin over the limit |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ...table.map(
             (t) => `| \`${t.key}\` | ${t.n} | ${t.p50} | ${t.p90} | ${t.bins50} | ${t.bins90} | ${t.overLimit} |`,

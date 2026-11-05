@@ -68,11 +68,14 @@ const config: StorybookConfig = {
             // Your development configuration goes here
         }
 
-        if (configType === "PRODUCTION") {
-            // Your production configuration goes here.
-        }
+        // Rolldown (Vite 8) does not keep module execution order across chunks by default. Storybook's
+        // preview entry imports storybook/internal/preview/runtime first, which defines the
+        // __STORYBOOK_MODULE_*__ globals; Rolldown kept that module in the entry chunk but moved the
+        // preview annotations that read those globals into a shared chunk the entry imports, so they
+        // ran first and threw "__STORYBOOK_MODULE_CLIENT_LOGGER__ is not defined".
+        const build = { rolldownOptions: { output: { strictExecutionOrder: true } } };
 
-        return mergeConfig(config, { ...localData, server });
+        return mergeConfig(config, { ...localData, server, build });
     },
 };
 export default config;

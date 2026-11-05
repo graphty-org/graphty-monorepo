@@ -102,10 +102,22 @@ describe("a network load's total", () => {
         assert.deepEqual(member?.loads?.[0].total, { nodes: GENES });
     });
 
-    it("src-42: the caller's own query counts nothing and lists no total", async () => {
+    it("src-42: the caller's own query, capped, counts nothing and lists no total", async () => {
         const { session, asked } = await loaded({ query: "MATCH (n:Gene) RETURN n" });
         assert.lengthOf(countsOf(asked), 0);
         assert.isUndefined(session.data.sources()[0].total);
+    });
+
+    it("src-42: the caller's own query read whole lists what it read, and counts nothing", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        const { fetch, asked } = server();
+        await session.data.import(
+            { source: "neo4j", config: { query: "MATCH (n) RETURN n LIMIT 3" } },
+            { endpoint: ENDPOINT, fetch },
+        );
+        assert.lengthOf(countsOf(asked), 0);
+        assert.strictEqual(session.data.sources()[0].total, 3);
     });
 
     it("two labels count nothing unless countFirst asks", async () => {

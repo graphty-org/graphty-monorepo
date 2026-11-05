@@ -32,7 +32,7 @@
  *
  * A newer master push cancels an unfinished older build (ci.yml's concurrency), and this job runs only in a green
  * build, so it reads every merge since the last green master build, not only this one: a cancelled build's `Fixes #N`
- * or `Refs #N` still restarts (lastGreenBuild).
+ * or `Refs #N` still restarts (lastGreenBuild), and a cancelled build's approval merge still promotes (approvalsIn).
  *
  * Usage: node tools/release-due.mjs [--dry-run]
  *   env GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token; the checkout is the master commit, with
@@ -45,7 +45,7 @@ import { fileURLToPath } from "node:url";
 
 import { referencesHold } from "./channel/candidate-fix.mjs";
 import { acceptsIn, resumeDecision } from "./channel/resume.mjs";
-import { listRedIssues, RED_TITLE } from "./full-run.mjs";
+import { listRedIssues, RED_TITLE, runsOnTitleCommit } from "./full-run.mjs";
 import { LABEL } from "./release-status.mjs";
 import { call, config } from "./results/client.mjs";
 
@@ -119,14 +119,16 @@ export function due(redIssues, messages, now = Date.now(), closedSince = now - C
 
 /**
  * The release.yml runs a restart cancels: full and restart runs (run-name `Release (full)`, `Release (restart)`)
- * that the red issue names (its body and comments link each run that filed or updated it), never a shadow or legacy
- * release and never a run testing another commit.
+ * that the red issue names as testing the commit its title is on (runsOnTitleCommit: each filing pairs a run with
+ * the commit it tested), never a shadow or legacy release and never a run testing another commit. A run's headSha is
+ * master's tip when it was dispatched, not the commit its pick tested, so the issue's own pairing is the check.
  * @param runs `gh run list --json databaseId,displayTitle` of the in-progress runs
+ * @param title the red issue's title
  * @param issueText the red issue's body and comments, joined
  * @returns their ids
  */
-export function toCancel(runs, issueText) {
-    const named = new Set([...issueText.matchAll(/\/actions\/runs\/(\d+)/g)].map((m) => Number(m[1])));
+export function toCancel(runs, title, issueText) {
+    const named = runsOnTitleCommit(title, issueText);
     return runs
         .filter((r) => /^Release \((full|restart)\)$/.test(r.displayTitle) && named.has(r.databaseId))
         .map((r) => r.databaseId);
@@ -146,17 +148,32 @@ export function cancelNote(issue, url, attempt) {
 }
 
 /**
- * The promotions a merge's accept commits start (design/ci/channels-pipeline.md section 5).
- * @param commits the merge's commits, `[{ sha, parents, subject }]`
+ * The approvals the merges since the last green build bring in, one per candidate: a newer push cancels an unfinished
+ * older build, so an approval merge's own build may never run this job, and the next green build promotes it.
+ * @param merges `[{ approval, commits }]`, newest first: each master commit, its pull request's head (the merge's second
+ *   parent; the commit itself when it is not a merge) and the commits it brought in, `[{ sha, parents, subject }]`
+ * @returns `[{ candidate, accept }]`: for each candidate the newest merge's approval, which promote-nightly checks
+ *   holds only accept-only commits on the candidate
+ */
+export function approvalsIn(merges) {
+    const byCandidate = new Map();
+    for (const m of merges) {
+        for (const { candidate } of acceptsIn(m.commits)) {
+            if (!byCandidate.has(candidate)) byCandidate.set(candidate, m.approval);
+        }
+    }
+    return [...byCandidate].map(([candidate, accept]) => ({ candidate, accept }));
+}
+
+/**
+ * The promotions the merges' accept commits start (design/ci/channels-pipeline.md section 5).
+ * @param merges as approvalsIn takes them
  * @param store `GET /v1/candidate`'s answer (hold, recent), or null when the store did not answer
- * @param approval the merged pull request's head (the merge's second parent), which promote-nightly checks holds
- *   only accept-only commits on the candidate
  * @returns `[{ candidate, accept, run, why, comment }]`: run, dispatch promote-nightly; comment, the hold issue to
  *   tell why not
  */
-export function resumesDue(commits, store, approval) {
-    return acceptsIn(commits).map(({ candidate }) => {
-        const accept = approval;
+export function resumesDue(merges, store) {
+    return approvalsIn(merges).map(({ candidate, accept }) => {
         if (!store) return { candidate, accept, run: true, why: "the results store did not answer: the run decides" };
         const latest = (store.recent ?? []).find((v) => v.sha === candidate) ?? null;
         const d = resumeDecision({ candidate, accept, hold: store.hold ?? null, latest });
@@ -177,6 +194,45 @@ export function lastGreenBuild(head, greenShas, isAncestor) {
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
+// a failed command's cause: gh's own error line ("HTTP 403: API rate limit exceeded ..."), not "Command failed: <argv>"
+const cause = (error) =>
+    String(error?.stderr || error?.message)
+        .trim()
+        .split("\n")[0];
+
+/**
+ * A release.yml dispatch. One that fails (the job's token is the repository's Actions token, whose hourly budget every
+ * workflow shares and which ran out on 2026-10-29, #4318) is an error that fails the job and is told on `issue`, so
+ * it is never missed; ci.yml keeps the master build green. It does not wait for the rate limit's reset: this job runs
+ * inside the master build, which holds master's build queue until it ends. The next 6-hour full run catches up on a
+ * missed promotion (tools/channel/resume.mjs), fix forward or restart.
+ * @param args the `gh` arguments
+ * @param issue the hold or red issue to tell, or null
+ * @returns whether it was dispatched
+ */
+function dispatchRelease(args, issue) {
+    try {
+        run("gh", args);
+        return true;
+    } catch (error) {
+        const why = String(error.stderr || error.message).trim();
+        console.log(`::error::gh ${args.join(" ")} failed: ${why.replaceAll("\n", " ")}`);
+        process.exitCode = 1;
+        if (issue) tellFailed(issue, args, why);
+        return false;
+    }
+}
+
+function tellFailed(issue, args, why) {
+    const { GITHUB_SERVER_URL: server, GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: id } = process.env;
+    const where = id ? ` (${server}/${repo}/actions/runs/${id})` : "";
+    const body = `release-due could not dispatch release.yml${where}: \`${why.split("\n")[0]}\`. The next 6-hour full run catches up; to start it now: \`gh ${args.join(" ")}\``;
+    try {
+        run("gh", ["issue", "comment", String(issue), "--body", body]);
+    } catch (error) {
+        console.log(`::warning::telling #${issue} failed: ${cause(error)}`);
+    }
+}
 
 // the run's attempt through the REST API (`gh run list --json attempt` needs gh 2.48 or later); 1 when unreadable
 function runAttempt(id) {
@@ -200,21 +256,13 @@ function cancelRedRun(issue, dryRun) {
             "databaseId,displayTitle,url",
         ]),
     );
-    const issueText = run("gh", [
-        "issue",
-        "view",
-        String(issue),
-        "--json",
-        "body,comments",
-        "-q",
-        '[.body, .comments[].body] | join("\\n")',
-    ]);
-    for (const id of toCancel(inProgress, issueText)) {
+    const red = JSON.parse(run("gh", ["issue", "view", String(issue), "--json", "title,body,comments"]));
+    const issueText = [red.body, ...(red.comments ?? []).map((c) => c.body)].join("\n");
+    for (const id of toCancel(inProgress, red.title, issueText)) {
         const r = inProgress.find((x) => x.databaseId === id);
         console.log(`release-due: cancelling release.yml run ${id}, the red run #${issue} names`);
         if (dryRun) continue;
-        // the note first, so release-watch finds it when the cancelled run completes; its failure never skips the cancel
-        try {
+        cancelWithNote(id, () => {
             const status = run("gh", [
                 "issue",
                 "list",
@@ -227,50 +275,72 @@ function cancelRedRun(issue, dryRun) {
                 "-q",
                 ".[0].number",
             ]);
-            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))]);
-        } catch (error) {
-            console.log(
-                `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
-            );
-        }
+            return status
+                ? run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))])
+                : "";
+        });
+    }
+}
+
+/**
+ * Cancels one run, posting the cancel note first so release-watch finds it when the cancelled run completes. The
+ * note's failure never skips the cancel; a failed cancel deletes the note, since the run goes on and may end badly
+ * for a real reason the note would hide.
+ * @param id the run
+ * @param postNote () => the note comment's URL (gh issue comment prints it), or empty when none was posted
+ * @param [gh] (args) => gh's output
+ */
+export function cancelWithNote(id, postNote, gh = (args) => run("gh", args)) {
+    let note = "";
+    try {
+        note = postNote();
+    } catch (error) {
+        console.log(`::warning::the note on the Release status issue failed: ${cause(error)}`);
+    }
+    try {
+        gh(["run", "cancel", String(id)]);
+    } catch (error) {
+        // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+        console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
+        const comment = /#issuecomment-(\d+)/.exec(note ?? "")?.[1];
+        if (!comment) return;
         try {
-            run("gh", ["run", "cancel", String(id)]);
-        } catch (error) {
-            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
+            gh(["api", "-X", "DELETE", `repos/{owner}/{repo}/issues/comments/${comment}`]);
+        } catch (deleteError) {
+            console.log(`::warning::deleting the cancel note ${note} failed: ${cause(deleteError)}`);
         }
     }
 }
 
-async function promoteApproved(range, approval, dryRun) {
-    const commits = run("git", ["log", "--format=%H %P%x09%s", ...range])
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => {
-            const [ids, subject] = line.split("\t");
-            const [sha, ...parents] = ids.split(" ");
-            return { sha, parents, subject };
-        });
-    if (acceptsIn(commits).length === 0) return;
+// each master commit (newest first), its pull request's head and the commits it brought in
+function approvalMerges(shas) {
+    return shas.map((sha) => {
+        const parents = run("git", ["rev-list", "--parents", "-1", sha]).split(" ").slice(1);
+        const range = parents.length > 1 ? [`${sha}^1..${sha}`] : ["-1", sha];
+        const commits = run("git", ["log", "--format=%H %P%x09%s", ...range])
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+                const [ids, subject] = line.split("\t");
+                const [c, ...ps] = ids.split(" ");
+                return { sha: c, parents: ps, subject };
+            });
+        return { approval: parents.length > 1 ? parents[1] : sha, commits };
+    });
+}
+
+async function promoteApproved(shas, dryRun) {
+    const merges = approvalMerges(shas);
+    if (approvalsIn(merges).length === 0) return;
     const cfg = config(process.env);
     const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
-    for (const p of resumesDue(commits, r.ok ? r.data : null, approval)) {
+    for (const p of resumesDue(merges, r.ok ? r.data : null)) {
         console.log(`release-due: the approval ${p.accept} of ${p.candidate}: ${p.why}`);
         if (dryRun) continue;
         if (p.run) {
-            run("gh", [
-                "workflow",
-                "run",
-                "release.yml",
-                "--ref",
-                "master",
-                "-f",
-                "mode=promote-nightly",
-                "-f",
-                `candidate=${p.candidate}`,
-                "-f",
-                `accept=${p.accept}`,
-            ]);
+            const args = ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=promote-nightly"];
+            args.push("-f", `candidate=${p.candidate}`, "-f", `accept=${p.accept}`);
+            dispatchRelease(args, r.ok ? (r.data?.hold?.issue ?? null) : null);
         } else if (p.comment) {
             run("gh", [
                 "issue",
@@ -342,7 +412,7 @@ async function dispatchFixForward(merges, dryRun) {
         return;
     }
     console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
-    if (!dryRun) run("gh", fixForwardDispatch(due.prs));
+    if (!dryRun) dispatchRelease(fixForwardDispatch(due.prs), due.issue);
 }
 
 // the last green master build HEAD descends from, or null
@@ -375,7 +445,7 @@ function lastGreenBase(head) {
             }
         });
     } catch (error) {
-        console.log(`::warning::finding the last green master build failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::finding the last green master build failed: ${cause(error)}`);
     }
     return null;
 }
@@ -390,7 +460,7 @@ function readMerges(commits) {
             const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
             body = run("gh", ["api", path, "--jq", ".[].body // empty"]);
         } catch (error) {
-            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+            console.log(`::warning::reading the merged pull request failed: ${cause(error)}`);
         }
         bodies += body + "\n";
         const own =
@@ -429,27 +499,20 @@ async function main() {
     // ponytail: one call per master commit since the base, capped; a longer run of cancelled builds reads the newest 20
     const commits = base ? run("git", ["rev-list", "--first-parent", "-20", `${base}..HEAD`]).split("\n") : [head];
     const { bodies, merges } = readMerges(commits);
-    // this merge alone: a merge commit brings in HEAD^1..HEAD and its pull request's head is HEAD^2
-    let ownRange = ["-1", "HEAD"];
-    let approval = head;
-    try {
-        approval = run("git", ["rev-parse", "--verify", "--quiet", "HEAD^2"]);
-        ownRange = ["HEAD^1..HEAD"];
-    } catch {
-        // not a merge
-    }
     // an approval merge promotes its candidate whatever the red issues say; its failure never stops the restart
     try {
-        await promoteApproved(ownRange, approval, dryRun);
+        await promoteApproved(commits, dryRun);
     } catch (error) {
-        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the approval check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below
     try {
         await dispatchFixForward(merges, dryRun);
     } catch (error) {
-        console.log(`::warning::the fix-forward check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the fix-forward check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     if (base) console.log(`release-due: reading every merge since the last green master build ${base.slice(0, 7)}`);
     const plan = due(issues, messages, now, closedSince);
@@ -468,11 +531,9 @@ async function main() {
     try {
         if (plan.cancel) cancelRedRun(plan.issue, dryRun);
     } catch (error) {
-        console.log(`::warning::cancelling the red run failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::cancelling the red run failed: ${cause(error)}`);
     }
-    if (!dryRun) {
-        run("gh", restartDispatch(plan.mode, head));
-    }
+    if (!dryRun) dispatchRelease(restartDispatch(plan.mode, head), plan.issue);
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

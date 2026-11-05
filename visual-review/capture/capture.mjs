@@ -15,7 +15,8 @@
  * no Chromium switch hides it, and whether an adapter request fails differs by host, so without
  * this a component with a CPU and a GPU path would draw whichever the machine offers.
  * Anything that differs from its baseline, or has none, is captured once more in a new context,
- * so a real change, an unstable story and a one-off flake are told apart (see compare.mjs).
+ * so a real change, an unstable story and a one-off flake are told apart (see compare.mjs), unless it is
+ * byte for byte the reference's capture of a story the reference found changed too (needsSecondShot).
  *
  * The output directory gets results.json (rewritten after every item; `complete: true` only at
  * the end), the first capture of every changed, new and unstable item, `second/<file>` for the
@@ -63,6 +64,7 @@ const RENDER_TIMEOUT = 30_000;
  * shapes on the CPU: rasterized through SwiftShader, a glyph that sits on a sub-pixel boundary
  * landed on either side of it from one render to the next, so a story with nothing moving read
  * `unstable` (the README, "Why captures rasterize on the CPU"). WebGL still runs on SwiftShader.
+ * `--force-device-scale-factor` keeps every layer rasterized at SCALE between screenshots.
  */
 export const CHROMIUM_ARGS = [
     "--use-gl=angle",
@@ -72,6 +74,10 @@ export const CHROMIUM_ARGS = [
     "--force-color-profile=srgb",
     "--disable-lcd-text",
     "--font-render-hinting=none",
+    // The page renders at SCALE all the time, not only while a screenshot is taken: with the scale
+    // only emulated, every layer is rasterized at 1x between shots and again at 2x for each shot,
+    // and on a loaded machine a shot could copy the stale 1x tiles (blurred overlays, #4374).
+    `--force-device-scale-factor=${String(SCALE)}`,
 ];
 /**
  * The environment every capture browser launches with: this process's, then `extra`, in UTC, and
@@ -118,6 +124,22 @@ export const storyIds = (index) =>
         .filter((e) => e.type === "story")
         .map((e) => e.id)
         .sort();
+
+/**
+ * The story ids `--stories` selects: an entry that is a whole story id selects that story alone, any other
+ * entry every id starting with it. CI passes whole ids, and as prefixes `labels-p-1` also captured
+ * `labels-p-10` to `labels-p-19`, which ran one graph-io-fidelity bin at 1.6 times its plan (#3448).
+ * @param {string[]} ids every story id
+ * @param {string[] | undefined} stories the entries, or none for every story
+ * @returns {string[]} the selected ids
+ */
+export const selectStoryIds = (ids, stories) => {
+    if (!stories) {
+        return ids;
+    }
+    const whole = new Set(stories.filter((p) => ids.includes(p)));
+    return ids.filter((id) => whole.has(id) || stories.some((p) => !whole.has(p) && id.startsWith(p)));
+};
 
 /**
  * The PNG name of a story and mode.
@@ -420,6 +442,19 @@ async function shootOnce(browser, url, { delay, waitFor }) {
                 { timeout: RENDER_TIMEOUT },
             )
             .then((h) => h.jsonValue());
+        // A play function that threw ends the render "finished" without Storybook's error screen.
+        // Storybook's verdict is the exception event it emitted, which the preview's channel keeps
+        // as the last event of its kind (an unhandled error while playing counts too).
+        const played = await frame.evaluate(() => {
+            const channel = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.channel;
+            const e =
+                channel?.last?.("playFunctionThrewException")?.[0] ??
+                channel?.last?.("unhandledErrorsWhilePlaying")?.[0]?.[0];
+            return e ? [String(e.message ?? ""), String(e.stack ?? "")] : null;
+        });
+        if (played) {
+            return fail(["play function failed", ...played].join("\n"));
+        }
         if (phase === "errored" || phase === "aborted") {
             // Storybook's error screen holds the thrown message and its stack (a play function's
             // failed expect included).
@@ -650,7 +685,10 @@ async function stitchAsChromium(page, tiles, size) {
         const out = new PNG({ width: size.width * SCALE, height: size.height * SCALE });
         for (const t of tiles) {
             const tile = PNG.sync.read(t.png);
-            PNG.bitblt(tile, out, 0, 0, t.width * SCALE, t.height * SCALE, t.left * SCALE, t.top * SCALE);
+            // A tile can be a device row short of its CSS size: at a forced 2x a scroll lands on a half
+            // pixel, so its clip starts there and Chromium rounds the copy down.
+            const [w, h] = [Math.min(tile.width, t.width * SCALE), Math.min(tile.height, t.height * SCALE)];
+            PNG.bitblt(tile, out, 0, 0, w, h, t.left * SCALE, t.top * SCALE);
         }
         return PNG.sync.write(out, { filterType: 4 });
     }
@@ -913,10 +951,13 @@ async function cpuModel() {
  * Only complete, valid results are used, and only `new` items (captured twice and stable) whose
  * file hashes to the capture results.json names.
  * @param {string | null} dir the earlier capture's directory, or null
- * @returns {Promise<{ images: Map<string, Buffer>, runId: number | null }>} images by file name
+ * @returns {Promise<{ images: Map<string, Buffer>, changed: Map<string, string>, runId: number | null }>} images by
+ *     file name, and the capture hash of each story it found changed
  */
 async function loadReference(dir) {
     const images = new Map();
+    // file -> capture hash of every story the reference found changed on both of its captures
+    const changed = new Map();
     let results = null;
     try {
         results = dir ? JSON.parse(await readFile(join(dir, "results.json"), "utf8")) : null;
@@ -924,7 +965,7 @@ async function loadReference(dir) {
         // No reference downloaded: every story without a baseline is new.
     }
     if (!results || validateResults(results).length > 0 || !results.complete) {
-        return { images, runId: null };
+        return { images, changed, runId: null };
     }
     // Both statuses mean "captured with no baseline, hash recorded". Reading only `new` made a story
     // alternate: a run that matched its reference says `unseeded`, so the next run found no image
@@ -935,7 +976,25 @@ async function loadReference(dir) {
             images.set(item.file, bytes);
         }
     }
-    return { images, runId: results.runId };
+    for (const item of results.items.filter((i) => i.status === "changed")) {
+        changed.set(item.file, item.capture);
+    }
+    return { images, changed, runId: results.runId };
+}
+
+/**
+ * Whether a capture is shot once more, to tell a real change from a one-off flake and an unstable story: a
+ * `new` one always, a `changed` one unless it is byte for byte the reference's capture of a story the reference
+ * also found changed. That story was then drawn the same way on two runs already (the default branch's and this
+ * one), so it is neither a flake nor unstable; on a pull request it is every story the default branch changed
+ * since its baselines were last approved, which would otherwise be shot twice in every pull request.
+ * @param {string} status the first capture's status
+ * @param {string} hash the first capture's sha256
+ * @param {string | undefined} referenceHash the reference's capture hash of a story it found changed
+ * @returns {boolean} whether to shoot again
+ */
+export function needsSecondShot(status, hash, referenceHash) {
+    return status === "new" || (status === "changed" && hash !== referenceHash);
 }
 
 /**
@@ -946,7 +1005,7 @@ async function loadReference(dir) {
  *     absolute path of the fonts.conf every browser draws with (the config's `fontconfig`), null for
  *     the host's fonts; `waitFor` is the project's config entry (see
  *     shootOnce); `reference` is the default branch's capture (see above); `stories` keeps only
- *     the story ids starting with one of these prefixes, for a quick local preview, and then no
+ *     the stories selectStoryIds() picks (a whole id, or every id starting with a prefix), and then no
  *     baseline is reported removed
  * @returns {Promise<object>} the final results.json contents
  */
@@ -972,7 +1031,7 @@ export async function capture({
     await mkdir(join(out, "baselines"), { recursive: true });
     await mkdir(join(out, "second"), { recursive: true });
     const allIds = storyIds(JSON.parse(await readFile(join(storybook, "index.json"), "utf8")));
-    const ids = allIds.filter((id) => !stories || stories.some((p) => id.startsWith(p)));
+    const ids = selectStoryIds(allIds, stories);
     const renames = await loadRenames(baselines);
     const refs = await loadReference(reference);
     const [server, base] = await serve(storybook);
@@ -996,72 +1055,19 @@ export async function capture({
         const newlyExcluded = new Set();
         // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
         const renamed = new Set();
-        const renameErrors = [];
         const known = new Set(allIds);
-        for (const [to, from] of stories ? [] : renames) {
-            if (known.has(to)) {
-                continue;
-            }
-            // Only a rename with an old baseline left to move is an error; once it is accepted the
-            // old baselines are gone, and the entry does nothing.
-            for (const file of existing) {
-                const [id, mode = null] = file.slice(0, -4).split(".");
-                if (id === from && BASELINE_NAME.test(file)) {
-                    renamed.add(file);
-                    renameErrors.push({
-                        id: to,
-                        mode,
-                        file: fileName(to, mode),
-                        from,
-                        threshold: DEFAULT_THRESHOLD,
-                        includeAA: false,
-                        ...EMPTY,
-                        status: "failed",
-                        reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
-                    });
-                }
-            }
-        }
+        const renameErrors = stories ? [] : renameErrorItems(renames, known, existing, renamed);
         items.push(...renameErrors);
-        for (const id of ids) {
-            const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
-            for (const mode of s.modes) {
-                const file = fileName(id, mode.name);
-                const common = { id, mode: mode.name, file, threshold: s.threshold, includeAA: s.includeAA };
-                if (s.excludedByStory && existing.has(file)) {
-                    newlyExcluded.add(file);
-                    continue;
-                }
-                planned.add(file);
-                if (s.disableSnapshot) {
-                    items.push({ ...common, ...EMPTY, status: "excluded", reason: s.reason });
-                } else {
-                    // Renamed: compared with the old id's baseline of this mode, while the new id
-                    // has none of its own (after the accept it does, and the rename is done).
-                    // A rename from an id that is still a story is not a move: it does nothing.
-                    const old =
-                        renames.has(id) && !known.has(renames.get(id)) ? fileName(renames.get(id), mode.name) : null;
-                    const from = old && !existing.has(file) && existing.has(old) ? renames.get(id) : null;
-                    if (from) {
-                        renamed.add(old);
-                    }
-                    jobs.push({ ...common, from, url: base + storyUrl(id, mode.globals), delay: s.delay });
-                }
-            }
-        }
+        await planJobs(
+            { ids, params, baselines, renames, known, existing, base },
+            { items, jobs, planned, newlyExcluded, renamed },
+        );
         const gone = stories
             ? []
             : [...existing].filter((f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f));
 
         const emojiFont = hasEmojiFont({ ...process.env, ...fontEnv });
-        if (emojiFont === false) {
-            const where = fontconfig ? `in ${fontconfig}` : "on this machine";
-            log(
-                `warning: no font ${where} draws emoji (fc-list ` +
-                    ":charset=1f680 found none), so every emoji in a story is captured as an empty box; " +
-                    "add one, such as Noto Color Emoji",
-            );
-        }
+        warnNoEmojiFont(emojiFont, fontconfig, log);
         const results = {
             version: 1,
             project,
@@ -1089,68 +1095,10 @@ export async function capture({
         await save();
 
         for (const file of gone) {
-            const baseline = await readBaseline(join(baselines, file));
-            const [id, mode = null] = file.slice(0, -4).split(".");
-            await writeFile(join(out, "baselines", file), baseline);
-            items.push({
-                id,
-                mode,
-                file,
-                ...classify({ baseline, first: null, threshold: DEFAULT_THRESHOLD, includeAA: false }),
-                threshold: DEFAULT_THRESHOLD,
-                includeAA: false,
-                reason: newlyExcluded.has(file) ? "the story's parameters now set disableSnapshot" : null,
-                console: [],
-            });
+            items.push(await goneItem(file, baselines, out, newlyExcluded));
         }
 
-        const run = async (browser, job) => {
-            const { url, delay, from, ...rest } = job;
-            // `from` only on a renamed story, so results.json of a project with no renames is as before.
-            const common = from ? { ...rest, from } : rest;
-            const baseline = await readBaseline(join(baselines, from ? fileName(from, job.mode) : job.file));
-            const reference = baseline ? null : (refs.images.get(job.file) ?? null);
-            const opts = { threshold: job.threshold, includeAA: job.includeAA, reference, moved: from !== null };
-            const failed = (shot, prefix = "") => ({
-                ...common,
-                ...EMPTY,
-                baseline: baseline && sha256(baseline),
-                status: "failed",
-                reason: prefix + shot.reason,
-                console: clip(shot.console),
-            });
-            const first = await shoot(browser, url, { delay, waitFor });
-            if (!first.png) {
-                return failed(first);
-            }
-            let result = classify({ baseline, first: first.png, ...opts });
-            let second = null;
-            if (result.status === "changed" || result.status === "new") {
-                second = await shoot(browser, url, { delay, waitFor });
-                if (!second.png) {
-                    return failed(second, "second capture: ");
-                }
-                result = classify({ baseline, first: first.png, second: second.png, ...opts });
-            }
-            const { status } = result;
-            // A moved capture is also its baseline when the bytes are the same: the page reads it.
-            if (["changed", "moved", "new", "unseeded", "unstable"].includes(status)) {
-                // The capture results.json names: the second one when the first was a flake.
-                await writeFile(join(out, job.file), result.flaky ? second.png : first.png);
-            }
-            if (status === "unstable") {
-                await writeFile(join(out, "second", job.file), second.png);
-            }
-            const ownBaseline = status === "moved" && result.baseline !== result.capture;
-            if (baseline && (status === "changed" || status === "unstable" || ownBaseline)) {
-                await writeFile(join(out, "baselines", job.file), baseline);
-            }
-            const lines =
-                status === "unchanged" || status === "moved"
-                    ? []
-                    : clip([...first.console, ...(second?.console ?? [])]);
-            return { ...common, ...result, reason: null, console: lines };
-        };
+        const run = (b, job) => captureJob(b, job, { baselines, out, refs, waitFor });
 
         let next = 0;
         await Promise.all(
@@ -1158,10 +1106,7 @@ export async function capture({
                 while (next < jobs.length) {
                     const item = await run(b, jobs[next++]);
                     items.push(item);
-                    if (item.status !== "unchanged") {
-                        const why = item.reason ? `: ${item.reason}` : "";
-                        log(`${item.status} ${item.file}${why}`);
-                    }
+                    logItem(item, log);
                     await save();
                 }
             }),
@@ -1175,10 +1120,7 @@ export async function capture({
         }
         results.complete = true;
         await save();
-        const counts = {};
-        for (const item of items) {
-            counts[item.status] = (counts[item.status] ?? 0) + 1;
-        }
+        const counts = countStatuses(items);
         log(JSON.stringify({ project, items: items.length, seconds: (Date.now() - started) / 1000, counts }));
         return results;
     } finally {
@@ -1188,6 +1130,231 @@ export async function capture({
             await rm(fontEnv.XDG_CACHE_HOME, { recursive: true, force: true });
         }
     }
+}
+
+/**
+ * The failed items for the renames whose new id is no story while the old id still has baselines (an
+ * accepted rename has no old baselines left, and then does nothing). Adds each such old baseline to `renamed`,
+ * so it is not reported removed.
+ * @param {Map<string, string>} renames new id to old id
+ * @param {Set<string>} known every story id in the Storybook
+ * @param {Set<string>} existing the baseline file names
+ * @param {Set<string>} renamed old baselines a rename uses (added to)
+ * @returns {object[]} the failed items
+ */
+function renameErrorItems(renames, known, existing, renamed) {
+    const errors = [];
+    for (const [to, from] of renames) {
+        if (known.has(to)) {
+            continue;
+        }
+        for (const file of existing) {
+            const [id, mode = null] = file.slice(0, -4).split(".");
+            if (id !== from || !BASELINE_NAME.test(file)) {
+                continue;
+            }
+            renamed.add(file);
+            errors.push({
+                id: to,
+                mode,
+                file: fileName(to, mode),
+                from,
+                threshold: DEFAULT_THRESHOLD,
+                includeAA: false,
+                ...EMPTY,
+                status: "failed",
+                reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
+            });
+        }
+    }
+    return errors;
+}
+
+/**
+ * The old id a renamed story is compared with in this mode: only while the new id has no baseline of its own
+ * and the old id has one (after the accept it does, and the rename is done). A rename from an id that is
+ * still a story is not a move: it does nothing.
+ * @param {string} id the story id
+ * @param {string} file the story's baseline file name in this mode
+ * @param {string | null} modeName the mode
+ * @param {{ renames: Map<string, string>, known: Set<string>, existing: Set<string> }} plan the plan's inputs
+ * @param {Set<string>} renamed old baselines a rename uses (added to)
+ * @returns {string | null} the old id, or null
+ */
+function renamedFrom(id, file, modeName, { renames, known, existing }, renamed) {
+    const old = renames.has(id) && !known.has(renames.get(id)) ? fileName(renames.get(id), modeName) : null;
+    const from = old && !existing.has(file) && existing.has(old) ? renames.get(id) : null;
+    if (from) {
+        renamed.add(old);
+    }
+    return from;
+}
+
+/**
+ * Plans every mode of every story: an excluded item, a job to shoot, or (for a story whose own parameters
+ * exclude it while it still has a baseline) a baseline reported removed, so a pull request cannot drop a
+ * story from review without the owner seeing it.
+ * @param {{ ids: string[], params: object, baselines: string, renames: Map<string, string>,
+ *     known: Set<string>, existing: Set<string>, base: string }} plan the plan's inputs
+ * @param {{ items: object[], jobs: object[], planned: Set<string>, newlyExcluded: Set<string>,
+ *     renamed: Set<string> }} into what the plan adds to
+ * @returns {Promise<void>} once planned
+ */
+async function planJobs(plan, { items, jobs, planned, newlyExcluded, renamed }) {
+    const { ids, params, baselines, existing, base } = plan;
+    for (const id of ids) {
+        const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
+        for (const mode of s.modes) {
+            const file = fileName(id, mode.name);
+            const common = { id, mode: mode.name, file, threshold: s.threshold, includeAA: s.includeAA };
+            if (s.excludedByStory && existing.has(file)) {
+                newlyExcluded.add(file);
+                continue;
+            }
+            planned.add(file);
+            if (s.disableSnapshot) {
+                items.push({ ...common, ...EMPTY, status: "excluded", reason: s.reason });
+                continue;
+            }
+            const from = renamedFrom(id, file, mode.name, plan, renamed);
+            jobs.push({ ...common, from, url: base + storyUrl(id, mode.globals), delay: s.delay });
+        }
+    }
+}
+
+/**
+ * Warns when no font draws emoji, since every emoji in a story is then captured as an empty box.
+ * @param {boolean | null} emojiFont hasEmojiFont()'s answer
+ * @param {string | null} fontconfig the pinned fonts.conf, or null for the host's fonts
+ * @param {(line: string) => void} log where the warning goes
+ */
+function warnNoEmojiFont(emojiFont, fontconfig, log) {
+    if (emojiFont !== false) {
+        return;
+    }
+    const where = fontconfig ? `in ${fontconfig}` : "on this machine";
+    log(
+        `warning: no font ${where} draws emoji (fc-list ` +
+            ":charset=1f680 found none), so every emoji in a story is captured as an empty box; " +
+            "add one, such as Noto Color Emoji",
+    );
+}
+
+/**
+ * The item of a baseline whose story is gone (or now excludes itself), with the baseline copied to the
+ * capture's baselines directory.
+ * @param {string} file the baseline file name
+ * @param {string} baselines the baselines directory
+ * @param {string} out the capture directory
+ * @param {Set<string>} newlyExcluded baselines whose story's parameters now exclude it
+ * @returns {Promise<object>} the item
+ */
+async function goneItem(file, baselines, out, newlyExcluded) {
+    const baseline = await readBaseline(join(baselines, file));
+    const [id, mode = null] = file.slice(0, -4).split(".");
+    await writeFile(join(out, "baselines", file), baseline);
+    return {
+        id,
+        mode,
+        file,
+        ...classify({ baseline, first: null, threshold: DEFAULT_THRESHOLD, includeAA: false }),
+        threshold: DEFAULT_THRESHOLD,
+        includeAA: false,
+        reason: newlyExcluded.has(file) ? "the story's parameters now set disableSnapshot" : null,
+        console: [],
+    };
+}
+
+/**
+ * Writes a classified job's images: the capture results.json names (the second one when the first was a
+ * flake), the unstable story's second capture, and the baseline the page compares it with.
+ * @param {object} job the job
+ * @param {object} result classify()'s result
+ * @param {{ first: object, second: object | null, baseline: Buffer | null, out: string }} shots the captures
+ * @returns {Promise<void>} once written
+ */
+async function writeJobImages(job, result, { first, second, baseline, out }) {
+    const { status } = result;
+    // A moved capture is also its baseline when the bytes are the same: the page reads it.
+    if (["changed", "moved", "new", "unseeded", "unstable"].includes(status)) {
+        await writeFile(join(out, job.file), result.flaky ? second.png : first.png);
+    }
+    if (status === "unstable") {
+        await writeFile(join(out, "second", job.file), second.png);
+    }
+    const ownBaseline = status === "moved" && result.baseline !== result.capture;
+    if (baseline && (status === "changed" || status === "unstable" || ownBaseline)) {
+        await writeFile(join(out, "baselines", job.file), baseline);
+    }
+}
+
+/**
+ * Shoots one job (twice when needsSecondShot() says so), classifies it and writes its images.
+ * @param {object} browser the worker's browser
+ * @param {object} job the job
+ * @param {{ baselines: string, out: string, refs: object, waitFor: object | null }} ctx the run's context
+ * @returns {Promise<object>} the item
+ */
+async function captureJob(browser, job, { baselines, out, refs, waitFor }) {
+    const { url, delay, from, ...rest } = job;
+    // `from` only on a renamed story, so results.json of a project with no renames is as before.
+    const common = from ? { ...rest, from } : rest;
+    const baseline = await readBaseline(join(baselines, from ? fileName(from, job.mode) : job.file));
+    const reference = baseline ? null : (refs.images.get(job.file) ?? null);
+    const opts = { threshold: job.threshold, includeAA: job.includeAA, reference, moved: from !== null };
+    const failed = (shot, prefix = "") => ({
+        ...common,
+        ...EMPTY,
+        baseline: baseline && sha256(baseline),
+        status: "failed",
+        reason: prefix + shot.reason,
+        console: clip(shot.console),
+    });
+    const first = await shoot(browser, url, { delay, waitFor });
+    if (!first.png) {
+        return failed(first);
+    }
+    let result = classify({ baseline, first: first.png, ...opts });
+    let second = null;
+    if (needsSecondShot(result.status, sha256(first.png), refs.changed.get(job.file))) {
+        second = await shoot(browser, url, { delay, waitFor });
+        if (!second.png) {
+            return failed(second, "second capture: ");
+        }
+        result = classify({ baseline, first: first.png, second: second.png, firstResult: result, ...opts });
+    }
+    await writeJobImages(job, result, { first, second, baseline, out });
+    const lines =
+        result.status === "unchanged" || result.status === "moved"
+            ? []
+            : clip([...first.console, ...(second?.console ?? [])]);
+    return { ...common, ...result, reason: null, console: lines };
+}
+
+/**
+ * Logs an item that is not unchanged, with its reason.
+ * @param {object} item the item
+ * @param {(line: string) => void} log where the line goes
+ */
+function logItem(item, log) {
+    if (item.status !== "unchanged") {
+        const why = item.reason ? `: ${item.reason}` : "";
+        log(`${item.status} ${item.file}${why}`);
+    }
+}
+
+/**
+ * How many items have each status.
+ * @param {object[]} items the items
+ * @returns {Record<string, number>} status to count
+ */
+function countStatuses(items) {
+    /** @type {Record<string, number>} */
+    const counts = {};
+    for (const item of items) {
+        counts[item.status] = (counts[item.status] ?? 0) + 1;
+    }
+    return counts;
 }
 
 export const EMPTY = {

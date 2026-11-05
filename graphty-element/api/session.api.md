@@ -8,6 +8,7 @@ import { AwsCredentials } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
+import { credentialSlots } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
 import { CX_LOSS } from '@graphty/graph-io';
@@ -18,6 +19,7 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import { ExpandRequest } from '@graphty/graph-io';
+import { FileLayout } from '@graphty/graph-io';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -44,6 +46,7 @@ import { ReplayOptions } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
+import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
@@ -122,6 +125,16 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AddAssetOptions {
+    readonly format?: ModelFormat;
+    readonly main?: string;
+    readonly name?: AssetId;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+    readonly skipped?: readonly string[];
+}
+
+// @public
 export interface AgreementOptions {
     readonly below?: StyleRowId;
     readonly over?: StyleRowId;
@@ -140,6 +153,79 @@ export interface AlgorithmRunCommand {
     readonly scope?: Scope;
     readonly seed?: number;
 }
+
+// @public
+export type AssetId = `asset:${string}`;
+
+// @public
+export interface AssetOffer {
+    readonly rest: readonly NamedBlob[];
+    readonly supplied: readonly {
+        readonly ref: AssetId;
+        readonly name: string;
+        readonly fileName: string;
+    }[];
+}
+
+// @public
+export interface AssetRecord {
+    readonly byteLength: number;
+    readonly digest: string;
+    readonly format: ModelFormat;
+    readonly id: AssetId;
+    readonly kind: "model" | "image";
+    readonly path?: string;
+    readonly problems: readonly CodedFact[];
+    readonly skipped?: readonly string[];
+    readonly state: AssetState;
+    readonly url?: string;
+}
+
+// @public
+export interface AssetsApi {
+    add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    allowHosts(hosts: readonly string[]): void;
+    files(id: AssetId): ReadonlyMap<string, Uint8Array>;
+    find(ref: string): AssetRecord | undefined;
+    get(id: AssetId): AssetRecord | undefined;
+    inspect(id: AssetId): ModelSummary;
+    list(): readonly AssetRecord[];
+    offer(files: Iterable<NamedBlob> | ArrayLike<NamedBlob>, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetOffer>;
+    ready(ref: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetRecord>;
+    remove(id: string): void;
+    setLimits(limits: Partial<ModelLimits>): void;
+    states(): readonly ModelChange[];
+    supply(ref: string, answer: PartAnswer, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetRecord>;
+    waiting(): readonly AssetRecord[];
+}
+
+// @public
+export type AssetSource =
+/** A URL, fetched with no credentials. */
+string
+/** A File. */
+| NamedBlob
+/** Several files: an array of Files, or a FileList (structurally). */
+| Iterable<NamedBlob> | ArrayLike<NamedBlob>
+/** The bytes of one file. */
+| ArrayBuffer | Uint8Array
+/** Files by path, and optionally which one is the model. */
+| {
+    readonly files: ReadonlyMap<string, NamedBlob | {
+        readonly size: number;
+        arrayBuffer(): Promise<ArrayBuffer>;
+    } | Uint8Array>;
+    readonly main?: string;
+};
+
+// @public
+export type AssetState = "pending" | "accepted" | "rejected";
 
 // @public
 export interface AttributeDescriptor {
@@ -318,6 +404,9 @@ export interface BrowserProjectSaveOptions {
 }
 
 // @public
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+
+// @public
 export interface Capabilities {
     readonly acceleration: AccelerationStatus;
     readonly calibration: CalibrationRecord | null;
@@ -366,7 +455,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export type ChannelAgreement = {
@@ -375,11 +464,13 @@ export type ChannelAgreement = {
     readonly value: unknown;
     readonly layerId: LayerId;
     readonly unpainted: number;
+    readonly covered?: number;
 } | {
     readonly channel: Channel;
     readonly state: "mixed";
     readonly breakdown: readonly ChannelShare[];
     readonly unpainted: number;
+    readonly covered?: number;
 };
 
 // @public
@@ -394,6 +485,7 @@ export interface ChannelCovers {
 // @public
 export interface ChannelExplanation {
     readonly channel: Channel;
+    readonly coveredBy?: LayerId;
     readonly editable: boolean;
     readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
@@ -438,6 +530,7 @@ export interface ColorWrite {
 // @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
+    readonly values?: Readonly<Record<string, string | number>>;
 }
 
 // @public
@@ -501,6 +594,7 @@ export interface CommandOutcomeMap {
     "set.remove": Promise<void>;
     "set.rename": Promise<void>;
     "set.restore": Promise<void>;
+    "shader.set": Promise<void>;
     "style.encode": Promise<void>;
     "style.patch": Promise<void>;
     "style.template": Promise<void>;
@@ -509,6 +603,8 @@ export interface CommandOutcomeMap {
     "view.immersive": Promise<void>;
     "view.remove": Promise<void>;
     "view.save": Promise<void>;
+    // @beta
+    "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
@@ -603,6 +699,8 @@ export { CredentialKind }
 
 export { credentials }
 
+export { credentialSlots }
+
 // @public
 export interface DataIssue {
     readonly code: IssueCode;
@@ -642,6 +740,9 @@ export const DEFAULT_EXACT_COMPUTATION_CAP_SECONDS = 30;
 
 // @public
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits>;
+
+// @public
+export const DEFAULT_MODEL_LIMITS: ModelLimits;
 
 // @public
 export const DEFAULT_SCOPE_SAMPLE = 10000;
@@ -756,7 +857,9 @@ export interface EnabledFeatures {
 }
 
 // @public
-export type Encoding = Partial<Record<Channel, Binding>>;
+export type Encoding = Partial<Record<Channel, Binding>> & {
+    [address: ShaderParamAddress]: Binding;
+};
 
 // @public
 export type EncodingOptions = Omit<EncodingSpec, "run" | "field">;
@@ -1045,9 +1148,12 @@ export function fileStyleOf(layer: {
 
 // @public
 export interface FileStyleOptions {
+    readonly framing?: "element" | "file";
+    readonly imageBaseUrl?: string;
     // @deprecated
     readonly labelLayers?: number;
-    readonly lengths?: "median" | "file";
+    readonly labelSizes?: "proportional" | "file";
+    readonly lengths?: "median" | "file" | "spacing";
     readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
 }
@@ -1100,8 +1206,39 @@ export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[key
 // @public @deprecated
 export type Filter = RuleTree;
 
+// @beta
+export interface FilterCondition {
+    readonly effect: FilterEffect;
+    readonly id: string;
+    readonly on: boolean;
+    readonly rule: RuleTree;
+}
+
+// @beta
+export interface FilterConditionCount {
+    readonly edges: FilterConditionMatches | null;
+    readonly id: string;
+    readonly nodes: FilterConditionMatches | null;
+    readonly unresolved: readonly Path[];
+}
+
+// @beta
+export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
+    readonly id?: string;
+    readonly on?: boolean;
+};
+
+// @beta
+export interface FilterConditionMatches {
+    readonly matched: number;
+    readonly total: number;
+}
+
 // @public @deprecated
 export type FilterDirection = SelectionDirection;
+
+// @beta
+export type FilterEffect = "keep" | "exclude" | "select";
 
 // @public
 export interface FilterResult {
@@ -1266,8 +1403,15 @@ export interface GraphAccelerator {
 }
 
 // @public
+export interface GraphFraming {
+    readonly extent: "drawn" | "centers";
+    readonly padding?: number;
+}
+
+// @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    readonly assets: AssetsApi;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
     readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
@@ -1283,6 +1427,7 @@ export interface GraphSession {
     readonly history: SessionHistory;
     readonly journal: JournalApi;
     readonly layout: SessionLayout;
+    readonly network: NetworkApi;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
     plan(command: SessionCommand): Promise<Plan>;
@@ -1299,6 +1444,7 @@ export interface GraphSession {
     readonly selection: SelectionApi;
     setAccelerator(accelerator: GraphAccelerator | null): void;
     readonly sets: SetsApi;
+    readonly shaders: SessionShaders;
     snapshot(): GraphSnapshot;
     readonly status: SessionStatus;
     readonly styles: StylesApi;
@@ -1460,6 +1606,25 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -1847,23 +2012,23 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_AUTH"
 /**
-* A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+* A network source refused the request for this credential. `details.origin` is the host that answered, `details.status`, `details.serverCode`. Experimental.
 */
 | "E_SOURCE_FORBIDDEN"
 /**
-* The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+* The item a network source was asked for does not exist. `details.origin` is the host that answered, `details.what`, `details.value`. Experimental.
 */
 | "E_SOURCE_NOT_FOUND"
 /**
-* A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+* A network source answered 429 after the retries. `details.origin` is the host that answered, `details.retryAfterMs`. Recoverable later. Experimental.
 */
 | "E_SOURCE_QUOTA"
 /**
-* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.origin` is the host, `details.timeoutMs`, `details.serverSide`. Experimental.
 */
 | "E_SOURCE_TIMEOUT"
 /**
-* A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+* A database rejected the query. `details.origin` is the host that answered, `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
 */
 | "E_SOURCE_QUERY"
 /**
@@ -1871,7 +2036,7 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_NOT_A_GRAPH"
 /**
-* A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+* A network source answered with a body of the wrong shape. `details.origin` is the host that answered, `details.expected`, `details.contentType`. Experimental.
 */
 | "E_SOURCE_RESPONSE"
 /**
@@ -1895,6 +2060,18 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_UNKNOWN"
 /**
+* A load an opened project holds has not been run since it opened, so nothing may fetch for it
+* yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+* once the reader approved. Nothing was fetched. `details.id`. Experimental.
+*/
+| "E_SOURCE_PENDING"
+/**
+* No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+* `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+* `details.key`, `details.known`. Experimental.
+*/
+| "E_LOAD_UNKNOWN"
+/**
 * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
 */
 | "E_SOURCE_UNSUPPORTED"
@@ -1911,7 +2088,89 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1959,12 +2218,36 @@ export type GraphtyWarningCode =
 "W_UNKNOWN_MEMBER"
 /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
 | "W_FUTURE_TIME"
-/** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+/**
+* A member of a kind this reader does not know: skipped, the rest of the file still read
+* (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+* know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+*/
 | "W_UNKNOWN_KIND"
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
+/**
+* A saved filter condition this reader cannot read (an effect it does not know, or a malformed
+* condition) was skipped; the rest were read, and what the file hides was read from its
+* filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITION_SKIPPED"
+/**
+* A project's filter conditions are of a version this reader does not know, or are not a
+* list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
+* `params.version` the version found.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITIONS_UNREADABLE"
+/**
+* A project's filter steps and the keep and exclude filter conditions it also holds disagree
+* (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
+* @since 3.32.0
+*/
+| "W_FILTER_STEPS_DIFFER"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -2000,7 +2283,8 @@ export type GraphtyWarningCode =
 /**
 * A layout was given options it does not take, and ran without them. Emitted as a
 * `layout-warning` event by the layouts that do not refuse an unknown option with
-* `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+* `E_UNKNOWN_OPTION` (`ngraph`, `forceatlas2`, `spring` and `spring-electrical`), and by every
+* other layout for a `seed` when it takes none: one that takes no seed draws the same every time.
 * `params.options` lists the names it ignored and `params.available` the names it takes.
 */
 | "W_UNKNOWN_OPTION"
@@ -2012,11 +2296,103 @@ export type GraphtyWarningCode =
 */
 | "W_DIMENSION_OVERRIDDEN"
 /**
-* A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-* out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-* `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+* A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+* `node.modelSourceUp` turns it.
+*/
+| "W_MODEL_UP_GUESSED"
+/** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED"
+/**
+* A project was saved with a layer naming a model the session does not hold (a URL that never
+* loaded, or an asset id it has no accepted model for), so the file does not carry it.
+* `params.ref` is what the layers named and `params.layerIds` the layers.
+*/
+| "W_MODEL_NOT_EMBEDDED"
+/**
+* A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+* from a project or style file, an AI command or the data, a reopened project's source load, or
+* a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
+* `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+* `params.layerIds`.
+*/
+| "W_URL_NEEDS_APPROVAL"
+/**
+* A project file carries a network approval policy (`graphty-session` `network`), which an
+* older release wrote. It is ignored: nothing saved in a file can make the element fetch
+* without asking. `params.kind` is the member, `"graphty-session"`.
+*/
+| "W_NETWORK_POLICY_IGNORED"
+/**
+* A model or picture a project keeps by URL loaded from that URL, and is not the file the
+* project was saved with: the file at the URL changed. It is drawn. `params.url`,
+* `params.expected` and `params.found` (SHA-256 digests).
+*/
+| "W_MODEL_CHANGED"
+/**
+* A model reference was resolved by case or by base name to the one file of the set that
+* matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+*/
+| "W_MODEL_PART_SUBSTITUTED"
+/**
+* A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+*/
+| "W_MODEL_PART_SKIPPED"
+/**
+* A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+*/
+| "W_MODEL_PART_UNUSED"
+/**
+* A project was asked to keep a model by its URL, but its parts came from several places
+* (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+* query), `params.reason` (`parts`).
+*/
+| "W_MODEL_NOT_KEPT_BY_URL"
+/**
+* A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+* `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+* element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+* reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+*/
+| "W_ROUTES_NOT_LAID"
+/**
+* A layout that reads edge weights (`forceatlas2`, `kamada-kawai`) read a weight whose meaning
+* nobody stated as a strength: a larger weight drawn closer. Set `data.knownFields.edgeWeightMeaning`
+* to say what it means. Emitted as a `layout-warning` event. `params.attribute` is the weight's
+* column and `params.meaning` the meaning assumed, `"strength"`.
+*/
+| "W_WEIGHT_MEANING_ASSUMED"
+/**
+* A layout that reads edge weights left the weight unread, because its meaning is neither a
+* strength nor a distance (a capacity): every edge counts the same. Emitted as a `layout-warning`
+* event. `params.attribute` is the weight's column and `params.meaning` its meaning.
+*/
+| "W_WEIGHT_MEANING_MISMATCH"
+/**
+* A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+* the `graphty-sources` member: query parameters of a URL load's address, or of a network
+* load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+* names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A `graphty-sources` entry of an opened project names a network source this release has not
+* registered: its elements are there and the entry is written back, but it is not offered to
+* run. `params.id` is the entry's id and `params.source` the source id.
+*/
+| "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
 * data applied. `params.graph` names the graph, null for the file's one graph.
@@ -2069,6 +2445,13 @@ export interface GraphvizCapability {
 export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
+export interface GroupOutlineClick {
+    readonly group: string | number | boolean | null;
+    readonly layer: LayerId;
+    readonly shader: string;
+}
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -2119,7 +2502,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2190,6 +2573,9 @@ export function isAccelerationPolicy(value: unknown): value is AccelerationPolic
 
 // @public
 export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunCommand;
+
+// @public
+export function isAssetId(value: unknown): value is AssetId;
 
 // @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
@@ -2364,6 +2750,7 @@ export interface LayerPosition {
 export interface LayerProblem {
     readonly candidates?: readonly string[];
     readonly code: GraphtyErrorCode;
+    readonly fact?: ShaderProblem;
     readonly message: string;
     readonly path?: string;
     readonly position?: number;
@@ -2449,6 +2836,7 @@ export interface LayoutRecommendationOptions {
     readonly file?: {
         readonly format?: string;
         readonly attributes?: Readonly<Record<string, unknown>>;
+        readonly layout?: FileLayout;
     };
     readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
@@ -2641,10 +3029,11 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
     readonly total?: number;
+    readonly totalEdges?: number;
 }
 
 // @public
-export type LoadedSourceKind = "file" | "server" | "sample" | "join";
+export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
 // @public
 export interface LoadedWeight {
@@ -2695,6 +3084,7 @@ export interface LoadReport extends ImportReport {
 // @public
 export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
+    readonly lengthScale?: number;
     readonly notes: readonly FileStyleNote[];
 }
 
@@ -2772,6 +3162,76 @@ export interface Memberships {
 }
 
 // @public
+export interface ModelChange {
+    readonly id?: AssetId;
+    readonly layerIds: readonly LayerId[];
+    readonly problems: readonly CodedFact[];
+    readonly ref: string;
+    readonly state: ModelState;
+}
+
+// @public
+export type ModelFormat = string;
+
+// @public
+export interface ModelLimits {
+    readonly fetchTimeoutMs: number;
+    readonly maxBytes: number;
+    readonly maxDecodedBytes: number;
+    readonly maxTextBytes: number;
+    readonly maxTextureBytes: number;
+    readonly maxTextureSize: number;
+    readonly maxTriangles: number;
+    readonly sceneTextureBytes: number;
+    readonly sceneTriangleBudget: number;
+    readonly sessionBytes: number;
+}
+
+// @public
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
+
+// @public
+export interface ModelSummary {
+    // (undocumented)
+    readonly animations: readonly {
+        readonly name: string;
+        readonly seconds: number;
+    }[];
+    readonly bounds?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+    readonly extensionsRequired: readonly string[];
+    // (undocumented)
+    readonly format: ModelFormat;
+    readonly materials: readonly string[];
+    // (undocumented)
+    readonly meshes: number;
+    // (undocumented)
+    readonly morphTargets: number;
+    // (undocumented)
+    readonly skinned: boolean;
+    readonly textureBytes: number;
+    // (undocumented)
+    readonly textures: number;
+    // (undocumented)
+    readonly transparent: boolean;
+    readonly triangles: number;
+    readonly upAxis: "y" | "z" | "unknown";
+}
+
+// @public
+export interface NamedBlob {
+    // (undocumented)
+    arrayBuffer(): Promise<ArrayBuffer>;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly size: number;
+    readonly webkitRelativePath?: string;
+}
+
+// @public
 export interface Neighbor {
     readonly edgeCount: number;
     readonly excludedBy?: {
@@ -2803,6 +3263,40 @@ export interface NeighborSort {
     readonly by: "weight" | "name" | "degree";
     readonly descending?: boolean;
 }
+
+// @public
+export interface NetworkApi {
+    allow(id: string): Promise<void>;
+    deny(id: string): void;
+    pending(): readonly NetworkRequest[];
+    readonly policy: NetworkPolicy;
+    setPolicy(policy: NetworkPolicy): void;
+    setProjectHosts(lookup: ((projectId: string) => readonly string[]) | null): void;
+}
+
+// @public
+export type NetworkPolicy = "ask" | "allow";
+
+// @public
+export interface NetworkRequest {
+    // (undocumented)
+    readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
+    // (undocumented)
+    readonly params: {
+        readonly id: string;
+        readonly url: string;
+        readonly host: string;
+        readonly kind: NetworkRequestKind;
+        readonly by: NetworkRequestAsker;
+        readonly layerIds: readonly LayerId[];
+    };
+}
+
+// @public
+export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied";
+
+// @public
+export type NetworkRequestKind = "model" | "texture" | "source";
 
 // @public
 export type NodeId = string | number;
@@ -3019,10 +3513,42 @@ export interface PageColumn {
 }
 
 // @public
+export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
+    readonly channel: ShaderParamAddress;
+};
+
+// @public
 export function parseScope(value: unknown): Scope;
 
 // @public
 export function parseSetDefinition(value: unknown): SetDefinition;
+
+// @public
+export type PartAnswer =
+/** Fetch this URL as the part. Another host is asked through `session.network` (`by: "supplied"`). */
+    {
+    readonly name: string;
+    readonly url: string;
+}
+/** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
+| {
+    readonly name?: string;
+    readonly file: NamedBlob | Uint8Array;
+}
+/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+| {
+    readonly name: string;
+    readonly use: string;
+}
+/** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+| {
+    readonly name: string;
+    readonly skip: true;
+}
+/** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
+| {
+    readonly main: string;
+};
 
 // @public
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
@@ -3046,6 +3572,7 @@ export interface PendingSourceLoad {
     readonly hasQuery: boolean;
     readonly id: string;
     readonly isLocalNetwork: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
 }
 
@@ -3081,6 +3608,17 @@ export type PlanEffect = {
     readonly edges: number;
     readonly exact: boolean;
     readonly sampled?: number;
+    readonly steps?: {
+        readonly start: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+        readonly steps: readonly {
+            readonly id: string;
+            readonly nodes: number;
+            readonly edges: number;
+        }[];
+    };
 } | {
     readonly kind: "mutate";
     readonly nodesAdded: number;
@@ -3104,17 +3642,6 @@ export type PlanEffect = {
     readonly nodesInFrame: number;
     readonly legendChannels: number;
     readonly bytes: number;
-} | {
-    readonly kind: "steps";
-    readonly start: {
-        readonly nodes: number;
-        readonly edges: number;
-    };
-    readonly steps: readonly {
-        readonly id: string;
-        readonly nodes: number;
-        readonly edges: number;
-    }[];
 } | {
     readonly kind: "none";
 };
@@ -3186,6 +3713,7 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     readonly dirty: boolean;
+    readonly id: string;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -3200,17 +3728,20 @@ export interface ProjectConfig {
     // (undocumented)
     readonly data: SessionDataConfig;
     readonly editableBase: boolean;
+    readonly framing?: GraphFraming;
     readonly layoutBehavior: {
         readonly preSteps: number;
         readonly stepMultiplier: number;
         readonly minDelta: number;
     };
+    readonly layoutTransition?: LayoutTransitionConfig;
     readonly name?: string;
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     readonly runAlgorithmsOnLoad: boolean;
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
     readonly startingRows: boolean;
+    readonly viewRotation?: number;
 }
 
 // @public
@@ -3225,8 +3756,10 @@ export interface ProjectConfigPatch {
         readonly knownFields?: Partial<SessionDataConfig["knownFields"]>;
     };
     readonly editableBase?: boolean;
+    readonly framing?: GraphFraming;
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    readonly layoutTransition?: LayoutTransitionConfig;
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
     // (undocumented)
@@ -3235,6 +3768,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly startingRows?: boolean;
+    readonly viewRotation?: number;
 }
 
 // @public
@@ -3243,6 +3777,10 @@ export function projectFileName(name: string | null | undefined): string;
 // @public
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
+    readonly draft?: {
+        readonly onto?: "graph";
+        readonly guess?: "names" | "values";
+    };
     readonly fileName?: string;
     readonly history?: "step" | "start";
     // (undocumented)
@@ -3266,6 +3804,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -3279,7 +3818,18 @@ export interface ProjectSaveReport {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
+export interface ProjectShader {
+    readonly hash: string;
+    readonly id: string;
+    readonly place?: ShaderPlace;
+    readonly plainName: string;
+    readonly state: ShaderState;
+    readonly target: ShaderTarget;
+    readonly usedBy: number;
+}
+
+// @public
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -3414,6 +3964,7 @@ export interface RecipeDocument {
     readonly filter: {
         readonly rule: RuleTree | null;
         readonly steps: readonly FilterStep[];
+        readonly conditions?: readonly FilterCondition[];
     };
     readonly ignoredIssues: readonly RecipeIgnoredIssue[];
     readonly joins: readonly RecipeJoin[];
@@ -3523,6 +4074,24 @@ export interface RemoveSourceResult {
 
 // @public
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
+
+// @public
+export interface RenderQuality {
+    readonly code?: RenderQualityCode;
+    readonly heavy: "on" | "off";
+    readonly level: "low" | "medium" | "high";
+    readonly motion: "on" | "half" | "paused" | "still";
+}
+
+// @public
+export interface RenderQualityChange {
+    readonly code: RenderQualityCode;
+    readonly from: RenderQuality;
+    readonly to: RenderQuality;
+}
+
+// @public
+export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
 
 // @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";
@@ -4292,10 +4861,10 @@ export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "document
 
 // @public
 export interface SelectionApi {
-    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
+    apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta>;
     readonly cap: number;
     checkRule(where: Query): RuleCheck;
-    clear(): SelectionDelta;
+    clear(options?: SelectionApplyOptions): SelectionDelta;
     count(target: SelectionTarget): Promise<{
         readonly nodes: number;
         readonly edges: number;
@@ -4317,6 +4886,11 @@ export interface SelectionApi {
     readonly size: number;
     statistics(): Promise<SelectionStatistics>;
     readonly truncated: boolean;
+}
+
+// @public
+export interface SelectionApplyOptions {
+    readonly cause?: "user" | "api";
 }
 
 // @public
@@ -4554,7 +5128,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -4562,6 +5136,7 @@ export interface SessionConfig extends ProjectConfig {
         readonly policy: AccelerationPolicy;
         readonly minNodes: number;
     };
+    readonly backgroundColor: string;
     inEffect(key: GraphSettingKey): SettingEffect;
     set(values: ProjectConfigPatch): Promise<void>;
 }
@@ -4679,6 +5254,7 @@ export interface SessionEventMap {
         readonly y: number;
         readonly secondary: boolean;
     };
+    "canvas:group-outline-click": GroupOutlineClick;
     "capabilities:changed": {
         readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     };
@@ -4688,13 +5264,20 @@ export interface SessionEventMap {
     "journal:appended": {
         readonly entry: JournalEntry;
     };
+    "model:changed": ModelChange;
+    "network:pending": NetworkRequest;
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
     "project:changed": {
         readonly slices: readonly ProjectSlice[];
         readonly cause: HistoryCause;
     };
+    "project:derived": {
+        readonly slices: readonly ProjectSlice[];
+        readonly cause: HistoryCause;
+    };
     "project:status": ProjectStatus;
+    "render:quality": RenderQualityChange;
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
     "selection:hover-changed": {
@@ -4706,6 +5289,16 @@ export interface SessionEventMap {
     };
     "session:disposed": Readonly<Record<string, never>>;
     "set:changed": SetChange;
+    "shader:approved": {
+        readonly id: string;
+        readonly hash: string;
+    };
+    "shader:held": {
+        readonly ids: readonly string[];
+    };
+    "shader:status": {
+        readonly id: string;
+    } & ShaderStatus;
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
@@ -4803,6 +5396,29 @@ export interface SessionRunsOptions {
 }
 
 // @public
+export interface SessionShaders {
+    add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
+    approve(id: string): Promise<ShaderAddResult>;
+    // (undocumented)
+    availability(id: string): ShaderAvailability;
+    check(text: ShaderText, options?: ShaderAddOptions & {
+        readonly compile?: boolean;
+        readonly picture?: boolean;
+    }): Promise<ShaderAddResult>;
+    // (undocumented)
+    list(): readonly ProjectShader[];
+    remove(id: string): Promise<void>;
+    replace(id: string, text: ShaderText): Promise<ShaderAddResult>;
+    source(id: string, options?: {
+        readonly params?: ShaderParams;
+        readonly duplicate?: boolean;
+    }): Promise<ShaderText>;
+    // (undocumented)
+    status(id: string): ShaderStatus;
+    thumbnail(id: string, params?: ShaderParams): Promise<Blob | ShaderProblem>;
+}
+
+// @public
 export interface SessionStatus {
     readonly counts: {
         readonly nodes: number;
@@ -4817,6 +5433,7 @@ export interface SessionStatus {
 // @public
 export interface SessionStylesApi extends StylesApi {
     compiled(): readonly CompiledLayer[];
+    modelUrlFromCode(url: string): boolean;
 }
 
 // @public
@@ -5035,6 +5652,78 @@ export interface SetUser {
 }
 
 // @public
+export interface ShaderAddOptions {
+    readonly apply?: {
+        readonly layer: LayerId;
+    };
+    readonly onTaken?: "refuse" | "rename";
+    readonly place?: ShaderPlace;
+    readonly source?: "reader" | "content";
+    readonly target?: ShaderTarget;
+}
+
+// @public
+export type ShaderAddResult = {
+    readonly ok: true;
+    readonly descriptor: ShaderDescriptor;
+    readonly sameAs?: {
+        readonly id: string;
+        readonly params: ShaderParams;
+    };
+    readonly picture?: Blob;
+} | {
+    readonly ok: false;
+    readonly problems: readonly ShaderProblem[];
+};
+
+// @public
+export type ShaderAvailability = {
+    readonly ok: true;
+} | {
+    readonly ok: false;
+    readonly problem: ShaderProblem;
+};
+
+// @public
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
+
+// @public
+export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
+
+// @public
+export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
+
+// @public
+export interface ShaderSettings {
+    readonly guard?: boolean;
+    readonly motion?: "system" | "on" | "off";
+    readonly quality?: "auto" | "low" | "medium" | "high";
+    readonly trustedHashes?: readonly string[];
+    readonly untrusted?: "hold" | "run" | "refuse";
+}
+
+// @public
+export type ShaderState = "ready" | "compiling" | "failed" | "held" | "off" | "still" | "not-checked";
+
+// @public
+export interface ShaderStatus {
+    readonly problem?: ShaderProblem;
+    readonly state: ShaderState;
+}
+
+// @public
+export type ShaderText = string;
+
+// @public
+export interface ShaderUse {
+    readonly groupBy?: string;
+    readonly off?: true;
+    readonly params?: Readonly<Record<string, ShaderParamValue>>;
+    readonly place?: ShaderPlace;
+    readonly shader: string;
+}
+
+// @public
 export const SOURCE_ATTR: Readonly<{
     loads: "_source.loads";
     expansion: "_source.expansion";
@@ -5082,17 +5771,17 @@ export interface SourceCounts {
 export interface SourceCredentialIdentity {
     readonly kind: CredentialKind;
     readonly origin: string;
+    readonly slot?: string;
     readonly username?: string;
 }
+
+export { SourceCredentialSlot }
 
 export { SourceCursor }
 
 export { SourceDescriptor }
 
 export { SourceEdgeRecord }
-
-// @public
-export type SourceEntry = LoadedSource;
 
 // @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
@@ -5191,6 +5880,7 @@ export interface SourceLoadRecord {
     readonly pages: number;
     readonly source: string;
     readonly total?: number;
+    readonly totalEdges?: number;
     readonly validators: SourceValidators;
     readonly version: number;
 }
@@ -5210,7 +5900,6 @@ export { SourceParamType }
 export interface SourcePreview {
     readonly columns: readonly AttributeDescriptor[];
     readonly edges: readonly Readonly<Record<string, unknown>>[];
-    readonly facts: Readonly<Record<string, string>>;
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
@@ -5226,7 +5915,7 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
 // @public
 export interface SourcePreviewRow {
     readonly id: NodeId;
-    readonly name: string | null;
+    readonly name: string;
 }
 
 export { SourceProbe }
@@ -5370,6 +6059,10 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    shaders?: readonly {
+        readonly id: string;
+        readonly text: ShaderText;
+    }[];
     tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
@@ -5467,7 +6160,7 @@ export interface StylesApi {
         readonly span?: PreviewSpan;
         readonly within?: LayerId;
     }): BindingPreview;
-    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal;
     remove(id: LayerId, options?: RunOptions): Run<void>;
     removeBySource(predicate: (source: LayerSource) => boolean, options?: RunOptions): Run<readonly LayerId[]>;
     renameRow(id: StyleRowId, name: string, options?: RunOptions): Run<StyleRow>;
@@ -5584,6 +6277,7 @@ export interface TableMappingRead extends TableMapping {
 // @public
 export interface TemplateOptions extends RunOptions {
     readonly at?: TemplatePosition;
+    readonly shaders?: "run" | "hold" | "refuse";
     readonly templateId?: string;
 }
 
@@ -5595,6 +6289,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
     readonly unbound: readonly UnboundLayer[];
 }
 
@@ -5877,7 +6572,7 @@ export interface UnboundLayer {
 export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
-export type UndrawnCode = "caption.noArrow";
+export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.stack-cap" | "shader.group-cap" | "edge.lift-needs-flat-layout";
 
 // @public
 export interface UnknownRulePath {
@@ -5944,19 +6639,33 @@ export type ValueType = "text" | "number" | "boolean" | "date" | "category";
 
 // @public
 export interface VisibilityApi {
+    // @beta
+    addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & {
+        readonly id: string;
+    }>;
+    // @beta
+    conditionCounts(): readonly FilterConditionCount[];
+    // @beta
+    readonly conditions: readonly FilterCondition[];
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
+    // @beta
+    removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    // @beta
+    setConditions(conditions: readonly FilterConditionInput[], options?: RunOptions): Run<FilterResult>;
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
+    // @beta
+    updateCondition(id: string, change: Partial<Omit<FilterCondition, "id">>, options?: RunOptions): Run<FilterResult>;
     readonly window: TimeWindow | null;
 }
 

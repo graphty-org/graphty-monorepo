@@ -19,9 +19,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { cardFields } from "../../style/cards";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace with a layer "Picked", and no history before the test's own.
  * @returns The session and the store.
@@ -30,14 +27,11 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -69,7 +63,7 @@ function undoButton(): HTMLElement {
  * @param name - the row's name.
  */
 async function openRow(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
@@ -154,7 +148,7 @@ describe("undo and redo: words and keys", () => {
             throw new Error("no degree field");
         }
         await openRow("Picked");
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         if (screen.queryByRole("listbox") === null) {
             await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));

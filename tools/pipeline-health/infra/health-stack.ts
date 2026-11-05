@@ -224,6 +224,30 @@ export class HealthStack extends Stack {
         deadMan.addAlarmAction(new SnsAction(topic));
         deadMan.addOkAction(new SnsAction(topic));
 
+        // The alert path itself (section 13): sendAlerts never throws, so a revoked Pushover key or a table error
+        // shows only in the run's logged result ({"alerts": {state, failed}}). Three runs in a row of that emails.
+        const alertsFailing = new logs.MetricFilter(this, "AlertsFailingFilter", {
+            logGroup: collector.logGroup,
+            filterPattern: logs.FilterPattern.literal(
+                '{ ($.alerts.state = "error") || ($.alerts.state = "not set up") || ($.alerts.failed > 0) }',
+            ),
+            metricNamespace: "graphty-health",
+            metricName: "AlertsFailing",
+            metricValue: "1",
+        });
+        const alertsAlarm = new cloudwatch.Alarm(this, "AlertsFailing", {
+            alarmName: "graphty-health-alerts-failing",
+            alarmDescription: "The pipeline health alerts could not reach Pushover for three collector runs in a row",
+            metric: alertsFailing.metric({ period, statistic: "Sum" }),
+            threshold: 1,
+            comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            evaluationPeriods: 3,
+            datapointsToAlarm: 3,
+            treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        });
+        alertsAlarm.addAlarmAction(new SnsAction(topic));
+        alertsAlarm.addOkAction(new SnsAction(topic));
+
         // Spend protection, layer 2 (section 10.5): a monthly Budget that emails and, at 100%
         // actual, attaches a deny-all policy to the three Lambda roles.
         const budgetName = "graphty-health";

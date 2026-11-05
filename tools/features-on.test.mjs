@@ -109,7 +109,7 @@ describe("the On shards", () => {
         assert.equal(entry.coverage, undefined, "no coverage upload for an On shard");
     });
 
-    it("come after every Off shard and group, and the test job runs at most 40 jobs at once", () => {
+    it("come after every Off shard and group, and the test job runs at most 40 jobs at once (fewer on a full run)", () => {
         const include = plan([...PACKAGES, "graph-format", "layout"], undefined, undefined, false, shards);
         const first = include.findIndex((e) => e["full-run-only"]);
         assert.ok(first > 0);
@@ -118,8 +118,10 @@ describe("the On shards", () => {
             "nothing Off after the first On",
         );
         const ci = parseYaml(readFileSync(".github/workflows/ci.yml", "utf8"));
-        const max = ci.jobs.test.strategy["max-parallel"];
-        assert.ok(Number.isInteger(max) && max <= 40, `max-parallel ${max}`);
+        // "${{ github.event_name == 'pull_request' && <pr> || <full run> }}": both numbers at most 40
+        const max = String(ci.jobs.test.strategy["max-parallel"]);
+        const caps = [...max.matchAll(/\b\d+\b/g)].map((m) => Number(m[0]));
+        assert.ok(caps.length > 0 && caps.every((n) => n <= 40), `max-parallel ${max}`);
     });
 
     it("are named all at once by --only features-on (a dispatch for one branch), or refused when none exist", () => {
@@ -231,7 +233,7 @@ describe("the On screenshot capture", () => {
     it("runs in a job of its own with the On query, under an artifact name the gate never reads", () => {
         const ci = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
         const on = ci.jobs["features-on-visual"];
-        assert.match(on.if, /needs\.build\.outputs\.visual-on/);
+        assert.match(on.if, /needs\.packages\.outputs\.visual-on/);
         const capture = on.steps.find((s) => s.name === "Capture the On configuration");
         assert.equal(capture.env.VISUAL_REVIEW_STORY_QUERY, ON_CAPTURE_QUERY);
         assert.match(on.steps.find((s) => s.name === "Upload the On captures").with.name, /^features-on-visual-/);

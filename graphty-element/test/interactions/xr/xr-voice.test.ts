@@ -25,7 +25,6 @@ import { operationQueueOf } from "../../../src/Graph";
 import { FakeRecognition } from "../../helpers/fake-speech";
 import { installIWER, type IWERHandle } from "../helpers/iwer-setup";
 
-const WAIT = { timeout: 10_000, interval: 20 };
 const HEARD = "color this red";
 
 let iwer: IWERHandle;
@@ -97,7 +96,7 @@ async function mount(voice: AiVoiceOptions, handTracking = false): Promise<void>
     document.body.append(element);
     await vi.waitFor(() => {
         assert.isNotNull(element.shadowRoot?.querySelector('[data-xr-mode="immersive-vr"]') ?? null, "no VR button");
-    }, WAIT);
+    });
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes([
         { id: "a", position: { x: -40, y: 40, z: 0 } },
@@ -129,7 +128,7 @@ async function frames(count = 5): Promise<void> {
     const target = session.frames + count;
     await vi.waitFor(() => {
         assert.isAtLeast(session.frames, target, "the session stopped rendering");
-    }, WAIT);
+    });
 }
 
 /** The XR helper of the session running. */
@@ -147,7 +146,7 @@ async function enterVR(): Promise<void> {
     await vi.waitFor(() => {
         const { controllers } = xrHelper().input;
         assert.lengthOf(controllers, 2, "the emulated controllers are not tracked");
-    }, WAIT);
+    });
     await frames();
 }
 
@@ -202,14 +201,14 @@ describe("talking in VR with the controllers", () => {
         await button("right", "b-button", true);
         await vi.waitFor(() => {
             assert.strictEqual(voiceStarts, 1, "B did not start talking");
-        }, WAIT);
+        });
         // Pulling the trigger at the node while talking neither starts a second press nor picks it.
         await button("right", "trigger", true);
         await button("right", "trigger", false);
         await button("right", "b-button", false);
         await vi.waitFor(() => {
             assert.strictEqual(finished, 1, "the spoken message did not end");
-        }, WAIT);
+        });
 
         assert.strictEqual(voiceStarts, 1);
         assert.deepEqual(voiceEnds, ["AI_COMPLETED"]);
@@ -229,11 +228,11 @@ describe("talking in VR with the controllers", () => {
         await button("right", "b-button", true);
         await vi.waitFor(() => {
             assert.strictEqual(voiceStarts, 1);
-        }, WAIT);
+        });
         await button("right", "b-button", false);
         await vi.waitFor(() => {
             assert.strictEqual(finished, 1, "the spoken message did not end");
-        }, WAIT);
+        });
 
         const facts = await savedFacts();
         assert.lengthOf(facts, 1, "one facts part, on the spoken message");
@@ -262,7 +261,7 @@ describe("talking in VR with the controllers", () => {
                     ["graphty-xr-ai-pending-0", "graphty-xr-ai-pending-1", "graphty-xr-ai-pending-2"],
                     "the held change is not shown in the scene",
                 );
-            }, WAIT);
+            });
             return before;
         }
 
@@ -274,12 +273,12 @@ describe("talking in VR with the controllers", () => {
             await button("right", "a-button", true);
             await vi.waitFor(() => {
                 assert.strictEqual(element.graph.getSession().status.counts.nodes, before + 1, "A did not run it");
-            }, WAIT);
+            });
             await button("right", "a-button", false);
             assert.exists(element.graph.getSession().data.node("F"));
             await vi.waitFor(() => {
                 assert.isNull(element.graph.scene.getMeshByName("graphty-xr-ai-pending-0"), "the control stayed");
-            }, WAIT);
+            });
             await element.setViewMode("3d");
         });
 
@@ -311,7 +310,7 @@ describe("talking in VR with the controllers", () => {
             await button("left", "x-button", true);
             await vi.waitFor(() => {
                 assert.lengthOf(element.getPendingAiApprovals(), 0, "X did not answer it");
-            }, WAIT);
+            });
             await button("left", "x-button", false);
             assert.strictEqual(element.graph.getSession().status.counts.nodes, before, "the graph changed");
             await element.setViewMode("3d");
@@ -329,11 +328,11 @@ describe("the microphone", () => {
         await userEvent.click(vr);
         await vi.waitFor(() => {
             assert.strictEqual(element.getXRSessionManager()?.getActiveMode(), "immersive-vr", "VR did not start");
-        }, WAIT);
+        });
         await vi.waitFor(() => {
             assert.lengthOf(streams, 1, "the microphone was not asked for");
             assert.strictEqual(liveTracks(), 0, "the priming left the microphone open");
-        }, WAIT);
+        });
         await frames();
         assert.lengthOf(streams, 1, "the microphone was asked for more than once");
         assert.strictEqual(speak.mock.calls.length, 1, "speech was not primed");
@@ -347,12 +346,12 @@ describe("the microphone", () => {
         await button("right", "b-button", true);
         await vi.waitFor(() => {
             assert.strictEqual(liveTracks(), 1, "B did not open the microphone");
-        }, WAIT);
+        });
         await element.setViewMode("3d");
         await vi.waitFor(() => {
             assert.strictEqual(liveTracks(), 0, "leaving XR left the microphone open");
             assert.deepEqual(voiceEnds, ["AI_CANCELLED"]);
-        }, WAIT);
+        });
         assert.strictEqual(finished, 0, "leaving XR sent the utterance");
     });
 });
@@ -395,7 +394,7 @@ describe("talking live in VR", () => {
         await button("right", "b-button", true);
         await vi.waitFor(() => {
             assert.deepEqual(connections[0]?.captures, [true], "B did not talk on the live connection");
-        }, WAIT);
+        });
         await button("right", "trigger", true);
         await button("right", "trigger", false);
         assert.strictEqual(voiceStarts, 1, "the trigger started talking");
@@ -404,7 +403,7 @@ describe("talking live in VR", () => {
         await button("right", "b-button", false);
         await vi.waitFor(() => {
             assert.deepEqual(connections[0].captures, [true, false], "releasing B did not stop sending");
-        }, WAIT);
+        });
         assert.deepEqual(voiceEnds, ["AI_COMPLETED"]);
         assert.strictEqual(finished, 0, "the press ran turn by turn");
         assert.strictEqual(liveTracks(), 1, "the connection keeps its microphone between presses");
@@ -413,7 +412,7 @@ describe("talking live in VR", () => {
         await vi.waitFor(() => {
             assert.isTrue(connections[0].closed, "leaving XR left the connection open");
             assert.strictEqual(liveTracks(), 0, "leaving XR left the microphone open");
-        }, WAIT);
+        });
     });
 });
 
@@ -443,7 +442,7 @@ describe("talking in VR with hands", () => {
             assert.exists(found, "no wrist orb");
             assert.isTrue(found.isEnabled(), "the orb is hidden");
             return found;
-        }, WAIT);
+        });
         const hand = iwer.device.hands.right;
         assert.exists(hand);
 
@@ -463,14 +462,14 @@ describe("talking in VR with hands", () => {
         hand.updatePinchValue(1);
         await vi.waitFor(() => {
             assert.strictEqual(voiceStarts, 1, "pinching the orb did not talk");
-        }, WAIT);
+        });
         await frames();
         const controller = element.graph.scene.metadata?.xrCameraController as XRPivotCameraController | undefined;
         assert.isFalse(controller?.getInputHandler().isDragging(), "the orb's pinch started a drag");
         hand.updatePinchValue(0);
         await vi.waitFor(() => {
             assert.strictEqual(finished, 1, "the spoken message did not end");
-        }, WAIT);
+        });
 
         const after = [...element.graph.getNodes()].map((node) => node.mesh.position);
         positions.forEach((position, index) => {

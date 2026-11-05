@@ -1,6 +1,6 @@
 {
     "name": "@graphty/algorithms",
-    "version": "3.4.14",
+    "version": "3.4.19",
     "description": "Graph algorithms library for browser environments implemented in TypeScript",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/algorithms.js",
@@ -42,7 +42,7 @@
         "benchmark": "tsx benchmarks/node/algorithms-benchmark.ts",
         "benchmark:quick": "tsx benchmarks/node/algorithms-benchmark.ts --quick",
         "benchmark:report": "tsx scripts/generate-performance-report.ts",
-        "lint": "eslint && tsc --noEmit && tsc -p tsconfig.typecheck.json",
+        "lint": "eslint && tsc --noEmit && tsc -p tsconfig.typecheck.json && tsc -p tsconfig.eslint.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace algorithms",
         "typecheck": "tsc --noEmit",
@@ -125,7 +125,7 @@
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.71.1",
-        "vite": "^7.3.7",
+        "vite": "^8.1.6",
         "vitepress": "^1.6.3",
         "vitest": "catalog:"
     },

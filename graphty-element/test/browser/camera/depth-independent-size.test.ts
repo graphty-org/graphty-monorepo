@@ -17,14 +17,6 @@ import type { Graphty } from "../../../index.js";
 const BIG = 3;
 const SMALL = 2.7;
 
-/**
- * Let the element's own render loop draw a few frames.
- */
-async function frames(): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
-}
-
 describe("depth-independent node size", () => {
     let container: HTMLDivElement;
     let element: Graphty;
@@ -36,7 +28,7 @@ describe("depth-independent node size", () => {
         document.body.appendChild(container);
         element = document.createElement("graphty-element");
         container.appendChild(element);
-        await frames();
+        await element.waitForStableFrame();
     });
 
     afterEach(() => {

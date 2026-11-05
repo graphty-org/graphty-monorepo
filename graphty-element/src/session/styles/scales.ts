@@ -65,6 +65,11 @@ export interface ScaleContext {
     categories?: readonly string[];
     /** How hard a power scale bends. */
     exponent?: number;
+    /**
+     * The numbers an `"index"` scale has given values so far, in the order it first saw them. The
+     * scale adds to it, so a value keeps its number for as long as the caller keeps the map.
+     */
+    order?: Map<string, number>;
 }
 
 /**
@@ -463,6 +468,30 @@ export function quantileThresholds(values: Iterable<number>, groups: number): nu
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The next whole number for each distinct value, in the order the values are first seen, and the
+ * same number for a value ever after: the scale that picks a pattern or an icon per group without
+ * a new group moving an existing one.
+ * @param value - The element's value.
+ * @param context - The binding's options, read for the order kept so far.
+ * @returns The value's number, or NaN when it is not a value a category list could hold.
+ */
+const indexScale: ScaleFn = (value, context) => {
+    const name = asCategory(value);
+    const { order } = context;
+    if (name === null || order === undefined) {
+        return Number.NaN;
+    }
+
+    let slot = order.get(name);
+    if (slot === undefined) {
+        slot = order.size;
+        order.set(name, slot);
+    }
+
+    return slot;
+};
+
+/**
  * Every scale the element ships, by name.
  *
  * The names are the catalogue's names: `SCALE_DESCRIPTORS` describes these nine and a registry
@@ -478,6 +507,7 @@ export const BUILT_IN_SCALES = {
     quantile: quantileScale,
     ordinal: ordinalScale,
     passthrough: passthroughScale,
+    index: indexScale,
 } as const satisfies Record<string, ScaleFn>;
 
 /** The name of a scale the element ships. */

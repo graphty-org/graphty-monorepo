@@ -1163,7 +1163,7 @@ const PRELUDE_NAMES: ReadonlySet<string> = new Set(
 );
 
 /** Snippet texts that let a body with marker slots compose with its defaults (only VALUE exists in P0-P3). */
-const DEFAULT_SNIPPETS: Readonly<Record<string, string>> = { VALUE: "v = 1.0;" };
+const DEFAULT_SNIPPETS: Readonly<Partial<Record<string, string>>> = { VALUE: "v = 1.0;" };
 
 function defaultSnippets(entry: KernelEntry): Readonly<Record<string, string>> | undefined {
     if (entry.snippetSlots.length === 0) {
@@ -1363,7 +1363,7 @@ function plainAtomicUses(body: string, bindings: readonly { name: string; wgslTy
     const plain: string[] = [];
     for (const name of atomics) {
         for (const use of text.matchAll(new RegExp(`(.)\\b${name}\\b`, "g"))) {
-            const at = use.index ?? 0;
+            const at = use.index;
             const declaration = /var<workgroup>\s+$/.test(text.slice(0, at + 1));
             if (use[1] !== "&" && !declaration) {
                 plain.push(`${name} near "${text.slice(Math.max(0, at - 20), at + 30)}"`);
@@ -1542,6 +1542,7 @@ const BLOCKS: readonly BlockRow[] = [
             ["timeStep", 120],
             ["midEnd", 124],
             ["settleFloor", 128],
+            ["live", 132],
         ],
     },
     {

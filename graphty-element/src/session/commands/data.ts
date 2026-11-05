@@ -29,6 +29,7 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
@@ -124,6 +125,117 @@ export type DataMutation =
           readonly kind: "clear";
       };
 
+/**
+ * The refusal of a data door's malformed argument (issue #5504).
+ * @param door - The door's mutation kind.
+ * @param field - What is wrong: the argument itself, or the field of one row.
+ * @param index - The row's position, when one row is at fault.
+ * @returns An `E_BAD_COMMAND` error.
+ */
+function badArgument(door: DataMutation["kind"], field: string, index?: number): GraphtyError {
+    const where = index === undefined ? "" : ` (row ${String(index)})`;
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        source: "data",
+        message: `The ${door} argument is malformed: ${field}${where}.`,
+        details: { door, field, ...(index === undefined ? {} : { index }) },
+    });
+}
+
+/**
+ * Whether a value is a plain record: an object that is neither null nor an array.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a value can be a node or edge id.
+ * @param value - The value.
+ * @returns True for a string or a number.
+ */
+function isId(value: unknown): value is NodeId {
+    return typeof value === "string" || typeof value === "number";
+}
+
+/**
+ * Check the rows a data door was handed, so a malformed one is refused with `E_BAD_COMMAND`
+ * before anything is written, instead of failing deep inside the write with a TypeError.
+ * @param kind - The door's mutation kind.
+ * @param rows - What it was handed in place of its row list.
+ * @param check - What each row must be, naming the field that is wrong, or null when it is fine.
+ * @throws `E_BAD_COMMAND` naming the door, the field and the row.
+ */
+export function checkRows(kind: DataMutation["kind"], rows: unknown, check: (row: unknown) => string | null): void {
+    if (!Array.isArray(rows)) {
+        throw badArgument(kind, "not an array");
+    }
+
+    rows.forEach((row: unknown, index) => {
+        const field = check(row);
+        if (field !== null) {
+            throw badArgument(kind, field, index);
+        }
+    });
+}
+
+/**
+ * What a record handed to an add, or to an element-level update, must be.
+ * @param row - The record.
+ * @returns The fault, or null.
+ */
+export function recordFault(row: unknown): string | null {
+    return isRecord(row) ? null : "a record is not an object";
+}
+
+/**
+ * What a row handed to `data.updateNodes` or `data.updateEdges` must be: `{ id, values }`.
+ * @param row - The row.
+ * @returns The fault, or null.
+ */
+function rowUpdateFault(row: unknown): string | null {
+    if (!isRecord(row)) {
+        return "a row is not an object";
+    }
+
+    if (!isId(row.id)) {
+        return "id is not a string or a number";
+    }
+
+    return isRecord(row.values) ? null : "values is not an object";
+}
+
+/**
+ * Refuse a malformed mutation from a public data door with `E_BAD_COMMAND` (issue #5504).
+ * @param mutation - The mutation, as a caller built it.
+ * @throws `E_BAD_COMMAND` naming the door, the field and the row.
+ */
+export function checkMutation(mutation: DataMutation): void {
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+            checkRows(mutation.kind, mutation.records, recordFault);
+            return;
+        case "update-rows":
+            checkRows(mutation.kind, mutation.rows, rowUpdateFault);
+            return;
+        case "set-attributes":
+            checkRows(mutation.kind, mutation.ids, (id) => (isId(id) ? null : "an id is not a string or a number"));
+            if (!isRecord(mutation.values)) {
+                throw badArgument(mutation.kind, "values is not an object");
+            }
+
+            return;
+        case "remove-nodes":
+        case "remove-edges":
+            checkRows(mutation.kind, mutation.ids, (id) => (isId(id) ? null : "an id is not a string or a number"));
+            return;
+        default:
+    }
+}
+
 /** `data.apply`. */
 interface DataApplyCommand {
     readonly op: "data.apply";
@@ -197,7 +309,7 @@ export interface DataImportCommand {
     readonly joinedOnto?: SourceKey;
     /** For a joined table: the join, kept with the load in `data.sources()`. */
     readonly join?: JoinRecord;
-    /** The load's key, in place of the next one: an edited join keeps its key. */
+    /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
     readonly choices?: LoadChoices;
@@ -467,6 +579,8 @@ export const FILE_GRAPH_VALUE = "fileGraph";
 export interface FileGraphValue {
     readonly format: string;
     readonly attributes: Readonly<Record<string, unknown>>;
+    /** The layout the file asks to be drawn with, as graph-io read it; absent when it names none. */
+    readonly layout?: FileLayout;
 }
 
 /**
@@ -904,12 +1018,16 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         const resize = scale ?? 1;
         // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
         // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
-        // size against the spaces Graphviz leaves between them.
-        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
-        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
+        // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
-        const options =
-            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        // With no unit (the file's styles are not drawn, or size nothing) the element draws its own node size, not the
+        // size Graphviz gives the file's nodes, so Graphviz lays the nodes out at their drawn size (issue #5293).
+        const sized =
+            graphviz && unit === null && advice.options?.nodeSize === "label"
+                ? { ...advice.options, nodeSize: "drawn" }
+                : advice.options;
+        const options = (advice.id === "fixed" || graphviz) && unit !== null ? { ...sized, scale: unit } : sized;
         const layout = dispatch({
             op: "layout.set",
             id: advice.id,

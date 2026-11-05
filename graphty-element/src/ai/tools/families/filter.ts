@@ -67,7 +67,7 @@ export const filterTool: ToolDefinition = {
     name: "filter",
     plainName: "Filter",
     core: true,
-    description: "Shows or hides elements without deleting them. Prefer it to removing.",
+    description: "Shows or hides elements; prefer it to removing.",
     example: { action: "show_only", where: "data.weight > `0.5`", on: "edge" },
     actions: [
         {

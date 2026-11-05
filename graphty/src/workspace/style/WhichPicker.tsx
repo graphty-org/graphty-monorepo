@@ -2,6 +2,7 @@ import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     Autocomplete,
+    Badge,
     Button,
     Checkbox,
     CloseButton,
@@ -23,7 +24,7 @@ import { flushSync } from "react-dom";
 import { sourceName } from "../data-place/words";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
-import { useAsyncValue } from "../inspector/hooks";
+import { useAsyncValue, useSessionVersion } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { hasPendingEdit, isPanelEscape, isTypingTarget } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
@@ -517,6 +518,13 @@ function WhichRow({
     });
     const empty = `All ${many(total, side)}: add a condition to narrow`;
     const hint = `All ${many(total, side)}`;
+    // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
+    const none =
+        held === undefined &&
+        rows.length === 1 &&
+        shown.length > 0 &&
+        session.styles.counts(rows[0].layer.id).matched === 0;
+    const together = none && !Object.values(counts).includes(0);
     // A heading at the level of the sections around it, holding its disclosure button (the
     // accordion pattern), so a heading walk lands on it as on "Shape" or "Fill".
     return (
@@ -531,7 +539,12 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[`Which ${NOUN[side].many}`, head, ...(shown.length === 0 ? [empty] : spoken)]
+                aria-label={[
+                    `Which ${NOUN[side].many}`,
+                    head,
+                    none ? `no ${NOUN[side].one} matches` : "",
+                    ...(shown.length === 0 ? [empty] : spoken),
+                ]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -547,6 +560,7 @@ function WhichRow({
                     <Text size="xs" c="dimmed" span ml="auto">
                         {head}
                     </Text>
+                    {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
                     {shown.length === 0 ? (
@@ -664,9 +678,24 @@ function Chip({
             <span className="ws-chip" data-chip={shown.key} data-todo={finished ? undefined : ""}>
                 {words}
                 {/* Named, so a count never reads as a second copy of a number in the words; kept on one line. */}
-                {count === undefined ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === undefined || count === 0 ? "" : `, ${many(count, side).replace(" ", "\u00a0")}`}
+                {count === 0 && <NoneBadge side={side} />}
             </span>
         </Tooltip>
+    );
+}
+
+/**
+ * The warning a condition, or a layer's conditions together, leave when nothing matches: a 0 badge.
+ * @param props - Component props
+ * @param props.side - nodes or edges
+ * @returns The badge
+ */
+function NoneBadge({ side }: Readonly<{ side: Side }>): React.JSX.Element {
+    return (
+        <Badge component="span" color="yellow" variant="light" aria-label={`No ${NOUN[side].one} matches`} ml={4}>
+            0
+        </Badge>
     );
 }
 
@@ -755,11 +784,11 @@ function Cards({
     });
     // A held rule (a filter step) speaks both kinds at once, so it lists Data source once, with the nodes.
     const sourceTwice = holder !== undefined && side === "edge";
-    const fields = useMemo(
-        () => cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source"),
-        [session, side, sourceTwice],
-    );
-    const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
+    // The columns follow the data: one that arrives while the picker is open is listed, so they
+    // are read on every change the element reports, never kept from the first render.
+    useSessionVersion(session);
+    const fields = cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source");
+    const elsewhere = cardFields(session, side === "node" ? "edge" : "node");
     const bulk = rows.length > 1;
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
@@ -1059,6 +1088,19 @@ function isDoneKey(event: React.KeyboardEvent): boolean {
     );
 }
 
+/**
+ * Enter on an unticked value ticks it, as a pick does, and keeps the cards open; Enter on a ticked
+ * value is Done (`isDoneKey`). A check box takes no Enter of its own, so without this the first
+ * Enter closed the cards with nothing ticked.
+ * @param event - the key, on the value's check box.
+ */
+function tickOnEnter(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.currentTarget.checked) {
+        event.preventDefault();
+        event.currentTarget.click();
+    }
+}
+
 /** The notice a layer's refused rule leaves. */
 const RULE_REFUSED = "That rule could not be used for this layer";
 
@@ -1178,7 +1220,7 @@ async function announceEmpty(
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
  */
-function AddCondition({
+export function AddCondition({
     fields,
     elsewhere = [],
     used,
@@ -1545,12 +1587,13 @@ function CardEditor({
 }
 
 /**
- * The body of a card, by its type: a layer's card and a filter step's draw the same one.
+ * The body of a card, by its type: a layer's card and a filter card draw the same one.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
  * @returns The body
  */
 export function CardBody({
@@ -1558,7 +1601,14 @@ export function CardBody({
     card,
     side,
     onChange,
-}: Readonly<{ session: GraphSession; card: Card; side: Side; onChange: OnCard }>): React.JSX.Element | null {
+    blank = false,
+}: Readonly<{
+    session: GraphSession;
+    card: Card;
+    side: Side;
+    onChange: OnCard;
+    blank?: boolean;
+}>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
             return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
@@ -1571,8 +1621,10 @@ export function CardBody({
         case "yes-no":
             return (
                 <MatchSelect
+                    // Its choices are the values themselves (Yes, No), so it is named for them.
+                    label={`${card.field.name} is`}
                     name={card.field.name}
-                    value={card.match}
+                    value={blank ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
                     onChange={(match) => {
                         onChange({ ...card, match: match as typeof card.match });
@@ -1623,19 +1675,22 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
- * @param props.value - the chosen value
+ * @param props.label - its accessible name, when it is not "<name>: how to match"
+ * @param props.value - the chosen value, or null while none is
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
  * @returns The select
  */
 function MatchSelect({
     name,
+    label,
     value,
     data,
     onChange,
 }: Readonly<{
     name: string;
-    value: string;
+    label?: string;
+    value: string | null;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
 }>): React.JSX.Element {
@@ -1654,7 +1709,7 @@ function MatchSelect({
             ref={input}
             size="xs"
             // Named for what it chooses beside the card's column; the select says its own value.
-            aria-label={`${name}: how to match`}
+            aria-label={label ?? `${name}: how to match`}
             allowDeselect={false}
             data={[...data]}
             value={value}
@@ -2141,6 +2196,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`${each.label}, ${many(each.count, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.values.includes(each.value)}
                                 onChange={(event) => {
                                     toggle(each.value, event.currentTarget.checked);
@@ -2152,6 +2208,7 @@ function CategoryCard({
                                 size="xs"
                                 label={`(no value), ${many(counts.missing, side)}`}
                                 data-enter-done
+                                onKeyDown={tickOnEnter}
                                 checked={card.gaps}
                                 onChange={(event) => {
                                     onChange({ ...card, gaps: event.currentTarget.checked });
@@ -2207,6 +2264,7 @@ function SourceCard({
                     size="xs"
                     label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
                     data-enter-done
+                    onKeyDown={tickOnEnter}
                     checked={card.sources.includes(load.key)}
                     onChange={(event) => {
                         const on = event.currentTarget.checked;

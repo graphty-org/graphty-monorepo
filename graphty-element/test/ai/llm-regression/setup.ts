@@ -23,10 +23,15 @@ beforeAll(() => {
     counter.__LLM_REGRESSION_API_CALLS__ = 0;
     counter.__LLM_REGRESSION_TOKENS__ = { input: 0, output: 0 };
 });
-afterAll(() => {
+// On Google, the run's transport (test/helpers/llm-regression-gemini.ts) deletes its caches and adds the tokens and
+// the cost at the tier and cache prices to the line; tools/llm-spend.mjs sums the costs of a run's lines.
+afterAll(async () => {
+    const gemini = (globalThis as { __LLM_REGRESSION_GEMINI__?: { close(): Promise<unknown>; summary(): string } })
+        .__LLM_REGRESSION_GEMINI__;
+    await gemini?.close();
     const tokens = counter.__LLM_REGRESSION_TOKENS__ ?? { input: 0, output: 0 };
     console.log(
         `[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}; ` +
-            `tokens in: ${tokens.input}, out: ${tokens.output}`,
+            `tokens in: ${tokens.input}, out: ${tokens.output}${gemini?.summary() ?? ""}`,
     );
 });

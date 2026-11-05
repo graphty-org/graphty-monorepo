@@ -2,7 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { definePalette } from "@graphty/graphty-element/extend";
 import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
-import { UnstyledButton } from "@mantine/core";
+import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
@@ -28,6 +28,15 @@ export interface HeroSample {
  * behind them (the workspace's element does the same, issue #1943).
  */
 const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" }, rendering: { onDemand: true } } as const;
+
+/**
+ * A graph that starts still arrives already arranged: the layout's steps are taken before its
+ * first frame, stopping once it settles, instead of drawn one frame at a time. The steps and where
+ * the layout ends are the same; only the flight in is not drawn. A reader who asked for less
+ * motion sees no flight, and a picture of the still page (Storybook) is final as soon as the graph
+ * is up, where drawing the flight held every start screen picture for seconds (issue #4041).
+ */
+const HERO_STILL_LAYOUT_BEHAVIOR = { ...HERO_LAYOUT_BEHAVIOR, layout: { preSteps: 1000 } } as const;
 
 /**
  * The selection's own halo is hidden: the clicked node is marked by the page's highlight layer
@@ -370,7 +379,9 @@ export function HeroGraph({
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
     const turns = useContext(HeroTurns);
-    const [turning, setTurning] = useState(() => turns && !prefersStill());
+    // Read once: the pause button changes the turning, never how the graph arrived.
+    const [startsStill] = useState(() => !turns || prefersStill());
+    const [turning, setTurning] = useState(!startsStill);
     const [card, setCard] = useState<CardFacts | null>(null);
     // What Key players and Shortest path each left on the graph, so each button takes away
     // only its own. Each names its nodes in its own layer: a node both name gets one label.
@@ -522,7 +533,7 @@ export function HeroGraph({
         }
         const close = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
-                session.selection.clear();
+                session.selection.clear({ cause: "user" });
             }
         };
         globalThis.addEventListener("keydown", close);
@@ -626,7 +637,7 @@ export function HeroGraph({
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
                         pixelRatio="device"
-                        layoutBehavior={HERO_LAYOUT_BEHAVIOR}
+                        layoutBehavior={startsStill ? HERO_STILL_LAYOUT_BEHAVIOR : HERO_LAYOUT_BEHAVIOR}
                         selectionStyle={HERO_SELECTION_STYLE}
                         // The site's experiments, as on the workspace's element.
                         features={siteConfig().features}
@@ -663,31 +674,34 @@ export function HeroGraph({
                     >
                         2D
                     </Chip>
-                    <UnstyledButton
-                        className="ws-land-chip"
-                        aria-label={turning ? "Pause the turning" : "Turn the graph"}
-                        aria-pressed={!turning}
-                        onClick={() => {
-                            setTurning((before) => !before);
-                        }}
-                    >
-                        {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
-                    </UnstyledButton>
+                    {/* An icon alone, so it says on hover what it does, in the words of its name. */}
+                    <Tooltip label={turning ? "Pause the turning" : "Turn the graph"}>
+                        <UnstyledButton
+                            className="ws-land-chip"
+                            aria-label={turning ? "Pause the turning" : "Turn the graph"}
+                            aria-pressed={!turning}
+                            onClick={() => {
+                                setTurning((before) => !before);
+                            }}
+                        >
+                            {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
+                        </UnstyledButton>
+                    </Tooltip>
                 </div>
-                {lines.length > 0 ? (
-                    <div className="ws-land-said" aria-live="polite">
-                        {lines.map((line) => (
-                            <p key={line}>{line}</p>
-                        ))}
-                    </div>
-                ) : null}
+                {/* On the page, empty, before its first line: a live region that arrives already
+                    holding its words is not read. Empty, it draws nothing (start.css). */}
+                <div className="ws-land-said" aria-live="polite">
+                    {lines.map((line) => (
+                        <p key={line}>{line}</p>
+                    ))}
+                </div>
             </div>
             {card === null || session === null ? null : (
                 <NodeCard
                     card={card}
                     boxRef={cardRef}
                     onClose={() => {
-                        session.selection.clear();
+                        session.selection.clear({ cause: "user" });
                     }}
                 />
             )}

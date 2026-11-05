@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
-import { supersededError } from "../session/loadLine";
+import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -177,7 +177,11 @@ interface EntryState {
     unwritten: Set<PartTag>;
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
+    /** The digests of the embedded models whose `asset:` parts the store holds. */
+    assets: Set<string>;
     release: (() => void) | null;
+    /** A claim of its lock in flight, which every other claim of it shares (`#claim`). */
+    claiming: Promise<(() => void) | null> | null;
     /** The size of each part the store holds for it, as far as this writer knows. */
     sizes: Map<string, number>;
 }
@@ -300,6 +304,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "views":
             case "notes":
             case "attributes":
+            case "shaders":
                 tags.push("rest");
                 break;
             default:
@@ -407,8 +412,10 @@ export class Autosaver {
     #maxWait: (() => void) | null = null;
     #idle: (() => void) | null = null;
     #told = "";
-    /** A restore is opening an entry: its changes and its boundary are not new work. */
-    #restoring = false;
+    /** A restore is opening an entry, or a discard reloads: see {@link #restoring}. */
+    #restoringFlag = false;
+    /** The restore's place in the session's load line, once its turn has come. */
+    #restoreTurn: LoadTurn | null = null;
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
@@ -478,6 +485,12 @@ export class Autosaver {
             }),
             session.on("project:status", () => {
                 this.#tell();
+            }),
+            // A model a layer named by URL settled after the layer was written: embed it now.
+            session.on("model:changed", ({ state }) => {
+                if (state === "accepted" && this.#entry.started) {
+                    this.#mark(["rest"], false, false);
+                }
             }),
             onSourceRecords(session, () => {
                 // A record can change with no row (a refresh that found nothing new, a next page
@@ -718,6 +731,9 @@ export class Autosaver {
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
         const own = metas.find((meta) => meta.id === options.own);
+        // The first candidate another tab claimed after the listing: two pages opened on one key
+        // at once both list it unheld, and only one claim succeeds (#4148).
+        let taken: AutosaveEntryMeta | null = null;
         for (const meta of restoreCandidates(open, own)) {
             const problem = unrestorable(meta);
             if (problem !== null) {
@@ -730,13 +746,39 @@ export class Autosaver {
                 return null;
             }
 
-            const restored = await this.#restoreFrom(meta, meta === own && live(meta), metas, live);
-            if (restored !== "next") {
+            const restored = await this.#restoreCandidate(meta, meta === own, metas, live);
+            if (restored === "taken") {
+                taken ??= meta;
+            } else if (restored !== "next") {
                 return restored;
             }
         }
 
+        // A page that lost every claim is told, as when the listing already showed the entry held.
+        if (taken !== null) {
+            this.#available(taken, true, "held-by-other-tab", null);
+        }
+
         return null;
+    }
+
+    /**
+     * Restore one candidate at the start. This tab's own entry that another tab claimed after the
+     * listing is copied, as it is when the listing shows it held.
+     * @param meta - The candidate, as listed.
+     * @param isOwn - It is this tab's own entry.
+     * @param metas - Every entry of the key, as listed.
+     * @param live - Whether a tab held an entry at the listing.
+     * @returns What `#restoreFrom` returns.
+     */
+    async #restoreCandidate(
+        meta: AutosaveEntryMeta,
+        isOwn: boolean,
+        metas: readonly AutosaveEntryMeta[],
+        live: (meta: AutosaveEntryMeta) => boolean,
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
+        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live, true);
+        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live, true) : restored;
     }
 
     /**
@@ -943,19 +985,44 @@ export class Autosaver {
             return;
         }
 
-        const release = await this.#locks.claim(lockName(this.#key, entry.id));
+        const release = await this.#claim(entry);
         if (entry !== this.#entry) {
             release?.();
+            entry.release = null;
             return;
         }
 
-        if (release !== null) {
-            entry.release = release;
-            return;
+        if (release === null) {
+            this.#conflict(entry.id);
+            this.#kick();
+        }
+    }
+
+    /**
+     * Take an entry's lock, sharing a claim of it already in flight. Two claims of one lock from
+     * this page would see each other as another tab: after the back/forward cache, a write that
+     * claims the released lock and `reclaim` race for it, and the loser moved the work to a new
+     * entry (#4037).
+     * @param entry - The entry.
+     * @returns The lock's release, also kept as `entry.release`; null when it is held elsewhere.
+     */
+    #claim(entry: EntryState): Promise<(() => void) | null> {
+        if (entry.release !== null) {
+            return Promise.resolve(entry.release);
         }
 
-        this.#conflict(entry.id);
-        this.#kick();
+        entry.claiming ??= this.#locks.claim(lockName(this.#key, entry.id)).then(
+            (release) => {
+                entry.claiming = null;
+                entry.release = release;
+                return release;
+            },
+            (error: unknown) => {
+                entry.claiming = null;
+                throw error;
+            },
+        );
+        return entry.claiming;
     }
 
     /**
@@ -1056,7 +1123,7 @@ export class Autosaver {
             ({ problem } = available);
         });
         this.#boundary();
-        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next";
+        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next" | "taken";
         try {
             restored = await this.#restoreFrom(meta, false, metas, live);
         } finally {
@@ -1064,7 +1131,7 @@ export class Autosaver {
         }
 
         const failed = problem as AutosaveAvailable["problem"];
-        if (restored === "next" && failed === null) {
+        if (restored === "taken" || (restored === "next" && failed === null)) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
         }
@@ -1107,11 +1174,11 @@ export class Autosaver {
 
         entry.release?.();
         entry.release = null;
-        this.#restoring = true;
+        this.#restoringFlag = true;
         try {
             await reload();
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
             this.#tell();
         }
     }
@@ -1237,9 +1304,35 @@ export class Autosaver {
             });
             return;
         }
-        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
-        // entry is written back as it was before the attempt, to be offered on the next load. A
-        // copy this restore made is removed instead: the entry it copied is still there.
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced.
+        await this.#takeBack(current, untried, copied);
+    }
+
+    /**
+     * Whether the graph already holds data, or a load or an edit waits in the session's line,
+     * that this autosave did not bring: the page asked for it before the restore could open.
+     * @returns True when it does.
+     */
+    #graphTaken(): boolean {
+        try {
+            const snapshot = this.#session.data.snapshot();
+            return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+        } catch {
+            // A session disposed meanwhile (the element left): the open reports that, releases the
+            // lock and settles the attempt, as it always did.
+            return false;
+        }
+    }
+
+    /**
+     * Take back a restore attempt that did not open: the entry is written back as it was before
+     * the attempt, to be offered on the next load. A copy this restore made is removed instead:
+     * the entry it copied is still there.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param copied - Whether `current` is a copy this restore made.
+     */
+    async #takeBack(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, copied: boolean): Promise<void> {
         if (copied) {
             await this.#store.remove(current.id).catch(() => undefined);
             return;
@@ -1297,20 +1390,24 @@ export class Autosaver {
      * @param copy - Copy it into a new entry instead of claiming it.
      * @param metas - Every entry of the key, as listed.
      * @param live - Whether a tab holds an entry.
-     * @returns What was restored; null when opening failed; `"next"` to try the next candidate.
+     * @param startup - The automatic restore at the start, which gives way to a graph the page
+     *     already asked for; a restore the reader picks opens over it.
+     * @returns What was restored; null when opening failed; `"next"` to try the next candidate;
+     *   `"taken"` when another tab holds its lock.
      */
     async #restoreFrom(
         meta: AutosaveEntryMeta,
         copy: boolean,
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
-    ): Promise<AutosaveRestored | null | "next"> {
+        startup = false,
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
         let release: (() => void) | null = null;
         if (!copy) {
-            // Atomic: of two tabs loading at once, one gets it and the other tries the next.
+            // Atomic: of two tabs loading at once, one gets it and the other is told.
             release = await this.#locks.claim(lockName(this.#key, meta.id));
             if (release === null) {
-                return "next";
+                return "taken";
             }
         }
 
@@ -1358,17 +1455,39 @@ export class Autosaver {
             });
         }
 
+        // The page asked the graph for data of its own while the entry was read (a sample, a file,
+        // rows): that newer load wins. The open would queue behind it and replace it, so the work
+        // is offered instead, as when the page's own data replaces a restore (issue #3313).
+        if (startup && this.#graphTaken()) {
+            await this.#takeBack(current, untried, copy);
+            release?.();
+            this.#available(meta, live(meta), "page-data-changed", null);
+            return null;
+        }
+
         let report: AutosaveRestored["report"];
-        this.#restoring = true;
+        // The open's place in line, taken now. The restore counts as writing only once its turn
+        // has come and until a clear cancels it: a change made while it waits behind a load, or
+        // right after a clear cancelled it, is the reader's (issue #3674).
+        const line = loadLineOf(dispatcherOf(this.#session));
+        const turn = line.join();
         try {
-            report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
+            await turn.wait();
+            this.#restoreTurn = turn;
+            this.#restoringFlag = true;
+            report = await line.within(turn, () =>
+                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+            );
         } catch (error) {
+            this.#restoringFlag = false;
+            turn.leave();
             // Before the lock goes, so no other tab commits over the entry meanwhile.
             await this.#restoreFailed(current, untried, error, copy);
             release?.();
             return null;
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
+            this.#restoreTurn = null;
         }
 
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
@@ -1435,7 +1554,9 @@ export class Autosaver {
             started: false,
             unwritten: new Set(),
             runs: new Map(),
+            assets: new Set(),
             release: null,
+            claiming: null,
             sizes: new Map(),
         };
     }
@@ -1496,6 +1617,15 @@ export class Autosaver {
             this.#quiet = quiet;
             this.#releasedSteps = this.#readerStepsInLoad();
         }
+    }
+
+    /**
+     * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
+     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * @returns True while they are.
+     */
+    get #restoring(): boolean {
+        return this.#restoringFlag && this.#restoreTurn?.superseded !== true;
     }
 
     /**
@@ -1620,7 +1750,7 @@ export class Autosaver {
 
         let parts: Record<string, string | null> = {};
         try {
-            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash));
+            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash, entry.assets));
         } catch (error) {
             this.#failed(error);
         }
@@ -1673,7 +1803,7 @@ export class Autosaver {
         const writesEntry = entry.started && entry.unwritten.size > 0;
         if (writesEntry) {
             const carried = entry.unwritten;
-            const built = buildParts(this.#session, carried, entry.runs, this.#stash);
+            const built = buildParts(this.#session, carried, entry.runs, this.#stash, entry.assets);
             const sizes = sizesAfter(entry.sizes, built.parts);
             const meta = this.#metaOf(entry, sizes);
             entry.unwritten = new Set();
@@ -1688,6 +1818,9 @@ export class Autosaver {
             job.done.push(() => {
                 entry.gen += 1;
                 entry.sizes = sizes;
+                if (built.assets !== undefined) {
+                    entry.assets = new Set(built.assets);
+                }
                 if (job.strict) {
                     this.#strict = false;
                 }
@@ -1836,7 +1969,7 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
+                await this.#claim(entry);
                 // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
             }
 

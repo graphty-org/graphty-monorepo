@@ -1,7 +1,7 @@
 // Installs Mesh.prototype.createInstance, which get() calls. This module loads it itself so any
 // path that reaches get() -- including a consumer resolving the element from source -- has it.
 // See test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Meshes/instancedMesh";
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
 import { InstancedMesh, Mesh, type Scene } from "@babylonjs/core";
 
@@ -63,9 +63,17 @@ export class MeshCache {
      * @param name - Cache key for the batch, which is also the name its mesh carries.
      * @param creator - Function to build the batch's line mesh if there is no batch yet.
      * @param scene - The scene that renders it.
+     * @param make - Builds the batch on the mesh, for a batch that draws more than a line (a
+     *     shader); defaults to a plain {@link EdgeLineBatch}.
      * @returns The batch to take a slot in.
      */
-    getBatch(name: string, creator: MeshCreatorFn, scene: Scene): EdgeLineBatch {
+    getBatch(
+        name: string,
+        creator: MeshCreatorFn,
+        scene: Scene,
+        make: (mesh: Mesh, scene: Scene, retire: () => void) => EdgeLineBatch = (mesh, at, retire) =>
+            new EdgeLineBatch(mesh, at, retire),
+    ): EdgeLineBatch {
         const existing = this.batchCacheMap.get(name);
 
         if (existing) {
@@ -76,7 +84,7 @@ export class MeshCache {
         this.misses++;
         const mesh = creator();
         mesh.name = name;
-        const batch: EdgeLineBatch = new EdgeLineBatch(mesh, scene, () => {
+        const batch: EdgeLineBatch = make(mesh, scene, () => {
             if (this.batchCacheMap.get(name) === batch) {
                 this.batchCacheMap.delete(name);
             }
@@ -127,6 +135,26 @@ export class MeshCache {
                 this.meshCacheMap.delete(name);
             }
         }
+    }
+
+    /**
+     * Dispose and forget the cached meshes that match, with every instance drawn from them, so the
+     * next `get` of their name builds them again: a look whose drawing went stale (a glyph drawn in
+     * the fallback while its web font loaded). Whoever held an instance finds it disposed.
+     * @param match - Whether a cached source mesh is stale.
+     * @returns True when any was forgotten.
+     */
+    forget(match: (mesh: Mesh) => boolean): boolean {
+        let forgot = false;
+        for (const [name, mesh] of this.meshCacheMap) {
+            if (match(mesh)) {
+                MeshCache.disposeSource(mesh);
+                this.meshCacheMap.delete(name);
+                forgot = true;
+            }
+        }
+
+        return forgot;
     }
 
     /**

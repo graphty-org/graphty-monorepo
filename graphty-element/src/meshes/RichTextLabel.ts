@@ -3,6 +3,7 @@ import {
     type Camera,
     Color3,
     DynamicTexture,
+    InstancedMesh,
     Mesh,
     MeshBuilder,
     Scene,
@@ -26,7 +27,12 @@ import {
     uploadPremultiplied,
 } from "./LabelBatch";
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
+import { keepOnEyeLine } from "./labelEyeLine";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
+import { LabelTexture } from "./LabelTexture";
+import { fitTexturesToScreen } from "./labelTextureFit";
+import { labelBoxOf } from "./NodeShapeGeometry";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -57,7 +63,28 @@ const DEFAULT_LINE_HEIGHT = 1.2;
 /** The most texture pixels a label gives one em of its font (see `_createTexture`). */
 const LABEL_MAX_FONT_PX = 64;
 
-/** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale}. */
+/**
+ * The steps a label's uploaded texels per em are rounded up to, per doubling: four, so a label is uploaded at
+ * one to 1.19 texels per pixel it covers. A step is a function of the size on screen alone, never of the size
+ * it had before, so the same view always draws the same texture: a zoom in and back draws what it drew.
+ */
+const TEXEL_STEPS_PER_DOUBLING = 4;
+
+/** The fewest texture pixels per em a label is uploaded with, however small it is on screen. */
+const MIN_TEXELS_PER_EM = 4;
+
+/**
+ * Device pixels per CSS pixel, at least 1.
+ * @returns The ratio.
+ */
+function deviceScale(): number {
+    return Math.max(1, globalThis.devicePixelRatio || 1);
+}
+
+/** The scenes being captured larger than their canvas; see {@link RichTextLabel.setCaptureScale}. */
+const capturing = new WeakSet<Scene>();
+
+/** The labels drawn in each scene, for {@link RichTextLabel.setCaptureScale} and the texture sweep. */
 const sceneLabels = new WeakMap<Scene, Set<RichTextLabel>>();
 
 export type BadgeType =
@@ -219,6 +246,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "offsetY"
     | "shiftX"
     | "shiftY"
+    | "shiftOf"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -445,6 +473,10 @@ export class RichTextLabel {
     private placementBounds: PlacementBounds | null = null;
     /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
     private centerPivot: TransformNode | null = null;
+    /** Between the pivot and the label: slides the label onto its node's line of sight; see labelEyeLine. */
+    private eyeLineShift: TransformNode | null = null;
+    /** Ends keeping the label on its node's line of sight; see labelEyeLine. */
+    private stopEyeLine: (() => void) | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
     private undoesStretch = false;
     private animationStarted = false;
@@ -457,6 +489,9 @@ export class RichTextLabel {
     /** How many times its usual texture pixels the label is drawn with, for a capture larger than the canvas. */
     private captureScale = 1;
 
+    /** Texture pixels per em the label is uploaded at for its size on screen; null uploads its canvas whole. */
+    private screenTexelsPerEm: number | null = null;
+
     /**
      * Draw every label of a scene with as many texture pixels as a capture of `scale` output pixels per
      * canvas pixel shows it at, so its words stay as sharp as on screen; 1 puts every label back.
@@ -468,38 +503,101 @@ export class RichTextLabel {
      */
     static setCaptureScale(scene: Scene, scale: number): void {
         const camera = scene.activeCamera;
+        if (scale === 1) {
+            capturing.delete(scene);
+        } else {
+            capturing.add(scene);
+        }
+
         for (const label of sceneLabels.get(scene) ?? []) {
             label.useCaptureScale(scale === 1 || camera === null ? 1 : label.captureScaleFor(camera, scale));
+            label.uploadForCapture(camera, scale);
+        }
+    }
+
+    /**
+     * Upload a label fitted to the screen at as many texels as a capture of `scale` shows it at, up to its whole
+     * canvas, or back at its size on screen when `scale` is 1. A label redrawn for the capture
+     * ({@link useCaptureScale}) is already uploaded whole.
+     * @param camera - The camera the capture is drawn from.
+     * @param scale - Output pixels per canvas pixel.
+     */
+    private uploadForCapture(camera: Camera | null, scale: number): void {
+        const { texture } = this;
+        if (!(texture instanceof LabelTexture)) {
+            return;
+        }
+
+        let perEm = this.captureScale === 1 ? this.screenTexelsPerEm : null;
+        if (perEm !== null && scale !== 1 && camera !== null) {
+            perEm = this.screenFontPx(camera) * scale;
+        }
+
+        if (this.uploadAt(texture, perEm)) {
+            uploadPremultiplied(texture);
         }
     }
 
     /**
      * How big a label's words would be drawn, without drawing them: as wide as its widest line and
      * as tall as its lines at one font size each, in world units, by the same measurement a drawn
-     * label makes. No texture, material or mesh is made.
+     * label makes, with its first line's ascent and descent (its ink above and below its baseline; the label's
+     * words are drawn centered on their line, so their baseline sits half their difference below that middle). No
+     * texture, material or mesh is made.
      * @param scene - Babylon.js scene
      * @param userOptions - Label configuration options
-     * @returns The width and height in world units
+     * @returns The width, height, ascent and descent in world units
      */
-    static measureWords(scene: Scene, userOptions: RichTextLabelOptions): { width: number; height: number } {
+    static measureWords(
+        scene: Scene,
+        userOptions: RichTextLabelOptions,
+    ): { width: number; height: number; ascent: number; descent: number } {
         RichTextLabel.measuring = true;
         try {
             const label = new RichTextLabel(scene, { ...userOptions, attachTo: undefined, animation: "none" });
             const { width, height } = label.actualDimensions;
             if (width <= 0 || height <= 0) {
-                return { width: 0, height: 0 };
+                return { width: 0, height: 0, ascent: 0, descent: 0 };
             }
 
             // One canvas pixel in the world, as `_createMesh` sizes the plane.
             const perPixel = (label.lineHeightInWorld() * label.heightInLines) / height;
             const lines = Math.max(1, label.parsedContent.length);
+            const ctx = document.createElement("canvas").getContext("2d");
+            const first = label.parsedContent.find((line) => line.length > 0);
+            let ink = { ascent: 0, descent: 0 };
+            if (ctx !== null && first !== undefined) {
+                // measured with the glyphs it is drawn with, as `_calculateDimensions` measures
+                ctx.textRendering = "geometricPrecision";
+                ink = measureLine(ctx, first, label.options);
+            }
             return {
                 width: label.textSize.width * perPixel,
                 height: lines * label.options.fontSize * perPixel,
+                ascent: ink.ascent * perPixel,
+                descent: ink.descent * perPixel,
             };
         } finally {
             RichTextLabel.measuring = false;
         }
+    }
+
+    /**
+     * Whether this label draws any of its words in one of some font families: its own font, or one
+     * a `<font>` tag in its words names.
+     * @param families - Family names, as {@link fontFamilies} gives them.
+     * @returns True when it does.
+     * @internal
+     */
+    public usesFont(families: ReadonlySet<string>): boolean {
+        const fonts = new Set([this.options.font]);
+        for (const line of this.parsedContent) {
+            for (const segment of line) {
+                fonts.add(segment.style.font);
+            }
+        }
+
+        return [...fonts].some((font) => fontFamilies(font).some((family) => families.has(family)));
     }
 
     /**
@@ -701,6 +799,11 @@ export class RichTextLabel {
 
     private _create(): void {
         this._parseRichText();
+        // A web font still loading draws in its fallback: load it, and the label is rebuilt when it lands.
+        for (const { style } of this.parsedContent.flat()) {
+            noteLabelFont(this.scene, `${style.style} ${style.weight}`, style.font);
+        }
+
         this._calculateDimensions();
         this._createTexture();
         this._createMaterial();
@@ -712,6 +815,7 @@ export class RichTextLabel {
         }
 
         labels.add(this);
+        fitTexturesToScreen(this.scene, labels);
 
         if (this.options.attachTo) {
             this._attachToTarget();
@@ -914,12 +1018,80 @@ export class RichTextLabel {
     }
 
     /**
-     * Texture pixels per pixel of the label's own canvas, before any capture scale.
-     * @param screenDensity - Texture pixels per canvas pixel a screen-sized label needs.
+     * Texture pixels per pixel of the label's own canvas, before any capture scale: one (one per device pixel for
+     * a label sized for the screen), at most {@link LABEL_MAX_FONT_PX} per em.
      * @returns The density.
      */
-    private texelsPerFontPx(screenDensity: number): number {
+    private texelsPerFontPx(): number {
+        const screenDensity = this.options.sizeMode === "screen" ? deviceScale() : 1;
         return screenDensity * Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
+    }
+
+    /**
+     * Upload the texture at about one texture pixel per pixel the label's letters cover in the drawn frame,
+     * rounded up to a step of {@link TEXEL_STEPS_PER_DOUBLING}, when its step has changed. Never more than the
+     * label's own canvas has: a label
+     * drawn larger than that is uploaded whole, as before. Only a label that sizes its texture to its words
+     * (`autoSize`), is shown, and is not drawn for a capture (see {@link setCaptureScale}) is fitted. See
+     * labelTextureFit and LabelTexture.
+     * @param camera - The camera the frame is drawn from.
+     * @returns True when it was uploaded again.
+     */
+    public fitTextureToScreen(camera: Camera): boolean {
+        const { mesh, texture } = this;
+        const shown = mesh?.isEnabled() === true && mesh.isVisible && mesh.visibility > 0;
+        const fittable = this.options.autoSize && this.captureScale === 1 && !capturing.has(this.scene);
+        if (!fittable || !(texture instanceof LabelTexture) || !shown) {
+            return false;
+        }
+
+        // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
+        const onScreen = this.screenFontPx(camera);
+        if (onScreen <= 0) {
+            return false;
+        }
+
+        const own = this.canvasTexelsPerEm(texture);
+        const step = Math.ceil(Math.log2(Math.max(onScreen, MIN_TEXELS_PER_EM)) * TEXEL_STEPS_PER_DOUBLING);
+        const wanted = 2 ** (step / TEXEL_STEPS_PER_DOUBLING);
+        const target = wanted >= own ? null : wanted;
+        if (target === this.screenTexelsPerEm) {
+            return false;
+        }
+
+        this.screenTexelsPerEm = target;
+        this.uploadAt(texture, this.screenTexelsPerEm);
+        uploadPremultiplied(texture);
+        return true;
+    }
+
+    /**
+     * Size what the texture uploads: its canvas shrunk to `perEm` texels per em, or whole.
+     * @param texture - The label's texture.
+     * @param perEm - Texels per em; null, or at least the canvas's own, uploads the canvas whole.
+     * @returns Whether the uploaded size changed, so the texture must be uploaded again.
+     */
+    private uploadAt(texture: LabelTexture, perEm: number | null): boolean {
+        const shrunk = perEm !== null && perEm < this.canvasTexelsPerEm(texture);
+        const perPx = shrunk ? perEm / this.options.fontSize : 0;
+        const changed = texture.showAt(
+            shrunk
+                ? { width: this.actualDimensions.width * perPx, height: this.actualDimensions.height * perPx }
+                : null,
+        );
+        // About one texture pixel per screen pixel: sampled straight, since mipmaps would only blur it.
+        texture.updateSamplingMode(shrunk ? Texture.BILINEAR_SAMPLINGMODE : Texture.TRILINEAR_SAMPLINGMODE);
+        return changed;
+    }
+
+    /**
+     * Texture pixels per em down the label's own canvas, as drawn (rounded up to a power of two).
+     * @param texture - The label's texture.
+     * @returns The density.
+     */
+    private canvasTexelsPerEm(texture: LabelTexture): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? (texture.getSize().height / height) * this.options.fontSize : 0;
     }
 
     /**
@@ -930,8 +1102,7 @@ export class RichTextLabel {
      * @returns The scale, 1 when the capture does not magnify the label.
      */
     private captureScaleFor(camera: Camera, scale: number): number {
-        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
-        const texelsPerEm = this.options.fontSize * this.texelsPerFontPx(screenDensity);
+        const texelsPerEm = this.options.fontSize * this.texelsPerFontPx();
         const wanted = (this.screenFontPx(camera) * scale) / texelsPerEm;
         return wanted > 1 ? Math.min(scale, wanted) : 1;
     }
@@ -952,25 +1123,26 @@ export class RichTextLabel {
         old?.dispose();
     }
 
-    private _createTexture(): void {
+    /**
+     * The texture's size in pixels, for the label's canvas at its density and capture scale.
+     * @returns The width and height.
+     */
+    private textureSize(): { width: number; height: number } {
         const MAX_TEXTURE_SIZE = 4096;
-        // A label sized for the screen draws one canvas unit per CSS pixel, so its texture needs
-        // a texel per device pixel to stay sharp on a high-density screen.
-        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
-
         // AT MOST LABEL_MAX_FONT_PX TEXTURE PIXELS PER EM. The plane's size in the scene comes from
         // the font size, not from the texture, so a label drawn very large in the scene (a file whose
         // labels are many times its nodes) needs no more pixels than one drawn at that cap: without
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
-        const density = this.texelsPerFontPx(screenDensity) * this.captureScale;
+        const density = this.texelsPerFontPx() * this.captureScale;
+        const round = (px: number): number => Math.pow(2, Math.ceil(Math.log2(px)));
         let textureWidth = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
+            ? round(this.actualDimensions.width * density)
             : this.options.resolution;
 
         const aspectRatio = this.actualDimensions.width / this.actualDimensions.height;
         let textureHeight = this.options.autoSize
-            ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.height * density)))
+            ? round(this.actualDimensions.height * density)
             : Math.floor(textureWidth / aspectRatio);
 
         if (textureWidth > MAX_TEXTURE_SIZE || textureHeight > MAX_TEXTURE_SIZE) {
@@ -992,6 +1164,12 @@ export class RichTextLabel {
             }
         }
 
+        return { width: textureWidth, height: textureHeight };
+    }
+
+    private _createTexture(): void {
+        const { width: textureWidth, height: textureHeight } = this.textureSize();
+
         // RASTERISED ON THE CPU. Chromium draws an ordinary 2D canvas on the GPU, and on a
         // software GPU (SwiftShader: headless browsers, visual-review services) the antialiased
         // edge of large text differs by one alpha level at scattered pixels from one page load
@@ -1000,11 +1178,14 @@ export class RichTextLabel {
         // time. A canvas has one context for life, so Babylon's own getContext("2d") gets this one.
         const canvas = this.scene.getEngine().createCanvas(textureWidth, textureHeight);
         canvas.getContext("2d", { willReadFrequently: true });
-        this.texture = new DynamicTexture(`richTextTexture_${this.id}`, canvas, this.scene, true);
+        const texture = new LabelTexture(`richTextTexture_${this.id}`, canvas, this.scene);
+        this.texture = texture;
 
         // Nothing uses the texture yet; see LabelBatch (issue #2762).
-        giveAlphaQuietly(this.scene, this.texture);
-        this.texture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
+        giveAlphaQuietly(this.scene, texture);
+        // A label redrawn (new words, the end of a capture) keeps the size on screen it was last fitted to; one
+        // redrawn for a capture is uploaded whole.
+        this.uploadAt(texture, this.captureScale === 1 ? this.screenTexelsPerEm : null);
 
         this._drawContent();
     }
@@ -1350,54 +1531,59 @@ export class RichTextLabel {
 
         // Handle legacy gradient properties
         if (this.options.backgroundGradient) {
-            let gradient: CanvasGradient;
-
-            // Use content area coordinates for gradient to ensure it's positioned correctly
-            const gradientX = this.contentArea.x;
-            const gradientY = this.contentArea.y;
-            const gradientWidth = this.contentArea.width;
-            const gradientHeight = this.contentArea.height;
-
-            if (this.options.backgroundGradientType === "radial") {
-                const centerX = gradientX + gradientWidth / 2;
-                const centerY = gradientY + gradientHeight / 2;
-                const radius = Math.max(gradientWidth, gradientHeight) / 2;
-                gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            } else {
-                switch (this.options.backgroundGradientDirection) {
-                    case "horizontal":
-                        gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
-                        break;
-                    case "diagonal":
-                        gradient = ctx.createLinearGradient(
-                            gradientX,
-                            gradientY,
-                            gradientX + gradientWidth,
-                            gradientY + gradientHeight,
-                        );
-                        break;
-                    case "vertical":
-                    default:
-                        gradient = ctx.createLinearGradient(
-                            gradientX,
-                            gradientY,
-                            gradientX,
-                            gradientY + gradientHeight,
-                        );
-                        break;
-                }
-            }
-
-            const colors = this.options.backgroundGradientColors;
-            for (let i = 0; i < colors.length; i++) {
-                gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
-            }
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = this._legacyBackgroundGradient(ctx);
         } else {
             ctx.fillStyle = typeof bgColor === "string" ? bgColor : "transparent";
         }
 
         ctx.fill();
+    }
+
+    /**
+     * The gradient the legacy `backgroundGradient*` options describe, over the content area.
+     * @param ctx - The canvas context the gradient is made for.
+     * @returns The gradient, with its color stops added.
+     */
+    private _legacyBackgroundGradient(ctx: CanvasRenderingContext2D): CanvasGradient {
+        let gradient: CanvasGradient;
+
+        // Use content area coordinates for gradient to ensure it's positioned correctly
+        const gradientX = this.contentArea.x;
+        const gradientY = this.contentArea.y;
+        const gradientWidth = this.contentArea.width;
+        const gradientHeight = this.contentArea.height;
+
+        if (this.options.backgroundGradientType === "radial") {
+            const centerX = gradientX + gradientWidth / 2;
+            const centerY = gradientY + gradientHeight / 2;
+            const radius = Math.max(gradientWidth, gradientHeight) / 2;
+            gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+        } else {
+            switch (this.options.backgroundGradientDirection) {
+                case "horizontal":
+                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX + gradientWidth, gradientY);
+                    break;
+                case "diagonal":
+                    gradient = ctx.createLinearGradient(
+                        gradientX,
+                        gradientY,
+                        gradientX + gradientWidth,
+                        gradientY + gradientHeight,
+                    );
+                    break;
+                case "vertical":
+                default:
+                    gradient = ctx.createLinearGradient(gradientX, gradientY, gradientX, gradientY + gradientHeight);
+                    break;
+            }
+        }
+
+        const colors = this.options.backgroundGradientColors;
+        for (let i = 0; i < colors.length; i++) {
+            gradient.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
+        }
+
+        return gradient;
     }
 
     private _drawProgressBar(ctx: CanvasRenderingContext2D): void {
@@ -1614,7 +1800,7 @@ export class RichTextLabel {
             this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
         }
 
-        this.mesh.billboardMode = this.options.billboardMode;
+        this.mesh.billboardMode = this.billboard();
         // Turned in its own plane, which faces the camera: clockwise on screen is a negative turn about z.
         this.mesh.rotation.z = (-(this.options.rotation ?? 0) * Math.PI) / 180;
         // A label sorts by depth with the nodes and edges it belongs to unless its style sets
@@ -1638,7 +1824,13 @@ export class RichTextLabel {
     private offsetAndShift(labelWidth: number, labelHeight: number): { x: number; y: number } {
         const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
         const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
-        const [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        let [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        if (this.options.shiftOf === "words" && (shiftX !== 0 || shiftY !== 0)) {
+            // the words' own box is what moves: its middle off the plane's, and its size, not the margins round it
+            const w = this.textBounds;
+            sx0 = shiftX * (w.right - w.left) * labelWidth - ((w.left + w.right) / 2 - 0.5) * labelWidth;
+            sy0 = shiftY * (w.bottom - w.top) * labelHeight - ((w.top + w.bottom) / 2 - 0.5) * labelHeight;
+        }
         return {
             x: offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn),
             y: offsetY + sx0 * Math.sin(turn) + sy0 * Math.cos(turn),
@@ -1690,8 +1882,10 @@ export class RichTextLabel {
             return { min: target.clone(), max: target.clone() };
         }
         if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
+            // a turned node shape keeps its label beside its unturned box
+            const own = labelBoxOf(target instanceof InstancedMesh ? target.sourceMesh : (target as Mesh));
             const { boundingBox } = target.getBoundingInfo();
-            return this.ringBounds({ min: boundingBox.minimum, max: boundingBox.maximum });
+            return this.ringBounds(own ?? { min: boundingBox.minimum, max: boundingBox.maximum });
         }
         return null;
     }
@@ -1902,9 +2096,10 @@ export class RichTextLabel {
      *
      * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
      * mesh hid it. It hangs from a pivot at the node's centre instead, and the pivot, not the
-     * label, turns to face the camera: in the pivot's frame the camera is always straight down
-     * -z, so a label placed one bounding radius along -z is in front of the node from wherever it
-     * is seen.
+     * label, turns like the camera: in the pivot's frame the camera looks down +z, so a label placed
+     * one bounding radius along -z is in front of the node from wherever it is seen. Between the
+     * two, a shift slides the label onto the node's own line of sight (see labelEyeLine), so a
+     * centered label is drawn over the node's center anywhere in the view.
      * @param target - The mesh the label belongs to.
      * @param center - The mesh's bounds when the label sits at its centre, otherwise null.
      * @returns The origin of the frame the label is now positioned in.
@@ -1914,7 +2109,7 @@ export class RichTextLabel {
         if (center === null) {
             this.dropPivot();
             mesh.parent = target;
-            mesh.billboardMode = this.options.billboardMode;
+            mesh.billboardMode = this.billboard();
             return Vector3.Zero();
         }
 
@@ -1922,14 +2117,35 @@ export class RichTextLabel {
         this.centerPivot.parent = target;
         this.centerPivot.position =
             this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
-        this.centerPivot.billboardMode = this.options.billboardMode;
-        mesh.parent = this.centerPivot;
+        this.centerPivot.billboardMode = this.billboard();
+        if (this.eyeLineShift === null) {
+            this.eyeLineShift = new TransformNode(`richTextEyeLine_${this.id}`, this.scene);
+            this.eyeLineShift.parent = this.centerPivot;
+            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () => mesh.position.z);
+        }
+        mesh.parent = this.eyeLineShift;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
         return Vector3.Zero();
     }
 
+    /**
+     * The billboard mode the label is drawn with. In the 2D view a label that faces the camera
+     * keeps no upright of its own: it turns with the view, as the rest of the drawing does
+     * (Graphviz's landscape turns its labels too).
+     * @returns The mode.
+     */
+    private billboard(): number {
+        const mode = this.options.billboardMode;
+        return mode === Mesh.BILLBOARDMODE_ALL && this.scene.metadata?.twoD === true
+            ? Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y
+            : mode;
+    }
+
     /** Dispose the pivot a "center" label hung from, once the label no longer hangs from it. */
     private dropPivot(): void {
+        this.stopEyeLine?.();
+        this.stopEyeLine = null;
+        this.eyeLineShift = null;
         this.centerPivot?.dispose();
         this.centerPivot = null;
     }
@@ -2083,6 +2299,8 @@ export class RichTextLabel {
         this.stopMinScreenSize = null;
         this.stopScreenFit?.();
         this.stopScreenFit = null;
+        this.stopEyeLine?.();
+        this.stopEyeLine = null;
         this.unmarkClose?.();
         sceneLabels.get(this.scene)?.delete(this);
 
@@ -2212,6 +2430,25 @@ export class RichTextLabel {
             top: y / height,
             bottom: (y + this.textSize.height) / height,
         };
+    }
+
+    /**
+     * The label's font size times its line count, as a fraction of the plane's height: how tall Cytoscape.js bounds
+     * its words, where {@link textBounds} gives the line boxes they are drawn in.
+     * @returns The fraction.
+     */
+    public get emHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? (this.options.fontSize * Math.max(1, this.parsedContent.length)) / height : 0;
+    }
+
+    /**
+     * One pixel of the label's font as a fraction of the plane's height, in the units {@link emHeight} measures.
+     * @returns The fraction.
+     */
+    public get pixelHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? 1 / height : 0;
     }
 
     /**

@@ -222,7 +222,7 @@ describe("JSONL streaming integration", () => {
 
         for (const line of lines) {
             // Each line should be valid JSON
-            const parsed = JSON.parse(line);
+            const parsed: unknown = JSON.parse(line);
             expect(parsed).toHaveProperty("time");
             expect(parsed).toHaveProperty("level");
             expect(parsed).toHaveProperty("message");

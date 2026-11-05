@@ -19,9 +19,9 @@ this folder, not against a JSON translation of it. `story` is the fidelity Story
 | I10 | `cx2--signor-aml`                       | `cx2-signor-aml`                   | arrowheads too large                                                                                     | arrowhead size                                 | fixed (arrowheads, group labels); edges were the comparison's   | Arrowheads fixed with I01: length 2/64 -> 60/63, width 2/64 -> 60/63, arrow type 128/144 (16 ends where one side draws an arrow and the other does not). Still open: only 72 of Cytoscape's 293 edges are found in graphty's drawing (graphty draws 306), and group label 0/3: graphty labels the boxes 'AP1', 'NFY', 'NfKb-p65/p50' where the comparator finds no label in Cytoscape's group; the floor (0.25) was met before the branches were merged, so this is a merge regression to trace. [report](http://dev.ato.ms:9323/cx2-signor-aml.html) Group labels (2026-10-18): 0/3 -> 3/3. Cytoscape draws 'AP1', 'NFY' and 'NfKb-p65/p50' (they are in its SVG at the boxes' centers), but paints nodes in an order of its own that the file does not give, so a later node covers them; the comparison now pairs each box with the group graphty draws over it and finds its words even under a node. Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): edge.arrowLength 60/63 -> 201/210; edge.arrowWidth 60/63 -> 200/210; edge.arrow 128/144 -> 449/526; edge.present 72/293 -> 263/291; group.label 0/3 -> 3/3. Open: 28 of Cytoscape's 291 edges are still not found in graphty's drawing (not traced).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | I11 | `cytoscape-session--luad-vest-v-2`      | `cys-luad-vest-v2`                 | some nodes missing internal yellow color                                                                 | node fill                                      | reference was wrong                                             | As classified: the yellow was Cytoscape's selection highlight. The comparison now loads the network the oracle draws (`network.title`, 'H. sapiens (10)'): node position 4/19 -> 163/163, label text 0/19 -> 163/163, node fill 163/163, edge present 1/6 -> 280/300. [report](http://dev.ato.ms:9323/cys-luad-vest-v2.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.fill 163/163 -> 163/163; node.width 141/163 -> 163/163.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | I12 | `dot--profile`                          | `dot-profile`                      | not even close to the right layout                                                                       | layout (Graphviz)                              | layout                                                          | DOT stores no positions and graphty laid it out with its own force layout (node position 0/61, fitted error 0.25 of the diagonal); a Graphviz dot engine is needed. Everything not caused by the layout now passes: arrowhead length 0/85 -> 85/85 and width 0/85 -> 85/85 (I01's fix), node size, outline, label size. Curve 67/85 follows the routes, which follow the layout. [report](http://dev.ato.ms:9323/dot-profile.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 0/61 -> 0/61.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| I13 | `dot--real-crazy`                       | `dot-real-crazy`                   | not even close to the right layout                                                                       | layout (Graphviz)                              | layout                                                          | Layout only (node position 0/41, fitted error 0.19). The import defects measured before are fixed by the Graphviz and arrowhead branches: node outline 0/41 -> 41/41, edge width 0/49 -> 49/49, arrowheads 0/49 -> 49/49 (length and width), node height 6/41 -> 41/41, label size 41/41. Curve 43/49 follows the layout. [report](http://dev.ato.ms:9323/dot-real-crazy.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 0/41 -> 0/41.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| I14 | `dot--real-siblings`                    | `dot-real-siblings`                | not even close to the right layout                                                                       | layout (Graphviz)                              | layout; fixed (node height)                                     | Layout: node position 0/200, fitted error 0.22. Fixed since the first run: the #add8e6 outline (node outline 0/199 -> 200/200) and arrowheads (0/283 -> 281/284). Still an import defect, not the layout: node height 1.20x Graphviz's (0/200), likely graph-io's DOT node size (Graphviz pads `height` to fit the label at its own font metrics, and graphty draws the declared or a padded height that is 20% taller). [report](http://dev.ato.ms:9323/dot-real-siblings.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 0/200 -> 0/200; node.height 0/200 -> 200/200. Open: node positions, which wait for a Graphviz layout.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| I15 | `dot--real-happiness`                   | `dot-real-happiness`               | not even close to the right layout                                                                       | layout (Graphviz)                              | layout; partly fixed (node height)                              | Layout: the file names twopi, graphty used its own force layout (node position 1/77, fitted error 0.26). Import defect, not the layout: node height 1.22x Graphviz's (0/77), the same DOT node height gap as I14. The file asks for URW Chancery or Comic Sans, which the pinned fonts lack (label size still passes 77/77). [report](http://dev.ato.ms:9323/dot-real-happiness.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 1/77 -> 1/77; node.height 0/77 -> 53/77. Open: 24 node heights on dot-real-happiness, where Chromium draws "Verdana" and "Comic Sans" in a narrower fallback font than Graphviz's DejaVu Sans, so the comparison's width-based scale reads correct heights as too tall.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| I13 | `dot--real-crazy`                       | `dot-real-crazy`                   | not even close to the right layout                                                                       | layout (Graphviz)                              | layout                                                          | Layout only (node position 0/41, fitted error 0.19). The import defects measured before are fixed by the Graphviz and arrowhead branches: node outline 0/41 -> 41/41, edge width 0/49 -> 49/49, arrowheads 0/49 -> 49/49 (length and width), node height 6/41 -> 41/41, label size 41/41. Curve 43/49 follows the layout. [report](http://dev.ato.ms:9323/dot-real-crazy.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 0/41 -> 0/41. Round 4 (2026-10-21): graphty drew every `shape=polygon` node that grows to fit its label too large by its corners' reach a second time: graph-io gives the corners where Graphviz draws them, past the node's box, and the label fit had already grown the box by that reach (`4.2 BSD` drew 305 points wide against Graphviz's 175). The fit now leaves the box at the size the corners are fractions of: node.width 20/41 -> 41/41, node.height 26/41 -> 41/41, label.anchor 35/41 -> 38/41, and on the matched view node.position 32/41 -> 35/41. That also took away the 0.835 scale of every length: Graphviz had spaced the oversized nodes. Open, and not graphty's layout: Graphviz measured the labels in DejaVu Sans (fontconfig's face for the unknown `Helvetica-Outline`: `Mini Unix` 64.5 points at 14), Chromium in its sans-serif, Liberation Sans (57.6), so graphty's nodes are 5 to 14 percent narrower, Graphviz packs them closer, the canvas zooms in and label.size reads 1.13 (0/41), node.position 9/41.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| I14 | `dot--real-siblings`                    | `dot-real-siblings`                | not even close to the right layout                                                                       | layout (Graphviz)                              | layout; fixed (node height)                                     | Layout: node position 0/200, fitted error 0.22. Fixed since the first run: the #add8e6 outline (node outline 0/199 -> 200/200) and arrowheads (0/283 -> 281/284). Still an import defect, not the layout: node height 1.20x Graphviz's (0/200), likely graph-io's DOT node size (Graphviz pads `height` to fit the label at its own font metrics, and graphty draws the declared or a padded height that is 20% taller). [report](http://dev.ato.ms:9323/dot-real-siblings.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 0/200 -> 0/200; node.height 0/200 -> 200/200. Open: node positions, which wait for a Graphviz layout. Round 4 (2026-10-21): the positions are not the layout's. graphty's DOT for this file, handed Graphviz's own node sizes, gives Graphviz's drawing exactly (200/200 nodes within 5 points of the CLI's, offset only by the graph label graphty does not lay out); with node widths 8 percent narrower, the median node moves 180 points. graphty's nodes are about 10 percent narrower than Graphviz's because its tests draw `Verdana` in Inter (test/helpers/pin-label-font.ts) and Graphviz drew it in DejaVu Sans (`Amy Price` 64.5 against 70.4 points at 14). Fixing it means drawing the oracle runs in the faces the programs drew, which moves every Verdana sample's floors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| I15 | `dot--real-happiness`                   | `dot-real-happiness`               | not even close to the right layout                                                                       | layout (Graphviz)                              | layout; partly fixed (node height)                              | Layout: the file names twopi, graphty used its own force layout (node position 1/77, fitted error 0.26). Import defect, not the layout: node height 1.22x Graphviz's (0/77), the same DOT node height gap as I14. The file asks for URW Chancery or Comic Sans, which the pinned fonts lack (label size still passes 77/77). [report](http://dev.ato.ms:9323/dot-real-happiness.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.position 1/77 -> 1/77; node.height 0/77 -> 53/77. Open: 24 node heights on dot-real-happiness, where Chromium draws "Verdana" and "Comic Sans" in a narrower fallback font than Graphviz's DejaVu Sans, so the comparison's width-based scale reads correct heights as too tall. Round 4 (2026-10-21): positions pass (twopi places by rank, not by size); node.width 46/77 is the font: Graphviz drew the URW Chancery / Comic Sans list in DejaVu Sans (`Peace` 118.5 points at 40), Chromium in a narrower face (93.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | I16 | `dot--real-depcruise`                   | `dot-real-depcruise`               | are we sure the source image is correct? the edges are a mess                                            | reference correctness; edge routing            | reference was wrong; layout                                     | The source was right: this is Graphviz's own SVG, which really is that tall and dense (natural size 1062 x 7626 pt), and its edges are Graphviz's own splines. Layout: graphty used its own force layout (node position 0/96), so routes and curves differ (curve 181/652). Fixed by the Graphviz branch: cluster outlines are drawn (group outline width 19/19, group present 19/19). Still open: cluster label 17/19 (the two outermost clusters, '..' and 'graph-format', are drawn unlabeled and unfilled; the floor was 19/19 before the branches were merged, a merge regression), and arrowhead length 558/652 (1.67x on the shortest edges). Group box overlap 0/19 is the layout. [report](http://dev.ato.ms:9323/dot-real-depcruise.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): group.label 17/19 -> 17/19.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | I17 | `(all dot)`                             | all dot-* samples                  | none of the dot layouts are correct                                                                      | layout (Graphviz)                              | layout; partly fixed (node shapes and sizes)                    | Every DOT sample is laid out by graphty's own force layout ('0 of N placed by the file'), so node position fails on all 9 (fitted error 0.19 to 0.26 of the diagonal); Graphviz engines are needed. Not the layout, still open: node height 1.20x to 1.22x on dot-real-siblings and dot-real-happiness (0/200, 0/77); dot-synth-nodes node width 74/104 (plain and record-like shapes up to 18x too wide) and shape 71/101 (box3d drawn as a plain rectangle, assembly and cds as ellipses); arrowhead length 3.25x on 16 of dot-synth-edges-clusters' 101 edges. Arrowheads pass on the other DOT samples (for example 85/85 on dot-profile, 268/268 on dot-real-softmaint). [report](http://dev.ato.ms:9323/index.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): dot-profile node.position 0/61 -> 0/61; dot-real-crazy node.position 0/41 -> 0/41; dot-real-depcruise node.position 0/96 -> 0/96; dot-real-happiness node.position 1/77 -> 1/77; dot-real-linux-kernel node.position 0/50 -> 0/50; dot-real-siblings node.position 0/200 -> 0/200; dot-real-softmaint node.position 0/213 -> 0/213; dot-synth-edges-clusters node.position 0/68 -> 0/68; dot-synth-nodes node.position 0/104 -> 0/104; dot-synth-nodes node.width 74/104 -> 82/104; dot-synth-nodes node.height 79/104 -> 84/104; dot-synth-nodes node.shape 71/101 -> 85/101; and 1 more on the other samples (report index). Open: node positions and group boxes wait for a Graphviz layout; the biology glyph shapes and record fields have no graphty drawing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | I18 | `gexf--miserables`                      | `gexf-miserables`                  | missing outlines on nodes                                                                                | node outline                                   | fixed                                                           | Fixed in graph-io: Gephi outlines each node in half its fill's channels, 0.08 of its width wide (DependantColor DARKER, measured on every Gephi SVG), and graph-io now gives each GEXF node that outline. Node outline 0/77 to 77/77 on miserables, and 221/221, 366/366, 120/120, 155/155, 96/96, 64/64 on the other samples. [report](http://dev.ato.ms:9323/gexf-miserables.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.stroke 77/77 -> 77/77; node.strokeWidth 77/77 -> 77/77.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -35,7 +35,7 @@ this folder, not against a JSON translation of it. `story` is the fidelity Story
 | I26 | `(all gml)`                             | all gml-* samples                  | GML fills and outlines generally need work                                                               | node fill; node outline                        | reference was wrong; stand-in                                   | All six GML oracles are gml2gv drawings, which write the GML fill as the outline color with no fill. So node fill and node outline fail on every node of every sample (for example 0/261 and 0/261 on need4stacks261). That reflects gml2gv's reading, not graphty's. yEd (or Cytoscape's GML reader, as for I24) is needed to judge. [report](http://dev.ato.ms:9323/gml-need4stacks261.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): gml-dunnart-autobahn node.fill 0/53 -> 0/53; gml-dunnart-autobahn node.stroke 0/53 -> 0/53; gml-dunnart-autobahn node.strokeWidth 53/53 -> 53/53; gml-dunnart-planar-orthogonal node.fill 0/60 -> 0/60; gml-dunnart-planar-orthogonal node.stroke 0/60 -> 0/60; gml-dunnart-planar-orthogonal node.strokeWidth 60/60 -> 60/60; gml-jgrapht-grid-territorio node.fill 0/25 -> 0/25; gml-jgrapht-grid-territorio node.stroke 0/25 -> 0/25; gml-jgrapht-grid-territorio node.strokeWidth 25/25 -> 25/25; gml-need4stacks261 node.fill 0/261 -> 0/261; gml-need4stacks261 node.stroke 0/261 -> 0/261; gml-need4stacks261 node.strokeWidth 261/261 -> 261/261; and 8 more on the other samples (report index).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | I27 | `yed-graphml--yed-voctomix`             | `graphml-yed-voctomix`             | missing text in middle of grouping box                                                                   | group label                                    | fixed; stand-in                                                 | yEd's internal label model (`t`, `tl`, ...) was read as the node's middle whenever the label's box lay inside the node, and neither graph-io nor graphty-element had a position inside a side. Now an `inside-` position (graph-io and `LabelLocation`); a right-aligned header as wide as its group is `inside-top-right`, drawn at the top right like draw.io's. Label offset: synthetic-nodes 48/65 to 54/65, galaxy-lcms 24/31 to 25/31. Group labels are not scored here: draw.io's groups are not detected. Arrowheads and the 3 edge labels: not this fix. [report](http://dev.ato.ms:9323/graphml-yed-voctomix.html) Left (2026-10-18): draw.io, standing in for yEd, does not draw this group's header as a detected group, so group labels are not judged here; nothing in graph-io or graphty-element was found to change. Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): no oracle property judges this.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | I28 | `yed-graphml--open-archaeo`             | `graphml-open-archaeo`             | arrowheads too large, stylebox has grey background                                                       | arrowhead size; group fill                     | fixed (arrowheads); reference was wrong (group fill)            | Arrowheads fixed with I01 (length 0/40 -> 100%, width 0/40 -> 100%, arrow type 99%). The grey group background follows the file, which gives the group bodies #F5F5F5 or #CAECFF80; draw.io (the yEd stand-in) draws them unfilled. Left: 34 leftover draw.io shapes (stray 0/34) and edge route 46/52. [report](http://dev.ato.ms:9323/graphml-open-archaeo.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): edge.arrowLength 40/40 -> 40/40; edge.arrowWidth 40/40 -> 40/40; edge.arrow 103/104 -> 103/104.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| I29 | `yed-graphml--galaxy-lcms-workflow`     | `graphml-galaxy-lcms-workflow`     | are we sure the source image is right? the nodes are black and white split boxes                         | reference correctness; node shape              | reference was wrong                                             | The black-and-white split boxes are a draw.io export defect: it writes `fill="undefined"` for the entity header, which paints black. yEd would draw a #A8AFC6 header with the name. graphty's node height is 2.2x draw.io's (20/42), but draw.io is unreliable on these shapes. [report](http://dev.ato.ms:9323/graphml-galaxy-lcms-workflow.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.shape 1/20 -> 1/20.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| I29 | `yed-graphml--galaxy-lcms-workflow`     | `graphml-galaxy-lcms-workflow`     | are we sure the source image is right? the nodes are black and white split boxes                         | reference correctness; node shape              | reference was wrong                                             | The black-and-white split boxes are a draw.io export defect: it writes `fill="undefined"` for the entity header, which paints black. yEd would draw a #A8AFC6 header with the name. graphty's node height is 2.2x draw.io's (20/42), but draw.io is unreliable on these shapes. [report](http://dev.ato.ms:9323/graphml-galaxy-lcms-workflow.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.shape 1/20 -> 1/20. Issue #3113 (2026-11-04), against yEd's own stored drawing (the `yed-file` reference, the style scorecard's `requested-floors.json`): the 22 `big_entity` nodes are boxes, which the reference reader (`references/yed_facts.py`) now names `rect` instead of `other`; the 19 BPMN data objects are now read as the folded page yEd draws (graph-io `styles-yed.ts`, by the artifact's `com.yworks.bpmn.type`), so node shape is 46 of 46. The one label still judged wrong, n0::n15's, is a comparator limit: its SmartNodeLabelModel box straddles the node's top edge, which the reference classes `other`, while graph-io places it as the center with the offset that puts it where yEd drew it (the oracle scorecard passes its `label.anchor`); the requested scene classes a label by its location alone, so it reads `inside`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | I30 | `yed-graphml--scala-collection-mutable` | `graphml-scala-collection-mutable` | nodes missing gradient, arrowheads too large                                                             | node gradient; arrowhead size                  | fixed                                                           | Gradient: graph-io kept a `y:Fill color2` as a note, the neutral model had no gradient, and graphty-element published no gradient channel. Now `fillGradient` / `fillGradientAngle` in graph-io (yEd's 45 degrees, top-left to bottom-right, written back as `color2`), the `node.gradientColor` / `node.gradientDirection` channels, and texture coordinates on flat node shapes so the ramp is drawn. Node gradient 0/25 -> 25/25 (magiclantern 23/36 -> 35/36). Arrowheads fixed with I01 (length and width 100%). Left: node fill 25/42, a stand-in difference: the 17 nodes have `y:Fill hasColor="false"`, which yEd paints as no fill (a gradient needs both colors) and graphty draws transparent; draw.io's GraphML import fills them white. [report](http://dev.ato.ms:9323/graphml-scala-collection-mutable.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): edge.arrowLength 38/38 -> 42/42; edge.arrowWidth 38/38 -> 42/42; edge.arrow 76/76 -> 84/84; node.gradient 25/25 -> 25/25.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | I31 | `yed-graphml--libcitygml-mapping`       | `graphml-libcitygml-mapping`       | nodes are filled with yellow, source image has no fill                                                   | node fill                                      | reference was wrong                                             | The file fills all 51 UML nodes #FFCC00, so yEd draws them yellow, and graphty's yellow is right. draw.io (the stand-in) drops the fill (node fill 0/51). Arrowheads, 7x before, now pass (I01's fix). [report](http://dev.ato.ms:9323/graphml-libcitygml-mapping.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.fill 0/51 -> 0/51.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | I32 | `yed-graphml--stm-32-func`              | `graphml-stm32-func`               | nodes are filled with blue, source image has no fill                                                     | node fill                                      | import defect; stand-in                                         | Node fill 103/143, unchanged. yEd draws a `y:ImageNode`'s embedded image (a `y:Resource` PNG) and no fill. Two pieces are missing: graph-io does not read the image resources, and graphty-element draws no node image (`image` is not drawn). Leaving the node unfilled without its image was tried and dropped: the node then draws nothing and the comparator loses all 15 (143 to 128 matched), and draw.io drops the images anyway, so no oracle can score the fix. [report](http://dev.ato.ms:9323/graphml-stm32-func.html) Merged (2026-10-18, all eight fix branches, against the programs' own SVGs): node.fill 103/143 -> 128/143.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -71,6 +71,23 @@ comparator (`graphty-element/test/fidelity/oracle-report.test.ts`, report pages
 Pass counts are "passing / compared"; ratios are graphty divided by the program, median of the
 failing elements unless the row says otherwise. "Relative to node size" ratios divide each label's
 pixel size by its node's width on both sides, so they hold even when the two layouts differ.
+
+## How the suite decides pass and fail (from 2026-10-22)
+
+The scorecards gate on elements, not decimals. A sample fails only when an element (a node, edge, group, label or
+stray) fails a property that `graphty-element/test/fidelity/oracle-known-failures.json` (or, for the drawn-scene
+scorecard, the `known` lists of `baseline-scores.json`) does not list for it: one that passed before, or a new one.
+Pass rates, raster regions included, are a report written by every run (`gate.txt`), set against the recorded rates in
+`oracle-floors.json`, which no longer fail anything; `allowedDrops` is gone, since nothing is left for it to excuse.
+A raster region is reported when it drops more than 0.02; a property with nothing left on the other side to compare
+is reported as not measurable, never as a failure. A run given an earlier run's report directory
+(`GRAPHTY_ORACLE_BASELINE`) judges those drawings again with its own comparator and marks every change as the
+drawing's or the comparator's. `npm run fidelity:ratchet` (graphty-element) applies a run in the same commit as the
+change: it takes off what passes, raises the recorded rates, and adds an element only with `--add "<reason>"`,
+which it records. The record of rates "lowered" below is history from before this rule; the raster slack described
+in the 2026-10-20 report is replaced by the 0.02 report line.
+
+See graph-io/test/fidelity/TOOLS.md, "How the scorecards decide pass and fail".
 
 ## Final report: where every format stands (2026-10-20)
 
@@ -117,16 +134,24 @@ What the merge with master changed (judged against the same run of the branch be
   seed must give the same drawing however the data arrives, so this is an open graphty-element defect (master's
   first-frame paint, eb56d74ba, changed when imported rows are painted, a likely place to look); its floors are
   the lower of the two runs and its known failures the union. Graphviz's own layout engine is the separate open
-  gap of I12-I17.
+  gap of I12-I17. Fixed 2026-10-21: the file is laid out by Graphviz, which spaces nodes by their drawn size, and
+  a node's mesh took the size its style paints only when a frame drew that paint; when no frame fell between the
+  load's styles and its layout (a busy machine), Graphviz was handed every node as the unstyled default circle. A
+  snapshot layout now draws the paint that has arrived before it reads node sizes. Four runs (one with every core
+  busy) drew every node at the same place, frame fill 0.865 against Graphviz's 0.958, frame.zoom 1 on both views.
 - A merge regression found and fixed: master's yEd SmartNodeLabelModel reading placed a label hung from a node's
   top edge as a header inside it, overriding the label's stored box; `graphml-stm32-func` fell from 0.95 to 0.75 on
   label offset. The stored box decides again, and the ratios only where a file stores no box.
 
 Gaps found while finishing, each open:
 
-- The comparator drops a specimen's label when its words equal a caption's: a DOT sheet's `default` node is
-  labeled `default` (Graphviz's `\N`), and so is its caption, so the label is never judged (label.text n = 0 on
-  every DOT sheet with a `default` specimen). Fix: drop a caption's words only from the caption's own place.
+- Fixed 2026-10-21: the comparator dropped a specimen's label when its words equaled a caption's: a DOT sheet's
+  `default` node is labeled `default` (Graphviz's `\N`), and so is its caption, so the label was never judged
+  (label.text n = 0 on 29 DOT sheets). A caption a side names (a `cap-*` node, a text it owns) is now left out only
+  where it stands; its words on a specimen are the specimen's. All 29 `default` labels are judged and pass but one:
+  `dot-specimen-groups-p12` draws its `default` label too large (label.size), because graphty does not stretch
+  the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
+  On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
 - graph-io's vis writer writes a vis-network node fitted to its label as a sized `dot`, whose label the reader then
   hangs below it (labelOffsetY 4 on reading back): six vis round trips in graph-io's harness, one in its block
   tests and fourteen in graphty-element's export round trips run as expected failures until it is fixed.
@@ -134,7 +159,10 @@ Gaps found while finishing, each open:
   back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
   rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
   failures).
-- Graphviz's arrow gap is written into Cytoscape files, which have none, and read back as Cytoscape's 4; an edge
+- Fixed 2026-11-01 (#3111): Graphviz's arrow gap written into a Cytoscape file (XGMML, CX2) read back as
+  Cytoscape's 4, and a per-element exceptions column of repro-shared-interaction.cx2 came back from XGMML and CX2
+  as a layer of its own; every format's block repair now takes the block's none as well as its value.
+- An edge
   label Gephi hides is written as a label of opacity 0; graphology keeps a label's markup and line breaks only as
   text; the CSV writer names label settings CSV has no column for as written. Each is an expected failure in
   graphty-element's `export-round-trip`.
@@ -144,94 +172,140 @@ Gaps found while finishing, each open:
   reference scenes, which are graph-io's own earlier reading and not the programs' drawings; 36 of its properties
   now read as each program draws them and score lower there, and are allowed drops in `requested-floors.json`.
   The oracle report is the judge for those properties.
+- Fixed 2026-10-21: the raster floors failed on the GPU path they were not recorded on. Chromium's SwiftShader path
+  (`GRAPHTY_BROWSER_GPU` unset: the documented command, and CI) and the NVIDIA path antialias thin lines and glyph
+  edges differently: over all 563 oracles on one code state, a region measured up to 0.046 apart (a 1 px edge line,
+  crisp on one path and spread over two pixels on the other; node bodies, outlines and labels within 0.01). Floored to
+  2 places, 95 raster regions read as drops on the NVIDIA path against floors recorded on SwiftShader, and 9 on
+  SwiftShader against floors a later NVIDIA run had raised, with nothing drawn changed. The raster floors are now
+  SwiftShader's: judged there with one unit of slack, judged on another path with 0.05 of slack, and recorded only
+  from SwiftShader (`rasterSlack` and `recordableScores` in `graphty-element/test/fidelity/oracle/floors.ts`). 28
+  raster floors rose to SwiftShader's measurement; `cytoscapejs-specimen-groups` raster.edge was lowered 0.95 to 0.93
+  (graphty now ends the edge from a compound at the compound's border, as Cytoscape.js does, so the short edge's
+  region reaches the border's antialiasing). `dot-real-siblings` raster.edge and raster.nodeOutline still fail on
+  both paths: its Graphviz layout changed with the DOT layout scale fix, which the Graphviz-layout work owns.
 - The SonarQube changed-lines scan could not run (the server was unreachable from this machine); the next push from
   the owner's network checks the branch.
 
-## yEd sheets to export by hand
+## yEd's and yEd Live's own drawings
 
-yEd's license forbids using it in an automated process, so every yEd GraphML, yEd Live GraphML and yEd-written GML
-oracle below is a stand-in (draw.io's drawing for GraphML, Cytoscape's or Graphviz's for GML), marked
-`standIn: true` and held to `standInFloors`. To replace one with yEd's own drawing: open the file in yEd (yEd Live
-for the yEd Live rows), File > Export > SVG at 1200 x 900, save it over the oracle path, run
-`node graph-io/test/fidelity/oracles/tools/rasterize.mjs <oracle path>`, and set the oracle's `.oracle.json` to
-`"program": "yEd"` (or `"yEd Live"`), its version and `"standIn": false`. Then record that sample's floors again
-with the oracle report.
+On 2026-11-04 an AI agent operated yEd and yEd Live at the owner's direction and made the drawings below. Of the 73
+rows, 72 are now the program's own drawing (`standIn: false`, 43 yEd and 29 yEd Live) and 1 remains. The stand-ins these
+replaced were draw.io's, Cytoscape's or Graphviz's drawings. The owner read yEd's license and directed agents to operate
+the programs' user interfaces; each `.oracle.json` records that in its `command`, with every setting changed.
 
-| program  | file                                                                                                     | export to                                                                         |
-| -------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-autobahn.gml`                                          | `graph-io/test/fidelity/oracles/gml-dunnart-autobahn.svg`                         |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml`                                 | `graph-io/test/fidelity/oracles/gml-dunnart-planar-orthogonal.svg`                |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/jgrapht-grid-territorio.gml`                                   | `graph-io/test/fidelity/oracles/gml-jgrapht-grid-territorio.svg`                  |
-| yEd      | `graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml`                                       | `graph-io/test/fidelity/oracles/gml-need4stacks261.svg`                           |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p2.svg`                       |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p3.svg`                       |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edge-labels-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edge-labels-p2.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edges-lines-p2.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-groups.gml`                                               | `graph-io/test/fidelity/oracles/gml-specimen-groups.svg`                          |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p2.svg`                       |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p3.svg`                       |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-fills-borders-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-fills-borders-p2.svg`           |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p2.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p3.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p3.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p2.svg`           |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/synthetic-coverage.gml`                                        | `graph-io/test/fidelity/oracles/gml-synthetic-coverage.svg`                       |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/visualgraph-tree30.gml`                                        | `graph-io/test/fidelity/oracles/gml-visualgraph-tree30.svg`                       |
-| yEd      | `graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml`                              | `graph-io/test/fidelity/oracles/gml-yed-pmodel.svg`                               |
-| yEd      | `graph-io/test/corpus/styles/graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz` | `graph-io/test/fidelity/oracles/graphml-cla-checker-graph.svg`                    |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml`                              | `graph-io/test/fidelity/oracles/graphml-galaxy-lcms-workflow.svg`                 |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/libcitygml-mapping.graphml`                                | `graph-io/test/fidelity/oracles/graphml-libcitygml-mapping.svg`                   |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/magiclantern-architecture.graphml`                         | `graph-io/test/fidelity/oracles/graphml-magiclantern-architecture.svg`            |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/open-archaeo.graphml`                                      | `graph-io/test/fidelity/oracles/graphml-open-archaeo.svg`                         |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/scala-collection-mutable.graphml`                          | `graph-io/test/fidelity/oracles/graphml-scala-collection-mutable.svg`             |
-| yEd      | `graph-io/test/corpus/styles/graphml/LTVA1_STM32CrapSynth__func.graphml.gz`                              | `graph-io/test/fidelity/oracles/graphml-stm32-func.svg`                           |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-edges.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-edges.svg`                      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-nodes.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-nodes.svg`                      |
-| yEd      | `graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`                        | `graph-io/test/fidelity/oracles/graphml-yed-voctomix.svg`                         |
-| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz`  | `graph-io/test/fidelity/oracles/graphml-yfiles-html-ss13-tree.svg`                |
-| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml`        | `graph-io/test/fidelity/oracles/graphml-yfiles-html-stag-flowchart.svg`           |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-arrows.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edge-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edge-labels.svg`             |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edges-lines.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edges-lines.svg`             |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups-p2.svg`               |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-images-charts.graphml`                            | `graph-io/test/fidelity/oracles/yed-graphml-specimen-images-charts.svg`           |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels-p2.svg`               |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels.svg`                  |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-fills-borders.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-fills-borders.svg`      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p2.svg`          |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p3.svg`          |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p4.svg`          |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p5.svg`          |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p6.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p6.svg`          |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes.svg`             |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-sizes-opacity.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-sizes-opacity.svg`      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows-p2.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows.svg`             |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels-p2.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels.svg`        |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p2.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p3.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines.svg`        |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p2.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p3.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p4.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups.svg`             |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-images-charts.graphml`                       | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-images-charts.svg`      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p2.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p3.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p4.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p5.svg`          |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels.svg`             |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-mappings-bypass.graphml`                     | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-mappings-bypass.svg`    |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-fills-borders.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-fills-borders.svg` |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p2.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p3.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p4.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p4.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p5.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p5.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p6.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p6.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p7.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p7.svg`     |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes.svg`        |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-sizes-opacity.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-sizes-opacity.svg` |
+**yEd rows**: yEd 3.25.1 under Xvfb. The agent opened the file, sized the window so the graph view is 1200 x 900,
+pressed Fit Content and exported SVG with one dialog setting changed: Clipping tab, Region: Complete Diagram -> Visible
+Region. yEd's SVG dialog cannot set both dimensions, which is why the size comes from the window. No layout was run.
+`gml-need4stacks261` and `graphml-cla-checker-graph` have one more setting changed, File > Preferences, Display tab,
+Paint Details Threshold 0.3 -> 0.0: Fit Content leaves them at zoom 0.2857 and 0.1676, where yEd otherwise draws squares
+with no labels or arrowheads.
+
+**yEd Live rows**: yEd Live 8.5.16 in headless Chromium. The agent opened the file and exported with the format set to
+SVG and Scale left at 1. yEd Live's Export panel has no width or height field, so these SVGs are not 1200 x 900: each
+has the size of the file's stored layout plus 30 px per side (`canvas` in the `.oracle.json`). No layout was run.
+`graphml-yfiles-html-ss13-tree` was saved under the dark theme, and its load-time dialog was answered 'Switch current
+theme'.
+
+yEd Live read five sheets in compatibility mode, because they use properties this version rejects, so their drawings
+show its fallback for those settings and do not judge the settings themselves:
+
+- `yed-live-graphml-specimen-node-fills-borders`: 'radius' on RadialGradient, so 3 nodes are plain white
+- `yed-live-graphml-specimen-edge-labels`: 'Ratio' on the Smart, EdgePath and EdgeSegment label models (22 uses), so
+  those labels sit at one default place
+- `yed-live-graphml-specimen-arrows`: 'length' on Arrow, and one arrow value came through null
+- `yed-live-graphml-specimen-labels-p3`: textDecoration BLINK
+- `yed-live-graphml-specimen-node-shapes-p6`: 'checked' on the bpmn EventPortStyle
+
+In `yed-live-graphml-specimen-labels-p3` and `-p5`, yEd Live's own trimming drops words from one label each ('Wrap this
+long text', '<b>A long</b> label text').
+
+**What remains.** The row that remains keeps its stand-in `.oracle.json` and PNG, held to `standInFloors`, until its
+drawing is settled:
+
+- `yed-graphml-specimen-images-charts`: yEd refuses the input on all 3 tries ('Could not import file', an IOException
+  with no message), so its oracle is still draw.io's drawing. The input is written by
+  `graph-io/test/fidelity/generators/specimens/yed.py`, not saved by yEd, and it holds ImageNode, SVGNode and
+  label-icon resources; those are the likely trigger, unproven.
+
+`gml-bionetgen-ruleviz-pattern` is not a row here and has no yEd drawing. Its file holds 134 nodes with no coordinates,
+and with no layout run yEd stacks them at one spot, so its drawing shows about 4 nodes and judges nothing.
+
+| program  | file                                                                                                     | oracle                                                                            | status            |
+| -------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------- |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-autobahn.gml`                                          | `graph-io/test/fidelity/oracles/gml-dunnart-autobahn.svg`                         | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml`                                 | `graph-io/test/fidelity/oracles/gml-dunnart-planar-orthogonal.svg`                | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/jgrapht-grid-territorio.gml`                                   | `graph-io/test/fidelity/oracles/gml-jgrapht-grid-territorio.svg`                  | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml`                                       | `graph-io/test/fidelity/oracles/gml-need4stacks261.svg`                           | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p2.svg`                       | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p3.svg`                       | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edge-labels-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edge-labels-p2.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edges-lines-p2.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-groups.gml`                                               | `graph-io/test/fidelity/oracles/gml-specimen-groups.svg`                          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p2.svg`                       | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p3.svg`                       | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-fills-borders-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-fills-borders-p2.svg`           | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p2.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p3.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p3.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p2.svg`           | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/synthetic-coverage.gml`                                        | `graph-io/test/fidelity/oracles/gml-synthetic-coverage.svg`                       | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/visualgraph-tree30.gml`                                        | `graph-io/test/fidelity/oracles/gml-visualgraph-tree30.svg`                       | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml`                              | `graph-io/test/fidelity/oracles/gml-yed-pmodel.svg`                               | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz` | `graph-io/test/fidelity/oracles/graphml-cla-checker-graph.svg`                    | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml`                              | `graph-io/test/fidelity/oracles/graphml-galaxy-lcms-workflow.svg`                 | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/libcitygml-mapping.graphml`                                | `graph-io/test/fidelity/oracles/graphml-libcitygml-mapping.svg`                   | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/magiclantern-architecture.graphml`                         | `graph-io/test/fidelity/oracles/graphml-magiclantern-architecture.svg`            | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/open-archaeo.graphml`                                      | `graph-io/test/fidelity/oracles/graphml-open-archaeo.svg`                         | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/scala-collection-mutable.graphml`                          | `graph-io/test/fidelity/oracles/graphml-scala-collection-mutable.svg`             | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/LTVA1_STM32CrapSynth__func.graphml.gz`                              | `graph-io/test/fidelity/oracles/graphml-stm32-func.svg`                           | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-edges.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-edges.svg`                      | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-nodes.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-nodes.svg`                      | real drawing      |
+| yEd      | `graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`                        | `graph-io/test/fidelity/oracles/graphml-yed-voctomix.svg`                         | real drawing      |
+| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz`  | `graph-io/test/fidelity/oracles/graphml-yfiles-html-ss13-tree.svg`                | real drawing      |
+| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml`        | `graph-io/test/fidelity/oracles/graphml-yfiles-html-stag-flowchart.svg`           | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-arrows.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edge-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edge-labels.svg`             | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edges-lines.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edges-lines.svg`             | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups-p2.svg`               | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-images-charts.graphml`                            | `graph-io/test/fidelity/oracles/yed-graphml-specimen-images-charts.svg`           | remains: stand-in |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels-p2.svg`               | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels.svg`                  | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-fills-borders.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-fills-borders.svg`      | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p2.svg`          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p3.svg`          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p4.svg`          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p5.svg`          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p6.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p6.svg`          | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes.svg`             | real drawing      |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-sizes-opacity.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-sizes-opacity.svg`      | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows-p2.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows.svg`             | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels-p2.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels.svg`        | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p2.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p3.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines.svg`        | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p2.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p3.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p4.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups.svg`             | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-images-charts.graphml`                       | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-images-charts.svg`      | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p2.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p3.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p4.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p5.svg`          | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels.svg`             | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-mappings-bypass.graphml`                     | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-mappings-bypass.svg`    | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-fills-borders.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-fills-borders.svg` | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p2.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p3.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p4.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p4.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p5.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p5.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p6.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p6.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p7.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p7.svg`     | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes.svg`        | real drawing      |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-sizes-opacity.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-sizes-opacity.svg` | real drawing      |
 
 ## After merging the eight fix branches (2026-10-18)
 
@@ -571,8 +645,22 @@ Still open, each judged against Pajek's drawing:
 - FIXED (2026-10-19) Arrowheads: Pajek draws an arrow 6 x its `s` long (tip to back corners) and 5 x `s` wide,
   `s` carried like the other line parameters; graph-io reads `s` as the arrow size and the Pajek tool arrowhead
   draws it so (football arrow length 49/118 -> 118/118, graphstream-b 0/192 -> 193/193).
-- Bidirected arcs and loops: Pajek draws the two arcs of a mutual pair as curves and a loop as a
-  Bezier loop (synth-lines edge route 54/88, c 122/125, graphstream-b 23/193 routes).
+- FIXED (2026-10-21) Arcs, their arrowheads and their routes (synth-lines edge.route 53/88 -> 87/88, edge.arrow
+  238/264 -> 264/264, edge.dash 85/88 -> 88/88; iliad edge.route 278/292 -> 292/292, edge.arrowShape 3 misses -> none;
+  the arrows and edges-lines sheets' Bezier arcs edge.route and edge.curve -> all):
+    - Pajek bows apart the arcs that share their two vertices, a mutual pair or two the same way, as
+      `a1 15 k1 0.25 a2 15 k2 0.25` (the first of two the same way at `a1 -15 a2 -15`), and draws them straight under
+      Straight Lines; graph-io reads them so.
+    - An arc's arrowhead stops 1 px outside its target's outline, border and all, whatever its size; a Bezier arc's
+      route ends at its arrowhead's tip (a target port), so its curve runs through Pajek's control points (arrow-bezier
+      bowed 0.135 of its chord where Pajek's bows 0.196).
+    - `ap` is not carried to the next line, and an `ap` above 1 is a distance from the target's center (arc 3 4 `ap 20`).
+    - A short arc under a large arrowhead: Pajek runs the line from the source back to the head's back, behind the
+      source's center, so the head covers its whole line. The comparator gave such heads to the source end (13 heads of
+      synth-lines, one classed inverted); it now gives a head that covers its line to the end at its back, and routes the
+      edge from there to the tip.
+    - graphty-element drew a dash or dot line too short for two elements and a gap (or laid out longer, then shortened)
+      as touching or overlapping elements, a solid line (synth-lines arcs 2 3, 22 23, 27 28); it now draws one element.
 - FIXED (2026-10-19) Line labels: Pajek's default drawing hides them, and graph-io now draws them only under the
   `pajekDraw` ini flag `Form8.withLabels1` (Mark Lines / with Labels), writing the file's own `l` back on export
   (synth-lines edge.label 0/28 -> none drawn, as Pajek).
@@ -1239,6 +1327,31 @@ Still open after fix round 3:
   class on the oracle side): unchanged, as above; the comparator's edge association and arrow classes
   (`associate.ts`) are being changed by other work.
 
+Round 4 (2026-10-21), lines drawn on one another and lines drawn as a filled shape, in the comparator
+(`graphty-element/test/fidelity/oracle/associate-bands.test.ts`):
+
+- Coincident edges between one pair: Cytoscape.js draws haystack edges between the same two nodes on top of each
+  other. Where the one drawn first was wider, the comparator read it as the outline of the one over it
+  (`cyjs-genemania`: Cytoscape.js drew 255 edges, the comparator read 218, 35 of them with an outline, and left 37 of
+  graphty's edges extra). A band along a line is now read only while more lines run between the two nodes than
+  graphty draws edges there. `cyjs-genemania` now pairs all 255 edges (`edge.extra` 218/255 to 255/255, no
+  `edge.outline` rows); `json-cyjs-perf` gains 2 paired edges the same way.
+- An edge's `overlay-*`, a wider band drawn over its line, was read as a second edge
+  (`edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`). It is now read as the line's overlay and
+  judged as a property of its own, `edge.overlay` (graphty-element draws it as `line.overlay`), beside
+  `edge.outline` for the band under the line.
+- `curve-style: straight-triangle`: Cytoscape.js draws the line as one long filled triangle, as wide as the line at
+  the source and a point at the target. The comparator read it as a shape and attached its point to the next edge
+  as an arrowhead and its route (the haystack edges of `cytoscapejs-specimen-edges-lines`). It is now read as a line
+  of line class `tapered`: the two triangle edges and the two haystack edges pass `edge.route`, `edge.arrow` and
+  `edge.extra`, and the two tapered edges (and `curve-straight-triangle` on `json-cyjs-synth-edges`) now fail
+  `edge.dash`, because graphty draws the line at one width. OPEN, graph-io and graphty-element: a tapering width
+  needs a neutral property and a line of varying width (the same gap as Graphviz's `style=tapered`).
+- The edge to a node with `visibility: hidden` (`target-visibility-hidden` on `-edges-lines-p2`): Cytoscape.js draws
+  the line to the hidden node's outline, graphty draws it to the hidden node's center, and the comparator finds an
+  undrawn end only within 4 px of where graphty's line ends; this line ends 4.4 px short of it, so graphty's edge is
+  still extra. OPEN, comparator: graphty's drawing carries no size for a node it hides.
+
 The annotation, chart color scheme and mapping pages added after the first round (`-images-charts-p6`,
 `-mappings-bypass-p19`, `-p20`):
 
@@ -1286,10 +1399,13 @@ The annotation, chart color scheme and mapping pages added after the first round
   and a session only; `-p19` holds the other new mapping kinds in all four formats.
 - Chart color schemes (`bar-color-scheme-*` on `images-charts`, `-p6` and their replay): `cy_colorScheme` (the
   deprecated CONTRASTING, MODULATED and RAINBOW, and the named gradients of custom-graphics-internal's
-  `ColorGradient`, BLUE_RED, YL_OR_RD and 21 more) gives a chart its colors when `cy_colors` is absent. graph-io does
-  reads only pie and ring charts, and neither reads `cy_colorScheme`, so graphty draws no bars at all here. Open:
-  the fix is in graph-io's chart reader (bar charts first; the scheme colors are generated in `ColorScheme`, the
-  gradients listed in `ColorGradient`).
+  `ColorGradient`, BLUE_RED, YL_OR_RD and 21 more) gives a chart its colors when `cy_colors` is absent. Fixed
+  (round 5, #4249): graph-io's chart reader (`styles/cytoscape/color-schemes.ts`) generates RAINBOW, MODULATED and
+  CONTRASTING as Cytoscape 3.10's `ColorScheme` does and reads every `ColorGradient` (up, zero, down, thinned to the
+  values' count), and a bar past the chart's colors is JFreeChart's light gray (#c0c0c0), as BLUE_RED's third bar
+  shows. A chart's own `cy_values` now come before its data columns (`pie-values` on `-p5` and `-p18`).
+  stray.present on `images-charts-p5`, `-p6` and `mappings-bypass-p18`: 59 -> 5 failing per format (cx, cx2, cys,
+  xgmml). Left: `-p5`/`-p18` one #e8eae8 disc, `-p6` three annotation outlines.
 
 ## Specimen sheets: Cytoscape desktop label settings graph-io now reads (fix round 1, XGMML, 2026-10-19)
 
@@ -1965,7 +2081,7 @@ drawn by the same OGDF as written, read by GraphIO::readGML and drawn by GraphIO
 owner's decision of 2026-10-20; before, Cytoscape desktop's GML reader or gml2gv stood in), and judged per setting
 (below): OGDF judges what it draws, Cytoscape desktop's GML reader and gml2gv | neato -n2 (both drawn into
 `oracles/stand-ins/`) what OGDF does not draw, and the draft itself what no program here draws. The yEd sheets' oracles are still Cytoscape desktop's GML reader or gml2gv
-| neato -n2, stand-ins for yEd, which cannot be automated here, until the owner exports them from yEd by hand. What
+| neato -n2, stand-ins for yEd (since 2026-11-04 yEd's own drawings: see "yEd's and yEd Live's own drawings"). What
 the programs do, which the importer must match:
 
 - OGDF's GraphIO::writeGML writes the stroke color as `outline` (older OGDF wrote `line`), its stroke types and
@@ -2263,8 +2379,6 @@ defects, open:
   unturned (`label.text`, `label.lines` on all four records).
 - `quantum=0.5` (`dot-specimen-node-sizes-opacity-p4`): Graphviz rounds a node sized to its label up to a multiple
   of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
-- `rotate=90`, `landscape=true`, `orientation=landscape` on the root graph (`dot-specimen-groups-p9` to `-p11`):
-  Graphviz turns the whole drawing a quarter turn; graphty draws it unturned (`frame.rotation`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
 - The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
@@ -2342,6 +2456,36 @@ Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sam
   end labels in the pinned label face, not DejaVu Sans), `dot-synth-edges-clusters` `label.rotation` (edge labels
   turned 90 degrees) and `edge.dash` (graph-io reads `dashed`, graphty draws it dotted), `dot-real-happiness`
   `label.size`.
+
+Fix round 4, edge routes (2026-10-22), against Graphviz 14.1.2's SVG:
+
+- FIXED, graphty-element: a DOT file that places every node and stores no `pos` for its edges is drawn by Graphviz
+  with `neato -n2`: the nodes stay and Graphviz routes each edge round the nodes in its way, by its `splines`
+  (curved, ortho, polyline), into its compass and record-field ports. graphty kept the nodes and drew every such
+  edge straight. A placed DOT file now loads with the fixed layout and `edgeRoutes: "graphviz"` (when the optional
+  Graphviz package is installed), which hands Graphviz the placed nodes with their drawn size, shape and record
+  label, and the edges' ports and arrows, and draws each edge along the route Graphviz lays; a route the file stores
+  still wins. `edge.route` on `dot-specimen-edges-lines` 0.604 -> 0.925, `-p2` 0.778 -> 1, `-p3` 0.556 -> 0.778,
+  `-p4` (curved) 0.333 -> 1 with `edge.curve` 0.333 -> 1 and its label on the line, `-p5` (ortho) 0.5 -> 0.9 (with
+  the comparator fix below), `-p6`, `-p9` 0.889 -> 1, `-p8` 0.778 -> 1, `dot-specimen-arrows-p4` 0.25 -> 0.75.
+- FIXED, comparator: an edge Graphviz draws as open paths laid end to end is one line: its colored segments
+  (`red;0.2:green;0.3:blue`, one piece per color) and an orthogonal route with rounded corners (`radius=8`, its runs
+  and corners drawn apart). The comparator read the longest piece as the whole edge (`color-segments-3`
+  `edge.color` blue and `edge.route` a third of the line; `radius` one straight run). It now joins the pieces into
+  one line, painted through the colors with a hard switch at each joint where they differ, and reads graphty's
+  gradient as the flat pieces it draws rather than blending neighbours at each switch: `color-segments` and
+  `color-segments-3` pass `edge.color`, `edge.route` and `edge.gradient`; `-p5` `radius` passes `edge.route` and
+  `edge.curve`.
+- FIXED, comparator: a line that crosses its end node to a port on the outline (`headport=n`, `ne`, `s`) and ends a
+  hair inside or outside it, or pokes a hair past a corner and back, is cut where it enters the node, as the
+  program's line is.
+- OPEN: `splines=polyline` parallels (`dot-specimen-edges-lines-p3` `parallel`): the Graphviz graphty-element runs
+  (16.1.0, WebAssembly) draws the two edges straight on one another at pinned positions where 14.1.2 fans them; a
+  Graphviz version difference. Self-loops keep graphty's loop (`-p5` `loop`, `loop-port`): Graphviz's loop route is
+  not read back. HTML-like ports (`headport-html-port`, `-table-port`) need the HTML table, which graphty draws at
+  the wrong size. Tapered edges (`style-tapered*`) are drawn by Graphviz as a filled polygon the comparator does not
+  read as an edge (`edge.extra`, `stray.present`). A stored `pos` with an `e,x,y` arrow point (`pos-arrow-endpoint`)
+  is the open row above.
 
 Not drawn on any sheet, with the reason (`NOT_DRAWN` and `NOT_SWEPT` in the generator): 112 of Graphviz's 177
 attributes draw nothing at pinned positions (layout-engine parameters; output metadata such as URL, tooltip, id and
@@ -2878,8 +3022,8 @@ Not fixed, and why:
 - Group containers on the stand-in (`groups`: `group.extra` on 9 group specimens), arrows, edge label models, fill
   alpha and default fills (`arrows`, `edge-labels`, `edges-lines`, `node-sizes-opacity`, `labels`), and the
   `graphml-*` corpus samples (draw.io's own arrows, newlines drawn as spaces): draw.io's drawings, not yEd's (see
-  "Specimen sheets: yEd GraphML and yEd Live GraphML" above). yEd's license forbids automating it, so these oracles
-  stay stand-ins until the owner exports each sheet from yEd by hand (File > Export > SVG).
+  "Specimen sheets: yEd GraphML and yEd Live GraphML" above). Since 2026-11-04 these oracles are yEd's own drawings
+  (see "yEd's and yEd Live's own drawings").
 
 ## Specimen sheets: one-sided caps, crossed deltas, label places, loops and captions (fix round 2, rendering batch 1, 2026-10-19)
 
@@ -3261,10 +3405,9 @@ Still open, and why:
   side the captions are drawn alike; the oracle reader hangs each source label on the neighboring edge (the label at
   x 414.9 of `source-text-margin-x-10`, whose node is at 400.9, is given to `source-text-margin-y-neg-10`, whose node is
   at 509.1, and the reverse), and gives `source-text-rotation-none`'s caption, which lies over its node, to the node.
-- Gephi's self-loop (`gexf-specimen-arrows`, `edge-labels` ..., `edge.curve` 0.646 against 0.436): comparator
-  (`comparator-occlusion`). Gephi's SVG draws the whole circle, starting 3.05 from the node's center under its fill
-  (r 3.68), so its path is 5.3 across; graphty draws the same circle cut at the node's outline. The part that differs is
-  under the opaque node.
+- Gephi's self-loop (`gexf-specimen-arrows`, `edge-labels` ..., `edge.curve` 0.646 against 0.436): fixed in round 4
+  (see "Gephi's self-loops drawn at their own size" below). It was not the comparator: graphty drew the loop's circle
+  smaller than Gephi's.
 - vis-network `selfReference.angle` and the default loop in the position-matched view (`edge.curve` o=2078.8): comparator.
   `curvatureOf` calls a path a loop only when its ends are under 1e-9 apart; vis-network's closed circle ends a float's
   error apart (2078.8), and graphty's ring does too once its node is moved (15.9 in the matched view, 1 in the plain one).
@@ -3765,3 +3908,1022 @@ Still open, and why:
   (triangle and diamond), and 1269791->1269779's half arrow is read as graphty's crossed delta. Comparator.
 - `syn-bypass` (26 failing), `aracne-mycccnd1` (26 edge rows), `wp4271-cy3-export` (22) were not investigated in this
   round. `pathguide-allpathwaysdb` -19->-23's box before its diamond is still unexplained.
+
+## yEd's notched arrows, and the comparator's notch line (round 4, 2026-10-20)
+
+The yEd GraphML and yEd Live GraphML samples are judged against draw.io's drawings standing in for yEd (see "yEd's and yEd Live's own drawings"). Their three most failed properties were arrow shape (734 elements), node shape (478) and
+label anchor (450). Most of the arrow shape failures were graph-io's, not draw.io's:
+
+- Fixed in graph-io: yEd's `standard` arrow, the one yEd draws by default, is "a triangle with impressed bottom side"
+  (https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html); `delta` is the plain triangle. yFiles for HTML's
+  `STEALTH` (2.6's `DEFAULT`) is "an arrow that is notched on the side opposite its tip"
+  (https://docs.yworks.com/yfiles-html/api/ArrowType/). graph-io read all three as the plain triangle; they are now
+  `vee` (the yEd dialect, so yEd-written GML too, and the yFiles 3 reader). A stealth with a `{x:Null}` fill is the
+  open triangle, the nearest outline graphty-element draws. The yEd writers write a triangle as `delta` and a vee as
+  `standard`. draw.io agrees: its `mxGraphMlArrowsMap` maps `standard` and `DEFAULT` to its notched `classic`.
+- Fixed in the comparator: an arrowhead was read as notched when its outline covered under 0.75 of its span a fifth
+  of the way from its back. draw.io's `classic` is pressed in a quarter of its length, which covers exactly 0.75
+  there, so the same arrow read `vee` on one edge and `triangle` on the next (`graphml-yfiles-html-stag-flowchart`
+  judged 20 of 37 alike). The line is now drawn at 0.15, which puts the boundary at a notch about 0.19 of the length
+  deep: draw.io's classic (0.25) is a vee, Pajek's arrow (a sixth) and vis-network's `arrow` (a tenth) stay
+  triangles. A vertex lying exactly on a sampling line was also crossed twice (once by each side meeting there),
+  which read a sampled vee as a triangle; the crossings are half open now. Planted defect "arrowhead notch filled in
+  (vee<->triangle)" (`graphty-element/test/fidelity/mutations.ts`) keeps both caught.
+
+Arrow shape after both (pass rate, before -> after; the same with nodes at draw.io's positions):
+`graphml-cla-checker-graph` 0.004 -> 0.945, `graphml-yfiles-html-ss13-tree` 0.254 -> 1, `graphml-stm32-func`
+0.289 -> 0.856, `graphml-scala-collection-mutable` 0.19 -> 0.976, `graphml-magiclantern-architecture` 0.321 -> 0.964,
+`graphml-yed-voctomix` 0.34 -> 0.98, `graphml-synthetic-edges` 0.31 -> 0.87, `graphml-synthetic-nodes` 0.333 -> 1,
+`graphml-yfiles-html-stag-flowchart` 0.541 -> 1.
+
+What the arrow fix moved the other way, each a lowered floor in `oracle-floors.json` with this reason:
+
+- yEd-written GML (`gml-yed-pmodel`, `gml-visualgraph-tree30`, `gml-dunnart-planar-orthogonal`, `gml-specimen-arrows-p2`
+  and `-p3`): their stand-in is Cytoscape desktop, which draws GML's `standard` as a plain delta. yEd draws it
+  notched, so these now fail arrow shape against the stand-in (pmodel 0.982 -> 0, tree30 and dunnart 1 -> 0) until
+  yEd's own drawings replace them.
+- Raster arrowhead and edge regions of the yEd and yEd Live samples drawn with standard or DEFAULT arrows, 0.01 to
+  0.07 (`yed-live-graphml-specimen-edge-labels-p2` raster.edge 0.89 -> 0.85, `gml-visualgraph-tree30` 0.81 -> 0.74):
+  graphty-element's vee is pressed in 0.6 of its length, yEd's standard about a quarter, so fewer pixels overlap than
+  graphty's plain triangle did. graphty-element has one notch depth; a shallow vee (or a notch-depth setting) would
+  draw yEd's standard, draw.io's classic and Pajek's arrow closer. Open.
+- Unverified, and open: no drawing by yEd itself backs the vee's notch depth. Every yEd and yEd Live oracle is a
+  stand-in (the programs behind the oracles are Cytoscape desktop, Gephi, Graphviz, draw.io, Pajek, sigma.js,
+  Cytoscape.js, vis-network and OGDF), and the yFiles documentation quoted above says "impressed", not how deep.
+  graphty-element's vee is notched 0.6 of its length; if yEd's standard is shallower, every yEd and yFiles default
+  arrow is drawn wrong, and the lowered stand-in floors above would hide it. Measure the notch once from a real yEd
+  export of `yed-graphml-specimen-arrows` (see "yEd's and yEd Live's own drawings") and set graphty-element's depth, or a
+  depth setting, from it.
+- `yed-live-graphml-specimen-mappings-bypass` `edge-key-default` (arrow shape 1 -> 0.8): its key's `<default>` style
+  ends in a TRIANGLE, which graphty draws; draw.io ignores a key's `<default>` and draws its own classic, which the
+  comparator used to read as a triangle by chance.
+
+Still failing arrow shape, and why (all in `oracle-known-failures.json`):
+
+- yEd `circle` (`graphml-stm32-func` 10 source ends, `yed-graphml-specimen-arrows` `*-circle`): draw.io's arrow table
+  has `CIRCLE`, `white_circle` and `transparent_circle` but no lowercase `circle`, so it draws its default classic.
+  graph-io reads the circle yEd draws. Stand-in error.
+- yEd `short` and `convex` (`yed-graphml-specimen-arrows`, `yed-live-graphml-specimen-arrows-p2` `v2-*-short`): yFiles
+  says only "short and broad" and "two curves forming a convex shape"; graph-io reads both as the triangle, draw.io
+  draws `short` as its notched classicThin and `convex` as its default. Whether yEd's short arrow is notched is
+  for the owner's yEd export to settle.
+- yFiles 3 `OPEN` ("shaped like an angle bracket", `yed-live-graphml-specimen-arrows` `target-open`): graph-io reads it
+  as the vee, the nearest cap graphty-element draws (it has no open chevron); draw.io draws its default arrow.
+- `graphml-synthetic-edges` `n32->n2`: two parallel edges, one ending in `standard`, one in `delta`; the comparator
+  pairs their arrowheads crosswise (each oracle cap with the other edge), so both fail. Comparator, open.
+
+Node shape and label anchor, the other two most failed properties, are draw.io's: `graphml-yfiles-html-ss13-tree`'s
+169 `node.shape` failures are a yFiles demo `GraphvizNodeStyle shape="ellipse"`, which graph-io reads as the ellipse
+and draw.io, not knowing the style, draws as a rectangle; `graphml-cla-checker-graph`'s 84 `label.anchor` failures are
+SmartNodeLabelModel labels centered in their nodes (ratios 0, box centered), which draw.io places about 5 px left of
+the middle (its own label spacing). Both wait for the owner's yEd exports.
+
+## json-vis-siblings: vis-network's nodes named by where it drew them (round 4, 2026-10-20)
+
+`json-vis-siblings` stores no positions, and at the zoom vis-network fits its physics layout to (0.27) every label is
+under vis-network's draw threshold, so its SVG names no node by id or by label. The comparator then related the two
+drawings by their extents alone, paired 86 of graphty's 200 nodes with whatever body lay near each by chance, and
+the fit through those pairs called the layouts related (rms 0.008): it judged positions, edges and node bodies as
+if the layout matched, left the other 114 nodes extra and their bodies strays. The earlier rows that called this an
+import defect, or said vis-network hides some nodes, were wrong: vis-network draws all 200 nodes and 284 edges, in
+file order (its 200 node fills match the file's colors one for one).
+
+- Fixed in the oracle tool: `web-oracle.mjs` records where vis-network drew each node (`drawn` in the
+  `.oracle.json`: id, center from `getPositions` through `canvasToDOM`, box from `getBoundingBox`). Regenerated for
+  `json-vis-siblings` only; its SVG and PNG are byte-identical. The other vis-network oracles pick it up when next
+  regenerated (their labels already name their nodes).
+- Fixed in the comparator: a vector oracle with `drawn` names each shape, picture or text centered on a drawn node as
+  that node (`nameDrawnNodes`, `graphty-element/test/fidelity/oracle/associate.ts`), as markup would. And where
+  graphty laid every node out itself (`seededNodeCount` 0), a geometric association seeded by the extents alone pairs
+  nothing, since such pairs are chance (`associate-drawn-nodes.test.ts`). Planted defect "two nodes' fills swapped"
+  (`mutations.ts`, `json-vis-siblings` added to the mutants' default samples) is absorbed by known failures without the
+  fix and caught with it.
+
+After (before -> after): nodes associated 86 -> 200, edges 21 -> 284, strays 351 -> 31, failing elements 964 -> 568;
+the layouts are now unrelated (rms 0.15). node.fill 0.453 -> 1, node.stroke 0.314 -> 1, node.width 0.465 -> 1,
+node.extra 0.43 -> 1, edge.present 0.174 -> 1, edge.color 0.381 -> 1, edge.arrow 0.667 -> 0.951, edge.arrowShape
+0.3 -> 0.955. With graphty's nodes at vis-network's positions (`@matched`): node.position 0.82 -> 1, edge.route
+0.077 -> 0.743.
+
+Lowered floors (in `oracle-floors.json` `lowered`, with this reason): node.position 0.012 -> 0 and frame.mirror,
+frame.rotation and the raster regions no longer judged (the layouts are unrelated; the old rates came from the chance
+pairs); edge.curve 0.905 -> 0.764 (`@matched` 0.808 -> 0.764), now judged on all 284 edges.
+
+Still failing, open:
+
+- edge.curve (67 edges): vis-network draws its default `smooth: { type: "dynamic" }` curves, graphty straight lines.
+  The file sets no smooth option; graph-io does not read vis-network's default curve.
+- edge.width (all 284): vis-network's 1-wide edge at its zoom is 0.3 px, graphty's 0.245 px against the same node
+  spacing (ratio 0.82, tolerance 0.9).
+- edge.arrow (42 target ends) and stray.present (31 shapes): about 5 x 3 px arrowheads at crowded nodes that the
+  comparator gives to no edge. Comparator, open.
+
+## Cytoscape desktop's patterned lines carried to their own arrowheads (round 4, 2026-10-20)
+
+Cytoscape desktop exports a zigzag, sine-wave, slashes, double or arrows line as a filled band, and stops it up to a
+piece of its pattern short of its arrowhead's base; it draws each edge's arrowheads right after its line. The
+comparator looked for a band's nodes only within an end reach of the band's axis ends, so a band 20 px or more short
+of its node, or nearer a neighbor's box than its own node, was left unpaired. The free band was then taken for a
+neighbor's arrowhead: `cys-syn-mappings` 186->198's target cap was read as a "half" 346 px long, colored like the
+zigzag below it, and carried 186->198's line on to x = 802, past its node at x = 663. The band's own arrowheads went to
+whichever line ended nearest, and what was left became strays. Fixed in the comparator
+(`graphty-element/test/fidelity/oracle/associate.ts`, tests in `associate-patterned-ends.test.ts`):
+
+- The shapes drawn right after a line (its two caps; a dot no wider than the line is its own end) carry an end that is
+  not on a node's outline on to their tip, and they cap that line, whichever neighbor's end lies nearer them. A line
+  they would carry to a pair graphty does not draw is read as it was without them (an arrow annotation in
+  `xgmml-wp4271-cy3-export`).
+- A band's end reaches half its swing farther, as its drawn pieces do.
+- A band is no arrowhead an end reaches its node through (`cys-syn-mappings` 420->426: an open half circle at the end
+  of a double line, read through that line to the far node, stood in for the edge).
+- An end beyond a flat ellipse is judged by its distance along the ray from its center (35 px off a 38 x 15 ellipse's
+  end was read as 19, `xgmml-syn-mappings` 345->360).
+- A wide sine wave Cytoscape draws a whole period per piece (`cys-syn-mappings` 432->450, 225->210) is read as a sine
+  wave, not as arrows: a period lies off its mirror image by half its thickness or more, an arrow by a fraction of a
+  pixel (`primitives.ts`).
+- Planted defect "arrowhead color changed on lines drawn in pieces" (`mutations.ts`), caught on all four syn samples.
+
+Before -> after (whole oracle report, every sample re-run; no other sample's score moved apart from the run-to-run
+raster and layout noise graphty's own drawing already showed):
+
+- `cys-syn-mappings`: failing elements 167 -> 45, strays 31 -> 5; edge.extra 0.936 -> 0.979, route 0.878 -> 0.985,
+  dash 0.962 -> 0.993, arrow 0.896 -> 0.99, arrowShape 0.791 -> 0.984, arrowColor 0.815 -> 0.992. 186->198 now
+  passes every property (its target cap the #b44c42 triangle 18.8 px long, its line ending at x = 649).
+- `cx-syn-mappings`: 171 -> 47 failing, strays 34 -> 5; arrowColor 0.797 -> 0.992, arrowShape 0.783 -> 0.984; 255->279
+  passes; 462->192 fails only arrow length and width (Cytoscape draws its caps larger).
+- `cx2-syn-mappings`: 207 -> 82, strays 39 -> 12; `xgmml-syn-mappings`: 170 -> 45, strays 30 -> 5; the same rises.
+- The syn-bypass family: `cys` 21 -> 17, `cx` 27 -> 24, `cx2` 30 -> 25, `xgmml` 24 -> 17 failing elements.
+- Other Cytoscape and draw.io drawings whose caps follow their lines: `cx2-signor-aml` 180 -> 120, `cx-nci-pid-rhoa`
+  10 -> 1, `json-cyjs-graphmaker` 19 -> 4, `cx2-wp1449-tlr` 137 -> 130, `graphml-synthetic-edges` 109 -> 106,
+  `graphml-stm32-func` 130 -> 126.
+
+Lowered floors (each with its reason in `oracle-floors.json`): `cx-radiation-bibliography` arrowToSpacing 0.006 -> 0 and
+(matched) arrowLength and arrowToSpacing 0.012 -> 0.006, more of its arrowheads judged and failing as nearly all already
+did; `cx2-syn-mappings` stray.present 0.093 -> 0.077, over 13 free shapes instead of 43; `graphml-yfiles-html-ss13-tree`
+arrowFill 0.171 -> 0.17 and `yed-graphml-specimen-arrows` arrowFill 0.944 -> 0.9, a cap judged for the first time that
+fails as its twins do (draw.io, the yEd stand-in, draws them hollow).
+
+Still open:
+
+- `cx-syn-bypass` / `cx2-syn-bypass` 2235->2244: one path holds the slashes of several lines (1715 pieces), so no one
+  band of it is the edge.
+- `xgmml-syn-bypass` 1273092->1273088: the only band in its color is a slashes band of 716 pieces running from x = 468,
+  past 1273092, so no band ends at both nodes; not investigated further.
+- `*-syn-mappings` 189->192 (a solid line 5 px wide): no line of Cytoscape's SVG is read there yet; not investigated
+  further.
+- Now judged and failing as import gaps: Cytoscape's mapped arrow sizes on the syn-mappings family (49 to 92 px heads
+  where graphty draws 13 to 22, e.g. 441->426, 408->414, 345->360), and half arrows drawn as one long barb.
+
+## sigma.js drawings judged by their discs and at their own framing (round 4, 2026-10-21)
+
+The graphology and Gephi JSON samples are judged against sigma.js's own drawing (a PNG with sigma's record of where it
+drew each node and which labels it drew). Two comparator defects there are fixed (`compare-oracle.ts`, `associate.ts`):
+
+- A node sigma paints over was told by its box lying inside a later, opaque node's box (`rasterScene`). A disc in a
+  corner of a bigger disc's box still shows there: `json-graphology-synth` n14, n26 and n66 sit in the corners of n25,
+  n37 and n77 and show 29 px of themselves, but were dropped from sigma's side, so the edges ending at them lost that
+  end (`edge.route` judged them uncut there). Now the disc must lie inside the later disc. Planted defect: "disc in a
+  later disc's box corner removed" (absorbed under the old rule, caught now).
+- A label under sigma's node-size rule (`labelRenderedSizeThreshold`, and its label grid; graphty-element's
+  `node.labelMinNodeScreenSize`) shows while its node is drawn so many px across, and how many px a node is across
+  depends on how large each side frames the graph: a camera choice, judged apart by `frame.zoom`. The drawn scene now
+  records each such label with its node's size on screen (`DrawnLabel.nodeSizeRule`, `PNode.sizedLabel`), and the
+  comparator shows it where sigma's framing would (`labelAtScale`); a node within 1 percent of its rule may go either
+  way, since sigma's grid puts the rule of a cell's second label exactly at its first framing. `json-gephi-worldcup`
+  label.present 728/736 -> 736/736: the 8 labels (218, 342, 366, 404, 422, 432, 44, 54) on nodes sigma draws 12.22 px
+  across and graphty, framing the graph 1.109x smaller, 11.02 px, are judged at sigma's framing; the known failures are
+  cleared and the floor raised to 1. Planted defect: "node-size label rule ignored" (json-graphology-synth,
+  graphology-specimen-labels, both added to the default mutant samples).
+
+Still open: graphty frames a sigma file 1.109x (worldcup) to 1.217x (graphology-synth) smaller than sigma, which fits
+the node positions into the canvas less its 30 px `stagePadding`; graphty-element's own fit is the consumer's choice
+(`fitInsets`, `fitBounds`) and offers no fit by node centers alone (`json-graphology-synth` frame.zoom, recorded).
+
+## Gephi's self-loops drawn at their own size (round 4, 2026-10-21)
+
+Gephi draws a self-loop as an arc of a circle of radius r = half the node's size plus a third of the loop's stroke,
+centered r right of and r above the node's center (gephi PreviewPlugin `EdgeRenderer.SelfLoopEdgeRenderer`; on
+`gexf-specimen-arrows` the SVG arc's radius is 2.6435 for a size-4 node and a 1.95 stroke). graph-io writes that circle
+as the loop's bends, in fractions of the node's half size, and that was right. graphty-element measured the bends
+against the node's fill instead of its size: Gephi's nodes carry an inside border (0.16 of the size), which draws the
+fill in, so every loop came out 0.84 times Gephi's (`edge.curve` 0.458 against 0.646). graphty-element now measures a
+self-loop's bends and an edge's ports against the node's outline (`Node.outlineHalfExtents`: the drawn surface plus
+what a centered or inside border took from a fitted mesh).
+
+Every Gephi loop specimen now passes `edge.curve`, plain and position-matched: `gexf-specimen-arrows` and `-p2` to
+`-p7`, `gexf-specimen-edge-labels` and `-p2` to `-p15`, `gexf-specimen-edges-lines` and `-p2` to `-p14` except `-p9`,
+`gexf-synth-nx-viz` (`v1`, also `edge.route`) and the 11 loops of `gexf-graphology-rio` (`edge.curve` 0.988 to
+0.998, `edge.route` 0.998 to 1).
+
+Still open: `gexf-specimen-edges-lines-p9` (a loop of weight 4.5, stroke 5.85): oracle. Gephi extends the arc past
+where it meets the node by the round cap's angle, asin(stroke / 2r) on each side; on this thick loop the extended arc
+covers more than a full turn, and the SVG arc command (`A 3.9305,3.9305 0 1,1`) between its two near-coincident ends
+then takes the other circle through those ends, centered down and to the left of the node, under it. Gephi's own
+preview (`Arc2D`) draws the loop up and to the right, where graphty draws it.
+
+## vis-network's dynamic curves drawn through support points (round 4, 2026-10-21)
+
+vis-network's default edge, `smooth: { type: "dynamic" }`, is a quadratic curve through a hidden support node that its
+physics moves with the nodes: two springs of half the edge's length (`physics.<solver>.springLength`, or the edge's own
+`length`) tie it to the edge's ends, every node and every other support node pushes it away, and central gravity pulls
+it in (vis-network 9.1.9 SpringSolver, BarnesHutSolver, ForceAtlas2BasedRepulsionSolver and their central gravity
+solvers). graph-io read such an edge as straight, so the five corpus files that keep vis-network's defaults and store
+no positions (`json-vis-transparency`, `-lesmiserables`, `-world`, `-unix`, `-siblings`) drew every edge as a 2-point
+line where vis-network bows them. The bow needs no position in the file: stepping vis-network's own forces with the
+nodes held where vis-network drew them puts the curve where vis-network did on 99 of 100 transparency edges.
+
+graph-io now reads a dynamic edge, wherever physics runs for it, as curved through a support point with its forces
+(neutral `supportModel` "barnesHut" or "forceAtlas2", `supportSpringLength`, `supportSpringConstant`,
+`supportRepulsion`, `supportCentralGravity`; none under `physics: false`, an edge's own `physics: false`, or a
+hierarchical layout, which turns every dynamic curve static). graphty-element draws them through the new edge style
+options `line.supportModel`, `line.supportSpringLength`, `line.supportSpringConstant`, `line.supportRepulsion`,
+`line.supportCentralGravity` and `line.supportUnit` (channels of the same names): it settles each support point under
+those forces over a Barnes-Hut tree built as vis-network builds its own, with the nodes where its own layout (or the
+reader) put them, carries each point along its edge as the nodes move, and holds `waitForStableFrame()` until the
+points rest. Edges between the same two nodes bow apart by the support points' own push.
+
+| sample (edge.curve; route where judged) | before             | after              |
+| --------------------------------------- | ------------------ | ------------------ |
+| json-vis-transparency @matched          | 0.48; route 0.58   | 1; route 0.98      |
+| json-vis-world @matched                 | 0.638; route 0.725 | 1; route 0.986     |
+| json-vis-unix @matched                  | 0.776; route 0.776 | 1; route 0.98      |
+| json-vis-siblings @matched              | 0.796; route 0.757 | 0.986; route 0.968 |
+| json-vis-lesmiserables @matched         | 0.617; route 0.664 | 0.949; route 0.885 |
+| json-vis-transparency (own layouts)     | 0.48               | 0.64               |
+| json-vis-world (own layouts)            | 0.638              | 0.754              |
+| json-vis-unix (own layouts)             | 0.776              | 0.837              |
+| json-vis-siblings (own layouts)         | 0.764              | 0.975              |
+| json-vis-lesmiserables (own layouts)    | 0.617              | 0.843              |
+
+No other property of these samples, or of the 16 vis-network specimen sheets, moved (the sheets set `physics: false`).
+
+`gexf-hsk-chars`, named with these in the round's evidence as "edges drawn as collinear 5-point lines", already passes
+every edge (edge.curve 1332/1332, plain and @matched): Gephi's curve is drawn as an arc of the circle through both node
+centers (`line.arcRadius`, 1 / 1.2 of their distance) wherever graphty's layout puts the nodes, so it needs no
+position from the file. Its floor is raised from 0.14 to 1.
+
+Still open:
+
+- On a file with no positions each program lays it out itself, so a dynamic edge bows by graphty's neighbors, not
+  vis-network's: the plain (own layouts) rows judge one layout's crowding against another's, as node.position was
+  before it stopped being judged there. The @matched rows are the measure of the setting.
+- Elements newly failing (recorded in `oracle-known-failures.json`): `json-vis-transparency` 11->50 (own layouts);
+  `json-vis-lesmiserables` 22->21 and 68->25 (own layouts), 22->21 and 56->49 curve, 22->21, 51->49 and 56->49 route
+  (@matched); `json-vis-siblings` @matched route Ilana Melcher->Casondra Brimmage. Stepping vis-network's forces in
+  Python with every node fixed where vis-network drew it misses the same lesmiserables edges (56->49: 0.084 against
+  0.006): vis-network stopped its simulation with those nodes still moving, so their support points sit where no
+  rest puts them. 22->21 is the pair 21-22, whose two support points vis-network separates by a seeded random nudge.
+- vis-network's `repulsion` and `hierarchicalRepulsion` solvers are not modeled: their dynamic edges are drawn straight.
+- A hierarchical layout turns dynamic curves into its direction's static curve (`horizontal` or `vertical`); graph-io
+  draws them straight.
+
+### Round 6 (2026-10-29, #4271): dynamic curves bowed in the drawing's own units
+
+On the files that store no positions, graphty lays the nodes out itself, and its layout spreads them 1.3 to 1.7 times
+farther apart (for their size) than vis-network's physics does. The support forces were in the file's px, so the
+springs were stretched taut and the push of the neighbors fell off with the square of the distance: graphty bowed its
+curves about a third as deep as vis-network (median bend over the chord 0.013 against 0.038 on json-vis-world), and
+drew 0.00 to 0.13 of the lines bent where vis-network bends 0.22 to 0.52.
+
+graph-io now marks such a file's dynamic edges `supportScale: "drawing"` (a file that places every node keeps its px),
+and graphty-element's new `line.supportScale: "drawing"` (channel `edge.supportScale`) takes the forces' unit from the
+drawing: the size at which the forces hold the drawn nodes, and the support points where they stand, in balance (the
+virial of every force is zero there, as wherever a simulation of them rests; under forceAtlas2 a node's push and pull
+are weighted by its degree plus one, as vis-network weights them). On vis-network's own drawings of the five files that
+keep its physics, with its own support points, that unit is 0.999 to 1.008 of the file's px. Taking the points at their
+edges' middles instead gave 0.94 to 1.00, which left the bows a few percent short on the barnesHut files.
+
+| sample (own layouts)   | edge.curve, share bent (vis-network / graphty) before | after | median bend (vis-network / graphty) after |
+| ---------------------- | ----------------------------------------------------- | ----- | ----------------------------------------- |
+| json-vis-world         | 0.36 / 0.04 fail                                      | pass  | 0.038 / 0.043                             |
+| json-vis-unix          | 0.22 / 0 fail                                         | pass  | 0.027 / 0.031                             |
+| json-vis-siblings      | 0.24 / 0.05 fail                                      | pass  | 0.020 / 0.022                             |
+| json-vis-transparency  | 0.52 / 0.13 fail                                      | pass  | 0.048 / 0.042                             |
+| json-vis-lesmiserables | 0.38 / 0.64 fail                                      | pass  | 0.023 / 0.023                             |
+
+The 16 vis-network specimen sheets (`physics: false`) and every other format are unchanged.
+
+The position-matched drawing (`@matched`) left a node the oracle's drawing does not show where graphty's own layout put
+it. On json-vis-lesmiserables three nodes of the dense clique (Listolier, Blacheville, Champmathieu) are drawn wholly
+under others, so they stood far from where vis-network drew them, and the drawing's balance came out 6.6% off
+vis-network's: forceAtlas2's bows are sensitive to the unit, and 62 curves and routes failed. The harness now puts such
+a node at the middle of its placed neighbours when it has two or more (`placeUndrawn`); with them there the balance is
+0.99 of vis-network's. It moves only those three and one node of gexf-hsk-chars (no element there changes).
+
+Still open, for the owner: `@matched`, json-vis-lesmiserables, json-vis-siblings and json-vis-transparency pass more
+curves and routes than before (19 known failures now pass) but not the same ones: 14 elements newly fail (13 near the
+tolerance, several short edges whose support point now settles on the other side, and one group.extra where Listolier
+and Blacheville, with the same neighbours, are placed on one spot). Bends at `@matched` against vis-network's, median
+ratio: lesmiserables 0.83 -> 0.84, siblings 0.57 -> 0.74, transparency 0.80 -> 0.83, world 0.71 -> 0.83, unix 0.68 ->
+0.72. They are not recorded in `oracle-known-failures.json`.
+
+## Graphviz's own routes drawn for a DOT file without positions (round 4, 2026-10-21)
+
+A DOT file that stores no positions is laid out by graphty-element with Graphviz's own engine (dot, unless the file
+names another). graphty read back only where Graphviz put the nodes and drew every edge as a straight line between
+them, so each spline Graphviz routes round the nodes in its way, and each orthogonal route of `splines=ortho`, was
+drawn straight: `dot-profile` placed its nodes where Graphviz did (fitted error 0.002 of the diagonal) and still failed
+edge.curve on 18 of 85 edges.
+
+graphty-element now names each edge it hands Graphviz (`id="e<k>"`), reads the route Graphviz lays it from the `-Tjson`
+answer (the edge's `pos`, read into bends by graph-io's new `graphvizPosBends`, the reading a DOT file's stored `pos`
+gets), and draws the edge along it. A layout hands a route to its edges through `EdgePosition.bends` (new, optional,
+`along,across` pairs as `line.bends` holds them), so any layout engine can route its edges; a route the edge's style
+stores wins over it. Two defects this exposed are fixed with it:
+
+- Graphviz draws a straight line (`splines=false`) up to half a point off the line between the two nodes' centers
+  (`dot-real-linux-kernel`'s VFS -> mmap, 0.61 points off a 345-point line). graph-io read that as a bent route; a
+  route within one point of the line is now straight, for a stored `pos` and a laid one alike.
+- graphty hands Graphviz the node shapes it draws only as circles and boxes, so a route can end a hair outside a
+  drawn triangle or pentagon, and the stub from there to the outline turned the arrowhead across the line
+  (`dot-real-depcruise`, four heads measured 1.55 times Graphviz's width). A bent line now drops the route's points
+  that lie under its arrowheads (within half a head's length of the end), so a head points along the route it covers.
+
+Against the programs' drawings (plain and @matched, before -> after):
+
+| sample                   | property        | plain          | @matched       |
+| ------------------------ | --------------- | -------------- | -------------- |
+| dot-profile              | edge.curve      | 67/85 -> 85/85 | 67/85 -> 85/85 |
+| dot-profile              | edge.route      | 39/85 -> 56/85 | 68/85 -> 85/85 |
+| dot-real-depcruise       | edge.curve      | 206/652 -> 650 | 206/652 -> 650 |
+| dot-real-depcruise       | edge.route      | 158/652 -> 522 | 212/652 -> 642 |
+| dot-real-siblings        | edge.curve      | 241/284 -> 283 | 241/284 -> 282 |
+| dot-real-siblings        | edge.route      | 8/284 -> 14    | 245/284 -> 275 |
+| dot-real-crazy           | edge.curve      | 43/49 -> 47    | 43/49 -> 47    |
+| dot-synth-nodes          | edge.curve      | 95/108 -> 106  | 95/108 -> 106  |
+| dot-synth-edges-clusters | edge.curve      | 57/100 -> 81   | 56/100 -> 80   |
+| dot-synth-edges-clusters | label.alongLine | 13/54 -> 27    | 12/54 -> 26    |
+
+No positioned DOT or GML sample moved. Still open, recorded in `oracle-known-failures.json` and, where a floor fell,
+in `lowered` with the reason:
+
+- graphty's Graphviz run lays the nodes out as the shapes graphty draws (no label text, circles and boxes), so where
+  Graphviz's own drawing routes round larger, label-sized or distorted nodes the routes differ: `dot-real-crazy`
+  @matched edge.route 9 -> 8 of 49 (3 edges newly bow where Graphviz drew them nearly straight), and a few edges of
+  `dot-synth-edges-clusters` and of the plain views of `dot-real-depcruise` and `dot-real-siblings`.
+- An edge label hangs from the middle of the route, not where Graphviz placed it (`lp`, which a layout graphty runs
+  does not read): `dot-synth-edges-clusters@matched` label.offLine 21 -> 20 of 54.
+- `dot-synth-nodes` n_hsv2 -> n_pen5: the orthogonal route's last stretch into pen5 is shorter than the arrowhead,
+  and the comparator measures the head across it (edge.arrowWidth 1 of 108).
+- A patterned (dashed or dotted) line keeps its straight line under a laid route. Fixed in round 5 (issue #3102): it
+  is laid along the route as separate pieces. A dashed or dotted line whose bends the file stores is still drawn as one
+  joined line with its dashes measured along the whole route, so the two cases space their dashes differently.
+- edge.width on `dot-real-crazy` (graphty 0.84 of Graphviz's width, against the fitted positions) is not a route or
+  unit defect: graphty's Graphviz run spaces the nodes about 1.25 times wider than Graphviz's own drawing, in units of
+  the line width, because the nodes graphty hands it are not the nodes Graphviz sized to their labels (node.width
+  20/41). `dot-real-depcruise`'s edge.width passes (652/652).
+
+## Round 4 verification: comparator readings fixed and new properties judged (2026-10-22)
+
+A check of round 4's comparator found readings that hid or invented defects. Fixed, each with a unit test that fails
+on the old comparator:
+
+- A Cytoscape desktop double line (PARALLEL_LINES), exported as short pieces on two rows, was read as a zigzag from
+  one row to the other, and the double edges' arrowheads off the zigzag's end. It is read midway between the rows
+  (cx-, cx2-, cys- and xgmml-specimen-edges-lines, the mappings-bypass-p10 sheets and the syn-mappings samples pass
+  their curve and arrow floors again).
+- A Graphviz stub wholly under its arrowhead was capped at the wrong end (Pajek's rule); the head now caps the end it
+  points to where the nodes are drawn apart (dot-real-softmaint, dot-real-depcruise).
+- A line between two nodes drawn on one another is named the way graphty runs the edge (cx-radiation-bibliography
+  30 -> 44, cx2-signor-aml 57 -> 67), so its arrowheads are judged at their own ends.
+- Cytoscape desktop's labels drawn as glyph outlines (cx-polygenic-sle) are one label each, drawn where graphty draws
+  text over them (stray.present 0 -> 0.984), not two strays.
+- Graphviz's inv on a spline that kinks at its end is read along its own axis (it read "other" against itself).
+- A compound member's label grows its group by Cytoscape.js's 2 px in font pixels, not layout units
+  (json-cyjs-synth-edges and -saved: group.box 0 -> 1, group.present 0.75 -> 1).
+
+Newly judged, so defects that passed now fail (each a planted defect in mutations.ts):
+
+- edge.arrowLength and edge.arrowWidth within [0.85, 1.18] (was [0.67, 1.5]) or a render pixel. Real misses now
+  shown: Cytoscape desktop's source heads drawn about 23% small (cx/cx2/cys/xgmml-specimen-arrows and
+  mappings-bypass-p11), Graphviz's box heads 25% large (dot-specimen-arrows), vis-network's crow and inv_triangle
+  34% wide.
+- edge.arrowPlace: graphty's head on its line's end (no gap, not back along the line, not aside).
+- edge.arrowParts: stacked heads (Graphviz's normalnormal, boxdotnormal, crowtee), which graphty draws as one.
+- edge.dashPeriod: a dash pattern's period and drawn share (Graphviz's dotted is drawn nearly solid, Cytoscape's
+  dashes about 1.8 times too long).
+- stray.extra on free text graphty draws, a body-less node's label among them.
+- edge.route judges each end where it sits on its own node (node.position judges where the node is), and its
+  allowance is capped at the end nodes' smaller side (at least ten render pixels), so a long line sent through
+  another node fails. dot-real-depcruise falls furthest (graphty's own Graphviz run lays out nodes without their
+  label text, so its splines differ; see the section above).
+- edge.curve is not judged between two programs' own unrelated layouts of a file with no positions (vis-network's
+  dynamic curve bends with its physics), as node.position is not.
+
+Left open: a dashed or patterned line is always drawn straight (PatternedLineMesh), so a curved dashed edge fails
+edge.curve (cx2-signor-aml 27 -> 68); graphty's vee is notched 0.6 of its length and reads as thin barbs where
+vis-network, Graphviz and Cytoscape.js draw a broad head; the drawing defects the new properties expose. Each failing
+element is in oracle-known-failures.json, and each lowered floor in oracle-floors.json's lowered with its reason.
+
+## Round 4: the comparator, edges and layouts (2026-10-22)
+
+Round 4 worked on three things: the oracle comparator's own readings (so a defect is neither hidden nor invented),
+how edges are drawn, and how layouts the programs make are carried. The sections above, from "yEd's notched arrows"
+on, hold each change and its evidence; this one gives the totals and what is left.
+
+Totals over all 563 samples (461 specimen sheets, 102 corpus files), from a full run of the branch head
+(`graphty-element/test/fidelity/oracle-report.test.ts`):
+
+| measure                                             | final report, 2026-10-20 | round 4 |
+| --------------------------------------------------- | ------------------------ | ------- |
+| samples with no failing element                     | 273                      | 309     |
+| failing elements, plain and @matched views together | 21,184                   | 20,209  |
+| failing elements, plain view                        | -                        | 10,359  |
+| failing elements, @matched view (559 samples)       | -                        | 9,850   |
+
+The failing count fell while the comparator judges more: arrowhead length and width within [0.85, 1.18], where the
+arrowhead sits, stacked heads, the dash period and drawn share, free text graphty draws, and a route's allowance capped
+at its end nodes' smaller side. Each of these turned elements that used to pass into failures; the totals are net of
+them. The most failed properties now are edge.route (1,479 plain), label.anchor (1,449), node.stroke (1,291),
+edge.arrow (1,174) and stray.present (1,169).
+
+Fixed in the comparator (each with a unit test that fails without the fix, and a planted defect in `mutations.ts`
+where one applies):
+
+- Arrowheads: yEd's notched arrows read as notched (the notch line at 0.15); a head under a covered stub capped at
+  the end it points to; head parts counted by place, so Graphviz's stacked heads are seen.
+- Edges: a Cytoscape desktop double line read midway between its two rows, not as a zigzag; a patterned band carried
+  to its own arrowheads; a zigzag round a small node read as a zigzag; a route drawn as runs and corners joined; a
+  line between two overlapping nodes named the way graphty runs it.
+- Labels and strays: glyph-outline labels read as one label each; free text judged by its words; a compound member's
+  label bounding its group in font pixels, as Cytoscape.js does.
+- Layouts: sigma.js labels judged at sigma's framing; edge.curve not judged between two programs' own unrelated
+  layouts, as node.position is not; vis-network nodes named by where vis-network drew them, not paired by chance.
+
+Fixed in graph-io and graphty-element (edges and layouts):
+
+- yEd's `standard` and yFiles' `STEALTH` arrows read as notched (`vee`).
+- vis-network's default dynamic curves drawn through support points under vis-network's own forces (new
+  `line.support*` options); Gephi self-loops measured against the node's outline.
+- A DOT file without positions drawn along the routes Graphviz lays (`EdgePosition.bends`, graph-io's
+  `graphvizPosBends`); a placed DOT file whose edges store no route has Graphviz route them (`neato -n2`, the fixed
+  layout's `edgeRoutes: "graphviz"`); a seeded layout gives the same drawing however the data arrives.
+- Pajek arcs: arrowhead stops, the bow Pajek gives two arcs between the same vertices, `ap` as a distance; the Pajek
+  writer now writes a line's arrowhead size `s` (it dropped it, so a re-read Bezier arc ended at a default-size head
+  and its bends moved), and a file graphty wrote keeps its routes in its block instead of being bowed again.
+
+Still open:
+
+- A dashed or patterned line is drawn straight (PatternedLineMesh), so a curved dashed edge fails edge.curve, and a
+  patterned line keeps its straight line under a laid Graphviz route. Fixed in round 5 (issue #3102): a piece-drawn
+  pattern is laid along its curve, bends, laid route or self-loop, and a click picks it along that route. A zigzag or
+  sinewave piece, or a dash, that spans a corner runs straight past it, so tight self-loops show small kinks.
+- graphty's vee is notched 0.6 of its length and reads as thin barbs where vis-network, Graphviz and Cytoscape.js draw
+  a broad head; Cytoscape desktop's source heads are drawn about 23 percent small, Graphviz's box heads 25 percent
+  large, vis-network's crow and inv_triangle 34 percent wide; graphty draws stacked heads as one.
+- graphty's Graphviz run lays nodes out as the shapes graphty draws (no label text), so its routes differ where
+  Graphviz routes round label-sized nodes (`dot-real-depcruise`, `dot-real-crazy`); an edge label hangs from the
+  middle of a laid route, not at Graphviz's `lp`.
+- The recommendation asks Graphviz to route a placed DOT file even when every edge already stores its `pos`
+  (`parsing_test.dot`); the stored routes win, so the run only costs time.
+- vis-network's `repulsion` and `hierarchicalRepulsion` solvers and hierarchical static curves are not modeled.
+- The full oracle run is not green against its own records: 30 samples have a property below its recorded floor or an
+  element failing that `oracle-known-failures.json` does not list (for example `gml-need4stacks261` edge.arrow, whose
+  pass rate equals its floor but whose 178 newly judged failing heads were never added; `cx-syn-mappings` and its
+  CX2, session and XGMML copies at label.alongLine 0.971 against a floor of 1), and the drawn-scene and mutant checks
+  report 11 more (a planted glow the border scorer misses, seven planted label and gradient defects now caught that are
+  still listed as untestable). The aggregate totals above are identical to the run the floors were recorded from, so
+  these are records that do not match that run, not new regressions; they need a recording pass with a reason for
+  each lowered floor.
+
+## Round 5: comparator audit, arrowheads, routes, labels, outlines and charts (2026-10-28)
+
+Round 5 started from an audit of the comparator (does it hide real defects, does it invent false ones), then fixed
+the most damaging drawing problems it measured. Every number below comes from a full run of the oracle comparison
+(`graphty-element/test/fidelity/oracle-report.test.ts`, 563 samples, NVIDIA path) and counts only drawings made by the
+file's own program. Stand-in drawings (79 samples, mostly draw.io for yEd files) and raster oracles are left out: they
+are not the judge, and their 5,560 failing elements did not change in this round.
+
+Three trees were measured:
+
+- **before**: origin/master 780b7edbe6, before round 5, with the old comparator.
+- **comparator only**: the round-5 comparator (#4246) on that same drawing. Every change from "before" here is the
+  comparator reading the drawings differently, never graphty drawing differently.
+- **after**: origin/master fea3503e96 (which holds the comparator #4246 and the arrowheads #4254) merged with the four
+  round-5 pull requests still open: #4259 (dashed routes), #4265 (label pairing), #4251 (DOT table outlines) and #4250
+  (Cytoscape chart marks). The Graphviz label-size branch is not in it (no pull request; see "Decisions pending").
+
+The after tree equals the comparator-only run plus each pull request's own measured change, element by element, on
+every sample: the branches do not interact.
+
+### Totals
+
+| measure (real-program oracles)                    | before                  | comparator only        | after                  |
+| ------------------------------------------------- | ----------------------- | ---------------------- | ---------------------- |
+| real files: failing elements                      | 3,597 of 32,574 (11.0%) | 2,879 of 32,546 (8.8%) | 2,491 of 32,512 (7.7%) |
+| real files: clean samples                         | 23 of 80                | 20 of 80               | 20 of 80               |
+| specimen pages: failing elements                  | 1,308 of 20,094 (6.5%)  | 1,049 (5.2%)           | 800 (4.0%)             |
+| specimen pages: clean                             | 261 of 377              | 261                    | 271                    |
+| Cytoscape desktop pages clean in all four formats | 31 of 41                | 31                     | 33                     |
+| old combined total (every oracle, stand-ins too)  | 10,469 (14.8%)          | 9,492 (13.4%)          | 8,855 (12.5%)          |
+
+The oracle side's element count moves a little (32,574 to 32,512) because the comparator now keeps apart shapes it
+used to merge (two Tokyo stations drawn 0.9 px apart) and merges shapes it used to split.
+
+Clean real files went down by three in the comparator step and stayed there: `cx-repro-unplaced-boxes`,
+`json-vis-world` and `json-vis-transparency` were passing only because the old comparator did not judge what is wrong
+with them (below). The ten newly clean specimen pages are all arrowhead pages: cx, cx2, cys and xgmml
+`specimen-arrows`, cx, cys and xgmml `specimen-mappings-bypass-p11`, `gml-specimen-arrows-p7` and `-p8`,
+`vis-network-specimen-arrows`.
+
+### Per property (real-program oracles, failing elements)
+
+| property                  | before   | comparator only | after   | what moved it                                                                          |
+| ------------------------- | -------- | --------------- | ------- | -------------------------------------------------------------------------------------- |
+| stray.present             | 999      | 709             | 495     | comparator (annotation heads, vis arrowheads); Cytoscape chart colors and pies (#4250) |
+| label.anchor              | 952      | 162             | 90      | comparator (tiny-label boxes, Calibri); twin pairing (#4265)                           |
+| edge.width                | 622      | 622             | 621     | not worked on (#4268; the DOT part goes with #4203)                                    |
+| node.position             | 468      | 468             | 466     | not worked on (DOT: #4203, blocked)                                                    |
+| edge.route                | 371      | 373             | 332     | twin pairing (#4265), dashed routes (#4259)                                            |
+| node.sizeToSpacing        | 47       | 259             | 246     | comparator newly judges own layouts (+212 cx, #3103); DOT tables (#4251)               |
+| edge.arrowPlace           | 209      | 58              | 58      | comparator (Pajek mid-line heads)                                                      |
+| node.width                | 206      | 205             | 145     | DOT tables (#4251), twin pairing (#4265)                                               |
+| stray.extra               | 168      | 177             | 177     | comparator (graphty's own annotation heads now seen)                                   |
+| node.height               | 136      | 135             | 77      | DOT tables (#4251), twin pairing (#4265)                                               |
+| edge.arrowLength          | 122      | 123             | 14      | arrowheads (#4254)                                                                     |
+| edge.arrowWidth           | 120      | 121             | 14      | arrowheads (#4254)                                                                     |
+| edge.extra / edge.present | 127 / 92 | 127 / 92        | 77 / 42 | twin pairing (#4265: json-cyjs-perf, json-cyjs-tokyo)                                  |
+| label.offset              | 108      | 109             | 45      | twin pairing (#4265)                                                                   |
+| node.stroke               | 79       | 74              | 12      | comparator (vis database outline); DOT tables (#4251)                                  |
+| edge.arrowToSpacing       | 71       | 71              | 11      | arrowheads (#4254)                                                                     |
+| edge.label                | 50       | 50              | 21      | twin pairing (#4265)                                                                   |
+| edge.curve                | 36       | 41              | 39      | comparator newly judges own layouts (+5 vis); dashed routes (#4259)                    |
+| edge.dash                 | 39       | 39              | 36      | dashed routes (#4259)                                                                  |
+| edge.color                | 21       | 21              | 7       | twin pairing (#4265)                                                                   |
+| node.fill                 | 14       | 14              | 7       | DOT tables (#4251)                                                                     |
+| edge.arrowParts           | 14       | 18              | 18      | not worked on: stacked heads (#4267)                                                   |
+
+Unchanged: label.present 100, label.lines 65, node.strokeWidth 63, label.size 45, edge.arrowShape 41, node.shape 39 to
+41, edge.dashPeriod 30, group.box 28.
+
+### Per format (failing elements: real files / specimen pages)
+
+| format      | before      | comparator only | after       |
+| ----------- | ----------- | --------------- | ----------- |
+| cx          | 215 / 239   | 354 / 176       | 332 / 118   |
+| cx2         | 199 / 237   | 198 / 174       | 173 / 118   |
+| cys         | 68 / 239    | 68 / 176        | 48 / 118    |
+| xgmml       | 69 / 239    | 68 / 176        | 49 / 118    |
+| dot         | 1,129 / 206 | 1,074 / 206     | 1,072 / 199 |
+| json        | 1,518 / -   | 864 / -         | 564 / -     |
+| pajek       | 309 / 36    | 163 / 32        | 163 / 32    |
+| gml         | - / 17      | - / 17          | - / 11      |
+| vis         | - / 27      | - / 24          | - / 18      |
+| gexf        | 90 / 2      | 90 / 2          | 90 / 2      |
+| cytoscapejs | - / 66      | - / 66          | - / 66      |
+| cyjs        | 0 / -       | 0 / -           | 0 / -       |
+
+cx real files went UP in the comparator step (215 to 354): `cx-radiation-bibliography` and `cx-repro-unplaced-boxes`
+now fail node.sizeToSpacing on 212 nodes that graphty draws as dots where Cytoscape draws labeled boxes. That is a real
+defect the old comparator hid, not a regression. The Graphviz label-size branch, measured on its own, takes DOT real
+files from 1,074 to 646 (all of dot-real-siblings' and dot-real-crazy's edge.width, most of their node.position); it is
+not in the "after" column.
+
+### What the comparator changes did (#4246, merged)
+
+Blind spots closed, so numbers went up:
+
+- Where each program lays the file out itself, a uniformly wrong size passed, because the scale fitted between the
+  two layouts absorbed it. node.sizeToSpacing is judged there again (band 1/3 to 3), and a render pixel there is at
+  most the canvases' ratio, not the fitted scale (it was 14 px on `cx-radiation-bibliography`).
+- Edge shape was never judged on own layouts. edge.curve is judged there as one element for the drawing: the share
+  of bent lines (vis-network bends 22 to 52 percent of its lines, graphty 0 to 13 on `json-vis-world`, `-siblings`,
+  `-unix`, `-transparency`; `json-vis-lesmiserables` the other way round).
+- A zigzag under 5 percent of a long edge passed. New property edge.wiggle counts how often a route turns back.
+
+False failures removed, so numbers went down:
+
+- Labels drawn under 6 px got line boxes up to twice their font size (Chromium rounds ascent and descent at screen
+  size): they are laid out 100 times larger and measured there. json-cyjs-tokyo label.anchor 695 to 70,
+  dot-real-depcruise 96 to 2.
+- Cytoscape desktop's Calibri labels are measured in the face Java actually drew (DejaVu Sans):
+  cx-radiation-bibliography label.anchor 70 to 0.
+- Pajek's mid-line arrowheads are judged by where along the line their middle sits, not from the line's end:
+  pajek-graphstream-b 193 to 44.
+- Cytoscape annotation arrowheads read one by one (charts-p6 stray.present 86 to 21 per format); vis-network's open
+  database outline joined to its fill; vis arrowheads over a flat neighbour box no longer refused.
+
+Each change has a test that fails on the old comparator, and the planted-defect run (`mutants.test.ts`) now includes
+two own-layout samples and four new defects (zigzag at 3 percent, nodes and labels at a fifth of their size, one node
+twice its size, one label at 0.7). Two gaps found in review are filed as #4252 (half-arrow line run-on, open half
+arrows, vis-network's crow) and #4264 (a missing or outlined node in a coincident pair, stacked WikiPathways boxes).
+
+### What the drawing and reader changes did
+
+- **Arrowheads (#4254, merged; #4202).** Cytoscape desktop's heads beside a half-arrow source sized as Cytoscape sizes
+  them (`DEdgeDetails.adjustArrowSize`), Graphviz's obox at its box size, vis-network's crow and Graphviz's crow and inv
+  at their program's width, graphty's vee notched at half its length with the line run on to the notch.
+  arrowLength 123 to 14, arrowWidth 121 to 14, arrowToSpacing 71 to 11. One edge newly fails edge.route in each
+  Cytoscape format (`syn-mappings` n43 -> n44, a sinewave line beside a half arrow: the line now starts 4.6 px off the
+  node, Cytoscape starts it at the outline). The vee change touches every vee graphty-element draws.
+- **Label and node pairing (#4265, open; #4247), comparator only.** Two Tokyo stations drawn 0.9 px apart were read
+  as one node, and station names were swapped between same-name stations 1 to 4 px apart. json-cyjs-tokyo 282 to 35
+  failing elements, json-cyjs-perf 108 to 55. A shape that is another node's own best body is never this node's twin,
+  and same-name nodes within two node sizes take the words drawn where graphty puts their own label. On
+  `cx2-wp1449-tlr` 4 edge.route and 2 node.extra newly fail (stacked TIRAP and MYD88 boxes, #4264).
+- **DOT HTML table labels (#4251, open; #4248).** Graphviz draws a table's border (BORDER, COLOR, STYLE) even on a
+  plain, plaintext or none node, and sizes the node to border, cell spacing, cell border and cell padding round the
+  text (lib/common/htmltable.c); `shape=plain` forces margin 0. On DOT: node.stroke 62 to 2, node.width 148 to 105,
+  node.height 82 to 39. Left: inner cell borders, `TABLE STYLE=rounded`, a plaintext or none table at default margin.
+- **Cytoscape chart marks (#4250, open; #4249).** graph-io reads `cy_colorScheme` (bar colors, BarLayer.java's
+  up/zero/down rule) and `cy_values` pies. stray.present 59 to 5 per Cytoscape desktop format on images-charts-p5,
+  -p6 and mappings-bypass-p18. Left: chart axes, tick and item labels and the plot inset (images-charts-p7, 70 marks
+  per format).
+- **Patterned lines along their route (#4259, open; #3102).** A dash-dot, slashes, zigzag or sinewave edge, and a
+  dashed or dotted edge on a Graphviz-laid route, are laid along their curve, bends, route or self-loop, and a click
+  picks them there. edge.dash 39 to 36 (cx, cx2, cys `syn-bypass`), edge.curve and edge.route on dot-synth-edges-clusters.
+  The piece count is not capped yet (#4257).
+- **Node sizes: no change.** GEXF and vis-network radii (#3100) were already fixed on master (0 node-size failures on
+  all 90 GEXF samples). The remaining step of the owner's decision on #2322 removes the fixed layout's public `scale`
+  option, a breaking change, so it was not done. The largest real node-size failure, `cx-radiation-bibliography` drawn
+  as dots, is #3103.
+
+Every pull request had a review that re-derived its numbers from the run files element by element. The chart marks,
+dashed routes, label pairing and Graphviz label-size changes also had an engineering review, which checked that each
+new test fails without its change and probed malformed input; the DOT tables (#4251) and arrowheads (#4254) changes
+opened without one. Those two reviews, and a review of the commits that fixed the first reviews' findings on #4251
+and the Graphviz branch, came afterwards and found two defects: graphty's own DOT writer lost a table label's frame,
+so the table's padding did not survive a round trip (fixed on #4251, which also reads table attributes as Graphviz's
+lexer does), and #4254's line run on to the vee's notch covered the vee on lines wider than half of it (fixed by
+#4309). Blocking findings that were fixed before the pull requests opened: a record label `<f0>|<f1>` handed to
+Graphviz as HTML (a syntax error, Graphviz branch); a table size overriding a larger node size and an outline drawn
+on a plaintext node's whole box (DOT tables); Cytoscape heat-strip colors for two- and five-color schemes (chart
+marks); click picking still straight for routed patterned edges (dashed routes); graphty's own wrong label offset
+able to pick a twin's label four node sizes away (label pairing). No input in any probe threw.
+
+### What did not improve, and why
+
+| failing elements (after)                               | what                                                                                                                                    | issue                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 447 node.position, 333 edge.width (dot)                | graphty's Graphviz run lays out nodes without their label text, so Graphviz spaces and routes a different graph                         | #4203 (branch ready, blocked on a decision) |
+| 284 edge.width (json-vis-siblings)                     | one uniform line-width ratio against vis-network                                                                                        | #4268                                       |
+| 280 stray.present + 84 stray.extra (Cytoscape desktop) | chart axes, tick and item labels and the plot inset on images-charts-p7                                                                 | #4249                                       |
+| 212 node.sizeToSpacing (cx)                            | a computed layout ignores the file's node sizes: labeled boxes drawn as dots                                                            | #3103 (owner)                               |
+| 58 edge.arrowPlace (pajek)                             | on 20 to 28 px edges graphty puts a mid-line head's tip at the middle, Pajek its middle                                                 | #706                                        |
+| 44 label.present (gexf-hsk-chars)                      | graphty draws 44 single-character Chinese labels where Gephi's drawing has none; not traced (Gephi's font or the comparator's reading)  | #706                                        |
+| 18 edge.arrowParts                                     | stacked heads drawn as one                                                                                                              | #4267                                       |
+| 39 edge.curve                                          | Graphviz routes (dot 25), vis-network's bent lines on own layouts (json 6), the wrong edge of a parallel pair curved (cx2-signor-aml 6) | #4203, #706, #4258                          |
+| 104 edge.arrow (json 54)                               | json-vis-siblings: arrowheads at crowded nodes the comparator cannot yet give to the right edge (it does not use the head's direction)  | #706                                        |
+
+### The full-run gate
+
+The full run's gate (`oracle-known-failures.json`) is red: 38 samples (70 keys counting the matched view) against 27
+samples (53 keys) before round 5. No key that was red before turned green, and every key that turned red is a defect
+the round-5 comparator now sees: `cx-radiation-bibliography` (node sizes), the four `specimen-images-charts-p6`
+copies (graphty's annotation heads), `json-vis-siblings`, `-world`, `-unix`, `-lesmiserables` (bent lines),
+`pajek-synth-lines` (part-way heads), `dot-real-depcruise@matched` (wiggle). Recording them needs
+`fidelity:ratchet --add` with a reason, which round 5 leaves to the owner. One round-5 change did add known failures:
+the comparator pull request (#4246, commit 4cc3484c97) recorded 31 elements on three CI scorecard samples that the new
+comparator judges and graphty's drawing did not change -- `cx-repro-unplaced-boxes` (24 nodes, `node.sizeToSpacing`),
+`json-vis-transparency` (`edge.curve` on element `edges`) and `json-vis-synth` (3 strays renumbered, in both views).
+CI runs only the 28-sample scorecard
+(`test/browser/oracle-scorecard.test.ts`), which each open pull request passes except the Graphviz branch.
+
+### Floors
+
+This section's pull request changes no floor. The DOT tables (#4251) and chart marks (#4250) pull requests ratchet
+their own floors and known failures; the comparator, arrowheads, label pairing and dashed-route changes recorded none.
+Raising floors on master now from the merged run would record rates master reaches only with the open pull requests,
+and would conflict with the two that edit the same file. The floors follow in a later pull request under #4266, from a
+full run of master once the open round-5 pull requests have merged.
+
+### Decisions pending (owner)
+
+- **Accepted by the owner on 2026-10-29**: both the Graphviz label-size trade (#4203, its 4 `dot-real-crazy` elements
+  recorded as known failures) and the 31 known failures #4246 added; the two items below stay only as the record.
+- **Graphviz label sizes (#4203).** Handing Graphviz the label-sized nodes takes DOT real files from 1,074 to 646
+  failing elements, but on `dot-real-crazy` 3 nodes and 1 edge newly fail the CI scorecard. Graphviz's own
+  WebAssembly build places only 19 of that file's 41 nodes near the command-line Graphviz's drawing (font metrics), so
+  the 3 nodes are inside what any WebAssembly run can reach. Accept the trade and record it, or keep the old result.
+- **#3103**: a computed layout ignores the file's node sizes (the 212 cx nodes drawn as dots).
+- **#2322**: the last step removes the fixed layout's `scale` option, a breaking change.
+- **The 8-distinct-label-positions limit**: unchanged in round 5.
+- **yEd's own drawings**: every yEd and yEd Live oracle but one was a stand-in here; since 2026-11-04 they are the
+  programs' own drawings (see "yEd's and yEd Live's own drawings").
+- **The red full-run gate**: whether the newly seen defects above are recorded as known failures, and with what reason.
+- **The 31 known failures #4246 added** (commit 4cc3484c97, listed under "The full-run gate"): they keep the CI
+  scorecard green on defects the new comparator sees and graphty's drawing did not cause. Keep the record, or fix
+  the drawings (`cx-repro-unplaced-boxes`'s boxes are #3103) and take it back.
+
+### What to look at
+
+Only a person can judge whether the drawings got better. These stories of the graph-io fidelity Storybook (open
+`?path=/story/<id>`) show the program's drawing beside graphty's, with the comparator's table under them:
+
+1. `style-fidelity-cx2-specimens--arrows` (and the xgmml, cx and session copies): the heads beside a half-arrow source
+   now match Cytoscape's size; the half arrow itself is still a filled wedge (#4253).
+2. `style-fidelity-graphviz-dot-specimens--arrows`: obox and box at Graphviz's size, the vee notched at half its
+   length with the line run on to the notch; stacked heads still drawn as one (#4267).
+3. `style-fidelity-vis-network-specimens--arrows`: crow and inv_triangle at vis-network's width, the broad vee.
+4. `style-fidelity-graphviz-dot-specimens--labels-p-2` and `--labels-p-3`: HTML table labels now framed with the
+   table's border weight, color and dashes; inner cell borders still missing.
+5. `style-fidelity-cx-specimens--images-charts-p-5`, `--images-charts-p-6` and `--mappings-bypass-p-18`: bar charts
+   in Cytoscape's color schemes and `cy_values` pies; the axes and labels of `--images-charts-p-7` are still missing.
+6. `style-fidelity-cx-samples--syn-bypass`: the curved slashes edge (2106 -> 2112) drawn as a patterned curve, not a
+   solid line.
+7. `style-fidelity-graphviz-dot-samples--synth-edges-clusters`: dotted edges along Graphviz's routes (c2_3 -> c9_4,
+   c3_3 -> c1_3); dense, judge at full size.
+8. `style-fidelity-cx2-samples--syn-mappings`: 19 arrowheads now right; the sinewave edge n43 -> n44 starts 4.6 px off
+   its node, the one new failure of the arrowhead change.
+9. `style-fidelity-cytoscape-js-samples--cyjs-tokyo`: the drawing did not change, the comparator's reading did; check
+   that the twin stations' labels it now pairs are the ones you would pair.
+10. `style-fidelity-cx-samples--radiation-bibliography`: the largest defect the new comparator found, labeled boxes
+    drawn as dots on graphty's computed layout (#3103).
+11. `style-fidelity-vis-network-samples--vis-world`: vis-network bends its lines, graphty draws them straight (newly
+    judged).
+12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
+    branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.
+
+## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
+
+Round 6 closed the comparator's remaining blind spots (#4272), then worked the largest drawing problems the round 5
+results left: one vis-network file's line widths (#4268), stacked arrowheads (#4267), Cytoscape chart axes (#4249),
+where a shifted label's words start (#4456), vis-network's bent lines (#4271) and the file scale for positions
+(#2322). Every number below comes from a full run of the oracle comparison
+(`graphty-element/test/fidelity/oracle-report.test.ts`, 564 samples, NVIDIA path) and counts only drawings made by the
+file's own program; stand-in drawings and raster oracles are left out, as in round 5.
+
+Three trees were measured:
+
+- **before**: origin/master dff9b04575 merged with the branches still open after round 5: #4250 (Cytoscape chart
+  marks), #4259 (patterned routes), #4310 (round 5 doc corrections, since merged) and #4410 (Graphviz label sizes,
+  #4203). It already holds the Graphviz label-size change, so the DOT numbers here start where round 5's "after"
+  column would have been with it.
+- **comparator only**: the "before" drawing judged by the round 6 comparator, which is every change to
+  `graphty-element/test/fidelity/` in the "after" tree. Every change from "before" here is the comparator reading the
+  drawings differently, never graphty drawing differently.
+- **after**: origin/master a2f1318f64 (which holds the comparator #4448 and the line widths #4471) merged with every
+  round 6 branch not yet on master: #4455 (the full gate in CI and its records), #4507 (stacked arrowheads), #4510
+  (chart axes), fix/style-r6-labels-outlines (label shifts, no pull request yet), fix/2322-one-file-scale (no pull
+  request yet), and the round 5 branches #4250, #4259 and #4410. The vis-network curves branch
+  (fix/4271-vis-dynamic-curves) waits on an owner decision and is measured on its own (below).
+
+The "after" tree equals the comparator-only run plus each branch's own measured change, element by element: no two
+branches interact.
+
+### Totals
+
+| measure (real-program oracles)                    | before                 | comparator only        | after                  |
+| ------------------------------------------------- | ---------------------- | ---------------------- | ---------------------- |
+| real files: failing elements                      | 2,063 of 32,512 (6.3%) | 2,917 of 32,512 (9.0%) | 2,629 of 32,512 (8.1%) |
+| real files: clean samples                         | 20 of 80               | 20 of 80               | 20 of 80               |
+| specimen pages: failing elements                  | 800 of 20,094 (4.0%)   | 930 of 20,094 (4.6%)   | 539 of 19,830 (2.7%)   |
+| specimen pages: clean                             | 271 of 377             | 259                    | 260                    |
+| Cytoscape desktop pages clean in all four formats | 33 of 41               | 30                     | 30                     |
+
+Real files went UP from "before" to "after", by 566 elements, because the comparator now sees real defects it could
+not see before: +854 on real files, gexf-hsk-chars +804 (its 867 nodes judged too crowded), Pajek's part-way heads
++35 and Cytoscape node pictures on `syn-bypass` +35 in the four formats, less 20 false failures removed on JSON and
+DOT files. The drawing changes then took real files down by 288 and specimen pages by 391. The specimen pages' oracle count fell from
+20,094 to 19,830 because the Cytoscape chart axes' words are now read as the chart's labels instead of as loose marks.
+The 12 specimen pages no longer clean are 3 Cytoscape pages in each of the four formats
+(`specimen-images-charts-p2`, `-mappings-bypass`, `-mappings-bypass-p15`): each draws a gradient or an image on a node
+that graphty draws plain (#4515). The one newly clean page is `dot-specimen-arrows` (stacked arrowheads).
+
+### Per property (real-program oracles, failing elements)
+
+| property           | before | comparator only | after | what moved it                                                                |
+| ------------------ | ------ | --------------- | ----- | ---------------------------------------------------------------------------- |
+| node.sizeToSpacing | 246    | 1,113           | 1,113 | comparator: own layouts judged in [0.5, 2] (+867, gexf-hsk-chars)            |
+| stray.present      | 495    | 662             | 398   | comparator: node pictures judged (+167); chart axes (#4510, -264)            |
+| edge.width         | 288    | 288             | 4     | vis-network's 0.3 px line floor (#4471, json-vis-siblings -284)              |
+| stray.extra        | 177    | 177             | 93    | chart axes (#4510, -84)                                                      |
+| edge.arrowPlace    | 58     | 100             | 100   | comparator: part-way heads measured from the end they cap (+42, pajek)       |
+| edge.arrow         | 104    | 91              | 91    | comparator: vis-network heads at crowded nodes given to their own line (-13) |
+| label.present      | 100    | 100             | 64    | chart axes (#4510, -36)                                                      |
+| label.anchor       | 90     | 72              | 72    | comparator: 5% of a font size of slack at a place boundary (-18)             |
+| edge.arrowParts    | 18     | 17              | 3     | stacked arrowheads (#4507, -14); comparator +2 -3                            |
+| edge.arrowShape    | 41     | 36              | 36    | comparator: a stacked open dot read apart from its line (-2), vis heads (-3) |
+| edge.curve         | 28     | 26              | 26    | comparator: a stacked open dot read apart from its line (-2)                 |
+| label.offset       | 34     | 34              | 35    | label shifts: pajek-iliad 204 (recorded, below)                              |
+
+Unchanged: node.position 400, edge.route 286 (288 before; the open dot), node.width 144, node.height 81, edge.extra
+77, label.lines 65, edge.present 42, node.shape 39, edge.dash 36, edge.dashPeriod 30.
+
+### Per format (failing elements: real files / specimen pages)
+
+| format      | before    | comparator only | after     |
+| ----------- | --------- | --------------- | --------- |
+| gexf        | 90 / 2    | 894 / 2         | 894 / 2   |
+| dot         | 644 / 199 | 641 / 224       | 637 / 217 |
+| cx          | 332 / 118 | 342 / 143       | 342 / 47  |
+| cx2         | 173 / 118 | 180 / 143       | 180 / 47  |
+| cys         | 48 / 118  | 57 / 143        | 57 / 47   |
+| xgmml       | 49 / 118  | 58 / 143        | 58 / 47   |
+| json        | 564 / -   | 547 / -         | 263 / -   |
+| pajek       | 163 / 32  | 198 / 35        | 198 / 35  |
+| cytoscapejs | - / 66    | - / 66          | - / 66    |
+| vis         | - / 18    | - / 20          | - / 20    |
+| gml         | - / 11    | - / 11          | - / 11    |
+| cyjs        | 0 / -     | 0 / -           | 0 / -     |
+
+### What the comparator changes did
+
+Most of it is #4448 (merged), whose own before and after, on one drawing, is in
+`tmp/style-round6/comparator-delta.md` (main checkout, not in git). Blind spots closed, so numbers went up:
+
+- **Part-way arrowheads are measured from the end they cap** (Pajek `ap`). Measured from the line's nearer end, a
+  head mirrored about the middle passed. Pajek draws an `ap 0.5` head with its back at the middle of the line and its
+  tip toward the target; graphty draws its tip at the middle, a head length nearer the source, which on short lines
+  puts it next to the other node. +42 edge.arrowPlace (pajek-graphstream-b 39, one edge per Pajek arrow page). The
+  drawing fix is #4514.
+- **Own layouts use the size band any two unrelated layouts use, [0.5, 2]**, not round 5's corpus-fitted [1/3, 3].
+  gexf-hsk-chars measures 2.51: graphty's force layout packs its 867 nodes into a dense ball where Gephi spreads them,
+  so every node is 2.5 times Gephi's size beside its neighbours. +867 node.sizeToSpacing. This is a layout question
+  (#3168), not a style one.
+- **A picture the program draws as part of a node is judged** (stray.present): Cytoscape desktop's gradient and image
+  custom graphics, which graphty draws as a flat fill, every Graphviz node image (graphty draws none) and two
+  vis-network image nodes. +167 stray.present on 34 samples; the drawing fix is #4515.
+- **edge.wiggle** tells a line drawn back over itself by geometry, not by a turn's angle, and an opacity ratio is
+  judged where either side shows; no corpus element moved. The 74 web oracles' file hash is checked; all match.
+
+False failures removed, so numbers went down:
+
+- **vis-network arrowheads at a crowded node go to the line they lie along**, not to whichever line's end the tip
+  touches first. json-vis-siblings edge.arrow -13 and its shape, length, width and color failures (-9).
+- **A label a fraction of a pixel either side of a place boundary** passes: graphty's label counts as in the oracle's
+  place when moving it by at most 5% of its font size reaches the oracle's side (labels-outlines branch).
+  label.anchor -18: cx2-syn-mappings 5, pajek-synth-vertices 5, dot-synth-nodes 4, dot-real-crazy 3,
+  dot-specimen-node-shapes-p2 1; each is within 0.42 oracle px of the oracle's side.
+- **A stacked open dot is read apart from its line** (#4507): Graphviz's `normalnoneodot` ring was taken for part of
+  the line. dot-real-depcruise arrowShape, curve and route -2 each; it now SEES 2 arrowParts failures there that the
+  drawing change then fixes.
+- **Turned chart words** are never joined into one line, are read left to right, and a run never jumps a word drawn
+  between (#4510). On the "before" drawing this moves nothing in the counts (one stray swapped per p7 page).
+
+json-cyjs-perf swaps 3 arrowheads between edges (+3 -3, edge.arrow): a dense drawing where other lines cross every
+head, and neither reading is shown to be better.
+
+The full gate's own fixes are in #4455: the harness fails loudly when it cannot read a file it was given (a refused
+baseline path once read as "no file" and made every source "unclassified"), and the full gate runs in CI's 6-hour
+full run in four slices. The fidelity harness on the curves branch also puts a node the oracle drawing does not show
+at the middle of its placed neighbours in the position-matched view.
+
+Every comparator change has a planted-defect test that fails on the old comparator (`compare-oracle-blind-spots`,
+`associate-ends`, `associate-stacked-open-dot`, `compare-oracle-labels`, `floors` tests, and the planted-defect run
+`mutants.test.ts`).
+
+### What the drawing and reader changes did
+
+- **vis-network line widths (#4471, merged; #4268).** vis-network draws every line at least 0.3 screen pixels wide
+  (`EdgeBase.getLineWidth`); graph-io adds that floor to vis-network's edge defaults, on the channel Sigma's floor
+  already uses. json-vis-siblings edge.width 284 -> 0. No other sample moved.
+- **Stacked arrowheads (#4507, open; #4267).** graph-io keeps every shape of a Graphviz arrow name
+  (`boxdotnormal`, `lteeoldiamond`) as `targetArrowParts` / `sourceArrowParts`, at most 4 as Graphviz reads them, and
+  graphty-element draws each part in a row behind the first (`arrowHead.stack`, at most 8 parts; additive).
+  edge.arrowParts: dot-specimen-arrows 7 -> 0, dot-synth-edges-clusters 5 -> 0, dot-real-depcruise 2 -> 0.
+  Still different: `nonenormal` (Graphviz leaves a gap) and `lteeoldiamond` (no stem across the gap).
+- **Cytoscape chart axes (#4510, open; #4249).** graph-io lays out an upright bar or line chart's axes as
+  JFreeChart does: the plot shrinks for the range axis's widest end value and the tallest category name, tick
+  numbers at JFreeChart's auto tick unit, category names under their bars, turned per `cy_domainLabelPosition`.
+  graphty-element gets four additive channels so a chart's plot need not be a centered square
+  (`node.chartWidth`, `-Height`, `-OffsetX`, `-OffsetY`). Per Cytoscape desktop format 96 fewer failing elements:
+  images-charts-p7 90 (stray.present 62, stray.extra 19, label.present 9), images-charts and mappings-bypass-p14 3
+  each. Malformed axis options never throw, at most 100 ticks.
+- **A shifted label's words (fix/style-r6-labels-outlines, no pull request yet; #4456).** Pajek starts a label's text
+  at its point; the element moved the label's whole box, 5 px canvas margins included, so the text started a margin
+  off. New label field `shiftOf` ("box", the default and today's behavior, or "words"; additive), set by the file
+  translation on the layer that already sets the shift, for every program but Graphviz. 1,294 Pajek labels move to
+  where Pajek starts them. In the counts this shows as nothing but one new failure, pajek-iliad 204 label.offset
+  (Pajek draws that UTF-8 name as Latin-1, one character longer; recorded): the five pajek-synth-vertices labels the
+  branch's own run credited to it are within the comparator's new boundary slack on the old drawing too. Judge it by
+  the pictures.
+- **One file scale (fix/2322-one-file-scale, no pull request yet; #2322).** A load that draws a file's styles records
+  one length scale with its style values, and every reader of a stored position (the store's seeds, the fixed layout,
+  a computed layout's starting positions, the expand host, export) multiplies by it through
+  `src/data/filePositions.ts`. The fixed layout's `scale` option is removed, as the owner decided on 2026-10-16 (a
+  saved project that still carries it opens with it ignored). New additive option `FileStyleOptions.labelSizes`.
+  Every oracle sample's failing elements are identical before and after: the oracle samples draw with stored
+  positions through a path that already scaled. The change shows where no oracle measures it: open a yEd GraphML or
+  GML with stored positions with file styles and switch to the fixed layout; positions now scale with node sizes
+  instead of staying in the file's units while sizes shrink.
+- **Graphviz edge and outline widths: no change of their own.** The 333 DOT edge.width failures master had are
+  dot-real-siblings and dot-real-crazy, and the Graphviz label-size change (#4410) already passes all 1,960 DOT edge
+  widths and dot-real-crazy's 41 outlines (it is in "before"). The cause was graphty's own Graphviz run spacing nodes
+  differently, not the reading of `penwidth` or `style=bold`. dot-real-siblings sits close to the comparator's width
+  band edge (#4451).
+
+#### vis-network's bent lines (fix/4271-vis-dynamic-curves, waits on the owner; #4271)
+
+vis-network bends its "dynamic" lines through support points that its physics places. graphty already drew them
+that way, but on a file whose nodes graphty lays out itself the forces ran in file units on a layout 1.3 to 1.7 times
+more spread out, so the bends were a third of vis-network's. graph-io now marks such lines `supportScale: "drawing"`
+(additive) and the element sizes the forces to the drawing it made. Measured on the "after" tree with the branch
+merged, vis-network and JSON samples (`tmp/style-round6/runs/after-curves`, main checkout):
+
+- edge.curve passes on all five vis-network files graphty lays out itself (`json-vis-world`, `-unix`, `-siblings`,
+  `-transparency`, `-lesmiserables`): 6 -> 1 failing. Median bend over the chord, vis-network then graphty before ->
+  after: world 0.038, 0.013 -> 0.043; unix 0.027, 0.006 -> 0.031; siblings 0.020, 0.011 -> 0.022; transparency
+  0.048, 0.020 -> 0.042; lesmiserables 0.023, 0.068 -> 0.023.
+- In the position-matched view 14 elements newly fail (lesmiserables 6, siblings 6, transparency 2), mostly short
+  lines near the tolerance whose support point settles on the other side, while 62 known failures there now pass.
+  The gate is red on those three keys. Recording the 14 needs the owner (see "Decisions pending").
+- A node at NaN or Infinity no longer hangs the support-point tree (it did on master too).
+
+Every branch had an engineering review that re-derived its numbers from the run files and probed malformed input.
+Blocking findings fixed before the branches were finished: a Graphviz arrow name read with no limit (`dot` x 20000
+made 19,999 parts; now at most 4, as Graphviz); a chart range far from zero hung the tick loop, an axis option named
+like an object's own property threw, and a huge node made 100,000 tick texts; the label shift moved Graphviz's
+xlabels away from Graphviz's place; the curves' unit was taken at the chord middles. No input in any probe threw.
+
+### What did not improve, and why
+
+| failing elements (after)                | what                                                                                                                                                     | issue               |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| 867 node.sizeToSpacing (gexf-hsk-chars) | graphty's force layout packs the file's 867 nodes 2.5 times as densely as Gephi                                                                          | #3168               |
+| 381 node.position, 117 edge.route (dot) | graphty's Graphviz run (the WebAssembly build) does not place every node where the command-line drawing does; 7 real files                               | #4203               |
+| 212 node.sizeToSpacing (cx)             | a computed layout ignores the file's node sizes: labeled boxes drawn as dots                                                                             | #3103 (owner)       |
+| 100 edge.arrowPlace (pajek)             | a part-way head's tip at the asked place, where Pajek puts its back                                                                                      | #4514               |
+| 398 stray.present                       | node gradients and images not drawn (Cytoscape desktop, DOT, vis-network); 57 marks on JSON files (json-cyjs-sbgn-sciluna, -perf and others), not traced | #4515, #706         |
+| 104 node.width, 53 label.lines (dot)    | node sizes and label line breaks (real-happiness, synth-nodes, HTML table cells on labels-p2 and -p3); not traced this round                             | #706                |
+| 63 edge.route (pajek)                   | pajek-synth-vertices, -lin-rel4, -c; not traced this round                                                                                               | #706                |
+| 44 label.present (gexf-hsk-chars)       | single-character Chinese labels graphty draws where Gephi's drawing has none                                                                             | #706                |
+| 41 edge.arrow (json)                    | json-vis-siblings and json-cyjs-perf: heads at crowded nodes still given to a neighbour's line                                                           | #706                |
+| 26 edge.curve                           | among them Graphviz routes (dot 12), vis-network's bent lines (json 6, fixed by #4271), the wrong edge of a parallel pair                                | #4203, #4271, #4258 |
+
+### The full-run gate
+
+The full run's gate (`oracle-known-failures.json`) fails 10 samples on the "after" tree (20 keys counting the
+matched view, 166 elements in the two views), against 40 samples on "before". No drawing change in this round turned
+a sample red. What is left:
+
+- `dot-profile`, `dot-real-depcruise`, `dot-real-siblings`, `dot-synth-edges-clusters`, `dot-synth-nodes` (76
+  elements in the two views): the Graphviz label-size change's elements, which the owner accepted on 2026-10-29. #4455 records them
+  from a full run once #4410 is on master.
+- `pajek-graphstream-b`, `pajek-specimen-arrows`, `-p2`, `-p3` (84 elements in the two views): the part-way heads #4448
+  newly judges (#4514), red on master since #4448 merged. Not recorded.
+- `json-cyjs-perf` (6 in the two views): the arrowhead swap above.
+
+The "after" tree's known failures are the union of every branch's records, merged as sets, so this is the gate as it
+will be once every branch has landed. With the curves branch, `json-vis-lesmiserables`, `-siblings` and
+`-transparency` (matched view, 14 elements) are red too.
+
+### Known failures added in round 6, for the owner to accept
+
+Each was added with `npm run fidelity:ratchet -- --add "<reason>"`, the reason recorded in the file. Two groups record
+drawing defects rather than comparator readings, and say so: the sinewave line (#4253), and pajek-iliad 204, which
+this round's label-shift change made fail.
+
+| elements | samples | where                  | reason                                                                                                                         |
+| -------- | ------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 334      | 26      | #4448, on master       | node pictures (Cytoscape gradients and images, DOT node images, two vis-network image nodes) newly judged; drawing fix #4515   |
+| 867      | 1       | #4448, on master       | gexf-hsk-chars: graphty's layout 2.5 times as crowded as Gephi's, newly judged at the [0.5, 2] band                            |
+| 95       | 15      | #4455                  | failing since round 4's own measurement (f0b669df00); the round 4 comparator judged them and the records were never updated    |
+| 548      | 15      | #4455                  | stand-in drawings (draw.io for yEd and GraphML, Graphviz for GML), not the judge; failing since round 4 and never recorded     |
+| 272      | 24      | #4455                  | newly judged by the round 5 comparator (#4246) on an unchanged drawing, as round 5 listed them                                 |
+| 76       | 6       | #4455                  | appear with the round 5 comparator's twin pairing on round 5's drawings; 19 of them are a drawing change since round 5 (#4452) |
+| 24       | 8       | #4455                  | a drawing regression: the sinewave line that stops short of its half arrow since round 5's arrowheads (#4253)                  |
+| 2        | 1       | labels-outlines branch | pajek-iliad 204 label.offset (and its matched copy): Pajek draws the UTF-8 name as Latin-1, one character longer               |
+
+Taken off because they pass now: 79 json-vis-siblings entries and 24 cx/cx2-syn-bypass head entries (#4448), 568
+json-vis-siblings edge widths (#4471), 36 DOT arrow entries (#4507), 3,360 entries that pass on master (#4455), and the
+label.anchor entries the boundary slack passes (labels-outlines).
+
+### Floors
+
+This section's pull request changes no floor. The branches ratchet their own floors (#4471 json-vis-siblings
+edge.width 0 -> 1; #4455 842 floors up), none down. Raising the rest from the "after" run would record rates master
+reaches only with six unmerged branches that edit the same file. The floors follow under #4266, from a full run of
+master once #4455, #4410, #4507, #4510 and the labels-outlines and one-file-scale branches have merged.
+
+### Decisions pending (owner)
+
+- **vis-network's bent lines (#4271).** Five own-layout files now bend like vis-network's (edge.curve 6 -> 1), but 14
+  elements newly fail the position-matched view while 62 known failures there pass. Record the 14 and open the pull
+  request, or keep straight lines.
+- **The known failures above**, especially #4455's five groups (1,015 elements): they make the full gate, which #4455
+  puts into CI's 6-hour full run, green on what is already wrong.
+- **#3103**: a computed layout ignores the file's node sizes (the 212 cx nodes drawn as dots), and **#3168** the same
+  for spacing (gexf-hsk-chars). A layout default, so the owner's.
+- **The 8-distinct-label-positions limit**: unchanged in round 6.
+- **yEd's own drawings**: every yEd and yEd Live oracle but one was a stand-in here; since 2026-11-04 they are the
+  programs' own drawings (see "yEd's and yEd Live's own drawings").
+- **Pull requests waiting on #4455**: the labels-outlines and one-file-scale branches carry #4455's merge and open
+  only after it lands. The one-file-scale branch removes the fixed layout's `scale` option under the owner's own
+  2026-10-16 decision, as a fix.
+
+### What to look at
+
+Only a person can judge whether the drawings got better. The graph-io fidelity Storybook of the "after" tree with
+the curves branch merged shows the program's drawing beside graphty's, with the comparator's table under them (open
+`?path=/story/<id>`):
+
+1. `style-fidelity-cx-specimens--images-charts-p-7` (and the cx2, xgmml and session copies): chart axes, tick
+   numbers and turned category names, and the plot shrunk for them as Cytoscape does.
+2. `style-fidelity-graphviz-dot-specimens--arrows`: stacked arrowheads drawn part by part (bottom rows:
+   `boxdotnormal`, `invodot`, `lteeoldiamond`); `nonenormal`'s gap and `lteeoldiamond`'s stem still differ.
+3. `style-fidelity-graphviz-dot-samples--synth-edges-clusters`: the stacked heads on real Graphviz routes.
+4. `style-fidelity-vis-network-samples--vis-siblings`: lines at vis-network's 0.3 px floor (barely visible at this
+   zoom), and bent lines from the curves branch; the node layout is graphty's own.
+5. `style-fidelity-vis-network-samples--vis-world` and `--vis-lesmiserables`: the curves branch's bends against
+   vis-network's; this is the decision above.
+6. `style-fidelity-pajek-samples--synth-vertices`: labels whose text now starts at the point Pajek starts it.
+7. `style-fidelity-pajek-samples--graphstream-b`: graphty's mid-line heads one head length nearer the source
+   than Pajek's (#4514), newly judged.
+8. `style-fidelity-cx-specimens--images-charts`: node gradients and images graphty draws plain (#4515), newly judged.
+9. `style-fidelity-gexf-samples--hsk-chars`: graphty's dense ball against Gephi's spread square (#3168), newly judged.
+10. `style-fidelity-graphviz-dot-samples--real-siblings`: Graphviz line widths now right through the label-size
+    change; node positions still differ (#4203).
+11. `style-fidelity-cx-samples--syn-bypass`: the Cytoscape custom graphics graphty draws flat, beside patterned lines.
+12. The one-file-scale change has no oracle sample: open a yEd GraphML with stored positions in the graphty app built
+    from that branch, with file styles, and switch to the fixed layout.

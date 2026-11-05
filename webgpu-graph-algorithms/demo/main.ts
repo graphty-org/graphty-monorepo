@@ -436,6 +436,48 @@ function pointRadius(n: number): number {
     return n <= 12_000 ? 2.2 : 1.4;
 }
 
+function drawEdgeLines(g: CanvasRenderingContext2D, d: Demo): void {
+    const p = d.positions;
+    g.strokeStyle = "rgba(150, 170, 200, 0.28)";
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let e = 0; e < d.edges.src.length; e++) {
+        const a = d.edges.src[e];
+        const b = d.edges.dst[e];
+        const [ax, ay] = toScreen(p[3 * a], p[3 * a + 1]);
+        const [bx, by] = toScreen(p[3 * b], p[3 * b + 1]);
+        g.moveTo(ax, ay);
+        g.lineTo(bx, by);
+    }
+    g.stroke();
+}
+
+/**
+ * The log-scaled colour range: PageRank scores between the graph's min and max, or the degree from 0.
+ * @param d - the demo
+ * @param byScore - the scores to colour by, or null for the degree
+ * @returns lo and hi of the log scale
+ */
+function colourRange(d: Demo, byScore: Float32Array | null): { lo: number; hi: number } {
+    const n = d.snapshot.nodeCount;
+    let hi = 1;
+    if (byScore === null) {
+        for (let i = 0; i < n; i++) {
+            if (d.degree[i] > hi) hi = d.degree[i];
+        }
+        return { lo: 0, hi: Math.log1p(hi) };
+    }
+    let lo = Number.POSITIVE_INFINITY;
+    hi = 0;
+    for (let i = 0; i < n; i++) {
+        if (byScore[i] < lo) lo = byScore[i];
+        if (byScore[i] > hi) hi = byScore[i];
+    }
+    lo = Math.log(Math.max(lo, 1e-12));
+    hi = Math.max(Math.log(Math.max(hi, 1e-12)), lo + 1e-9);
+    return { lo, hi };
+}
+
 function draw(d: Demo): void {
     resize();
     fitView(d);
@@ -448,39 +490,12 @@ function draw(d: Demo): void {
     g.clearRect(0, 0, canvas.width, canvas.height);
     const drawEdges = edgesInput.checked && d.edges.src.length <= 200_000;
     if (drawEdges) {
-        g.strokeStyle = "rgba(150, 170, 200, 0.28)";
-        g.lineWidth = 1;
-        g.beginPath();
-        for (let e = 0; e < d.edges.src.length; e++) {
-            const a = d.edges.src[e];
-            const b = d.edges.dst[e];
-            const [ax, ay] = toScreen(p[3 * a], p[3 * a + 1]);
-            const [bx, by] = toScreen(p[3 * b], p[3 * b + 1]);
-            g.moveTo(ax, ay);
-            g.lineTo(bx, by);
-        }
-        g.stroke();
+        drawEdgeLines(g, d);
     }
     const radius = pointRadius(n);
     const byScore = colourSelect.value === "pagerank" && d.scores !== null ? d.scores : null;
     // t in [0, 1]: log-scaled degree, or log-scaled PageRank score between the graph's min and max.
-    let lo = 0;
-    let hi = 1;
-    if (byScore !== null) {
-        lo = Number.POSITIVE_INFINITY;
-        hi = 0;
-        for (let i = 0; i < n; i++) {
-            if (byScore[i] < lo) lo = byScore[i];
-            if (byScore[i] > hi) hi = byScore[i];
-        }
-        lo = Math.log(Math.max(lo, 1e-12));
-        hi = Math.max(Math.log(Math.max(hi, 1e-12)), lo + 1e-9);
-    } else {
-        for (let i = 0; i < n; i++) {
-            if (d.degree[i] > hi) hi = d.degree[i];
-        }
-        hi = Math.log1p(hi);
-    }
+    const { lo, hi } = colourRange(d, byScore);
     for (let i = 0; i < n; i++) {
         const [x, y] = toScreen(p[3 * i], p[3 * i + 1]);
         const t =

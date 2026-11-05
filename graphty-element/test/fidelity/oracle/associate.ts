@@ -19,18 +19,26 @@ import {
     bandPaintedAsFill,
     boxOfPoints,
     compareIds,
+    figureOf,
+    insideFigure,
     PAINTED_OUTLINE,
+    type PaintedBand,
     type PArrow,
     type PBox,
     type PEdge,
     type PGroup,
+    piecedArrowShapeOf,
     type PNode,
     type Prim,
     type PScene,
     type PShape,
+    type PStop,
     type PStray,
     type Pt,
     type PText,
+    shapeId,
+    strokedBarb,
+    taperPaintedAsFill,
 } from "./primitives";
 
 type Similarity = NonNullable<ReturnType<typeof fitSimilarity>>;
@@ -64,6 +72,8 @@ const union = (boxes: readonly PBox[]): PBox =>
     );
 /** Whether a box lies wholly inside another. */
 const within = (a: PBox, b: PBox): boolean => a.x0 >= b.x0 && a.y0 >= b.y0 && a.x1 <= b.x1 && a.y1 <= b.y1;
+/** How far, in px, a line's end may lie off the box of the arrow annotation graphty draws along it. */
+const NOTE_LINE_SLACK = 3;
 const inside = (p: Pt, b: PBox, slack = 0): boolean =>
     p[0] >= b.x0 - slack && p[0] <= b.x1 + slack && p[1] >= b.y0 - slack && p[1] <= b.y1 + slack;
 /**
@@ -93,7 +103,23 @@ const median = (xs: readonly number[]): number => {
     const v = [...xs].sort((a, b) => a - b);
     return v.length === 0 ? 1 : v[Math.floor(v.length / 2)];
 };
-const byText = (a: PText, b: PText): number => a.y - b.y || a.x - b.x;
+// turned words (a chart's upright category names) stand side by side, each anchored as far down as it is long: read
+// left to right, after the level lines (one key per kind, so the order never depends on the input's)
+const byText = (a: PText, b: PText): number => {
+    const [ta, tb] = [a.rotation !== 0, b.rotation !== 0];
+    if (ta !== tb) {
+        return ta ? 1 : -1;
+    }
+    return ta ? a.x - b.x || a.y - b.y : a.y - b.y || a.x - b.x;
+};
+
+/**
+ * Whether two level texts share one line: each one's middle lies within the other's height.
+ * @param a - one text's box
+ * @param b - the other's
+ * @returns true on one line
+ */
+const sameLine = (a: PBox, b: PBox): boolean => cy(b) >= a.y0 && cy(b) <= a.y1 && cy(a) >= b.y0 && cy(a) <= b.y1;
 
 /**
  * The shape class a primitive draws.
@@ -284,8 +310,46 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
     return fills.some((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
 }
 
+/** The node shapes whose outline is not their box's, nor an ellipse in it: a line ends on their slanted sides. */
+const SLANTED: ReadonlySet<PShape> = new Set(["triangle", "diamond", "hexagon", "octagon"]);
+
+/** The outline each node of a slanted shape was drawn with, where it was found by geometry (`nodeFrom`). */
+const slantedOutlines = new WeakMap<PNode, readonly Pt[]>();
+
+/**
+ * The rows of a table drawn as boxes stacked edge to edge (`stackedRows`) that each match of bodies (`matchBodies`)
+ * found, by node: part of the node's box (`nodeFrom`) in the match that is chosen, never in another.
+ */
+const tableRowsOf = new WeakMap<ReadonlyMap<string, Prim[]>, Map<string, ReadonlySet<Prim>>>();
+
+/**
+ * How far a point is from a closed outline's sides.
+ * @param p - the point
+ * @param outline - the outline's points, in order
+ * @returns the distance
+ */
+function toOutline(p: Pt, outline: readonly Pt[]): number {
+    let best = Infinity;
+    for (let i = 0; i < outline.length; i++) {
+        const [a, b] = [outline[i], outline[(i + 1) % outline.length]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+        best = Math.min(best, Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy));
+    }
+    return best;
+}
+
+/** How much of a node's box, and of a picture's, the two share for the picture to be the node's face. */
+const FACE_COVERED = 0.9;
+
 /** A node built from the primitives that draw it. */
-function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
+function nodeFrom(
+    id: string,
+    drawn: readonly Prim[],
+    texts: readonly PText[],
+    rows: ReadonlySet<Prim> = new Set(),
+): PNode {
     const under = underlaysOf(drawn);
     const ringPrim = outerRingOf(drawn.filter((p) => !under.has(p)));
     // a ring outside the border is neither the node's size nor its outline: judged on its own
@@ -301,8 +365,9 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
     // and an outline drawn as a fill of its own (`outlinePaintedAsFill`) says nothing of the shape: its body does
     const outline =
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
+    // and a table's rows, however short each is: the table is their union (#5347)
     const box = body
-        ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box)).map((s) => s.box))
+        ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box) || rows.has(s)).map((s) => s.box))
         : union(texts.map((t) => t.box));
     // a fill over no area paints nothing: Cytoscape draws a 1 x 1 anchor node with a 1 px border as a
     // shape of size 0, its round-capped outline a dot and its fill nowhere
@@ -313,8 +378,24 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
     const stroked = all
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
-    const pictures = shapes.filter((s) => s.kind === "image").map((s) => s.box);
-    return {
+    // a gradient painted as a picture over the node's whole face (Cytoscape desktop's gradient custom graphics) is the
+    // node's fill as a reader sees it, not a picture on it
+    const overlap = (a: PBox, b: PBox): number =>
+        Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+        Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+    const painted = shapes.find(
+        (s) =>
+            s.gradient !== undefined &&
+            overlap(s.box, box) >= FACE_COVERED * Math.max(area(s.box), area(box)) &&
+            area(box) > 0,
+    );
+    const paintedFill =
+        painted?.gradient === undefined
+            ? null
+            : { color: painted.gradient.stops[0]?.color ?? "#000000", opacity: 1, gradient: painted.gradient };
+    const pictures = shapes.filter((s) => s.kind === "image" && s !== painted).map((s) => s.box);
+    const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
         cx: cx(box),
@@ -322,8 +403,8 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         w: bw(box),
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
-        shape: outline && area(outline.box) > 0 ? shapeOf(outline) : null,
-        fill: filled?.fill ?? null,
+        shape,
+        fill: paintedFill ?? filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
         ring:
             ringPrim === null || ringPrim.stroke === null
@@ -339,6 +420,16 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         label: mergeTexts(texts),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
     };
+    if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
+        slantedOutlines.set(node, outline.points);
+    }
+    // a figure with a dent (Pajek's man): its lines are cut, and what it hides judged, at its own outline
+    const figure =
+        outline?.closed === true && shape !== null ? figureOf(outline.fine ?? outline.points, node) : undefined;
+    if (figure !== undefined) {
+        node.figure = figure;
+    }
+    return node;
 }
 
 /**
@@ -348,23 +439,30 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
  * ends (within half its font size) whose middle lies within that one's height; a space is put between two runs
  * apart by more than a sixth of the font size, or where either keeps a blank at that side.
  * @param texts - the texts
+ * @param keepApart - two texts never joined, whatever their places
  * @returns the texts with each line's runs joined, left to right
  */
-function joinRuns(texts: readonly PText[]): PText[] {
+function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => boolean = () => false): PText[] {
     const out: PText[] = [];
+    // each joined line's last run: a run joins only the run just before it on its line, never one across a word
+    // drawn between them (a chart's overlapping names "a", "b", "c" are not "ac" and "b")
+    const lastRun = new Map<PText, PText>();
+    // turned words are no line of text (a chart's slanted category names), as the oracle's are not
+    const level = (p: PText): boolean => p.rotation === 0 && (p.lines?.length ?? 1) < 2;
     for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
-        const before = out.find(
-            (a) =>
-                (a.lines?.length ?? 1) < 2 &&
-                (t.lines?.length ?? 1) < 2 &&
-                t.box.x0 - a.box.x1 >= -0.2 * size(a) &&
-                t.box.x0 - a.box.x1 <= 0.5 * size(a) &&
-                cy(t.box) >= a.box.y0 &&
-                cy(t.box) <= a.box.y1 &&
-                cy(a.box) >= t.box.y0 &&
-                cy(a.box) <= t.box.y1,
+        const onLine = level(t) ? out.filter((a) => level(a) && sameLine(a.box, t.box)) : [];
+        const last = onLine.reduce<PText | undefined>(
+            (m, a) => (m === undefined || (lastRun.get(a) ?? a).box.x0 > (lastRun.get(m) ?? m).box.x0 ? a : m),
+            undefined,
         );
+        const before =
+            last !== undefined &&
+            !keepApart(lastRun.get(last) ?? last, t) &&
+            t.box.x0 - last.box.x1 >= -0.2 * size(last) &&
+            t.box.x0 - last.box.x1 <= 0.5 * size(last)
+                ? last
+                : undefined;
         if (before === undefined) {
             out.push(t);
             continue;
@@ -372,13 +470,15 @@ function joinRuns(texts: readonly PText[]): PText[] {
         const apart =
             t.box.x0 - before.box.x1 > size(before) / 6 || before.blank?.after === true || t.blank?.before === true;
         const box = union([before.box, t.box]);
-        out[out.indexOf(before)] = {
+        const joined: PText = {
             ...before,
             content: norm(`${before.content}${apart ? " " : ""}${t.content}`),
             box,
             lines: [box],
             blank: { before: before.blank?.before ?? false, after: t.blank?.after ?? false },
         };
+        out[out.indexOf(before)] = joined;
+        lastRun.set(joined, t);
     }
     return out;
 }
@@ -386,13 +486,14 @@ function joinRuns(texts: readonly PText[]): PText[] {
 /**
  * Lines of one label, drawn as separate text elements, as one text.
  * @param texts - the lines
+ * @param apart - two texts never joined into one line, whatever their places (see {@link apartAsGraphty})
  * @returns the label, or null when there are none
  */
-export function mergeTexts(texts: readonly PText[]): PText | null {
+export function mergeTexts(texts: readonly PText[], apart?: (a: PText, b: PText) => boolean): PText | null {
     if (texts.length === 0) {
         return null;
     }
-    const lines = joinRuns(texts).sort(byText);
+    const lines = joinRuns(texts, apart).sort(byText);
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
     return {
@@ -408,6 +509,29 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
 }
 
 /**
+ * The program's words graphty draws as separate lines on one row, kept apart: whether words side by side are one
+ * line of text or several is read once, off graphty's drawing, so a glyph box a little wider or narrower on one side
+ * (graphty's DejaVu "a" against the oracle's Tahoma box, xgmml-specimen-images-charts-p7 bar-axis-label-font-size-20)
+ * never groups the same words two ways. Words graphty draws on rows of their own are still joined where the program
+ * runs them together, so a label graphty wraps that the program does not is still told.
+ * @param picked - the program's text for each of graphty's lines, by the line's place in graphty's label
+ * @param label - graphty's label
+ * @returns whether two of the program's texts stay apart
+ */
+function apartAsGraphty(picked: readonly (Prim | undefined)[], label: PText | null): (a: PText, b: PText) => boolean {
+    const rows = label === null ? [] : label.content.split("\n").filter((l) => norm(l) !== "");
+    const boxes = label?.lines ?? [];
+    if (rows.length !== picked.length || boxes.length !== picked.length) {
+        return () => false;
+    }
+    const lineOf = new Map(picked.flatMap((p, i) => (p?.text ? [[p.text, i] as const] : [])));
+    return (a, b) => {
+        const [i, j] = [lineOf.get(a), lineOf.get(b)];
+        return i !== undefined && j !== undefined && i !== j && sameLine(boxes[i], boxes[j]);
+    };
+}
+
+/**
  * How far an arrowhead reaches along its edge's end direction and across it, and its shape class.
  * @param outline - the arrowhead's drawn points
  * @param path - the edge's path, source end first
@@ -417,13 +541,14 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
  * @param look.filled - whether it is filled
  * @param look.color - its color, or null
  * @param look.shape - its shape class, or undefined to read it off the outline
+ * @param look.pieces - its subpaths, when it is drawn as several (read together where the outline makes no shape)
  * @returns the arrow
  */
 export function measureArrow(
     outline: readonly Pt[],
     path: readonly Pt[],
     end: ArrowEnd,
-    look: { filled: boolean; color: string | null; shape?: ArrowShape },
+    look: { filled: boolean; color: string | null; shape?: ArrowShape; pieces?: readonly (readonly Pt[])[] },
 ): PArrow {
     const { filled, color } = look;
     // one part-way along is measured along the line's direction where it is, source to target
@@ -434,9 +559,9 @@ export function measureArrow(
     };
     const pts = RUNS[end]();
     const tip = pts.at(-1) ?? [0, 0];
-    const back = pts[Math.max(0, Math.floor(pts.length * 0.8) - 1)] ?? tip;
-    let dx = tip[0] - back[0];
-    let dy = tip[1] - back[1];
+    const [back, front] = capRun(pts, outline) ?? [tip, tip];
+    let dx = front[0] - back[0];
+    let dy = front[1] - back[1];
     const len = Math.hypot(dx, dy);
     const box = boxOfPoints(outline);
     if (len < 1e-9 || outline.length === 0) {
@@ -452,72 +577,240 @@ export function measureArrow(
     }
     dx /= len;
     dy /= len;
-    [dx, dy] = capAxis(outline, tip, [dx, dy]);
+    [dx, dy] = capAxis(outline, pts, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
+    const at = areaCentroid(outline) ?? [cx(box), cy(box)];
+    const [back0, front0] = [Math.min(...along), Math.max(...along)];
+    const gap = lineGapUnder(along, across, tip, [dx, dy]);
     return {
         end,
-        length: Math.max(...along) - Math.min(...along),
+        length: front0 - back0,
         width: Math.max(...across) - Math.min(...across),
         filled,
-        shape: look.shape ?? arrowShapeOf(outline, [dx, dy]),
+        shape: look.shape ?? shapeAlong(outline, look.pieces, [dx, dy]),
         color,
+        at,
+        ...(end === "middle" || gap === null ? {} : { lineGap: gap }),
     };
 }
 
+/** How far off its line's middle a head's point may lie and still meet the line, at least, in pixels. */
+const ON_LINE_PX = 1.5;
+
 /**
- * How far a cap's own axis may turn from the line's end direction and still be read as its axis: the most Gephi's
- * aim turns from its arc. Its arc (radius distance / 1.2) passes through both node centers, so the aim from a point on
- * it at the target's center turns from the arc's tangent there by half the arc between them (the tangent-chord angle),
- * at most half the whole arc, asin(0.6) = 36.87 degrees; the line's end direction, read from a point behind its end,
- * turns away by half the arc between, which still sums to at most half the whole arc. A short edge between large
- * nodes comes close (`gexf-graphology-rio` `ncs337->ncs291`: 34 degrees).
+ * The break between where a line stops and where its end's head first meets it, as a share of the head's length:
+ * from the line's end to the head's point on the line nearest its back (within `ON_LINE_PX`, or a seventh of its
+ * width), 0 where the line runs on to it or past it.
+ * @param along - each of the head's points along the axis
+ * @param across - each across it
+ * @param end - where the line stops
+ * @param dir - the axis, back to tip
+ * @returns the share, or null for a head of no length or none on the line
  */
-const CAP_AXIS_TURN = Math.asin(0.6) + (0.5 * Math.PI) / 180;
+function lineGapUnder(along: readonly number[], across: readonly number[], end: Pt, dir: Pt): number | null {
+    const [back, front] = [Math.min(...along), Math.max(...along)];
+    const lineAt = -end[0] * dir[1] + end[1] * dir[0];
+    const slack = Math.max(ON_LINE_PX, (Math.max(...across) - Math.min(...across)) / 7);
+    const meets = along.filter((_, i) => Math.abs(across[i] - lineAt) <= slack);
+    if (!(front - back > 1e-9) || meets.length === 0) {
+        return null;
+    }
+    const stops = end[0] * dir[0] + end[1] * dir[1];
+    return Math.min(1, Math.max(0, (Math.min(...meets) - stops) / (front - back)));
+}
+
+/**
+ * An arrowhead's shape class along its axis: its outline's, or where that makes no shape and it is drawn in pieces
+ * (one path of several subpaths, whose outline runs from one piece to the next), its pieces' together.
+ * @param outline - the arrowhead's points
+ * @param pieces - its subpaths, when it has them
+ * @param dir - the axis, back to tip
+ * @returns the class
+ */
+function shapeAlong(outline: readonly Pt[], pieces: readonly (readonly Pt[])[] | undefined, dir: Pt): ArrowShape {
+    const whole = arrowShapeOf(outline, dir);
+    return whole === "other" && pieces !== undefined && pieces.length > 1
+        ? (piecedArrowShapeOf(pieces, dir) ?? whole)
+        : whole;
+}
+
+/** The least distance a line's end direction is read over: past a coordinate's rounding. */
+const END_RUN = 1;
+
+/**
+ * The centroid of a closed outline's area (shoelace), which a point repeated or a side sampled more finely than
+ * another does not move.
+ * @param outline - the outline's points, in drawing order
+ * @returns the centroid, or null for an outline of no area
+ */
+function areaCentroid(outline: readonly Pt[]): Pt | null {
+    let [a, x, y] = [0, 0, 0];
+    for (let i = 0; i < outline.length; i++) {
+        const [p, q] = [outline[i], outline[(i + 1) % outline.length]];
+        const cross = p[0] * q[1] - q[0] * p[1];
+        a += cross;
+        x += (p[0] + q[0]) * cross;
+        y += (p[1] + q[1]) * cross;
+    }
+    return Math.abs(a) < 1e-9 ? null : [x / (3 * a), y / (3 * a)];
+}
+
+/**
+ * The run of a line a cap on its end is read along, as the points it runs from and to. A cap drawn on beyond the
+ * line's end (three quarters of its length or more ahead of it; Graphviz may set its back a pen's width behind the
+ * end) points along the line's tangent there, as Graphviz sets an arrowhead on its spline's end: from the last point
+ * at least END_RUN behind the end to the end. A cap the line runs into, or under, lies along the line where the cap
+ * is, and points along the chord across it, as vis-network aims its arrowhead from a point a share of the curve back:
+ * from half the cap's size (its box's longer side) before the line's point nearest the cap's middle to as far after
+ * it, or the end. That chord also passes over a last step the line takes back under a dot centered on its end
+ * (graphty's dot on a curved vis-network edge, `vis-network-specimen-mappings-bypass` edge-default) and over a line
+ * vis-network runs on past its arrowhead to the node's middle (`json-vis-unix` 3 BSD -> 4 BSD). An edge's curve is read
+ * as many short steps (128 by arc length), so a chord from a share of its points back runs tens of degrees off on a
+ * spline that bends near its end (`dot-profile` main->fclose: 25 degrees, which read Graphviz's triangle as half an
+ * arrow).
+ * @param pts - the line, its end last
+ * @param outline - the cap's points
+ * @returns the run, or undefined for no line
+ */
+function capRun(pts: readonly Pt[], outline: readonly Pt[]): [Pt, Pt] | undefined {
+    const end = pts.at(-1);
+    const near = endBack(pts, END_RUN);
+    if (end === undefined || near === undefined) {
+        return undefined;
+    }
+    const len = Math.hypot(end[0] - near[0], end[1] - near[1]);
+    const along = outline.map(
+        ([x, y]) => ((x - end[0]) * (end[0] - near[0]) + (y - end[1]) * (end[1] - near[1])) / len,
+    );
+    if (outline.length === 0 || !(len > 0) || Math.max(...along) >= 0.75 * (Math.max(...along) - Math.min(...along))) {
+        return [near, end];
+    }
+    const box = boxOfPoints(outline);
+    const half = Math.max(bw(box), bh(box), END_RUN) / 2;
+    const mid = areaCentroid(outline) ?? [cx(box), cy(box)];
+    const gap = pts.map(([x, y]) => Math.hypot(x - mid[0], y - mid[1]));
+    const at = gap.indexOf(Math.min(...gap));
+    const before = endBack(pts.slice(0, at + 1), half) ?? pts[0];
+    const after = endBack([...pts.slice(at)].reverse(), half) ?? end;
+    return [before, after];
+}
+
+/**
+ * The last point of a line at least a distance behind its end, else its first.
+ * @param pts - the line, its end last
+ * @param reach - the distance
+ * @returns the point, or undefined for no line
+ */
+function endBack(pts: readonly Pt[], reach: number): Pt | undefined {
+    const end = pts.at(-1);
+    if (end === undefined) {
+        return undefined;
+    }
+    for (let i = pts.length - 2; i >= 0; i--) {
+        if (Math.hypot(pts[i][0] - end[0], pts[i][1] - end[1]) >= reach) {
+            return pts[i];
+        }
+    }
+    return pts[0];
+}
+
 /** How closely a cap's tip and its middle must agree on its axis for it to count as symmetric about it. */
 const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
 
 /**
+ * The axis of a pointed cap symmetric about the line from a point through its tip: the unit direction from the point
+ * to the cap's farthest point from it, when every point away from that tip lies well behind it (a box's or a tee's two
+ * front corners do not, nor an inverted triangle's or a crow's) and the cap's middle (the centroid of its area, which
+ * a repeated closing point does not move) lies on that line, within CAP_AXIS_AGREE.
+ * @param pts - the cap's points
+ * @param end - the point
+ * @returns the direction, or null for a cap that is not so
+ */
+function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
+    const dist = pts.map(([x, y]) => Math.hypot(x - end[0], y - end[1]));
+    const reach = Math.max(...dist);
+    if (!(reach > 1e-9)) {
+        return null;
+    }
+    const tip = pts[dist.indexOf(reach)];
+    const axis: Pt = [(tip[0] - end[0]) / reach, (tip[1] - end[1]) / reach];
+    const along = pts.map(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1]);
+    const length = reach - Math.min(...along);
+    const pointed = pts.every(
+        (p, i) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) <= 0.25 * length || along[i] <= reach - 0.25 * length,
+    );
+    const mid = areaCentroid(pts);
+    const off =
+        mid === null ? Math.PI : Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
+    return pointed && Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
+}
+
+/**
+ * The axis of an inverted triangle drawn on from a line's end, its point on the end: the unit direction from the point
+ * to the middle of its two far corners, when those lie about as far from the point (within a tenth) and the cap's
+ * middle lies on that line, within CAP_AXIS_AGREE. Graphviz's `inv` on a spline that kinks at its end
+ * (dot-synth-edges-clusters c7_1 -> c8_0: the line's last sampled run is 30 degrees off the head) was read along the
+ * kinked run, which makes no shape of it.
+ * @param pts - the cap's points
+ * @param end - the point
+ * @returns the direction, or null for a cap that is not so
+ */
+function invertedAxis(pts: readonly Pt[], end: Pt): Pt | null {
+    const corners = pts.filter((p, i) => pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+    if (corners.length !== 3) {
+        return null;
+    }
+    const byDist = [...corners].sort(
+        (a, b) => Math.hypot(a[0] - end[0], a[1] - end[1]) - Math.hypot(b[0] - end[0], b[1] - end[1]),
+    );
+    const [near, a, b] = byDist;
+    const [da, db] = [a, b].map((p) => Math.hypot(p[0] - end[0], p[1] - end[1]));
+    const toNear = Math.hypot(near[0] - end[0], near[1] - end[1]);
+    const back: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const reach = Math.hypot(back[0] - end[0], back[1] - end[1]);
+    const mid = areaCentroid(pts);
+    if (mid === null || !(reach > 1e-9) || Math.abs(da - db) > 0.1 * Math.max(da, db) || toNear > 0.25 * reach) {
+        return null;
+    }
+    const axis: Pt = [(back[0] - end[0]) / reach, (back[1] - end[1]) / reach];
+    const off = Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
+    return Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
+}
+
+/**
  * The direction a cap points in. A cap drawn on from where its line stops (its back on the line's end) points along
- * its own axis, which on a curved line need not be the line's end direction: Gephi ends an arc short of its node and
- * aims the arrowhead from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4`.
- * The axis is from the line's end through the cap's tip (its point furthest along the line) when the cap is pointed
- * (every point away from the tip lies well behind it), its middle (the mean of its points) lies on that same axis -- a
- * cap symmetric about it -- and it turns less than CAP_AXIS_TURN from the line; otherwise, and for a cap the line runs
- * into, the line's end direction.
+ * its own axis, which need not be the line's end direction: Gephi ends an arc short of its node and aims the arrowhead
+ * from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4` (34 on a short arc
+ * between large nodes, `gexf-graphology-rio` ncs337->ncs291), and Graphviz draws the arrowhead of an edge whose `pos`
+ * names an end point (`e,x,y`, `s,x,y`) from the spline's end to that point, at any angle to the spline
+ * (`dot-specimen-edges-lines-p11` pos-arrow-both-points: 65 degrees). The axis is from the line's end through the cap's
+ * tip when the cap is pointed and symmetric about that axis (`pointedAxis`), it lies ahead of the line's end (a back
+ * corner may poke behind it by under a third of its length), and the line three quarters of its length behind its end
+ * lies behind it and outside it; otherwise -- half an arrow, a box, a tee, a cap the line runs into -- along the line
+ * where the cap is (`capRun`).
  * @param outline - the cap's drawn points
- * @param end - where the line ends
+ * @param line - the line, its end last
  * @param dir - the line's unit end direction
  * @returns the unit direction to read the cap along
  */
-function capAxis(outline: readonly Pt[], end: Pt, dir: Pt): Pt {
-    const along = outline.map(([x, y]) => (x - end[0]) * dir[0] + (y - end[1]) * dir[1]);
+function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
+    const end = line.at(-1);
+    if (end === undefined) {
+        return dir;
+    }
+    const axis = pointedAxis(outline, end) ?? invertedAxis(outline, end);
+    if (axis === null) {
+        return dir;
+    }
+    const along = outline.map(([x, y]) => (x - end[0]) * axis[0] + (y - end[1]) * axis[1]);
     const length = Math.max(...along) - Math.min(...along);
-    // the line runs into the cap (it ends at the tip, or at its middle): its end direction is the cap's. A cap drawn on
-    // from the line's end may still poke a back corner behind it, by up to sin(CAP_AXIS_TURN) of its half width.
-    if (!(length > 1e-9) || Math.min(...along) < -0.3 * length) {
-        return dir;
-    }
-    const front = Math.max(...along);
-    const tip = outline[along.indexOf(front)];
-    // a pointed cap: every point away from its tip lies well behind it (a box's or a tee's two front corners do not)
-    const pointed = outline.every(
-        (p, i) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) <= 0.25 * length || along[i] <= front - 0.25 * length,
-    );
-    if (!pointed) {
-        return dir;
-    }
-    const mid: Pt = [
-        outline.reduce((sum, p) => sum + p[0], 0) / outline.length,
-        outline.reduce((sum, p) => sum + p[1], 0) / outline.length,
-    ];
-    const angle = ([x, y]: Pt): number => Math.atan2(y - end[1], x - end[0]);
-    const turn = (a: number, b: number): number => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-    const axis = angle(tip);
-    if (turn(axis, angle(mid)) > CAP_AXIS_AGREE || turn(axis, Math.atan2(dir[1], dir[0])) > CAP_AXIS_TURN) {
-        return dir;
-    }
-    return [Math.cos(axis), Math.sin(axis)];
+    // three quarters of its length back: inside a cap the line runs into, outside one drawn on from where it stops,
+    // even where the cap's back sits a little behind the line's end (Graphviz moves an arrowhead back by part of a
+    // wide pen: 1.8 px on `dot-specimen-edges-lines-p11`)
+    const behind = endBack(line, 0.75 * length) ?? end;
+    const before = (behind[0] - end[0]) * axis[0] + (behind[1] - end[1]) * axis[1] < 0;
+    return Math.min(...along) >= -0.3 * length && before && !inPolygon(behind, outline) ? axis : dir;
 }
 
 /**
@@ -526,16 +819,24 @@ function capAxis(outline: readonly Pt[], end: Pt, dir: Pt): Pt {
  * @returns the points
  */
 function middleRun(path: readonly Pt[]): Pt[] {
-    const at = pointAlong(path, 0.5);
-    let left = pathLength(path) / 2;
-    for (let i = 1; i < path.length; i++) {
-        const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-        if (left <= step) {
-            return [path[i - 1], at, path[i]];
-        }
-        left -= step;
+    const kept = middles.get(path);
+    if (kept !== undefined) {
+        return [...kept];
     }
-    return [...path];
+    const run = ((): Pt[] => {
+        const at = pointAlong(path, 0.5);
+        let left = pathLength(path) / 2;
+        for (let i = 1; i < path.length; i++) {
+            const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+            if (left <= step) {
+                return [path[i - 1], at, path[i]];
+            }
+            left -= step;
+        }
+        return [...path];
+    })();
+    middles.set(path, run);
+    return [...run];
 }
 
 /**
@@ -573,10 +874,17 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
     // fill and outline alike, where a hollow one's faint fill sits under an outline painted at full strength
     const solid = 0.5 * (p.stroke?.opacity ?? p.fill?.opacity ?? 1);
     const filled = p.fill !== null && p.fill.opacity >= solid && deltaE(p.fill.color, background) > 3;
-    return measureArrow(p.points, path, end, {
+    const arrow = measureArrow(p.points, path, end, {
         filled,
         color: filled ? (p.fill?.color ?? null) : (p.stroke?.color ?? null),
+        ...(p.subpaths === undefined ? {} : { pieces: p.subpaths }),
     });
+    // a bar drawn as a stroke across the line (yEd's dash and t_shape) is solid, as long as its stroke is wide
+    if (arrow.shape === "tee" && p.stroke !== null && arrow.length < p.stroke.width) {
+        return { ...arrow, length: p.stroke.width, filled: true, color: p.stroke.color };
+    }
+    // half an arrow drawn as a thin strip is one open stroked barb (Cytoscape desktop's HALF_TOP), not a filled wedge
+    return arrow.shape === "half" && arrow.filled && strokedBarb(p.points) ? { ...arrow, filled: false } : arrow;
 }
 
 /**
@@ -591,16 +899,17 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
 export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "source" | "target"): Pt[] {
     const pts = end === "target" ? [...path] : [...path].reverse();
     const last = pts.at(-1);
-    const back = pts[Math.max(0, Math.floor(pts.length * 0.8) - 1)];
-    if (last === undefined || back === undefined || outline.length === 0) {
+    const run = capRun(pts, outline);
+    if (last === undefined || run === undefined || outline.length === 0) {
         return [...path];
     }
-    const len = Math.hypot(last[0] - back[0], last[1] - back[1]);
+    const [back, front] = run;
+    const len = Math.hypot(front[0] - back[0], front[1] - back[1]);
     if (len < 1e-9) {
         return [...path];
     }
-    const dx = (last[0] - back[0]) / len;
-    const dy = (last[1] - back[1]) / len;
+    const dx = (front[0] - back[0]) / len;
+    const dy = (front[1] - back[1]) / len;
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved
@@ -609,6 +918,42 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
         pts.push([last[0] + dx * reach, last[1] + dy * reach]);
     }
     return end === "target" ? pts : pts.reverse();
+}
+
+/** How far outside an arrowhead's outline a point of its line may lie and still be under it: a coordinate's rounding. */
+const COVER_SLACK = 0.5;
+
+/**
+ * A line wholly under its one arrowhead: the end the arrowhead caps and the edge's route, source end first. Pajek 6.02
+ * runs an arc from its source to its arrowhead's back, the tip 1 px off the target's outline, so under a large
+ * arrowhead a short arc is a stub that runs from the source back to the arrowhead's back, behind the source's center
+ * or inside its outline (`pajek-synth-lines` 25 -> 26 under `s 5`, 14 -> 15 with `h1 -1 h2 -1`), and the arrowhead's
+ * middle is nearer the line's source end than its target end. The line's end at the arrowhead's back is the farther
+ * from the tip, and the arrowhead caps it; what a reader sees of the edge is the arrowhead, from its back to its tip.
+ * @param outline - the arrowhead's points
+ * @param line - the line, source end first
+ * @returns the end and the route, or null for a line that shows beyond its arrowhead
+ */
+function coveredLine(
+    outline: readonly Pt[],
+    line: readonly Pt[],
+    tipAt?: (tip: Pt, mid: Pt) => "source" | "target" | null,
+): { end: "source" | "target"; points: Pt[] } | null {
+    const gap = (a: Pt, b: Pt): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    // inside it, or on one of its corners (the line's end on the arrowhead's notch)
+    const under = (q: Pt): boolean => inPolygon(q, outline) || outline.some((c) => gap(q, c) <= COVER_SLACK);
+    const mid = areaCentroid(outline);
+    if (line.length < 2 || outline.length < 3 || mid === null || !line.every(under)) {
+        return null;
+    }
+    const tip = outline.reduce((best, q) => (gap(q, mid) > gap(best, mid) ? q : best));
+    const [first, last] = [line[0], line.at(-1) ?? line[0]];
+    const far = gap(last, tip) >= gap(first, tip) ? last : first;
+    // the way it points, where the edge's two nodes are known, says which end it caps: Graphviz runs a stub of a few
+    // pixels under its arrowhead from the source toward the tip (dot-real-softmaint odfpr1_0_3t_18 -> 371187), its end
+    // at the arrowhead's back the nearer the tip
+    const end = tipAt?.(tip, mid) ?? (far === last ? "target" : "source");
+    return end === "target" ? { end, points: [far, tip] } : { end, points: [tip, far] };
 }
 
 /**
@@ -710,17 +1055,166 @@ function parallelEdges(ps: readonly Prim[]): Prim[][] {
     });
 }
 
-const longestPath = (prims: readonly Prim[]): Prim | undefined =>
-    [...prims]
-        .filter((p) => p.kind === "path" || (p.closed && p.fill === null))
+/**
+ * Whether a closed shape of an edge's markup is drawn round words of the same edge: a box behind or round its label.
+ * @param p - the shape
+ * @param part - the edge's primitives
+ * @returns true for a label's box
+ */
+function labelDress(p: Prim, part: readonly Prim[]): boolean {
+    return (
+        p.text === null &&
+        p.closed &&
+        part.some((t) => t.text !== null && t.text.content.trim() !== "" && within(t.box, p.box))
+    );
+}
+
+/** Whether two points are one joint. */
+const joint = (a: Pt | undefined, b: Pt | undefined): boolean =>
+    a !== undefined && b !== undefined && Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.05;
+
+/**
+ * Open pieces of one width laid end to end, each the right way round, from the first in document order that has a
+ * free end; null unless every piece is on the one chain.
+ * @param open - the pieces
+ * @returns each piece with its points in chain order, or null
+ */
+function chainOf(open: readonly Prim[]): { piece: Prim; points: Pt[] }[] | null {
+    const free = (p: Prim, at: Pt | undefined): boolean =>
+        !open.some((q) => q !== p && (joint(q.points[0], at) || joint(q.points.at(-1), at)));
+    const first = open.find((p) => free(p, p.points[0]) || free(p, p.points.at(-1)));
+    if (first === undefined) {
+        return null;
+    }
+    const chain = [{ piece: first, points: free(first, first.points[0]) ? first.points : [...first.points].reverse() }];
+    const left = new Set(open.filter((p) => p !== first));
+    for (let tail = chain[0].points.at(-1); left.size > 0; tail = chain.at(-1)?.points.at(-1)) {
+        const next = [...left].find((q) => joint(q.points[0], tail) || joint(q.points.at(-1), tail));
+        if (next === undefined) {
+            return null;
+        }
+        left.delete(next);
+        chain.push({ piece: next, points: joint(next.points[0], tail) ? next.points : [...next.points].reverse() });
+    }
+    return chain;
+}
+
+/**
+ * One route drawn as open paths of one width laid end to end: Graphviz's colored segments (`color="red;0.3:blue"`,
+ * emit.c `splitBSpline`), each piece in the next color, and an orthogonal route with rounded corners (`radius`), its
+ * straight runs and its corners drawn apart. Read as one line; when its pieces differ in color, its stroke runs
+ * through the colors with a hard switch at each joint, as a gradient along the line, its first color the line's.
+ * @param part - an edge's primitives
+ * @returns the line and the pieces it joins, or null when the edge is not drawn so
+ */
+export function segmentedLine(part: readonly Prim[]): { line: Prim; pieces: ReadonlySet<Prim> } | null {
+    const open = part
+        .filter((p) => p.kind === "path" && !p.closed && p.fill === null && p.stroke !== null)
+        .sort((a, b) => a.index - b.index);
+    const width = open[0]?.stroke?.width;
+    const chain = open.length < 2 || open.some((p) => p.stroke?.width !== width) ? null : chainOf(open);
+    const stroke = chain?.[0].piece.stroke ?? null;
+    // A stroked arc at either end is a cap on the line's tip (Graphviz's `curve` arrowhead on its stem), not a corner
+    // between two runs; and pieces all of one color are one route only with a corner drawn between two runs
+    // (Graphviz's `radius`): a stub alone on a line's end is an arrowhead's stem (Graphviz's `tee`).
+    const capped = chain !== null && [chain[0], chain.at(-1)].some((c) => c !== undefined && strokedArc(c.piece));
+    const oneColor = chain?.every((c) => c.piece.stroke?.color === stroke?.color) ?? true;
+    if (chain === null || stroke === null || capped || (oneColor && chain.length < 3)) {
+        return null;
+    }
+    const points = chain.flatMap((c, i) => (i === 0 ? c.points : c.points.slice(1)));
+    const total = pathLength(points);
+    const stops: PStop[] = [];
+    let at = 0;
+    for (const { piece, points: run } of chain) {
+        const color = piece.stroke?.color ?? stroke.color;
+        const opacity = piece.stroke?.opacity ?? 1;
+        stops.push({ offset: at / total, color, opacity });
+        at += pathLength(run);
+        stops.push({ offset: at / total, color, opacity });
+    }
+    const end = points.at(-1) ?? points[0];
+    const angle = (Math.atan2(end[1] - points[0][1], end[0] - points[0][0]) * 180) / Math.PI;
+    const painted = stops.some((stop) => stop.color !== stroke.color);
+    const line: Prim = {
+        ...chain[0].piece,
+        points,
+        box: boxOfPoints(points),
+        stroke: {
+            ...chain[0].piece.stroke,
+            ...stroke,
+            ...(painted ? { gradient: { kind: "linear", stops, angle } } : {}),
+        },
+    };
+    return { line, pieces: new Set(open) };
+}
+
+const longestPath = (prims: readonly Prim[]): Prim | undefined => {
+    const lines = prims.filter((p) => p.kind === "path" || (p.closed && p.fill === null));
+    const reach = Math.max(0, ...lines.filter((p) => !p.closed).map((p) => pathLength(p.points)));
+    // a closed outline with no fill is a line drawn as a ring (a route round a node), but one no wider across than an
+    // open line beside it runs is a mark at that line's end: the open dot of a stacked head (Graphviz's normalnoneodot,
+    // whose ring ran longer than its short edge's line and was read as the line), not the line
+    return lines
+        .filter((p) => !p.closed || reach < Math.hypot(bw(p.box), bh(p.box)))
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
+};
+
+// A drawing's point lists are never changed once read, so what is measured along one is kept by the list: matching
+// a shape against every line's ends and middle asks again for each shape (json-vis-siblings: about 400 shapes against
+// 284 curves of 128 points each, measured afresh over 2 s of its 7 s story, past the capture's limit on a CI runner).
+const lengths = new WeakMap<readonly Pt[], number>();
+const middles = new WeakMap<readonly Pt[], Pt[]>();
+const reversals = new WeakMap<readonly Pt[], Pt[]>();
+const drawnEnds = new WeakMap<PNode, WeakMap<readonly Pt[], Pt>>();
+const nodesById = new WeakMap<readonly PNode[], Map<string, PNode>>();
+
+/**
+ * The first node of a list with an id, as `nodes.find` gives it, from a map kept per list: an arrowhead's ends are
+ * looked up for every line it might cap, which searched the whole list each time (json-vis-siblings: 284 heads, 284
+ * lines, 200 nodes).
+ * @param nodes - the nodes
+ * @param id - the id
+ * @returns the node, or undefined
+ */
+function nodeById(nodes: readonly PNode[], id: string): PNode | undefined {
+    let byId = nodesById.get(nodes);
+    if (byId === undefined) {
+        byId = new Map();
+        for (const n of nodes) {
+            if (!byId.has(n.id)) {
+                byId.set(n.id, n);
+            }
+        }
+        nodesById.set(nodes, byId);
+    }
+    return byId.get(id);
+}
 
 function pathLength(pts: readonly Pt[]): number {
-    let s = 0;
-    for (let i = 1; i < pts.length; i++) {
-        s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    let s = lengths.get(pts);
+    if (s === undefined) {
+        s = 0;
+        for (let i = 1; i < pts.length; i++) {
+            s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        }
+        lengths.set(pts, s);
     }
     return s;
+}
+
+/**
+ * A line's points last to first, one list per line, so what is measured along the reversed line is kept too.
+ * @param pts - the line
+ * @returns its points reversed
+ */
+function reversedOf(pts: readonly Pt[]): Pt[] {
+    let r = reversals.get(pts);
+    if (r === undefined) {
+        r = [...pts].reverse();
+        reversals.set(pts, r);
+    }
+    return r;
 }
 
 const sameBox = (a: PBox, b: PBox): boolean =>
@@ -745,6 +1239,10 @@ const boxOfNode = (n: PNode): PBox => ({
     y1: n.cy + n.h / 2,
 });
 
+/** How far apart two boxes are: 0 where they meet or overlap. */
+const boxGap = (a: PBox, b: PBox): number =>
+    Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
+
 /**
  * The largest end cap that draws nothing beyond its line: a dot or square as wide as the line. A line of no one
  * width (a pattern Cytoscape desktop paints as a filled band: slashes, arrows, a double line) has no such cap: every
@@ -752,7 +1250,7 @@ const boxOfNode = (n: PNode): PBox => ({
  * @param e - the edge
  * @returns the size in the side's pixels
  */
-export function lineCapSize(e: PEdge): number {
+export function lineCapSize(e: Pick<PEdge, "stroke">): number {
     const width = e.stroke?.width ?? 0;
     return 1.1 * (Number.isFinite(width) ? width : 0) + 0.25;
 }
@@ -767,12 +1265,31 @@ export function lineCapSize(e: PEdge): number {
  * @returns the point
  */
 function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | undefined): Pt {
-    const run = end === "source" ? pts : [...pts].reverse();
+    const run = end === "source" ? pts : reversedOf(pts);
     // only a line that runs on to the node's very center: one that ends inside a large box (a group's) ends there
     if (node === undefined || Math.hypot(run[0][0] - node.cx, run[0][1] - node.cy) > 2) {
         return run[0];
     }
-    const box = boxOfNode(node);
+    let byLine = drawnEnds.get(node);
+    if (byLine === undefined) {
+        byLine = new WeakMap();
+        drawnEnds.set(node, byLine);
+    }
+    let at = byLine.get(run);
+    if (at === undefined) {
+        at = leaveBox(run, boxOfNode(node));
+        byLine.set(run, at);
+    }
+    return at;
+}
+
+/**
+ * Where a line starting inside a box first crosses its outline.
+ * @param run - the line, starting inside the box
+ * @param box - the box
+ * @returns the crossing, or the line's start where it does not start inside
+ */
+function leaveBox(run: readonly Pt[], box: PBox): Pt {
     const under = (p: Pt): boolean => p[0] > box.x0 + 1 && p[0] < box.x1 - 1 && p[1] > box.y0 + 1 && p[1] < box.y1 - 1;
     const out = run.findIndex((p) => !under(p));
     if (out <= 0) {
@@ -785,6 +1302,24 @@ function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | un
         [a, b] = under(m) ? [m, b] : [a, m];
     }
     return b;
+}
+
+/**
+ * How far a point lies from a line, at its nearest.
+ * @param q - the point
+ * @param pts - the line
+ * @returns the distance
+ */
+function offPath(q: Pt, pts: readonly Pt[]): number {
+    let best = pts.length === 1 ? Math.hypot(q[0] - pts[0][0], q[1] - pts[0][1]) : Number.POSITIVE_INFINITY;
+    for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const L2 = dx * dx + dy * dy;
+        const t = L2 < 1e-18 ? 0 : Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2));
+        best = Math.min(best, Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy));
+    }
+    return best;
 }
 
 const endOf = (e: PEdge, end: "source" | "target"): Pt =>
@@ -800,11 +1335,7 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
  */
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
     return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
@@ -819,12 +1350,8 @@ function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNo
  */
 function alongGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
-    const q = drawnEnd(
-        e.points,
-        end,
-        nodes.find((n) => n.id === id),
-    );
-    const run = end === "source" ? e.points : [...e.points].reverse();
+    const q = drawnEnd(e.points, end, nodeById(nodes, id));
+    const run = end === "source" ? e.points : reversedOf(e.points);
     const far = run.at(-1) ?? q;
     const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
     if (len < 1e-9) {
@@ -875,7 +1402,8 @@ function middleAxis(path: readonly Pt[]): [Pt, Pt] {
 }
 
 /**
- * The signed distances of a stroke's points from the line through one end's last run of a path.
+ * The signed distances of a stroke's points from the line through one end of a path, along the run a cap there is read
+ * along (`capRun`).
  * @param stroke - the stroke's points
  * @param path - the line, source end first
  * @param end - which end
@@ -883,7 +1411,10 @@ function middleAxis(path: readonly Pt[]): [Pt, Pt] {
  */
 function offAxis(stroke: readonly Pt[], path: readonly Pt[], end: "source" | "target"): number[] | null {
     const pts = end === "target" ? path : [...path].reverse();
-    const [a, b] = [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
+    // the line through its end, along the run the stroke is read along
+    const b = pts.at(-1) ?? pts[0];
+    const [from, to] = capRun(pts, stroke) ?? [b, b];
+    const a: Pt = [b[0] - (to[0] - from[0]), b[1] - (to[1] - from[1])];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 1e-9) {
         return null;
@@ -951,7 +1482,7 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd): boolean {
  * @returns true when it is centered on the line
  */
 function centeredOnLine(box: PBox, e: PEdge, end: ArrowEnd): boolean {
-    const pts = end === "source" ? [...e.points].reverse() : e.points;
+    const pts = end === "source" ? reversedOf(e.points) : e.points;
     const [a, b] = end === "middle" ? middleRun(pts) : [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 1e-9) {
@@ -1019,9 +1550,14 @@ export function arrowheadEdge(
         (e) =>
             size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
     );
+    // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
+    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
+    // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
     if (
         !lineEnd &&
-        nodes.some((n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.min(n.w, n.h)))
+        nodes.some(
+            (n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.sqrt(n.w * n.h)),
+        )
     ) {
         return null;
     }
@@ -1066,19 +1602,66 @@ export function arrowheadEdge(
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
         const across =
             len > 0 ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len : Infinity;
+        // the cheap tests first: this runs for every line
+        if (!(
+            across <= Math.max(1, 0.2 * size) &&
+            from(endOf(e, "source")) > size &&
+            from(endOf(e, "target")) > size
+        )) {
+            return Number.POSITIVE_INFINITY;
+        }
         // an end's arrowhead reaches its line's end, or, where the line runs on to the node's center, its outline:
         // measured along the line, as a crow's foot's tines reach the outline beside the line rather than on it
         const touches = alongGap(p, e, "source", nodes) <= 3 || alongGap(p, e, "target", nodes) <= 3;
-        const clear = !touches && from(endOf(e, "source")) > size && from(endOf(e, "target")) > size;
-        return clear && across <= Math.max(1, 0.2 * size) ? from(pointAlong(e.points, 0.5)) : Number.POSITIVE_INFINITY;
+        return touches ? Number.POSITIVE_INFINITY : from(pointAlong(e.points, 0.5));
     };
     const middle = nearestEnd(edges, (e) => middleGap(e), reach, ["middle"]);
     const held = ends !== null && ends.d <= 0.75 * size + 2;
     // a cap whose point is its line's middle, pointing along the line, is that line's middle arrow however near an end
     // its base reaches (vis-network's arrows.middle with a scaleFactor, on a line under twice the cap's length)
     const pointed = nearestEnd(edges, (e) => (tipsMiddle(p, e) ? 0 : Number.POSITIVE_INFINITY), 1, ["middle"]);
+    // Where lines run on under the nodes, lines leaving a crowded node at nearby angles all touch a head's tip there:
+    // the head is the line's it lies along, its middle on that line, never one it merely touches (json-vis-siblings:
+    // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
+    // edges drawn over one another, a line's two ends) go by the nearest tip
+    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    // both searches below measure the same tips and the same distances off each line: each is measured once
+    const tips = new Map<PEdge, { source?: number; target?: number }>();
+    const tipOf = (e: PEdge, end: "source" | "target"): number => {
+        let byEnd = tips.get(e);
+        if (byEnd === undefined) {
+            byEnd = {};
+            tips.set(e, byEnd);
+        }
+        return (byEnd[end] ??= tipGap(p, e, end, nodes));
+    };
+    const offs = new Map<PEdge, number>();
+    const offOf = (e: PEdge): number => {
+        let d = offs.get(e);
+        if (d === undefined) {
+            d = offPath(mid, e.points);
+            offs.set(e, d);
+        }
+        return d;
+    };
+    const onLine = centerLines
+        ? nearestEnd(edges, (e, end) => (tipOf(e, end) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY), Number.MAX_VALUE, [
+              "source",
+              "target",
+          ])
+        : null;
     const best =
-        (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
+        (onLine === null
+            ? null
+            : nearestEnd(
+                  edges,
+                  (e, end) => {
+                      const tip = tipOf(e, end);
+                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                  },
+                  3,
+                  ["source", "target"],
+              )) ??
         pointed ??
         (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
     if (best === null) {
@@ -1098,6 +1681,210 @@ export function arrowheadEdge(
     return size > Math.max(pathLength(best.e.points), 12) && !capsShortLine() ? null : { e: best.e, end: best.end };
 }
 
+/**
+ * graphty's drawing carried into the oracle's by the nodes both hold (their centers), or null where graphty laid the
+ * graph out itself, which relates no place to the oracle's.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes found so far, by id
+ * @param ownLayout - whether graphty laid the graph out itself
+ * @returns the frame, or null
+ */
+function guideFrame(guide: PScene, nodes: ReadonlyMap<string, PNode>, ownLayout: boolean): Similarity | null {
+    if (ownLayout) {
+        return null;
+    }
+    const both = guide.nodes.flatMap((n) => {
+        const o = nodes.get(n.id);
+        return o === undefined ? [] : [{ from: [n.cx, n.cy] as Pt, to: [o.cx, o.cy] as Pt }];
+    });
+    return fitSimilarity(
+        both.map((q) => q.from),
+        both.map((q) => q.to),
+    );
+}
+
+/** A box of graphty's drawing carried into the oracle's frame: the box of its four corners carried. */
+const carryBox = (fit: Similarity, b: PBox): PBox =>
+    boxOfPoints(
+        (
+            [
+                [b.x0, b.y0],
+                [b.x1, b.y0],
+                [b.x1, b.y1],
+                [b.x0, b.y1],
+            ] as Pt[]
+        ).map((q) => apply(fit, q)),
+    );
+
+/** How far from each of its two nodes a line under a third node may end and still be the edge between them. */
+const STUB_TOUCH = 3;
+
+/** How much nearer, in px, one node a line's end lands on may be than another and the two still be tied for it. */
+const END_TIE = 2;
+
+/**
+ * Whether a line came to its end through a node: a point back along it, half the node's size or the line's length
+ * from the end, is inside the node's box, and the end is not at its middle (a program that runs its lines to the
+ * centers ends them there).
+ * @param pts - the line, from the end
+ * @param b - the node's box
+ * @returns true when the line ran through the node to end on its far side
+ */
+export function cameThrough(pts: readonly Pt[], b: PBox): boolean {
+    const size = Math.min(bw(b), bh(b));
+    const end = pts[0];
+    if (pts.length < 2 || Math.hypot(end[0] - cx(b), end[1] - cy(b)) < size / 4) {
+        return false;
+    }
+    let left = size / 2;
+    let q = end;
+    for (const p of pts.slice(1)) {
+        const len = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (len >= left) {
+            q = [q[0] + ((p[0] - q[0]) / len) * left, q[1] + ((p[1] - q[1]) / len) * left];
+            break;
+        }
+        left -= len;
+        q = p;
+    }
+    return inside(q, b);
+}
+
+/**
+ * The shapes no reader sees: each drawn wholly under an opaque shape drawn after it (the cover's outline holds every
+ * point of the shape's, within half a pixel, and a stroke's every point by half its width), and not drawn with a line,
+ * as a program that draws each edge whole draws its arrowheads right after its line (a head under a node drawn over it
+ * stays the line's, as graphty's side keeps its own there). json-cyjs-perf draws its 500 nodes over one another, and
+ * graphty hides the ones it draws under another: the oracle's hidden discs were read as arrowheads at the lines ending
+ * there and as strays (#5196).
+ * A shape drawn after a body the reader sees inside it covers nothing: the program's document order is not the order it
+ * paints in there (Cytoscape desktop exports a compound node's box after its children, gml-specimen-groups).
+ * @param prims - every primitive of the drawing, in document order
+ * @param candidates - the shapes that may be hidden
+ * @param seen - the shapes already read as seen (the nodes' bodies)
+ * @returns the hidden ones
+ */
+export function hiddenShapes(prims: readonly Prim[], candidates: readonly Prim[], seen: readonly Prim[] = []): Prim[] {
+    const byIndex = new Map(prims.map((p) => [p.index, p]));
+    const covers = prims.filter(
+        (c) =>
+            c.kind === "shape" &&
+            c.closed &&
+            (c.subpaths?.length ?? 1) <= 1 &&
+            c.tag !== PAINTED_OUTLINE &&
+            c.points.length >= 3 &&
+            (c.fill?.opacity ?? 0) >= OPAQUE,
+    );
+    // a line's own arrowheads follow it, the line first (Cytoscape.js, Cytoscape desktop, Graphviz), each by one of its
+    // ends (json-cyjs-perf draws its first node right after its last line, far from either end)
+    const withLine = (p: Prim): boolean => {
+        for (let i = p.index - 1; i >= p.index - 3; i--) {
+            const q = byIndex.get(i);
+            if (q?.kind !== "shape") {
+                return (
+                    q?.kind === "path" &&
+                    q.stroke !== null &&
+                    [q.points[0], q.points.at(-1)].some((e) => e !== undefined && toBox(e, p.box) <= OWN_HEAD_REACH)
+                );
+            }
+        }
+        return false;
+    };
+    // a stroke reaches half its width past the outline it is drawn along: a border drawn under its own fill shows
+    // (cx2-signor-aml's compound nodes)
+    const under = (p: Prim, c: Prim): boolean => {
+        const half = p.stroke === null ? null : p.stroke.width / 2;
+        return p.points.every((q) =>
+            half === null
+                ? inPolygon(q, c.points) || toOutline(q, c.points) <= INSIDE_SLACK
+                : inPolygon(q, c.points) && toOutline(q, c.points) >= half,
+        );
+    };
+    const paintsOver = (c: Prim): boolean =>
+        !seen.some((q) => q !== c && q.index < c.index && boxWithin(q.box, c.box) && under(q, c));
+    return candidates.filter(
+        (p) =>
+            p.kind === "shape" &&
+            p.points.length > 0 &&
+            !withLine(p) &&
+            covers.some((c) => c.index > p.index && boxWithin(p.box, c.box) && under(p, c) && paintsOver(c)),
+    );
+}
+
+/** How far off a box's outline a piece of that box's own drawing may run (`outlinePiece` in `associate`). */
+const OUTLINE_PX = 1.5;
+
+/** How far a line's end may lie from where a node graphty draws nothing for sits (`undrawnEnds`). */
+const UNDRAWN_END_REACH = 4;
+
+/**
+ * The edge ends at nodes graphty draws nothing for (WikiPathways' anchors: a 2 px node of no opacity, on another
+ * edge's line, that an edge ends at): each where graphty's lines end at it, carried into the oracle's frame by the
+ * nodes both drawings hold. Only lines' ends see them; they are no body of the drawing. So is a node graphty draws
+ * whose body the oracle's reader found nothing for, at graphty's box carried: a program may draw a node as no body
+ * at all (draw.io's stand-in draws yEd's flowchart annotation as an open bracket, `graphml-synthetic-nodes`
+ * generic-11), and the line it draws to it ends there, not at a container whose box lies 235 px off. None where
+ * graphty laid the graph out itself, which relates no place to the oracle's.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes found so far, by id
+ * @param fit - graphty's drawing carried into the oracle's (`guideFrame`)
+ * @returns the undrawn ends, as nodes
+ */
+function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Similarity | null): PNode[] {
+    if (fit === null) {
+        return [];
+    }
+    const drawn = new Set([...guide.nodes.map((n) => n.id), ...guide.groups.map((g) => g.id), ...nodes.keys()]);
+    const at = new Map<string, Pt[]>();
+    for (const e of guide.edges) {
+        const ends: [string, Pt | undefined][] = [
+            [e.source, e.points[0]],
+            [e.target, e.points.at(-1)],
+        ];
+        for (const [id, q] of ends) {
+            if (q !== undefined && !drawn.has(id)) {
+                at.set(id, [...(at.get(id) ?? []), apply(fit, q)]);
+            }
+        }
+    }
+    // the box of every line's end at it: a point for an anchor, its outline's reach for a node of some size drawn in
+    // the canvas's own color (xgmml-wp4271-cy3-export: a 90 x 25 white ellipse, its lines ending round it)
+    const bodiless = guide.nodes
+        .filter((n) => !nodes.has(n.id) && !n.id.startsWith("cap-"))
+        .map((n): [string, PBox] => [
+            n.id,
+            carryBox(fit, { x0: n.cx - n.w / 2, y0: n.cy - n.h / 2, x1: n.cx + n.w / 2, y1: n.cy + n.h / 2 }),
+        ]);
+    return [...[...at].map(([id, pts]): [string, PBox] => [id, boxOfPoints(pts)]), ...bodiless].map(([id, box]) => {
+        return {
+            id,
+            cx: cx(box),
+            cy: cy(box),
+            w: bw(box),
+            h: bh(box),
+            shape: null,
+            fill: null,
+            stroke: null,
+            label: null,
+        };
+    });
+}
+
+/**
+ * How far from a line's end an arrowhead drawn with it may start: a half arrow's base corner, and a line drawn in pieces
+ * stopping a piece short of its base (cys-syn-mappings 408->414: 6 px, 192->204: 3 px).
+ */
+const OWN_HEAD_REACH = 8;
+
+/** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
+type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
+
+/** What else places a line's ends: its own arrowheads, and how much farther than a line's end may lie from its node. */
+interface EndsBy {
+    own?: OwnHeads;
+    slack?: number;
+}
+
 const strayOf = (p: Prim): PStray => ({
     index: p.index,
     tag: p.tag,
@@ -1106,6 +1893,7 @@ const strayOf = (p: Prim): PStray => ({
     fill: p.fill?.color ?? null,
     stroke: p.stroke?.color ?? null,
     text: p.text?.content ?? null,
+    ...(p.lettering === true ? { lettering: true as const } : {}),
 });
 
 /** How the oracle's primitives were associated: by the file's names, by geometry, or both. */
@@ -1118,14 +1906,149 @@ export interface Association {
 }
 
 /**
+ * A vector oracle's own account of where its program drew each node (`drawn` in its metadata): the node's id, its
+ * center and its bounding box's size, in the SVG's pixels (vis-network's getPositions and getBoundingBox).
+ */
+export interface DrawnNodes {
+    nodes: { id: string; x: number; y: number; w: number; h: number }[];
+}
+
+/**
+ * The oracle's primitives with each shape, picture or text drawn centered on a node the program says it drew there
+ * named as that node, as markup would name it: the only identity a drawing with no ids and no legible labels has
+ * (json-vis-siblings: no positions in the file, labels below vis-network's draw threshold). A primitive centered on
+ * two drawn nodes, or larger than the node's box, stays unnamed.
+ * @param prims - the oracle's primitives
+ * @param drawn - where the program drew each node
+ * @returns the primitives, the named ones with a node hint
+ */
+export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[] {
+    const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
+        Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w &&
+        Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h &&
+        bw(p.box) <= 1.5 * n.w + 2 &&
+        bh(p.box) <= 1.5 * n.h + 2;
+    return prims.map((p) => {
+        if (p.hint !== null || (p.kind !== "shape" && p.kind !== "image" && p.text === null)) {
+            return p;
+        }
+        const at = drawn.nodes.filter((n) => on(p, n));
+        return at.length === 1 ? { ...p, hint: { role: "node", id: at[0].id, key: at[0].id } } : p;
+    });
+}
+
+/** The line classes a band along a line is drawn in; a pattern drawn as a shape is a line of its own. */
+const BAND_CLASSES: ReadonlySet<string> = new Set(["solid", "dashed", "dotted", "dash-dot"]);
+
+/**
+ * The lines that are bands along another line between the same nodes, each set on that line: a wider one drawn under a
+ * narrower one along the same route is its outline (Cytoscape.js's line outline, vis-network's edge background, in
+ * dashes of its own with `background.dashes`), and one drawn over it, solid, is its overlay (Cytoscape.js's
+ * `overlay-*`). Only while more lines run between the two nodes than graphty draws edges there: coincident edges of
+ * different widths (Cytoscape.js's haystack edges between one pair, cyjs-genemania) are each an edge.
+ * @param edges - the edges found so far
+ * @param drawnAt - where in the drawing each edge found by geometry was drawn
+ * @param guide - graphty's drawing
+ * @returns the lines taken as bands, to be dropped as edges
+ */
+function bandsAlongLines(edges: readonly PEdge[], drawnAt: ReadonlyMap<PEdge, number>, guide: PScene): PEdge[] {
+    const pairOf = (e: { source: string; target: string }): string =>
+        e.source < e.target ? `${e.source}\u0000${e.target}` : `${e.target}\u0000${e.source}`;
+    const count = (list: readonly { source: string; target: string }[]): Map<string, number> => {
+        const by = new Map<string, number>();
+        list.forEach((e) => by.set(pairOf(e), (by.get(pairOf(e)) ?? 0) + 1));
+        return by;
+    };
+    const [lines, drawn] = [count(edges), count(guide.edges)];
+    const taken: PEdge[] = [];
+    for (const wide of edges) {
+        const band = wide.stroke;
+        const pair = pairOf(wide);
+        if (
+            !wide.id.includes("#g") ||
+            band === null ||
+            !BAND_CLASSES.has(band.dashClass) ||
+            !Number.isFinite(band.width) ||
+            (lines.get(pair) ?? 0) <= (drawn.get(pair) ?? 0)
+        ) {
+            continue;
+        }
+        const tol = Math.max(band.width, 2);
+        const line = edges.find(
+            (e) =>
+                e !== wide &&
+                !taken.includes(e) &&
+                e.id.includes("#g") &&
+                e.stroke !== null &&
+                pairOf(e) === pair &&
+                band.width >= 1.2 * e.stroke.width &&
+                sameRoute(e.points, wide.points, tol),
+        );
+        const over = line !== undefined && (drawnAt.get(line) ?? -1) < (drawnAt.get(wide) ?? -1);
+        if (
+            line === undefined ||
+            (over ? line.overlay : line.outline) !== undefined ||
+            (over && band.dashClass !== "solid")
+        ) {
+            continue;
+        }
+        const paint = { color: band.color, opacity: band.opacity, width: band.width };
+        if (over) {
+            line.overlay = paint;
+        } else {
+            line.outline = { ...paint, ...(band.dashClass === "solid" ? {} : { dashClass: band.dashClass }) };
+        }
+        lines.set(pair, (lines.get(pair) ?? 0) - 1);
+        taken.push(wide);
+    }
+    return taken;
+}
+
+/** How close the line ends at a node drawn as nothing must lie to be one point, in oracle pixels. */
+const ONE_POINT = 1;
+
+/**
+ * Places a node the markup names but draws no body for where its lines meet, not at its label: Pajek draws an `empty`
+ * vertex as its label alone, set off from the vertex, and runs every line to the vertex's center (pajek-lin-rel4 v228,
+ * whose label sits 16 px from where its lines end; pajek-synth-vertices `empty 6`). Only where two or more line ends
+ * meet at one point: a Graphviz plaintext node's lines end round its label's box, each at another point.
+ * @param nodes - the nodes the markup named, changed in place
+ * @param edges - the edges the markup named
+ */
+function placeUndrawnBodies(nodes: Map<string, PNode>, edges: readonly PEdge[]): void {
+    for (const [id, n] of nodes) {
+        if (n.shape !== null || n.fill !== null || n.stroke !== null || n.pictures !== undefined) {
+            continue;
+        }
+        const ends = edges.flatMap((e) => [
+            ...(e.source === id ? [e.points[0]] : []),
+            ...(e.target === id ? [e.points.at(-1) ?? e.points[0]] : []),
+        ]);
+        const box = boxOfPoints(ends);
+        if (ends.length >= 2 && Math.max(bw(box), bh(box)) <= ONE_POINT) {
+            nodes.set(id, { ...n, cx: cx(box), cy: cy(box), w: 0, h: 0 });
+        }
+    }
+}
+
+/**
  * Associates an oracle's primitives with graph elements.
  * @param prims - the oracle's primitives (`readSvgPrimitives`)
  * @param width - the oracle's rendered width
  * @param height - the oracle's rendered height
  * @param guide - graphty's drawing of the same file, in graphty pixels
+ * @param options - what is known of graphty's drawing
+ * @param options.ownLayout - graphty placed no node where the file did (the file stores no positions): its layout is
+ *     its own, so the two drawings' extents relate no node to any body, and only ids or labels can pair them
  * @returns the oracle scene
  */
-export function associate(prims: readonly Prim[], width: number, height: number, guide: PScene): Association {
+export function associate(
+    prims: readonly Prim[],
+    width: number,
+    height: number,
+    guide: PScene,
+    options: { ownLayout?: boolean } = {},
+): Association {
     const used = new Set<number>();
     const take = (p: Prim): Prim => {
         used.add(p.index);
@@ -1197,8 +2120,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             if (ends === null) {
                 continue;
             }
-            for (const part of parallelEdges(ps)) {
-                const line = longestPath(part);
+            for (const whole of parallelEdges(ps)) {
+                // a box round the label's words (Graphviz's HTML table, its cell borders) is the label's dress, which
+                // the label backgrounds take below: no line and no arrowhead (dot-specimen-edge-labels' TABLE label
+                // was read as the line, its fill and borders as arrowheads)
+                const dress = new Set(whole.filter((p) => labelDress(p, whole)));
+                const part = whole.filter((p) => !dress.has(p));
+                const segmented = segmentedLine(part);
+                const line = segmented?.line ?? longestPath(part);
                 if (line === undefined) {
                     continue;
                 }
@@ -1216,7 +2145,27 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                         ? "source"
                         : "target";
                 };
+                // which end a head points to, where the edge's two nodes are known and drawn apart: a head pointing
+                // from the source's center toward the target's caps the target. Nodes drawn on one another say
+                // nothing: Pajek's head on a line from the source's center to the target's near outline points back
+                // at the source (pajek-iliad 125 -> 123)
+                const tipAt = (tip: Pt, mid: Pt): "source" | "target" | null => {
+                    const [from, to] = [nodes.get(ends[0]), nodes.get(ends[1])];
+                    if (from === undefined || to === undefined || boxGap(boxOfNode(from), boxOfNode(to)) <= 0) {
+                        return null;
+                    }
+                    const along = (tip[0] - mid[0]) * (to.cx - from.cx) + (tip[1] - mid[1]) * (to.cy - from.cy);
+                    if (along === 0) {
+                        return null;
+                    }
+                    return along > 0 ? "target" : "source";
+                };
                 const arrows = heads.map((h) => {
+                    const covered = heads.length === 1 ? coveredLine(h.points, line.points, tipAt) : null;
+                    if (covered !== null) {
+                        ({ points } = covered);
+                        return arrowFrom(h, points, covered.end, canvas);
+                    }
                     const end = endOf(h);
                     points = extendToTip(points, h.points, end);
                     return arrowFrom(h, line.points, end, canvas);
@@ -1225,7 +2174,14 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 // a stroked arc across it (arrows.c arrow_type_curve), both open paths; the stem carries the line to
                 // the tip, the arc is the arrowhead, hollow. A piece of the route (an orthogonal route's rounded
                 // corner, its next straight run) joins the line end to end; an arc of a cap joins nothing.
-                const open = part.filter((q) => q !== line && q.kind === "path" && !q.closed && q.fill === null);
+                const open = part.filter(
+                    (q) =>
+                        q !== line &&
+                        segmented?.pieces.has(q) !== true &&
+                        q.kind === "path" &&
+                        !q.closed &&
+                        q.fill === null,
+                );
                 const stems = open.filter((q) => !strokedArc(q) && alongEnd(q.points, line.points, endOf(q)));
                 const joints = [line, ...open.filter((q) => !strokedArc(q) && !stems.includes(q))].flatMap((q) => [
                     q.points[0],
@@ -1283,6 +2239,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             });
         }
     }
+    placeUndrawnBodies(nodes, edges);
     const fromMarkup = nodes.size;
 
     // ---- geometry, guided by graphty's drawing, for what the markup did not name
@@ -1313,16 +2270,21 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                           pairs.map((q) => q.to),
                       )
                     : null;
-            return refit === null
+            // the refit is a least-squares fit of body centers, which a few bodies drawn off their node's center (a
+            // shadow, an event ring) can turn and shift enough to lose a body the first frame found
+            // (yed-graphml-specimen-node-shapes-p3's corner anchor): it stands only where it finds as many
+            const again = refit === null ? null : matchBodies(guideNodes, pool, through(refit), containers);
+            return again === null || refit === null || again.size < first.size
                 ? { framed: first, groupFrame: at.t }
-                : { framed: matchBodies(guideNodes, pool, through(refit), containers), groupFrame: refit };
+                : { framed: again, groupFrame: refit };
         };
         // The free texts both draw frame the drawing too (a specimen sheet's captions, where its nodes carry no
         // labels), when they find more bodies than the frame without them: a program may set every caption off its
         // node by more than a small node's size.
-        let seed = seedTransform(guide, nodes, pool, width, height);
+        const ownLayout = options.ownLayout === true;
+        let seed = unlessChance(seedTransform(guide, nodes, pool, width, height), ownLayout);
         let { framed, groupFrame } = frameThrough(seed);
-        const byTexts = seedTransform(guide, nodes, pool, width, height, true);
+        const byTexts = unlessChance(seedTransform(guide, nodes, pool, width, height, true), ownLayout);
         if (byTexts !== null && byTexts !== seed && byTexts.source === "texts") {
             const other = frameThrough(byTexts);
             if (other.framed.size > framed.size) {
@@ -1380,54 +2342,106 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             const under = underlaysOf(drawn);
             const shapes = drawn.filter((p) => !under.has(p));
             shapes.forEach(take);
-            nodes.set(id, nodeFrom(id, shapes, []));
+            nodes.set(id, nodeFrom(id, shapes, [], tableRowsOf.get(chosen)?.get(id)));
         }
     }
+
+    // ---- what is drawn wholly under a shape drawn over it is not seen: no arrowhead, no stray, no group box
+    hiddenShapes(
+        prims,
+        free(),
+        prims.filter((p) => used.has(p.index) && p.kind === "shape"),
+    ).forEach(take);
 
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
+    const frame = guideFrame(guide, nodes, options.ownLayout === true);
+    const undrawn = undrawnEnds(guide, nodes, frame);
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
     // outline); a border of a pixel or so is inside the slack already.
     const endReach = (n: PNode): number => {
+        if (undrawn.includes(n)) {
+            return UNDRAWN_END_REACH;
+        }
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
     };
     // The closed shapes no body took that hold no node (arrowheads among them, of any size: Cytoscape desktop's arrow
     // size 24 is 51 px long): a line a program stops at its arrowhead's base (Cytoscape desktop's) ends an
     // arrowhead's length short of its node, so an end reaches as far as the shape it touches does.
-    const heads = free().filter((q) => q.kind === "shape" && !nodeList.some((n) => inside([n.cx, n.cy], q.box)));
+    // the shapes drawn as a line in pieces (a plain filled bar along an edge is something else drawn there, an edge
+    // label's background box)
+    const painted = new Map<Prim, PaintedBand>();
+    for (const p of free()) {
+        const fillOnly = p.kind === "shape" && p.fill !== null && p.stroke === null;
+        // a line tapering to a point (Cytoscape.js's straight-triangle) is one filled triangle along the edge
+        const taper = fillOnly ? taperPaintedAsFill(p.points) : null;
+        const band = taper ?? (fillOnly && p.subpaths !== undefined ? bandPaintedAsFill(p.subpaths) : null);
+        if (band !== null && band.dashClass !== "solid") {
+            painted.set(p, band);
+        }
+    }
+    // a line drawn in pieces is no arrowhead (cys-syn-mappings 420->426: an open half circle at its end, read through
+    // its double line to the far node, was taken for the edge)
+    const heads = free().filter(
+        (q) =>
+            q.kind === "shape" &&
+            q.lettering !== true &&
+            !painted.has(q) &&
+            !nodeList.some((n) => inside([n.cx, n.cy], q.box)),
+    );
     const gap = (a: PBox, b: PBox): number =>
         Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
+    // every node one of some shapes reaches, nearest first
+    const nodesReached = (boxes: readonly PBox[]): { n: PNode; d: number }[] =>
+        boxes.length === 0
+            ? []
+            : nodeList
+                  .map((n) => ({ n, d: Math.min(...boxes.map((b) => gap(b, nodeBox(n)))) }))
+                  .filter(({ n, d }) => d <= endReach(n))
+                  .sort((x, y) => x.d - y.d);
+    // every node a path's end lands on, by how far from where a line ends on the node, its outline or its center: an
+    // end inside a big node's box but on a small node's outline drawn over it is the small node's
+    // (cys-affinity-purification: a flat round rectangle drawn inside an octagon's box, each with its own edges to the
+    // same nodes); an ellipse's outline is its own, not its box's (cys-import-and-save: an end on a small circle's
+    // outline, in its box's corner, beside another circle's box); and a program that runs its lines to the centers ends
+    // them there
+    const nodesOn = (p: Pt, slack = 0): { n: PNode; d: number }[] =>
+        [...nodeList, ...undrawn, ...groupEnds.map((g) => g.node)]
+            .map((n) => {
+                const b = nodeBox(n);
+                const [rx, ry] = [bw(b) / 2, bh(b) / 2];
+                const center = Math.hypot(p[0] - cx(b), p[1] - cy(b));
+                if (n.shape === "ellipse" && rx > 0 && ry > 0) {
+                    const k = Math.hypot((p[0] - cx(b)) / rx, (p[1] - cy(b)) / ry);
+                    // along the ray from its center: the outline lies center / k out, so the end is |k - 1| of that
+                    // off it (a flat ellipse's semi-minor axis would put an end far off its long side within reach,
+                    // xgmml-syn-mappings: 35 px off a 38 x 15 ellipse's end read as 19)
+                    return { n, d: Math.min(center, Math.abs(k - 1) * (k > 1e-9 ? center / k : Math.min(rx, ry))) };
+                }
+                // a slanted side is the node's own, not its box's corner (xgmml-aracne-mycccnd1: an end on one triangle's
+                // side, beside another triangle's box, was the other's, and two edges to it left the first with none)
+                const slanted = slantedOutlines.get(n);
+                if (slanted !== undefined) {
+                    return { n, d: Math.min(center, toOutline(p, slanted)) };
+                }
+                const d = inside(p, b)
+                    ? Math.min(center, p[0] - b.x0, b.x1 - p[0], p[1] - b.y0, b.y1 - p[1])
+                    : toBox(p, b);
+                return { n, d };
+            })
+            .filter(({ n, d }) => d <= endReach(n) + slack)
+            .sort((x, y) => x.d - y.d);
     // every node a path's end lands on, nearest first; through a shape it touches only where it lands on none itself
     // (an end at a crowded node also touches the arrowheads of the edges beside it)
-    const nodesAt = (p: Pt, throughHeads = false): { n: PNode; d: number }[] => {
-        const at = (d: (n: PNode) => number): { n: PNode; d: number }[] =>
-            nodeList
-                .map((n) => ({ n, d: d(n) }))
-                .filter(({ n, d: x }) => x <= endReach(n))
-                .sort((x, y) => x.d - y.d);
-        // how far from where a line ends on the node, its outline or its center: an end inside a big node's box but on
-        // a small node's outline drawn over it is the small node's (cys-affinity-purification: a flat round rectangle
-        // drawn inside an octagon's box, each with its own edges to the same nodes); an ellipse's outline is its own,
-        // not its box's (cys-import-and-save: an end on a small circle's outline, in its box's corner, beside another
-        // circle's box); and a program that runs its lines to the centers ends them there
-        const direct = at((n) => {
-            const b = nodeBox(n);
-            const [rx, ry] = [bw(b) / 2, bh(b) / 2];
-            const center = Math.hypot(p[0] - cx(b), p[1] - cy(b));
-            if (n.shape === "ellipse" && rx > 0 && ry > 0) {
-                const k = Math.hypot((p[0] - cx(b)) / rx, (p[1] - cy(b)) / ry);
-                return Math.min(center, Math.abs(k - 1) * Math.min(rx, ry));
-            }
-            return inside(p, b) ? Math.min(center, p[0] - b.x0, b.x1 - p[0], p[1] - b.y0, b.y1 - p[1]) : toBox(p, b);
-        });
+    const nodesAt = (p: Pt, throughHeads = false, slack = 0): { n: PNode; d: number }[] => {
+        const direct = nodesOn(p, slack);
         if (direct.length > 0 && !throughHeads) {
             return direct;
         }
-        const touched = heads.filter((h) => toBox(p, h.box) <= 2).map((h) => h.box);
-        return touched.length === 0 ? [] : at((n) => Math.min(...touched.map((b) => gap(b, nodeBox(n)))));
+        return nodesReached(heads.filter((h) => toBox(p, h.box) <= 2).map((h) => h.box));
     };
     // The edges graphty draws, by unordered pair, still to be found in the oracle. Where nodes overlap, a path's
     // end lands on several of them, and the nearest is often not the one the edge ends at (a small node drawn
@@ -1435,11 +2449,24 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const pairOf = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
     const guidePairs = new Map<string, number>();
     const guideColors = new Map<string, Set<string>>();
+    const guideWays = new Set<string>();
     for (const e of guide.edges) {
         const k = pairOf(e.source, e.target);
+        guideWays.add(`${e.source}\u0000${e.target}`);
         guidePairs.set(k, (guidePairs.get(k) ?? 0) + 1);
         guideColors.set(k, (guideColors.get(k) ?? new Set()).add(e.stroke?.color ?? ""));
     }
+    // A line between two nodes drawn on one another runs between their outlines, which cross: which of its ends is
+    // the source's its ends do not say (cx-radiation-bibliography 30 -> 44, a hexagon and a round rectangle that
+    // overlap, drawn from 30's outline back to 44's, was read as 44 -> 30). The way graphty runs the edge does, where
+    // it runs it one way only; the line and its arrowheads keep their own ends.
+    const orientOverlapping = ([a, b]: [PNode, PNode]): [PNode, PNode] =>
+        a !== b &&
+        boxGap(boxOfNode(a), boxOfNode(b)) <= 0 &&
+        guideWays.has(`${b.id}\u0000${a.id}`) &&
+        !guideWays.has(`${a.id}\u0000${b.id}`)
+            ? [b, a]
+            : [a, b];
     // A group graphty draws (a WikiPathways complex) is an edge end too: an end that lands on one of its members may
     // end at the group's box. It stands in as a node with the group's id, its members' box.
     const groupEnds = guide.groups.flatMap((g) => {
@@ -1450,8 +2477,20 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (held.length === 0 || nodes.has(g.id)) {
             return [];
         }
-        const box = union(held.map(boxOfNode));
-        const node: PNode = { ...held[0], id: g.id, cx: cx(box), cy: cy(box), w: bw(box), h: bh(box), label: null };
+        // the box graphty draws round them, carried into the oracle's frame: a line ends at the group's own outline,
+        // a padding out from its members (cx2-signor-aml: a compound node of one member, 52 -> 4)
+        const drawnBox = frame === null ? [] : [carryBox(frame, g.box)];
+        const box = union([...held.map(boxOfNode), ...drawnBox]);
+        const node: PNode = {
+            ...held[0],
+            id: g.id,
+            cx: cx(box),
+            cy: cy(box),
+            w: bw(box),
+            h: bh(box),
+            shape: "rect",
+            label: null,
+        };
         return [{ node, members: new Set(held) }];
     });
     const withGroups = (at: { n: PNode; d: number }[]): { n: PNode; d: number }[] => [
@@ -1462,9 +2501,60 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         }),
     ];
     const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
-    const endsOf = (path: readonly Pt[], color: string): [PNode, PNode] | null => {
-        const from = withGroups(nodesAt(path[0]));
-        const to = withGroups(nodesAt(path.at(-1) ?? path[0]));
+    // An end its own arrowhead caps lands on the node that arrowhead reaches: a line drawn in pieces (Cytoscape desktop's
+    // zigzag, sine wave, slashes) stops up to a piece of its pattern short of its arrowhead's base, often nearer a
+    // neighbor's box than its own node (cys-syn-mappings 426->441: 15 px from 444, its arrowhead touching 441).
+    const endsBy = (
+        path: readonly Pt[],
+        color: string,
+        { own = [[], []], slack = 0 }: EndsBy = {},
+    ): [PNode, PNode] | null => {
+        // of two nodes an end lands on about as near, the one the line ran through to get there is not its node: a line
+        // stops at its own node's near outline (xgmml-aracne-mycccnd1 -1->-151 runs through -165, which lies just
+        // short of -151, and ends where the two touch, about a pixel from each; it was read as a second -1->-165)
+        const fromEnd = (end: "source" | "target"): readonly Pt[] => (end === "source" ? path : reversedOf(path));
+        const landed = (end: "source" | "target", list: { n: PNode; d: number }[]): { n: PNode; d: number }[] =>
+            list.length >= 2 &&
+            list[1].d - list[0].d <= END_TIE &&
+            cameThrough(fromEnd(end), nodeBox(list[0].n)) &&
+            !cameThrough(fromEnd(end), nodeBox(list[1].n))
+                ? [list[1], list[0], ...list.slice(2)]
+                : list;
+        const at = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] =>
+            withGroups(landed(end, onEnd(end, mine)));
+        const onEnd = (end: "source" | "target", mine: readonly Prim[]): { n: PNode; d: number }[] => {
+            const q = end === "source" ? path[0] : (path.at(-1) ?? path[0]);
+            const direct = nodesOn(q, slack);
+            if (mine.length === 0) {
+                return nodesAt(q, false, slack);
+            }
+            const carried = extendToTip(
+                path,
+                mine.flatMap((h) => h.points),
+                end,
+            );
+            const tip = nodesOn(end === "source" ? carried[0] : (carried.at(-1) ?? q), slack);
+            // an end on a node's outline is that node's, whatever arrowhead it touches -- unless its own arrowhead's tip
+            // is on another node's outline: a line stopped at its head's base (Cytoscape desktop's) whose base lies on a
+            // node drawn over the one its head points at is that one's (cx2-signor-aml: a curved 38 -> 50, its base on
+            // 27's outline and its tip on 50's, was read as a second 92 -> 27)
+            if ((direct[0]?.d ?? Infinity) <= 2) {
+                return tip.length > 0 && tip[0].d <= 2 && tip[0].n !== direct[0].n
+                    ? [...tip, ...direct.filter((x) => !tip.some((y) => y.n === x.n))]
+                    : nodesAt(q, false, slack);
+            }
+            // one short of it is also carried on to its arrowhead's tip, where the program points at its node: each node
+            // either reaches, at the nearer of the two (a neighbor's box the end lies nearer than its own node, a big
+            // arrowhead's tip pointing past its node, cys-syn-mappings 345->360), and the pair graphty draws decides
+            const nearest = new Map<PNode, number>();
+            for (const x of [...tip, ...direct]) {
+                nearest.set(x.n, Math.min(nearest.get(x.n) ?? Infinity, x.d));
+            }
+            const both = [...nearest].map(([n, d]) => ({ n, d })).sort((x, y) => x.d - y.d);
+            return both.length > 0 ? both : nodesAt(q, false, slack);
+        };
+        const from = at("source", own[0]);
+        const to = at("target", own[1]);
         if (from.length === 0 || to.length === 0) {
             return null;
         }
@@ -1483,19 +2573,40 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 nearest = far === 0 ? [other, nearest[1]] : [nearest[0], other];
             }
         }
-        // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read
+        // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read -- unless
+        // both its ends touch the two nodes of an edge graphty draws there too, as a stub between two nodes drawn
+        // edge to edge does under a third (cx-radiation-bibliography 114 -> 100, under the diamond 21)
+        if (nearest[0] === nearest[1] && !guideLoops.has(nearest[0].id)) {
+            const stub = from
+                .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d, touch: Math.max(x.d, y.d) })))
+                .filter(
+                    (q) => q.a !== q.b && q.touch <= STUB_TOUCH && (guidePairs.get(pairOf(q.a.id, q.b.id)) ?? 0) > 0,
+                )
+                .sort((x, y) => x.d - y.d)[0];
+            return stub === undefined ? nearest : [stub.a, stub.b];
+        }
         if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
             return nearest;
         }
         // nearest first; among pairs as near as each other (two lines' stations drawn one over another), the one
-        // graphty draws in the path's color
+        // graphty draws in the path's color; a loop where graphty draws one, its end at a crowded spot as near another
+        // node (cx2-signor-aml: five loops on JAK2, their heads' tips on BRAF's outline too, read as edges to DOT1L)
         const pairs = from
             .flatMap((x) => to.map((y) => ({ a: x.n, b: y.n, d: x.d + y.d })))
-            .filter(({ a, b }) => a !== b && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
+            .filter(({ a, b }) => (a !== b || guideLoops.has(a.id)) && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) > 0)
             .sort((x, y) => x.d - y.d);
         const tied = pairs.filter((q) => q.d <= (pairs[0]?.d ?? 0) + 2);
         const known = tied.find((q) => guideColors.get(pairOf(q.a.id, q.b.id))?.has(color) === true) ?? pairs.at(0);
         return known === undefined ? nearest : [known.a, known.b];
+    };
+    // a line its own arrowheads carry to a pair graphty does not draw is read as it was without them (a line annotation
+    // with an arrowhead, xgmml-wp4271-cy3-export, is no edge of the file)
+    const endsOf = (path: readonly Pt[], color: string, by: EndsBy = {}): [PNode, PNode] | null => {
+        const ends = endsBy(path, color, by);
+        const carried = (by.own?.[0].length ?? 0) + (by.own?.[1].length ?? 0) > 0;
+        return ends === null || !carried || guidePairs.has(pairOf(ends[0].id, ends[1].id))
+            ? ends
+            : endsBy(path, color, { slack: by.slack });
     };
     // every edge found by geometry, the pieces that are no edge of the file among them, in the order found
     const withPieces: PEdge[] = [];
@@ -1505,21 +2616,47 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const arcs: { readonly p: Prim; readonly piece: PEdge | null }[] = [];
     // An edge's line a program drew as a filled band (Cytoscape desktop's zigzag, sine-wave, dotted, slashed and double
     // edges), its route the band's axis: one of the pairs graphty draws, between two nodes, read after the lines.
-    const bands = free().flatMap((p) => {
-        if (p.kind !== "shape" || p.fill === null || p.stroke !== null || p.subpaths === undefined) {
-            return [];
+    const byIndex = new Map(prims.map((p) => [p.index, p]));
+    const headSet = new Set(heads);
+    // A program that draws each edge whole draws its arrowheads right after its line (Cytoscape desktop: the line, then
+    // its source's and its target's arrowheads): of those, the ones by an end, within the line's width or a band's swing,
+    // cap that end.
+    const ownHeads = (p: Prim, [a, b]: readonly [Pt, Pt], swing: number): OwnHeads => {
+        const after: Prim[] = [];
+        // its two caps; a dot no wider than the line is the line's own end, not one of them (Cytoscape desktop's)
+        const dot = lineCapSize(p);
+        let caps = 0;
+        for (let q = byIndex.get(p.index + 1); q !== undefined && caps < 2; q = byIndex.get(q.index + 1)) {
+            if (!headSet.has(q)) {
+                break;
+            }
+            after.push(q);
+            caps += Math.max(bw(q.box), bh(q.box)) > dot ? 1 : 0;
         }
-        // a plain filled bar along an edge is something else drawn there (an edge label's background box)
-        const band = bandPaintedAsFill(p.subpaths);
-        const ends = band === null || band.dashClass === "solid" ? null : endsOf(band.ends, p.fill.color);
-        if (band === null || ends === null || ends[0] === ends[1] || !guidePairs.has(pairOf(ends[0].id, ends[1].id))) {
+        const reach = Math.max(OWN_HEAD_REACH, Number.isFinite(swing) ? swing : 0);
+        const by = (end: Pt, other: Pt): Prim[] =>
+            after.filter((h) => toBox(end, h.box) <= reach && toBox(end, h.box) < toBox(other, h.box));
+        return [by(a, b), by(b, a)];
+    };
+    const ownCaps = new Map<Prim, { e: PEdge; end: "source" | "target" }>();
+    const bandLines = new Map<Prim, { ends: [PNode, PNode]; own: OwnHeads }>();
+    const bands = [...painted].flatMap(([p, band]) => {
+        const own = ownHeads(p, band.ends, band.across);
+        // a band reaches half its swing either side of its axis, so its end does too
+        const ends = endsOf(band.ends, p.fill?.color ?? "", { own, slack: band.across / 2 });
+        if (
+            p.fill === null ||
+            ends === null ||
+            ends[0] === ends[1] ||
+            !guidePairs.has(pairOf(ends[0].id, ends[1].id))
+        ) {
             return [];
         }
         const line: Prim = {
             ...p,
             kind: "path",
             closed: false,
-            points: band.ends,
+            points: band.route ?? band.ends,
             fill: null,
             stroke: {
                 color: p.fill.color,
@@ -1531,33 +2668,123 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 ...(band.patterned ? { patterned: true } : {}),
             },
         };
+        bandLines.set(line, { ends, own });
         return [line];
     });
+    // The lines of the arrow annotations graphty draws, carried into the oracle's frame: a line along one with an end on
+    // no node's outline is that annotation's, not an edge (cys-annotation-example: the "NAB2 upregulated" note's arrow,
+    // its tail 9 px off node 169409, read as an edge 169409->169421 the file does not have)
+    const noteLines =
+        frame === null
+            ? []
+            : guide.strays.filter((x) => x.tag === "annotation-arrow").map((x) => carryBox(frame, x.box));
+    // and the arrowheads drawn right after such a line are its own, never an edge's (its "GCN3 downregulated" arrow's
+    // head was read as an arrowhead of the edge 169422->169421 beside it)
+    const noteHeads = new Set<Prim>();
+    const alongNote = (p: Prim): boolean => {
+        const ends: [Pt, Pt] = [p.points[0], p.points.at(-1) ?? p.points[0]];
+        const note =
+            noteLines.some((b) => ends.every((q) => inside(q, b, NOTE_LINE_SLACK))) &&
+            ends.some((q) => (nodesOn(q)[0]?.d ?? Infinity) > 2);
+        if (note) {
+            ownHeads(p, ends, p.stroke?.width ?? 0)
+                .flat()
+                .forEach((h) => noteHeads.add(h));
+        }
+        return note;
+    };
+    // A path from one box's outline to that box's outline again, never leaving it, is a piece of that box's own drawing
+    // (kept aside as the pieces of one node's drawing are, below), not an edge: a container's outline or its header's
+    // rule, a split box's dividing line (draw.io's stand-ins, graphml-magiclantern-architecture: a swimlane's body
+    // outline from one corner of its header to the other was read as an edge to a node 122 px off;
+    // graphml-galaxy-lcms-workflow: a box's top line, #5387). Only a box's: a round or slanted node's box is no outline.
+    const onOutline = (q: Pt, b: PBox): boolean =>
+        inside(q, b, OUTLINE_PX) && Math.min(q[0] - b.x0, b.x1 - q[0], q[1] - b.y0, b.y1 - q[1]) <= OUTLINE_PX;
+    const outlinePiece = (p: Prim): PNode | undefined => {
+        const pts = p.points;
+        const ends = [pts[0], pts.at(-1) ?? pts[0]];
+        // its ends on two opposite sides, and all along its outline or a straight rule between them: a line through a
+        // small node from one neighbor to another, or a stub along its side or cutting its corner, is another edge's
+        // (cys-affinity-purification: lines between 24 x 8 boxes drawn edge to edge run through or along the one
+        // between them)
+        const near = (u: number, v: number): boolean => Math.abs(u - v) <= OUTLINE_PX;
+        const [a, z] = ends;
+        const wide = (b: PBox): boolean => near(Math.min(a[0], z[0]), b.x0) && near(Math.max(a[0], z[0]), b.x1);
+        const tall = (b: PBox): boolean => near(Math.min(a[1], z[1]), b.y0) && near(Math.max(a[1], z[1]), b.y1);
+        // every point and every segment's middle (a straight line from one side to the other crosses the box)
+        const halfway = pts.slice(1).map((q, i): Pt => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]);
+        const along = (b: PBox): boolean => (wide(b) || tall(b)) && [...pts, ...halfway].every((q) => onOutline(q, b));
+        const rule = (b: PBox): boolean =>
+            pts.length === 2 && ((near(a[1], z[1]) && wide(b)) || (near(a[0], z[0]) && tall(b)));
+        const box = [...nodeList, ...groupEnds.map((g) => g.node)].find((n) => {
+            const b = nodeBox(n);
+            return (
+                (n.shape === "rect" || n.shape === "roundrect") &&
+                pts.every((q) => inside(q, b, OUTLINE_PX)) &&
+                ends.every((q) => onOutline(q, b)) &&
+                (along(b) || rule(b))
+            );
+        });
+        // and a container's body drawn right under its header, from one of the header's corners round to the other
+        // (draw.io's swimlane: its header box, then its body's outline, then the rule between them), wherever graphty's
+        // group box carried into this drawing lies a few pixels off it
+        const header = byIndex.get(p.index - 1);
+        if (
+            box !== undefined ||
+            header?.kind !== "shape" ||
+            !header.closed ||
+            used.has(header.index) ||
+            !ends.every((q) => onOutline(q, header.box)) ||
+            pts.every((q) => inside(q, header.box, OUTLINE_PX))
+        ) {
+            return box;
+        }
+        const b = header.box;
+        return {
+            id: `\u0000header:${String(header.index)}`,
+            cx: cx(b),
+            cy: cy(b),
+            w: bw(b),
+            h: bh(b),
+            shape: "rect",
+            fill: header.fill,
+            stroke: header.stroke,
+            label: null,
+        };
+    };
     for (const p of [...free().filter((q) => q.kind === "path"), ...bands]) {
-        if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
+        if (p.kind !== "path" || p.stroke === null || p.points.length < 2 || alongNote(p)) {
             continue;
         }
-        const ends = endsOf(p.points, p.stroke.color);
+        const placed = bandLines.get(p);
+        const own = placed?.own ?? ownHeads(p, [p.points[0], p.points.at(-1) ?? p.points[0]], p.stroke.width);
+        const box = outlinePiece(p);
+        const ends: [PNode, PNode] | null =
+            box === undefined ? (placed?.ends ?? endsOf(p.points, p.stroke.color, { own })) : [box, box];
         if (ends === null) {
             continue;
         }
-        const [a, b] = ends;
+        const [a, b] = orientOverlapping(ends);
         // a band is an edge only while graphty draws one between its nodes that no line of the drawing has taken
         if (p.stroke.painted === true && (guidePairs.get(pairOf(a.id, b.id)) ?? 0) <= 0) {
             continue;
         }
         const pk = pairOf(a.id, b.id);
-        guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
+        if (box === undefined) {
+            guidePairs.set(pk, (guidePairs.get(pk) ?? 0) - 1);
+        }
         take(p);
         // A path whose two ends land on one node is a self-loop only where the file has one, and graphty draws every
         // edge of the file, loops included: elsewhere it is a piece of the node's or a nearby edge's drawing (a
         // zigzag border, a bend, an arrowhead's stroke), which no edge of the file stands for.
         const key = `${a.id}->${b.id}`;
         const k = geoEdges.get(key) ?? 0;
-        geoEdges.set(key, k + 1);
+        if (box === undefined) {
+            geoEdges.set(key, k + 1);
+        }
         // kept aside, not dropped: the shapes at its ends are its own, not arrowheads of the edges beside it
         const edge: PEdge = {
-            id: `${key}#g${String(k)}`,
+            id: box === undefined ? `${key}#g${String(k)}` : `${key}#g-outline${String(p.index)}`,
             source: a.id,
             target: b.id,
             points: p.points,
@@ -1567,9 +2794,15 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         };
         withPieces.push(edge);
         drawnAt.set(edge, p.index);
-        if (!(a === b && !guideLoops.has(a.id))) {
+        if (box === undefined && !(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
+            // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
+            for (const [i, hs] of own.entries()) {
+                const end = i === 0 ? "source" : "target";
+                hs.forEach((h) => ownCaps.set(h, { e: edge, end }));
+            }
         } else if (
+            box === undefined &&
             p.points.length >= 5 &&
             (Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h) ||
                 (strokedArc(p) && Math.max(bw(p.box), bh(p.box)) <= 3 * Math.max(a.w, a.h, 8)))
@@ -1649,42 +2882,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         drawnAt.set(edge, p.index);
         edges.push(edge);
     }
-    // A line drawn under a narrower one along the same route between the same nodes is that edge's outline
-    // (Cytoscape.js's line outline, vis-network's edge background, in dashes of its own with `background.dashes`): one
-    // edge with a band under its line, not two. A band is solid or dashed; a pattern drawn as a shape is a line.
-    for (const under of [...edges]) {
-        const band = under.stroke;
-        if (
-            !under.id.includes("#g") ||
-            band === null ||
-            !["solid", "dashed", "dotted", "dash-dot"].includes(band.dashClass) ||
-            !Number.isFinite(band.width)
-        ) {
-            continue;
-        }
-        const tol = Math.max(band.width, 2);
-        const over = edges.find(
-            (e) =>
-                e !== under &&
-                e.id.includes("#g") &&
-                e.stroke !== null &&
-                e.outline === undefined &&
-                pairOf(e.source, e.target) === pairOf(under.source, under.target) &&
-                (drawnAt.get(e) ?? -1) > (drawnAt.get(under) ?? -1) &&
-                band.width >= 1.2 * e.stroke.width &&
-                sameRoute(e.points, under.points, tol),
-        );
-        if (over === undefined) {
-            continue;
-        }
-        over.outline = {
-            color: band.color,
-            opacity: band.opacity,
-            width: band.width,
-            ...(band.dashClass === "solid" ? {} : { dashClass: band.dashClass }),
-        };
-        edges.splice(edges.indexOf(under), 1);
-        withPieces.splice(withPieces.indexOf(under), 1);
+    // a band under a line is its outline, one over it its overlay: one edge, not two
+    for (const band of bandsAlongLines(edges, drawnAt, guide)) {
+        edges.splice(edges.indexOf(band), 1);
+        withPieces.splice(withPieces.indexOf(band), 1);
     }
     // a drawing whose lines mostly run on to the nodes' centers draws its arrowheads at the nodes' outlines
     const atCenter = (e: PEdge, end: "source" | "target"): boolean => {
@@ -1699,13 +2900,23 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     // arrowheads: small closed shapes at an edge's end -- not a box drawn tight behind words (a label's background
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
+    // the annotations graphty draws, carried into the oracle's frame: a shape under one is that annotation, judged as
+    // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
+    const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
     const knockouts = new Map<string, { arrow: PArrow; box: PBox }>();
     for (const p of free()) {
         const picture = p.kind === "image";
-        if ((p.kind !== "shape" && !picture) || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
+        // words drawn as glyph outlines beside an end (a custom graphic's label) are no arrowhead
+        if (
+            (p.kind !== "shape" && !picture) ||
+            p.lettering === true ||
+            annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
+            noteHeads.has(p) ||
+            wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
+        ) {
             continue;
         }
-        const best = arrowheadEdge(p, withPieces, nodeList, centerLines);
+        const best = ownCaps.get(p) ?? arrowheadEdge(p, withPieces, nodeList, centerLines);
         // a picture is an arrowhead only centered on its line, as vis-network stands one there; a picture beside an
         // edge's end (an annotation's, a node's offset graphic) is not
         if (best === null || (picture && !centeredOnLine(p.box, best.e, best.end))) {
@@ -1803,6 +3014,11 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             return { n, lines, picked: new Array<Prim | undefined>(lines.length) };
         });
     const textPrims = stackedTexts(free().filter((p) => p.text !== null));
+    // a line graphty draws as one may stand a little wider in the program's drawing: matched as that line only
+    const wantedRuns = besideTexts(
+        free().filter((p) => p.text !== null),
+        WANTED_LINE_GAP,
+    );
     const reachOf = (n: PNode): number => 3 * Math.max(n.w, n.h, 20);
     // a label the program wraps at other words than graphty: its stacked lines are wanted as one text
     for (const w of wanting) {
@@ -1813,16 +3029,49 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             w.picked = [undefined];
         }
     }
+    // Words a node shares with a node of one name drawn within two node sizes of it (two stations a few pixels apart)
+    // go by where the node's own label sits from it in graphty's drawing, scaled to the node's size: by the nodes'
+    // middles alone, a label set above its node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo:
+    // 71 labels swapped; its twins are 2.8 to 3.3 px apart, a disc 2.7 px across). Only there: farther apart,
+    // graphty's offset would decide which oracle label is judged against it, and a wrong offset would pick the twin's
+    // label and hide graphty's own placement error.
+    const wantedBy = new Map<string, PNode[]>();
+    for (const w of wanting) {
+        for (const l of new Set(w.lines)) {
+            const ns = wantedBy.get(l) ?? [];
+            ns.push(w.n);
+            wantedBy.set(l, ns);
+        }
+    }
+    const twinNear = (n: PNode, line: string): boolean =>
+        (wantedBy.get(line) ?? []).some(
+            (o) => o !== n && Math.hypot(o.cx - n.cx, o.cy - n.cy) <= 2 * Math.max(n.w, n.h, o.w, o.h),
+        );
+    const ownPlace = (n: PNode): Pt => {
+        const g = guideById.get(n.id);
+        if (g === undefined || g.label === null || g.w + g.h <= 0) {
+            return [n.cx, n.cy];
+        }
+        const k = (n.w + n.h) / (g.w + g.h);
+        return [n.cx + k * (cx(g.label.box) - g.cx), n.cy + k * (cy(g.label.box) - g.cy)];
+    };
     const candidates = wanting.flatMap((w) => {
         const reach = reachOf(w.n);
+        const own = ownPlace(w.n);
         return w.lines.flatMap((line, li) =>
-            textPrims
+            [...textPrims, ...wantedRuns]
                 .filter((p) => norm(p.text?.content ?? "") === line)
-                .map((p) => ({ w, li, p, d: Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy) }))
+                .map((p) => {
+                    const d = Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy);
+                    const rank = twinNear(w.n, line) ? Math.hypot(cx(p.box) - own[0], cy(p.box) - own[1]) : d;
+                    return { w, li, p, d, rank };
+                })
                 .filter((c) => c.d <= reach),
         );
     });
-    candidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li);
+    candidates.sort(
+        (a, b) => a.rank - b.rank || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li,
+    );
     for (const c of candidates) {
         const parts = runParts.get(c.p) ?? [c.p];
         if (parts.every((q) => !used.has(q.index)) && c.w.picked[c.li] === undefined) {
@@ -1833,16 +3082,25 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     for (const w of wanting) {
         const picked = w.picked.filter((p): p is Prim => p !== undefined);
         if (picked.length === 0) {
-            // a label whose words differ is still this node's when it sits in the node's box
+            // a label whose words differ is still this node's when it sits in the node's box, unless an edge of the
+            // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
+            // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
+            const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
-                .filter((p) => p.text !== null && inside([cx(p.box), cy(p.box)], box))
+                .filter(
+                    (p) =>
+                        p.text !== null && !endWords.has(norm(p.text.content)) && inside([cx(p.box), cy(p.box)], box),
+                )
                 .sort((a, b) => a.index - b.index)[0];
             if (hit !== undefined) {
                 picked.push(take(hit));
             }
         }
-        w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
+        w.n.label = mergeTexts(
+            picked.flatMap((p) => (p.text ? [p.text] : [])),
+            apartAsGraphty(w.picked, guideById.get(w.n.id)?.label ?? null),
+        );
     }
     // one guide edge per pair, a labelled one where parallel edges are not all labelled
     const guideEdges = new Map<string, (typeof guide.edges)[number]>();
@@ -1858,24 +3116,41 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const wantOf = (e: PEdge): string | undefined =>
         (guideEdges.get(`${e.source}\u0000${e.target}`) ?? guideEdges.get(`${e.target}\u0000${e.source}`))?.label
             ?.content;
+    // Every label graphty draws between a pair of nodes, each as many times as it is drawn: edges drawn one over
+    // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
+    // their own words, and each of the oracle's lines there takes one of them.
+    const pairWords = wordsByPair(guide.edges);
     const edgeCandidates = edges.flatMap((e, ei) => {
-        const want = wantOf(e);
-        if (e.label !== null || want === undefined) {
+        const wants = pairWords.get(unorderedPair(e.source, e.target));
+        if (e.label !== null || wants === undefined) {
             return [];
         }
-        // the whole label near the edge's middle
-        const mid = e.points[Math.floor(e.points.length / 2)];
+        // the whole label near the edge's middle, halfway along it: a straight line drawn as one segment has two
+        // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
+        // to the edge whose target end it sat next to)
+        const mid = pointAlong(e.points, 0.5);
+        // graphty's words for this very edge go before others within a pixel of as near: two lines drawn one over
+        // the other between the same nodes, each label on the same spot, were told apart by sub-pixel noise
+        // (json-cyjs-tokyo's 7634 -> 7635 and 7635 -> 7634, #5506)
+        const own = norm(wantOf(e) ?? "");
         return freeTexts
-            .filter((p) => norm(p.text?.content ?? "") === norm(want))
-            .map((p) => ({ ei, p, d: Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]) }));
+            .filter((p) => wants.has(norm(p.text?.content ?? "")))
+            .map((p) => {
+                const d = Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]);
+                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1) };
+            });
     });
-    edgeCandidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || a.ei - b.ei);
+    edgeCandidates.sort((a, b) => a.rank - b.rank || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];
-        if (e.label === null && parts.every((q) => !used.has(q.index)) && c.p.text) {
+        const wants = pairWords.get(unorderedPair(e.source, e.target));
+        const words = norm(c.p.text?.content ?? "");
+        const left = wants?.get(words) ?? 0;
+        if (e.label === null && left > 0 && parts.every((q) => !used.has(q.index)) && c.p.text) {
             parts.forEach(take);
             e.label = c.p.text;
+            wants?.set(words, left - 1);
         }
     }
     // else each line near any point of the edge: a label at each end (a source and a target label) is drawn as texts
@@ -1904,10 +3179,23 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         e.label = mergeTexts(picked);
     }
 
+    // ---- labels drawn as glyph outlines: rows of lettering inside a node's box with no label of its own are its label,
+    // inside the smallest node that holds them (yEd's HTML labels, graphml-libcitygml-mapping)
+    for (const n of [...nodeList].sort((a, b) => a.w * a.h - b.w * b.h)) {
+        const rows = free().filter((p) => p.lettering === true && within(p.box, nodeBox(n)));
+        if (n.label === null && rows.length > 0) {
+            rows.forEach(take);
+            n.label = glyphLabel(rows);
+        }
+    }
+
     // ---- group boxes by geometry: a box-like closed shape around the centers of two or more drawn
     // nodes, each no wider and no taller than it (an edge drawn as a filled ribbon passes through
     // node centers but is thinner than the nodes, or encloses little of its box); a fill and an
-    // outline drawn as two primitives over one box are one group
+    // outline drawn as two primitives over one box are one group. Around one node is enough where graphty draws a
+    // group over the same box: a node drawn over a smaller one (json-cyjs-perf's 60 px nodes over 10 px ones,
+    // SIGNOR's complexes) is read as a group on graphty's side, and the program drew that box too.
+    const guideBoxes = guideGroupBoxes(guide, nodeList);
     for (const p of free()) {
         if (p.kind !== "shape") {
             continue;
@@ -1917,6 +3205,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             take(p);
             twin.fill ??= p.fill;
             twin.stroke ??= p.stroke;
+            twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
@@ -1925,13 +3214,20 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const members = nodeList.filter(
             (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
-        if (members.length >= 2 && polygonArea(p.points) >= 0.5 * area(p.box)) {
+        // each of graphty's boxes stands for one box of the program's
+        const guided = members.length === 1 ? guideBoxes.findIndex((b) => boxIoU(b, p.box) >= 0.5) : -1;
+        if ((members.length >= 2 || guided >= 0) && polygonArea(p.points) >= 0.5 * area(p.box)) {
+            if (guided >= 0) {
+                guideBoxes.splice(guided, 1);
+            }
             take(p);
             groups.push({
-                id: `box-${String(p.index)}`,
+                // named by its box, not its place in the list of shapes read
+                id: shapeId("box", p.box),
                 box: p.box,
                 fill: p.fill,
                 stroke: p.stroke,
+                ...(p.panel === undefined ? {} : { panel: p.panel }),
                 label: null,
                 members: members.map((n) => n.id),
             });
@@ -2067,6 +3363,42 @@ function boxIoU(a: PBox, b: PBox): number {
 }
 
 /**
+ * A label from rows of lettering: where it was drawn and in what color, with no words. A row drawn twice (a halo under
+ * its letters) is one line.
+ * @param rows - the rows
+ * @returns the label
+ */
+function glyphLabel(rows: readonly Prim[]): PText {
+    const lines = rows
+        .filter((p, i) => rows.findIndex((q) => sameBox(q.box, p.box)) === i)
+        .map((p) => p.box)
+        .sort((a, b) => a.y0 - b.y0);
+    const box = boxOfPoints(
+        lines.flatMap((b): Pt[] => [
+            [b.x0, b.y0],
+            [b.x1, b.y1],
+        ]),
+    );
+    const fill = rows.find((p) => p.fill !== null)?.fill ?? null;
+    return {
+        content: "",
+        x: cx(box),
+        y: cy(box),
+        box,
+        sizePx: lines.reduce((s, b) => s + bh(b), 0) / lines.length,
+        family: "",
+        weight: 400,
+        style: "normal",
+        anchor: "middle",
+        rotation: 0,
+        color: fill?.color ?? "#000000",
+        opacity: fill?.opacity ?? 1,
+        lines,
+        glyphs: true,
+    };
+}
+
+/**
  * Each oracle group paired with the group graphty drew over the same box: by id when the markup
  * named it, else by box overlap through the fit of the nodes both sides drew, best overlap first.
  * Pairing by box, not by the first words inside it, gives a nested group its own label: the words
@@ -2085,32 +3417,11 @@ function guideTwins(groups: readonly PGroup[], guide: PScene, nodes: readonly PN
             out.set(g, left.splice(k, 1)[0]);
         }
     }
-    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
-    const pairs = nodes.flatMap((n) => {
-        const at = byId.get(n.id);
-        return at === undefined ? [] : [{ from: [at.cx, at.cy] as Pt, to: [n.cx, n.cy] as Pt }];
-    });
-    const t =
-        pairs.length >= 2
-            ? fitSimilarity(
-                  pairs.map((q) => q.from),
-                  pairs.map((q) => q.to),
-              )
-            : null;
+    const t = guideFit(guide, nodes);
     if (t === null) {
         return out;
     }
-    const framed = left.map((x) => {
-        const a = apply(t, [x.box.x0, x.box.y0]);
-        const b = apply(t, [x.box.x1, x.box.y1]);
-        const box = {
-            x0: Math.min(a[0], b[0]),
-            y0: Math.min(a[1], b[1]),
-            x1: Math.max(a[0], b[0]),
-            y1: Math.max(a[1], b[1]),
-        };
-        return { x, box };
-    });
+    const framed = left.map((x) => ({ x, box: framedBox(t, x.box) }));
     const cand = groups
         .filter((g) => !out.has(g))
         .flatMap((g) => framed.map((f) => ({ g, f, v: boxIoU(g.box, f.box) })))
@@ -2124,6 +3435,42 @@ function guideTwins(groups: readonly PGroup[], guide: PScene, nodes: readonly PN
         }
     }
     return out;
+}
+
+/**
+ * graphty's drawing carried into the oracle's frame by the nodes both sides drew.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes, by graphty's ids
+ * @returns the fit, or null with under two nodes in common
+ */
+function guideFit(guide: PScene, nodes: readonly PNode[]): Similarity | null {
+    const byId = new Map(guide.nodes.map((n) => [n.id, n]));
+    const pairs = nodes.flatMap((n) => {
+        const at = byId.get(n.id);
+        return at === undefined ? [] : [{ from: [at.cx, at.cy] as Pt, to: [n.cx, n.cy] as Pt }];
+    });
+    return pairs.length >= 2
+        ? fitSimilarity(
+              pairs.map((q) => q.from),
+              pairs.map((q) => q.to),
+          )
+        : null;
+}
+
+/**
+ * graphty's group boxes in the oracle's frame.
+ * @param guide - graphty's drawing
+ * @param nodes - the oracle's nodes, by graphty's ids
+ * @returns the boxes; none when the drawings share under two nodes
+ */
+function guideGroupBoxes(guide: PScene, nodes: readonly PNode[]): PBox[] {
+    const t = guide.groups.length === 0 ? null : guideFit(guide, nodes);
+    return t === null ? [] : guide.groups.map((g) => framedBox(t, g.box));
+}
+
+/** A box of graphty's drawing carried through a fit, by two opposite corners. */
+function framedBox(t: Similarity, box: PBox): PBox {
+    return boxOfPoints([apply(t, [box.x0, box.y0]), apply(t, [box.x1, box.y1])]);
 }
 
 /**
@@ -2292,12 +3639,64 @@ function seedTransform(
     };
 }
 
+/**
+ * A seed, unless it relates only the extents of two layouts each program made its own way: those pair bodies by chance.
+ * @param seed - the seed
+ * @param ownLayout - graphty laid every node out itself
+ * @returns the seed, or null
+ */
+const unlessChance = (seed: Seed | null, ownLayout: boolean): Seed | null =>
+    ownLayout && seed?.source === "extent" ? null : seed;
+
+/** Two node ids as one key, either way round. */
+const unorderedPair = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+
+/**
+ * The words of the edge labels drawn between each pair of nodes, each with how many edges there carry them.
+ * @param edges - the edges
+ * @returns by unordered pair, the count of each label's words
+ */
+function wordsByPair(edges: readonly PEdge[]): Map<string, Map<string, number>> {
+    const out = new Map<string, Map<string, number>>();
+    for (const e of edges) {
+        const words = norm(e.label?.content ?? "");
+        if (words === "") {
+            continue;
+        }
+        const k = unorderedPair(e.source, e.target);
+        const counts = out.get(k) ?? new Map<string, number>();
+        counts.set(words, (counts.get(words) ?? 0) + 1);
+        out.set(k, counts);
+    }
+    return out;
+}
+
+/**
+ * The words of every line of the labels graphty draws on the edges of one node.
+ * @param guide - graphty's scene
+ * @param node - the node's id
+ * @returns the lines, each normalized
+ */
+function endWordsAt(guide: PScene, node: string): Set<string> {
+    return new Set(
+        guide.edges
+            .filter((e) => e.source === node || e.target === node)
+            .flatMap((e) => (e.label?.content ?? "").split("\n").map(norm))
+            .filter((line) => line !== ""),
+    );
+}
+
+/** The most lines {@link stackedTexts} stacks into one text. */
+const MAX_STACKED_LINES = 16;
+
 /** The lines each stacked run of {@link stackedTexts} is made of. */
 const runParts = new WeakMap<Prim, Prim[]>();
 
 /**
- * The texts, and each run of two to four lines stacked one under another as one text: a program that wraps a long
- * label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is one line.
+ * The texts, and each run of two to {@link MAX_STACKED_LINES} lines stacked one under another as one text: a program
+ * that wraps a long label (Cytoscape at its label width) draws it as one `<text>` per line, where graphty's label is
+ * one line, or lines broken at other words (cx2-ndex-90f78bcd 304542: Cytoscape desktop's six lines, read as their
+ * first two alone while runs stopped at four, put the label above its node where both programs center it).
  * @param texts - the text primitives
  * @returns the texts, then the stacked runs (each the first line's primitive with the run's words and box)
  */
@@ -2325,7 +3724,7 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];
-        for (let next = below(first); next !== undefined && run.length < 4; next = below(next)) {
+        for (let next = below(first); next !== undefined && run.length < MAX_STACKED_LINES; next = below(next)) {
             run = [...run, next];
             const stacked: Prim = {
                 ...first,
@@ -2346,28 +3745,45 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
 }
 
 /**
+ * How far apart, in font sizes, two words side by side may stand to be read as one line graphty draws: the words
+ * graphty sets on one line may stand a little wider in the program's drawing (a chart's category names under narrower
+ * bars, xgmml-specimen-images-charts-p7 bar-axis-label-font-size-10, 0.61 of a font size where graphty's are 0.5).
+ * Only for a line graphty draws as one: everywhere else a run is half a font size apart at most, as {@link joinRuns}
+ * reads it.
+ */
+const WANTED_LINE_GAP = 1;
+
+/**
  * Each run of two to eight texts side by side on one line as one text: a program that draws a label's font changes
  * as texts of their own (vis-network's multi-font blocks, "<b>B</b> <i>I</i>" as "B" and "I") draws one line where
- * graphty's label is one text. A run is a text starting where the one before it ends (within half its font size)
- * whose middle lies within that one's height, as {@link joinRuns} joins a node's lines; the words are joined with a
- * space where the texts are apart by more than a sixth of the font size.
+ * graphty's label is one text. A run is each next text on the line, starting where the one before it ends (within
+ * `gap` font sizes) and never across a text between them, as {@link joinRuns} joins a node's lines; the
+ * words are joined with a space where the texts are apart by more than a sixth of the font size.
  * @param texts - the text primitives
+ * @param gap - how far apart, in font sizes, two texts of a run may stand
  * @returns the runs (each the first text's primitive with the run's words and box)
  */
-function besideTexts(texts: readonly Prim[]): Prim[] {
+function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
     const size = (p: Prim): number => Math.max(p.text?.sizePx ?? 1, 1);
-    const beside = (p: Prim): Prim | undefined =>
-        texts.find(
-            (q) =>
-                q !== p &&
-                q.text !== null &&
-                q.box.x0 - p.box.x1 >= -0.2 * size(p) &&
-                q.box.x0 - p.box.x1 <= 0.5 * size(p) &&
-                cy(q.box) >= p.box.y0 &&
-                cy(q.box) <= p.box.y1 &&
-                cy(p.box) >= q.box.y0 &&
-                cy(p.box) <= q.box.y1,
-        );
+    // turned words are no line of text (a chart's slanted category names), on either side
+    const level = texts.filter((q) => q.text?.rotation === 0);
+    const beside = (p: Prim): Prim | undefined => {
+        if (p.text?.rotation !== 0) {
+            return undefined;
+        }
+        // the next word on the line, never one across a word drawn between them (as joinRuns reads a node's lines)
+        const next = level
+            .filter(
+                (q) =>
+                    q !== p &&
+                    sameLine(p.box, q.box) &&
+                    (q.box.x0 > p.box.x0 || (q.box.x0 === p.box.x0 && q.index > p.index)),
+            )
+            .sort((a, b) => a.box.x0 - b.box.x0 || a.index - b.index)[0];
+        return next !== undefined && next.box.x0 - p.box.x1 >= -0.2 * size(p) && next.box.x0 - p.box.x1 <= gap * size(p)
+            ? next
+            : undefined;
+    };
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];
@@ -2434,8 +3850,98 @@ const through =
  * the node lands in the oracle's frame, plus the shapes drawn on the same spot at the same size
  * (a fill and its outline drawn as two primitives).
  */
+/**
+ * How much of a body a shape drawn on its spot covers to be its twin (`matchBodies`): a fill and its outline cover
+ * nearly all of each other, a drop shadow a few pixels off most; two boxes stacked one under the other hardly any.
+ */
+const TWIN_OVERLAP = 0.25;
+
 /** What a box drawn tight round a label adds to its cost as a node's body (`matchBodies`). */
 const LABEL_BACKGROUND_COST = 0.5;
+
+/**
+ * Nodes graphty places this close in the oracle's frame, in oracle pixels, are on one spot (`matchBodies`): a quarter
+ * pixel moves no pixel's center, so which of them is nearer a shape drawn there is noise of the fit, not the drawing.
+ */
+const COINCIDENT_PX = 0.25;
+
+/**
+ * Two shapes drawn alike: of one kind and size, and painted alike. Two such shapes on one spot are two nodes
+ * (json-cyjs-tokyo's same-name stations, two 2.8 px discs on one spot), never a node's body and its outline or an
+ * overlay over it (Cytoscape.js's background-blacken), which are painted differently.
+ */
+const drawnAlike = (a: Prim, b: Prim): boolean =>
+    a.kind === b.kind &&
+    Math.abs(bw(a.box) - bw(b.box)) <= 0.05 * Math.max(bw(a.box), bw(b.box)) &&
+    Math.abs(bh(a.box) - bh(b.box)) <= 0.05 * Math.max(bh(a.box), bh(b.box)) &&
+    a.fill?.color === b.fill?.color &&
+    a.fill?.opacity === b.fill?.opacity &&
+    a.stroke?.color === b.stroke?.color &&
+    a.stroke?.opacity === b.stroke?.opacity &&
+    a.stroke?.width === b.stroke?.width;
+
+/** Two shapes filled in one paint and outlined alike, whatever their sizes: two bodies, never a body and its outline. */
+const filledAlike = (a: Prim, b: Prim): boolean =>
+    a.kind === b.kind &&
+    a.fill !== null &&
+    a.fill.color === b.fill?.color &&
+    a.fill.opacity === b.fill.opacity &&
+    a.stroke?.color === b.stroke?.color &&
+    a.stroke?.width === b.stroke?.width;
+
+/**
+ * Of the shapes drawn alike on one spot as a node's body (each within the other's box but for half a pixel), the one
+ * drawn last: the one a reader sees, the others under it all but hidden (cx2-wp1449-tlr's IFNA2, drawn twice 0.22 px
+ * apart, the top one with its label). The ones under it are left for a node that lands on them only, not for a node
+ * beside them (json-cyjs-tokyo: four stations' discs on one spot drew Shibuya's other stations off their own).
+ * @param body - the shape the node matched best
+ * @param free - the shapes still free for the node
+ * @returns the body
+ */
+function topAlike(body: Prim, free: readonly Prim[]): Prim {
+    return free.reduce((top, q) => (q.index > top.index && onOneSpot(q, body) ? q : top), body);
+}
+
+/** Two shapes drawn alike, each within the other's box but for half a pixel: one hides the other. */
+const onOneSpot = (a: Prim, b: Prim): boolean =>
+    drawnAlike(a, b) && boxWithin(a.box, b.box, INSIDE_SLACK) && boxWithin(b.box, a.box, INSIDE_SLACK);
+
+/**
+ * Where each node is matched from: graphty's prediction, except that nodes predicted on one spot (`COINCIDENT_PX`)
+ * all take the spot of the first of them by id, so their costs to each shape there tie exactly and their ids decide
+ * which takes which shape (json-cyjs-tokyo: same-name stations 0.004 px apart were paired by noise, #5506).
+ * @param guideNodes - graphty's nodes
+ * @param predict - where each lands in the oracle's frame
+ * @returns each node's prediction, by node
+ */
+function spotsOf(guideNodes: readonly PNode[], predict: Predict): Map<PNode, NonNullable<ReturnType<Predict>>> {
+    const out = new Map<PNode, NonNullable<ReturnType<Predict>>>();
+    const byId = guideNodes.flatMap((n) => {
+        const at = predict(n);
+        return at === null ? [] : [{ n, at }];
+    });
+    byId.sort((a, b) => compareIds(a.n.id, b.n.id));
+    // in buckets of a pixel, so each node is compared with its neighbours only
+    const bucket = new Map<string, { x: number; y: number }[]>();
+    const key = (x: number, y: number): string => `${String(Math.floor(x))},${String(Math.floor(y))}`;
+    for (const { n, at } of byId) {
+        let lead: { x: number; y: number } | undefined;
+        for (let dx = -1; dx <= 1 && lead === undefined; dx++) {
+            for (let dy = -1; dy <= 1 && lead === undefined; dy++) {
+                lead = bucket
+                    .get(key(at.x + dx, at.y + dy))
+                    ?.find((q) => Math.hypot(q.x - at.x, q.y - at.y) <= COINCIDENT_PX);
+            }
+        }
+        if (lead === undefined) {
+            lead = { x: at.x, y: at.y };
+            const k = key(at.x, at.y);
+            bucket.set(k, [...(bucket.get(k) ?? []), lead]);
+        }
+        out.set(n, { ...at, x: lead.x, y: lead.y });
+    }
+    return out;
+}
 
 function matchBodies(
     guideNodes: readonly PNode[],
@@ -2497,11 +4003,17 @@ function matchBodies(
             }
         }
     }
-    for (const n of guideNodes) {
-        const at = predict(n);
-        if (at === null) {
-            continue;
-        }
+    const spots = spotsOf(guideNodes, predict);
+    const spotOf = new Map([...spots].map(([n, at]): [string, Pt] => [n.id, [at.x, at.y]]));
+    // where each node lands, at its own width and height
+    const landing = new Map(
+        [...spots].map(([n, at]): [string, PBox] => {
+            const k = at.s / Math.max(n.w, n.h, 1e-9);
+            const [w, h] = [(k * n.w) / 2, (k * n.h) / 2];
+            return [n.id, { x0: at.x - w, y0: at.y - h, x1: at.x + w, y1: at.y + h }];
+        }),
+    );
+    for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
             const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
@@ -2520,14 +4032,42 @@ function matchBodies(
         }
     }
     cand.sort((a, b) => a.cost - b.cost || compareIds(a.id, b.id) || a.p.index - b.p.index);
-    const out = new Map<string, Prim[]>();
-    const taken = new Set<number>();
+    // the shape each node finds best: another node's best shape is that node's body, never this one's twin
+    // (json-cyjs-tokyo: two stations' 2.8 px discs 0.9 px apart are two nodes)
+    const bestOf = new Map<string, number>();
     for (const c of cand) {
-        if (out.has(c.id) || taken.has(c.p.index)) {
+        if (!c.id.startsWith(GROUP_CLAIM) && !bestOf.has(c.id)) {
+            bestOf.set(c.id, c.p.index);
+        }
+    }
+    const bodyOf = new Map([...bestOf].map(([id, index]) => [index, id]));
+    const out = new Map<string, Prim[]>();
+    const tableRows = new Map<string, ReadonlySet<Prim>>();
+    tableRowsOf.set(out, tableRows);
+    const taken = new Set<number>();
+    // the shapes a body hides on its spot: only a node that lands on one takes it, not one beside it
+    const hidden = new Set<number>();
+    const landsOn = (id: string, p: Prim): boolean => {
+        const at = spotOf.get(id);
+        return at !== undefined && inside(at, p.box);
+    };
+    for (const c of cand) {
+        if (out.has(c.id) || taken.has(c.p.index) || (hidden.has(c.p.index) && !landsOn(c.id, c.p))) {
             continue;
         }
-        taken.add(c.p.index);
-        const body = c.p;
+        // of shapes drawn alike on one spot, the one drawn last is the one a reader sees, and the node's
+        const body = c.id.startsWith(GROUP_CLAIM)
+            ? c.p
+            : topAlike(
+                  c.p,
+                  shapes.filter((q) => !taken.has(q.index) && (bodyOf.get(q.index) ?? c.id) === c.id),
+              );
+        taken.add(body.index);
+        for (const q of shapes) {
+            if (!c.id.startsWith(GROUP_CLAIM) && q !== body && !taken.has(q.index) && onOneSpot(q, body)) {
+                hidden.add(q.index);
+            }
+        }
         const size = extent(body);
         // of the body's width AND its height: a node drawn on the middle of a group box as wide as
         // it but three times as tall is another element, not the body's own outline
@@ -2538,14 +4078,32 @@ function matchBodies(
             bw(q.box) >= 0.8 * bw(body.box) &&
             bh(q.box) >= 0.8 * bh(body.box) &&
             Math.max(bw(q.box), bh(q.box)) <= 3 * size;
-        const twins = shapes.filter(
-            (q) =>
-                !taken.has(q.index) &&
-                Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
-                ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
-                // a group's twin is drawn over its box, not a flat node inside it of about its width
-                (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
-        );
+        const twins = shapes
+            .filter(
+                (q) =>
+                    !taken.has(q.index) &&
+                    (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
+                    // a second shape drawn like the body is another node's, a missing one's too (#4264); so is one filled
+                    // in the body's own paint at another size off its middle, which no outline is (json-cyjs-perf: n571's
+                    // disc drawn over n570's, a fifth wider and 5.6 px off, was read as n570's outline, and n570's lines
+                    // as another node's, #5196); one on its middle is the node's own (yEd's double ellipse)
+                    !drawnAlike(q, body) &&
+                    !(
+                        filledAlike(q, body) &&
+                        Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) > 0.05 * size + 0.5
+                    ) &&
+                    Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                    // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
+                    // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
+                    (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
+                    ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
+                    // a group's twin is drawn over its box, not a flat node inside it of about its width
+                    (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
+            )
+            // of outlines drawn alike, the one drawn next to the body: another is a twin node's on the same spot
+            // (#4264); outlines painted differently (a double border's two lines) are all the body's
+            .sort((a, b) => Math.abs(a.index - body.index) - Math.abs(b.index - body.index) || b.index - a.index)
+            .filter((q, i, all) => !all.slice(0, i).some((t) => drawnAlike(t, q)));
         // a dot's fill, drawn as its own outline of no size under the stroke, is the same dot
         const fills = dot(body)
             ? free.filter(
@@ -2556,8 +4114,30 @@ function matchBodies(
                       Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.5,
               )
             : [];
-        [...twins, ...fills].forEach((q) => taken.add(q.index));
-        out.set(c.id, [body, ...twins, ...fills]);
+        const landed = landing.get(c.id);
+        const rows =
+            landed === undefined || c.id.startsWith(GROUP_CLAIM)
+                ? []
+                : tableOf(
+                      [body, ...twins],
+                      stackedRows(
+                          [body, ...twins],
+                          shapes.filter(
+                              (q) =>
+                                  !taken.has(q.index) &&
+                                  !twins.includes(q) &&
+                                  (bodyOf.get(q.index) ?? c.id) === c.id &&
+                                  // where graphty lands it, give or take the fit's play
+                                  boxWithin(q.box, landed, 0.1 * Math.max(bw(landed), bh(landed))),
+                          ),
+                      ),
+                      landed,
+                  );
+        if (rows.length > 0) {
+            tableRows.set(c.id, new Set(rows));
+        }
+        [...twins, ...fills, ...rows].forEach((q) => taken.add(q.index));
+        out.set(c.id, [body, ...twins, ...fills, ...rows]);
     }
     for (const id of out.keys()) {
         if (id.startsWith(GROUP_CLAIM)) {
@@ -2608,6 +4188,65 @@ const wordsAt = (content: string, x: number, y: number): PText => ({
     color: "#000000",
     opacity: 1,
 });
+
+/**
+ * The rows that make a node's body a table: all of them, where the table they make with the body is the node's height
+ * where graphty lands it (within a tenth) and nearer it than the body alone; else none, so that a box drawn under or
+ * over a node (a label's, an annotation's) stays a box of its own.
+ * @param body - the node's body and its twins
+ * @param rows - the rows stacked on the body (`stackedRows`)
+ * @param landed - where graphty lands the node, in the oracle's frame
+ * @returns the rows, or none
+ */
+function tableOf(body: readonly Prim[], rows: readonly Prim[], landed: PBox): Prim[] {
+    if (rows.length === 0) {
+        return [];
+    }
+    const want = bh(landed);
+    const table = Math.abs(bh(union([...body, ...rows].map((p) => p.box))) - want);
+    const alone = Math.abs(bh(union(body.map((p) => p.box))) - want);
+    return table <= 0.1 * want && table < alone ? [...rows] : [];
+}
+
+/**
+ * The rows of a table drawn round a node's body: rectangles as wide as the body, each in line with it (its left and
+ * right edges within a pixel), touching it or a row already taken and reaching a pixel or more past them, up or down.
+ * yEd's table node is drawn as a header row over its rows, one box each, and the node is all of them (#5347:
+ * yed-graphml-specimen-groups-p2's table-lane-style-rows, drawn as a header and two rows, was read as one row). A shape
+ * drawn over the body on its spot reaches past it by no pixel, so it is no row: a twin, or another node's.
+ * @param body - the node's body and its twins
+ * @param free - the shapes free for the node, inside where it lands
+ * @returns the rows, in the order they were reached
+ */
+function stackedRows(body: readonly Prim[], free: readonly Prim[]): Prim[] {
+    const [first] = body;
+    if (first === undefined || first.kind !== "shape" || area(first.box) === 0 || shapeOf(first) !== "rect") {
+        return [];
+    }
+    const inLine = (q: Prim): boolean =>
+        q.kind === "shape" &&
+        area(q.box) > 0 &&
+        shapeOf(q) === "rect" &&
+        Math.abs(q.box.x0 - first.box.x0) <= 1 &&
+        Math.abs(q.box.x1 - first.box.x1) <= 1;
+    const rows: Prim[] = [];
+    let reach = union(body.map((p) => p.box));
+    let left = free.filter(inLine);
+    for (;;) {
+        const touching = left.filter(
+            (q) =>
+                q.box.y0 <= reach.y1 + 0.5 &&
+                q.box.y1 >= reach.y0 - 0.5 &&
+                (q.box.y0 < reach.y0 - 1 || q.box.y1 > reach.y1 + 1),
+        );
+        if (touching.length === 0) {
+            return rows;
+        }
+        rows.push(...touching);
+        reach = union([reach, ...touching.map((q) => q.box)]);
+        left = left.filter((q) => !touching.includes(q));
+    }
+}
 
 /**
  * The most common color among the pixels of a disk: a node's fill read off a raster, robust to an
@@ -2662,7 +4301,7 @@ export function rasterScene(
     fillAt: (x: number, y: number, r: number) => string | null,
 ): PScene {
     const colors = drawing.nodes.map((n) => fillAt(n.x, n.y, 0.5 * n.r));
-    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose box
+    // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose disc
     // lies inside a later one's, which shows its color over the node, is painted over: by the rule graphty's side
     // counts a node an opaque node in front holds as not drawn. Where the program recorded its paint, the later node
     // covers it when that paint is opaque; else when the pixels show the same color over both (one see-through node
@@ -2673,7 +4312,8 @@ export function rasterScene(
     };
     const seen = drawing.nodes.filter((n, i) =>
         drawing.nodes.slice(i + 1).every((m, k) => {
-            const inside = Math.abs(m.x - n.x) + n.r <= m.r + 1 && Math.abs(m.y - n.y) + n.r <= m.r + 1;
+            // the disc, not its box: one in a corner of a later disc's box shows there (json-graphology-synth n66)
+            const inside = Math.hypot(m.x - n.x, m.y - n.y) + n.r <= m.r + 1;
             return !(inside && covers(i, i + 1 + k));
         }),
     );
@@ -2791,6 +4431,49 @@ export function withinShape(inner: PBox, outer: PBox, ellipse: boolean, slack = 
 }
 
 /**
+ * Whether a point is where a node is: within the node position tolerance of its center (a quarter of its smaller side,
+ * at least a pixel and a half), as two nodes drawn one on the other are to a reader.
+ * @param p - the point, a node's center
+ * @param n - the node, by its center and size
+ * @param n.x - its center's x
+ * @param n.y - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @returns true when the point is on the node's center
+ */
+export function stackedOn(p: Pt, n: { x: number; y: number; w: number; h: number }): boolean {
+    return Math.hypot(p[0] - n.x, p[1] - n.y) <= Math.max(0.25 * Math.min(n.w, n.h), 1.5);
+}
+
+/**
+ * The oracle's edges with each end at a covered node moved to the node drawn over it, the one a reader sees the line
+ * end at, as graphty's side reads one (`shownEnds` in drawn-primitives.ts). An edge between a node and the node over
+ * it keeps its ends: it is no loop of the node in front.
+ * @param scene - the oracle's scene
+ * @param coverOf - each covered node stacked on its topmost cover, that cover
+ * @returns the edges, those with no such end unchanged
+ */
+function edgesAtCovers(scene: PScene, coverOf: ReadonlyMap<PNode, PNode>): PEdge[] {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const shownAt = (id: string): string => {
+        let n = byId.get(id);
+        const seen = new Set<PNode>();
+        while (n !== undefined && coverOf.has(n) && !seen.has(n)) {
+            seen.add(n);
+            n = coverOf.get(n);
+        }
+        return n?.id ?? id;
+    };
+    return scene.edges.map((e) => {
+        const [source, target] = [shownAt(e.source), shownAt(e.target)];
+        const same = source === e.source && target === e.target;
+        return same || (source === target && e.source !== e.target)
+            ? e
+            : { ...e, source, target, ownEnds: { source: e.source, target: e.target } };
+    });
+}
+
+/**
  * The oracle's scene without what it draws wholly under a node, judged as graphty's side judges its own (`occluders`
  * in extract-scene.ts, `linelessCaps` in drawn-primitives.ts): a node, or a stray shape, is covered by an opaque node
  * drawn after it (later in the document) whose box, out to its outline's outer edge, holds its whole box (a stray's box
@@ -2800,6 +4483,7 @@ export function withinShape(inner: PBox, outer: PBox, ellipse: boolean, slack = 
  * graphty's scene marks hidden, and the arrowheads of edges whose nodes swallow their line under those nodes
  * (`gexf-sigma-ediaspora`). The half pixel a box may poke past is graphty's, taken into the oracle's pixels by the
  * ratio of the two drawings' sizes of the same nodes (`gexf-cns-wos` draws 1.36 oracle pixels to graphty's one).
+ * An edge's end at a covered node stacked on the node over it moves there (`edgesAtCovers`).
  * @param scene - the oracle's scene
  * @param guide - graphty's scene, whose nodes' sizes give the scale; none takes the oracle's pixel as graphty's
  * @returns the scene without what is covered
@@ -2825,11 +4509,60 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
     const covers = scene.nodes
         .filter((n) => n.order !== undefined && n.fill !== null && n.fill.opacity >= OPAQUE)
         .map((n) => ({ n, box: boxOf(n), order: n.order ?? -1 }));
-    const covered = new Set(
-        scene.nodes.filter((n) =>
-            covers.some((c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack)),
-        ),
+    // each covered node's topmost cover: the node a reader sees over it
+    const coverOf = new Map<PNode, PNode>();
+    // Two nodes of one size on one spot that graphty shows both of are both drawn: graphty hides neither (neither is
+    // nearer the camera), and which one a reader sees on top is only the order each program draws them in
+    // (json-cyjs-tokyo's same-name stations, #5506).
+    const shown = new Set((guide?.nodes ?? []).map((n) => n.id));
+    const twins = (a: PNode, b: PNode): boolean =>
+        shown.has(a.id) &&
+        shown.has(b.id) &&
+        boxWithin(boxOf(a), boxOf(b), slack) &&
+        boxWithin(boxOf(b), boxOf(a), slack);
+    // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
+    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
+    // point round a round node's outline
+    const underFigure = (n: PNode, c: PNode): boolean => {
+        if (c.figure === undefined) {
+            return true;
+        }
+        const b = boxOf(n);
+        const [mx, my, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+        const points: Pt[] =
+            n.shape === "ellipse"
+                ? Array.from({ length: 16 }, (_, k) => [
+                      mx + rx * Math.cos((k * Math.PI) / 8),
+                      my + ry * Math.sin((k * Math.PI) / 8),
+                  ])
+                : [
+                      [b.x0, b.y0],
+                      [b.x1, b.y0],
+                      [b.x0, b.y1],
+                      [b.x1, b.y1],
+                  ];
+        const reach = slack + (c.stroke?.width ?? 0) / 2;
+        return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
+    };
+    for (const n of scene.nodes) {
+        const over = covers.filter(
+            (c) =>
+                c.n !== n &&
+                c.order > (n.order ?? Infinity) &&
+                boxWithin(boxOf(n), c.box, slack) &&
+                underFigure(n, c.n) &&
+                !twins(n, c.n),
+        );
+        if (over.length > 0) {
+            coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);
+        }
+    }
+    const covered = new Set(coverOf.keys());
+    // only a node stacked on its cover moves its edges' ends there, as graphty's side moves them (`shownEnds`)
+    const stacked = new Map(
+        [...coverOf].filter(([n, c]) => stackedOn([n.cx, n.cy], { x: c.cx, y: c.cy, w: c.w, h: c.h })),
     );
+    const edges = edgesAtCovers(scene, stacked);
     const strays = scene.strays.filter(
         (s) =>
             s.kind !== "shape" ||
@@ -2841,6 +4574,7 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
     return {
         ...scene,
         nodes: scene.nodes.filter((n) => !covered.has(n)),
+        edges,
         texts: [
             ...scene.texts,
             ...[...covered].flatMap((n) => (n.label === null ? [] : [{ ...n.label, owner: n.id }])),

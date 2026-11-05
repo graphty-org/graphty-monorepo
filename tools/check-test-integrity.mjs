@@ -16,7 +16,9 @@
 //   - a story's or a Storybook preview's `parameters.chromatic` settings added or changed.
 //
 // A finding is not always wrong: a story removed with its feature is legitimate. The pull request
-// check (pr-integrity.yml) lets a code owner's approval of the head clear it.
+// check (pr-integrity.yml) lets an agent review of the head that answers it (tools/pr-review.sh), or a
+// code owner's approval of the head, clear it. Comments and the contents of strings are not counted,
+// so a lint rule's test fixtures are not read as the test's own tests, assertions or timeouts.
 //
 //   node tools/check-test-integrity.mjs [--base <ref>] [--head <ref>] [--json]
 //   node tools/check-test-integrity.mjs --replay <since> <until> [--ref <ref>]
@@ -86,8 +88,15 @@ const LEXEME = new RegExp(
     ].join("|"),
     "g",
 );
-// A file's lines with every comment blanked; a block comment keeps its line breaks.
-const codeLines = (text) => text.replaceAll(LEXEME, (m) => (m[0] === "/" ? m.replaceAll(/[^\n]/g, "") : m)).split("\n");
+// A file's lines with every comment and every string's contents blanked (a lint rule's test fixtures are
+// code inside strings, not the test's own tests, assertions or timeouts); line breaks are kept, so line N of
+// the result is line N of the file.
+const blank = (m) => {
+    if (m[0] === "/") return m.replaceAll(/[^\n]/g, "");
+    if (m[0] === "\\") return m;
+    return m[0] + m.slice(1, -1).replaceAll(/[^\n]/g, " ") + m.at(-1);
+};
+const codeLines = (text) => text.replaceAll(LEXEME, blank).split("\n");
 const toNumber = (s) => s.split("*").reduce((p, f) => p * Number(f.replaceAll("_", "").trim()), 1);
 
 function values(re, lines) {
@@ -119,15 +128,30 @@ function parseDiff(text) {
             // a path with a quote, a backslash or a non-ASCII byte is quoted (core.quotePath)
             const m = /^diff --git (?:"a\/(.*)"|a\/(.*)) (?:"b\/(.*)"|b\/(.*))$/.exec(line);
             const path = (quoted, plain) => (quoted === undefined ? plain : unquote(quoted));
-            f = { oldPath: path(m[1], m[2]), newPath: path(m[3], m[4]), status: "M", added: [], removed: [] };
+            f = {
+                oldPath: path(m[1], m[2]),
+                newPath: path(m[3], m[4]),
+                status: "M",
+                added: [],
+                removed: [],
+                addedAt: [],
+                removedAt: [],
+            };
             files.push(f);
         } else if (!f) {
             continue;
         } else if (line.startsWith("@@")) {
             f.inHunk = true; // past the header: a line starting "--- " or "+++ " is content now
+            const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
+            [f.oldNo, f.newNo] = [Number(at[1]), Number(at[2])];
         } else if (f.inHunk) {
-            if (line.startsWith("+")) f.added.push(line.slice(1));
-            else if (line.startsWith("-")) f.removed.push(line.slice(1));
+            if (line.startsWith("+")) {
+                f.added.push(line.slice(1));
+                f.addedAt.push(f.newNo++);
+            } else if (line.startsWith("-")) {
+                f.removed.push(line.slice(1));
+                f.removedAt.push(f.oldNo++);
+            }
         } else if (line.startsWith("new file mode")) f.status = "A";
         else if (line.startsWith("deleted file mode")) f.status = "D";
         else if (line.startsWith("rename from ")) [f.status, f.oldPath] = ["R", line.slice(12)];
@@ -302,8 +326,12 @@ function chromaticFindings(f, read) {
 // Every finding for parsed diff files; `read.old(path)` and `read.new(path)` return a file's text.
 function findings(files, read) {
     const tests = files.filter(isTestFile);
-    for (const f of tests)
+    for (const f of files.filter((x) => isTestFile(x) || isConfig(x))) {
         f.lines = { old: codeLines(sideText(f, read, "old")), new: codeLines(sideText(f, read, "new")) };
+        // the changed lines as the counters see them: comments and string contents blanked
+        f.removed = f.removedAt.map((i) => f.lines.old[i - 1] ?? "");
+        f.added = f.addedAt.map((i) => f.lines.new[i - 1] ?? "");
+    }
     const out = [
         ...netFinding(tests, declMeasure, -1, "tests"),
         ...netFinding(tests, () => (l) => hits(ASSERT, l), -1, "assertions"),

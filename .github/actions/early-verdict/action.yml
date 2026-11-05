@@ -1,6 +1,6 @@
 name: Report a failure to the summary checks now
 description: >
-    Marks "All Checks Pass" and "Queue Checks Pass" as failed on the pull request's head commit the
+    Marks "All Checks Pass" as failed on the pull request's head commit the
     moment a job they require fails, instead of when the slowest job of the run ends. Without it a
     pull request, or a merge-queue batch Mergify could already be splitting, waited up to half an hour
     for a verdict that was settled. Each check is a new check run of the same name, which GitHub files
@@ -35,7 +35,7 @@ runs:
                   echo "$JOB is in its warning period: its failure does not fail the summary checks"
                   exit 0
               fi
-              for check in "All Checks Pass" "Queue Checks Pass"; do
+              for check in "All Checks Pass"; do
                   gh api "repos/$GITHUB_REPOSITORY/check-runs" --silent \
                       -f name="$check" -f head_sha="$SHA" -f status=completed -f conclusion=failure \
                       -f details_url="$RUN_URL" \

@@ -8,10 +8,14 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { MantineProvider } from "@mantine/core";
+import { render as renderBare } from "@testing-library/react";
+import axe from "axe-core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import { theme } from "../../../theme";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -24,9 +28,6 @@ declare module "vitest/browser" {
 
 /** The file the element loads when the map first runs. */
 const PLACEMENT_CODE = "locationMap/place";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Three airports with a latitude and longitude each. */
 const AIRPORTS = [
@@ -46,15 +47,17 @@ describe("the location map whose placement code cannot be loaded", () => {
     });
 
     it("says so on Apply and leaves the layout and the drawing as they were", async () => {
-        render(<Workspace store={createWorkspaceStore({ project: { name: "Airports", id: 1 } })} />);
-        let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-        await waitFor(
-            () => {
-                element = document.querySelector("graphty-element");
-                assert.isDefined(element?.session);
-            },
-            { timeout: TIMEOUT_MS },
+        // In the light scheme, where a raw red failed 4.5:1 (#3080).
+        renderBare(
+            <MantineProvider theme={theme} forceColorScheme="light">
+                <Workspace store={createWorkspaceStore({ project: { name: "Airports", id: 1 } })} />
+            </MantineProvider>,
         );
+        let element: HTMLElementTagNameMap["graphty-element"] | null = null;
+        await waitFor(() => {
+            element = document.querySelector("graphty-element");
+            assert.isDefined(element?.session);
+        });
         if (element === null) {
             throw new Error("the element never came up");
         }
@@ -72,8 +75,14 @@ describe("the location map whose placement code cannot be loaded", () => {
         await userEvent.click(within(popover).getByRole("option", { name: /^Map/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
 
-        const alert = await within(popover).findByRole("alert", undefined, { timeout: TIMEOUT_MS });
+        const alert = await within(popover).findByRole("alert", undefined);
         assert.include(alert.textContent, "could not be loaded");
+        // Status text meets 4.5:1 on the popover (WCAG 1.4.3).
+        const contrast = await axe.run(alert, { runOnly: ["color-contrast"], resultTypes: ["violations"] });
+        assert.deepEqual(
+            contrast.violations.flatMap((v) => v.nodes.map((node) => node.failureSummary ?? "")),
+            [],
+        );
         assert.strictEqual(el.session.layout.id, before, "the layout it had stays");
         assert.isNull(el.mapFrame, "no map is claimed");
         assert.strictEqual(el.basemapStatus.state, "off");

@@ -24,8 +24,11 @@ import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
+import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
+import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
+import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -60,6 +63,42 @@ export type EdgeId = string;
  */
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
+/**
+ * What `element.groupOutlineAt(point)` finds under a point: a group outline a style layer draws (a
+ * use at the place `group` on its `node.shaders`), by its layer, its shader and its group, the
+ * topmost outline first. `group` is the group's `groupBy` value, null for a use drawing one outline.
+ * @since 3.36.0
+ */
+export interface GroupOutlineAtResult {
+    readonly kind: "group-outline";
+    readonly layer: LayerId;
+    readonly shader: string;
+    readonly group: string | number | boolean | null;
+}
+
+/**
+ * What the element's shaders draw now, as `element.drawnShaders()` reads it: for tools, tests and
+ * an application that shows whether an effect is playing. Read it again after a frame; it is not
+ * a live value.
+ * @since 3.36.0
+ */
+export interface DrawnShaders {
+    /**
+     * Per node shader id, at any place: how many uses of it nodes draw now, and how many of them
+     * are playing their entrance (a reticle's snap, a shockwave's ring) at this moment.
+     */
+    readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
+    /**
+     * The group outlines drawn on the last frame, bottom first: each one's layer, shader and the
+     * `groupBy` value of each group it outlines (null for a use drawing one outline).
+     */
+    readonly groupOutlines: readonly {
+        readonly layer: LayerId;
+        readonly shader: string;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+}
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
@@ -483,6 +522,8 @@ export const OPTION_TYPES = [
     "attribute",
     "partition",
     "ordering",
+    /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
+    "color",
     "unknown",
 ] as const;
 
@@ -553,7 +594,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY` and `labelShiftOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -604,6 +645,7 @@ export type Channel =
     | "node.labelOffsetY"
     | "node.labelShiftX"
     | "node.labelShiftY"
+    | "node.labelShiftOf"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -615,12 +657,14 @@ export type Channel =
     | "node.haloScale"
     | "node.haloOpacity"
     | "node.wireframe"
+    | "node.meshDetail"
     | "node.flat"
     | "node.unlit"
     | "node.marker"
     | "node.width"
     | "node.height"
     | "node.depth"
+    | "node.relativeExtents"
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
@@ -637,6 +681,7 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -649,16 +694,22 @@ export type Channel =
     | "node.overlayCornerRadius"
     | "node.cornerRadius"
     | "node.exactCornerRadius"
+    | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
+    | "node.shapeRotation"
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"
+    | "node.labelTable"
     | "node.shapeLineWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.labelFitQuantum"
+    | "node.labelFitImage"
+    | "node.labelFitImagePadding"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -705,14 +756,37 @@ export type Channel =
     | "node.chartMax"
     | "node.chartHorizontal"
     | "node.chartSize"
+    | "node.chartWidth"
+    | "node.chartHeight"
+    | "node.chartOffsetX"
+    | "node.chartOffsetY"
     | "node.chartMargin"
     | "node.chartGap"
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.model"
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.texture"
+    | "node.groupPadding"
+    | "node.groupPaddingRatio"
+    | "node.groupPaddingOf"
+    | "node.groupMinWidth"
+    | "node.groupMinHeight"
+    | "node.groupMinWidthBiasLeft"
+    | "node.groupMinHeightBiasTop"
+    | "node.groupIncludeLabels"
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
+    | "edge.fadeStart"
+    | "edge.fadeEnd"
+    | "edge.fadeOpacity"
+    | "edge.blending"
     | "edge.opacity"
     | "edge.bandColor"
     | "edge.bandWidth"
@@ -740,9 +814,18 @@ export type Channel =
     | "edge.fanned"
     | "edge.bendCurve"
     | "edge.arcRadius"
+    | "edge.supportModel"
+    | "edge.supportSpringLength"
+    | "edge.supportSpringConstant"
+    | "edge.supportRepulsion"
+    | "edge.supportCentralGravity"
+    | "edge.supportUnit"
+    | "edge.supportScale"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"
+    | "edge.sourceNodeGap"
+    | "edge.targetNodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"
@@ -751,6 +834,7 @@ export type Channel =
     | "edge.arrowHeadSide"
     | "edge.arrowHeadPosition"
     | "edge.arrowHeadGap"
+    | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
@@ -772,6 +856,7 @@ export type Channel =
     | "edge.arrowTailSide"
     | "edge.arrowTailPosition"
     | "edge.arrowTailGap"
+    | "edge.arrowTailStack"
     | "edge.arrowTailColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
@@ -817,8 +902,13 @@ export type Channel =
     | "node.tooltipColor"
     | "node.tooltipBackground"
     | "edge.visible"
+    | "edge.labelBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
+    | "node.shaders"
+    | "edge.shaders"
+    | "edge.taper"
+    | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapEllipsis"
@@ -830,7 +920,6 @@ export type Channel =
     | "edge.labelTextAlign"
     | "edge.labelLocation"
     | "edge.labelRotation"
-    | "edge.labelBackground"
     | "edge.labelOutline"
     | "edge.labelOutlineWidth"
     | "edge.labelBorder"
@@ -845,7 +934,18 @@ export type Channel =
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
-    | "edge.labelShiftY";
+    | "edge.labelShiftY"
+    | "edge.labelShiftOf"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -885,8 +985,20 @@ export interface Rgba {
  */
 export type { LabelStyle } from "./label-style";
 
-/** A literal value written to a channel. */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+/**
+ * A literal value written to a channel. The shader channels (`node.shaders`, `edge.shaders`) take
+ * a list of {@link ShaderUse}.
+ */
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
+
+/**
+ * An `encode` key that binds one shader parameter per element:
+ * `"<target>.shaders.<shader id>.<parameter id>"`, such as `"node.shaders.uncertainty-aura.intensity"`.
+ * It binds that parameter on the layer's own uses of the shader. The parameter must be declared
+ * `varies`.
+ * @since 3.36.0
+ */
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -1071,8 +1183,11 @@ export type Binding =
           choices?: string[];
       };
 
-/** Declarative attribute-to-channel bindings. */
-export type Encoding = Partial<Record<Channel, Binding>>;
+/**
+ * Declarative attribute-to-channel bindings. A key is a channel, or a shader parameter's address
+ * (see {@link ShaderParamAddress}).
+ */
+export type Encoding = Partial<Record<Channel, Binding>> & { [address: ShaderParamAddress]: Binding };
 
 /**
  * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
@@ -1220,6 +1335,12 @@ export interface StyleDocument {
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
      */
     tree?: readonly StyleDocumentRow[];
+    /**
+     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
+     * document copied alone keeps its shaders. Absent when the layers name none.
+     * @since 3.36.0
+     */
+    shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -1986,6 +2107,56 @@ export interface FilterStep {
     readonly rule: RuleTree;
 }
 
+/**
+ * What a filter condition that is on does: `"keep"` hides everything its rule does not match,
+ * `"exclude"` hides what it matches, `"select"` selects what it matches and hides nothing.
+ *
+ * OPEN UNION: a later release may add an effect on visibility or selection; handle unknown
+ * effects. Styling, saving a set or running on the matches belong to `styles`, `sets` and `runs`,
+ * never here.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export type FilterEffect = "keep" | "exclude" | "select";
+
+/**
+ * One filter condition: a rule that can be switched off without being lost, with what it does.
+ *
+ * Conditions are independent and order never matters: every keep condition that is on narrows
+ * what stays, every exclude condition that is on hides its matches (two of them hide what either
+ * matches), and the select conditions that are on select what all of them match, over the whole
+ * graph, visible or not.
+ *
+ * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
+ * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
+ * the matching edges, select selects only the matching edges. A reading written in the rule wins.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export interface FilterCondition {
+    /** The condition's id, unique among the conditions. */
+    readonly id: string;
+    /** Whether the condition applies. One that is off keeps its rule and does nothing. */
+    readonly on: boolean;
+    /** What it does when on. */
+    readonly effect: FilterEffect;
+    /** What it matches. */
+    readonly rule: RuleTree;
+}
+
+/**
+ * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.32.0
+ * @beta
+ */
+export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
+    readonly id?: string;
+    readonly on?: boolean;
+};
+
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist
 //
@@ -2194,6 +2365,18 @@ export interface CatalogApi {
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
     /**
+     * Every shader the element can draw: its presets first, then shaders registered through
+     * `registerShader` or `defineShader`.
+     * @since 3.36.0
+     */
+    shaders(): readonly ShaderDescriptor[];
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets first, then the
+     * ones registered through `registerTransition`.
+     * @since 3.36.0
+     */
+    transitions(): readonly TransitionDescriptor[];
+    /**
      * Every graph generator `session.data.generate` runs, with a default name, one sentence and
      * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.
      */
@@ -2203,6 +2386,11 @@ export interface CatalogApi {
      * and license. Supplied by @graphty/graph-samples.
      */
     datasets(): readonly DatasetMeta[];
+    /**
+     * Every sample 3D model graphty-element ships, which a style layer names in `node.model`
+     * (`"asset:sample/server"`) without adding a file, with a plain name and a thumbnail picture.
+     */
+    models(): readonly ModelDescriptor[];
     /**
      * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
      * background each sets, so an export dialog can show them. Static; also published as

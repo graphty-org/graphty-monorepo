@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BENCH_KEEP, trend, withPoint, type BenchPoint } from "../../src/model/benchmarks.js";
+import { BENCH_KEEP, BENCH_KEEP_ALL, type BenchPoint, trend, withPoint } from "../../src/model/benchmarks.js";
 
 const pts = (vs: number[]): BenchPoint[] => vs.map((v, i) => ({ at: i, v, run: 100 + i }));
 
@@ -16,9 +16,75 @@ describe("benchmark regressions", () => {
         expect(trend(pts([40, 41, 42, 90, 90, 90]))).toEqual({ regressed: false });
     });
 
+    it("never flags a change of one timer tick", () => {
+        // layout-exact ms/iteration (profiler) n=1024 on the T4 lane: the GPU profiler reads in 65.536 us ticks, so
+        // every result is 2 or 3 ticks and a one-tick step reads as 1.5x.
+        const tick = 0.065536;
+        const oneTick = trend(pts([2, 3, 2, 2, 3, 2, 2, 3, 2, 2, 3, 3, 3].map((n) => n * tick)));
+        expect(oneTick.ratio).toBeCloseTo(1.5);
+        expect(oneTick.regressed).toBe(false);
+        // two ticks above is a real change
+        const twoTicks = [2, 2, 3, 2, 2, 3, 2, 2, 2, 2, 4, 4, 4].map((n) => n * tick);
+        expect(trend(pts(twoTicks)).regressed).toBe(true);
+        // a clean step between two levels is judged by the earlier results' resolution, never by the step itself
+        const step = [...Array.from({ length: 10 }, () => 2), 6, 6, 6].map((n) => n * tick);
+        expect(trend(pts(step))).toMatchObject({ ratio: 3, regressed: true });
+        expect(trend(pts([...Array.from({ length: 10 }, () => 100), 300, 300, 300])).regressed).toBe(true);
+        // one earlier outlier is not a tick, so it never hides a later step to its level
+        expect(trend(pts([...Array.from({ length: 9 }, () => 100), 300, 300, 300, 300])).regressed).toBe(true);
+        expect(trend(pts([...Array.from({ length: 9 }, () => 2), 6, 6, 6, 6].map((n) => n * tick))).regressed).toBe(
+            true,
+        );
+    });
+
+    it("compares results only with results of the newest one's machine", () => {
+        // Min-Cut n=50 as GitHub's hosted runners measured it (ms): EPYC 9V45 and 9V74 near 0.17, EPYC 7763 and
+        // Xeon 8370C near 0.37, with nothing in the code changed. Across machines it reads as a 2.2x regression.
+        const runs: [number, string][] = [
+            [0.36, "7763"],
+            [0.17, "9V45"],
+            [0.17, "9V45"],
+            [0.16, "9V45"],
+            [0.37, "7763"],
+            [0.17, "9V74"],
+            [0.16, "9V45"],
+            [0.38, "7763"],
+            [0.16, "9V45"],
+            [0.21, "9V74"],
+            [0.36, "7763"],
+            [0.39, "8370C"],
+            [0.38, "8370C"],
+        ];
+        const mixed = runs.map(([v, machine], i) => ({ at: i, v, run: 100 + i, machine }));
+        expect(trend(mixed.map(({ machine: _, ...p }) => p)).regressed).toBe(true);
+        expect(trend(mixed)).toEqual({ regressed: false });
+        // a real slowdown on one machine is still found among that machine's results
+        const one = pts([40, 41, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51]).map((p) => ({ ...p, machine: "a" }));
+        const other = pts(Array.from({ length: 13 }, () => 20)).map((p) => ({ ...p, at: p.at - 0.5, machine: "b" }));
+        expect(trend([...other, ...one].sort((a, b) => a.at - b.at))).toMatchObject({
+            ratio: 52 / 41,
+            regressed: true,
+        });
+    });
+
+    it("keeps the newest results of each machine", () => {
+        let item = withPoint(undefined, "b", "ms", { at: 0, v: 1, run: 1, machine: "a" }, 0);
+        for (let i = 1; i <= BENCH_KEEP * 3; i++) {
+            item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1, machine: i % 3 ? "b" : "a" }, i);
+        }
+        expect(item.points.filter((p) => p.machine === "a")).toHaveLength(BENCH_KEEP);
+        expect(item.points.filter((p) => p.machine === "b")).toHaveLength(BENCH_KEEP);
+        for (let i = 0; i < BENCH_KEEP_ALL; i++) {
+            item = withPoint(item, "b", "ms", { at: 1000 + i, v: i, run: 1000 + i, machine: `m${i}` }, i);
+        }
+        expect(item.points).toHaveLength(BENCH_KEEP_ALL);
+    });
+
     it("keeps the newest results, one per run", () => {
         let item = withPoint(undefined, "b", "ms", { at: 0, v: 1, run: 1 }, 0);
-        for (let i = 1; i <= BENCH_KEEP + 5; i++) item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        for (let i = 1; i <= BENCH_KEEP + 5; i++) {
+            item = withPoint(item, "b", "ms", { at: i, v: i, run: i + 1 }, i);
+        }
         expect(item.points).toHaveLength(BENCH_KEEP);
         expect(item.points.at(-1)).toEqual({ at: BENCH_KEEP + 5, v: BENCH_KEEP + 5, run: BENCH_KEEP + 6 });
         item = withPoint(item, "b", "ms", { at: 99, v: 7, run: BENCH_KEEP + 6 }, 99);

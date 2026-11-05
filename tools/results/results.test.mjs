@@ -8,7 +8,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
@@ -30,6 +30,7 @@ import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.m
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { benchmarkRows } from "./post-benchmarks.mjs";
+import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -39,12 +40,15 @@ import {
     groupKeys,
     groupFamily,
     junitOf,
+    newFlakyJudge,
     postRecords,
     prJudge,
     recordsOf,
     refreshPlan,
     runGroup,
     runShape,
+    shotsInputs,
+    shotsPlan,
     storeList,
 } from "./run-group.mjs";
 
@@ -72,9 +76,11 @@ function serve(answer = true) {
             if (req.url.startsWith("/token")) {
                 const payload = Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 600 })).toString("base64url");
                 res.end(JSON.stringify({ value: `h.${payload}.s` }));
-            } else if (req.url.startsWith("/v1/plan"))
-                res.end(JSON.stringify(typeof answer === "function" ? answer(req) : { order: ["a"] }));
-            else res.end("{}");
+            } else if (req.url.startsWith("/v1/plan")) {
+                // a function that returns undefined leaves this request unanswered
+                const plan = typeof answer === "function" ? answer(req) : { order: ["a"] };
+                if (plan !== undefined) res.end(JSON.stringify(plan));
+            } else res.end("{}");
         });
     });
     servers.push(server);
@@ -143,10 +149,38 @@ describe("client", () => {
     it("fails open against a store that never answers, and spools the record", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
-        const r = await postInvocation(cfg, { id: "r1.1" }, join(TMP, "spool"), 300);
+        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, join(TMP, "spool"), 300);
         assert.equal(r.ok, false);
         assert.equal(r.why, "no answer in 0.3 s");
+        assert.equal(s.seen.length, 3, "sent once and retried twice");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
+    });
+    it("sends a request again when no answer or a 5xx came, and never one that got a 4xx", async () => {
+        let calls = 0;
+        const slowOnce = await serve(() => (++calls === 1 ? undefined : { order: ["b"] }));
+        const cfg = { ...config({ RESULTS_URL: slowOnce.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
+        assert.deepEqual(await call(cfg, "GET", "/v1/plan", undefined, 300), { ok: true, data: { order: ["b"] } });
+        assert.equal(calls, 2);
+        const answers = (...statuses) =>
+            mock.method(globalThis, "fetch", () => {
+                const status = statuses.shift();
+                return Promise.resolve(new Response(status === 200 ? "{}" : "", { status }));
+            });
+        try {
+            answers(500, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: true, data: {} });
+            assert.equal(globalThis.fetch.mock.callCount(), 2);
+            mock.restoreAll();
+            answers(500, 500, 500);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500" });
+            assert.equal(globalThis.fetch.mock.callCount(), 3, "sent once and retried twice");
+            mock.restoreAll();
+            answers(404, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 404" });
+            assert.equal(globalThis.fetch.mock.callCount(), 1);
+        } finally {
+            mock.restoreAll();
+        }
     });
     it("gives the OIDC token request and the call one deadline between them", async () => {
         const signals = [];
@@ -257,11 +291,11 @@ describe("reporter", () => {
     });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const r = new ResultsReporter({ env: { GRAPHTY_RESULTS_INVOCATION: "b" }, cfg });
         r.onTestCaseResult(testCase(1));
         await r.onTestRunEnd();
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
     });
 });
 
@@ -362,10 +396,10 @@ describe("runShape", () => {
 describe("postRecords", () => {
     it("asks a store that never answers once and spools every record", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const spool = join(TMP, "spool-2");
         const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
         assert.deepEqual(
             rs.map((r) => r.ok),
             [false, false],
@@ -375,6 +409,9 @@ describe("postRecords", () => {
 });
 
 describe("runGroup", () => {
+    // the store below never answers: each record POST costs its deadline, not RECORD_MS and RETRY_MS (19 s)
+    const NEVER_ANSWERS = { record: 300, retry: [10, 10] };
+
     it("keeps the verdict and spools the record when the store never answers", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout");
@@ -390,7 +427,7 @@ describe("runGroup", () => {
             cwd: root,
         });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "5" };
-        const code = await runGroup("fake", undefined, { root, env });
+        const code = await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS });
         assert.equal(code, 3);
         const spooled = readdirSync(join(root, "test-results/results-spool"));
         assert.deepEqual(spooled, ["5.1.job.fake.1.json"]);
@@ -414,8 +451,8 @@ describe("runGroup", () => {
         execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
         const spool = join(root, "test-results/results-spool");
-        await runGroup("plain", undefined, { root, env });
-        await runGroup("pkg-features-on-1", undefined, { root, env });
+        await runGroup("plain", undefined, { root, env, storeMs: NEVER_ANSWERS });
+        await runGroup("pkg-features-on-1", undefined, { root, env, storeMs: NEVER_ANSWERS });
         const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
         assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
         assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
@@ -444,7 +481,7 @@ describe("runGroup", () => {
         mkdirSync(join(root, "test-results"), { recursive: true });
         writeFileSync(join(root, "test-results/results-spool"), "");
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
-        assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+        assert.equal(await runGroup("fake", undefined, { root, env, storeMs: NEVER_ANSWERS }), 0);
     });
 });
 
@@ -504,6 +541,130 @@ describe("groupFamily", () => {
             ],
         );
     });
+
+    it("judges a full run's story tests by the store's `-shots` quarantine when its plan holds the family", async () => {
+        const root = join(TMP, "checkout-shots-full");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        const plan = {
+            families: ["layout", "layout-shots"],
+            quarantine: [{ family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 }],
+        };
+        writeFileSync(join(root, "plan.json"), JSON.stringify(plan));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [["Shots", "layout-shots"]],
+        );
+    });
+});
+
+describe("a screenshot run's own plan and inputs (#3648)", () => {
+    it("asks the store for the `-shots` family the plan file does not cover and judges by its quarantine", async () => {
+        // the store answers by the families asked about: the shard's own one and its `-shots` one
+        const s = await serve((req) => {
+            const variants = new URL(req.url, "http://x").searchParams.get("variants").split(",");
+            const families = new Set(variants.map((v) => v.split("|")[0]));
+            const all = [
+                { family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 },
+                { family: "layout", file: "l/A.stories.ts", name: "Plain", issue: 8 },
+            ];
+            return { quarantine: all.filter((q) => families.has(q.family)) };
+        });
+        const root = join(TMP, "checkout-shots-own-plan");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        // the light check asked about other packages only: its plan has no `layout-shots`
+        writeFileSync(join(root, "plan.json"), JSON.stringify({ families: ["graphty"], quarantine: [] }));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: join(root, "stories"),
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(quarantine.map((q) => [q.name, q.family]).sort(), [
+            ["Plain", "layout-shots"],
+            ["Shots", "layout-shots"],
+        ]);
+        assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
+    });
+
+    it("fails open to no plan when the store is not configured or does not answer", async () => {
+        const facts = { sha: "a", base: null, family: "f-shots", variant: "f-shots|flags=off|shots" };
+        assert.equal(await shotsPlan({ ...facts, cfg: null }), null);
+        const s = await serve(() => ({ unavailable: "down" }));
+        assert.equal(await shotsPlan({ ...facts, cfg: { url: s.url, token: "t" } }), null);
+        const t = await serve(() => ({ quarantine: [] }));
+        // no `affected`: the selector never looked at this family, so every test counts as touched
+        assert.deepEqual(await shotsPlan({ ...facts, base: "b", cfg: { url: t.url, token: "t" } }), {
+            quarantine: [],
+            base: "b",
+            families: ["f-shots"],
+        });
+        const judge = prJudge({ base: "b", quarantine: [] }, { shard: "f-1", ...facts, base: "b" });
+        const failed = { file: "g/A.stories.tsx", name: "A", text: "boom" };
+        const d = { pass: false, flaky: [], excused: [], failing: [failed] };
+        assert.equal(judge(d, { firstOutcome: "failed" }).pass, false);
+    });
+
+    it("keys a screenshot run by the Chromium revision and its project's baseline tree", () => {
+        const root = join(TMP, "checkout-shots-inputs");
+        mkdirSync(join(root, "node_modules/playwright-core"), { recursive: true });
+        mkdirSync(join(root, "visual-baselines/p"), { recursive: true });
+        writeFileSync(join(root, "package.json"), "{}");
+        const browsers = (revision) =>
+            writeFileSync(
+                join(root, "node_modules/playwright-core/browsers.json"),
+                JSON.stringify({ browsers: [{ name: "chromium", revision }] }),
+            );
+        writeFileSync(join(root, "node_modules/playwright-core/package.json"), '{"name":"playwright-core"}');
+        browsers("1200");
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "one");
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["add", "visual-baselines"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "-m", "x"], { cwd: root });
+        const first = shotsInputs(root, "p");
+        assert.match(first, /^chromium-1200\|baselines-[0-9a-f]{40}$/);
+        writeFileSync(join(root, "visual-baselines/p/a.png"), "two");
+        execFileSync("git", ["commit", "-q", "-am", "y"], { cwd: root });
+        const rebaselined = shotsInputs(root, "p");
+        assert.notEqual(rebaselined, first);
+        browsers("1201");
+        assert.notEqual(shotsInputs(root, "p"), rebaselined);
+        assert.equal(shotsInputs(root, "none"), "chromium-1201|baselines-");
+
+        const env = { PATH: "x", VISUAL_REVIEW_STORY_OUT: "/tmp/s" };
+        const keys = (shots) =>
+            groupKeys({ shardName: "f-1", shard: { "test-command": "c" }, cmd: "c", env, shardKey: "k", shots });
+        assert.notEqual(keys(first).inputs, keys(rebaselined).inputs);
+        assert.equal(keys(first).inputs, keys(first).inputs);
+    });
 });
 
 describe("planRead", () => {
@@ -526,13 +687,20 @@ describe("planRead", () => {
         };
         assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
     });
-    it("also asks for a story shard's screenshot family", () => {
-        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
-        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+    it("also asks for a story shard's screenshot family, whatever the family is called", () => {
+        const stories = [
+            { shard: "graphty-storybook", package: "graphty" },
+            { shard: "layout", package: "layout" },
+        ];
+        assert.deepEqual(variantsOf(stories, ["graphty", "layout"], ["graphty-storybook", "layout"]), [
             "graphty-storybook|flags=off|whole",
             "graphty-storybook|flags=off|selected",
             "graphty-storybook-shots|flags=off|shots",
+            "layout|flags=off|whole",
+            "layout|flags=off|selected",
+            "layout-shots|flags=off|shots",
         ]);
+        assert.ok(!variantsOf(stories, ["graphty"]).some((v) => v.includes("-shots")), "only a story-tests shard");
     });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {
@@ -566,9 +734,82 @@ describe("planRead", () => {
         });
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
-        assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
-        assert.equal(q.get("inputs"), "-,-");
+        // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
+        assert.equal(
+            q.get("variants"),
+            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
+                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
+        );
+        assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+});
+
+describe("the [NEW-FLAKY] rule without the store's answer (#4146)", () => {
+    const FILE = "graphty/src/a.test.ts";
+    const T = { file: FILE, name: "flips" };
+    const OTHER = { file: "graphty/src/b.test.ts", name: "other" };
+    const flaky = { pass: true, flaky: [T, OTHER], excused: [], failing: [] };
+
+    it("fails a flaky test the pull request touched and leaves an untouched or quarantined one flaky", () => {
+        const d = newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", [])(flaky);
+        assert.equal(d.pass, false);
+        assert.deepEqual(d.caused, [T]);
+        assert.deepEqual(d.failing, [T]);
+        assert.deepEqual(d.flaky, [OTHER]);
+        const q = [{ family: "graphty", file: FILE, name: "flips", issue: 9 }];
+        assert.equal(newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", q)(flaky).pass, true);
+        assert.equal(newFlakyJudge({ base: "b1", affected: ["x.ts"] }, "graphty", [])(flaky).pass, true);
+        // no file-level answer for the family: every test counts as touched
+        const unknown = { base: "b1", affected: [], unknownFamilies: ["graphty"] };
+        assert.equal(newFlakyJudge(unknown, "graphty", [])(flaky).caused.length, 2);
+    });
+
+    // A checkout whose one shard fails FILE's test, then passes it when the retry runs the file alone
+    // (bin/pnpm stands in for vitest).
+    function flakyCheckout(name) {
+        const root = join(TMP, name);
+        mkdirSync(join(root, "tools"), { recursive: true });
+        mkdirSync(join(root, "graphty"));
+        mkdirSync(join(root, "bin"));
+        mkdirSync(join(root, "test-results"));
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-1", package: "graphty", "test-command": "cd graphty && pnpm exec vitest run --project=x" }];\n`,
+        );
+        const junit = (failed) =>
+            `<testsuites><testsuite><testcase classname="src/a.test.ts" name="flips">${failed ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase></testsuite></testsuites>`;
+        writeFileSync(join(root, "first.xml"), junit(true));
+        writeFileSync(join(root, "retry.xml"), junit(false));
+        writeFileSync(
+            join(root, "bin/pnpm"),
+            "#!/bin/sh\ncp ../retry.xml ../test-results/junit-graphty-2.xml; echo ' Test Files  1 passed (1)'\n",
+            { mode: 0o755 },
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const first =
+            "cp first.xml test-results/junit-graphty-1.xml; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1";
+        return { root, first };
+    }
+
+    it("fails a pull request's shard on a test it made flaky when the store gave no answer", async () => {
+        const verdict = async (name, plan, event = "pull_request") => {
+            const c = flakyCheckout(name);
+            writeFileSync(join(c.root, "plan.json"), JSON.stringify(plan));
+            const env = {
+                PATH: `${join(c.root, "bin")}:${process.env.PATH}`,
+                GRAPHTY_RESULTS: "0",
+                GITHUB_EVENT_NAME: event,
+                RESULTS_PLAN: join(c.root, "plan.json"),
+            };
+            return runGroup("graphty-1", c.first, { root: c.root, env });
+        };
+        const outage = { unavailable: "no answer", base: "b1", affected: [FILE], unknownFamilies: [] };
+        assert.equal(await verdict("nf-touched", outage), 1, "touched: [NEW-FLAKY] fails the shard");
+        assert.equal(await verdict("nf-untouched", { ...outage, affected: ["graphty/src/z.ts"] }), 0);
+        assert.equal(await verdict("nf-no-diff", { unavailable: "the test selector failed" }), 0, "no answer at all");
+        assert.equal(await verdict("nf-push", outage, "push"), 0, "only a pull request");
     });
 });
 
@@ -605,6 +846,22 @@ describe("the pull request rules", () => {
         // a plan with no `affected` (the everything plan) counts every test as touched
         const everything = { quarantine: [], failingOnBase: [] };
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+    });
+
+    // #5128: a failure with no retry failed once; it must not read "failed every time"
+    it("says a failing test was not retried when no retry ran", () => {
+        const plan = { quarantine: [], failingOnBase: [], affected: ["a.test.ts"] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("once")),
+            firstOutcome: "failed",
+            list: storeList(plan),
+        });
+        const why = "not retried: its command cannot be narrowed to the failed files";
+        const once = prJudge(plan, o)(d, { firstOutcome: "failed", unretried: why });
+        assert.equal(once.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed (${why})`);
+        const again = judge(plan, report(fail("once")), report(fail("once")));
+        assert.equal(again.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed every time`);
     });
 
     it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
@@ -857,6 +1114,37 @@ describe("fileIssues", () => {
             calls.filter((c) => c[1] === "reopen").map((c) => c[2]),
             ["41", "12"],
         );
+        // #3311: a repeat quarantine raises the earlier issue to priority:critical, dropping any lower priority
+        const edits = calls.filter((c) => c[1] === "edit");
+        assert.deepEqual(
+            edits.map((c) => c[2]),
+            ["41", "12"],
+        );
+        for (const e of edits) {
+            assert.equal(e[e.indexOf("--add-label") + 1], "priority:critical");
+            const removed = e.flatMap((a, i) => (e[i - 1] === "--remove-label" ? [a] : []));
+            assert.deepEqual(removed, ["priority:high", "priority:medium", "priority:low"]);
+        }
+    });
+
+    it("keeps the comment when raising the earlier issue's priority fails", async () => {
+        const { gh: base, calls } = ghFake();
+        const gh = (args) => {
+            if (args[1] === "edit") throw new Error("HTTP 422");
+            return base(args);
+        };
+        const out = await fileIssues(
+            null,
+            [rec("passed", [])],
+            [{ ok: true, data: { flaky: [{ ...flaky, had: 12 }] } }],
+            [],
+            gh,
+        );
+        assert.deepEqual(
+            out.map((i) => i.number),
+            [12],
+        );
+        assert.equal(calls.filter((c) => c[1] === "comment").length, 1);
     });
 
     it("looks for an earlier issue by its own kind's marker", async () => {
@@ -1072,6 +1360,84 @@ describe("cli", () => {
         assert.deepEqual(built, ["@graphty/remote-logger:build", "layout:build"]);
     });
 
+    it("runs a `-shots` variant's story with its screenshots, as the story-tests job runs its shard (#5428)", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const cases = [
+            [
+                "graphty-element-storybook-shots",
+                "graphty-element/stories/AiControl.stories.ts",
+                "graphty-element-storybook-1",
+                "graphty-element",
+            ],
+            ["layout-shots", "layout/stories/2d/ARF.stories.ts", "layout", "layout"],
+            [
+                "graph-io-browser-shots",
+                "graph-io/fidelity-stories/stories/cx/Samples.stories.ts",
+                "graph-io-browser",
+                "graph-io-fidelity",
+            ],
+        ];
+        for (const [family, file, shard, project] of cases) {
+            const runs = [];
+            const execs = [];
+            const run = async (s, cmd, o) => {
+                runs.push({ s, cmd, env: o.env });
+                return 0;
+            };
+            const exec = (cmd, args) => execs.push([cmd, ...args].join(" "));
+            const variant = `${family}|flags=off|shots`;
+            assert.equal(
+                await baseCheck({ root, variant, file, repeat: 2, env: {}, build: true, run, exec }),
+                0,
+                family,
+            );
+            assert.equal(runs.length, 2);
+            for (const r of runs) {
+                // the shard's own name, so run-group.mjs records under `<family>-shots` with the project's baselines
+                assert.equal(r.s, shard);
+                assert.equal(r.env.RESULTS_VARIANT, variant);
+                assert.ok(r.env.VISUAL_REVIEW_STORY_OUT, "the screenshots are taken");
+                assert.equal(groupFamily(r.s, r.env), family);
+                assert.match(r.cmd, /vitest run (--project=storybook|--config=vitest\.storybook\.config\.ts) /);
+                assert.ok(r.cmd.endsWith(`'${file.slice(file.indexOf("/") + 1)}'`), r.cmd);
+                assert.doesNotMatch(r.cmd, /--shard|--coverage/);
+            }
+            assert.notEqual(runs[0].env.VISUAL_REVIEW_STORY_OUT, runs[1].env.VISUAL_REVIEW_STORY_OUT);
+            assert.match(
+                execs[0],
+                new RegExp(`^git lfs pull --include visual-baselines/${project}/\\*\\*,visual-fonts/`),
+            );
+            assert.equal(execs[0].includes("fidelity/oracles"), project === "graph-io-fidelity");
+            assert.match(execs[1], /^pnpm exec nx run \S+:build$/);
+            // graph-io's fidelity stories import graphty-element's source, which needs the other packages built
+            assert.equal(execs.includes("pnpm exec nx run graphty-element:build"), project !== "layout", project);
+        }
+        // a story file of another package is not the shard's
+        const run = async () => 0;
+        const other = {
+            root,
+            variant: "layout-shots|flags=off|shots",
+            file: "graphty/src/stories/App.stories.tsx",
+            env: {},
+            run,
+        };
+        assert.equal(await baseCheck(other), 2);
+    });
+
+    it("still runs a plain family on a base whose matrix predates the story runs", async () => {
+        const root = mkdtempSync(join(tmpdir(), "base-check-old-"));
+        mkdirSync(join(root, "tools"));
+        const shard = { shard: "layout", package: "layout", "test-command": "cd layout && pnpm exec vitest run" };
+        writeFileSync(join(root, "tools/ci-test-matrix.mjs"), `export const SHARDS = [${JSON.stringify(shard)}];\n`);
+        const cmds = [];
+        const run = async (s, cmd) => cmds.push(cmd) && 0;
+        const file = "layout/test/a.test.ts";
+        assert.equal(await baseCheck({ root, variant: "layout|flags=off|selected", file, env: {}, run }), 0);
+        assert.deepEqual(cmds, ["cd layout && pnpm exec vitest run 'test/a.test.ts'"]);
+        assert.equal(await baseCheck({ root, variant: "layout-shots|flags=off|shots", file, env: {}, run }), 2);
+        rmSync(root, { recursive: true, force: true });
+    });
+
     it("lets only the last repeat file Failing on master, and only when every repeat failed", async () => {
         const root = join(import.meta.dirname, "../..");
         const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));
@@ -1185,6 +1551,47 @@ describe("health API fan-out", () => {
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
     });
+    it("names a Stories bin's unstable stories as story tests do, once per story (#4373)", () => {
+        const index = {
+            entries: {
+                "styles-edge--three-d-all-lines": {
+                    id: "styles-edge--three-d-all-lines",
+                    importPath: "./stories/styles/Edge.stories.ts",
+                    name: "Three D All Lines",
+                },
+            },
+        };
+        const results = {
+            items: [
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines.png",
+                    status: "unstable",
+                },
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines-dark.png",
+                    status: "unstable",
+                },
+                { id: "styles-edge--plain", file: "styles-edge--plain.png", status: "changed" },
+                { id: "gone--story", file: "gone--story.png", status: "unstable" },
+            ],
+        };
+        assert.deepEqual(unstableStories(results, index, ["graphty-element/stories/styles/Edge.stories.ts#1/2"]), [
+            {
+                file: "graphty-element/stories/styles/Edge.stories.ts",
+                name: "Three D All Lines",
+                message:
+                    "visual-review: styles-edge--three-d-all-lines.png is unstable (two renders drew different pictures)",
+            },
+            {
+                file: "gone--story.png",
+                name: "gone--story",
+                message: "visual-review: gone--story.png is unstable (two renders drew different pictures)",
+            },
+        ]);
+        assert.deepEqual(unstableStories({ items: [] }, index, []), []);
+    });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();
         const env = { ...healthEnv("http://store", h.url), GITHUB_SHA: "abc" };
@@ -1198,6 +1605,7 @@ describe("health API fan-out", () => {
             source: "algorithms",
             unit: "ms",
             sha: "abc",
+            machine: cpus()[0].model.trim(),
             rows: [{ name: "PageRank n=1000", value: 4.5 }],
         });
     });

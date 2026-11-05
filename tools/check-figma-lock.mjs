@@ -87,7 +87,7 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
         "--no-relative",
         "--name-only",
         "--no-renames",
-        `--format=%x01%H %h %s%x02%P%x02%(trailers:key=${TRAILER},valueonly,separator=%x20)%x02%(trailers:key=${APPROVES},valueonly,separator=%x2C)`,
+        `--format=%x01%H %h %s%x02%P%x02%(trailers:key=${TRAILER},valueonly,unfold,separator=%x20)%x02%(trailers:key=${APPROVES},valueonly,unfold,separator=%x2C)`,
         `${base}..HEAD`,
         ...(known ? [`^${approvedBase}`] : []),
     ]);

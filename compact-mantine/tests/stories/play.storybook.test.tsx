@@ -21,7 +21,8 @@ import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
 setProjectAnnotations([preview, { parameters: { realInput: { userEvent, commands } } }]);
 
 const MODULES = import.meta.glob<Record<string, StoryFn> & { default: Meta }>(
-    "../../stories/**/*.stories.@(js|jsx|ts|tsx)",
+    // a brace list, not an extglob @(js|...): Vite 8 matches no file with an extglob
+    "../../stories/**/*.stories.{js,jsx,ts,tsx}",
     {
         eager: true,
     },

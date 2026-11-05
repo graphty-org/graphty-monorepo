@@ -126,11 +126,13 @@ function isSdkTelemetryHeader(name: string): boolean {
 
 /**
  * A fetch that records what the provider answered, for the error codes and the retry schedule,
- * and drops the SDKs' telemetry headers. It calls the page's `fetch` at request time.
+ * and drops the SDKs' telemetry headers. It calls the consumer's fetch, else the page's, at request
+ * time.
  * @param record - Where it records.
+ * @param base - The consumer's fetch (`ProviderOptions.fetch`).
  * @returns The fetch.
  */
-export function recordingFetch(record: ResponseRecord): typeof globalThis.fetch {
+export function recordingFetch(record: ResponseRecord, base?: typeof globalThis.fetch): typeof globalThis.fetch {
     return async (input, init) => {
         const headers = new Headers(init?.headers);
         for (const name of [...headers.keys()].filter(isSdkTelemetryHeader)) {
@@ -138,7 +140,7 @@ export function recordingFetch(record: ResponseRecord): typeof globalThis.fetch 
         }
 
         try {
-            const response = await globalThis.fetch(input, { ...init, headers });
+            const response = await (base ?? globalThis.fetch)(input, { ...init, headers });
             if (!response.ok) {
                 record.status = response.status;
                 record.retryAfterMs = retryAfter(response.headers);
@@ -834,7 +836,7 @@ export async function* providerApiTurn(
             module.roundTripsThinking === true,
         );
         const stream = chat({
-            adapter: module.createAdapter(settings, recordingFetch(response), turn),
+            adapter: module.createAdapter(settings, recordingFetch(response, settings.fetch), turn),
             messages: toModelMessages(turn.messages, settings, module),
             ...(turn.system !== "" && { systemPrompts: [turn.system] }),
             tools: [

@@ -40,6 +40,17 @@ export const IMPORT_FILE_STYLES = {
     fallback: "on",
 } as const;
 
+/**
+ * Opening web addresses a project names (the "Don't ask again" of the question before a project
+ * opens one): "ask" asks each time, "allow" opens them without asking. Written on the element as
+ * `session.network.setPolicy`, which never remembers it, so the app keeps the reader's word.
+ */
+export const OPEN_PROJECT_URLS = {
+    key: "graphty.openProjectUrls.v1",
+    values: ["ask", "allow"],
+    fallback: "ask",
+} as const;
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;
@@ -83,9 +94,63 @@ export function fileStylesChoice(): "file" | "none" {
 }
 
 /**
+ * How the app draws a file's styles: at the spacing the file's own program lays it out at, so a file with no
+ * positions shows its nodes as large beside the gaps as that program does (graphty-element's `lengths: "spacing"`),
+ * and framed as that program frames it (`framing: "file"`: a sigma.js file fills the canvas as sigma.js fills it).
+ */
+export const FILE_STYLE_OPTIONS = { lengths: "spacing", framing: "file" } as const;
+
+/**
  * Keeps the import-styles preference.
  * @param on - whether loads draw a file's styles.
  */
 export function writeFileStylesChoice(on: boolean): void {
     writePreference(IMPORT_FILE_STYLES, on ? "on" : "off");
+}
+
+/**
+ * "Don't ask again for this project": the sites the reader let each project open without asking,
+ * by graphty-element's `session.project.id`. Kept in this browser, never in the project file, so
+ * a copy of the project on another machine asks again.
+ */
+export const PROJECT_HOSTS_KEY = "graphty.projectHosts.v1";
+
+/**
+ * Reads every project's remembered sites.
+ * @returns project id to host names; empty when storage is blocked or holds something unknown.
+ */
+function readAllProjectHosts(): Record<string, string[]> {
+    try {
+        const stored: unknown = JSON.parse(localStorage.getItem(PROJECT_HOSTS_KEY) ?? "{}");
+        return typeof stored === "object" && stored !== null && !Array.isArray(stored)
+            ? (stored as Record<string, string[]>)
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * The sites the reader let one project open without asking.
+ * @param projectId - graphty-element's `session.project.id`.
+ * @returns host names.
+ */
+export function readProjectHosts(projectId: string): readonly string[] {
+    const hosts = readAllProjectHosts()[projectId];
+    return Array.isArray(hosts) ? hosts.filter((host) => typeof host === "string") : [];
+}
+
+/**
+ * Remembers that the reader let one project open a site without asking.
+ * @param projectId - graphty-element's `session.project.id`.
+ * @param host - the site's host name.
+ */
+export function rememberProjectHost(projectId: string, host: string): void {
+    const all = readAllProjectHosts();
+    all[projectId] = [...new Set([...readProjectHosts(projectId), host])];
+    try {
+        localStorage.setItem(PROJECT_HOSTS_KEY, JSON.stringify(all));
+    } catch {
+        // Storage blocked: the choice holds for this page view only.
+    }
 }

@@ -64,6 +64,9 @@ const EDGES = [
     { src: "alpha", dst: "omega" },
 ];
 
+/** A curved edge with a support point, at a unit that sets the circular layout's nodes 100 support units apart. */
+const SUPPORTED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
+
 /**
  * What a channel needs written before it has anything to change, in a layer of its own around its
  * measurement: a bundle fans apart only when its edges are curved.
@@ -75,6 +78,15 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
     "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
     "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
+    // A support point bends only a curved edge, and its numbers move only a support point there is. The nodes stand
+    // 32 scene units apart (scale 0.2 of the circular layout's 80), so a support unit of 0.32 puts them 100 units apart.
+    "edge.supportModel": { "edge.curvature": true },
+    "edge.supportSpringLength": SUPPORTED,
+    "edge.supportSpringConstant": SUPPORTED,
+    "edge.supportRepulsion": SUPPORTED,
+    "edge.supportCentralGravity": SUPPORTED,
+    "edge.supportUnit": SUPPORTED,
+    "edge.supportScale": SUPPORTED,
     // An arc height raises only a raised route; every other layout draws edges straight.
     "edge.arcHeight": { "edge.route": "arc" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
@@ -106,6 +118,15 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
     "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+    // An external label's place and look change only an external label there is: its words switch it on.
+    "node.xlabelStyle": { "node.xlabel": "OUT" },
+    "node.xlabelLocation": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetX": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetY": { "node.xlabel": "OUT" },
+    "edge.xlabelStyle": { "edge.xlabel": "OUT" },
+    "edge.xlabelLocation": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetX": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetY": { "edge.xlabel": "OUT" },
 };
 
 /** How wide the canvas is. */
@@ -180,6 +201,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             if (descriptor.channel === "node.shapeTexts") {
                 return '[[0, 0, "CHANNEL PROBE WORDS"]]';
             }
+            // and its table label rows of cells
+            if (descriptor.channel === "node.labelTable") {
+                return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
             // The other state from the default: a switch that is on by default (`node.visible`)
@@ -192,6 +217,9 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "shaderUses":
+            // An empty list draws the plain look on every build.
+            return [];
         default:
             return undefined;
     }

@@ -146,6 +146,10 @@ const ARROWS = {
     classic: "filled-triangle",
     block: "filled-triangle",
     inv: "filled-triangle",
+    // Cytoscape desktop's short heads draw the same filled outline, shorter (graph-io's Cytoscape lexicon)
+    arrowshort: "filled-triangle",
+    deltashort1: "filled-triangle",
+    deltashort2: "filled-triangle",
     crow: "other",
     onormal: "open-triangle",
     empty: "open-triangle",
@@ -161,6 +165,8 @@ const ARROWS = {
     whitediamond: "diamond",
     opendiamond: "diamond",
     ediamond: "diamond",
+    diamondshort1: "diamond",
+    diamondshort2: "diamond",
     dot: "circle",
     odot: "circle",
     circle: "circle",
@@ -201,7 +207,8 @@ export function lineStyle(name) {
     if (k.includes("dot")) {
         return k.includes("dash") ? "other" : "dotted";
     }
-    if (k.includes("dash")) {
+    // Cytoscape desktop's MARQUEE_EQUAL is its EQUAL_DASH, animated
+    if (k.includes("dash") || k === "marqueeequal") {
         return "dashed";
     }
     return "other";
@@ -453,6 +460,21 @@ export function sceneErrors(scene) {
 }
 
 /**
+ * Drops the edges whose end is not a node of the scene: an edge to a group box, which yEd allows and a
+ * scene cannot carry. Says on stderr how many it dropped.
+ * @param scene - a scene
+ * @returns the scene without those edges
+ */
+export function dropGroupEdges(scene) {
+    const ids = new Set(scene.nodes.map((n) => n.id));
+    const edges = scene.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+    if (edges.length !== scene.edges.length) {
+        console.error(`dropped ${scene.edges.length - edges.length} edges ending at a group box`);
+    }
+    return { ...scene, edges };
+}
+
+/**
  * Maps a tool's shape, arrowhead and dash names to the scene vocabulary (a scene name maps to itself),
  * so an extractor may write the names its tool uses.
  * @param scene - a scene
@@ -495,11 +517,14 @@ export function finishScene(scene, out) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === "finish") {
+    // node common.mjs finish [--drop-group-edges] <out.json>, the scene on stdin.
     // stdin can be a non-blocking pipe (EAGAIN on a synchronous read), so read it as a stream
     const chunks = [];
     process.stdin.setEncoding("utf8");
     for await (const chunk of process.stdin) {
         chunks.push(chunk);
     }
-    finishScene(JSON.parse(chunks.join("")), process.argv[3]);
+    const drop = process.argv[3] === "--drop-group-edges";
+    const scene = JSON.parse(chunks.join(""));
+    finishScene(drop ? dropGroupEdges(scene) : scene, process.argv[drop ? 4 : 3]);
 }

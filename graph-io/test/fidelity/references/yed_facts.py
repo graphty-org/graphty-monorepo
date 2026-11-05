@@ -11,6 +11,7 @@ each port through the bends, clipped where they leave the source outline and mee
 or quad curve edge's bends are control points, so its path is the curve they pull (`curve_points`).
 """
 
+import gzip
 import sys
 import xml.etree.ElementTree as ET
 
@@ -25,7 +26,9 @@ CURVED_EDGES = ("ArcEdge", "BezierEdge", "QuadCurveEdge", "SplineEdge")
 GENERIC = {"process": "rect", "decision": "diamond", "terminator": "roundrect", "start1": "ellipse", "start2": "ellipse",
            "data": "parallelogram", "preparation": "hexagon", "manualOperation": "other", "BevelNode": "rect",
            "BevelNode2": "rect", "BevelNode3": "roundrect", "ShinyPlateNode": "rect", "ShinyPlateNode2": "rect",
-           "ShinyPlateNode3": "roundrect"}
+           "ShinyPlateNode3": "roundrect",
+           # the entity-relationship entities: a box (the big one with a header band over its attributes)
+           "big_entity": "rect", "small_entity": "rect"}
 
 
 def curve_points(kind, ctrl, straightness, steps=16):
@@ -124,7 +127,7 @@ def label_of(r, w, h):
 
 
 def scene(path):
-    root = ET.parse(path).getroot()
+    root = ET.parse(gzip.open(path) if path.endswith(".gz") else path).getroot()
     nodes, groups, geo = [], [], {}
 
     def walk(graph, ancestors):

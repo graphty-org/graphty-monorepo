@@ -3,6 +3,7 @@
 
 import { defineConfig, type UserConfig } from "vitest/config";
 
+import { withTestGuards } from "./tools/test-wait-guard.mjs";
 import { baseTest } from "./vitest.base.mjs";
 
 export interface VitestConfigOptions {
@@ -11,7 +12,7 @@ export interface VitestConfigOptions {
 }
 
 export function createVitestConfig(options: VitestConfigOptions): UserConfig {
-    return defineConfig({
+    const config = defineConfig({
         test: {
             ...baseTest(),
             globals: true,
@@ -28,7 +29,8 @@ export function createVitestConfig(options: VitestConfigOptions): UserConfig {
                     statements: 80,
                 },
             },
-            testTimeout: 30000,
         },
     });
+    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+    return withTestGuards(config);
 }

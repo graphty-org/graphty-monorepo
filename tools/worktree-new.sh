@@ -27,9 +27,9 @@
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
 #     [base]    the start point of a new branch (default origin/master; fetched first)
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
-#     the issue, one of: a number of three or more digits in <branch> (fix/1234-scroll), --issue N, or
-#               --new-issue "<title>", which opens one labelled with a type (from the branch's prefix:
-#               fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
+#     the issue, one of: --issue N, or --new-issue "<title>", or else a number of three or more digits
+#               in <branch> (fix/1234-scroll), which must be an open issue; --new-issue opens one
+#               labelled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
 #               --priority (default medium) and --effort (default medium)
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
@@ -61,7 +61,7 @@ if [ -z "${WORKTREE_NEW_LIVE_COPY:-}" ]; then
 fi
 unset WORKTREE_NEW_LIVE_COPY
 POS=()
-ISSUE="" NEW_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
+ISSUE="" NEW_ISSUE="" NAMED_ISSUE="" OWNER="" TYPE="" PRIORITY="" EFFORT="" FULL_IMAGES=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --issue) ISSUE="${2:-}"; shift 2 ;;
@@ -82,15 +82,48 @@ NAME="${POS[2]:-${BRANCH//\//-}}"
 
 case "$BRANCH" in golden | golden-cut) TRACKED="" ;; *) TRACKED=1 ;; esac
 if [ -n "$TRACKED" ]; then
-    [ -n "$ISSUE" ] || ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
-    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
+    [ -n "$ISSUE" ] && [ -n "$NEW_ISSUE" ] && die "give --issue N or --new-issue \"<title>\", not both"
     [[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
+    # An explicit --issue or --new-issue wins over a number in the branch's name, which may be a year or
+    # a pull request (integrate/pipeline-2026-10-24 once labelled pull request #2026 in-progress).
+    NAMED_ISSUE=""
+    if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
+        NAMED_ISSUE=$(printf '%s\n' "$BRANCH" | grep -oE '(^|[^0-9])[0-9]{3,}' | head -1 | grep -oE '[0-9]+' || true)
+        ISSUE="$NAMED_ISSUE"
+    fi
+    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
 fi
 
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 DIR="$MAIN/.worktrees/$NAME"
+# git takes .git/config's lock without waiting and fails when it is held, so runs started at once broke
+# partway with "could not lock config file" (issue #5213). `git worktree add` reads every other
+# worktree's folder under .git/worktrees, and failed on one a concurrent add had made but not yet written
+# ("failed to read .git/worktrees/<name>/commondir", issue #5466). Every step here that writes .git/config,
+# .git/worktrees or a shared ref holds this lock; tools/branch-push.sh and tools/pr-open.sh take it too.
+CONFIG_LOCK="$(git -C "$MAIN" rev-parse --path-format=absolute --git-common-dir)/config.flock"
+locked() { flock "$CONFIG_LOCK" "$@"; }
 [ -e "$DIR" ] && die "$DIR already exists"
+
+# git keeps refs as files: a branch docs/x cannot exist beside a branch docs (nor docs beside docs/x).
+# Refuse it here, before an issue is opened for a branch that could never be made.
+prefix=""
+IFS=/ read -ra PARTS <<<"$BRANCH"
+for part in "${PARTS[@]:0:${#PARTS[@]}-1}"; do
+    prefix="${prefix:+$prefix/}$part"
+    for ref in "refs/heads/$prefix" "refs/remotes/origin/$prefix"; do
+        git -C "$MAIN" show-ref --verify --quiet "$ref" &&
+            die "a branch named $prefix exists ($ref), so git cannot make $BRANCH; pick a name that does not start with $prefix/"
+    done
+done
+[ -z "$(git -C "$MAIN" for-each-ref --count=1 "refs/heads/$BRANCH/" "refs/remotes/origin/$BRANCH/")" ] ||
+    die "branches named $BRANCH/... exist, so git cannot make $BRANCH; pick another name"
+
+if [ -n "$NAMED_ISSUE" ]; then
+    (cd "$MAIN" && node "$HERE/branch-note.mjs" check-issue --issue "$NAMED_ISSUE") ||
+        die "#$NAMED_ISSUE, the number in $BRANCH, is not an open issue; name the issue with --issue N or --new-issue \"<title>\""
+fi
 
 if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
     ISSUE=$(cd "$MAIN" && node "$HERE/branch-note.mjs" new-issue --title "$NEW_ISSUE" --branch "$BRANCH" \
@@ -98,7 +131,7 @@ if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
         die "could not open the issue"
 fi
 
-retry git -C "$MAIN" fetch --quiet origin
+retry locked git -C "$MAIN" fetch --quiet origin
 if [ -z "$BASE" ]; then
     BASE=origin/master
 fi
@@ -108,18 +141,18 @@ LFS_SLIM=(-c "lfs.fetchexclude=design/**")
 [ -n "$FULL_IMAGES" ] && LFS_SLIM=()
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
     || git -C "$MAIN" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
-    # an origin-only branch gets a local tracking branch of the same name
-    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
+    # an origin-only branch gets a local tracking branch of the same name, written to .git/config
+    locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add "$DIR" "$BRANCH"
 else
     # --no-track: the new branch's upstream is set by its first `git push -u` below, not to the base
-    git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
+    locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
     # A branch started from another branch is stacked on it: record that, so the pre-push gate
     # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
     # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
     case "$BASE" in
         origin/master) ;;
-        origin/golden-verified) git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
-        origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
+        origin/golden-verified) locked git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
+        origin/*) locked git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
     esac
 fi
 
@@ -130,9 +163,11 @@ else
 fi
 
 if [ -n "$TRACKED" ]; then
-    git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
+    locked git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
     if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
-        retry git -C "$DIR" push --no-verify -q -u origin "$BRANCH" ||
+        # The push stays outside the lock; only setting the upstream writes .git/config.
+        { retry git -C "$DIR" push --no-verify -q origin "$BRANCH" &&
+            locked git -C "$DIR" branch -q --set-upstream-to="origin/$BRANCH"; } ||
             echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
     fi
     (cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
@@ -140,7 +175,8 @@ if [ -n "$TRACKED" ]; then
         echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
 fi
 
-(cd "$DIR" && pnpm install --frozen-lockfile)
+# husky (the prepare script) writes core.hooksPath to .git/config: run it under the lock, not inside the install.
+(cd "$DIR" && HUSKY=0 pnpm install --frozen-lockfile && locked pnpm exec husky)
 
 echo "ready: $DIR${ISSUE:+ (issue #$ISSUE)}"
 [ -n "$FULL_IMAGES" ] || echo "the design/** images are LFS pointers here; to get them: git -C $DIR lfs pull --include \"design/**\""

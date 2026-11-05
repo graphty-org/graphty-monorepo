@@ -339,7 +339,7 @@ export const queryTool: ToolDefinition = {
         },
         {
             name: "count",
-            summary: "how many a target matches",
+            summary: "a target's matches",
             fields: targetFields,
             effect: "read",
             reaches: [{ door: "ScopeApi.count" }],

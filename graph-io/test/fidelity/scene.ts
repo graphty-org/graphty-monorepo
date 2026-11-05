@@ -92,6 +92,13 @@ export interface SceneNode {
     visible: boolean;
     z: number;
     /**
+     * Reference side only: the program paints a gradient over the node's whole face (Cytoscape desktop's gradient
+     * custom graphics), so `fill`, the colour under it, is not what it draws and is not judged (`fillOpacity` is the
+     * gradient's too, and is).
+     * The oracle scorecard, which reads the program's own drawing, judges the gradient.
+     */
+    paintedOver?: true;
+    /**
      * graphty side only, diagnostic and never scored: what the style asked for, per scored
      * property, so a miss can be told apart as a mapping bug (it asked for the wrong thing) or a
      * rendering bug (it asked for the right thing and drew another).
@@ -148,7 +155,8 @@ export interface Scene {
     nodes: SceneNode[];
     edges: SceneEdge[];
     groups: SceneGroup[];
-    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string }[];
+    /** An arrow's `heads` are each drawn head's box. */
+    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string; heads?: Box[] }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */
     gaps: { property: Property; reason: string }[];

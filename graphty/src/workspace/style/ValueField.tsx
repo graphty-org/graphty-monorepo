@@ -59,6 +59,13 @@ interface ValueFieldProps {
     readonly compact?: boolean;
     /** The swatches a color's picker offers; left out, the picker's own set. */
     readonly swatches?: readonly string[];
+    /** Choices a select lists after its own: the shaders that join its picker (Shape's sprites). */
+    readonly extraChoices?: readonly {
+        readonly value: string;
+        readonly label: string;
+        readonly picture?: string;
+        readonly disabled?: boolean;
+    }[];
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
 }
@@ -75,6 +82,7 @@ interface ValueFieldProps {
  * @param props.mixed - whether the things it stands for disagree
  * @param props.compact - a chit or a narrow field, for a list row
  * @param props.swatches - the swatches a color's picker offers
+ * @param props.extraChoices - choices a select lists after its own
  * @param props.onChange - writes a value
  * @returns The field, or a dash for a property no field draws
  */
@@ -86,10 +94,11 @@ export function ValueField({
     mixed = false,
     compact = false,
     swatches,
+    extraChoices = [],
     onChange,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
-    const props = { descriptor, label, value, shown, mixed, compact, swatches, onChange };
+    const props = { descriptor, label, value, shown, mixed, compact, swatches, extraChoices, onChange };
     if (kind === "color") {
         return <ColorValueField {...props} />;
     }
@@ -216,7 +225,7 @@ function choiceName(
  * @returns The field
  */
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
-    const { descriptor, label, value, shown, mixed, onChange } = props;
+    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange } = props;
     const boolean = descriptor.accepts === "boolean";
     const options = choiceOptions(descriptor);
     // Nothing set here: the value shown is the one in force by default, and is read as that.
@@ -226,19 +235,28 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     const glyphs =
         GLYPH_TABLES[descriptor.channel] === undefined
             ? undefined
-            : Object.fromEntries(
-                  options.map((o) => [
+            : Object.fromEntries([
+                  ...options.map((o) => [
                       o.value,
                       <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
                   ]),
-              );
+                  ...extraChoices.map((o) => [
+                      o.value,
+                      o.picture === undefined ? null : (
+                          <img src={o.picture} alt="" aria-hidden width={14} height={14} style={{ borderRadius: 3 }} />
+                      ),
+                  ]),
+              ]);
     const pictured = glyphs === undefined || mixed ? undefined : (choiceText(value) ?? choiceText(shown));
     return (
         <PanelField
             label={choiceName(label, mixed, unset ? inForce : undefined, chosen)}
             kind="select"
             width="fill"
-            data={options.map((o) => ({ value: o.value, label: o.label }))}
+            data={[
+                ...options.map((o) => ({ value: o.value, label: o.label })),
+                ...extraChoices.map((o) => ({ value: o.value, label: o.label, disabled: o.disabled })),
+            ]}
             // Unset, the field holds nothing and shows the default in force as its placeholder,
             // so the open list checks no choice as if it were set.
             value={mixed ? null : (choiceText(value) ?? null)}

@@ -7,6 +7,7 @@
 
 import "../../src/graphty-element";
 
+import type { AbstractMesh } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { openflights } from "@graphty/graph-samples/datasets/openflights";
 import { createMapFrame, longitudeIn } from "babylonjs-map/projection";
@@ -152,12 +153,9 @@ describe("the location map layout", () => {
     it("draws the map under the nodes with its credits, and removes it with another layout", async () => {
         await placeAirports({ latitude: "latitude", longitude: "longitude" });
         // a hang guard for the bundled picture loading, not a pass/fail timing
-        await vi.waitFor(
-            () => {
-                assert.equal(graph.basemapStatus.state, "ready");
-            },
-            { timeout: 20_000, interval: 100 },
-        );
+        await vi.waitFor(() => {
+            assert.equal(graph.basemapStatus.state, "ready");
+        });
         assert.equal(graph.basemapStatus.source, "natural-earth");
         assert.include(graph.basemapStatus.attribution, "Natural Earth");
         const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");
@@ -173,9 +171,9 @@ describe("the location map layout", () => {
         assert.equal(strip?.style.display, "none");
     });
 
-    it("switches between a flat map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
+    it("switches between a 2D map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
         await graph.setViewMode("3d");
-        await placeAirports({}, 60);
+        await placeAirports({ mapDimension: "2d" }, 60);
         const edges = [...graph.getDataManager().edges.values()];
         assert.isAbove(edges.length, 10);
 
@@ -188,7 +186,7 @@ describe("the location map layout", () => {
         const lowest = Math.min(...(flatArc ?? []).map((p) => p.z));
         assert.isBelow(lowest, at(id).z - 0.5, "the arc rises off the map");
 
-        await graph.setLayout("location-map", { surface: "globe" });
+        await graph.setLayout("location-map", { mapDimension: "3d" });
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const p = at(id);
@@ -217,6 +215,191 @@ describe("the location map layout", () => {
         const engine = graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { surface: string } | null };
         assert.equal(engine.geoFrame?.surface, "flat");
         assert.isNull(longestCurve(edges));
+    });
+
+    it("draws a globe mapScale times larger under nodes, edges and arcs that keep their size", async () => {
+        await graph.setViewMode("3d");
+        const id = String(FLIGHTS.ids.idOf(0));
+        const edges = (): Edge[] => [...graph.getDataManager().edges.values()];
+        /** What the globe and the drawing measure at one mapScale, at the default view. */
+        async function measure(
+            mapScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{
+            radius: number;
+            lift: number;
+            nodeWorld: number;
+            nodeOverHeight: number;
+            widths: number[];
+            arcRise: number;
+        }> {
+            await graph.setLayout("location-map", { mapScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
+                .geoFrame;
+            const p = at(id);
+            const mesh = graph.getNode(id)?.mesh;
+            assert.isDefined(mesh);
+            const curve = longestCurve(edges()) ?? [];
+            const first = curve[0];
+            const last = curve.at(-1) ?? first;
+            const surface = Math.max(Math.hypot(first.x, first.y, first.z), Math.hypot(last.x, last.y, last.z));
+            const rise = Math.max(...curve.map((q) => Math.hypot(q.x, q.y, q.z))) - surface;
+            const chord = Math.hypot(first.x - last.x, first.y - last.y, first.z - last.z);
+            return {
+                radius: frame.radius,
+                lift: Math.hypot(p.x, p.y, p.z) - frame.radius,
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                // a node's scene size over the camera's height above the globe: what one size on
+                // screen holds fixed, however the camera stands
+                nodeOverHeight:
+                    mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() /
+                    ((graph.getScene().activeCamera?.globalPosition.length() ?? Number.NaN) - frame.radius),
+                widths: edges().map((e) => e.drawnLine?.width ?? Number.NaN),
+                arcRise: rise / chord,
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const three = await measure(3, "scene");
+        assert.closeTo(three.radius / one.radius, 3, 1e-9, "the globe is three times larger");
+        assert.closeTo(three.lift, one.lift, 1e-3, "a node stands the same height above it");
+        assert.closeTo(three.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(three.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(three.arcRise, one.arcRise, 0.02, "an arc still rises in proportion to the distance it spans");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not grow with the globe
+        const screenOne = await measure(1, "screen");
+        const screenThree = await measure(3, "screen");
+        assert.isAbove(screenOne.nodeOverHeight, 0);
+        assert.closeTo(
+            screenThree.nodeOverHeight / screenOne.nodeOverHeight,
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
+    });
+
+    it("draws the 2D map mapScale times larger under nodes and edges that keep their size, framed whole", async () => {
+        await graph.setViewMode("2d");
+        const ids = [String(FLIGHTS.ids.idOf(0)), String(FLIGHTS.ids.idOf(57))];
+        /** What the map and the drawing measure at one mapScale, at the default view. */
+        async function measure(
+            mapScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{ apart: number; nodeWorld: number; viewHeight: number; mapHeight: number; widths: number[] }> {
+            await graph.setLayout("location-map", { mapScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (
+                graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { mapFrame: { height: number } } }
+            ).geoFrame;
+            const camera = graph.getScene().activeCamera;
+            const [a, b] = ids.map((id) => at(id));
+            const mesh = graph.getNode(ids[0])?.mesh;
+            assert.isDefined(mesh);
+            return {
+                apart: Math.hypot(a.x - b.x, a.y - b.y),
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                viewHeight: (camera?.orthoTop ?? Number.NaN) - (camera?.orthoBottom ?? Number.NaN),
+                mapHeight: frame.mapFrame.height,
+                widths: [...graph.getDataManager().edges.values()].map((e) => e.drawnLine?.width ?? Number.NaN),
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const six = await measure(6, "scene");
+        assert.closeTo(six.apart / one.apart, 6, 0.01, "nodes are drawn six times further apart");
+        assert.closeTo(six.mapHeight / one.mapHeight, 6, 1e-6, "on a map six times larger");
+        assert.closeTo(six.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(six.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(six.viewHeight / one.viewHeight, 6, 0.6, "the default view still frames the whole map");
+        assert.isAtLeast(six.viewHeight, six.mapHeight, "the whole map is in view");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not shrink with the map
+        const screenOne = await measure(1, "screen");
+        const screenSix = await measure(6, "screen");
+        assert.closeTo(
+            screenSix.nodeWorld / screenSix.viewHeight / (screenOne.nodeWorld / screenOne.viewHeight),
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
+    });
+
+    it("keeps a city's whole 2D map in front of the far clip plane in 3D, however far the camera is", async () => {
+        // A few stops across Venice: the flat map goes on past them for a whole world, thousands of
+        // times wider than the data, and a view tilted over it must not cut it off along a line.
+        await graph.addNodes([
+            { id: "a", latitude: 45.44, longitude: 12.31 },
+            { id: "b", latitude: 45.43, longitude: 12.34 },
+            { id: "c", latitude: 45.41, longitude: 12.37 },
+        ]);
+        await graph.setLayout("location-map", { mapDimension: "2d", mapScale: 6 });
+        await settled();
+        const frame = (
+            graph.getLayoutManager().layoutEngine as unknown as {
+                geoFrame: { mapFrame: ReturnType<typeof createMapFrame> };
+            }
+        ).geoFrame.mapFrame;
+        const [[west], [east]] = frame.bounds;
+        const center = (west + east) / 2;
+        const max = frame.projection.maxLatitude;
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const eye = camera.globalPosition;
+        let farthest = 0;
+        for (const lon of [center - 180, center + 180]) {
+            for (const lat of [-max, max]) {
+                const { x, y } = frame.toScene({ lat, lon });
+                farthest = Math.max(farthest, Math.hypot(x - eye.x, y - eye.y, eye.z));
+            }
+        }
+        assert.isAtLeast(camera.maxZ, farthest, "the far plane reaches the map's farthest corner");
+    });
+
+    it("leaves the depth range room for the globe map's stacking past its edge, seen from afar", async () => {
+        // A city on a globe six times larger: the default view stands hundreds of thousands of
+        // units off. A tile pushed back past the far end of the depth range is clamped there, ties
+        // with the globe's far side, and the far side shows through in bands.
+        await graph.setViewMode("3d");
+        await graph.addNodes([
+            { id: "a", latitude: 45.44, longitude: 12.31 },
+            { id: "b", latitude: 45.43, longitude: 12.34 },
+            { id: "c", latitude: 45.41, longitude: 12.37 },
+        ]);
+        // A tile service drawn over the bundled world, from this page: every tile one green picture.
+        const tile = document.createElement("canvas");
+        tile.width = 4;
+        tile.height = 4;
+        const context = tile.getContext("2d");
+        assert.isNotNull(context);
+        context.fillStyle = "#00ff00";
+        context.fillRect(0, 0, 4, 4);
+        const map = { tiles: tile.toDataURL("image/png"), attribution: "green" };
+        await graph.setLayout("location-map", { mapDimension: "3d", mapScale: 6, map });
+        await settled();
+        const tiles = (): AbstractMesh[] =>
+            graph.getScene().meshes.filter((m) => m.name.includes("-tile-") && m.isEnabled());
+        while (!tiles().some((m) => m.name.includes("green"))) {
+            await drawnFrames(graph.getScene(), 1);
+        }
+        const { radius } = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
+            .geoFrame;
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const pushes = tiles().map((m) => m.material?.zOffsetUnits ?? 0);
+        assert.isAbove(Math.max(...pushes), 0, "the bundled world is pushed under the tile service");
+        // Where the globe's edge is: the farthest point of the near side, from the eye.
+        const edge = Math.sqrt(camera.globalPosition.lengthSquared() - radius * radius);
+        const [n, f] = [camera.minZ, camera.maxZ];
+        const depth = (f / (f - n)) * (1 - n / edge);
+        // A 24-bit depth buffer: one unit of a depth offset is 2^-24 of the range.
+        const room = (1 - depth) * 2 ** 24;
+        assert.isAbove(room, Math.max(...pushes), "the largest push still lands inside the depth range");
     });
 
     it("puts nodes with no usable location in a tray and reports them", async () => {

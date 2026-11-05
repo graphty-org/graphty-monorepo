@@ -9,7 +9,7 @@
  *
  * They are gone rather than annotated, and the difference matters: `GraphStyle.addDefaultStyle`
  * and the two `enabled` flags are ACCEPTED AND IGNORED because documents in the wild carry them
- * and they once did something. These five never did anything in any version, so no document can
+ * and they once did something. These never did anything in any version, so no document can
  * be carrying them meaningfully, and a strict schema that refuses them tells a consumer the
  * truth at the earliest possible moment instead of at no moment at all.
  */
@@ -20,10 +20,11 @@ import { NodeStyle } from "../../src/config";
 import { GraphStyle } from "../../src/config/GraphStyle";
 
 describe("a style field nothing draws", () => {
-    it("is not a node texture from a URL", () => {
-        assert.throws(() => {
-            NodeStyle.parse({ texture: { image: "https://example.com/marble.png" } });
-        }, /image/);
+    it("leaves the node texture alone now that it is drawn (node.texture)", () => {
+        // `texture.image` came back with its renderer and its channel together, as promised.
+        const parsed = NodeStyle.parse({ texture: { image: "https://example.com/marble.png" } });
+
+        assert.strictEqual(parsed.texture?.image, "https://example.com/marble.png");
     });
 
     it("is not an outline width", () => {

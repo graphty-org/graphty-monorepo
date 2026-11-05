@@ -20,13 +20,21 @@ on:
     workflow_run:
         workflows: ["GPU", "Release", "GPU weekly paired benchmark"]
         types: [completed]
+    # a Release run on channel/full-run asks for itself (release.yml's watchers job): GitHub raises no workflow_run
+    # event for a run a workflow's GITHUB_TOKEN dispatched
+    workflow_dispatch:
+        inputs:
+            run:
+                description: "The Release run to decide on (its id)"
+                required: true
+                type: string
 permissions: { actions: write, checks: read, contents: read, issues: write, id-token: write }
 jobs:
     rerun:
         name: Re-run once on the same commit
         # a job that hits its timeout-minutes ends cancelled, and so does its run; a second attempt that ended cancelled
         # (replaced while pending) may leave attempt 1's deferred red to file
-        if: (contains(fromJSON('["failure","cancelled","timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt == 1) || (github.event.workflow_run.conclusion == 'cancelled' && github.event.workflow_run.run_attempt == 2)
+        if: github.event_name == 'workflow_dispatch' || (contains(fromJSON('["failure","cancelled","timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt == 1) || (github.event.workflow_run.conclusion == 'cancelled' && github.event.workflow_run.run_attempt == 2)
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -39,17 +47,32 @@ jobs:
               with:
                   node-version: 22.x
 
+            # dispatched by a channel/full-run Release run's watchers job (no workflow_run event for it): wait for that run
+            # to end, then describe it as the event would
+            - name: Wait for the dispatched run to end
+              if: github.event_name == 'workflow_dispatch'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.run }}
+              run: |
+                  set -euo pipefail
+                  gh run watch "$RUN" --repo "$GITHUB_REPOSITORY" --interval 20 > /dev/null || true
+                  gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN}" --jq '"D_RUN=\(.id)",
+                      "D_ATTEMPT=\(.run_attempt)", "D_CONCLUSION=\(.conclusion)", "D_TITLE=\(.display_title)",
+                      "D_URL=\(.html_url)", "D_HEAD_SHA=\(.head_sha)", "D_STARTED=\(.run_started_at)"' >> "$GITHUB_ENV"
+
             - name: Re-run the failed jobs once, or file what the verdict deferred
+              if: ${{ github.event_name != 'workflow_dispatch' || (contains(fromJSON('["failure","cancelled","timed_out"]'), env.D_CONCLUSION) && env.D_ATTEMPT == '1') || (env.D_CONCLUSION == 'cancelled' && env.D_ATTEMPT == '2') }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   GITHUB_TOKEN: ${{ github.token }}
-                  RUN: ${{ github.event.workflow_run.id }}
-                  WORKFLOW: ${{ github.event.workflow.name }} # workflow_run.name is the run-name, "Release (full)"
-                  TITLE: ${{ github.event.workflow_run.display_title }}
-                  ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-                  CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-                  RUN_URL: ${{ github.event.workflow_run.html_url }}
-                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  RUN: ${{ github.event.workflow_run.id || env.D_RUN }}
+                  WORKFLOW: ${{ github.event.workflow.name || 'Release' }} # workflow_run.name is the run-name, "Release (full)"
+                  TITLE: ${{ github.event.workflow_run.display_title || env.D_TITLE }}
+                  ATTEMPT: ${{ github.event.workflow_run.run_attempt || env.D_ATTEMPT }}
+                  CONCLUSION: ${{ github.event.workflow_run.conclusion || env.D_CONCLUSION }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url || env.D_URL }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha || env.D_HEAD_SHA }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}

@@ -12,11 +12,31 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, laneOf, liveTickets, shardCacheDir, slotCount, workerShare } from "./test-slots.mjs";
+import {
+    acquire,
+    commandWhat,
+    HELD,
+    laneOf,
+    liveTickets,
+    packageName,
+    shardCacheDir,
+    slotCount,
+    workerShare,
+} from "./test-slots.mjs";
+import { trackedFiles } from "./tracked-files.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
+// The wrapped commands below log their waits and holds here, never to the machine's wait log.
+const WAIT_LOG = join(TMP, "waits.jsonl");
+process.env.PIPELINE_WAIT_LOG = WAIT_LOG;
+const holds = () =>
+    readFileSync(WAIT_LOG, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+        .filter((w) => w.kind.endsWith("-slot-held"));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
@@ -33,12 +53,46 @@ after(() => children.forEach((c) => c.kill("SIGKILL")));
 
 const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
 const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {} };
-const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
-// Whether a promise has settled within a few polls.
+// Ticket names carry the millisecond they were written in, so a run asked for after this gets a later place in line.
+async function nextMillisecond() {
+    const now = Date.now();
+    while (Date.now() === now) {
+        await new Promise((r) => setImmediate(r));
+    }
+}
+// Resolves once a spawned command wrapper has written the line that says it is waiting for a slot.
+function queuedLine(child) {
+    return new Promise((resolve, reject) => {
+        let text = "";
+        child.stderr.on("data", (d) => {
+            text += d;
+            if (/waiting for one of/.test(text)) resolve();
+        });
+        child.once("exit", (code) => reject(new Error(`exited (${code}) before it waited for a slot: ${text}`)));
+    });
+}
+// acquire(), counting its reads of the tickets, so a test waits on the polls it needs and not on the clock.
+function queue(options) {
+    const read = options.list ?? liveTickets;
+    let polls = 0;
+    const waiting = [];
+    const promise = acquire({
+        ...options,
+        list: (d) => {
+            polls++;
+            waiting.filter((w) => polls >= w.at).forEach((w) => w.wake());
+            return read(d);
+        },
+    });
+    promise.polls = (n) => new Promise((wake) => waiting.push({ at: polls + n, wake }));
+    return promise;
+}
+// Whether a queue() promise has settled by its second read of the tickets from now: the first may be under
+// way already, so the second is the first to see everything the test did before asking.
 async function settled(promise) {
     let done = false;
-    promise.then(() => (done = true));
-    await tick(100);
+    const mark = () => (done = true);
+    await Promise.race([promise.then(mark, mark), promise.polls(2)]);
     return done;
 }
 
@@ -47,10 +101,10 @@ describe("test-slots", () => {
         const dir = fresh();
         const [a, b, c] = [sleeper(), sleeper(), sleeper()];
         const releaseA = await acquire({ ...quiet, dir, slots: 2, pid: a.pid, label: "run a" });
-        await tick();
+        await nextMillisecond();
         await acquire({ ...quiet, dir, slots: 2, pid: b.pid, label: "run b" });
         const lines = [];
-        const third = acquire({ ...quiet, dir, slots: 2, pid: c.pid, label: "run c", log: (l) => lines.push(l) });
+        const third = queue({ ...quiet, dir, slots: 2, pid: c.pid, label: "run c", log: (l) => lines.push(l) });
         assert.equal(await settled(third), false, "a third run waits while two slots are held");
         assert.equal(lines.length, 1, "one waiting line, not one per poll");
         assert.match(lines[0], new RegExp(`waiting for one of 2 .*pid ${a.pid} run a .*pid ${b.pid} run b`));
@@ -66,10 +120,10 @@ describe("test-slots", () => {
         const dir = fresh();
         const [h, w1, w2] = [sleeper(), sleeper(), sleeper()];
         const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const first = acquire({ ...quiet, dir, slots: 1, pid: w1.pid, label: "first" });
-        await tick();
-        const second = acquire({ ...quiet, dir, slots: 1, pid: w2.pid, label: "second" });
+        await nextMillisecond();
+        const first = queue({ ...quiet, dir, slots: 1, pid: w1.pid, label: "first" });
+        await nextMillisecond();
+        const second = queue({ ...quiet, dir, slots: 1, pid: w2.pid, label: "second" });
         releaseH();
         assert.equal(await settled(first), true);
         assert.equal(await settled(second), false, "the later run still waits");
@@ -82,19 +136,19 @@ describe("test-slots", () => {
         const [h, l1, w, l2, w2] = [sleeper(), sleeper(), sleeper(), sleeper(), sleeper()];
         const low = { ...quiet, env: { GRAPHTY_SLOT_PRIORITY: "low" } };
         const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const sync = acquire({ ...low, dir, slots: 1, pid: l1.pid, label: "sync" });
-        await tick();
-        const later = acquire({ ...quiet, dir, slots: 1, pid: w.pid, label: "later" });
+        await nextMillisecond();
+        const sync = queue({ ...low, dir, slots: 1, pid: l1.pid, label: "sync" });
+        await nextMillisecond();
+        const later = queue({ ...quiet, dir, slots: 1, pid: w.pid, label: "later" });
         releaseH();
         assert.equal(await settled(later), true, "the later ordinary run goes first");
         assert.equal(await settled(sync), false, "the low run still waits");
         (await later)();
         assert.equal(await settled(sync), true);
         // Holding a slot, the low run counts against the limit: an ordinary run now waits for it.
-        const next = acquire({ ...quiet, dir, slots: 1, pid: w2.pid, label: "next" });
+        const next = queue({ ...quiet, dir, slots: 1, pid: w2.pid, label: "next" });
         assert.equal(await settled(next), false, "a granted low run is not overtaken");
-        const lowAgain = acquire({ ...low, dir, slots: 1, pid: l2.pid, label: "sync 2" });
+        const lowAgain = queue({ ...low, dir, slots: 1, pid: l2.pid, label: "sync 2" });
         (await sync)();
         assert.equal(await settled(next), true);
         assert.equal(await settled(lowAgain), false);
@@ -153,7 +207,7 @@ describe("test-slots", () => {
         const dir = fresh();
         const [doomed, waiter] = [sleeper(), sleeper()];
         await acquire({ ...quiet, dir, slots: 1, pid: doomed.pid, label: "killed" });
-        const next = acquire({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
+        const next = queue({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
         assert.equal(await settled(next), false);
         doomed.kill("SIGKILL");
         await new Promise((r) => doomed.once("exit", r));
@@ -169,9 +223,9 @@ describe("test-slots", () => {
         // This test process holds the only slot; a child of it asks for one.
         const release = await acquire({ ...quiet, dir, slots: 1, pid: process.pid, label: "parent" });
         const child = sleeper();
-        const nested = acquire({ ...quiet, dir, slots: 1, pid: child.pid, label: "nested" });
+        const nested = queue({ ...quiet, dir, slots: 1, pid: child.pid, label: "nested" });
         assert.equal(await settled(nested), true, "a process under a holder does not wait");
-        const flagged = acquire({ ...quiet, dir, slots: 1, pid: sleeper().pid, env: { [HELD]: "1" }, label: "x" });
+        const flagged = queue({ ...quiet, dir, slots: 1, pid: sleeper().pid, env: { [HELD]: "1" }, label: "x" });
         assert.equal(await settled(flagged), true, `${HELD} in the environment skips the queue`);
         assert.equal(readdirSync(dir).length, 1, "neither wrote a ticket");
         release();
@@ -204,6 +258,18 @@ describe("test-slots", () => {
         assert.equal(shardCacheDir({}), undefined);
     });
 
+    // Without `force` a second run in the same checkout trusts the old bundle and reloads mid-run on an import
+    // added since (#5134, #5240); without the shard directory side-by-side gate shards delete each other's bundles.
+    it("bundles afresh into the shard's own Vite cache in every package's storybook config", () => {
+        const configs = trackedFiles(/^[^./][^/]*\/vitest\.storybook\.config\.m?[jt]s$/);
+        assert.ok(configs.length >= 5, `found ${configs.length} storybook configs`);
+        const missing = configs.filter((f) => {
+            const text = readFileSync(join(ROOT, f), "utf8");
+            return !/optimizeDeps: \{[^}]*force: true/.test(text) || !/cacheDir: shardCacheDir\(\)/.test(text);
+        });
+        assert.deepEqual(missing, [], "these storybook configs lack optimizeDeps.force or cacheDir: shardCacheDir()");
+    });
+
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {
         const dir = fresh();
         const r = spawnSync(
@@ -223,6 +289,50 @@ describe("test-slots", () => {
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);
         assert.deepEqual(readdirSync(dir), [], "the slot was given back");
+        const held = holds().at(-1);
+        assert.equal(held.kind, "test-slot-held");
+        assert.equal(held.exit, 3, "the hold carries the command's exit code");
+        assert.equal(held.what, "node");
+    });
+
+    it("logs each hold once when it ends, with what held it and its exit code; free() gives it back unlogged", async () => {
+        const dir = fresh();
+        const lines = [];
+        const waitLog = (w) => lines.push(w);
+        const release = await acquire({
+            ...quiet,
+            waitLog,
+            dir,
+            slots: 1,
+            pid: sleeper().pid,
+            label: "x",
+            what: "layout",
+        });
+        release.free();
+        assert.deepEqual(readdirSync(dir), [], "free gives the slot back");
+        assert.equal(lines.length, 0, "a teardown before the exit logs nothing");
+        release(1);
+        release(0);
+        assert.equal(lines.length, 1, "one line per hold");
+        assert.equal(lines[0].kind, "test-slot-held");
+        assert.deepEqual(lines[0].extra, { what: "layout", exit: 1 });
+        const unknown = await acquire({ ...quiet, waitLog, dir, slots: 1, pid: sleeper().pid, label: "y" });
+        unknown();
+        assert.equal(lines[1].extra.exit, null, "no exit code: null, never a pass");
+    });
+
+    it("names what a run is: a shard family for run-tests.sh, a package for a vitest run", () => {
+        assert.equal(
+            commandWhat(["bash", "tools/run-tests.sh", "graphty-element-browser-3"]),
+            "graphty-element-browser",
+        );
+        assert.equal(
+            commandWhat(["bash", "tools/run-tests.sh", "--command", "graphty-2", "vitest run a.test.ts"]),
+            "graphty",
+        );
+        assert.equal(commandWhat(["/usr/bin/pnpm", "exec", "vitest"]), "pnpm");
+        assert.equal(packageName(join(ROOT, "layout")), "layout");
+        assert.equal(packageName(TMP), TMP.split("/").at(-1));
     });
 
     it("--gpu holds the one GPU slot instead of a test slot, so a run under it takes no test slot", async () => {
@@ -239,7 +349,7 @@ describe("test-slots", () => {
         const report = (cmd) =>
             spawn(process.execPath, [SCRIPT, "--gpu", process.execPath, "-e", cmd], {
                 env,
-                stdio: ["ignore", "pipe", "ignore"],
+                stdio: ["ignore", "pipe", "pipe"],
             });
         // The first GPU run reports its ticket, its environment and the test tickets, then runs until it is ended.
         const first = report(
@@ -261,8 +371,9 @@ describe("test-slots", () => {
         let out = "";
         second.stdout.on("data", (d) => (out += d));
         const exited = new Promise((r) => second.once("exit", r));
-        await tick(500);
+        await queuedLine(second);
         assert.equal(out, "", "one GPU run at a time");
+        assert.equal(readdirSync(dirs.GRAPHTY_GPU_SLOTS_DIR).length, 2, "the second run has its ticket in line");
         process.kill(line.pid); // its command ends, so the wrapper gives the slot back
         assert.equal(await exited, 0);
         assert.match(out, /second ran/);
@@ -308,12 +419,12 @@ describe("test-slots", () => {
         runner.stdout.on("data", (d) => (output += d));
         runner.stderr.on("data", (d) => (output += d));
         const exited = new Promise((r) => runner.once("exit", r));
-        // Someone has queued behind the holder: the runner itself, or (were it not holding the slot) its command.
-        while (liveTickets(dir).length < 2) {
-            await tick(20);
-        }
-        // Queued for longer than the limit.
-        await tick(1500);
+        // Someone has queued behind the holder. It must be the runner itself: its limit starts only once it holds
+        // the slot. Were it the command, it would be waiting inside the limit.
+        await queuedLine(runner);
+        const queued = liveTickets(dir);
+        assert.equal(queued.length, 2, "the holder and one run in line");
+        assert.equal(queued[1].pid, runner.pid, "the runner, not its timed command, waits for the slot");
         assert.doesNotMatch(output, /timed command ran|limit hit/, "nothing started while the slot was held");
         releaseHolder();
         assert.equal(await exited, 0, output);
@@ -323,13 +434,7 @@ describe("test-slots", () => {
     });
 
     it("is listed as a globalSetup, caps the Node workers and adds ciReporters(), in every package's vitest config", () => {
-        const configs = readdirSync(ROOT, { withFileTypes: true })
-            .filter((d) => d.isDirectory() && !d.name.startsWith("."))
-            .flatMap((d) =>
-                readdirSync(join(ROOT, d.name))
-                    .filter((f) => /^vitest\.config\.m?[jt]s$/.test(f))
-                    .map((f) => join(d.name, f)),
-            );
+        const configs = trackedFiles(/^[^./][^/]*\/vitest\.config\.m?[jt]s$/);
         assert.ok(configs.length >= 12, `found ${configs.length} configs`);
         // All three come from baseTest() in vitest.base.mjs (tools/vitest-base.test.mjs checks every config imports it).
         const base = readFileSync(join(ROOT, "vitest.base.mjs"), "utf8");

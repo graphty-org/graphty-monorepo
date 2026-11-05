@@ -81,6 +81,9 @@ export const COMMANDS: Readonly<{
     readonly "style.template": {
         readonly undo: "undoable";
     };
+    readonly "shader.set": {
+        readonly undo: "undoable";
+    };
     readonly "visibility.set": {
         readonly undo: "undoable";
     };
@@ -91,6 +94,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.steps": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.conditions": {
         readonly undo: "undoable";
     };
     readonly "visibility.playback": {
@@ -168,7 +174,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

@@ -110,6 +110,7 @@ export class VercelAiProvider implements LlmProvider {
     private temperature?: number;
     private reasoningEffort?: AiReasoningEffort;
     private thinkingBudgetTokens?: number;
+    private fetch?: typeof globalThis.fetch;
     private readonly providerType: VercelProviderType;
     /** Reads this provider's configuration at every turn. */
     private readonly engine: ProviderApiEngine;
@@ -130,6 +131,7 @@ export class VercelAiProvider implements LlmProvider {
             temperature: this.temperature,
             reasoningEffort: this.reasoningEffort,
             thinkingBudgetTokens: this.thinkingBudgetTokens,
+            fetch: this.fetch,
         }));
         // The assistant runs this provider on that engine, unless a subclass replaced `generate`,
         // whose override then answers every turn.
@@ -152,6 +154,7 @@ export class VercelAiProvider implements LlmProvider {
         this.temperature = options.temperature;
         this.reasoningEffort = options.reasoningEffort;
         this.thinkingBudgetTokens = options.thinkingBudgetTokens;
+        this.fetch = options.fetch;
     }
 
     /**

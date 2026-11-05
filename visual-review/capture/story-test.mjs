@@ -154,7 +154,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
     }
     const baselines = join(root, config.baselines, project);
     const fontconfig = config.fontconfig ? join(root, config.fontconfig) : null;
-    for (const dir of ["second", "baselines"]) {
+    for (const dir of ["second", "baselines", "flaky"]) {
         mkdirSync(join(out, dir), { recursive: true });
     }
     const results = {
@@ -224,11 +224,26 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         return theirs ? { baseline: theirs, from: old } : { baseline: own, from: null };
     };
 
-    const finish = async (job, first, second, logged) => {
+    const finish = async (job, first, second, logged, firstResult = null) => {
         const { id, mode, file, baseline, from, s } = job;
-        const r = classify({ baseline, first, second, threshold: s.threshold, includeAA: s.includeAA, moved: !!from });
+        const r = classify({
+            baseline,
+            first,
+            second,
+            threshold: s.threshold,
+            includeAA: s.includeAA,
+            moved: !!from,
+            firstResult,
+        });
         if (["changed", "moved", "new", "unstable"].includes(r.status)) {
             writeFileSync(join(out, file), r.flaky ? second : first);
+        }
+        // A flaky shot: the first differed from the baseline and the second matched. The differing
+        // first is kept, so a story that draws two pictures can be seen the first time it flips.
+        if (r.flaky) {
+            writeFileSync(join(out, "flaky", file), first);
+        } else {
+            rmSync(join(out, "flaky", file), { force: true });
         }
         if (r.status === "unstable") {
             console.log(`visual-review: ${unstableLine(project, { file })}`);
@@ -247,6 +262,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             file,
             ...(from && { from }),
             ...r,
+            ...(r.flaky && { firstChangedPixels: firstResult?.changedPixels ?? null }),
             threshold: s.threshold,
             includeAA: s.includeAA,
             reason: null,
@@ -340,7 +356,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             const held = pending.get(file);
             if (held) {
                 pending.delete(file);
-                return { status: await finish(held.job, held.first, png, [...held.console, ...console]) };
+                return {
+                    status: await finish(held.job, held.first, png, [...held.console, ...console], held.result),
+                };
             }
             const job = { id, mode, file, ...(await baselineOf(id, mode)), s: await settings(id, chromatic) };
             const r = classify({
@@ -350,7 +368,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
                 includeAA: job.s.includeAA,
             });
             if (r.status === "changed" || r.status === "new") {
-                pending.set(file, { job, first: png, console });
+                pending.set(file, { job, first: png, console, result: r });
                 return { again: true };
             }
             return { status: await finish(job, png, null, console) };

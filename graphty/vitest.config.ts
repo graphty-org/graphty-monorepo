@@ -10,6 +10,7 @@ import type { BrowserCommand } from "vitest/node";
 
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
@@ -37,6 +38,16 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     });
+};
+
+/**
+ * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
+ * Control+V and Copy against the real clipboard.
+ * @param ctx - the browser command context.
+ * @returns when the permissions are granted.
+ */
+const grantClipboard: BrowserCommand<[]> = async (ctx) => {
+    await ctx.context.grantPermissions(["clipboard-read", "clipboard-write"]);
 };
 
 /**
@@ -119,7 +130,7 @@ const chromium = () => ({
     // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
     provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests, ...mapTileCommands },
+    commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
 });
 
 const config = defineConfig({
@@ -157,7 +168,7 @@ const config = defineConfig({
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
         // time: run beside the rest, a neighbouring file's import of the element bundle
-        // (src/types/__tests__/ai.test.ts) outran its 15 second test timeout.
+        // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {
                 extends: true,
@@ -229,16 +240,6 @@ const config = defineConfig({
                         ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
                         ".storybook/vitest.setup.ts",
                     ],
-                    // As graphty-element's storybook project: a story that loads the real element
-                    // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
-                    // its other browser shards beside it, which crossed the 15-second default.
-                    testTimeout: 30000,
-                    // With screenshots on, a story's afterEach renders it again for each further mode
-                    // (light, then dark) and once more when a shot differs from its baseline, and a
-                    // story taller than the viewport is shot at up to 16,000 device px: about 3 s a
-                    // shot and 5 s a render here, so 4 renders and shots outgrow the 30 s that fits a
-                    // play. It bounds that work; it is no wait.
-                    ...(VISUAL && { hookTimeout: 90000 }),
                     // One story file at a time, as graphty-element's storybook project: in parallel
                     // every file mounts a real element at once, and on a machine already busy with
                     // other test runs the stories' own waits ran out.
@@ -252,8 +253,6 @@ const config = defineConfig({
                     name: "eslint-rules",
                     environment: "node",
                     include: ["eslint-rules/**/*.test.ts"],
-                    // One TypeScript program over the element's published .d.ts files is built per run.
-                    testTimeout: 60000,
                 },
             },
             {
@@ -321,4 +320,5 @@ config.test = {
     ),
 };
 
-export default config;
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

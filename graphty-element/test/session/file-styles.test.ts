@@ -420,6 +420,56 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("turns the view a quarter turn for a DOT file Graphviz draws landscape, and leaves an upright one alone", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "dot", config: { data: "digraph { a -> b }" } }, { styles: "file" });
+        assert.isUndefined(session.config.viewRotation);
+        for (const attrs of ["rotate=90;", "landscape=true;", "orientation=landscape;"]) {
+            await session.undo();
+            await session.data.import(
+                { type: "dot", config: { data: `digraph { ${attrs} a -> b }` } },
+                { styles: "file" },
+            );
+            assert.strictEqual(session.config.viewRotation, 90, attrs);
+        }
+        // One undo takes the import and its turn back together
+        await session.undo();
+        assert.isUndefined(session.config.viewRotation);
+        session.dispose();
+    });
+
+    it('frames a sigma.js file as sigma.js does with framing: "file", and leaves the framing alone by default (#5367)', async () => {
+        const graphology = JSON.stringify({
+            options: { type: "undirected" },
+            nodes: [
+                { key: "a", attributes: { x: 0, y: 0, size: 10 } },
+                { key: "b", attributes: { x: 100, y: 50, size: 10 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        const sigma = { type: "json", config: { data: graphology } };
+        const session = createGraphSession();
+
+        await session.data.import(sigma, { styles: "file" });
+        assert.isUndefined(session.config.framing, "the default leaves the element's own framing");
+
+        await session.undo();
+        await session.data.import(sigma, { styles: "file", styleOptions: { framing: "file" } });
+        assert.deepEqual(session.config.framing, { extent: "centers", padding: 30 });
+
+        // a file whose program states no fit returns the graph to the element's framing
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { a -> b }" } },
+            { styles: "file", styleOptions: { framing: "file" } },
+        );
+        assert.isUndefined(session.config.framing);
+
+        // one undo takes a load and its framing back together
+        await session.undo();
+        assert.deepEqual(session.config.framing, { extent: "centers", padding: 30 });
+        session.dispose();
+    });
+
     it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
         const doc = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },
@@ -465,6 +515,27 @@ describe("a file's styles drawn by the load", () => {
             return (label as { sizePx?: unknown } | undefined)?.sizePx;
         });
         assert.deepStrictEqual(sizes, [10, 12, 14, 15, 40]);
+        session.dispose();
+    });
+
+    it("converts the lengths in a shape's points as it converts the node's size", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { f [shape=fivepoverhang, width=1, height=0.5]; }" } },
+            { styles: "file" },
+        );
+        const merged = session.styles.explain({ node: "f" }).merged as Record<string, unknown>;
+        // 72 points wide in the file: a point is this many of the element's units
+        const perPoint = (merged["node.width"] as number) / 72;
+        assert.notStrictEqual(perPoint, 1);
+        const lengths = String(merged["node.shapePoints"])
+            .split(/[\s,]+/)
+            .map((term) => /[\d.]([+-][\d.]+)$/.exec(term)?.[1])
+            .filter((length) => length !== undefined)
+            .map(Number);
+        const points = [1.5, 24, 1.5, 24, 7.5, 7.5];
+        assert.strictEqual(lengths.length, points.length);
+        lengths.forEach((v, i) => assert.closeTo(v / perPoint, points[i], 0.01));
         session.dispose();
     });
 
@@ -705,6 +776,118 @@ describe("a file's arrowheads", () => {
         // the tail is DELTA_SHORT_1 of size 12: (12 + 1) long, as wide as a DELTA of that size
         assert.approximately(tailPerNode, 13 / 75, 1e-6);
         assert.approximately(drawn(session, { edge: edge.id }, "edge.arrowTailWidth") as number, 1 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws both of Cytoscape's arrows size times width when the source is a half arrow (DEdgeDetails.adjustArrowSize)", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                    { id: 3, x: 200, y: 0 },
+                ],
+            },
+            {
+                edges: [
+                    { id: 10, s: 1, t: 2 },
+                    { id: 11, s: 2, t: 3 },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: {
+                                EDGE_WIDTH: 1.5,
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                                EDGE_TARGET_ARROW_SIZE: 6,
+                                EDGE_SOURCE_ARROW_SIZE: 10,
+                            },
+                        },
+                    },
+                ],
+            },
+            { edgeBypasses: [{ id: 10, v: { EDGE_SOURCE_ARROW_SHAPE: "half_top" } }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [half, plain] = session.data.edges();
+        const tailPerNode =
+            (0.5 * (drawn(session, { edge: half.id }, "edge.arrowTailSize") as number)) /
+            (1.5 * (drawn(session, { node: String(half.source) }, "node.size") as number));
+        // HALF_TOP's barb is 0.5675 of a DELTA 2 * (10 * 1.5) long, where a target half arrow is 2 * (10 + 1.5)
+        assert.approximately(tailPerNode, (2 * 15 * 0.5675) / 75, 1e-3);
+        // getTargetArrowSize reads the source's shape too: its DELTA is 2 * (6 * 1.5) long
+        assert.approximately(headPerNode(session, half.id, half.source), 18 / 75, 1e-6);
+        // an edge without a half arrow at its source keeps (6 + 1.5) * 2
+        assert.approximately(headPerNode(session, plain.id, plain.source), 15 / 75, 1e-6);
+        session.dispose();
+    });
+
+    it("draws vis-network's crow and inv_triangle 0.6 of their length wide, as its end-points draw them", async () => {
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "s", x: 0, y: 0 },
+                { id: "t", x: 100, y: 0 },
+            ],
+            edges: [
+                { id: "c", from: "s", to: "t", arrows: { to: { enabled: true, type: "crow" } } },
+                { id: "i", from: "s", to: "t", arrows: { to: { enabled: true, type: "inv_triangle" } } },
+            ],
+            options: { physics: false },
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        // the element's crow and inverted triangle are 0.8 of their length wide
+        for (const record of session.data.edges()) {
+            assert.approximately(drawn(session, { edge: record.id }, "edge.arrowHeadWidth") as number, 0.6 / 0.8, 1e-9);
+        }
+        session.dispose();
+    });
+
+    it("draws Graphviz's crow 0.9 and its inv 0.7 of their length wide (arrows.c)", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=inv]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [crow, inv] = session.data.edges();
+        assert.approximately(drawn(session, { edge: crow.id }, "edge.arrowHeadWidth") as number, 0.9 / 0.8, 1e-9);
+        assert.approximately(drawn(session, { edge: inv.id }, "edge.arrowHeadWidth") as number, 0.7 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws each shape of a Graphviz stacked arrowhead behind the first, each in its own proportions", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=boxdotnormal]; b -> c [arrowhead=lteeoldiamond]; c -> d }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [bdn, tod, plain] = session.data.edges();
+        const head = drawn(session, { edge: bdn.id }, "edge.arrowHeadSize") as number;
+        assert.strictEqual(drawn(session, { edge: bdn.id }, "edge.arrowHead"), "box");
+        // arrows.c: a box and a dot 0.8 of the arrow's length, a normal the whole of it, 0.7 of its length wide
+        const parts = String(drawn(session, { edge: bdn.id }, "edge.arrowHeadStack")).split(" ");
+        assert.deepEqual(
+            parts.map((p) => p.replace(/[*x].*$/, "")),
+            ["dot", "normal"],
+        );
+        const sizeOf = (part: string): number => Number(/\*([\d.]+)/.exec(part)?.[1]);
+        assert.approximately(sizeOf(parts[0]), head, 1e-6);
+        assert.approximately(sizeOf(parts[1]), head / 0.8, 1e-6);
+        assert.match(parts[1], /x0\.875$/);
+        assert.match(String(drawn(session, { edge: tod.id }, "edge.arrowHeadStack")), /^open-diamond:left\*/);
+        assert.isUndefined(drawn(session, { edge: plain.id }, "edge.arrowHeadStack"));
+        session.dispose();
+    });
+
+    it("draws Graphviz's obox as its box, 0.8 of the arrow's length (arrows.c arrow_type_box)", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=obox]; b -> c [arrowhead=box]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [open, filled] = session.data.edges();
+        assert.approximately(headPerNode(session, open.id, open.source), 8 / 54, 1e-6);
+        assert.approximately(headPerNode(session, filled.id, filled.source), 8 / 54, 1e-6);
         session.dispose();
     });
 });

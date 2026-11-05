@@ -92,7 +92,10 @@ describe("dot exporter: capabilities and shape", () => {
         for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
             const option = Object.keys(options ?? {})[0];
             expect(() => dotExporter.check(snapshot, options)).toThrow(
-                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+                expect.objectContaining({
+                    code: "E_UNSUPPORTED",
+                    details: expect.objectContaining({ option }) as unknown,
+                }),
             );
             await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
                 code: "E_UNSUPPORTED",
@@ -243,6 +246,30 @@ describe("dot exporter: capabilities and shape", () => {
         builder.declareNodeColumn({ name: "xy", dtype: "f64", components: 2, role: "position" });
         builder.setNodeValue("xy", 0, [0.25, -1]);
         expect(lines(await dotExporter.exportToString(builder.freeze()))[1]).toBe('n [pos="0.25,-1"];');
+    });
+});
+
+describe("dot exporter: rank subgraphs", () => {
+    it("writes each rank subgraph after the nodes, named or anonymous, and reads the same graph back", async () => {
+        const snapshot = await imported(
+            "digraph { a; b; c; d; { rank=min; c } subgraph top { rank=same; a; b } { rank=sink; a; d } c -> a }",
+        );
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text)).toEqual([
+            "digraph {",
+            "a;",
+            "b;",
+            "c;",
+            "d;",
+            "subgraph top { rank=same; a; b; }",
+            "{ rank=min; c; }",
+            "{ rank=sink; d; }",
+            "c -> a;",
+            "}",
+        ]);
+        expect(text).not.toContain("graphty.rank");
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expectSameSnapshot(snapshot, back);
     });
 });
 

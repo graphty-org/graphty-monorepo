@@ -18,6 +18,7 @@ export { GraphSnapshot } from "./snapshot/graph-snapshot.js";
 
 // ============================================================ functions
 export { gpuEligibility } from "./columns/column.js";
+export { inferTextDtype } from "./columns/infer.js";
 export { gatherArray, gatherColumn, remapArray, remapColumn, scatterArray, withComponents } from "./columns/remap.js";
 export { fromCsr } from "./populate/from-csr.js";
 export { fromEdgeArrays } from "./populate/from-edge-arrays.js";

@@ -55,6 +55,21 @@ async function mounted(load: SourceLoadOptions = {}): Promise<Graphty> {
 }
 
 /**
+ * A mounted element that saved a load whose own trigger is a click, and opened that file again:
+ * the load is waiting, as in a project someone sent.
+ * @returns The element.
+ */
+async function reopened(): Promise<Graphty> {
+    const element = await mounted({ expand: { trigger: "click" } });
+    const { text } = await element.session.project.save();
+    await element.session.project.open(text, { discard: true });
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    assert.lengthOf(element.session.data.pendingSourceLoads(), 1, "the load waits to be run");
+    return element;
+}
+
+/**
  * Where the seed is drawn.
  * @param element - The element.
  * @returns Its centre in CSS pixels from the element's top-left corner.
@@ -166,5 +181,42 @@ describe("click-to-expand under real input", () => {
         await expanded;
 
         assert.deepEqual(counts(element), [5, 4]);
+    });
+
+    it("src-58: fetches nothing on a click at a reopened file's node, whatever trigger the file names", async () => {
+        const element = await reopened();
+        let asked = 0;
+        element.session.on("source:expand-start", () => {
+            asked++;
+        });
+        element.session.on("source:expand-failed", () => {
+            asked++;
+        });
+
+        // the file's own trigger is not taken, so a click is only a click: no expansion is even tried
+        await click(element, seedAt(element));
+        await element.waitForStableFrame();
+        assert.strictEqual(asked, 0);
+        assert.deepEqual(counts(element), [1, 0]);
+    });
+
+    it("src-58: refuses a click the page's own trigger asks for until the application runs the load", async () => {
+        const element = await reopened();
+        element.layoutBehavior = { expand: { trigger: "click" } };
+        let started = 0;
+        element.session.on("source:expand-start", () => {
+            started++;
+        });
+        const refused = new Promise<string>((resolve) => {
+            const off = element.session.on("source:expand-failed", ({ code }) => {
+                off();
+                resolve(code);
+            });
+        });
+
+        await click(element, seedAt(element));
+        assert.strictEqual(await refused, "E_SOURCE_PENDING");
+        assert.strictEqual(started, 0, "nothing was fetched");
+        assert.deepEqual(counts(element), [1, 0]);
     });
 });

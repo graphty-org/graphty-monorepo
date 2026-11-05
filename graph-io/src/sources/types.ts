@@ -379,6 +379,34 @@ export interface SourceSample {
 }
 
 /**
+ * One credential a source takes, as its descriptor declares it: a name a project file records
+ * instead of the credential, the kind, whether a load needs it, and for an API key how it is sent.
+ * `credentials.forSlot(slot, value)` makes the credential it describes. Experimental.
+ * @category Network sources
+ */
+export interface SourceCredentialSlot {
+    /** The slot's name, recorded as a load's `credentialSlot` ("api_key", "default"). */
+    readonly name: string;
+    /** The credential kind it takes. */
+    readonly kind: CredentialKind;
+    /** Whether a load needs it. @defaultValue false */
+    readonly required?: boolean | undefined;
+    /** Its default name; catalog data an application may replace by name. */
+    readonly plainName?: string | undefined;
+    /** For an API key: the query parameter or request header it is sent in. */
+    readonly send?:
+        | {
+              /** The query parameter the key is sent in. */
+              readonly query: string;
+          }
+        | {
+              /** The request header the key is sent in. */
+              readonly header: string;
+          }
+        | undefined;
+}
+
+/**
  * What a form needs to ask for a source's parameters, as data. Only `plainName` and `params` are
  * required. Experimental.
  * @category Network sources
@@ -396,6 +424,11 @@ export interface SourceDescriptor {
     readonly auth?: readonly CredentialKind[] | undefined;
     /** Whether a credential is needed. @defaultValue "none" */
     readonly authRequired?: "required" | "optional" | "none" | undefined;
+    /**
+     * The credential slots it takes. A source that takes a credential (`auth`) and declares none
+     * has one slot, `default`: `credentialSlots(descriptor)` reads either. @defaultValue []
+     */
+    readonly credentials?: readonly SourceCredentialSlot[] | undefined;
     /**
      * Where an `api-key` credential goes, for a form that asks for the key alone: pass it to
      * `credentials.apiKey(descriptor.apiKey, key)`. Absent when the caller must say.

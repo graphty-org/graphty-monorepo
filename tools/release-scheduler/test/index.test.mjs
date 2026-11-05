@@ -167,6 +167,14 @@ describe("checkDeployKeys", () => {
         assert.doesNotMatch(body, /ssh-ed25519|inst-token/);
     });
 
+    it("accepts the key release.yml pushes with (167635448) and flags the retired one (#3628)", async () => {
+        const live = { id: 167635448, title: "release deploy key 2026-10-25", read_only: false };
+        const retired = { id: 164375816, title: "release workflow push", read_only: false };
+        assert.equal((await checkDeployKeys(env, { fetch: github({ keys: [live] }).fetch })).ok, true);
+        const both = await checkDeployKeys(env, { fetch: github({ keys: [retired, live] }).fetch });
+        assert.deepEqual(both, { ok: false, writeKeyIds: [164375816, 167635448] });
+    });
+
     it("files when the release key is gone, and comments on an open issue instead of opening another", async () => {
         const open = [{ number: 51, title: DEPLOY_KEY_ISSUE_TITLE }];
         const { fetch, calls } = github({ keys: [], openIssues: open });

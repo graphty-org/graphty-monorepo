@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { acceptedBy, finalOf, merge, nestSingle, newestCapture, reshootIds } from "./recapture.mjs";
+import { acceptedBy, finalOf, legShare, merge, nestSingle, newestCapture, reshootIds } from "./recapture.mjs";
 
 isolateGit();
 
@@ -52,6 +52,13 @@ describe("plan", () => {
         assert.equal(newestCapture(dir, "none"), null);
         const items = [item("a", "changed"), item("b", "unchanged"), item("c", "new"), item("a", "changed")];
         assert.deepEqual(reshootIds({ items }), ["a", "c"]);
+    });
+    it("splits the stories into legs that together shoot each one exactly once", () => {
+        const ids = ["a", "b", "c", "d", "e"];
+        const legs = [1, 2, 3, 4].map((n) => legShare(ids, `${n}/4`));
+        assert.deepEqual(legs, [["a", "e"], ["b"], ["c"], ["d"]]);
+        assert.deepEqual(legShare(ids, undefined), ids);
+        assert.throws(() => legShare(ids, "5/4"), /bad --leg/);
     });
 });
 
@@ -148,6 +155,32 @@ describe("merge", () => {
         assert.deepEqual(readFileSync(join(out, "third.png")), red);
         assert.deepEqual(JSON.parse(readFileSync(join(out, "flaky.json"), "utf8")), flaky);
     });
+    it("merges the re-captures of several legs, and fails a story whose leg shot nothing", async () => {
+        const root = mkdtempSync(join(tmpdir(), "recapture-"));
+        const [first, leg1, leg2, out] = ["first", "leg1", "leg2", "out"].map((d) => join(root, d));
+        const red = png(200);
+        capture(first, [item("a", "changed"), item("b", "new"), item("c", "changed")], {
+            "a.png": red,
+            "b.png": red,
+            "c.png": red,
+        });
+        capture(leg1, [item("a", "changed")], { "a.png": red });
+        capture(leg2, [item("b", "unchanged")]);
+        const flaky = await merge({ first, second: [leg1, leg2, join(root, "leg3")], out });
+        assert.deepEqual(
+            flaky.map((f) => f.file),
+            ["b.png"],
+        );
+        const final = JSON.parse(readFileSync(join(out, "results.json"), "utf8"));
+        assert.deepEqual(
+            final.items.map((i) => [i.file, i.status]),
+            [
+                ["a.png", "changed"],
+                ["b.png", "unchanged"],
+                ["c.png", "failed"],
+            ],
+        );
+    });
     it("copies the first capture unchanged when nothing was shot again", async () => {
         const root = mkdtempSync(join(tmpdir(), "recapture-"));
         capture(join(root, "first"), [item("a", "changed")], { "a.png": png(1) });
@@ -164,6 +197,7 @@ describe("acceptedBy", () => {
     it("calls a story unchanged only when its captured PNG is the approved baseline byte for byte", () => {
         const [a, b, c] = [png(10), png(20), png(30)];
         const results = {
+            commit: "H",
             items: [
                 shot("approved", "changed", a, sha(png(1))),
                 shot("other", "changed", b, sha(png(2))),
@@ -175,7 +209,7 @@ describe("acceptedBy", () => {
         };
         const approved = { "approved.png": sha(a), "other.png": sha(png(99)), "added.png": sha(c), "kept.png": "x" };
         assert.equal(
-            acceptedBy(results, (f) => approved[f] ?? null),
+            acceptedBy(results, (f) => approved[f] ?? null, "H"),
             3,
         );
         assert.deepEqual(
@@ -189,6 +223,16 @@ describe("acceptedBy", () => {
             ],
         );
         assert.equal(results.items[0].baseline, sha(a));
+    });
+
+    it("leaves a capture rendered from another commit than the candidate as it is", () => {
+        const a = png(10);
+        const results = { commit: "C", items: [shot("approved", "changed", a, sha(png(1)))] };
+        assert.equal(
+            acceptedBy(results, () => sha(a), "H"),
+            0,
+        );
+        assert.equal(results.items[0].status, "changed");
     });
 
     it("reads the approval's Git LFS pointers, and the gate then passes the approved stories", async () => {
@@ -208,6 +252,7 @@ describe("acceptedBy", () => {
         const results = {
             version: 1,
             project: "app",
+            commit: head,
             complete: true,
             expected: 2,
             items: [shot("a", "changed", shotA, sha(png(2))), shot("b", "changed", shotB, sha(png(3)))],
@@ -222,6 +267,8 @@ describe("acceptedBy", () => {
                 "--captures",
                 join(root, "captures"),
                 "--head",
+                head,
+                "--tested",
                 head,
             ],
             { cwd: root, stdio: "ignore" },

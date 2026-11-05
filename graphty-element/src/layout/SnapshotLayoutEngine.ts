@@ -4,10 +4,18 @@ import type { LayoutResult } from "@graphty/layout";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { ElementPositions } from "../data/positions";
 import { readSeedPosition } from "../data/seedPosition";
+import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
-import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
+import {
+    type EdgePosition,
+    layoutDim,
+    LayoutEngine,
+    type Position,
+    simpleLayoutInternals,
+    StaticLayoutEngine,
+} from "./LayoutEngine";
 
 /** How far an arrangement has got, as a layout reports it. */
 export interface SnapshotLayoutProgress {
@@ -90,6 +98,16 @@ export interface SnapshotLayoutInput {
      * @since 3.30.0
      */
     nodeExtents?(): F32;
+    /**
+     * What the stored edge weights mean, for a layout that reads them: `"strength"` (a larger
+     * weight is a stronger connection, drawn shorter), `"distance"` (a larger weight is a longer
+     * edge), or null to leave them unread. Read from `data.knownFields.edgeWeightMeaning`; an
+     * unstated meaning reads as a strength. When the meaning was assumed or cannot be read, the
+     * element emits a `layout-warning` (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`).
+     * @returns the meaning
+     * @since 3.34.0
+     */
+    weightMeaning?(): "strength" | "distance" | null;
     /** Aborted when the answer is no longer wanted: the graph changed, the layout was replaced or the element was disposed. */
     readonly signal: AbortSignal;
     /** Tell the consumer how far the arrangement has got; the element emits it as `layout-progress`. */
@@ -140,6 +158,8 @@ interface SnapshotLayoutHost {
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
     drawPaint(): void;
+    /** What the stored edge weights mean; see {@link SnapshotLayoutInput.weightMeaning}. */
+    weightMeaning?(): "strength" | "distance" | null;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -275,6 +295,47 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         super.refresh();
     }
 
+    /**
+     * A node's coordinates, for the frame drawing it; see {@link SnapshotLayoutEngine.refreshForFrame}.
+     * @param n - The node.
+     * @returns Its coordinates.
+     */
+    override getNodePosition(n: Node): Position {
+        this.refreshForFrame();
+        return super.getNodePosition(n);
+    }
+
+    /**
+     * An edge's endpoints, for the frame drawing it; see {@link SnapshotLayoutEngine.refreshForFrame}.
+     * @param e - The edge.
+     * @returns Its endpoints' coordinates.
+     */
+    override getEdgePosition(e: Edge): EdgePosition {
+        this.refreshForFrame();
+        return super.getEdgePosition(e);
+    }
+
+    /**
+     * Recompute a stale layout for a frame's node or edge update, reporting a refusal instead of
+     * throwing it. A frame that reads a node or an edge of a graph the layout refuses (planar over
+     * an edge that made it K5) would otherwise abort its whole update pass with the layout
+     * package's uncoded error, which never reached the error event. Reported through the layout
+     * manager, it arrives as the coded refusal; the refused run places nothing, so every node is
+     * then read where it already was. An engine nobody connected throws, as before.
+     */
+    private refreshForFrame(): void {
+        const host = this.#host;
+        if (host === null || !this.stale) {
+            return;
+        }
+
+        try {
+            this.refresh();
+        } catch (error) {
+            host.fail(error);
+        }
+    }
+
     /** Call off an answer still being computed, which aborts its signal. */
     override dispose(): void {
         this.#abort();
@@ -365,6 +426,10 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             graph,
             stored,
             firstRun: !this.#published,
+            weightMeaning: () => {
+                const host = this.#host;
+                return host?.weightMeaning === undefined ? "strength" : host.weightMeaning();
+            },
             dimensions: dim,
             options,
             scope,
@@ -406,7 +471,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // now. Wait for it here if a layout is ever seen starting mid-pass.
             nodeSizes: () => {
                 this.#host?.drawPaint();
-                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.layoutRadius));
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
@@ -484,11 +549,11 @@ export function registerSnapshotLayout(registration: SnapshotLayoutRegistration)
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
-        static override type = descriptor.id;
-        static maxDimensions = descriptor.maxDimensions;
-        static override honoursWeights = honoursWeights;
-        static override scoped = scoped;
-        static override descriptor: AuthoredLayoutDescriptor = descriptor;
+        static override readonly type = descriptor.id;
+        static readonly maxDimensions = descriptor.maxDimensions;
+        static override readonly honoursWeights = honoursWeights;
+        static override readonly scoped = scoped;
+        static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 
         protected readonly dimensions: 2 | 3;
         protected readonly options: Readonly<Record<string, unknown>>;

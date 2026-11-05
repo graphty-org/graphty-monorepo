@@ -6,10 +6,11 @@
  * `graph-io/test/fidelity/scenes/`.
  *
  * Each sample's scene is then scored against its reference scenes by the comparer
- * (`graph-io/test/fidelity/compare.ts`) into `out/<sample>.result.json`, and the test fails when a
- * property's pass rate drops below the one recorded in `baseline-scores.json`. After the run,
- * `out/report.html` shows every sample with a result. Record new floors (after a fix lands) with
- * GRAPHTY_FIDELITY_RECORD=1.
+ * (`graph-io/test/fidelity/compare.ts`) into `out/<sample>.result.json`, and the test fails when an
+ * element fails a property that `baseline-scores.json` does not list for it (`known`); pass rates
+ * are reported against its `floors` in `out/gate.txt`, never gated (`oracle/floors.ts`). After the
+ * run, `out/report.html` shows every sample with a result, and `npm run fidelity:ratchet` takes
+ * what passes now off the known failures and raises the floors.
  *
  *     GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_EGL_LIB_DIR=<libEGL dir> npm run test:fidelity
  *
@@ -18,7 +19,15 @@
  * The flag set is recorded in each scene's provenance, since a GPU also changes which force layout
  * implementation runs.
  */
-import { Color3, Color4, InstancedMesh, type Mesh, StandardMaterial } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    Color3,
+    Color4,
+    InstancedMesh,
+    type Mesh,
+    StandardMaterial,
+    Vector3,
+} from "@babylonjs/core";
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 import { commands, page } from "vitest/browser";
 
@@ -26,18 +35,16 @@ import { compareSample, compareScenes, type SampleResult } from "../../../graph-
 import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import type { Property, Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graph } from "../../src/Graph";
-import { NodeEffects } from "../../src/meshes/NodeEffects";
-import { drawnScene, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "./mount";
+import { drawnScene, GPU, mountSample, nodeKeys, readJson, referenceScenes, unmount } from "./mount";
+import { type Floors, gateMessages, gateReportText, judgeKey, type KeyGate, type KnownFailures } from "./oracle/floors";
 import { renderReport, type ReportSample, type SelfCheck } from "./report";
 
 const OUT = "test/fidelity/out";
-const RECORD = (import.meta.env.GRAPHTY_FIDELITY_RECORD as string | undefined) === "1";
 const BASELINE = "test/fidelity/baseline-scores.json";
 
-/** Per sample, per property: the pass rate a run may not drop below. */
-type Baseline = Record<string, Record<string, number>>;
-
-const baseline: Baseline = (await readJson<Baseline>(BASELINE)) ?? {};
+/** Per sample, per property: the elements known to fail, and the best pass rate recorded (informational). */
+const baseline = (await readJson<{ known?: KnownFailures; floors?: Floors }>(BASELINE)) ?? {};
+const gates: KeyGate[] = [];
 
 afterEach(() => {
     unmount();
@@ -113,11 +120,17 @@ const FAULTS: readonly Fault[] = [
         },
     },
     {
-        name: "a glow turned on around every node",
+        // Not a glow: a glow is a blurred halo, not a line round the node, so it is no border (extract-scene.ts
+        // `drawnBorderOf`). A widened ring is what a border width reader must catch (issue #5364).
+        name: "every border ring drawn three times as large",
         property: "borderWidth",
+        sample: "gexf-miserables",
         plant: (graph) => {
             for (const node of graph.getDataManager().nodes.values()) {
-                NodeEffects.applyGlowEffect(node.mesh, { glow: { color: "#ff00ff", strength: 1 } });
+                const ring = (node as unknown as { border: AbstractMesh | null }).border;
+                if (ring !== null) {
+                    ring.scaling = ring.scaling.multiply(new Vector3(3, 3, 1));
+                }
             }
         },
     },
@@ -188,31 +201,26 @@ describe("style fidelity: graphty-element's drawing of each sample", () => {
         assert.strictEqual(scene.nodes.length, counts.nodes);
         assert.strictEqual(scene.edges.length, counts.edges);
 
-        const floors = baseline[id] ?? {};
-        if (RECORD) {
-            baseline[id] = Object.fromEntries(
-                Object.entries(result.properties).flatMap(([p, r]) => (r.passRate === null ? [] : [[p, r.passRate]])),
-            );
-            return;
-        }
-        const dropped = Object.entries(floors).filter(([p, floor]) => {
-            const rate = result.properties[p as keyof SampleResult["properties"]].passRate;
-            return rate === null || rate < floor - 1e-9;
-        });
-        assert.deepEqual(
-            dropped.map(
-                ([p, floor]) =>
-                    `${p}: ${String(result.properties[p as keyof SampleResult["properties"]].passRate)} < ${String(floor)}`,
-            ),
-            [],
-            `${id}: pass rates fell below baseline-scores.json`,
+        const rated = Object.entries(result.properties).filter(([, r]) => r.passRate !== null);
+        const gate = judgeKey(
+            id,
+            {
+                failures: Object.fromEntries(
+                    rated.flatMap(([p, r]) => (r.failing.length === 0 ? [] : [[p, r.failing]])),
+                ),
+                scores: Object.fromEntries(rated.map(([p, r]) => [p, r.passRate ?? 0])),
+            },
+            baseline.known?.[id],
+            baseline.floors?.[id],
+            { gpu: GPU },
         );
+        gates.push(gate);
+        assert.deepEqual(gateMessages(gate), [], `${id}: an element fails that baseline-scores.json does not list`);
     });
 
     afterAll(async () => {
-        if (RECORD) {
-            await commands.writeFile(BASELINE, `${JSON.stringify(baseline, null, 4)}\n`);
-        }
+        await commands.writeFile(`${OUT}/gate.json`, `${JSON.stringify({ gpu: GPU, baseline: null, keys: gates })}\n`);
+        await commands.writeFile(`${OUT}/gate.txt`, gateReportText(gates, GPU, null));
         const samples: ReportSample[] = [];
         for (const s of SAMPLES) {
             const result = await readJson<SampleResult>(`${OUT}/${s.id}.result.json`);

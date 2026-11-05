@@ -45,7 +45,14 @@ import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
-import { ARROW_SHAPES, ARROW_SHAPES_NEAREST, FILE_STYLE_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST } from "./shapes";
+import {
+    ARROW_SHAPES,
+    ARROW_SHAPES_NEAREST,
+    FILE_STYLE_SHAPES,
+    LINE_STYLES,
+    LINE_STYLES_NEAREST,
+    TOOL_ARROW_SHAPES,
+} from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
 import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
@@ -152,7 +159,11 @@ function inverse(
 
 const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES));
 const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
-const ARROW_OF = inverse(ARROW_SHAPES, ARROW_SHAPES_NEAREST);
+// a cap only one program's arrow is drawn as (Cytoscape's half barb, vis-network's crow) writes that arrow back
+const ARROW_OF = inverse(
+    [ARROW_SHAPES, ...TOOL_ARROW_SHAPES.values()].flatMap((table) => [...table]),
+    ARROW_SHAPES_NEAREST,
+);
 
 const color: PropertyPlan["toNeutral"] = (value) => {
     const found = colorOf(value);
@@ -187,6 +198,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.outline", plan(color, "borderColor")],
         ["node.label", plan(text, "label")],
         ["node.tooltip", plan(text, "tooltip")],
+        ["node.xlabel", plan(text, "xlabel")],
         ["node.labelColor", plan(color, "labelColor")],
         ["node.labelSize", plan(number, "labelSize")],
         ["node.labelFont", plan(text, "labelFont")],
@@ -226,6 +238,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.label", plan(text, "label")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],
+        ["edge.xlabel", plan(text, "xlabel")],
         ["edge.labelColor", plan(color, "labelColor")],
         ["edge.labelSize", plan(number, "labelSize")],
         ["edge.labelFont", plan(text, "labelFont")],

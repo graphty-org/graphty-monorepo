@@ -18,6 +18,7 @@ import { LAYOUT_DEFINITIONS } from "./layout";
 import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
 import { SET_DEFINITIONS } from "./sets";
+import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
 import { STYLE_DEFINITIONS } from "./style";
@@ -99,6 +100,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,
+    ...SHADER_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { breadthFirstSearch } from "../../../src/indexed/bfs.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { TraversalResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // Built in EXACTLY this order: the assertions below are written in the index space toSnapshot

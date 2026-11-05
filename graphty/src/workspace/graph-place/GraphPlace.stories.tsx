@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
@@ -57,30 +56,7 @@ async function run(element: GraphtyElement, algorithm: string): Promise<void> {
  * @param text - what to type.
  */
 async function find(canvasElement: HTMLElement, text: string): Promise<void> {
-    await userEvent.type(
-        await within(canvasElement).findByRole("combobox", { name: "Find" }, storyWaitOptions(1000)),
-        text,
-    );
-}
-
-/**
- * What the find box shows, for a story's log: its text, the line under it and where focus is.
- * @param canvasElement - the story's root.
- * @returns the state, in one line.
- */
-function findBoxState(canvasElement: HTMLElement): string {
-    const box = within(canvasElement).queryByRole("combobox", { name: "Find" });
-    if (!(box instanceof HTMLInputElement)) {
-        return "no find box";
-    }
-    const line = (box.getAttribute("aria-describedby") ?? "")
-        .split(/\s+/)
-        .map((id) => (id === "" ? "" : (document.getElementById(id)?.textContent ?? "")))
-        .join(" ")
-        .trim();
-    const focus = document.activeElement;
-    const focused = focus === null ? "nothing" : `${focus.tagName.toLowerCase()}${focus === box ? " (the box)" : ""}`;
-    return `text "${box.value}", line "${line}", focus on ${focused}`;
+    await userEvent.type(await within(canvasElement).findByRole("combobox", { name: "Find" }), text);
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -122,11 +98,9 @@ export const Hidden: Story = {
         await run(element, "pagerank");
         const [listed] = element.session.runs.list();
         const layer = listed === undefined ? undefined : element.session.runs.bindings(listed.id)[0];
-        const eye = await within(canvasElement).findByRole(
-            "button",
-            { name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}` },
-            storyWaitOptions(1000),
-        );
+        const eye = await within(canvasElement).findByRole("button", {
+            name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}`,
+        });
         await userEvent.click(eye);
         await userEvent.unhover(eye);
         await element.waitForStableFrame();
@@ -160,22 +134,13 @@ export const FindNoMatch: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
-        console.warn("[FindNoMatch] data loaded and drawn");
         await find(canvasElement, "xyz");
         // The box asks the element whether the text reads as a rule once typing pauses, and only
         // its answer ("no") brings the example: until then the line is a bare "No match". Ended at
         // the answer, the story draws the same line however late it is shot.
-        // This story times out now and then in CI (#3765) and nowhere else yet: each state the
-        // wait sees is logged once, so a timed-out run's output names the state it stuck in.
-        let seen = "";
         await waitFor(() => {
-            const state = findBoxState(canvasElement);
-            if (state !== seen) {
-                seen = state;
-                console.warn(`[FindNoMatch] waiting for the example rule; saw ${state}`);
-            }
             expect(canvasElement.querySelector(".ws-find-example")).not.toBeNull();
-        }, storyWaitOptions(1000));
+        });
     },
 };
 

@@ -18,9 +18,6 @@ import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Two rings of six joined by one bridge; each node labeled. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}` }));
 const ring = (from: number): { source: string; target: string }[] =>
@@ -38,14 +35,11 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -72,7 +66,7 @@ const inspector = (): ReturnType<typeof within> => within(screen.getByRole("comp
  * @returns the row.
  */
 async function treeRow(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     return within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
 }
 
@@ -232,10 +226,11 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        const add = await inspector().findByRole("button", { name: "Add to node shape" });
+        // Fill holds one property, Color, which Everything sets (Shape's "+" still offers a sprite).
+        const add = await inspector().findByRole("button", { name: "Add to node fill" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");
-        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node shape is set");
+        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node fill is set");
     });
 
     it("disabled Undo and Redo stay Tab stops; the canvas toolbar is entered at Analyze", async () => {
@@ -285,13 +280,13 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     it("Escape leaves the layer-checking mode before it clears a selection", async () => {
         const { session } = await openRings();
         await session.selection.apply({ nodes: ["n1"] });
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select layers..." }));
-        await screen.findByText("Check the layers to select them");
+        await userEvent.click(await treeRow("Everything"), { button: "right" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select more" }));
+        await screen.findByText("1 selected");
         screen.getByRole("button", { name: "Main menu" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByText("Check the layers to select them"));
+            assert.isNull(screen.queryByText("1 selected"));
         });
         assert.strictEqual(session.selection.size, 1, "the same Escape cleared the selection");
     });

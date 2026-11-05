@@ -57,10 +57,16 @@ const TRANSCRIBE_INSTRUCTION =
  * @param record - Where the response is recorded.
  * @param signal - The call's signal.
  * @param onSend - Called as each request is sent.
+ * @param base - The consumer's fetch (`ProviderOptions.fetch`).
  * @returns The fetch.
  */
-function voiceFetch(record: ResponseRecord, signal: AbortSignal, onSend: () => void): typeof globalThis.fetch {
-    const fetch = recordingFetch(record);
+function voiceFetch(
+    record: ResponseRecord,
+    signal: AbortSignal,
+    onSend: () => void,
+    base?: typeof globalThis.fetch,
+): typeof globalThis.fetch {
+    const fetch = recordingFetch(record, base);
     return Object.assign(
         (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
             onSend();
@@ -139,9 +145,14 @@ async function attempt<T>(
         }
 
         const value = await call(
-            voiceFetch(record, signal, () => {
-                sent = true;
-            }),
+            voiceFetch(
+                record,
+                signal,
+                () => {
+                    sent = true;
+                },
+                settings.fetch,
+            ),
         );
         if (signal.aborted) {
             throw new DOMException("The call was cancelled.", "AbortError");

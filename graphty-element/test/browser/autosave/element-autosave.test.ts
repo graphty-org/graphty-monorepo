@@ -14,8 +14,10 @@ import "../../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AutosaveAtRisk, AutosaveAvailable, AutosaveRestored, AutosaveStatus, Graphty } from "../../../index.js";
+import { listAutosaves } from "../../../src/autosave/elementAutosave";
 import { memoryAutosaveStore } from "../../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../../src/autosave/types";
+import { write } from "../../autosave/store-contract";
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }];
 const EDGES = [
@@ -366,6 +368,27 @@ describe("events", () => {
         assert.strictEqual(restored[0]?.entry.id, back?.entry.id);
         assert.strictEqual(restored[0]?.revision, 1);
         assert.deepStrictEqual(statuses, [], "a restore at connect fires no status event");
+    });
+});
+
+describe("this tab's own entry", () => {
+    it("two lookups at once both report the entry this tab's session storage names as its own", async () => {
+        const key = keyFor("own-twice");
+        const store = memoryAutosaveStore();
+        await store.commit([write("mine", key, 0, { rest: "mine" }, { dirty: true })]);
+        sessionStorage.setItem(`graphty-autosave:own:${key}`, "mine");
+        cleanups.push(() => {
+            sessionStorage.removeItem(`graphty-autosave:own:${key}`);
+        });
+
+        // A React effect that runs twice on mount lists twice before either has finished.
+        const [first, second] = await Promise.all([listAutosaves(key, { store }), listAutosaves(key, { store })]);
+        for (const listed of [first, second]) {
+            assert.deepEqual(
+                listed.map(({ id, own, live }) => ({ id, own, live })),
+                [{ id: "mine", own: true, live: false }],
+            );
+        }
     });
 });
 

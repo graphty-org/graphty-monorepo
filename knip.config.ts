@@ -23,6 +23,8 @@ const config: KnipConfig = {
                 "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
+                // Every package's wait guard setup file (named in their vitest configs)
+                "vitest.wait-guard-setup.ts",
                 // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
                 "vitest.map-tiles-setup.ts",
                 "docs/.vitepress/config.ts",
@@ -41,7 +43,6 @@ const config: KnipConfig = {
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [
                 // Nx plugins are used dynamically
-                "@nx/react",
                 "@nx/js",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
@@ -110,7 +111,6 @@ const config: KnipConfig = {
                 // esbuild from test/fidelity/oracles/tools/web/ and test/fidelity/generators/specimens/
                 "@resvg/resvg-js",
                 "@sigma/export-image",
-                "esbuild",
                 "graphology",
                 "sigma",
                 "svgcanvas",
@@ -274,6 +274,10 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The lazily imported model chunk (design/rendering/node-models.md). Nothing imports it
+                // yet: drawing nodes as models, the package that adds the one dynamic import() of it,
+                // comes next, and until then tools/check-bundle-size.mjs builds it on its own.
+                "src/models/chunk.ts!",
                 // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
                 // does not map back to a source file, so it is listed for both runs.
                 "jsx.ts!",
@@ -320,6 +324,7 @@ const config: KnipConfig = {
                           "@tanstack/ai-code-mode",
                           "@tanstack/ai-isolate-quickjs",
                           "@jitl/quickjs-wasmfile-release-sync",
+                          "@jsonhero/json-infer-types",
                       ]
                     : []),
                 // Storybook addons

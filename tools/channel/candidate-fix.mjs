@@ -15,8 +15,10 @@
 //       issue once, and skipped from then on.
 //       The merges of the pull requests FIX_PR names (release.yml's `fix_pr`, comma-separated, set by release-due on
 //       fixes whose description alone references the hold issue) are fixes too.
-//       env RESULTS_URL and the job's OIDC token, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL, FIX_PR; git: master's checkout
-//       with full history, pushing with the deploy key; writes head and moved to GITHUB_OUTPUT
+//       A store that does not answer fails the job, except in a full or restart run naming no FIX_PR, which warns and
+//       moves nothing (the fixes wait for the next run).
+//       env RESULTS_URL and the job's OIDC token, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL, FIX_PR, MODE; git: master's
+//       checkout with full history, pushing with the deploy key; writes head and moved to GITHUB_OUTPUT
 //   node tools/channel/candidate-fix.mjs plan      release.yml's pick job, when it tests a held head past C and the
 //       repository variable CANDIDATE_RETEST is `affected`. Unset (the first version, owner 2026-10-26), the step is
 //       skipped and the head is re-tested whole: every lane and the whole screenshot capture, a full run's.
@@ -236,7 +238,16 @@ function mergeFixes(hold, merges, said, runUrl, fixPr) {
 
 async function advance(env) {
     const cfg = config(env);
-    const { hold } = await storeHold(cfg);
+    let hold;
+    try {
+        ({ hold } = await storeHold(cfg));
+    } catch (error) {
+        // a scheduled run that names no fix: nobody waits on it, so a silent store must not turn a green run red
+        if (env.FIX_PR || !["full", "restart"].includes(env.MODE)) throw error;
+        console.log(`::warning::${error.message}: no fix merged into the candidate this run`);
+        output({ head: "", moved: "false" });
+        return;
+    }
     if (!hold) {
         output({ head: "", moved: "false" });
         console.log("::notice::nothing is held: no fix forward");

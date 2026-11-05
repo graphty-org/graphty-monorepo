@@ -21,6 +21,21 @@ const DOT = `digraph {
   b -> m1;
 }`;
 
+/** {@link DOT}'s nodes and edges with the cluster declared last, so the group takes the last row. */
+const DOT_CLUSTER_LAST = `digraph {
+  a -> b;
+  m1; m2; m1 -> m2;
+  b -> m1;
+  subgraph clusterC { label="c"; m1; m2; }
+}`;
+
+/** The same nodes and edges in the same order, with no cluster. */
+const DOT_WITHOUT_CLUSTER = `digraph {
+  a -> b;
+  m1; m2; m1 -> m2;
+  b -> m1;
+}`;
+
 const GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">
   <graph id="G" edgedefault="directed">
@@ -169,6 +184,43 @@ describe("a group with no stored position follows its members", () => {
         assert.isUndefined(layout.groupBox("free"), "an ordinary node keeps its saved position");
     });
 
+    it("sizes a Cytoscape.js compound by its padding, minimum width and bias, as Cytoscape.js does", async () => {
+        // three compounds round the same two 20 px nodes 100 apart (120 px across their outlines): no padding, 20 px of
+        // padding (160 across), and none with a 300 px minimum width that all grows to the left
+        const pair = (g: string, y: number): unknown[] => [
+            { data: { id: g } },
+            { data: { id: `${g}-a`, parent: g }, position: { x: 0, y } },
+            { data: { id: `${g}-b`, parent: g }, position: { x: 100, y } },
+        ];
+        const sized = JSON.stringify({
+            elements: { nodes: [...pair("g0", 0), ...pair("g1", 200), ...pair("g2", 400)], edges: [] },
+            style: [
+                { selector: "node", style: { width: 20, height: 20, "border-width": 0 } },
+                { selector: ":parent", style: { padding: 0 } },
+                { selector: "#g1", style: { padding: "20px" } },
+                { selector: "#g2", style: { "min-width": "300px", "min-width-bias-left": "100%" } },
+            ],
+        });
+        // read with its styles and its positions, as a reader of the file sees it
+        await graph
+            .getSession()
+            .data.import({ type: "json", config: { data: sized } }, { styles: "file", layout: "recommended" });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.getSession().styles.settled();
+        await graph.waitForStableFrame();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const box = (id: string): { left: number; right: number; width: number } => {
+            const b = layout.groupBox(id);
+            assert.isDefined(b, `${id} follows its members`);
+            return { left: b.center.x - b.half.x, right: b.center.x + b.half.x, width: 2 * b.half.x };
+        };
+        const [g0, g1, g2] = [box("g0"), box("g1"), box("g2")];
+        assert.closeTo(g1.width / g0.width, 160 / 120, 0.02, "padded 20 px on each side");
+        assert.closeTo(g2.width / g0.width, 300 / 120, 0.02, "at least its minimum width");
+        assert.closeTo(g2.right, g0.right, 1e-6, "grown to the left only");
+    });
+
     it("draws a group around a group it holds alone, its margin wide on every side, not over it", async () => {
         const nested = JSON.stringify({
             elements: [
@@ -251,9 +303,12 @@ describe("a group with no stored position follows its members", () => {
         // so where the camera stood before decided the zoom, and nothing redrew the group once the layout rested, so
         // it stayed sized for the camera before the last framing: the same file drew two pictures (issue #4088).
         await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        // The group's face is read below as it is drawn, so its paint has to have landed: on a slow
+        // frame (or under the minimum-work test mode) the load's repaint is still applied in batches.
+        graph.getLayoutManager().running = false;
+        await graph.waitForStableFrame();
         const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
         try {
-            graph.getLayoutManager().running = false;
             const group = graph.getDataManager().nodes.get("clusterC");
             assert.isDefined(group);
             const camera = graph.getScene().activeCamera;
@@ -261,7 +316,8 @@ describe("a group with no stored position follows its members", () => {
             const framed = (z: number): number => {
                 camera.position.z = z;
                 group.update();
-                return group.framingHalf("x");
+                const box = group.framingBounds();
+                return (box.max.x - box.min.x) / 2;
             };
             const near = framed(-10);
             const far = framed(-1000);
@@ -405,6 +461,69 @@ describe("a group with no stored position follows its members", () => {
             release();
         }
     });
+
+    /**
+     * Run a simulation layout over a file a counted number of steps and read where its nodes end.
+     * @param on - The graph.
+     * @param layout - The simulation layout's name.
+     * @param data - The DOT file.
+     * @param group - The group to hold, checked unmoved after every step, or null.
+     * @returns Each node's coordinates by id.
+     */
+    async function simulate(
+        on: Graph,
+        layout: string,
+        data: string,
+        group: string | null,
+    ): Promise<Map<string, number[]>> {
+        await on.setLayout(layout, { seed: 3 });
+        await on.addDataFromSource("dot", { data });
+        await operationQueueOf(on).waitForCompletion();
+        const manager = on.getLayoutManager();
+        manager.running = true;
+        manager.placeGroups();
+        const read = (id: string): number[] => {
+            const node = on.getDataManager().nodes.get(id);
+            assert.isDefined(node, id);
+            const out = { x: Number.NaN, y: Number.NaN, z: Number.NaN };
+            on.getDataManager().positions.read(node.index, out);
+            return [out.x, out.y, out.z];
+        };
+        for (let step = 0; step < STEPS; step++) {
+            const was = group === null ? null : read(group);
+            manager.step();
+            // Before the members have a position the group has no box, so the first step has nothing to hold.
+            if (was !== null && was.every(Number.isFinite)) {
+                assert.deepEqual(read(group as string), was, `step ${step}: ${layout} moved group ${group}`);
+            }
+
+            manager.placeGroups();
+        }
+
+        return new Map(["a", "b", "m1", "m2"].map((id) => [id, read(id)]));
+    }
+
+    // Issue #3075: a group held at its members' box used to repel them in the simulation layouts.
+    for (const layout of ["forceatlas2", "spring"]) {
+        it(`holds a group still under ${layout} and lays its members out as without it`, async () => {
+            const withGroup = await simulate(graph, layout, DOT_CLUSTER_LAST, "clusterC");
+            const plainContainer = document.createElement("div");
+            plainContainer.style.width = "400px";
+            plainContainer.style.height = "300px";
+            document.body.appendChild(plainContainer);
+            const plain = new Graph(plainContainer);
+            try {
+                await plain.init();
+                const without = await simulate(plain, layout, DOT_WITHOUT_CLUSTER, null);
+                for (const [id, p] of without) {
+                    assert.deepEqual(withGroup.get(id), p, `${layout}: ${id} lands where it does without the group`);
+                }
+            } finally {
+                plain.dispose();
+                plainContainer.remove();
+            }
+        });
+    }
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {
         graph.setLayoutBehavior({ layout: { groupsFollowMembers: false } });

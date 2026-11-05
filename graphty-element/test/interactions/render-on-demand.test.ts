@@ -464,6 +464,55 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    // A frame drawn again only to check that the one before left nothing moving costs a software
+    // GPU 200 to 800 ms of the page's main thread under load, and a reader's click waits behind it
+    // (#3537). A change made outside a frame is drawn by one frame.
+    it("draws a resize in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        element.style.height = `${String(HEIGHT - 60)}px`;
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the new size");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a camera moved through the API in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.setCameraState({ position: { x: 0, y: 0, z: 40 }, target: { x: 0, y: 0, z: 0 } });
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the moved camera");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("keeps drawing a camera that something moves inside each frame, until it stops", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const { scene } = element.graph;
+        const camera = scene.activeCamera;
+        assert.isNotNull(camera);
+        const STEPS = 10;
+        let steps = 0;
+        // Moves the camera only while a frame is drawn, as an inertia applied in onBeforeRender
+        // does: no tick can see the move before the frame that makes it.
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            if (steps < STEPS) {
+                steps++;
+                camera.position.z -= 1;
+            }
+        });
+        cleanups.push(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+        });
+
+        await restsOnTheCurrentPicture(element);
+        assert.strictEqual(steps, STEPS, "every step of the move was drawn");
+    });
+
     it("draws a selection style set while resting", async () => {
         const element = await mounted(true);
         await click(element, at(element, "b"));
@@ -472,6 +521,73 @@ describe("renderOnDemand", () => {
         element.selectionStyle = { color: "#7CB342", scale: 2 };
         await restsOnTheCurrentPicture(element);
         assert.isAbove(restyled.count(), 0, "the new selection style was drawn");
+    });
+
+    // Each pass over project state asked for a frame, and on a software GPU under load each frame
+    // costs the page 200 to 800 ms of its main thread: designating a time field and picking a step
+    // drew two frames of a picture neither changes (#4196).
+    it("draws no frame for a time field or a playback setting, which change no picture", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([{ id: "d", t: 2, position: { x: 0, y: -3, z: 0 } }]);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await element.session.time.setSettings({ step: 1, mode: "cumulative" });
+        await element.session.styles.settled();
+        await untilResting(element);
+
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for a setting that draws nothing");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    // Ignoring a data issue writes only the issue state, which draws nothing, yet its pass drew a
+    // whole frame: on the airline sample each one cost 2.4 s of a software GPU (#3973).
+    it("draws no frame for ignoring a data issue, and one for the change after it", async () => {
+        const element = await mounted(true);
+        await element.session.data.import({ type: "csv", config: { data: "source,target\na,b\na,b\n" } });
+        await element.waitForStableFrame();
+        await untilResting(element);
+        const issues = element.session.data.issues();
+        assert.isNotEmpty(issues, "the repeated edge is an issue");
+        const before = loopTicks(element).drawn;
+
+        await element.session.data.ignoreIssues(issues);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for the issue state");
+        assert.isEmpty(element.session.data.issues(), "the issue is ignored");
+
+        const { drawn } = loopTicks(element);
+        await element.session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await untilResting(element);
+        assert.isAtLeast(loopTicks(element).drawn - drawn, 1, "the style after it is drawn");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a time window and its ghosts, which a pass asks no frame for", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([
+            { id: "d", t: 1, position: { x: 0, y: -3, z: 0 } },
+            { id: "e", t: 5, position: { x: 3, y: -3, z: 0 } },
+        ]);
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await untilResting(element);
+
+        const windowed = countDraws(element);
+        await element.session.time.window({ from: 0, to: 2 });
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(windowed.count(), 0, "the window was drawn");
+
+        const ghosted = countDraws(element);
+        await element.session.time.setSettings({ outside: "ghost" });
+        await element.session.styles.settled();
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(ghosted.count(), 0, "the ghosts were drawn");
     });
 
     it("draws a camera moved and animated through the API, then rests", async () => {
@@ -564,6 +680,38 @@ describe("renderOnDemand", () => {
 
         assert.isAbove(result.blob.size, 0, "the recording holds video");
         assert.isAbove(draws.count(), 5, "the still graph was drawn while it was recorded");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("rests a turning graph while its canvas is out of view, and draws it again in view", async () => {
+        // A graph below the fold kept drawing every turn of its camera nobody could see: on a
+        // software GPU the start page's hero cost the page about 160 ms a frame (#4426).
+        const element = await mounted(true);
+        const yaw = (): number => element.getCameraState().pivotRotation?.y ?? Number.NaN;
+        element.autoRotate = 1;
+        const inView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(inView.rested, 0, "in view, the turning is drawn at every chance");
+
+        // Below the viewport, at the same size.
+        element.style.marginTop = "300vh";
+        await untilResting(element);
+        const before = yaw();
+        const outOfView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(outOfView.drawn, 0, "out of view, the turning draws nothing");
+        assert.notStrictEqual(yaw(), before, "the camera kept turning");
+
+        element.style.marginTop = "";
+        const draws = countDraws(element);
+        const back = loopTicks(element).rested;
+        while (draws.count() === 0) {
+            if (loopTicks(element).rested - back > MAX_DRAWS) {
+                throw new Error("the turning graph was not drawn again back in view");
+            }
+
+            await nextFrame();
+        }
+
+        element.autoRotate = 0;
         await restsOnTheCurrentPicture(element);
     });
 

@@ -641,7 +641,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
     const actions: ActionSpec[] = [
         {
             name: "add",
-            summary: "a new layer; edit one: update",
+            summary: "a new layer",
             fields: { ...targetFields, values, name, position, relativeTo: relativeTo },
             effect: "write",
             reaches: [
@@ -738,7 +738,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "move",
-            summary: "reorder a layer",
+            summary: "reorder",
             fields: { layer, position, relativeTo: relativeTo },
             effect: "write",
             reaches: [{ door: "StylesApi.move" }, { op: "style.patch" }],
@@ -862,7 +862,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "clear_mine",
-            summary: "remove all your layers",
+            summary: "your layers",
             fields: {},
             effect: "write",
             reaches: [{ door: "StylesApi.removeBySource" }, { op: "style.patch" }],

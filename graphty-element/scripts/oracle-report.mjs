@@ -68,6 +68,15 @@ function verdictText(verdict, passText, failText) {
     }
     return verdict.pass ? passText : `${verdict.failing} ${failText}`;
 }
+/** The overlay figure's content: the image, or why there is none. */
+function overlayCell(r, out, id) {
+    if (r.transform?.unrelatedLayout === true) {
+        return "no overlay: the two layouts are each program's own and unrelated, so the drawings are shown side by side";
+    }
+    return existsSync(join(out, `${id}.overlay.png`))
+        ? `<img src="${esc(id)}.overlay.png" alt="overlay">`
+        : "no raster oracle";
+}
 const pct = (r) => (r === null || r === undefined ? "--" : `${(r * 100).toFixed(1)}%`);
 const tone = (r) => {
     if (r === null || r === undefined) {
@@ -131,6 +140,11 @@ for (const r of reports) {
         [join(src, `${id}.aligned.png`), `${id}.aligned.png`],
         [join(src, `${id}.json`), `${id}.json`],
     ]) {
+        // between unrelated layouts an aligned oracle is the fit of two unrelated arrangements: none is shown, not
+        // even one left by an earlier run
+        if (r.transform?.unrelatedLayout === true && /\.(overlay|aligned)\.png$/.test(to)) {
+            continue;
+        }
         if (existsSync(from)) {
             copyFileSync(from, join(out, to));
         }
@@ -226,7 +240,7 @@ Fit graphty to oracle: ${fitText}.</p>
 <div class="grid">
 <figure><img src="${esc(id)}.oracle.svg" alt="the program's own SVG"><figcaption>${esc(meta.program ?? "oracle")} SVG (as the program wrote it)</figcaption></figure>
 <figure><img src="${esc(id)}.graphty.png" alt="graphty's canvas"><figcaption>graphty-element canvas</figcaption></figure>
-<figure>${existsSync(join(out, `${id}.overlay.png`)) ? `<img src="${esc(id)}.overlay.png" alt="overlay">` : "no raster oracle"}<figcaption>overlay: the rasterized oracle aligned into graphty's frame at 50%</figcaption></figure>
+<figure>${overlayCell(r, out, id)}<figcaption>overlay: the rasterized oracle aligned into graphty's frame at 50%</figcaption></figure>
 </div>
 <p>Verdict: ${verdictText(r.verdict, "every element passes", "elements fail a property")}${r.standIn ? "; the oracle is a stand-in, scored apart" : ""}.</p>
 <h2>Properties</h2>

@@ -22,6 +22,7 @@ import {
     styleFingerprint,
     type StyleRule,
 } from "../../../src/styles/internal.js";
+import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
 
 const registry = createRegistry();
@@ -520,11 +521,7 @@ describe("GraphML styles: yEd", () => {
             `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
         const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
         const { snapshot, styles } = await load(doc, false);
-        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
-            "polygon",
-            "other:database",
-            "other:com.yworks.bpmn.artifact.withshadow",
-        ]);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "other:database", "rectangle"]);
         // the top right corner (y up) is cut
         expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
             "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
@@ -557,6 +554,140 @@ describe("GraphML styles: yEd", () => {
             null,
         ]);
         expect(resolveStyles(styles, "node", "imageFit", snapshot)).toEqual(["fill", "fill", null]);
+    });
+
+    describe("as yEd's own drawings show them", () => {
+        const values = async (nodes: string, property: StyleProperty): Promise<readonly unknown[]> => {
+            const { snapshot, styles } = await load(`${YED_HEAD}${nodes}</graph></graphml>`, false);
+            return resolveStyles(styles, "node", property, snapshot);
+        };
+        const box = '<y:Geometry height="36" width="56" x="0" y="0"/>';
+        const border = '<y:Fill color="#C8C8C8"/><y:BorderStyle color="#505050" type="line" width="1.0"/>';
+        const realizer = (id: string, type: string, attrs: string, body: string, geometry = box): string =>
+            `<node id="${id}"><data key="d6"><y:${type}${attrs}>${geometry}${border}${body}</y:${type}></data></node>`;
+        const generic = (id: string, conf: string, props = "", geometry = box): string =>
+            realizer(
+                id,
+                "GenericNode",
+                ` configuration="com.yworks.${conf}"`,
+                `<y:StyleProperties>${props}</y:StyleProperties>`,
+                geometry,
+            );
+        const prop = (name: string, value: string): string =>
+            `<y:Property class="java.lang.String" name="com.yworks.bpmn.${name}" value="${value}"/>`;
+        const shapeNode = (id: string, type: string): string =>
+            realizer(id, "ShapeNode", "", `<y:Shape type="${type}"/>`);
+
+        it("draws an entity relationship big entity as a box with corners of 4", async () => {
+            const nodes =
+                generic("a", "entityRelationship.big_entity") + generic("b", "entityRelationship.small_entity");
+            expect((await values(nodes, "shape"))[0]).toBe("round-rectangle");
+            expect((await values(nodes, "cornerRadius"))[0]).toBe(4);
+        });
+
+        it("draws a raised UML class and a 3D rectangle with no outline, and a flat UML class with one", async () => {
+            const uml = (id: string, raised: string): string =>
+                realizer(id, "UMLClassNode", "", `<y:UML use3DEffect="${raised}"/>`);
+            const nodes = uml("a", "true") + uml("b", "false") + shapeNode("c", "rectangle3d");
+            expect(await values(nodes, "borderWidth")).toEqual([0, 1, 0]);
+        });
+
+        it("draws a UML note as a box with a notch of 15 out of its top right corner", async () => {
+            const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
+            expect(await values(nodes, "shape")).toEqual(["polygon"]);
+            expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+        });
+
+        it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {
+            const confs = [
+                "bpmn.Event",
+                "bpmn.Event.withShadow",
+                "bpmn.Gateway",
+                "flowchart.start2",
+                "flowchart.onPageReference",
+                "flowchart.sequentialData",
+                "flowchart.offPageReference",
+                "sbgn.emptySet",
+                "sbgn.operator",
+            ];
+            const nodes = confs.map((conf, i) => generic(`n${String(i)}`, conf)).join("");
+            expect(await values(nodes, "width")).toEqual(confs.map(() => 36));
+            expect(await values(nodes, "height")).toEqual(confs.map(() => 36));
+        });
+
+        it("draws a conversation as a regular hexagon and keeps the other nodes' boxes", async () => {
+            const nodes =
+                generic("a", "bpmn.Conversation") + generic("b", "flowchart.start1") + generic("c", "bpmn.Activity");
+            expect(await values(nodes, "width")).toEqual([41.569, 56, 56]);
+            expect(await values(nodes, "height")).toEqual([36, 36, 36]);
+        });
+
+        it("draws an end event and a call activity with a line of 3 and rounds an activity's corners by 4", async () => {
+            const nodes =
+                generic("a", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_END")) +
+                generic("b", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_CALL_ACTIVITY")) +
+                generic("c", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_START")) +
+                generic("d", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_TRANSACTION"));
+            expect(await values(nodes, "borderWidth")).toEqual([3, 3, 1, 1]);
+            expect((await values(nodes, "cornerRadius"))[1]).toBe(4);
+        });
+
+        it("draws BPMN group, annotation and message artifacts as yEd does", async () => {
+            const tall = '<y:Geometry height="44" width="36" x="0" y="0"/>';
+            const nodes = ["GROUP", "ANNOTATION", "REQUEST_MESSAGE", "REPLY_MESSAGE"]
+                .map((t) => generic(t, "bpmn.Artifact", prop("type", `ARTIFACT_TYPE_${t}`), tall))
+                .join("");
+            expect(await values(nodes, "shape")).toEqual(["round-rectangle", "rectangle", "rectangle", "rectangle"]);
+            expect((await values(nodes, "cornerRadius"))[0]).toBe(4);
+            expect((await values(nodes, "fillOpacity"))[0]).toBe(0);
+            expect((await values(nodes, "borderWidth")).slice(0, 2)).toEqual([1, 0]);
+            // a message is an envelope 3 wide by 2 high, a reply's a darker one
+            expect(await values(nodes, "height")).toEqual([44, 44, 24, 24]);
+            expect((await values(nodes, "fill")).slice(2)).toEqual(["#c8c8c8", "#8c8c8c"]);
+        });
+
+        it("draws a flowchart annotation with no outline round its box", async () => {
+            expect(await values(generic("a", "flowchart.annotation"), "borderWidth")).toEqual([0]);
+            expect(await values(generic("a", "flowchart.annotation"), "shape")).toEqual(["rectangle"]);
+        });
+
+        it("draws the SBGN nodes as yEd draws them", async () => {
+            const nodes =
+                generic("a", "sbgn.simpleChemical") +
+                generic("b", "sbgn.stateVariable") +
+                generic("c", "sbgn.perturbingAgent") +
+                generic("d", "sbgn.nucleicAcidFeature");
+            expect(await values(nodes, "shape")).toEqual(["round-rectangle", "round-rectangle", "polygon", "polygon"]);
+            expect((await values(nodes, "cornerRadius")).slice(0, 2)).toEqual([18, 18]);
+            const points = await values(nodes, "shapePoints");
+            expect(points[2]).toBe("-1,1 1,1 0.679,0 1,-1 -1,-1 -0.679,0");
+            // a flat top and rounded bottom corners, y up
+            expect(String(points[3]).startsWith("-1,1 1,1 1,-0.333")).toBe(true);
+            expect(String(points[3]).endsWith("-1,-0.333")).toBe(true);
+        });
+
+        it("draws the old bevel nodes as boxes with corners of 3", async () => {
+            const nodes =
+                generic("a", "bevelNode") +
+                generic("b", "bevelNode2") +
+                generic("c", "bevelNode3") +
+                generic("d", "bevelNodeWithShadow");
+            expect(await values(nodes, "shape")).toEqual(Array.from({ length: 4 }, () => "round-rectangle"));
+            expect(await values(nodes, "cornerRadius")).toEqual([3, 3, 3, 3]);
+        });
+
+        it("draws the ShapeNode types yEd draws differently from their names", async () => {
+            const types = ["fatarrow", "fatarrow2", "triangle2", "hexagon2", "octagon2"];
+            const nodes = types.map((t) => shapeNode(t, t)).join("");
+            expect(await values(nodes, "shape")).toEqual(["polygon", "polygon", "polygon", "rectangle", "rectangle"]);
+            expect(await values(nodes, "shapePoints")).toEqual([
+                "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0",
+                "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0",
+                "-1,1 1,1 0,-1",
+                null,
+                null,
+            ]);
+        });
     });
 
     it("leaves the yfiles columns as they were", async () => {

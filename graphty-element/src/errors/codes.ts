@@ -100,9 +100,18 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A command, API member, saved document or attribute asked for something whose experiment is
+     * off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+     * `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+     * that part out.
+     */
+    | "E_FEATURE_OFF"
+    /**
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     * @experimental timeline
+     * @beta
      */
     | "E_NO_TIME_FIELD"
     /**
@@ -475,9 +484,11 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
-     * The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
-     * legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
-     * turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+     * leaves empty. Reported as `graph-error`.
      */
     | "E_SHADER_REFUSED"
     /**
@@ -948,6 +959,7 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_FEATURE_OFF: "E_FEATURE_OFF",
     E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",

@@ -1408,6 +1408,14 @@ The annotation, chart color scheme and mapping pages added after the first round
   shows. A chart's own `cy_values` now come before its data columns (`pie-values` on `-p5` and `-p18`).
   stray.present on `images-charts-p5`, `-p6` and `mappings-bypass-p18`: 59 -> 5 failing per format (cx, cx2, cys,
   xgmml). Left: `-p5`/`-p18` one #e8eae8 disc, `-p6` three annotation outlines.
+- Labels outside a node (`json-cyjs-synth-nodes` n32, n35, n95-n99: `label.anchor`). Fixed (#4247, 2026-11-04):
+  Cytoscape.js draws a top label's last line with `textBaseline = "bottom"` at the node's top less its padding
+  (cytoscape.js 3.34.3 `recalculateNodeLabelProjection`, `drawElementText`), so the bottom of its words sits on the
+  node's outline and covers the outer half of a thick border; graphty placed its label's whole box there, its bottom
+  margin and half its leading (about 0.28 of the font size) under the words. graphty-element's new label field
+  `gapOf: "words"` (`labelGapOf`; unset, the whole box as before) places the words' own font box against the node,
+  and a Cytoscape.js file's node labels are translated with it. Only Cytoscape.js files: the other programs' outside
+  labels are not measured against their words.
 
 ## Specimen sheets: Cytoscape desktop label settings graph-io now reads (fix round 1, XGMML, 2026-10-19)
 
@@ -2448,7 +2456,11 @@ Fix round 1 (2026-10-19), against Graphviz 14.1.2's SVG, every DOT sheet and sam
   `<FONT COLOR>` keeps the node's own weight and color (`cluster-label-html` `label.weight`, `n_html2`
   `label.color`); `<BR ALIGN>`, `BALIGN` and a cell's `ALIGN` are not read (`html-br-left`, `html-br-right`,
   `html-td-balign-left`: `label.align`); `<SUB>`, `<SUP>` and `ROWSPAN` lay text out on lines graphty joins
-  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`).
+  (`html-sub`, `html-sup`, `html-td-rowspan`: `label.text`). Since #4247 (2026-11-04) graph-io lowers a `<SUB>` run
+  and raises a `<SUP>` run (`labelRuns` `shift`) by half the font's height, as Chromium draws Graphviz's
+  `baseline-shift="sub"` and `"super"` (0.585 of a DejaVu Sans em, measured). A file's raised or lowered run leaves its
+  line where it was (the label markup's `<nudge>`), as Graphviz keeps the baseline and vis-network draws `y +
+block.vadjust` without growing the line, so `html-sup` `label.anchor` passes.
 - OPEN, graph-io: a cluster's stored `lp` (`cluster-lp`) is not read, and graphty's inside-left and inside-right
   label is a little farther in than Graphviz's (`cluster-labeljust-l`, `-r`: `label.offset`, miss 0.35 of the size);
   a striped cluster (`cluster-style-striped`) is drawn flat (`group.fill`).
@@ -2681,15 +2693,16 @@ Rows still open, each with what stops it:
 - vis-network `interpolation: true`: the oracle draws the upscaled checker crisp (the oracle route's rasterizer),
   graphty smooths it as a canvas would. `broken-image-none` (a picture that cannot load and no `brokenImage`): the
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
-- yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`, draw.io stand-in): the BPMN artifact (its `type` picks a data
-  object, data store, message, ...), the SBGN nucleic acid feature and perturbing agent are left as boxes, which
-  draw.io draws too, until yEd's own export shows them. The lines some shapes draw inside (predefined process,
-  internal storage, direct data's rim, the big entity's header) are not drawn.
+- yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
+  agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
+  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
+  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
+  BPMN intermediate event's and transaction's double line are not drawn.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
-  the owner's yEd export replaces the stand-in. Whether yEd paints an image or SVG node's own fill and border under
-  the picture is not known from the stand-in; graphty keeps them under it (they are covered where the picture is
-  opaque).
+  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its
+  border (`graphml-stm32-func`: 15 nodes, `graphml-synthetic-nodes`), but draw.io paints both on this sheet, which yEd
+  refuses to open, so graphty keeps them under the picture until this sheet has yEd's own drawing (#5792).
 - Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
   force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
   else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's
@@ -3488,9 +3501,8 @@ Still open, and why:
   box, so the words move up with the smaller box; vis-network places the words and draws the box round them. Needs a
   way to place a label by its words when its box is drawn (graphty-element-render), or graph-io's label place for
   vis-network below a node modelled on the words (`label-anchor-offset`).
-- vis-network `size-30-database` (`label.anchor` center/end against center/center): the database is sized by its label,
-  as vis-network sizes it (width and height pass now); graphty's label box is a line height and a padding taller than
-  the words, so its words sit lower in the small node (`label-anchor-offset`). Its `node.stroke` rows and
+- vis-network `size-30-database` (`label.anchor`): fixed in #4247, graph-io counted the top margin twice, once as the
+  label's padding and again as its offset. Its `node.stroke` rows and
   `node-shapes` `shape-database*`: comparator, as before (vis-network strokes the database as one open path, which
   the oracle reader does not take as the node's outline).
 - vis-network `border-radius-12` (`node.shape` o=other g=roundrect): comparator, as before (the same capsule).
@@ -4981,3 +4993,26 @@ the curves branch merged shows the program's drawing beside graphty's, with the 
 11. `style-fidelity-cx-samples--syn-bypass`: the Cytoscape custom graphics graphty draws flat, beside patterned lines.
 12. The one-file-scale change has no oracle sample: open a yEd GraphML with stored positions in the graphty app built
     from that branch, with file styles, and switch to the fixed layout.
+
+## Label places left on real programs' drawings (#4247, 2026-11-05)
+
+Fixed:
+
+- Cytoscape.js `ghost` (`json-cyjs-synth-nodes` n78): the see-through copy drawn just before the node was read as the
+  node, its box the union of the two, so `node.fillOpacity` and `label.anchor` failed. The comparator leaves the ghost
+  out of the body and it stands as a stray, because graphty does not draw it: graph-io does not read `ghost`. That
+  `stray.present` row is the real gap, recorded in the known failures.
+- Graphviz `threepoverhang` (`dot-synth-nodes` s_threepoverhang): its 12 px bar is exactly half its 24 px bar, and a
+  float's rounding left it out of the node's box where the same bars of `fivepoverhang` were in. Comparator.
+- Lines of a label under 6 px on screen read off Chromium's rounded advances (`json-cyjs-winecheese` 107 334 393,
+  `json-cyjs-graphmaker`, `cys-import-and-save` 3769): centered lines read as left or right aligned. Comparator.
+- A table cell spanning two cells beside each other (`dot-synth-nodes` n_html3) says nothing of their alignment.
+  Comparator.
+- Pajek labels in Courier (`pajek-synth-vertices` v29): graph-io lifted them by Arial's half height. Import.
+
+Open:
+
+- `pajek-synth-vertices` 49 (`label.anchor`): graphty's words are within 0.4 px of Pajek's around the vertex, baseline
+  through its center. Pajek draws the man unevenly about his vertex (64.7 up, 62.2 down at this size) and graphty
+  centers the figure, so the box the label is judged against sits 1.24 px lower in Pajek's drawing. Needs a figure
+  drawn off its node's center (graphty-element-render).

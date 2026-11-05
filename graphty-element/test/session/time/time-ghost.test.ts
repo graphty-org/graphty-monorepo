@@ -3,10 +3,16 @@
  * a Ghost row pinned directly below Selected paints them; they never count as visible.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A process trace: ten steps, node i at step i, and edge i -> i + 1 at step i + 1.

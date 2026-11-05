@@ -6,7 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, LOAD_ROLES } from "../../src/session";
+import { COLUMN_ROLES, createGraphSession, LOAD_ROLES } from "../../src/session";
 import type { GraphSession, LoadChoices } from "../../src/session/types";
 
 /** An auth log: "admin" is both a user and a host. */
@@ -59,6 +59,16 @@ describe("kinds of node at load", () => {
     it("lists kind as a role of both kinds of table", () => {
         assert.include(LOAD_ROLES.nodes.takes, "kind");
         assert.include(LOAD_ROLES.edges.takes, "kind");
+    });
+
+    it("lists the roles a column takes in place and the ones it takes only when its rows load", () => {
+        assert.sameMembers(
+            [...COLUMN_ROLES.node.inPlace],
+            ["label", "weight", "time", "latitude", "longitude", "coordinates", "country", "region", "city"],
+        );
+        assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key", "kind"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.atLoad], ["source", "target", "edgeId", "kind"]);
     });
 
     it("reports the id that appears under two kinds, the same under either choice", async () => {

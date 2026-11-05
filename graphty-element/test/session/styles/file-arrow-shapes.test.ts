@@ -5,7 +5,12 @@
 import { assert, describe, it } from "vitest";
 
 import { EdgeArrowTypes } from "../../../src/config/EdgeStyle";
-import { ARROW_SHAPES, arrowShapesOf } from "../../../src/session/styles/fileStyles/shapes";
+import {
+    ARROW_ROW_SIZES,
+    ARROW_ROWS,
+    ARROW_SHAPES,
+    arrowShapesOf,
+} from "../../../src/session/styles/fileStyles/shapes";
 
 describe("the cap a file's arrow is drawn as, by the program that wrote it", () => {
     it("draws Cytoscape's half arrows as the half barb, on either side", () => {
@@ -27,8 +32,43 @@ describe("the cap a file's arrow is drawn as, by the program that wrote it", () 
         }
     });
 
+    it("draws yEd's and yEd Live's own arrows, which no shared shape names", () => {
+        const caps = {
+            "other:cross": "cross",
+            "other:kite": "kite",
+            "other:deltoid": "deltoid",
+            "other:open-vee": "open-vee",
+            "other:dash": "tee",
+            "other:crows_foot_optional": "open-dot",
+            "other:crows_foot_one": "tee",
+        };
+        for (const [shape, cap] of Object.entries(caps)) {
+            assert.strictEqual(arrowShapesOf("yed").get(shape), cap, shape);
+        }
+    });
+
+    it("draws yEd's crow's feet with a circle or a bar as a row of caps, nearest the node first", () => {
+        const rows = {
+            "other:crows_foot_many_optional": ["crow", "circle-open"],
+            "other:crows_foot_many_mandatory": ["crow", "tee"],
+            "other:crows_foot_one_mandatory": ["tee", "tee"],
+            "other:crows_foot_one_optional": ["tee", "circle-open"],
+            "other:white_delta_bar": ["open-normal", "tee"],
+        };
+        for (const [shape, [cap, behind]] of Object.entries(rows)) {
+            assert.strictEqual(ARROW_SHAPES.get(shape), cap, shape);
+            assert.strictEqual(ARROW_ROWS.get(shape), behind, shape);
+        }
+    });
+
+    it("sizes a row's part as an arrow drawn with the same cap", () => {
+        for (const [shape, sizedAs] of ARROW_ROW_SIZES) {
+            assert.strictEqual(ARROW_SHAPES.get(sizedAs), ARROW_SHAPES.get(ARROW_ROWS.get(shape) ?? ""), shape);
+        }
+    });
+
     it("names only caps the renderer draws", () => {
-        for (const tool of ["cytoscape", "vis-network"]) {
+        for (const tool of ["cytoscape", "vis-network", "yed"]) {
             for (const cap of arrowShapesOf(tool).values()) {
                 assert.include(EdgeArrowTypes.options as readonly string[], cap);
             }

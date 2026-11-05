@@ -1,12 +1,18 @@
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { type Harness, makeSession } from "../helpers";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -49,6 +55,158 @@ function bruteNodes(harness: Harness, from: number, to: number): string[] {
 
     return [...kept].sort();
 }
+
+describe("time.spanOf", () => {
+    /**
+     * Brute force: the half-open span of the rows' `sent` values.
+     * @param harness - The session.
+     * @param edgeRows - The edge rows.
+     * @returns The span, or null when none has a time.
+     */
+    function bruteSpan(harness: Harness, edgeRows: readonly number[]): { from: number; to: number } | null {
+        const times = edgeRows.flatMap((row) => {
+            const value = harness.edgeAttributes.get(row)?.sent;
+            return value === undefined ? [] : [readInstant(value, "ms").at];
+        });
+        return times.length === 0 ? null : { from: Math.min(...times), to: Math.max(...times) + 1 };
+    }
+
+    it("spans the given edges, and the edges at the given nodes with incident", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        const edges = [...harness.session.visibility.edges];
+        assert.deepEqual(time.spanOf({ edges: [edges[1], edges[2]] }), bruteSpan(harness, [1, 2]));
+        assert.deepEqual(time.spanOf({ nodes: ["c"], incident: true }), bruteSpan(harness, [1, 2]));
+        assert.deepEqual(time.spanOf({ nodes: ["a"], edges: [edges[3]], incident: true }), bruteSpan(harness, [0, 3]));
+    });
+
+    it("is null for elements with no time, and with nothing designated", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        assert.isNull(time.spanOf({ nodes: ["c"], incident: true }));
+        await time.setField({ edges: { start: "sent" } });
+        assert.isNull(time.spanOf({ nodes: ["c"] }), "nodes carry no time without incident");
+        assert.isNull(time.spanOf({ nodes: ["f"], incident: true }), "f's only edge has no time");
+        assert.isNull(time.spanOf({ nodes: ["nobody"], incident: true }));
+        assert.isNull(time.spanOf({}));
+    });
+
+    it("spans nodes on a field of node time", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a", born: 1850 }, { id: "b", born: 1900 }, { id: "c", born: 1990 }, { id: "d" }]);
+        const { time } = harness.session;
+        await time.setField({ nodes: { start: "born", unit: "ordinal" } });
+        assert.deepEqual(time.spanOf({ nodes: ["a", "b", "d"] }), { from: 1850, to: 1901 });
+        assert.isNull(time.spanOf({ nodes: ["d"] }));
+    });
+
+    it("gives a span the window takes as it is", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        const span = time.spanOf({ nodes: ["c"], incident: true });
+        assert.isNotNull(span);
+        await time.window(span);
+        assert.strictEqual(time.current?.from, T0 + DAY);
+        assert.strictEqual(time.current?.to, T0 + 2 * DAY + 1);
+    });
+});
+
+describe("undoing window moves", () => {
+    /**
+     * Two edges three days apart, on a history clock the test drives.
+     * @param now - The clock.
+     * @returns The session.
+     */
+    function fourDays(now: () => number): Harness {
+        const harness = makeSession({ internals: { now } });
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b", sent: "2026-01-01" },
+                { src: "b", dst: "c", sent: "2026-01-04" },
+            ],
+        );
+        return harness;
+    }
+
+    it("merges moves made in quick succession into one step, and commit records its own", async () => {
+        let now = 0;
+        const harness = fourDays(() => now);
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        now += 60_000;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        await time.stepBy(1);
+        await time.seek("end");
+        await time.seek(T0 + DAY, { commit: false });
+        await time.commit();
+
+        await harness.session.undo();
+        assert.notStrictEqual(time.current?.from, T0 + DAY, "commit was its own step");
+        assert.isNotNull(time.current);
+        await harness.session.undo();
+        assert.isNull(time.current, "the moves before it were one step");
+        harness.session.dispose();
+    });
+
+    it("keeps moves apart in time as their own steps", async () => {
+        let now = 0;
+        const harness = fourDays(() => now);
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "sent" } });
+        now += 60_000;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        now += 60_000;
+        await time.stepBy(1);
+
+        await harness.session.undo();
+        assert.strictEqual(time.current?.from, T0);
+        harness.session.dispose();
+    });
+});
+
+describe("time.committed", () => {
+    it("holds the recorded window while a slide moves the current one", async () => {
+        const harness = emails();
+        const { time } = harness.session;
+        const before = time.committed;
+        assert.isNull(before);
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const recorded = harness.session.visibility.window;
+        assert.strictEqual(time.committed, recorded);
+
+        await time.seek(T0 + 2 * DAY, { commit: false });
+        assert.strictEqual(time.current?.from, T0 + 2 * DAY);
+        assert.strictEqual(time.committed, recorded);
+
+        await time.commit();
+        assert.strictEqual(time.committed?.from, T0 + 2 * DAY);
+        assert.strictEqual(time.committed, harness.session.visibility.window);
+    });
+
+    it("follows every step of a stepped play", async () => {
+        const { session } = emails();
+        const { time } = session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const seen: unknown[][] = [];
+        session.on("time:step", (step) => seen.push([step.from, time.current?.from, time.committed?.from]));
+        await new Promise<void>((resolve) => {
+            session.on("time:end", () => {
+                resolve();
+            });
+            time.play({ interval: 0, motion: "steps" });
+        });
+        assert.isNotEmpty(seen);
+        for (const [from, current, committed] of seen) {
+            assert.strictEqual(current, from);
+            assert.strictEqual(committed, from);
+        }
+    });
+});
 
 describe("reading instants", () => {
     it("reads strict ISO 8601 in UTC, including zone-less date-times and expanded years", () => {
@@ -352,6 +510,18 @@ describe("session.time: playback", () => {
 
         return steps;
     }
+
+    it("starts again from the first window when played at the end with a step", async () => {
+        const { session } = emails();
+        await session.time.setField({ edges: { start: "sent" } });
+        const first = await playToEnd(session, { interval: 0, motion: "steps", step: "day" });
+        const second = await playToEnd(session, { interval: 0, motion: "steps", step: "day" });
+        assert.isAbove(first.length, 1);
+        assert.deepEqual(
+            second.map((step) => step.from),
+            first.map((step) => step.from),
+        );
+    });
 
     it("plays a sliding window to the end as one undoable step, and pauses", async () => {
         const harness = emails();

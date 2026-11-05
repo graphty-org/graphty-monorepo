@@ -12,7 +12,7 @@
 import "../../../../src/graphty-element";
 
 import { type AbstractMesh, type ShaderMaterial, Vector3 } from "@babylonjs/core";
-import { afterAll, afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../../../index.js";
 import { clearRegisteredShadersForTesting, registerShader } from "../../../../src/catalog/shaderRegistry";
@@ -557,17 +557,27 @@ describe("edge change", () => {
     it("plays when an edge arrives, then rests", async () => {
         const element = await changing();
         const scene = element.graph.getScene();
+        // The play runs on performance.now(), and the pixel below is hot for only 0.15 s of it: a
+        // busy machine draws its first frame after the arrival later than that. So the test steps
+        // the clock: what a frame shows is then a fact of the play, not of when the frame came.
+        let now = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+        cleanups.push(() => {
+            clock.mockRestore();
+        });
+
         await element.session.data.addEdges([{ source: "a", target: "c" }]);
         await until(element, "the arriving edge carries the effect", () => slots(element).live === 3);
         assert.isAbove(everyFrameAnimationsOn(scene), 0, "the arrival plays");
-        // The front lights the new edge (a to c, a vertical line at x = -6) in its hot colors while
-        // the arrival plays: some frame shows it far from the plain blue.
-        let lit = 0;
-        while (everyFrameAnimationsOn(scene) > 0) {
-            lit += differing(await pixelsAround(element, { x: -6, y: 1, z: 0 }, 1), [0x33, 0x66, 0xcc]);
-        }
 
+        // 0.1 s in, the front has passed a quarter of the new edge (a to c, a vertical line at
+        // x = -6) and is still hot: that pixel is far from the plain blue.
+        now += 100;
+        const lit = differing(await pixelsAround(element, { x: -6, y: 1, z: 0 }, 1), [0x33, 0x66, 0xcc]);
         assert.isAbove(lit, 0, "the arriving edge lights up from its source");
+
+        now += 500;
+        await until(element, "the play ends and the graph rests", () => everyFrameAnimationsOn(scene) === 0);
     });
 
     it("plays when an edge's data changes, then rests", async () => {

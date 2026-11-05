@@ -54,9 +54,10 @@ afterEach(() => {
 /**
  * An element holding messages.csv, its weight `emails`.
  * @param weightMeaning - The meaning chosen at load, or undefined for none.
+ * @param weighted - Whether the load maps `emails` as the weight.
  * @returns the element
  */
-async function loaded(weightMeaning?: WeightMeaning["meaning"]): Promise<Graphty> {
+async function loaded(weightMeaning?: WeightMeaning["meaning"], weighted = true): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -70,7 +71,7 @@ async function loaded(weightMeaning?: WeightMeaning["meaning"]): Promise<Graphty
         mapping: {
             source: "from",
             target: "to",
-            weight: "emails",
+            ...(weighted ? { weight: "emails" } : {}),
             ...(weightMeaning === undefined ? {} : { weightMeaning }),
         },
     });
@@ -146,6 +147,66 @@ describe("every run reads the loaded weight", () => {
             meaning: "distance",
             reads: "strength",
         });
+    });
+
+    it("reads the column given the weight role after the load, with its meaning", async () => {
+        const element = await loaded(undefined, false);
+        await element.session.data.setRole({ kind: "edge", name: "emails" }, "weight");
+        await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+
+        // Shortest path is Dijkstra over the weight. By emails the direct edge (9) beats
+        // p01-p12-p03 (6 + 4); a hop count would say 1.
+        const path = await run(element, "shortest-path", { source: "p01", target: "p03" });
+        assert.deepStrictEqual(path.caveats.weight, EMAILS_AS_DISTANCE);
+        assert.strictEqual(path.result?.graph.cost, 9);
+
+        // Taken away again, the run counts hops.
+        await element.session.data.setRole({ kind: "edge", name: "emails" }, null);
+        const hops = await run(element, "shortest-path", { source: "p01", target: "p03" });
+        assert.isNull(hops.caveats.weight ?? null);
+        assert.strictEqual(hops.result?.graph.cost, 1);
+    });
+
+    it("the same run asked again after the weight role or its meaning changed computes again", async () => {
+        const element = await loaded(undefined, false);
+        const { runs } = element.session;
+        const params = { source: "p01", target: "p03" };
+
+        const first = runs.start("shortest-path", params);
+        await first;
+        assert.isNull(first.caveats.weight ?? null);
+        assert.strictEqual(first.result?.graph.cost, 1);
+
+        // Nothing changed: the stored run answers, without computing.
+        assert.strictEqual(runs.answered("shortest-path", params), first);
+        const same = runs.start("shortest-path", params);
+        assert.strictEqual(same, first);
+        assert.strictEqual(same.status, "succeeded");
+
+        await element.session.data.setRole({ kind: "edge", name: "emails" }, "weight");
+        await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+        assert.isUndefined(runs.answered("shortest-path", params));
+
+        const again = runs.start("shortest-path", params);
+        assert.notStrictEqual(again.status, "succeeded", "computes again");
+        await again;
+        assert.deepStrictEqual(again.caveats.weight, EMAILS_AS_DISTANCE);
+        assert.strictEqual(again.result?.graph.cost, 9);
+        assert.strictEqual(runs.answered("shortest-path", params), again);
+
+        // Only the meaning changes: computes again, and now leaves the strength unread.
+        await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "strength" } } });
+        assert.isUndefined(runs.answered("shortest-path", params));
+        const strength = runs.start("shortest-path", params);
+        await strength;
+        assert.isNull(strength.caveats.weight ?? null);
+        assert.strictEqual(strength.caveats.weightSkipped?.params.meaning, "strength");
+
+        // An algorithm with no weighted form is not computed again for a weight change.
+        const degree = runs.start("degree");
+        await degree;
+        await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+        assert.strictEqual(runs.answered("degree"), degree);
     });
 
     it("weight null reads none, and an algorithm with no weighted form reads none", async () => {

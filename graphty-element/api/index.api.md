@@ -1228,6 +1228,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1366,6 +1370,10 @@ export const EdgeStyle: z.ZodObject<{
             shiftX: z.ZodOptional<z.ZodNumber>;
             shiftY: z.ZodOptional<z.ZodNumber>;
             shiftOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
+            gapOf: z.ZodOptional<z.ZodEnum<{
                 box: "box";
                 words: "words";
             }>>;
@@ -1487,6 +1495,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1628,6 +1640,10 @@ export const EdgeStyle: z.ZodObject<{
                 box: "box";
                 words: "words";
             }>>;
+            gapOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1746,6 +1762,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1790,6 +1810,10 @@ export const EdgeStyle: z.ZodObject<{
             "half-barb": "half-barb";
             "half-barb-flipped": "half-barb-flipped";
             "inverted-vee": "inverted-vee";
+            cross: "cross";
+            kite: "kite";
+            deltoid: "deltoid";
+            "open-vee": "open-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -2030,6 +2054,10 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -2239,6 +2267,10 @@ export const EdgeStyle: z.ZodObject<{
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
         shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
         }>>;
@@ -3164,8 +3196,10 @@ export class Graphty extends LitElement {
     get edgeLabelCounts(): EdgeLabelCounts;
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
+    // @beta
     get edgeTimeUnit(): string | undefined;
     set edgeTimeUnit(value: string | undefined);
     get edgeWeightPath(): string | undefined;
@@ -3300,8 +3334,10 @@ export class Graphty extends LitElement {
         height: number;
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
+    // @beta
     get nodeTimeUnit(): string | undefined;
     set nodeTimeUnit(value: string | undefined);
     static get observedAttributes(): string[];
@@ -3313,6 +3349,7 @@ export class Graphty extends LitElement {
     set pixelRatio(value: PixelRatio);
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
@@ -3548,9 +3585,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -3923,9 +3969,11 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
-* legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
-* turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+* leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -4628,6 +4676,8 @@ export abstract class LayoutEngine {
     protected abstract addNode(n: Node_2): void;
     protected addNodes(nodes: Node_2[]): void;
     protected attachPositions(positions: ElementPositions): void;
+    // @internal
+    clusterColumn: ClusterColumn | null;
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
@@ -4690,6 +4740,8 @@ export abstract class LayoutEngine {
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
     // @internal
+    wakeForClusters(): boolean;
+    // @internal
     wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
@@ -4699,6 +4751,8 @@ export abstract class LayoutEngine {
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
     get building(): boolean;
+    // @internal
+    clustersChanged(): void;
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
@@ -5146,10 +5200,10 @@ export const NodeShapes: z.ZodEnum<{
     box: "box";
     diamond: "diamond";
     vee: "vee";
+    cross: "cross";
     star: "star";
     sphere: "sphere";
     ellipse: "ellipse";
-    cross: "cross";
     rectangle: "rectangle";
     triangle: "triangle";
     pentagon: "pentagon";
@@ -5222,10 +5276,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5417,10 +5471,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5476,10 +5530,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             diamond: "diamond";
             vee: "vee";
+            cross: "cross";
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
             pentagon: "pentagon";
@@ -5579,6 +5633,7 @@ export const NodeStyle: z.ZodObject<{
             down: "down";
         }>>;
         size: z.ZodOptional<z.ZodNumber>;
+        frame: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     chart: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<{
@@ -5751,6 +5806,10 @@ export const NodeStyle: z.ZodObject<{
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
         shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
         }>>;
@@ -5966,6 +6025,10 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6175,6 +6238,10 @@ export const NodeStyle: z.ZodObject<{
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
         shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
         }>>;
@@ -6948,6 +7015,10 @@ export const RichTextStyle: z.ZodObject<{
         box: "box";
         words: "words";
     }>>;
+    gapOf: z.ZodOptional<z.ZodEnum<{
+        box: "box";
+        words: "words";
+    }>>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";
         screen: "screen";
@@ -7665,7 +7736,7 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
-    holdSelectionFollow(): void;
+    holdSelectionFollow(following?: readonly Node_2[]): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;

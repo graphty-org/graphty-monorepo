@@ -11,13 +11,15 @@ import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
-import { MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
+import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import type { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type { StyleDialect, StyleTarget, StyleWorkBudget } from "../../styles/types.js";
+import { META_KEY } from "./constants.js";
 import {
+    BPMN_ARTIFACTS,
     configurationOutline,
     isTree,
     localOf,
@@ -107,8 +109,12 @@ class References {
     /**
      * Collects the shared objects of the graph's `SharedData` value.
      * @param data - the `<data>` content of the SharedData key
+     * @param yfiles26 - whether the file is yFiles for HTML 2.6's rather than 3's
      */
-    constructor(data: unknown) {
+    constructor(
+        data: unknown,
+        readonly yfiles26: boolean,
+    ) {
         for (const sd of treeChildren(data, "SharedData")) {
             if (isTree(sd)) {
                 this.collect(sd);
@@ -474,6 +480,174 @@ function readStyle26(refs: References, style: StyleObject, put: PutValue, at: Si
     }
 }
 
+/** How yEd Live draws one BPMN node style: its outline shape and, where a sheet shows them, its default colors. */
+interface BpmnLook {
+    readonly outline: YedOutline;
+    readonly cornerRadius?: number;
+    readonly background?: string;
+    readonly stroke?: string;
+    readonly line?: string;
+    /** the style's box has no outline of its own (an annotation's bracket is not drawn) */
+    readonly unstroked?: boolean;
+}
+
+/**
+ * The BPMN node styles, measured from yEd Live 8.5.16's drawings of `yed-live-graphml-specimen-node-shapes-p4` to `-p6`.
+ * Only the activity, event and choreography have a default color on a sheet; the others' are left unset.
+ */
+const BPMN_STYLES: ReadonlyMap<string, BpmnLook> = new Map<string, BpmnLook>([
+    [
+        "ActivityNodeStyle",
+        {
+            outline: { shape: "round-rectangle" },
+            cornerRadius: 6,
+            background: "#FFFAFAFA",
+            stroke: "#FF00008B",
+        },
+    ],
+    ["EventNodeStyle", { outline: { shape: "ellipse" }, background: "#FFFAFAFA", stroke: "#FF008000" }],
+    ["GatewayNodeStyle", { outline: { shape: "diamond" } }],
+    ["ConversationNodeStyle", { outline: { shape: "hexagon" } }],
+    [
+        "ChoreographyNodeStyle",
+        {
+            outline: { shape: "round-rectangle" },
+            cornerRadius: 6,
+            background: "#FFFAFAFA",
+            stroke: "#FF006400",
+        },
+    ],
+    ["DataObjectNodeStyle", { outline: BPMN_ARTIFACTS.get("artifact_type_data_object") ?? { shape: "polygon" } }],
+    ["DataStoreNodeStyle", { outline: BPMN_ARTIFACTS.get("artifact_type_data_store") ?? { shape: "other:database" } }],
+    ["AnnotationNodeStyle", { outline: { shape: "rectangle" }, unstroked: true }],
+    ["GroupNodeStyle", { outline: { shape: "round-rectangle" }, cornerRadius: 3, line: "dash-dot" }],
+]);
+
+/** The BPMN types and characteristics that change a node's line, from the same drawings. */
+const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?: string }> = new Map([
+    ["CALL_ACTIVITY", { width: 3 }],
+    ["CALL", { width: 3 }],
+    ["CALLING_GLOBAL_CONVERSATION", { width: 3 }],
+    ["CALLING_COLLABORATION", { width: 3 }],
+    ["END", { width: 3 }],
+    ["EVENT_SUB_PROCESS", { line: "dotted" }],
+    ["SUB_PROCESS_NON_INTERRUPTING", { line: "dashed" }],
+    ["BOUNDARY_NON_INTERRUPTING", { line: "dashed" }],
+]);
+
+/**
+ * Reads a `bpmn:` node style: `background` and `outline` paint the shape its kind draws. The markers, icons and
+ * second rings inside it are not read. yFiles' own GroupNodeStyle has the same local name, and neither color.
+ * @param refs - the references
+ * @param style - the style
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns true when the style is one of these
+ */
+function readBpmnStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+    const look = BPMN_STYLES.get(style.tag);
+    const background = prop(style, "background");
+    const outline = prop(style, "outline");
+    if (look === undefined || (style.tag === "GroupNodeStyle" && background === undefined && outline === undefined)) {
+        return false;
+    }
+    putPaint(paintOf(refs, background ?? look.background, null), "fill", "fillOpacity", put, at);
+    if (look.unstroked === true) {
+        put("borderWidth", 0);
+    } else {
+        const kind =
+            treeAttr(style.e, "activityType") ?? treeAttr(style.e, "characteristic") ?? treeAttr(style.e, "type");
+        const line = BPMN_LINES.get(kind ?? "");
+        putStroke(
+            {
+                color: paintOf(refs, outline ?? look.stroke, null),
+                width: line?.width ?? 1,
+                line: line?.line ?? look.line ?? "solid",
+            },
+            put,
+            at,
+        );
+    }
+    put("shape", look.outline.shape);
+    if (look.outline.points !== undefined) {
+        put("shapePoints", look.outline.points);
+    }
+    if (look.cornerRadius !== undefined) {
+        put("cornerRadius", look.cornerRadius);
+    }
+    return true;
+}
+
+/**
+ * Reads a UMLNodeStyle as yEd Live 8.5.16 draws it (`yed-live-graphml-specimen-node-shapes-p7`): a box with corners of
+ * 10, outlined in its `fill` 2 wide, its model's `className` in white at the top. yEd Live sizes the box from its rows
+ * as it loads the file, so the stored size is what is read; the sections and their rows are not drawn.
+ * @param refs - the references
+ * @param style - the style
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readUmlStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): void {
+    const fill = paintOf(refs, prop(style, "fill"), null);
+    putPaint(fill, "fill", "fillOpacity", put, at);
+    putStroke({ color: fill, width: 2, line: "solid" }, put, at);
+    put("shape", "round-rectangle");
+    put("cornerRadius", 10);
+    const model = refs.deref(prop(style, "model"));
+    const name =
+        model === null || model === NULL || typeof model !== "object" ? undefined : treeAttr(model.e, "className");
+    if (name !== undefined) {
+        put("label", canonText(name, at("label")));
+        put("labelColor", "#ffffff");
+        put("labelPosition", "inside-top");
+    }
+}
+
+/** How far yEd Live 8.5.16's GroupNodeStyle frames its panel on a side with no tab (`yed-live-graphml-specimen-groups`). */
+const GROUP_FRAME = 4;
+
+/** yFiles' sides of a group's tab, in the order of `stripeFrame`. */
+const TAB_SIDES = ["TOP", "RIGHT", "BOTTOM", "LEFT"];
+
+/**
+ * Reads what a GroupNodeStyle paints: its panel (`contentAreaFill`, white unset) as the node's fill, and the band its
+ * tab leaves round the panel (`tabFill`, #AAAAAA unset), `tabHeight` (18 unset) deeper on the side of its `tabPosition`
+ * and none with no tab. A collapsed group has no panel: its face is the tab's color. All as yEd Live 8.5.16 draws
+ * `yed-live-graphml-specimen-groups` and its pages. The notch beside a tab narrower than its side is not drawn.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's size
+ * @param collapsed - whether the group is collapsed
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGroupPanel(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    collapsed: boolean,
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const tabFill = paintOf(refs, prop(style, "tabFill") ?? "#FFAAAAAA", null);
+    if (collapsed) {
+        putPaint(tabFill, "fill", "fillOpacity", put, at);
+        return;
+    }
+    putPaint(paintOf(refs, prop(style, "contentAreaFill") ?? "#FFFFFFFF", null), "fill", "fillOpacity", put, at);
+    const position = treeAttr(style.e, "tabPosition") ?? "TOP";
+    if (position === "NONE") {
+        return;
+    }
+    putPaint(tabFill, "stripeColors", null, put, at);
+    const tab = canonNumber(treeAttr(style.e, "tabHeight") ?? 18, at("stripeFrame")) ?? 18;
+    const insets = TAB_SIDES.map((side, i) => {
+        const depth = position.startsWith(side) ? tab + GROUP_FRAME : GROUP_FRAME;
+        return Number((depth / (i % 2 === 0 ? size.height : size.width)).toFixed(6));
+    });
+    put("stripeFrame", insets.join(" "));
+}
+
 /**
  * Writes a stroke's color, width and line style, or no outline for `{x:Null}`.
  * @param stroke - the stroke
@@ -497,8 +671,16 @@ function putStroke(stroke: Stroke | typeof NULL | null, put: PutValue, at: SiteO
  * @param put - receives the values
  * @param at - the sites
  * @param size - the node's size, for a PILL's half-circle ends
+ * @param collapsed - whether a group is collapsed
  */
-function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteOf, size: Size | null): void {
+function readNodeStyle(
+    refs: References,
+    data: unknown,
+    put: PutValue,
+    at: SiteOf,
+    size: Size | null,
+    collapsed: boolean,
+): void {
     const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
         if (data !== null && data !== undefined && data !== "") {
@@ -507,7 +689,11 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at)) {
+    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, put, at)) {
+        return;
+    }
+    if (style.tag === "UMLNodeStyle") {
+        readUmlStyle(refs, style, put, at);
         return;
     }
     putPaint(
@@ -534,6 +720,9 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
         put("cornerRadius", Math.min(size.width, size.height) / 2);
+    }
+    if (style.tag === "GroupNodeStyle" && size !== null) {
+        readGroupPanel(refs, style, size, collapsed, put, at);
     }
 }
 
@@ -640,6 +829,7 @@ function readEdgeArrow(
         const open = fill === NULL ? strokeOf(refs, prop(a, "stroke")) : null;
         hollow = open !== null && open !== NULL;
         putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
+        readArrowSize(refs, a.e, type.toUpperCase(), end, put, at);
     } else if (typeof a === "string") {
         type = a;
     }
@@ -647,6 +837,65 @@ function readEdgeArrow(
         const arrow = canonEnum("arrow", RENAMED_ARROWS.get(type.toUpperCase()) ?? type, "yfiles3", at(property));
         put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
     }
+}
+
+/** yEd Live's chevron is 8 wide, its default head 6, and both read as the vee (yed-live-graphml-specimen-arrows). */
+const CHEVRON_WIDTH = 8 / 6;
+
+/** The namespace of yFiles for HTML 2.6's styles. */
+const YFILES_26_XAML = "http://www.yworks.com/xml/yfiles-for-html/2.0/xaml";
+
+/** The arrows a yFiles for HTML 2.6 file draws 4 long and 9 wide (yed-live-graphml-specimen-arrows-p2). */
+const STUBBY_26_ARROWS: ReadonlySet<string> = new Set(["TRIANGLE", "SHORT", "SIMPLE"]);
+
+/**
+ * The `length` an arrow draws at its normal size: `length="12"` is the one length drawn, three quarters of normal in
+ * both directions (yed-live-graphml-specimen-arrows).
+ */
+const NORMAL_ARROW_LENGTH = 16;
+
+/**
+ * Reads how an arrow element's size differs from its shape's normal size in yEd Live.
+ * @param refs - the references
+ * @param arrow - the arrow element
+ * @param type - its type, in capitals
+ * @param end - which end
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readArrowSize(
+    refs: References,
+    arrow: unknown,
+    type: string,
+    end: "source" | "target",
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const [lengthSite, widthSite] = [at(`${end}ArrowLength`), at(`${end}ArrowWidth`)];
+    const stubby = refs.yfiles26 && STUBBY_26_ARROWS.has(type);
+    const fixed =
+        treeAttr(arrow, "length") === undefined ? 1 : arrowScale(arrow, "length", lengthSite) / NORMAL_ARROW_LENGTH;
+    const scale = arrowScale(arrow, "scale", lengthSite) * fixed;
+    const along = arrowScale(arrow, "lengthScale", lengthSite) * scale * (stubby ? 4 / 8 : 1);
+    const across =
+        arrowScale(arrow, "widthScale", widthSite) *
+        scale *
+        (stubby ? 9 / 6 : 1) *
+        (type === "CHEVRON" ? CHEVRON_WIDTH : 1);
+    put(`${end}ArrowLength`, along === 1 ? null : along);
+    put(`${end}ArrowWidth`, across === 1 ? null : across);
+}
+
+/**
+ * One of an arrow element's scale attributes.
+ * @param arrow - the arrow element
+ * @param name - the attribute
+ * @param site - where a bad value is noted
+ * @returns the scale; 1 where it is unset or bad
+ */
+function arrowScale(arrow: unknown, name: string, site: CanonSite): number {
+    const raw = treeAttr(arrow, name);
+    return raw === undefined ? 1 : (canonNumber(raw, site) ?? 1);
 }
 
 /**
@@ -761,12 +1010,17 @@ function layoutParameter(refs: References, label: unknown): StyleObject | null {
 /**
  * Where yFiles draws a node label, from its layout parameter's model and `Position`: outside the node for the
  * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models, and the center for a
- * centered position or any other model (the free and ratio-anchored models' offsets have no neutral property).
+ * centered position or any other model (the free and ratio-anchored models' offsets have no neutral property). A
+ * label with no layout parameter at all sits below the node, as yEd Live 8.5.16 draws every such label on its sheets;
+ * no file saved by yEd Live in the corpus leaves one out.
  * @param refs - the references
  * @param label - the `y:Label` element
  * @returns the position
  */
 function labelPositionOf(refs: References, label: unknown): string {
+    if (treeAttr(label, "LayoutParameter") === undefined && treeChild(label, "Label.LayoutParameter") === undefined) {
+        return "bottom";
+    }
     const parameter = layoutParameter(refs, label);
     const model = parameter === null ? undefined : NODE_LABEL_MODELS.get(parameter.tag);
     if (parameter === null || model === undefined) {
@@ -917,6 +1171,7 @@ function readYfiles3Target(
     const [style, labels, geometry] = YFILES3_KINDS[target].map((kind) => kinds.get(kind));
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
+    const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -932,7 +1187,7 @@ function readYfiles3Target(
             size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
-            readNodeStyle(refs, cell(style, i), put, at, size);
+            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false);
         } else if (style !== undefined) {
             readEdgeStyle(refs, cell(style, i), put, at);
         }
@@ -982,7 +1237,11 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
     }
     const graphKinds = columnsByKind(snapshot.graph);
     const sharedName = graphKinds.get("SharedData");
-    const refs = new References(sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)));
+    const meta = snapshot.meta.extra[META_KEY] as { readonly namespaces?: Record<string, string> } | undefined;
+    const refs = new References(
+        sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)),
+        Object.values(meta?.namespaces ?? {}).includes(YFILES_26_XAML),
+    );
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] =>
         readYfiles3Target({ snapshot, notes, budget, refs, boxes }, target, kinds);

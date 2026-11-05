@@ -3,8 +3,9 @@
  * undo, and every digest matches the one before; redo, and every digest matches the one after.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession } from "../../../src/session/types";
@@ -12,6 +13,11 @@ import { fakeLayout, heldScheduler } from "./fakes";
 import { blankHarness, blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 describe("round trip per command", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {

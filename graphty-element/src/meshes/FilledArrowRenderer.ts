@@ -150,6 +150,9 @@ function piecesMesh(name: string, pieces: readonly (readonly (readonly [number, 
     return mesh;
 }
 
+/** How long a cross's stroke is along the line at any place across it, as a share of the cross: a pixel in eight. */
+const CROSS_STROKE = 0.15;
+
 /** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
 const CROSS_DELTA = {
     delta: [
@@ -1063,6 +1066,10 @@ void main() {
      * - "half-barb-flipped": that barb on the line's other side (Cytoscape's HALF_BOTTOM).
      * - "inverted-vee": a vee turned round, its point back on the line, its corners at the tip and its notch a quarter
      *   back from them, with no tine along the line (vis-network's crow).
+     * - "cross": two strokes crossing on the line, a box as long as it is wide (yEd's and yEd Live's cross).
+     * - "kite": widest a fifth of its length from its back, its back a point on the line (yEd Live's kite).
+     * - "deltoid": wider than it is long, its sides bowed in and its back notched (yEd Live's deltoid).
+     * - "open-vee": two half barbs meeting at the tip, nothing between them (yEd's plain, concave and convex).
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
         "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
@@ -1131,6 +1138,47 @@ void main() {
                 [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
                 [-0.25, 0],
             ],
+        ],
+        // yEd Live's cross (M 10,-5 L 0,5 M 0,-5 L 10,5), each stroke a strip CROSS_STROKE long along the line
+        cross: () => [
+            [
+                [-1, -0.5],
+                [-CROSS_STROKE, 0.5],
+                [0, 0.5],
+                [-1 + CROSS_STROKE, -0.5],
+            ],
+            [
+                [-1, 0.5],
+                [-1 + CROSS_STROKE, 0.5],
+                [0, -0.5],
+                [-CROSS_STROKE, -0.5],
+            ],
+        ],
+        // yEd Live's kite: M 0,0 L 8,-3 L 10,0 L 8,3 Z
+        kite: () => [
+            [
+                [0, 0],
+                [-0.8, -0.3],
+                [-1, 0],
+                [-0.8, 0.3],
+            ],
+        ],
+        // yEd Live's deltoid (M 5.2,-3 Q 2.86,-1.04 0,0 Q 2.86,1.04 5.2,3 Q 4.68,0 5.2,-3 Z), its curves through their
+        // middles, a half of it to each side of the line, each two triangles
+        deltoid: () =>
+            [1, -1].flatMap((side) => {
+                const [waist, corner, notch]: [number, number][] = [
+                    [-0.525, 0.244 * side],
+                    [-1, (3 / 5.2) * side],
+                    [-0.95, 0],
+                ];
+                const wound = (a: [number, number], b: [number, number], c: [number, number]): [number, number][] =>
+                    side > 0 ? [a, c, b] : [a, b, c];
+                return [wound([0, 0], waist, notch), wound(waist, corner, notch)];
+            }),
+        "open-vee": () => [
+            ...FilledArrowRenderer.POLYGON_ARROWS["half-barb"](),
+            ...FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"](),
         ],
         // Cytoscape's CROSS_DELTA: a delta with a bar across the line behind it, a gap between them
         "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],

@@ -1,6 +1,6 @@
 /**
  * @file The `features` attribute reaches the element's session, and the element says what it
- * honored. This build declares no experiment, so every id is reported as unknown.
+ * honored. These ids are not this build's, so every one is reported as unknown.
  */
 
 import "../../src/graphty-element";

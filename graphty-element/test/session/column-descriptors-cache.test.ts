@@ -5,10 +5,16 @@
  * the session's input tick but no column, type or value.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A session over nodes carrying a date, a latitude and longitude pair and a group number.

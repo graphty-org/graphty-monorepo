@@ -132,6 +132,39 @@ describe("RichTextLabel opacity and offsets", () => {
         assert.isAbove(boxed.left, 1e-3);
     });
 
+    test("a label placed by its words puts their font box, not the margins round them, against its target", () => {
+        const placed = (
+            position: string,
+            extra: object,
+        ): { left: number; right: number; top: number; bottom: number } => {
+            const label = RichTextLabel.createLabel(scene, {
+                text: "hi",
+                attachTo: new Vector3(0, 0, 0),
+                attachPosition: position as "top",
+                attachOffset: 0,
+                ...extra,
+            });
+            const mesh = label.labelMesh;
+            assert.isNotNull(mesh);
+            const box = mesh.getBoundingInfo().boundingBox;
+            const [w, h] = [box.maximum.x - box.minimum.x, box.maximum.y - box.minimum.y];
+            const words = label.wordsBounds;
+            const [x0, y1] = [mesh.position.x - w / 2, mesh.position.y + h / 2];
+            return {
+                left: x0 + words.left * w,
+                right: x0 + words.right * w,
+                top: y1 - words.top * h,
+                bottom: y1 - words.bottom * h,
+            };
+        };
+        assert.closeTo(placed("top", { gapOf: "words" }).bottom, 0, 1e-6);
+        assert.closeTo(placed("bottom", { gapOf: "words" }).top, 0, 1e-6);
+        assert.closeTo(placed("left", { gapOf: "words" }).right, 0, 1e-6);
+        assert.closeTo(placed("right", { gapOf: "words" }).left, 0, 1e-6);
+        // unset, the box (margins and all) is what is placed: the words stand a margin and their leading off
+        assert.isAbove(placed("top", {}).bottom, 1e-3);
+    });
+
     test("a turned label's shift turns with it, so it turns about the point the shift pins", () => {
         const at = (extra: object): Vector3 => {
             const mesh = RichTextLabel.createLabel(scene, {

@@ -235,19 +235,19 @@ describe("a block that is not to be trusted", () => {
 });
 
 describe("an opaque color another program wrote over a translucent one graphty wrote", () => {
-    // node 0 of this file is drawn #ffcc00 with fillOpacity 0 by a class rule
+    // node 0 of this file is drawn #ccccff with fillOpacity 0 by a class rule
     const gml = readFileSync(resolve(import.meta.dirname, "../corpus/styles/gml/generated/graphty-written.gml"));
     // where each format writes node 0's fill, translucent, and the same fill made opaque
     const slots: [string, string | undefined, RegExp, string][] = [
-        ["gml", undefined, /fill "#FFCC0000"/, 'fill "#FFCC00"'],
-        ["graphml", undefined, /<y:Fill color="#FFCC0000"/, '<y:Fill color="#FFCC00"'],
-        ["gexf", undefined, /r="255" g="204" b="0" a="0"/, 'r="255" g="204" b="0"'],
-        ["json", "graphology", /rgba\(255,204,0,0\)/, "#FFCC00"],
+        ["gml", undefined, /fill "#CCCCFF00"/, 'fill "#CCCCFF"'],
+        ["graphml", undefined, /<y:Fill color="#CCCCFF00"/, '<y:Fill color="#CCCCFF"'],
+        ["gexf", undefined, /r="204" g="204" b="255" a="0"/, 'r="204" g="204" b="255"'],
+        ["json", "graphology", /rgba\(204,204,255,0\)/, "#CCCCFF"],
     ];
 
     // known failure: the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs
     // below it, so labelOffsetY comes back as exceptions too (ISSUES.md, Specimen sheets: vis-network)
-    const known: typeof slots = [["json", "vis", /rgba\(255,204,0,0\)/, "#FFCC00"]];
+    const known: typeof slots = [["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"]];
 
     const check = async (format: string, dialect: string | undefined, slot: RegExp, opaque: string): Promise<void> => {
         const registry = createRegistry();

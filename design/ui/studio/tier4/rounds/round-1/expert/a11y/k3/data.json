@@ -1,0 +1,160 @@
+{
+ "counts": {
+  "totalEdges": 18,
+  "totalNodes": 13,
+  "visibleEdges": 18,
+  "visibleNodes": 13,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "pantries.csv",
+   "kind": "file",
+   "counts": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "recount": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "chips": {
+    "nodes": 12,
+    "edges": 0
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": {
+    "tables": {
+     "rows": {
+      "rowsAre": "nodes",
+      "key": "id",
+      "label": null,
+      "time": null
+     }
+    }
+   }
+  },
+  {
+   "key": "s2",
+   "name": "deliveries.csv",
+   "kind": "join",
+   "counts": {
+    "nodes": 13,
+    "edges": 18
+   },
+   "recount": {
+    "nodes": 13,
+    "edges": 18
+   },
+   "chips": {
+    "nodes": 13,
+    "edges": 18
+   },
+   "join": {
+    "matched": 17,
+    "rows": 19,
+    "onto": "s1"
+   },
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.lat",
+   "name": "lat",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.lon",
+   "name": "lon",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.families",
+   "name": "families",
+   "type": "mixed",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.site",
+   "name": "site",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.zip",
+   "name": "zip",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.opened",
+   "name": "opened",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.volunteer_run",
+   "name": "volunteer_run",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.trips",
+   "name": "trips",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

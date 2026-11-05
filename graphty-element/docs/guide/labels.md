@@ -121,7 +121,8 @@ element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true }
 A label's words may carry markup tags, each closed by its own end tag: `<bold>`, `<italic>`,
 `<color='#ff0000'>`, `<font='monospace'>`, `<size='150%'>` (or a size in pixels), `<bg='#ffd700'>`
 and `<shift='60%'>`, which draws the run that far below the line (a share of the label's own size;
-negative is above). Where runs of different sizes meet on one line is the label style's `runAlign`
+negative is above), the line growing to hold it. `<nudge='60%'>` moves a run the same way and leaves
+the line where it was, as superscripts do. Where runs of different sizes meet on one line is the label style's `runAlign`
 (`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
 their tops line up, or on their middles.
 

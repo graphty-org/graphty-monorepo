@@ -265,6 +265,17 @@ describe("label checks", () => {
         assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
     });
 
+    it("takes no alignment from a table cell spanning two cells side by side", () => {
+        // dot-synth-nodes n_html3: A | B over a wide cell, whose edges fall a pixel either way of the narrow cells'
+        const a = { x0: 147.5, y0: 403.9, x1: 153.5, y1: 412.9 };
+        const b = { x0: 159.5, y0: 403.9, x1: 164.8, y1: 412.9 };
+        const wide = { x0: 146.8, y0: 419.8, x1: 164.7, y1: 428.8 };
+        assert.isNull(lineAlign(text("A\nB\nwide", 155, 416, { lines: [a, b, wide] })));
+        // two lines of one cell over a third say what they said: a line alone under them spans no cells
+        const under = { x0: 147.5, y0: 415, x1: 160, y1: 425 };
+        assert.strictEqual(lineAlign(text("A\nwide", 155, 416, { lines: [a, under] })), "start");
+    });
+
     it("fails a label at the start of its node where the program centered it, a shift the offset check passes", () => {
         // 4 px left of center: within half a font size, but no longer centered on the 40 px node
         assert.deepEqual(labelPair({ x: 96, box: { x0: 81, y0: 95, x1: 111, y1: 105 } }), { "label.anchor": ["a"] });
@@ -1000,6 +1011,46 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.isNull(a?.stroke ?? null);
         // what graphty does not draw is a stray, not the node's border or fill
         assert.lengthOf(o.strays, 1);
+    });
+
+    it("leaves a ghost out of a node's body: a see-through copy drawn just before it, off its spot", () => {
+        // json-cyjs-synth-nodes n78: Cytoscape.js's `ghost`, read before as the node, its box the union of the two
+        const ghost = (): Prim => prim({ tag: "ellipse", points: circle(106, 106, 20), fill: fill("#cccccc", 0.4) });
+        const prims = drawing((id) => (id === "a" ? [ghost()] : []));
+        const { scene: o } = associate(prims, 600, 400, guide);
+        const a = o.nodes.find((n) => n.id === "a");
+        assert.deepEqual([a?.fill?.opacity, Math.round(a?.w ?? 0)], [1, 40]);
+        // a ghost graphty does not draw is a stray, so leaving it out of the body does not hide it
+        assert.lengthOf(o.strays, 1);
+    });
+
+    it("keeps a see-through shape as the node's unless it is the next shape's copy", () => {
+        index = 0;
+        const shape = (x: number, color: string, opacity: number): Prim =>
+            prim({ points: circle(x, 100, 20), fill: fill(color, opacity) });
+        // another color, or a shape between it and the opaque one: a see-through node beside another
+        assert.strictEqual(underlaysOf([shape(100, "#00ff00", 0.4), shape(106, "#cccccc", 1)]).size, 0);
+        const far = shape(100, "#cccccc", 0.4);
+        prim({ points: circle(300, 300, 5) });
+        assert.strictEqual(underlaysOf([far, shape(106, "#cccccc", 1)]).size, 0);
+        // on one spot it hides nothing and is no ghost
+        assert.strictEqual(underlaysOf([shape(100, "#cccccc", 0.4), shape(100, "#cccccc", 1)]).size, 0);
+    });
+
+    it("counts a part drawn exactly half as large in a node's box, whichever way its coordinates round", () => {
+        // Graphviz's fivepoverhang and threepoverhang: a 24 x 6 bar and a 12 x 6 bar under it, the same at any place
+        const heightOf = (widths: [number, number]): number | undefined => {
+            index = 0;
+            const hint = { role: "node" as const, key: "a", id: "a" };
+            const bar = (y: number, w: number): Prim =>
+                prim({ points: rect(100, y, 100 + w, y + 6), fill: fill("#cccccc"), hint });
+            const prims = [bar(100, widths[0]), bar(109, widths[1])];
+            return associate(prims, 600, 400, guide).scene.nodes.find((n) => n.id === "a")?.h;
+        };
+        assert.closeTo(heightOf([24, 12]) ?? 0, 15, 0.01);
+        assert.closeTo(heightOf([24, 11.999]) ?? 0, 15, 0.01);
+        // a part well under half stays out: a mark on the node is not its extent
+        assert.closeTo(heightOf([24, 6]) ?? 0, 6, 0.01);
     });
 
     it("keeps a see-through fill drawn over a smaller shape, which reaches past it unevenly, as the node's", () => {

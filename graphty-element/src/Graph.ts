@@ -14,6 +14,7 @@ import {
     Camera,
     CubicEase,
     EasingFunction,
+    type Effect,
     Engine,
     type InstancedMesh,
     type Nullable,
@@ -70,6 +71,16 @@ const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 function defaultStableFrameTimeoutMs(): number {
     const guard = (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: unknown }).__GRAPHTY_WAIT_GUARD_MS__;
     return typeof guard === "number" && guard > 0 ? guard : DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+}
+
+/**
+ * Whether a shader module's code can be drawn with. Which type `code` has depends on the WebGPU
+ * types a compilation sees: Babylon's also allow SPIR-V, which is binary and not looked into.
+ * @param code - The module's code.
+ * @returns False for WGSL with no entry point.
+ */
+function hasEntryPoint(code: string | Uint32Array): boolean {
+    return typeof code !== "string" || /@(?:vertex|fragment|compute)\b/.test(code);
 }
 
 /**
@@ -252,6 +263,7 @@ import {
     dispatcherOf,
     handGraphPaintToRenderer,
     paintAddedRows,
+    repaintGraphPass,
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
@@ -278,7 +290,8 @@ import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { CompiledLayer } from "./session/styles/Layer";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -410,8 +423,10 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
     config: new Set([
         "data.knownFields.nodeTimePath",
         "data.knownFields.nodeTimeUnit",
+        "data.knownFields.nodeTimeParseZone",
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
+        "data.knownFields.edgeTimeParseZone",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -525,31 +540,50 @@ interface Reservation {
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
+/** How the element's data-source pair loads; see {@link loadSourcePair}. */
+interface PairImport {
+    readonly coalesce: string;
+    readonly setup: boolean;
+    /**
+     * Whether a `"url"` pair finds its format. Otherwise the type is looked up like any other: a
+     * registered source of that name reads it, and with none the load fails as an unknown format.
+     */
+    readonly findsUrlFormat: boolean;
+    /** Told when a `"url"` pair's format could not be found, before any load ran to report it. */
+    readonly readFailed: (error: unknown) => void;
+}
+
 /** What the element's data-source pair adds to the import its load dispatches; see {@link loadSourcePair}. */
-const pairImports = new WeakMap<Graph, { readonly coalesce: string; readonly setup: boolean }>();
+const pairImports = new WeakMap<Graph, PairImport>();
 
 /**
  * Load the element's data-source pair through `addDataFromSource`, as every load goes, with what
  * only the pair has: a coalesce key, so the two halves assigned in one tick are one load, and
- * whether the page declared it at construction, which makes it the baseline. No entry point
- * exports it.
+ * whether the page declared it at construction, which makes it the baseline. A `"url"` type names
+ * no format, so when `how.findsUrlFormat` says so it goes through `loadFromUrl`, which finds it. No
+ * entry point exports it.
  * @param graph - The graph.
  * @param type - The data source type.
  * @param config - Its configuration.
- * @param how - The coalesce key, and whether it is setup.
+ * @param how - The coalesce key, whether it is setup, and how a `"url"` pair finds its format.
  * @param how.coalesce - The key two pair loads coalesce under while the first waits.
  * @param how.setup - Declared at construction.
+ * @param how.findsUrlFormat - Whether a `"url"` pair finds its format.
+ * @param how.readFailed - Told when a `"url"` pair's format could not be found.
  * @returns The load, as `addDataFromSource` returns it.
  */
 export function loadSourcePair(
     graph: Graph,
     type: string,
     config: object,
-    how: { readonly coalesce: string; readonly setup: boolean },
+    how: PairImport,
 ): Promise<{ loadId: number }> {
     pairImports.set(graph, how);
     try {
-        return graph.addDataFromSource(type, config, { replace: true });
+        const { url, ...options } = config as { url?: unknown } & Parameters<Graph["loadFromUrl"]>[1];
+        return how.findsUrlFormat && typeof url === "string"
+            ? graph.loadFromUrl(url, { ...options, replace: true })
+            : graph.addDataFromSource(type, config, { replace: true });
     } finally {
         pairImports.delete(graph);
     }
@@ -1126,40 +1160,7 @@ export class Graph implements GraphContext {
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
-            // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
-            // their own rows only (and the waiting edges their nodes completed). While an import
-            // reads there is no whole-graph pass until its end, so a paged or streamed load was
-            // drawn in the element's defaults while the layout ran, often until after it had
-            // settled. No frame is drawn while an element built from the defaults waits for this.
-            const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
-            if (!paintsWhole) {
-                if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
-                    await paintAddedRows(this.session, target.styles, dirty, this.dataManager.takeLateEdgeRows());
-                }
-
-                this.dataManager.notePainted(dirty);
-            }
-
-            // A change to graph values alone (the source's name, the import report) moves nothing
-            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
-            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
-                return;
-            }
-
-            // While an import reads, the pass after each chunk builds what arrived but does not
-            // paint; the pass its end schedules paints the whole graph once. Likewise a graph
-            // write with another still waiting behind it leaves the paint to the last of them,
-            // so a run of queued adds repaints once, not once per add. Everything else -- undo,
-            // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            if (paintsWhole) {
-                dispatcher.paintOwed = false;
-                this.#passRepainted = true;
-                await this.repaintFromSession();
-                // The whole graph is painted, whatever an import stopped part way left waiting.
-                this.dataManager.notePainted(null);
-            } else if (this.#importsReading === 0) {
-                dispatcher.paintOwed = true;
-            }
+            await this.paintGraphPass(target.styles, dirty, cause);
         });
 
         // The `arrangement` hook's engine is this graph's layout: a history call stops it, a restore
@@ -1537,6 +1538,26 @@ export class Graph implements GraphContext {
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
         this.selectionManager.bindSelection(this.session.selection);
+        // A selection change made by a cause `camera.pivotOnSelectionCauses` leaves out (a filter's
+        // Select, an undo) keeps the camera where the selections before it put it, as a pan of the
+        // reader's does: a glide still on its way to the last pivoting selection is finished first,
+        // so where the camera stops does not depend on how many frames ran in between (#5097).
+        // What was selected is worked out from the change only when a change holds the camera: a
+        // walk of the selection on every change is quadratic in a removal of many selected nodes.
+        let pivoted = false;
+        this.session.on("selection:changed", ({ cause, added, removed }) => {
+            const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
+            if (causes === undefined || causes.includes(cause)) {
+                pivoted = true;
+                return;
+            }
+
+            const joined = new Set(added);
+            const stayed = this.selectionManager.getSelectedNodes().filter((node) => !joined.has(node.id));
+            const left = removed.flatMap((id) => this.dataManager.getNode(id) ?? []);
+            this.updateManager.holdSelectionFollow(pivoted ? [...stayed, ...left] : []);
+            pivoted = false;
+        });
         // The pointer left the graph: no node is under it, whatever node it last crossed.
         this.element.addEventListener(
             "pointerleave",
@@ -1613,6 +1634,13 @@ export class Graph implements GraphContext {
         this.session.on("set:changed", (change) => {
             if (change.change === "removed") {
                 this.layoutManager.releaseDetachedScope();
+            }
+        });
+
+        // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
+        this.session.on("run:changed", ({ phase }) => {
+            if (phase === "end" || phase === "removed" || phase === "restored") {
+                this.layoutManager.clustersChanged();
             }
         });
 
@@ -2059,6 +2087,7 @@ export class Graph implements GraphContext {
         }
 
         this.watchShaderModules(opened);
+        this.watchShaderCompiles(opened);
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
@@ -2107,9 +2136,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the WebGPU device refuses. Nothing else would: creating the module does not
-     * throw and Babylon never asks how it went, the pipeline built from it is invalid, and the
-     * frame's whole command buffer is rejected, so the canvas stays blank with no failed call.
+     * Reports a shader the WebGPU device refuses or the translator loses. Nothing else would:
+     * creating the module does not throw and Babylon never asks how it went, the pipeline built
+     * from it is invalid, and the frame's whole command buffer is rejected, so the canvas stays
+     * blank with no failed call. The translator stops at a built-in it does not handle and returns
+     * the WGSL it has so far, which the device accepts and which holds no entry point.
      * ponytail: a device Babylon opens after a device loss is not watched; it compiles the same shaders.
      * @param engine - The engine whose device compiles the graph's shaders.
      */
@@ -2121,7 +2152,9 @@ export class Graph implements GraphContext {
             void module.getCompilationInfo().then(({ messages }) => {
                 const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
                 if (errors.length > 0) {
-                    this.reportRefusedShader(errors);
+                    this.reportRefusedShader("device", errors);
+                } else if (!hasEntryPoint(descriptor.code)) {
+                    this.reportRefusedShader("translator", []);
                 }
             });
             return module;
@@ -2129,20 +2162,53 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Stops claiming to draw and says why.
-     * @param messages - What the device said about the shader.
+     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
+     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
+     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
+     * synchronous failure would have told it, and everything listening to it hears as it does
+     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * @param engine - The engine that compiles the graph's shaders.
      */
-    private reportRefusedShader(messages: readonly string[]): void {
+    private watchShaderCompiles(engine: WebGPUEngine): void {
+        const prepare = engine._preparePipelineContextAsync.bind(engine);
+        engine._preparePipelineContextAsync = async (context, ...rest) => {
+            try {
+                await prepare(context, ...rest);
+            } catch (error) {
+                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
+                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
+                if (failed === undefined) {
+                    this.reportRefusedShader("compiler", [String(error)]);
+                } else {
+                    (
+                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
+                    )._processCompilationErrors(error);
+                }
+            }
+        };
+        engine.onEffectErrorObservable.add(({ effect, errors }) => {
+            if (!effect.onError) {
+                this.reportRefusedShader("compiler", [errors]);
+            }
+        });
+    }
+
+    /**
+     * Stops claiming to draw and says why.
+     * @param stage - Which step gave up on the shader.
+     * @param messages - What it said; the translator says nothing the element can read.
+     */
+    private reportRefusedShader(stage: "compiler" | "translator" | "device", messages: readonly string[]): void {
         if (this.#rendererStatus !== null) {
             this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
         }
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU device refused a shader, so nothing is drawn: ${messages.join("; ")}`,
+            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
-            details: { messages },
+            details: { stage, messages },
         });
         this.eventManager.emitGraphError(this, error, "other");
     }
@@ -2840,12 +2906,19 @@ export class Graph implements GraphContext {
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
      * @param load.turn - Its place in the session's load line
+     * @param pair - What a pair load adds; set only for the call that made it, so a door that reads
+     *     first passes what it found before its first await
      * @returns The load's id
      */
-    private async loadReserved(type: string, opts: object, load: Reservation): Promise<{ loadId: number }> {
-        // Read before the first await: a pair load's extras are set only for the call that made it.
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: Reservation,
+        pair = pairImports.get(this),
+    ): Promise<{ loadId: number }> {
         const { turn, ...place } = load;
-        const extras = pairImports.get(this);
+        const { coalesce, setup } = pair ?? {};
+        const extras = pair === undefined ? {} : { coalesce, setup };
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
@@ -2988,10 +3061,14 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
+        const pair = pairImports.get(this);
         try {
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
-                : await this.urlFormat(url, load.generation);
+                : await this.urlFormat(url, load.generation).catch((error: unknown) => {
+                      pair?.readFailed(error);
+                      throw error;
+                  });
 
             // Merge graph config with explicit options (explicit options take precedence)
             // A key is only carried when there is something to say. `edgeSource: undefined` would
@@ -3017,10 +3094,10 @@ export class Graph implements GraphContext {
             // If we already fetched content for detection, pass it as data to avoid double-fetch
             // Otherwise pass URL and let DataSource handle the fetch
             if (fetchedContent !== undefined) {
-                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load, pair);
             }
 
-            return await this.loadReserved(format, { url, ...mergedOptions }, load);
+            return await this.loadReserved(format, { url, ...mergedOptions }, load, pair);
         } finally {
             this.leaveLine(load);
         }
@@ -4218,6 +4295,59 @@ export class Graph implements GraphContext {
      */
     getStylePainter(): StylePainter {
         return this.stylePainter;
+    }
+
+    /**
+     * Bring the paint up to date at the end of a `graph` pass.
+     * @param stack - The stack the pass derived.
+     * @param dirty - The pass's dirty keys.
+     * @param cause - What caused the pass.
+     * @returns Settles once the paint this pass owes is done.
+     */
+    private async paintGraphPass(
+        stack: readonly CompiledLayer[],
+        dirty: ReadonlySet<string>,
+        cause: HistoryCause,
+    ): Promise<void> {
+        // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
+        // their own rows only (and the waiting edges their nodes completed). While an import
+        // reads there is no whole-graph pass until its end, so a paged or streamed load was
+        // drawn in the element's defaults while the layout ran, often until after it had
+        // settled. No frame is drawn while an element built from the defaults waits for this.
+        const dispatcher = dispatcherOf(this.session);
+        const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
+        if (!paintsWhole) {
+            if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
+                await paintAddedRows(this.session, stack, dirty, this.dataManager.takeLateEdgeRows());
+            }
+
+            this.dataManager.notePainted(dirty);
+        }
+
+        // A change to graph values alone (the source's name, the import report) moves nothing
+        // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+        if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+            return;
+        }
+
+        // While an import reads, the pass after each chunk builds what arrived but does not
+        // paint; the pass its end schedules paints the whole graph once. Likewise a graph
+        // write with another still waiting behind it leaves the paint to the last of them,
+        // so a run of queued adds repaints once, not once per add. Everything else -- undo,
+        // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
+        if (paintsWhole) {
+            // A forward add over a picture that is current names what it changed; undo, redo
+            // and a paint an earlier write left owed have no such list.
+            const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
+            dispatcher.paintOwed = false;
+            this.#passRepainted = true;
+            await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
+            // The whole graph is painted, whatever an import stopped part way left waiting:
+            // a pass that painted only the changed rows found every other row painted already.
+            this.dataManager.notePainted(null);
+        } else if (this.#importsReading === 0) {
+            dispatcher.paintOwed = true;
+        }
     }
 
     /**

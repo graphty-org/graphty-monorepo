@@ -171,6 +171,33 @@ export function stripeBands(
 }
 
 /**
+ * The parts of a band a `frame` keeps: the four strips round the box left inside it, or the whole
+ * band without a frame of four numbers.
+ * @param frame - The stripes' `frame`: fractions "top right bottom left" of the band's height and width.
+ * @param box - The band.
+ * @returns The boxes to fill.
+ */
+export function framedBand(frame: string | undefined, box: PieceBox): PieceBox[] {
+    const insets = cssWords(frame).map(Number);
+    if (insets.length !== 4 || !insets.every(Number.isFinite)) {
+        return [box];
+    }
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    const [top, right, bottom, left] = [
+        box.y1 - insets[0] * h,
+        box.x1 - insets[1] * w,
+        box.y0 + insets[2] * h,
+        box.x0 + insets[3] * w,
+    ];
+    return [
+        { ...box, y0: top },
+        { ...box, y1: bottom },
+        { x0: box.x0, x1: left, y0: bottom, y1: top },
+        { x0: right, x1: box.x1, y0: bottom, y1: top },
+    ];
+}
+
+/**
  * Where an image is drawn over a node `width` x `height`, from the image's own size: fitted
  * (`fit` "contain", the default, keeps its proportions inside the node; "cover" keeps them over the
  * whole node; "fill" stretches it to the node) or at its own size ("none": `width` and `height`, or

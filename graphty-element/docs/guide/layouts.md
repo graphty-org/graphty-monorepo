@@ -141,6 +141,28 @@ fit a graph to `scalingFactor`, so a graph whose nodes do not fit in that radius
 rather than left overlapping. In a very crowded graph a run may end with a few pairs still overlapping
 by a small share of their size.
 
+### Pulling communities together
+
+Community detection only colors the nodes of a community; they stay where the forces put them. Set
+`clusterBy` and each community is also pulled toward its own centroid, so it reads as a lump. Name
+a node attribute, or a run's field the way a style layer does. Every force layout takes it (`ngraph`,
+`d3`, `forceatlas2`, `spring` and `spring-electrical`), and with a hardware accelerator attached the
+centroids are computed on the device.
+
+```typescript
+element.layoutConfig = { clusterBy: "results.louvain.group" };
+await element.session.runs.start("louvain", {}, { as: "louvain" });
+```
+
+The run does not have to exist yet: until it finishes the layout runs as it would without
+`clusterBy`, and when the results land, change or are removed the layout starts again from where it
+stands. A node with no value, such as one a run left out, is in no community and only feels the
+other forces. `clusterBy: "data.department"` does the same for an attribute of your own.
+
+`clusterStrength` says how hard the pull is: `1`, the default, is about one more edge tying each
+node to the centroid, and larger values make tighter lumps. Unset (`null`, the default), `clusterBy`
+leaves the layout as it always was.
+
 ### The same drawing every time
 
 The default layout is unseeded, so the same data can settle in a different place each time it is

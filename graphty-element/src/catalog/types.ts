@@ -594,7 +594,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY` and `labelShiftOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -646,6 +646,7 @@ export type Channel =
     | "node.labelShiftX"
     | "node.labelShiftY"
     | "node.labelShiftOf"
+    | "node.labelGapOf"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -752,6 +753,7 @@ export type Channel =
     | "node.stripeOpacities"
     | "node.stripeDirection"
     | "node.stripeSize"
+    | "node.stripeFrame"
     | "node.chartKind"
     | "node.chartValues"
     | "node.chartColors"
@@ -943,6 +945,7 @@ export type Channel =
     | "edge.labelShiftX"
     | "edge.labelShiftY"
     | "edge.labelShiftOf"
+    | "edge.labelGapOf"
     | "node.xlabel"
     | "node.xlabelStyle"
     | "node.xlabelLocation"
@@ -1991,6 +1994,15 @@ export type RuleTree =
           readonly attribute: Path;
           readonly min?: number;
           readonly max?: number;
+          /**
+           * How each value is read. Absent, the leaf compares numbers. `"time"` compares instants:
+           * `min` and `max` are epoch milliseconds, and each value is read the way the session's
+           * time field reads it (`session.time.parse`: a date with no zone is UTC; a designated
+           * column's own unit), so `{ max: Date.UTC(2005, 0, 1) - 1, as: "time" }` keeps what
+           * happened before 2005.
+           * @since 3.36.0
+           */
+          readonly as?: "time";
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
       }
@@ -2132,8 +2144,8 @@ export type FilterEffect = "keep" | "exclude" | "select";
  *
  * Conditions are independent and order never matters: every keep condition that is on narrows
  * what stays, every exclude condition that is on hides its matches (two of them hide what either
- * matches), and the select conditions that are on select what all of them match, over the whole
- * graph, visible or not.
+ * matches), and the select conditions that are on select what all of them match among what is
+ * visible, or over the whole graph (see {@link FilterCondition.within}).
  *
  * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
  * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
@@ -2151,7 +2163,26 @@ export interface FilterCondition {
     readonly effect: FilterEffect;
     /** What it matches. */
     readonly rule: RuleTree;
+    /**
+     * Where a select condition looks for its matches; read only when `effect` is `"select"`.
+     * `"picture"` (the default, when absent): only the matches that are visible. `"graph"`: every
+     * match in the graph, visible or not, used only when every select condition that is on reads
+     * `"graph"`. The selection is recomputed whenever a keep or exclude condition is added,
+     * removed, switched or edited while a select condition is on, and on undo and redo of such a
+     * change. The order of the conditions never matters.
+     * @since 3.33.0
+     */
+    readonly within?: FilterSelectWithin;
 }
+
+/**
+ * Where a select condition looks for its matches: the whole graph, or only what the keep and
+ * exclude conditions leave drawn. See {@link FilterCondition.within}.
+ *
+ * OPEN UNION: a later release may add a value; handle unknown values.
+ * @since 3.33.0
+ */
+export type FilterSelectWithin = "graph" | "picture";
 
 /**
  * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.

@@ -14,6 +14,7 @@ import type { FilterCondition, FilterStep } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
+import { isTimeZone } from "../time/zone";
 import type { HistoryCode } from "../types";
 import { assertConditions, conditionsOfSteps, listFact, stepsOf } from "../visibility/conditions";
 import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
@@ -80,6 +81,8 @@ export interface VisibilityService {
      * @param window - The window, or null.
      */
     check(filter: RuleTree | null, window: TimeWindow | null): void;
+    /** Whether the timeline experiment is on. */
+    timeline(): boolean;
 }
 
 /**
@@ -235,19 +238,20 @@ const PLAYBACK_STEPS = new Set(["auto", "hour", "day", "week", "month", "quarter
 /**
  * Refuse a malformed playback setting.
  * @param playback - The settings, or null.
+ * @param timeline - Whether the timeline is on: off, a zone does nothing and stays saved as it came.
  * @throws `E_BAD_COMMAND` naming the setting.
  */
-function assertPlayback(playback: TimePlayback | null): void {
+function assertPlayback(playback: TimePlayback | null, timeline: boolean): void {
     if (playback === null) {
         return;
     }
 
-    const bad = (field: string, value: unknown): GraphtyError =>
+    const bad = (field: string, value: unknown, reason = "playback"): GraphtyError =>
         new GraphtyError({
             code: "E_BAD_COMMAND",
             message: `A playback setting's ${field} is not one it takes.`,
             source: "data",
-            details: { field, value, reason: "playback" },
+            details: { field, value, reason },
         });
     for (const [field, allowed] of Object.entries(PLAYBACK_VALUES)) {
         const value = (playback as Readonly<Record<string, unknown>>)[field];
@@ -264,6 +268,10 @@ function assertPlayback(playback: TimePlayback | null): void {
     ) {
         throw bad("step", step);
     }
+
+    if (timeline && playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {
+        throw bad("timeZone", playback.timeZone, "time-zone");
+    }
 }
 
 const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
@@ -279,7 +287,7 @@ const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
         coalesce: () => "playback",
     },
     execute: (command, ctx) => {
-        assertPlayback(command.playback);
+        assertPlayback(command.playback, ctx.services.visibility?.timeline() !== false);
         ctx.draft.visibility.set("playback", command.playback === null ? null : Object.freeze({ ...command.playback }));
     },
 };

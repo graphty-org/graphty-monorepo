@@ -184,6 +184,16 @@ describe("the force layouts' option mapping", () => {
         assert.strictEqual(model({ maxIter: 250 }).maxIter, 250);
     });
 
+    it("hands the bridge clusterBy and keeps it out of the simulation's own options", () => {
+        for (const type of ["forceatlas2", "spring", "spring-electrical"] as const) {
+            const resolved = resolveSimulationOptions(type, { clusterBy: "data.group", clusterStrength: 2 }, BEHAVIOR);
+            assert.strictEqual(resolved.clusterBy, "data.group");
+            assert.strictEqual(resolved.clusterStrength, 2);
+            assert.notProperty(resolved.model, "clusterBy");
+            assert.isNull(resolveSimulationOptions(type, {}, BEHAVIOR).clusterBy, "off by default");
+        }
+    });
+
     it("hands the bridge nodeGap and keeps it out of the simulation's own options", () => {
         for (const type of ["forceatlas2", "spring", "spring-electrical"] as const) {
             const resolved = resolveSimulationOptions(type, { nodeGap: 3, nodeGapFront: true }, BEHAVIOR);

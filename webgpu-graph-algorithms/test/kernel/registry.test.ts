@@ -463,6 +463,38 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P4",
         storageCount: 5,
     },
+    "cluster-centroid": {
+        entryPoint: "cluster_centroid",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "members", "storage-ro", "array<u32>"],
+            [1, 2, "clusterStart", "storage-ro", "array<u32>"],
+            [1, 3, "centroids", "storage", "array<vec4f>"],
+            [2, 0, "P", "uniform", "Fa2Params"],
+        ],
+        overrideDecls: [],
+        uniforms: [FA2_PARAMS],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 4,
+    },
+    "cluster-pull": {
+        entryPoint: "cluster_pull",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "force", "storage", "array<f32>"],
+            [1, 2, "clusterOf", "storage-ro", "array<u32>"],
+            [1, 3, "centroids", "storage-ro", "array<vec4f>"],
+            [2, 0, "P", "uniform", "Fa2Params"],
+        ],
+        overrideDecls: [["LAW", "u32", 0]],
+        uniforms: [FA2_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 4,
+    },
     "collide-cell-key": {
         entryPoint: "collide_cell_key",
         bindings: [
@@ -1591,6 +1623,8 @@ const BLOCKS: readonly BlockRow[] = [
             ["midEnd", 124],
             ["settleFloor", 128],
             ["live", 132],
+            ["clusterStrength", 136],
+            ["clusterCount", 140],
         ],
     },
     {

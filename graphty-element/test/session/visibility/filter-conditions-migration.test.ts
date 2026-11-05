@@ -6,14 +6,20 @@
  * write the steps beside a versioned `conditions` field, and an older reader's view of them (the
  * steps alone) hides the same elements.
  */
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type FilterStep, type GraphSession, type SessionCommand } from "../../../session";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import EXPECTED from "./fixtures/master-steps.expected.json";
 import JOURNAL from "./fixtures/master-steps.journal.json";
 import PROJECT from "./fixtures/master-steps.project.json";
 import MALFORMED_EXPECTED from "./fixtures/master-steps-malformed.expected.json";
 import MALFORMED from "./fixtures/master-steps-malformed.project.json";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** A project document, as far as these tests read it. */
 interface Doc {

@@ -35,6 +35,27 @@ export interface WeightReading {
     readonly input: WeightMeaning | null | undefined;
 }
 
+/**
+ * The edge column runs read as the weight: the configured weight path when it names an edge column
+ * the last load did not read weights from (a role given after the load), none when the weight role
+ * was taken away, else the column the last load read.
+ * @param path - `data.knownFields.edgeWeightPath`; null when no column has the weight role.
+ * @param loaded - The column the last load read weights from, or null.
+ * @param isEdgeColumn - Whether an edge column of that name exists.
+ * @returns The column, or null.
+ */
+export function designatedWeight(
+    path: string | null,
+    loaded: string | null,
+    isEdgeColumn: (name: string) => boolean,
+): string | null {
+    if (path === null) {
+        return null;
+    }
+
+    return path !== loaded && isEdgeColumn(path) ? path : loaded;
+}
+
 const MEANINGS: readonly unknown[] = ["strength", "distance", "capacity"] satisfies WeightReads[];
 
 /**
@@ -78,6 +99,8 @@ function readAsked(asked: unknown): LoadedWeightFact | null | undefined {
  * @param reads - The meaning the algorithm reads, or null for an algorithm with no weighted form.
  * @param asked - The run's `weight` option.
  * @param loaded - The weight the graph was loaded with, or null.
+ * @param stored - The column the store's weights were filled from at load, when it differs from
+ *   `loaded` (a weight role given or taken away after the load).
  * @returns What the run reads.
  * @throws A `GraphtyError` with `E_OPTION_RANGE` for a malformed `weight` option.
  */
@@ -85,6 +108,7 @@ export function resolveRunWeight(
     reads: WeightReads | null,
     asked: unknown,
     loaded: LoadedWeightFact | null,
+    stored: string | null = loaded?.attribute ?? null,
 ): WeightReading {
     // A class with no weighted form leaves the option to its own schema, whatever it holds.
     if (reads === null) {
@@ -100,8 +124,9 @@ export function resolveRunWeight(
     const candidate = named === undefined ? loaded : { attribute: named.attribute, meaning: named.meaning ?? reads };
 
     if (candidate === null) {
-        // No weight was loaded: the store's weights all read 1, so the input stays as it is.
-        return { weight: null, input: undefined };
+        // No weight: the store's weights all read 1, unless a load filled them from a column whose
+        // weight role was taken away since.
+        return { weight: null, input: stored === null ? undefined : null };
     }
 
     if (candidate.meaning === reads || (reads === "strength" && candidate.meaning === null)) {
@@ -112,7 +137,7 @@ export function resolveRunWeight(
             ...(candidate.meaning === null ? { assumed: true as const } : {}),
         });
         // The loaded column is the store's own weights: read them rather than the column again.
-        return { weight, input: candidate.attribute === loaded?.attribute ? undefined : weight };
+        return { weight, input: candidate.attribute === stored ? undefined : weight };
     }
 
     return {

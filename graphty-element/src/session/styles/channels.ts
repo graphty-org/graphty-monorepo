@@ -261,7 +261,10 @@ export type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
-/** What a label's shifts are fractions of (`labelShiftOf`): its whole box, or its words alone. */
+/**
+ * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
+ * (`labelGapOf`): its whole box, or its words alone.
+ */
 export type LabelShiftOfValue = "box" | "words";
 
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
@@ -381,6 +384,7 @@ export interface ChannelValues {
     "node.labelShiftX": number;
     "node.labelShiftY": number;
     "node.labelShiftOf": LabelShiftOfValue;
+    "node.labelGapOf": LabelShiftOfValue;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -487,6 +491,7 @@ export interface ChannelValues {
     "node.stripeOpacities": string;
     "node.stripeDirection": NodeStripeDirectionValue;
     "node.stripeSize": number;
+    "node.stripeFrame": string;
     "node.chartKind": NodeChartKindValue;
     "node.chartValues": string;
     "node.chartColors": string;
@@ -678,6 +683,7 @@ export interface ChannelValues {
     "edge.labelShiftX": number;
     "edge.labelShiftY": number;
     "edge.labelShiftOf": LabelShiftOfValue;
+    "edge.labelGapOf": LabelShiftOfValue;
     "node.xlabel": string;
     "node.xlabelStyle": LabelStyle;
     "node.xlabelLocation": LabelLocation;
@@ -1097,7 +1103,8 @@ const NODE_PIE_CAVEAT =
 const NODE_STRIPES_CAVEAT =
     "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
     'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
-    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s.';
+    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s; ' +
+    '`node.stripeFrame`, four fractions "top right bottom left", keeps only that rim of the box.';
 
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
@@ -1469,7 +1476,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1505,6 +1512,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     ShiftX: "shiftX",
     ShiftY: "shiftY",
     ShiftOf: "shiftOf",
+    GapOf: "gapOf",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -1782,6 +1790,14 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'its words, or "words", its words alone, as a program that anchors a label\'s text places it. ' +
                 'Unset, "box".',
         }),
+        row("GapOf", "Gap Of", {
+            accepts: "enum",
+            values: LABEL_SHIFT_OF_VALUES,
+            caveat:
+                'What a label outside its node is placed against the node by: "box", the label\'s whole box with ' +
+                'the margins round its words, or "words", its words\' own font box, as Cytoscape.js puts a label ' +
+                'outside its node. Unset, "box".',
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -1824,6 +1840,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     ShiftX: "shiftX",
     ShiftY: "shiftY",
     ShiftOf: "shiftOf",
+    GapOf: "gapOf",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1880,7 +1897,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf)$/.exec(
             channel,
         );
 
@@ -3191,6 +3208,17 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "stripes.size",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeFrame": {
+        channel: "node.stripeFrame",
+        target: "node",
+        plainName: "Node Stripe Frame",
+        shortName: "Stripe frame",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.frame",
         renderable: true,
         caveat: NODE_STRIPES_CAVEAT,
     },

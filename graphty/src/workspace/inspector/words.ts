@@ -55,7 +55,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Filter step",
+    "filter-step": "Time window",
     source: "Source",
 };
 
@@ -222,6 +222,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelShiftX": "Label",
     "node.labelShiftY": "Label",
     "node.labelShiftOf": "Label",
+    "node.labelGapOf": "Label",
     "node.labelMinNodeScreenSize": "Label",
     "node.labelTextAlign": "Label",
     "node.labelLocation": "Label",
@@ -287,6 +288,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.stripeOpacities": "Stripe opacities",
     "node.stripeDirection": "Stripe direction",
     "node.stripeSize": "Stripe size",
+    "node.stripeFrame": "Stripe frame",
     "node.chartKind": "Chart kind",
     "node.chartValues": "Chart values",
     "node.chartColors": "Chart colors",
@@ -409,6 +411,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelShiftX": "Label",
     "edge.labelShiftY": "Label",
     "edge.labelShiftOf": "Label",
+    "edge.labelGapOf": "Label",
     "node.groupPadding": "Group",
     "node.groupPaddingRatio": "Group",
     "node.groupPaddingOf": "Group",

@@ -6,7 +6,7 @@
  * configuration can only make a site look more like production.
  */
 
-import { featuresFromUrl } from "@graphty/graphty-element/catalog";
+import { featuresFromUrl, resolveFeatures } from "@graphty/graphty-element/catalog";
 
 /** The sites one build serves; `unknown` when the site said nothing usable. */
 export type SiteName = "canary" | "nightly" | "production" | "unknown";
@@ -106,6 +106,15 @@ export function loadSiteConfig(url = `${import.meta.env.BASE_URL}site.json`): Pr
  */
 export function siteConfig(): SiteConfig {
     return current;
+}
+
+/**
+ * Whether this site switches the timeline on, for a door the start page draws before any session
+ * exists; `timelineOn(session)` answers everywhere else.
+ * @returns true when it is on.
+ */
+export function siteTimeline(): boolean {
+    return resolveFeatures(current.features).enabled.includes("timeline");
 }
 
 /**

@@ -9,6 +9,7 @@ import {
     chartPieces,
     clipToBox,
     databaseRim,
+    framedBand,
     imageBox,
     pieSlices,
     pointLists,
@@ -80,6 +81,17 @@ describe("stripes", () => {
         );
         const right = stripeBands({ colors: "red green", direction: "right", size: 0.5 }, 10, 20);
         assert.deepEqual(right[0].box, { x0: -2.5, x1: 0, y0: -5, y1: 5 });
+    });
+
+    test("keep only the rim of a frame, four fractions deep from the top, right, bottom and left", () => {
+        const box = { x0: -10, x1: 10, y0: -5, y1: 5 };
+        assert.deepEqual(framedBand("0.2 0.1 0.1 0.1", box), [
+            { x0: -10, x1: 10, y0: 3, y1: 5 },
+            { x0: -10, x1: 10, y0: -5, y1: -4 },
+            { x0: -10, x1: -8, y0: -4, y1: 3 },
+            { x0: 8, x1: 10, y0: -4, y1: 3 },
+        ]);
+        assert.deepEqual(framedBand(undefined, box), [box]);
     });
 });
 

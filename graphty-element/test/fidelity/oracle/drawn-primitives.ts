@@ -174,6 +174,13 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     // a delta with a bar across the line behind it, a gap between them; a hollow one's is its filled twin's
     "cross-delta": "cross-delta",
     "open-cross-delta": "cross-delta",
+    // two strokes crossing on the line
+    cross: "cross",
+    // darts: a reader's triangle, as their outlines read
+    kite: "triangle",
+    deltoid: "triangle",
+    // a vee's arms alone, read as the notch they leave
+    "open-vee": "vee",
 };
 
 /** Where along its edge each of graphty's caps sits. */

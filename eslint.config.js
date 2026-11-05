@@ -81,8 +81,9 @@ export default tseslint.config(
                 "error",
                 {
                     // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them;
-                    // beta marks an API that may change or be removed in a minor release (api-extractor prints `// @beta`)
-                    definedTags: ["since", "internal", "remarks", "category", "defaultValue", "beta"],
+                    // beta marks an API that may change or be removed in a minor release (api-extractor prints `// @beta`),
+                    // as experimental does for an API behind an experiment's switch (@experimental <feature id>)
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue", "beta", "experimental"],
                 },
             ],
             "jsdoc/require-jsdoc": [

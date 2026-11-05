@@ -195,6 +195,14 @@ const SEED_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     seed: { type: "seed" },
 };
 
+/** A force layout's `clusterBy` names a node attribute or a run's field whose values partition the nodes. */
+const CLUSTER_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    clusterBy: { type: "partition", on: "node" },
+};
+
+/** A seeded force layout's options. */
+const FORCE_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = { ...SEED_OVERRIDE, ...CLUSTER_OVERRIDE };
+
 /** A layout's `groupBy` names a node attribute or a run's field whose values partition the nodes. */
 const GROUP_BY_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     groupBy: { type: "partition", on: "node" },
@@ -266,7 +274,7 @@ const ngraph: LayoutImplementationSpec = {
         "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
         "draws this same arrangement on an accelerator instead, whenever one is attached.",
     code: "implementation.default-processor",
-    options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
+    options: engineOptions(NGraphEngine.zodOptionsSchema, FORCE_OVERRIDE),
     honoursWeights: NGraphEngine.honoursWeights,
     scoped: NGraphEngine.scoped,
 };
@@ -282,7 +290,7 @@ const d3: LayoutImplementationSpec = {
         "Choose it for d3's own tuning vocabulary -- alpha, alpha decay, velocity decay -- when " +
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     code: "implementation.d3-tuning",
-    options: engineOptions(D3GraphEngine.zodOptionsSchema),
+    options: engineOptions(D3GraphEngine.zodOptionsSchema, CLUSTER_OVERRIDE),
     honoursWeights: D3GraphEngine.honoursWeights,
     scoped: D3GraphEngine.scoped,
 };
@@ -298,7 +306,7 @@ const forceAtlas2: LayoutImplementationSpec = {
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
         "It keeps running until the layout settles and reheats on a drag or a pin.",
     code: "implementation.gephi-look",
-    options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
+    options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, FORCE_OVERRIDE),
     honoursWeights: ForceAtlas2Layout.honoursWeights,
     scoped: ForceAtlas2Layout.scoped,
 };
@@ -314,7 +322,7 @@ const spring: LayoutImplementationSpec = {
         "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
         "the same settled shape.",
     code: "implementation.seed-reproducible",
-    options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
+    options: engineOptions(SpringLayout.zodOptionsSchema, FORCE_OVERRIDE),
     honoursWeights: SpringLayout.honoursWeights,
     scoped: SpringLayout.scoped,
 };
@@ -331,7 +339,7 @@ const springElectrical: LayoutImplementationSpec = {
         "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
         "it then needs an accelerator and says so when there is none.",
     code: "implementation.accelerator-only",
-    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
+    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, FORCE_OVERRIDE),
     honoursWeights: SpringElectricalLayout.honoursWeights,
     scoped: SpringElectricalLayout.scoped,
     requires: { accelerator: true },

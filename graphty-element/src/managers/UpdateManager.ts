@@ -1831,11 +1831,40 @@ export class UpdateManager implements Manager {
     /**
      * The reader moved the camera themselves (a pan, a zoom, a turn): stop following the selection
      * there is now, so the camera stays where they put it, until the selection changes.
+     *
+     * Given the selection the camera was following, the glide to it is finished first, at once: a
+     * selection change that holds the camera (a cause `camera.pivotOnSelectionCauses` leaves out)
+     * then leaves it where the selections put it, not wherever the glide had reached on the frame
+     * the change arrived (issue #5097). Not when the camera had already stopped following it.
+     * @param following - The selection the camera was following before the change.
      */
-    holdSelectionFollow(): void {
+    holdSelectionFollow(following: readonly Node[] = []): void {
+        if (following.length > 0 && !isHeld(following, this.heldSelection)) {
+            this.finishGlideTo(following);
+        }
+
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
+    }
+
+    /**
+     * Put the camera's pivot on a selection's center at once, as the glide to it would end; not
+     * while the element is framing the graph or a node of it is dragged (see `followSelection`).
+     * @param nodes - The selection.
+     */
+    private finishGlideTo(nodes: readonly Node[]): void {
+        if (
+            !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection ||
+            nodes.some((node) => node.dragging) ||
+            this.willZoomToFit()
+        ) {
+            return;
+        }
+
+        if (this.camera.followPoint(selectionCenter(nodes), 1, true)) {
+            this.viewMoved();
+        }
     }
 
     /**
@@ -1878,14 +1907,9 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const center = nodes[0].mesh.position.clone();
-        for (const node of nodes.slice(1)) {
-            center.addInPlace(node.mesh.position);
-        }
-
         // A camera still gliding to the selection is a picture that is not final yet.
         const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
-        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length), frames);
+        this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 
     /**
@@ -3176,6 +3200,31 @@ export class UpdateManager implements Manager {
     updateConfig(config: Partial<UpdateManagerConfig>): void {
         Object.assign(this.config, config);
     }
+}
+
+/**
+ * The plain average of a selection's positions: the point the camera pivots on.
+ * @param nodes - The selected nodes, at least one.
+ * @returns Their center, in world space.
+ */
+function selectionCenter(nodes: readonly Node[]): Vector3 {
+    const center = nodes[0].mesh.position.clone();
+    for (const node of nodes.slice(1)) {
+        center.addInPlace(node.mesh.position);
+    }
+
+    return center.scaleInPlace(1 / nodes.length);
+}
+
+/**
+ * Whether a selection, in any order, is the one held.
+ * @param nodes - The selection.
+ * @param held - The held selection's `selectionKey`, or null.
+ * @returns True when they hold the same nodes.
+ */
+function isHeld(nodes: readonly Node[], held: string | null): boolean {
+    const ids = new Set(held?.split("\u0000"));
+    return ids.size === nodes.length && nodes.every((node) => ids.has(String(node.id)));
 }
 
 /**

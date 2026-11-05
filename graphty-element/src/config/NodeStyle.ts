@@ -523,7 +523,9 @@ export const NodeStyle = z.strictObject({
      * Bands of color drawn over the node's face, inside its outline (Cytoscape.js `stripe-*`,
      * Graphviz `style=striped`): `colors`, `sizes` and `opacities` as a pie's, the bands following
      * one another top to bottom (`direction` "down", the default) or left to right ("right"),
-     * over a box `size` (default 1) times the node's, centred on it.
+     * over a box `size` (default 1) times the node's, centred on it. `frame`, four fractions
+     * "top right bottom left" (of the box's height and width), keeps only the rim that deep inside
+     * the box's edges, so the bands frame what the node shows in the middle.
      */
     stripes: z
         .strictObject({
@@ -532,6 +534,7 @@ export const NodeStyle = z.strictObject({
             opacities: z.string().optional(),
             direction: z.enum(["down", "right"]).optional(),
             size: z.number().nonnegative().optional(),
+            frame: z.string().optional(),
         })
         .optional(),
     /**

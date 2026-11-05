@@ -7,49 +7,43 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-- (2026-10-23, issue #3315) Location splits into six Fields kinds (Latitude, Longitude,
-  Coordinates, Country, Region, City), each one column. My argument, adopted: an entry is "a role a
-  column has"; Location was the only entry whose control was a mode, so it broke the list's one
-  rule. Within is structure the list already holds (City + Country), not a setting. The "+" menu
-  stays flat, no group label, so the menu has one rule too.
-
-1. (2026-10-21, tier 3 round 1 closed, studio stopped at its 1-round cap) 55 of 56 sessions
-   succeeded; no new severity 3. The round is at its ceiling on success, so judge structure by
-   cost (steps over the key), routes and wrong first places, not by pass rate.
-2. (2026-10-21) The top IA finding: with nothing picked, newcomers look for node color in the
-   Graph inspector's Style tab (9 sessions, 5 halves) and recover only by matching the count
-   beside "Everything" to the node count. The Graph inspector must point to the home of node and
-   edge appearance (the layer list), not hold a second home. A door, not a duplicate control.
-3. (2026-10-21) A new style line that starts at the value every element already has (Fill "+"
-   gives the current color; edge Width starts at 8, no unit) looks like nothing happened. Fix in
-   the shared row: show it is set and what it overrides, give units; do not invent a new default.
-4. (2026-10-21) Checking a layer's members is done by eye: the layer's Values tab lists ids, not
-   the label column, and the table cannot show only a layer's rows. One fact (which elements a
-   layer paints) needs one readable home -- the table scoped to the layer, named the way the
-   drawing names nodes. Element supplies membership; the app chooses the name column.
-5. (2026-10-21) Color names are one table deciding both what is spoken and a study grade:
-   `colorWord` returns a CSS keyword before hue ("gold", not "yellow"; a salmon is "red"), and two
-   group colors share one spoken name. Name by hue family first; fix in compact-mantine.
-6. (2026-10-21) Avoiding the <<Layer>> token is not reading it: 0 of 10 fell into the one-color
-   trap, but 6 went around the token. Next round needs a measure that separates avoidance from
-   understanding before I claim bulk editing is legible.
-7. (2026-10-21) Keyboard route to a styled graph costs 30+ Tabs; "Samples" drops focus; the
-   inspector's F6 stop has no focus ring (WCAG 2.4.7). Structure part: nine category chips are
-   nine stops -- a group should be one stop with arrows.
-8. (2026-10-21) Find-box value rows read as a rule ("kind is company (6)") but coloring from them
-   makes a fixed id list named by its count. A door that looks like a rule must make a rule.
-9. (2026-10-21) Do not build the product around one task's wording: no "cube" synonym, no
-   "cluster" re-ranking for B-half prompts. Weakened findings that rest on prompt words stay at 1.
-10. (2026-10-21) Studio lesson: the answer key describes most problems graders cite and every
-    participant is one model -- grading may be leading. Read next tasks for leading before
-    spending sessions; a fail is strong evidence, a pass weak.
-11. (2026-10-16) Still unverified in a study: does a reader find edges under a node-first tab;
-    do readers tie BoundValue chits to groups at rest; does anyone read collapsed chips as the
-    whole pick. Round 1 did not reach these directly.
-12. Standing rules: one home per capability; "+" only adds to lists, single-valued properties are
-    always-drawn rows; unset is the minus and says what comes back; two row kinds only (layer,
-    folder); per-value color is an ordinary vary binding; check proposals at their edges
-    (keyboard focus, non-community data, edges) and round trip (made, then read back).
+1. (2026-10-30, tier 4 round 1 closed at its 1-round cap) Returning users managing data: task
+   success holds (25 of 26), no severity 3 or 4 after the skeptic checks. Bars fail on keyboard
+   (a tab names a panel never rendered), the owner's data rule (joined source row clips its
+   ratio) and cost on core tasks (joining a second file: about 12 inputs against a path of 7).
+2. (2026-10-30) Decide before the act, not after. The join preview tags the wrong rows and leaves
+   the unknown-end row looking "left out" while Join adds it; the unknown end is chosen after Join
+   with "Add nodes" already applied; "Leave out" does not say it deletes. A choice whose effect is
+   already in place is a door hidden behind its own consequence.
+3. (2026-10-30) One fact, one drawing. Setting a column as the time left its kind glyph on text
+   while the timeline drew dates; filter-card counts use two bases (whole graph under Hide, the
+   picture under Select); place roles are set but unmarked on headers. Each costs a second menu
+   to check. Every place that shows a fact must read it from the same element fact.
+4. (2026-10-30) The table header is where readers go for column work (T62 3 of 4). The
+   inspector's "Set in Data" is a fine door for a role and a trap when the task is the column's
+   kind -- a door must land on the control the reader came for, not near it.
+5. (2026-10-30) New filter cards start on Hide; with mark-first tasks 5 of 5 lost part of the
+   picture. Watch, not proven a design failure (task order drove it, and Hide helped T66). The
+   planned "Select | Filter to | Filter out" renames the effect but keeps the take-away default.
+6. (2026-10-30) Approved surfaces are a structural floor: the joined source row must show both
+   names and "N of M joined" at every width; and "17 of 19 joined" beside 18 edges contradicts
+   itself -- state what the count counts.
+7. (2026-10-30) Study lesson: the tool printed `tooltip: null` over open popovers and four
+   participants believed it over the screenshot. Before scoring a findability problem on a hover,
+   check the screenshot. A grading-key definition (column type must be date) can make a false
+   "done" that is not one -- read the key against what the product shows.
+8. (2026-10-21) Graph inspector must point to the layer list for node and edge appearance (a
+   door, not a second home). Still open.
+9. (2026-10-21) A new style line starting at the current value reads as nothing happened; fix in
+   the shared row (show set and what it overrides, give units).
+10. (2026-10-21) Checking a layer's members needs one readable home: the table scoped to the
+    layer, named by the label column. Element supplies membership.
+11. (2026-10-21) A door that looks like a rule must make a rule (find-box value rows).
+12. Every participant is one model: a fail is strong evidence, a pass weak; n of 2 per half
+    shows nothing about where people go.
+13. Standing rules: one home per capability; "+" only adds to lists; unset is the minus and says
+    what comes back; two row kinds only; check proposals at their edges (keyboard, edges,
+    non-community data) and round trip (made, then read back).
 
 ## Priorities and values
 
@@ -103,6 +97,14 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
+- **2026-10-30, tier 4 round 1 (no fixes built; studio stopped at its cap).** Positions to carry
+  into the next tier: (a) the join screen previews every row's outcome with the same words Join
+  will use, and the unknown-end choice is made on that screen before Join, with no pre-applied
+  default; "Leave out" says it removes the row; (b) a column's kind, role and time designation
+  show on its header in one place, read from the element's column facts; (c) filter-card counts
+  use one stated base; (d) the joined source row keeps both names and its ratio (layout fix in
+  the shared row). Reason: each round-1 cost came from a choice or fact shown somewhere other
+  than where the reader acts. Evidence: insights.md of tier 4 round 1, items 1 to 5.
 - **2026-10-23, menu sections (issue #3315, director ruled).** I argued for headings on both:
   a reader scans for the kind of picture first (spread out, a tree, a shape), then the engine,
   and only a heading names the kind; one level of indent named nothing and left Graphviz's
@@ -119,220 +121,40 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   shows the first 6 at 3.3 px with no "+N", the line drops the gray Other its canvas paints, and
   chit names live only in a mouse title, so no reader can tie a color to a group at rest.
 
-- **2026-10-14, round 6:** Round 6, layers and which-elements and graph clusters: no provenance line in the header (critique was right: it is a second kind mark); attribute-first conditions with tests from the element, "is selected" and "is hovered" as State attributes so pinned rows stay ordinary layers; Specific elements replaces Named; View and Layout have one home, the toolbar; no Layout copy in Values.
+- 2026-09-28 to 2026-10-14 (summarized 2026-10-30): structure follows the ontology; Data place
+  for all data management; results live where they paint; rail for places; one File list; bind
+  icon the one door to "color/size by"; one home for a node's neighbors; G opens neighbors; the
+  element supplies facts the app would guess (`optionsFor`, `scope.count`, `FindResult.atLeast`,
+  `rulePath`, `suggestBackticks`); app-side guards for element defects are overruled; "+" only
+  for lists; unset is the minus; split parent removed (two row kinds); attribute-first
+  conditions; View and Layout live in the toolbar. Details: git history of this file.
 
-- 2026-09-28 to 2026-10-02 (owner and mock rounds 3-8, summarized 2026-10-09): structure from
-  the ontology, Figma for controls only; a Data place for all data management; results live where
-  they paint (refined B: every run a row in the paint tree, owner 2026-09-30); rail for places,
-  toolbar icons only; one File list shown from the main and project-name menus (tree 19% -> 90%);
-  intake "Open project or file..."; Layout its own group; the bind icon is the one door to
-  "color/size by"; find over rows, elements and notes with "Select where"; one home for a node's
-  neighbors; Export > Data opens on the showing table. Details: the mock decision log.
-- 2026-10-03 (studio, tier 1 design): rail draws only Graph and Data; inspector tab renamed
-  Values; selection bar holds only Neighborhood; recipe and style files refused with one problem
-  block; Notes row not drawn. All reversible.
-- 2026-10-03 (owner): graphty-element is neutral about presentation; the app owns every word,
-  heading, grouping and order. Consequence for me: Analyze's headings, the Style tab's section
-  order and the find list's groups are app IA decisions, not element ones.
-- 2026-10-03 (owner): stop the mock rounds and build tier 1 as the real app; study the real app.
+### Archived top of mind (summarized 2026-10-30)
 
-- 2026-10-06 to 2026-10-07 (tier 1 rounds 1-3, summarized 2026-10-10): adopted from my proposals
-  -- G opens the neighbor list for one node, no dead-end doors (Selection row, Sources tables,
-  empty combo), the chevron inside the Degree row (a compact-mantine DataRow fix), partition
-  candidates from the element's `optionsFor`. Replaced -- bound Size by "Size + opens its picker",
-  hidden-label words by a "Show all labels" switch, subtitle method word by the method name
-  everywhere. Rejected -- "N connections" plus chevron at once, a Style-tab link to Everything,
-  "Size and shape" heading, "Javert and his 17 connections". Reason throughout: one variable per
-  path, and graph facts over taste.
-
-- 2026-10-07 (IA proposal for tier 2, from the tier 2 audit): build each gap where refined B
-  already put it (Data > Filters plus the header chip; Path popover; Notes place; Sources row
-  "Replace with file..."; main menu "Select where..."; Neighborhood popover); the element first
-  provides the facts the app would otherwise guess (output kind, weight meaning, rule errors as
-  codes, edge pick, filter on edge attributes). Not decided by refined B and decided here: the
-  doors live on the canvas menu until a selection bar exists; "Grow by one hop" leaves "...";
-  a stale run row gets a mark, and rerun stays per row (no "Rerun all" yet). Reason: one home per
-  job; every guess the app makes about a run or a rule is an element defect hidden.
-
-- 2026-10-09 to 2026-10-10 (tier 2 rounds 1-3 proposals and decisions, summarized 2026-10-11):
-  adopted -- start-screen Open of a data file through the Data page; the source's "..." with
-  Replace and Edit source; find's hint to the rule start decided by the element (`scope.count`);
-  ", out of date" on the key title; path aliases; rule-made layers named by the rule; Filter to
-  neighbors as a plain command; the element's repeat-edge count with "Replace <source>" beside
-  Load; the example-rule line after a miss plus Enter running a shown rule. Rejected -- "Select
-  where..." on the column; visible Replace buttons; file-name matching (guess vs element fact).
-  Not taken -- Edit source retitle; Hops grouped by step. Reason throughout: one variable per
-  path, each change a door or a word for an existing home, facts in the element.
-
-- 2026-10-10 (IA proposal for round 4, summarized 2026-10-11): Analyze search shows name or alias
-  matches first; a bare number in find gives "<column> is N" and "is N or more" rows; a toolbar
-  Filters icon opening Data > Filters (a door, not a home); Hops 2-3 shows the element's step count.
-  All adopted; the first three worked in round 4 (see Tried).
-
-- 2026-10-11 (IA proposal for tier 2 round 5, after round 4): three fixes, no new places, no
-  moves. (1) FindBox never shows a rule the element refuses: `ruleFromText`'s backtick rewrite is
-  checked with `scope.count` before it is offered; on refusal the example-rule line shows instead.
-  Evidence: `expert/figma/find/04.png` offers "=`10`", `find/08.png` refuses it; T22 A's prompt
-  number (10) is in no bus-stops row. (2) Element (additive): `FindResult.atLeast`, one row per
-  numeric column whose range holds a typed number that is not itself a value
-  ({ kind, path, value, count, target }, the same shape as `FindValueRow.atLeast`); the app renders
-  it with the existing "<column> is N or more (count)" words. Reason: the threshold is a fact over
-  the data; the app must not parse numbers or scan columns. (3) The table's scope follows the
-  filter steps ("visible", not "graph", `TableDock.tsx`), its count "12 of 41 edges" while a step
-  is on. Evidence: `sessions/r4-s27/09.png`, r4-s21. Reason: one number per fact; the step's
-  checkbox stays the one home for on/off. Kept away: the key's scope words, overlaps (element).
-
-- 2026-10-11 (round 4 decisions, by the Design Director): adopted -- element `suggestBackticks`
-  offers only a rewrite its selector accepts (parse plus one attribute read); element
-  `FindResult.atLeast` plus app rendering; element `rulePath` export, app `columnText` deleted;
-  table scope "visible" and "12 of 41 edges", re-rendered on visibility change; off step stays off
-  when its editor is left unedited; Cancel in notes focuses "+". Overruled -- my app-side
-  `scope.count` check before showing the suggestion: it hides an element defect from every other
-  consumer. Held -- Values above records for a number (second change on one problem), a "lists
-  everything" line over the table (a notice where a fix exists). Known gap: table export still
-  writes every record; the fix is a scope on the element's export.
-
-- 2026-10-12 (IA answers for tier 3, proposals, not yet decided): "+" only for lists; core
-  properties always drawn with the inherited value (Figma instance-override pattern), rare ones
-  behind `AdvancedButton`; icon-grid pickers for shape, arrow and pattern (a compact-mantine
-  `StyleSelect` option); kind groups collapse with the existing `ControlSection` `summary`, property
-  sections never; hide a kind the rule cannot reach; field picker grouped (In use, Data, runs,
-  Facts) with non-fitting columns folded into one row; a ramp drawn over the histogram in data
-  units for the gradient; split parent stays a layer and folders never get a rule; one Which
-  elements section; coverage of the element's channels as a test; label settings as one tabbed
-  popout with the element's badges as presets. Element asks (all additive): inherited-value fact
-  per layer, inline ramp stops on a binding, RuleTree selector, text and parity rule leaves, the
-  id as a value, per-field label channels, a `targets` field. Reason throughout: one home per job,
-  and every fact the panel needs comes from the element.
-
-- 2026-10-12 (IA answer to owner feedback 1, proposal): unset = the minus (plus emptying a
-  field, "Not set" first in a select); three at-rest states (not set, set, set to nothing); no eye
-  per field. Split parent replaced by per-value binding entries, "New layer for <value>" and
-  multi-row edits; the element keeps only label remapping across re-runs as a rule capability.
-  Figma pass: adopt list "+"/"-", empty-title add, effect-row settings, Mixed, absent sections;
-  adapt apply-variable picker, Detach as "Fix at", override reset, text styles, selection colors;
-  reject frame-like rows, add-default "+", switches, non-sticky kind headings, gradient paint type.
-  Reason: every row behaves as a layer or a folder; one home per job.
-
-### Archived top of mind, 2026-10-11 to 2026-10-16 (summarized 2026-10-21)
-
-- Bulk iteration 7 frozen as tier3-bulk7-457aa9f0f2: a bulk field whose layers differ draws BoundValue with the <<Layer>> token and a line of chits (6, or 5 and "+N"). Node/Edge tab switch replaces "Paints"; each tab owns its pick; edges get an "Ends" card.
-- Owner questions answered: unset is the minus on set fields only, naming what comes back; split parent removed (two row kinds); Figma crosswalk in design/ui/framework/figma-crosswalk.md section 4.
-- Iterations 1 to 3 held the build to: one list of readable values for find, rule editor and vary picker; numeric categories paintable as distinct colors; edge-end values not filtered out by the app; Clear scoped to the layer. Lessons: grep the app for ponytail notes near element facts before scoring "fixed"; coverage counts hide scale and palette coverage; check a proposal's round trip.
-- Round 5 decisions (2026-10-11): element suggestBackticks, FindResult.atLeast, table scoped "visible"; element rulePath replaces app columnText.
+- 2026-10-11 to 10-16: bulk <<Layer>> token with chits; Node/Edge tab switch; owner answers on
+  unset and split parent; round 5 element facts.
+- 2026-10-21 (tier 3 round 1): 55 of 56 succeeded; judge by cost and wrong first places;
+  Location split into six Fields kinds (#3315); color names by hue family first in
+  compact-mantine; <<Layer>> avoidance is not understanding; keyboard route costs 30+ Tabs and
+  chip groups should be one stop; do not build around one task's wording.
 
 ## Tried: worked / did not work
 
+- (2026-10-30) Tier 4 round 1, returning users managing data: the table header as the home for
+  column work WORKED (T62 3 of 4, T63 2 of 2 used the Role menu). The join preview did NOT work as
+  a preview (wrong rows tagged; the result was learned from counts afterward). Choices placed
+  after the act with a default applied did NOT work (unknown end, Hide-first card). Joined source
+  row layout did NOT hold the approved ratio. Trusting the study tool's hover line did NOT work:
+  check screenshots.
 - (2026-10-21) Tier 3 round 1 on the real app: the layer list as the one home for appearance WORKED (every reader got there) but its door did NOT -- found by count matching, not by a pointer. Rule-free "+" lines starting at the current value did NOT read as a change. Bulk <<Layer>> token: no one trapped, legibility unproven.
-
-- 2026-10-13 (tier 3 iteration 3 build, 617b43b270) -- worked: a reader's own file as a third
-  dataset (Open project or file, the Data page, Load; `tmp/ia-i3/people.gml`) -- it is the only way
-  to test the literal "name contains Bob" and "use the values as colors", since no sample holds
-  either; draft count before painting; scoped Clear; one naming of run values across the rule
-  editor and vary picker; passthrough. Did not work yet: per-value default palette and key on 12
-  groups; edge ends in pickers; find by a value's name; shape per value on a number; Power's
-  exponent. Method that paid off: reading the app for the element field the plan named
-  (`value.end`, `FindResult.named`) and finding the filter, instead of only driving the UI.
-  Harness note: put `timeout` inside `with-browser.sh`, not around it, or a run dies waiting for a
-  slot; one walk per dataset with `open()` between sections keeps slot use low.
-
-- 2026-10-12 (tier 3 iteration 2 build) -- worked: draft picks elements before anything paints;
-  Both plus "touching them" as the generic path to "edges of the nodes I named" (College 229 of
-  613, Les Miserables 26 of 254); "No element matches Bob"; layers named by their rule; "Node id"
-  vs "id". Did not work yet: the draft shows no count for its held rule; find reads data only; a
-  numeric category column paints as a ramp. Method that paid off: drive one generic "add every
-  list entry, open every settings pop-out, list every 'by attribute' name" script per dataset and
-  diff against the element's channel list (`tmp/ia-i2/cover*.mjs`).
-
-- 2026-09-28 to 10-02 (mock rounds, summarized 2026-10-09) -- tree tests rank where people look
-  but hit the ceiling on correctness (only directness discriminates); frozen rules before a round
-  work; a round must not run until its decisions are drawn; Results in the inspector, Analyze
-  headings by outcome, main-menu Select where and the filter chip as status all failed; the File
-  list, "Remove from list view" and Analyze's own search box worked.
-
-- 2026-10-06 (round 1 real app) -- Degree row as the only door to neighbor names: did not work
-  (0 of 4 clicked it; r1-s17b `07.png` shows it drawn exactly like the id and name rows).
-- 2026-10-06 -- Label "+" and the honest "N hidden to avoid overlap": worked for the first step
-  (no false "done" in 29); the count names no one and offers no way to show them (severity 2).
-- 2026-10-06 -- Rail with only Graph and Data, File list, sample intake: no failures traced.
-
-- 2026-10-06 (re-pilot on graphty@0.8.53) -- every tier 1 success path reaches its end state; G
-  from a selected node opens "Javert's 17 connections" with focus on it (T12 13.png); the refusal
-  under Method names the method (T11 07.png). Doors work for the scripted path; round 2 tests
-  whether people take them.
-
-- 2026-10-07 (round 2) -- Degree-row chevron: worked (T12 8 of 8, 0.9x; round 1 0 of 4), but its
-  hit area was outside the row button (4 of 6 clicked dead space first). Neighborhood (G) fixed
-  but unused (0 of 8): a working door nobody sees is not a door.
-- 2026-10-07 (round 2) -- Size under a "Shape" heading with "+" and a chain-icon bind: did not
-  work as a findable path (18 of 18 named it; all succeeded by guessing).
-- 2026-10-07 (round 2) -- "N hidden to avoid overlap": honest (no false done), but every T10
-  session spent its extra steps hunting a door that does not exist (r2-s12: 5 wrong turns).
-- 2026-10-07 (round 2) -- One name per run did not ship as the method word: rows and key say the
-  result ("Influence"), the method appears nowhere after the run.
-
-- 2026-10-07 (re-pilot, build b7590f8de, graphty@0.8.53) -- every round 3 change reaches its
-  end state on the scripted path: Size picker (T9, T15), Show all labels (T10, both datasets),
-  group layouts after Louvain (T11), method names (T7, T16), export (T13). Scripted success says
-  the doors exist; round 3 says whether people take them.
-
-- 2026-10-09 (tier 2 round 1) -- Filters under Data: worked once found (7 of 8, median 7 = the
-  success path) but nothing on Graph points there; keep the home, watch the doors.
-- 2026-10-09 -- Replace only on the row's right-click: did not work at rest (8 of 8 hunted; 7
-  recovered by habit). Path run, Replace page and load-time "Higher means": read right every
-  time once reached -- the homes hold, the doors fail.
-- 2026-10-09 -- Find box as the one home for rules: half worked. Users start there (4 of 4) but
-  the refusal does not lead on; the "=" start is invisible.
-
-- 2026-10-09 -- Dry run of success paths only: worked for the paths (empty session logs) but did
-  not catch detour defects (style to Everything, selection tint, focus drops) or tool faults. Next
-  dry run walks detours and keys.
-- 2026-10-09 -- Load-time weight meaning: the home works (everyone who reached "Higher means"
-  chose right) but the habitual door (Open) skipped it, and "Back to start" dropped the graph.
-
-- 2026-10-09 (tier 2 round 2, weak evidence: facilitator text leaked) -- Open through the Data
-  page: T20 7 of 7 set Higher means at load; the habit carried. The source "..." with Replace:
-  8 of 8 found it, by guessing. Find's rule hint: worked only after the exact column and a
-  condition; the column word alone dead-ends. The detour dry run worked for the walked detours
-  (30 of 30) and missed the unwalked one (styling a selection).
-
-- 2026-10-10 (round 2 close) -- Study isolation by a clean briefing alone: did not work; a
-  participant can read upward from a folder inside the studio tree. Fix is location plus a
-  transcript check, not a prompt rule.
-- 2026-10-10 -- Adding words to fix doors: did not work for bar 9 (b); every tier 2 screen's
-  count rose. Fixes must replace words.
-
-- 2026-10-10 (tier 2 round 3, first clean round) -- find's example-rule hint plus Enter running a
-  shown rule: worked (T22 8 of 8, steps 16 to 5, no dead end). Load-time Higher means through the
-  Data page: worked (T20 8 of 8). "Replace <source>" beside Load: not reached (no session met the
-  Add page). Path aliases: found Shortest path but ranked it last. Rule-named layer: worked.
-- 2026-10-10 -- Hiding a capability's door only in "..." menus: costs one guess each (Replace 8 of
-  8, Neighborhood 4 of 4), but everyone found them. Leave them; the measured cost is small.
-- 2026-10-10 -- A task word ("point out") that differs from the key's measure: did not work as a
-  study; readers reached another valid answer (path). Check prompt and key together.
-
-- 2026-10-11 (tier 2 round 4) -- Toolbar Filters icon as a door to Data > Filters: worked (T17
-  7 of 7 first and only door, wrong turns 0). Analyze search name/alias first: worked (Shortest
-  path found by typing 15 of 15). Bare-number "or more" row: worked only when the number is a
-  value (r4-s10 on Les Miserables); on bus-stops the app's own suggestion is refused. Hops step
-  distance: not reached in a way that measured it.
-- 2026-10-11 -- A count drawn in three places and a list in a fourth: did not hold. Two readers
-  doubted a right answer because the table disagreed with the chip, the step and the Overview.
-
-- 2026-10-11 (round 4 close) -- Proposing an app-side guard for a wrong element suggestion: did
-  not hold; the fix belongs in the element function that made the suggestion. Next time trace a
-  wrong suggestion to the function that builds it before proposing where the check goes.
-- 2026-10-11 -- Counting "noticed unprompted" without reading the briefings: did not work; the
-  file table primed T4 and T21. Read the briefing before crediting a door.
-
-- 2026-10-12 (tier 3 iteration 1, served build, College football and Les Miserables) -- Which
-  elements by find and by conditions: worked ("label contains State" 24 of 115 both ways; "Id
-  matches pattern [13579]$" 57 of 115, the true count). Find with no match: silent. Coverage by a
-  test that allows "not offered": honest but drifted from the design's table (captions, tooltip
-  look, typed label words promised, not built). "New layer for 3": paints right, reads back blank.
-- 2026-10-12 -- Driving the panel through a harness that opens a sample with no session setup
-  (`tmp/ia-i1/walk.mjs`): found what story-driven walks missed (no starting rows, the draft's
-  missing rule). Walk the reader's app, not only the review scene.
+- 2026-09-28 to 2026-10-13 (summarized 2026-10-30): homes hold, doors fail -- a home found by
+  guessing or habit needs a door on the reader's path (Degree chevron 0 of 4 to 8 of 8; toolbar
+  Filters icon 7 of 7; find's example-rule line plus Enter 8 of 8). A working door nobody sees is
+  not a door (Neighborhood 0 of 8). Adding words to fix doors raised word counts; replace words.
+  A count drawn in several places that disagree makes readers doubt right answers. Methods that
+  paid off: coverage scripts diffed against the element's channel list; reading the app for the
+  element field a plan names; walking the reader's app, not the review scene; dry runs must walk
+  detours and keys; read briefings and keys before crediting a door.
 
 ## Thinking
 

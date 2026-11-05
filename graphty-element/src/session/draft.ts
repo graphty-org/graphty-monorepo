@@ -16,6 +16,7 @@ import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
 import { readSource as sourceBytes } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { featureOff } from "../features/resolve";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
@@ -56,6 +57,8 @@ type DraftSend = (command: DataImportCommand | BatchCommand) => Promise<unknown>
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
+    /** Whether the timeline experiment is on. */
+    timeline(): boolean;
     /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
     graph(): NonNullable<DataImportCommand["measure"]>;
     /**
@@ -1216,6 +1219,9 @@ export class Draft implements LoadDraft {
                     ? guessed
                     : guessTable(held, choice.rowsAre, read.source.config ?? {}, this.host.config(), this.guess);
             tables[id] = withChoice(held, base, choice);
+            if (!this.host.timeline()) {
+                refuseNewTime(tables[id], base, choice, this.host.config().knownFields);
+            }
         }
 
         return { tables };
@@ -1473,6 +1479,31 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
     set("edgeId", roles.edgeId);
     set("kind", roles.kind);
     return out;
+}
+
+/**
+ * Refuse a time role or unit a choice newly names while the timeline is off. One the configuration
+ * already holds passes: a reload's kept mapping repeats it, and a project keeps its time role.
+ * @param roles - The table's roles with the choice applied.
+ * @param base - Its roles before the choice.
+ * @param choice - The reader's choice.
+ * @param knownFields - The configuration's fields.
+ * @throws `E_FEATURE_OFF` for a new time or time unit.
+ */
+function refuseNewTime(
+    roles: TableMappingRead,
+    base: TableMappingRead,
+    choice: TableMapping,
+    knownFields: SessionDataConfig["knownFields"],
+): void {
+    const unit = roles.rowsAre === "nodes" ? knownFields.nodeTimeUnit : knownFields.edgeTimeUnit;
+    if (typeof choice.time === "string" && choice.time !== base.time) {
+        throw featureOff("timeline", "mapping.time");
+    }
+
+    if (typeof choice.timeUnit === "string" && choice.timeUnit !== unit) {
+        throw featureOff("timeline", "mapping.timeUnit");
+    }
 }
 
 /**

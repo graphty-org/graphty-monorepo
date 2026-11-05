@@ -228,6 +228,45 @@ describe("the headless graph hook", () => {
         assert.deepEqual(painted, [{ nodes: 51, edges: 49 }], "the domain moved, so every row is painted again");
         session.dispose();
     });
+
+    it("an added edge repaints its ends under a label built from their degree (issue #5893)", async () => {
+        const session = await chained(5);
+        await session.styles.add({
+            name: "Degree label",
+            selector: { match: "everything" },
+            encode: { "node.label": { template: ["{graphty.degree}"] } },
+        });
+        await session.styles.settled();
+        const label = (id: string): unknown =>
+            session.paint.styleOf("node", session.snapshot().ids.indexOf(id))["node.label"];
+        assert.strictEqual(label("v0"), "1");
+
+        await session.data.addEdges([{ src: "v0", dst: "v2" }]);
+        await dispatcherOf(session).lane.settled();
+
+        assert.strictEqual(label("v0"), "2");
+        assert.strictEqual(label("v2"), "3");
+        session.dispose();
+    });
+
+    it("an add that lands with an edit repaints an edge whose presence test reads the edited end", async () => {
+        const session = await chained(5);
+        await session.styles.add({
+            name: "Flagged source",
+            target: "edge",
+            selector: { match: "has", path: "graphty.source.data.flag" },
+            set: { "edge.color": RED },
+        });
+        await session.styles.settled();
+
+        const edit = session.data.updateNodes([{ id: "v0", values: { flag: 1 } }]);
+        await session.data.addEdges([{ src: "v3", dst: "v0" }]);
+        await edit;
+        await dispatcherOf(session).lane.settled();
+
+        assert.strictEqual(session.paint.styleOf("edge", 0)["edge.color"]?.hex, RED);
+        session.dispose();
+    });
 });
 
 /** A layer that paints every node red from the node alone. */

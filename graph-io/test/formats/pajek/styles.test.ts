@@ -300,6 +300,20 @@ describe("Pajek styles: where an arc's arrowhead stops", () => {
     });
 });
 
+describe("Pajek styles: a label's baseline through its point", () => {
+    it("lifts a label by its own face's half height: Courier's is less than Arial's", async () => {
+        // pajek-synth-vertices v29: Courier 12 at lr 12 lphi 180, its baseline through the vertex center
+        const { snapshot, styles } = await load(
+            '*Vertices 3\n1 "a" 0.1 0.1 0.5 ellipse fos 10 lr 12 lphi 180 font Courier\n2 "b" 0.5 0.5 0.5 ellipse fos 10 lr 12 lphi 180\n3 "c" 0.9 0.9 0.5 ellipse font Courier-Bold\n',
+        );
+        const y = drawn(styles, snapshot, "node", "labelOffsetY");
+        expect(y[0]).toBeCloseTo(-2.665, 6);
+        expect(y[1]).toBeCloseTo(-3.465, 6);
+        // a label that sets no place keeps Pajek's default place, its baseline where every font's is
+        expect(y[2]).toBeCloseTo(20 * Math.sin((75 * Math.PI) / 180) - 0.2665 * 15, 6);
+    });
+});
+
 describe("Pajek styles: sizes, label placement and line labels", () => {
     const doc = [
         "*Vertices 4",

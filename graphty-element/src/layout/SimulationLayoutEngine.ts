@@ -43,6 +43,7 @@ import {
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
     type LayoutSimulation,
+    NO_CLUSTER,
     resolveNodeVector,
     seedPositions,
     type SimulationOptions,
@@ -59,6 +60,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
+import { readCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -301,6 +303,10 @@ export interface SimulationEngineOptions extends CommonLayoutOptions, Omit<Simul
      * reader can see. `LayoutManager` is what rolls them up.
      */
     readonly scalingFactor: number;
+    /** The node attribute or result field naming each node's community; null or absent for no pull. */
+    readonly clusterBy?: string | null;
+    /** How hard a community is pulled together. */
+    readonly clusterStrength?: number;
     /** The space kept between nodes' drawn surfaces, in scene units; null or absent keeps nodes as points. */
     readonly nodeGap?: number | null;
     /** Whether `nodeGap` is measured across x and y only. */
@@ -463,6 +469,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * by node id, and null for every other form. See {@link SimulationLayoutEngine.resolvedNodeMass}.
      */
     #nodeMass: F32 | null = null;
+
+    /** The last read of `clusterBy`. */
+    #communities: ReadonlyMap<Node, number> = new Map();
 
     /** One radius per row in scene units, gap included, while `nodeGap` is set; see `#collisionRadii`. */
     #radii: F32 | null = null;
@@ -1384,7 +1393,62 @@ export class SimulationLayoutEngine extends LayoutEngine {
         simulation.setFixed(mask);
 
         this.#applyInert(simulation, nodeCount);
+        this.#applyClusters(simulation, nodeCount);
         this.#applyCollision(nodeCount);
+    }
+
+    /**
+     * Reads `clusterBy` over the loaded snapshot.
+     * @returns Each member's community.
+     */
+    #readCommunities(): ReadonlyMap<Node, number> {
+        const { clusterBy } = this.#options;
+        if (clusterBy === undefined || clusterBy === null || this.#snapshot === null) {
+            return new Map();
+        }
+
+        return readCommunities(
+            clusterBy,
+            this.nodes,
+            this.clusterColumn,
+            (row) => !this.#hasRow(row) || this.isFollower(row),
+            this.#snapshot,
+        );
+    }
+
+    /**
+     * Tells a simulation that has just been loaded what to pull together. AFTER EVERY LOAD, because a freeze renumbers
+     * the rows, and a run that has not finished yet leaves every node in none until its results land.
+     * @param simulation - The running simulation.
+     * @param nodeCount - The loaded snapshot's node count.
+     */
+    #applyClusters(simulation: LayoutSimulation, nodeCount: number): void {
+        this.#communities = this.#readCommunities();
+        if (this.#communities.size === 0) {
+            simulation.setClusters?.(null);
+            return;
+        }
+
+        const communities = new Uint32Array(nodeCount).fill(NO_CLUSTER);
+        for (const [node, community] of this.#communities) {
+            communities[node.index] = community;
+        }
+
+        simulation.setClusters?.({ communities, strength: this.#options.clusterStrength });
+    }
+
+    /**
+     * Read `clusterBy` again, and rebuild the simulation when the communities changed: a full run from the arrangement
+     * as it stands, because a late reheat of Fruchterman-Reingold leaves it too cold for the pull to move anything.
+     * @returns True when the frame loop has to start stepping this layout again.
+     */
+    override wakeForClusters(): boolean {
+        if (sameCommunities(this.#readCommunities(), this.#communities)) {
+            return false;
+        }
+
+        this.replaceSimulation();
+        return true;
     }
 
     /**
@@ -1576,6 +1640,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             model,
             iterationsPerStep: _explicit,
             stepMultiplier: _base,
+            clusterBy: _clusterBy,
+            clusterStrength: _clusterStrength,
             nodeGap: _gap,
             nodeGapFront: _front,
             ...common

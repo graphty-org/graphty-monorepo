@@ -558,7 +558,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("listitem", { name: `${cardWords}, Hide` }));
+        assert.isNotNull(within(filters).getByRole("group", { name: `${cardWords}, Filter to` }));
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));
@@ -583,7 +583,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         await userEvent.click(filters);
         await screen.findByRole("region", { name: "Data place" });
-        await screen.findByRole("menuitem", { name: "Largest component" });
+        await screen.findByRole("option", { name: "Largest component" });
     });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {

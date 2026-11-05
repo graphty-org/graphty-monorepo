@@ -2067,6 +2067,9 @@ export class Graph implements GraphContext {
 
         this.watchShaderModules(opened);
         this.watchShaderCompiles(opened);
+        opened.onRestoreFailed = (error) => {
+            this.reportEngineGone(error);
+        };
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
@@ -2128,14 +2131,18 @@ export class Graph implements GraphContext {
         const create = device.createShaderModule.bind(device);
         device.createShaderModule = (descriptor) => {
             const module = create(descriptor);
-            void module.getCompilationInfo().then(({ messages }) => {
-                const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
-                if (errors.length > 0) {
-                    this.reportRefusedShader("device", errors);
-                } else if (!hasEntryPoint(descriptor.code)) {
-                    this.reportRefusedShader("translator", []);
-                }
-            });
+            void module.getCompilationInfo().then(
+                ({ messages }) => {
+                    const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
+                    if (errors.length > 0) {
+                        this.reportRefusedShader("device", errors);
+                    } else if (!hasEntryPoint(descriptor.code)) {
+                        this.reportRefusedShader("translator", []);
+                    }
+                },
+                // The GPU process died before answering: the engine's restore compiles it again.
+                () => undefined,
+            );
             return module;
         };
     }
@@ -2188,6 +2195,25 @@ export class Graph implements GraphContext {
             source: "view",
             recoverable: false,
             details: { stage, messages },
+        });
+        this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Stops claiming to draw and says why: the device was lost and no new one could be had.
+     * @param cause - What opening the new device said.
+     */
+    private reportEngineGone(cause: unknown): void {
+        if (this.#rendererStatus !== null) {
+            this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
+        }
+
+        const error = new GraphtyError({
+            code: "E_DEVICE_LOST",
+            message: `the WebGPU device was lost and no new one could be opened: ${String(cause)}`,
+            source: "view",
+            recoverable: false,
+            cause,
         });
         this.eventManager.emitGraphError(this, error, "other");
     }

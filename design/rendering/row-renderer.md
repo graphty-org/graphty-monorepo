@@ -43,7 +43,12 @@ master. **No breaking change is needed.** Two changes are optional and held for 
   canvas. A fix is landing separately; stages 8 and 15 need it.
 - **Device loss on the WebGPU engine is a defect today**, with no sharing and no layout (stage 39). Babylon does not await `initAsync`
   when it restores, so it rebuilds on the lost device and `onContextRestoredObservable` fires on the old one. After `device.destroy()` a
-  stock page floods validation errors; after a GPU process crash it dies in `createBuffer`.
+  stock page floods validation errors; after a GPU process crash it dies in `createBuffer`. Two more gaps found building stage 39: the
+  WebGPU engine never calls `scene._rebuildGeometries` (only the WebGL `Engine` does), and `Mesh._rebuild` keeps the per-render-pass copies of
+  a mesh's per-instance buffers, the only ones WebGPU uses. A write to one from the lost device is a validation error after a destroy and
+  aborts the renderer after a crash. A resting loop also wakes by accident after a restore, while the rebuilt effects compile; the event is
+  what does not depend on that, and what has the batches upload again. After a second crash Chromium refuses the page an adapter (domain
+  blocking of 3D APIs), which the engine reports as `E_DEVICE_LOST` with `rendererStatus.drawing` false.
 - **The graphty app reads no `.mesh`, `getScene`, `getNode` or `getNodes`**; it touches the element only through the session.
 - **Stale issue text**: #3251's radial table is dropped; #3248's "no CPU copy" means none on a frame's path.
 

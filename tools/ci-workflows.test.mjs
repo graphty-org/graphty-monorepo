@@ -7479,7 +7479,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default", "graphty-element-webgpu"],
+            none: ["graphty-element-default", "graphty-element-webgpu", "graphty-element-gpu-loss"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");

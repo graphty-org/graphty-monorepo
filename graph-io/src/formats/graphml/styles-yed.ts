@@ -452,7 +452,7 @@ export function configurationOutline(configuration: string): YedOutline | null {
  * an envelope (its flap is not drawn), a reply's darker. A box 36 x 44 draws an envelope 36 x 24; only that one
  * size has been drawn, so that its proportions hold in a wide box too is unproven.
  */
-const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+export const BPMN_ARTIFACTS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["artifact_type_data_object", { shape: "polygon", points: "-1,-1 1,-1 1,0.4 0.2,1 -1,1" }],
     ["artifact_type_data_store", { shape: "other:database" }],
     ["artifact_type_group", { shape: "round-rectangle", cornerRadius: 4, hollow: true }],

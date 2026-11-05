@@ -5544,6 +5544,7 @@ export const NodeStyle: z.ZodObject<{
             down: "down";
         }>>;
         size: z.ZodOptional<z.ZodNumber>;
+        frame: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     chart: z.ZodOptional<z.ZodObject<{
         kind: z.ZodOptional<z.ZodEnum<{

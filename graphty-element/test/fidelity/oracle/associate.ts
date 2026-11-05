@@ -1765,9 +1765,14 @@ export function arrowheadEdge(
                   ["source", "target"],
               )) ??
         pointed ??
-        // a cap clearly off the line's middle, within reach of an end, is that end's, stood back from it: on a short
-        // line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2)
-        (held || middle === null || (ends !== null && (ends.d < middle.d || middle.d > 0.25 * size)) ? ends : middle);
+        // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
+        // short line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2), where a
+        // middle cap, however it is set on the middle, covers it
+        (held ||
+        middle === null ||
+        (ends !== null && (ends.d < middle.d || toBox(pointAlong(middle.e.points, 0.5), p.box) > 1))
+            ? ends
+            : middle);
     if (best === null) {
         return null;
     }

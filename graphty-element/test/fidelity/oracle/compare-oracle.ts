@@ -2428,9 +2428,9 @@ export function compareOracle(
             .join();
     /**
      * How unlike an oracle edge found by its geometry a graphty edge between the same nodes is drawn, 0 for alike: in
-     * another color or with other words, then another line class, then its route failing, then curved otherwise, then
-     * arrowheads at other ends, then running the other way, then other arrowheads (graphml-synthetic-edges: two lines
-     * alike, drawn over one another, with a bar and a standard head). Between two parallel or antiparallel edges only the look
+     * another color or with other words, then another line class, then other arrowheads (two lines alike, drawn over
+     * one another, with a bar and a standard head), then its route failing, then curved otherwise, then arrowheads at
+     * other ends, then running the other way. Between two parallel or antiparallel edges only the look
      * tells them apart: drawn over one another, or each program bowing them its own way (cx2-signor-aml 27->68, a blue
      * dashed line bowed and a purple solid one, each paired with the other's look by its route).
      */
@@ -2440,13 +2440,13 @@ export function compareOracle(
             norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
         const lined = o.stroke === null || g.stroke === null || o.stroke.dashClass === g.stroke.dashClass;
         return (
-            (dressed ? 0 : 32) +
-            (lined ? 0 : 16) +
+            (dressed ? 0 : 64) +
+            (lined ? 0 : 32) +
+            (headShapes(o, false) === headShapes(g, flips(o, g)) ? 0 : 16) +
             (routePasses ? 0 : 8) +
             (curved(routeOf(o, g)) === curved(o.points) ? 0 : 4) +
             (arrowEnds(o, false) === arrowEnds(g, flips(o, g)) ? 0 : 2) +
-            (idMap.get(g.source) === o.source ? 0 : 1) +
-            (headShapes(o, false) === headShapes(g, flips(o, g)) ? 0 : 0.5)
+            (idMap.get(g.source) === o.source ? 0 : 1)
         );
     };
     const closest = (o: PEdge, list: PEdge[]): number => {

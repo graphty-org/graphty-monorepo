@@ -132,6 +132,15 @@ describe("which end a stroke caps", () => {
         assert.strictEqual(arrowheadEdge(bar, [short], [])?.end, "middle");
     });
 
+    it("keeps a triangle set with its tip on the line's middle as the middle's", () => {
+        const triangle: Pt[] = [
+            [132, 100],
+            [120, 94],
+            [120, 106],
+        ];
+        assert.strictEqual(arrowheadEdge({ ...stroke(triangle, true), kind: "shape" }, [short], [])?.end, "middle");
+    });
+
     const end = node("b", 170, 104, 24);
     const toNode: PEdge = {
         ...line("a->b#g0", []),

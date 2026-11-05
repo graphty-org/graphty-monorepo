@@ -64,8 +64,8 @@ export const EdgeArrowTypes = z.enum([
     "open-vee",
     // one slanted stroke across the line, which runs on under it to the cap's tip (yEd skewed_dash)
     "slash",
-    // a length of the line itself, as thick as the line: first in a row (`stack`), it stands the caps behind it back
-    // from the line's end with the line running on to the end (yEd's crow's foot bars and circles)
+    // a length of the line itself, as thick as the line whatever the cap's `width`: first in a row (`stack`), it stands
+    // the caps behind it back from the line's end with the line running on to the end (yEd's crow's foot bars, circles)
     "stem",
 ]);
 

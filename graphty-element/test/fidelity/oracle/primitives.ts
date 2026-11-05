@@ -268,7 +268,7 @@ export interface PNode {
  * chevron), a crow's foot (tines spreading toward the node, one of them along the line), a vee pointing back with no
  * tine along the line ("inverted-vee", vis-network's crow), a diamond, a circle, a box, a bar across the line ("tee"),
  * half an arrow on one side of the line, half a disc with its flat side across the tip ("half-circle", or its round
- * side alone). "other" matches nothing.
+ * side alone), two strokes crossing on the line ("cross"). "other" matches nothing.
  */
 export type ArrowShape =
     | "triangle"
@@ -288,6 +288,8 @@ export type ArrowShape =
     | "cross-delta"
     // a disc at the tip with a triangle behind it pointing at it (Cytoscape.js's circle-triangle)
     | "circle-triangle"
+    // two strokes crossing on the line (yEd's and yEd Live's cross)
+    | "cross"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -1249,6 +1251,39 @@ export function strokedBarb(outline: readonly Pt[]): boolean {
 const BAR_LENGTH = 0.02;
 
 /**
+ * A stroke's two ends, where it runs straight, there and back if the path closes it: the point farthest from its start.
+ * @param q - the stroke's points
+ * @returns its ends, or null for a stroke that bends
+ */
+function straightRun(q: readonly Pt[]): [Pt, Pt] | null {
+    const a = q[0];
+    const b = q.reduce(
+        (far, p) => (Math.hypot(p[0] - a[0], p[1] - a[1]) > Math.hypot(far[0] - a[0], far[1] - a[1]) ? p : far),
+        a,
+    );
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const off = (p: Pt): number => Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len;
+    return len > 1e-9 && q.every((p) => off(p) <= 0.05 * len) ? [a, b] : null;
+}
+
+/**
+ * Whether an arrowhead's pieces are two straight strokes crossing at their middles: the middles within a tenth of a
+ * stroke's length of one another, and not along one line.
+ * @param pieces - the arrowhead's subpaths
+ * @returns true for a cross
+ */
+export function crossedStrokes(pieces: readonly (readonly Pt[])[]): boolean {
+    const [s, t] = pieces.map(straightRun);
+    if (pieces.length !== 2 || s === null || t === null) {
+        return false;
+    }
+    const [u, v] = [s, t].map(([a, b]) => [b[0] - a[0], b[1] - a[1]]);
+    const [m, n] = [s, t].map(([a, b]) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+    const [lu, lv] = [Math.hypot(u[0], u[1]), Math.hypot(v[0], v[1])];
+    return Math.hypot(m[0] - n[0], m[1] - n[1]) <= 0.1 * lu && Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.25 * lu * lv;
+}
+
+/**
  * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
  * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
  * reads as its triangle, pointing the way it points (a triangle-tee or triangle-cross part-way along a line, pointing
@@ -1258,6 +1293,9 @@ const BAR_LENGTH = 0.02;
  * @returns the class, or null when the pieces are none of these
  */
 export function piecedArrowShapeOf(pieces: readonly (readonly Pt[])[], dir: Pt): ArrowShape | null {
+    if (crossedStrokes(pieces)) {
+        return "cross";
+    }
     const shapes = pieces.map((q) => arrowShapeOf(q, dir));
     const triangles = shapes.filter((x) => x === "triangle" || x === "inverted");
     const rest = shapes.filter((x) => x !== "triangle" && x !== "inverted");

@@ -4680,27 +4680,10 @@ What changed:
   CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
   job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
   on the same inputs is never quarantined as flaky: it fails the run.
-- The failures above are recorded with `fidelity:ratchet --add`, one reason per group (the `reasons` at the end of
-  `oracle-known-failures.json`): 95 elements failing since round 4's measurement on real-program oracles, 548 on
-  stand-in drawings, 272 newly judged by round 5's comparator, 76 in the three samples above and 24 on the
-  `syn-mappings` copies. The same run took 3,360 known failures that pass now off the list and raised 842 floors;
-  none went down.
-
-For the owner to decide: 643 of the 1,015 recorded elements are not newly seen. 95 on real-program oracles and 548
-on stand-ins have failed since round 4's measurement on 2026-10-22, and recording them turns 26 red samples green
-with no drawing changed. The 95 were recorded without looking at each one, and they include visible defects, such
-as two edges missing from `cx2-signor-aml` (135->20, 92->27). "The drawing did not change" rests on the same element
-failing the same property at each commit with equal counts; geometry was not compared, so an element that got worse
-is not ruled out. The 272 round-5 elements include comparator misreadings rather than graphty defects (vis-network
-heads and bent lines, Pajek part-way heads, edge.wiggle, #4272), which the round 6 comparator branch takes off.
-
-Not recorded yet: the Graphviz label-size change (#4203, pull request #4410). Measured by merging #4410 at
-149ad24299 over these records: six samples fail the full gate, 100 elements in all (`tmp/style-round6/runs/with4410`
-in the main checkout): `dot-real-siblings` (no edge.width any more, but 8 node positions, 22 routes and 4 curves),
-`dot-synth-edges-clusters` (15 edge labels off their lines, 2 node positions), `dot-synth-nodes` (4 node heights,
-3 positions), `dot-real-crazy` (#4410 records its own), `dot-profile` and `dot-real-depcruise`. Without #4410,
-`dot-real-siblings` fails on its 284 edge widths alone. They are recorded once #4410 is on master, from a full
-gate run with it, under the owner's 2026-10-29 acceptance of that trade; slices 1, 2 and 3 hold the six samples.
+- The gate is green on master (2026-11-04, master 19fb4bf684 merged in, workstation, all four slices: 567 samples, none
+  failing). Every failure listed above has since been fixed on master or recorded in its known failures, under the
+  issues it was traced to (#5116 to #5119, #4253, #4452, #4523, #3103, #4514, #4524; #4515, still open, is recorded),
+  so the full run starts from green.
 
 ## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
 

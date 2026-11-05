@@ -24,6 +24,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
+import type { ClusterColumn } from "./clusterForce";
 
 export interface Position {
     x: number;
@@ -721,6 +722,21 @@ export abstract class LayoutEngine {
         this.followers = rows === null || rows.size === 0 ? null : rows;
         this.followerMembers = members;
         this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Reads a `clusterBy` path through the session; set by `LayoutManager` before `init()`.
+     * @internal
+     */
+    clusterColumn: ClusterColumn | null = null;
+
+    /**
+     * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
+     * @returns True when the frame loop has to start stepping this layout again.
+     * @internal
+     */
+    wakeForClusters(): boolean {
+        return false;
     }
 
     /**

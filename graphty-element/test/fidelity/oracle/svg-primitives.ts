@@ -16,7 +16,6 @@ import {
     dented,
     isLettering,
     outlinePaintedAsFill,
-    solidOuter,
     PAINTED_OUTLINE,
     type PBox,
     type PFill,
@@ -25,6 +24,7 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    solidOuter,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
@@ -381,32 +381,40 @@ function roundedPolygonSides(d: string): number {
 }
 
 /**
- * Whether a path draws a corner on a corner of its box: a segment ends there, as none of a rectangle with rounded
- * corners does. Nothing is known of a path with relative commands.
+ * Whether a path draws some corners of its box square and rounds others: a segment ends on the box's corner, as none
+ * of a rectangle with rounded corners does, and all four do where a rounding of 0 draws a plain box. Nothing is known of
+ * a path with relative commands.
  * @param d - the path data
  * @param box - the path's box, in the path's own space
  * @param box.x - its left
  * @param box.y - its top
  * @param box.width - its width
  * @param box.height - its height
- * @returns whether it has one
+ * @returns whether it does
  */
 export function hasSquareCorner(d: string, box: { x: number; y: number; width: number; height: number }): boolean {
     if (/[a-y]/.test(d)) {
         return false;
     }
-    const near = (v: number, a: number, b: number): boolean => Math.abs(v - a) < 0.01 || Math.abs(v - b) < 0.01;
-    const onCorner = ([x, y]: number[]): boolean =>
-        near(x, box.x, box.x + box.width) && near(y, box.y, box.y + box.height);
-    return [...d.matchAll(/[MLCSQTA]([^A-Z]*)/g)].some((m) =>
-        onCorner(
-            m[1]
-                .trim()
-                .split(/[\s,]+/)
-                .map(Number)
-                .slice(-2),
-        ),
-    );
+    const side = (v: number, a: number, b: number): number | null => {
+        if (Math.abs(v - a) < 0.01) {
+            return 0;
+        }
+        return Math.abs(v - b) < 0.01 ? 1 : null;
+    };
+    const corners = new Set<string>();
+    for (const m of d.matchAll(/[MLCSQTA]([^A-Z]*)/g)) {
+        const [x, y] = m[1]
+            .trim()
+            .split(/[\s,]+/)
+            .map(Number)
+            .slice(-2);
+        const [sx, sy] = [side(x, box.x, box.x + box.width), side(y, box.y, box.y + box.height)];
+        if (sx !== null && sy !== null) {
+            corners.add(`${String(sx)}${String(sy)}`);
+        }
+    }
+    return corners.size > 0 && corners.size < 4;
 }
 
 function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
@@ -1322,8 +1330,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
-                ...(el.localName === "path" &&
-                hasSquareCorner(el.getAttribute("d") ?? "", (el as SVGGraphicsElement).getBBox())
+                ...(el.localName === "path" && hasSquareCorner(el.getAttribute("d") ?? "", el.getBBox())
                     ? { squareCorner: true }
                     : {}),
                 fill: closed ? fill : null,

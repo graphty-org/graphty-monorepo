@@ -932,7 +932,8 @@ function crossedWave(subpaths: readonly (readonly Pt[])[], [a, b]: readonly PBox
 }
 
 /**
- * What two nested subpaths wound the same way fill under the nonzero rule: all the outer one holds.
+ * What two plain nested subpaths wound the same way fill under the nonzero rule: all the outer one holds. A zigzag's
+ * outlines cross themselves, so what their areas say of their winding says nothing.
  * @param subpaths - the path's subpaths
  * @returns the outer subpath, or null for anything else
  */
@@ -941,10 +942,11 @@ export function solidOuter(subpaths: readonly (readonly Pt[])[]): readonly Pt[] 
         return null;
     }
     const [a, b] = subpaths.map((q) => boxOfPoints(q));
-    if (holds(a, b)) {
-        return subpaths[0];
+    if (!holds(a, b) && !holds(b, a)) {
+        return null;
     }
-    return holds(b, a) ? subpaths[1] : null;
+    const outer = holds(a, b) ? subpaths[0] : subpaths[1];
+    return continuousPattern(outer) === "solid" ? outer : null;
 }
 
 /**

@@ -2823,7 +2823,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Raised Border Light Color",
         shortName: "Raised border light color",
         group: "shape",
-        default: "#ffffff",
+        default: "#FFFFFF",
         accepts: "color",
         stylePath: "raisedBorder.lightColor",
         renderable: true,

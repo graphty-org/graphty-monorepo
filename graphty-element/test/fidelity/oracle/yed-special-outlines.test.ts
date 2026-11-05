@@ -52,6 +52,16 @@ describe("yEd's special outlines", () => {
         assert.isNull(outlinePaintedAsFill(paths, true));
     });
 
+    it("still reads a zigzag's ring, whatever its areas say of its winding", () => {
+        const zigzag = (r: number): Pt[] =>
+            Array.from({ length: 96 }, (_, i): Pt => {
+                const t = (2 * Math.PI * i) / 96;
+                const swing = i % 2 === 0 ? 3 : -3;
+                return [50 + (r + swing) * Math.cos(t), 50 + (r + swing) * Math.sin(t)];
+            });
+        assert.isNull(solidOuter([zigzag(40), zigzag(30)]));
+    });
+
     it("still reads a ring where the outlines are wound apart, or the rule is evenodd", () => {
         const opposite = [circle(40, 1), circle(35, -1)];
         assert.isNull(solidOuter(opposite));
@@ -71,6 +81,11 @@ describe("yEd's special outlines", () => {
                 box,
             ),
         );
+    });
+
+    it("leaves a box whose rounding of 0 puts a curve at every corner as it was", () => {
+        const box = { x: 0, y: 0, width: 10, height: 10 };
+        assert.isFalse(hasSquareCorner("M0 0 Q0 0 0 0 L10 0 Q10 0 10 0 L10 10 Q10 10 10 10 L0 10 Q0 10 0 10 Z", box));
     });
 
     it("classes a curved outline with a square corner as no rounded rectangle", () => {

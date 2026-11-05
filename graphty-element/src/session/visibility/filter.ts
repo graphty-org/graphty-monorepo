@@ -102,14 +102,22 @@ export interface TimeWindow {
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
      * window ends at it, so nodes follow their edges.
+     * @experimental timeline
+     * @beta
      */
     readonly nodes?: "all" | "ends";
     /**
      * Whether an element of a kind that carries the attribute, but has no usable value for it, is
      * kept: `"inside"` (the default) or `"outside"`.
+     * @experimental timeline
+     * @beta
      */
     readonly missing?: "inside" | "outside";
-    /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
+    /**
+     * How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end.
+     * @experimental timeline
+     * @beta
+     */
     readonly mode?: "sliding" | "cumulative";
 }
 
@@ -117,6 +125,8 @@ export interface TimeWindow {
  * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
  * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
  * new window. See {@link TimePlayback.results}.
+ * @experimental timeline
+ * @beta
  */
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
@@ -124,6 +134,8 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
  * How `session.time` moves windows, held with the designated field rather than on one window, so
  * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
  * optional; one left out reads its default.
+ * @experimental timeline
+ * @beta
  */
 export interface TimePlayback {
     /** What a window move does to finished runs over the visible graph; default `"stale"`. */
@@ -217,6 +229,8 @@ export interface FilterSources {
     readonly components?: () => ComponentLabels;
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
     /**
      * The instants of a designated time column, parsed once. Absent, or null for a path or a
      * kind, a window parses each element's value itself.
@@ -1724,7 +1738,9 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const mark = markFor(context, window.attribute);
     const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
     const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
-    const missingInside = window.missing !== "outside";
+    // With the timeline off a saved window's options stay saved and are not applied.
+    const timeline = context.sources.timeline?.() !== false;
+    const missingInside = !timeline || window.missing !== "outside";
     const indexed = context.sources.instants?.(window.attribute) ?? null;
 
     /**
@@ -1764,7 +1780,7 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (window.nodes === "ends" && edge !== null) {
+    if (timeline && window.nodes === "ends" && edge !== null) {
         // ponytail: counts an edge inside the window, not one that also passes the filter's edge
         // half, as the `ends` of a range leaf does; the design's rule ANDs both.
         const list = graph.edgeList();

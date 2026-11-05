@@ -52,7 +52,7 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import type { EnabledFeatures } from "./features/resolve";
+import { type EnabledFeatures, featureOff } from "./features/resolve";
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -836,6 +836,10 @@ export class Graphty extends LitElement {
         this.dispatchEvent(
             new CustomEvent("graphty-features", { detail: this.session.features, bubbles: true, composed: true }),
         );
+        for (const [name, value] of this.#heldTimeFields) {
+            this.#setTimeField(name, value);
+        }
+        this.#heldTimeFields.clear();
 
         this.asyncFirstUpdated().catch((e: unknown) => {
             throw e;
@@ -1450,6 +1454,36 @@ export class Graphty extends LitElement {
         this.#setSetting(name, oldValue, {
             data: { knownFields: { [name]: value === null || value === "" ? undefined : value } },
         });
+    }
+
+    /** The time attributes set before the first render, when the experiments are not settled yet. */
+    #heldTimeFields = new Map<string, string | undefined>();
+
+    /**
+     * A time attribute as set: held until the first render, else the setting in effect.
+     * @param name - The field, which is also the property's name.
+     * @returns The value.
+     */
+    #timeField(name: string): string | undefined {
+        return this.#heldTimeFields.has(name)
+            ? this.#heldTimeFields.get(name)
+            : (this.#setting(`data.knownFields.${name}`) as string | undefined);
+    }
+
+    /**
+     * Set one of the timeline's attributes. With the experiment off it is refused and changes
+     * nothing; before the first render it waits to find out, as `features` may come later.
+     * @param name - The field, which is also the property's name.
+     * @param value - The value.
+     */
+    #setTimeField(name: string, value: string | undefined): void {
+        if (this.#settingUp) {
+            this.#heldTimeFields.set(name, value);
+        } else if (this.session.features.enabled.includes("timeline")) {
+            this.#setKnownField(name, value);
+        } else {
+            console.error(`<graphty-element>: ${name} was refused.`, featureOff("timeline", name));
+        }
     }
 
     /**
@@ -2205,16 +2239,18 @@ export class Graphty extends LitElement {
      * <graphty-element edge-time-path="sent"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "edge-time-path" })
     get edgeTimePath(): string | undefined {
-        return this.#setting("data.knownFields.edgeTimePath") as string | undefined;
+        return this.#timeField("edgeTimePath");
     }
     /**
      * Sets the edge time column. Updates graph configuration.
      */
     set edgeTimePath(value: string | undefined) {
-        this.#setKnownField("edgeTimePath", value);
+        this.#setTimeField("edgeTimePath", value);
     }
 
     /**
@@ -2225,16 +2261,18 @@ export class Graphty extends LitElement {
      * <graphty-element node-time-path="published"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "node-time-path" })
     get nodeTimePath(): string | undefined {
-        return this.#setting("data.knownFields.nodeTimePath") as string | undefined;
+        return this.#timeField("nodeTimePath");
     }
     /**
      * Sets the node time column. Updates graph configuration.
      */
     set nodeTimePath(value: string | undefined) {
-        this.#setKnownField("nodeTimePath", value);
+        this.#setTimeField("nodeTimePath", value);
     }
 
     /**
@@ -2247,10 +2285,12 @@ export class Graphty extends LitElement {
      * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "edge-time-unit" })
     get edgeTimeUnit(): string | undefined {
-        return this.#setting("data.knownFields.edgeTimeUnit") as string | undefined;
+        return this.#timeField("edgeTimeUnit");
     }
     /**
      * Sets how the edge time column's numbers are read. Updates graph configuration.
@@ -2262,7 +2302,7 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#setKnownField("edgeTimeUnit", value);
+        this.#setTimeField("edgeTimeUnit", value);
     }
 
     /**
@@ -2274,10 +2314,12 @@ export class Graphty extends LitElement {
      * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
      * ```
      * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
      */
     @property({ attribute: "node-time-unit" })
     get nodeTimeUnit(): string | undefined {
-        return this.#setting("data.knownFields.nodeTimeUnit") as string | undefined;
+        return this.#timeField("nodeTimeUnit");
     }
     /**
      * Sets how the node time column's numbers are read. Updates graph configuration.
@@ -2289,7 +2331,7 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#setKnownField("nodeTimeUnit", value);
+        this.#setTimeField("nodeTimeUnit", value);
     }
 
     /**

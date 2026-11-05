@@ -100,9 +100,17 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A command, saved document or attribute asked for something whose experiment is off:
+     * `details` carry `feature`, the experiment's id, and `key`, what was asked for. The caller
+     * switches the experiment on (`features="..."`) or leaves that part out.
+     */
+    | "E_FEATURE_OFF"
+    /**
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     * @experimental timeline
+     * @beta
      */
     | "E_NO_TIME_FIELD"
     /**
@@ -938,6 +946,7 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_FEATURE_OFF: "E_FEATURE_OFF",
     E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",

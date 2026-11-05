@@ -3871,6 +3871,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param work - The plan being built.
      */
     const syncGhostRow = (work: StartingRowsWork): void => {
+        // With the timeline off a saved Ghost row stays as saved, and a time field brings none.
+        if (dispatcher.services.timeline?.() === false) {
+            return;
+        }
+
         const known = dispatcher.services.config?.().data.knownFields;
         const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
         const ghosts = work.stack.filter(isGhostRow);

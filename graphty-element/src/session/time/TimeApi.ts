@@ -17,6 +17,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { featureOff } from "../../features/resolve";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
@@ -56,7 +57,11 @@ export type { TimeUnit } from "./parse";
 // What a consumer reads and passes
 // ---------------------------------------------------------------------------------------------
 
-/** One table's time column. */
+/**
+ * One table's time column.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeSource {
     /** The column holding the instant, such as `sent` or `data.sent`. */
     readonly start: Path;
@@ -71,13 +76,19 @@ export interface TimeSource {
 /**
  * The designated time field: on nodes, on edges, or on both (then both name the same column).
  * Designating a column makes it a time column: its measurement reads `"time"`.
+ * @experimental timeline
+ * @beta
  */
 export interface TimeField {
     readonly nodes?: TimeSource;
     readonly edges?: TimeSource;
 }
 
-/** How many elements of one kind have a usable time. */
+/**
+ * How many elements of one kind have a usable time.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeCounts {
     /** Elements whose value parsed. */
     readonly timed: number;
@@ -87,10 +98,18 @@ export interface TimeCounts {
     readonly unparsed: number;
 }
 
-/** A notice about the values of a designated column. */
+/**
+ * A notice about the values of a designated column.
+ * @experimental timeline
+ * @beta
+ */
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
 
-/** What designating a field found. */
+/**
+ * What designating a field found.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeFieldResult {
     readonly field: TimeField | null;
     readonly nodes?: TimeCounts;
@@ -106,7 +125,11 @@ export interface TimeFieldResult {
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
 
-/** The span of the data's time, half-open: `to` is just past the last instant. */
+/**
+ * The span of the data's time, half-open: `to` is just past the last instant.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeExtent {
     readonly from: number;
     readonly to: number;
@@ -114,7 +137,11 @@ export interface TimeExtent {
     readonly edges: TimeCounts;
 }
 
-/** One histogram bar: elements whose instant is in `[start, end)`. */
+/**
+ * One histogram bar: elements whose instant is in `[start, end)`.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeBin {
     readonly start: number;
     readonly end: number;
@@ -124,7 +151,11 @@ export interface TimeBin {
     readonly step?: TimeStep;
 }
 
-/** What {@link TimeApi.bins} counts. */
+/**
+ * What {@link TimeApi.bins} counts.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeBinsOptions {
     /** How many equal bins; default 100. Ignored when `step` is given. */
     readonly count?: number;
@@ -153,25 +184,41 @@ export interface TimeBinsOptions {
     };
 }
 
-/** Node and edge ids. */
+/**
+ * Node and edge ids.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeIds {
     readonly nodes: readonly NodeId[];
     readonly edges: readonly EdgeId[];
 }
 
-/** What entered and left the visible graph on the last move. */
+/**
+ * What entered and left the visible graph on the last move.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeChanges {
     readonly entered: TimeIds;
     readonly left: TimeIds;
 }
 
-/** Node and edge counts. */
+/**
+ * Node and edge counts.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeCountPair {
     readonly nodes: number;
     readonly edges: number;
 }
 
-/** What one move of the window did. Numbers only; the application writes the words. */
+/**
+ * What one move of the window did. Numbers only; the application writes the words.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeStepEvent {
     /** Step number from the start of the data, by the window's step. */
     readonly index: number;
@@ -194,6 +241,8 @@ export interface TimeStepEvent {
  * A window as `time.window` takes it: the attribute defaults to the designated field, and a bound
  * left out keeps the current window's. With no window yet, `from` defaults to the start of the
  * data and `to` to one step after `from`, so `time.window({ step: "week" })` opens the first week.
+ * @experimental timeline
+ * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
     readonly attribute?: Path;
@@ -201,10 +250,18 @@ export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
     readonly to?: number | string;
 };
 
-/** How playback moves the window: both ends (`sliding`), or only the end (`cumulative`). */
+/**
+ * How playback moves the window: both ends (`sliding`), or only the end (`cumulative`).
+ * @experimental timeline
+ * @beta
+ */
 export type TimePlayMode = "sliding" | "cumulative";
 
-/** What `time.play` takes. Each one given is also written onto the window, so it is saved. */
+/**
+ * What `time.play` takes. Each one given is also written onto the window, so it is saved.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimePlayOptions {
     /** How far each step moves; default the window's step, else its width. */
     readonly step?: TimeStep;
@@ -224,7 +281,11 @@ export interface TimePlayOptions {
     readonly motion?: "smooth" | "steps";
 }
 
-/** How `session.time` moves windows: {@link TimePlayback} with every default filled in. */
+/**
+ * How `session.time` moves windows: {@link TimePlayback} with every default filled in.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeSettings {
     /** What a window move does to finished runs over the visible graph. */
     readonly results: TimeResultsPolicy;
@@ -238,7 +299,11 @@ export interface TimeSettings {
     readonly outside: "hide" | "ghost";
 }
 
-/** A column that reads as time, from {@link TimeApi.candidates}. */
+/**
+ * A column that reads as time, from {@link TimeApi.candidates}.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeCandidate {
     /** Nodes or edges. */
     readonly kind: "node" | "edge";
@@ -252,7 +317,11 @@ export interface TimeCandidate {
     readonly unit?: TimeUnit;
 }
 
-/** The timeline: designate a time field, read its distribution, and move a window along it. */
+/**
+ * The timeline: designate a time field, read its distribution, and move a window along it.
+ * @experimental timeline
+ * @beta
+ */
 export interface TimeApi {
     /** The designated field, or null when none is. */
     readonly field: TimeField | null;
@@ -417,6 +486,31 @@ export interface TimeInternals {
     visibilityChanged(change: VisibilityChange): void;
     /** Stop playback for good. */
     dispose(): void;
+}
+
+/**
+ * `session.time` behind its experiment: every member refuses with `E_FEATURE_OFF` while the
+ * experiment is off. Reading `session.time` itself is safe, and asked per member, because an
+ * element's session settles its features only when the element first renders.
+ * @param api - The timeline.
+ * @param on - Whether the experiment is on now.
+ * @returns The gated timeline.
+ */
+export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
+    const gated = {} as TimeApi;
+    for (const key of Object.keys(api) as (keyof TimeApi)[]) {
+        Object.defineProperty(gated, key, {
+            get: () => {
+                if (!on()) {
+                    throw featureOff("timeline", `time.${key}`);
+                }
+
+                return Reflect.get(api, key) as unknown;
+            },
+        });
+    }
+
+    return Object.freeze(gated);
 }
 
 /** Every timeline setting at its default. */

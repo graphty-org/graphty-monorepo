@@ -9,12 +9,30 @@ import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
 
 /**
+ * Whether the timeline experiment is on, as graphty-element reports it.
+ * @param session - the element's session, or null.
+ * @returns true when it is on.
+ */
+export function timelineOn(session: GraphSession | null): boolean {
+    return session?.features.enabled.includes("timeline") === true;
+}
+
+/**
+ * The designated time field; none while the timeline experiment is off, whatever the data holds.
+ * @param session - the element's session, or null.
+ * @returns the field, or null.
+ */
+export function timeField(session: GraphSession | null): TimeField | null {
+    return session !== null && timelineOn(session) ? session.time.field : null;
+}
+
+/**
  * The unit the designated field reads numbers in.
  * @param session - the element's session.
  * @returns the unit.
  */
 export function unitOf(session: GraphSession): TimeUnit {
-    const { field } = session.time;
+    const field = timeField(session);
     return field?.edges?.unit ?? field?.nodes?.unit ?? "ms";
 }
 
@@ -185,7 +203,7 @@ export function reportTimeError(store: WorkspaceStore): (error: unknown) => void
  * @returns "Jan 31, 2025" for a time, else the value.
  */
 export function timeValue(session: GraphSession, kind: "node" | "edge", column: string, value: unknown): unknown {
-    const { field } = session.time;
+    const field = timeField(session);
     const source = kind === "node" ? field?.nodes : field?.edges;
     if (source?.start !== column || value === null || value === undefined || value === "") {
         return value;

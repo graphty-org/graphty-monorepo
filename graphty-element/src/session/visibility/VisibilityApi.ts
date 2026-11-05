@@ -1204,6 +1204,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
     const ghostingNow = (): boolean =>
+        sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
 

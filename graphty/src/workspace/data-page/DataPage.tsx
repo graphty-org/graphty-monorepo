@@ -56,7 +56,7 @@ import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { showNotices } from "../time/timeActions";
+import { showNotices, timeField, timelineOn } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
@@ -317,7 +317,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
         noticeFileStyles(store, session);
         // A time field marked at import says what its values held, as Set as time does.
-        if (session.time.field !== null) {
+        if (timeField(session) !== null) {
             showNotices(session, store, session.time.notices());
         }
         // The status line, written once the place is showing and the header has its name: the
@@ -1034,6 +1034,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
  * @returns The list
  */
 function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
+    const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
     const options: { value: string; label: string }[] = [
@@ -1093,7 +1094,9 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {TYPE_WORDS[column.type] ?? column.type}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
-                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
+                        {timelineOn(session) &&
+                        (chosen ?? own) === "time" &&
+                        (column.type === "number" || column.type === "integer") ? (
                             <Select
                                 size="xs"
                                 label="Unit"

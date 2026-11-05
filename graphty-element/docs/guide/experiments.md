@@ -48,6 +48,18 @@ graduated to a normal feature is accepted and changes nothing.
 its id, a default name and the issue that tracks it. `GRADUATED_FEATURES` lists the ids that have
 shipped.
 
+## The experiments in this build
+
+### `timeline`
+
+Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
+attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`.
+
+With it off, every member of `session.time` refuses with `E_FEATURE_OFF` (`details` carry
+`{ feature, key }`), the four attributes do nothing but log that refusal, and a text column of
+dates does not measure time. `session.visibility.setWindow` works either way. A project saved with
+the timeline on keeps its time settings when it is opened and saved with it off.
+
 ## What `@experimental` promises
 
 API marked `@experimental` in the reference may change or disappear in a minor release of

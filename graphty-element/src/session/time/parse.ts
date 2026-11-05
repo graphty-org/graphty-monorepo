@@ -16,6 +16,8 @@ import type { TimeStep } from "../visibility/filter";
  * How numbers in a time column are read: epoch milliseconds, epoch seconds, calendar years (`1995`
  * is January 1, 1995 UTC; a fraction is that share of the year), or plain ordered numbers with no
  * calendar (a simulation step, a tick). Strings and dates ignore it.
+ * @experimental timeline
+ * @beta
  */
 export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 

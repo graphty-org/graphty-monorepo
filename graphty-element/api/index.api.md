@@ -3148,8 +3148,10 @@ export class Graphty extends LitElement {
     get edgeLabelCounts(): EdgeLabelCounts;
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
+    // @beta
     get edgeTimeUnit(): string | undefined;
     set edgeTimeUnit(value: string | undefined);
     get edgeWeightPath(): string | undefined;
@@ -3284,8 +3286,10 @@ export class Graphty extends LitElement {
         height: number;
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
+    // @beta
     get nodeTimeUnit(): string | undefined;
     set nodeTimeUnit(value: string | undefined);
     static get observedAttributes(): string[];
@@ -3532,9 +3536,17 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, saved document or attribute asked for something whose experiment is off:
+* `details` carry `feature`, the experiment's id, and `key`, what was asked for. The caller
+* switches the experiment on (`features="..."`) or leaves that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**

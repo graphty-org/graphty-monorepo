@@ -57,7 +57,6 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
-import { DEFAULT_TIME_SETTINGS, sameSettings } from "./time/TimeApi";
 import type {
     DataSourceInput,
     GraphSession,
@@ -1364,8 +1363,9 @@ const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", param
 /**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
+ * @param playback - The timeline settings the session held, which go too.
  */
-async function clearInto(tx: TransactionScope): Promise<void> {
+async function clearInto(tx: TransactionScope, playback: unknown): Promise<void> {
     for (const note of tx.notes.list()) {
         tx.notes.remove(note.id);
     }
@@ -1400,8 +1400,8 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await (tx.visibility as SessionVisibilityApi).restoreConditions([]);
     }
 
-    if (!sameSettings(tx.time.settings, DEFAULT_TIME_SETTINGS)) {
-        await tx.execute({ op: "visibility.playback", playback: null });
+    if (playback !== undefined && playback !== null) {
+        await tx.execute({ op: "visibility.playback", playback: null, restoring: true });
     }
 
     await tx.data.clear();
@@ -1568,6 +1568,8 @@ interface Opening {
     readonly tx: TransactionScope;
     readonly problems: ProjectProblem[];
     readonly restored: Set<ProjectSlice>;
+    /** The timeline settings the session held before this open, which it clears. */
+    readonly playback?: unknown;
 }
 
 /**
@@ -1655,7 +1657,7 @@ async function readProject(
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
-    await clearInto(tx);
+    await clearInto(tx, opening.playback);
     await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
@@ -1818,7 +1820,11 @@ async function readProject(
         // Read on their own, so a filter that cannot be read never loses them.
         await attempt(opening, "visibility", async () => {
             if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await tx.execute({ op: "visibility.playback", playback: visibility.playback as never });
+                await tx.execute({
+                    op: "visibility.playback",
+                    playback: visibility.playback as never,
+                    restoring: true,
+                });
             }
 
             tx.visibility.showContext = visibility.showContext === true;
@@ -2319,7 +2325,15 @@ export function projectOf(
         try {
             await session.transaction(
                 "Open project",
-                (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned, loads),
+                (tx) =>
+                    readProject(
+                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        doc,
+                        graph,
+                        name,
+                        canned,
+                        loads,
+                    ),
                 opening,
             );
         } catch (error) {

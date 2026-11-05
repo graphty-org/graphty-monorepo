@@ -106,6 +106,8 @@ interface CommandServices {
     layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
+    /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
+    timeline?: () => boolean;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
 }

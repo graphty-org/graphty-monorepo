@@ -3,6 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
+import { timelineOn } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
@@ -78,7 +79,7 @@ function attributeActions(
         });
     }
     // Any column can be the time field; the Time section sets its unit and how the window moves.
-    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null) {
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null && timelineOn(session)) {
         const source = { start: descriptor.name };
         const isTime =
             (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;

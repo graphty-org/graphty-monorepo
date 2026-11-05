@@ -30,7 +30,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
 import { AddCondition, CardBody } from "../style/WhichPicker";
-import { reportTimeError, unitOf } from "../time/timeActions";
+import { reportTimeError, timeField, timelineOn, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
     conditionWords,
@@ -144,7 +144,7 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [asked, session, store]);
 
-    const timed = session !== null && session.time.field !== null;
+    const timed = session !== null && timeField(session) !== null;
     const plus =
         session === null ? null : (
             <AddMenu
@@ -282,7 +282,7 @@ function AddMenu({
                         Neighbors of selection
                     </Menu.Item>
                 )}
-                {session.time.field !== null && session.time.current === null && (
+                {timeField(session) !== null && session.time.current === null && (
                     <Menu.Item
                         onClick={() => {
                             session.time.pause();
@@ -789,7 +789,7 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
                     await tx.visibility.updateCondition(c.id, { on: false });
                 }
             }
-            if (tx.time.current !== null) {
+            if (timelineOn(session) && tx.time.current !== null) {
                 await tx.time.window(null);
             }
         })
@@ -835,7 +835,7 @@ export function FilterChip(): React.JSX.Element | null {
     const edges = hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
     const words = chipWords(session.visibility.summary, edges);
     // The time window is one of the filters in force, as the Filters list shows it.
-    const window = session.time.field === null ? null : session.time.current;
+    const window = timeField(session) === null ? null : session.time.current;
     const on = [
         ...hiding.map((c) => conditionWords(session, c.rule)),
         ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),

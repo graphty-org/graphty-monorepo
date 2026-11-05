@@ -70,6 +70,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_FEATURE_OFF",
     "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
@@ -158,6 +159,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_FEATURE_OFF":
         case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":

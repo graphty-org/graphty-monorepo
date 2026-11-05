@@ -462,14 +462,16 @@ describe("the selection editor on 50,000 nodes", () => {
         });
     });
 
-    it("Done and Cancel keep the workspace open, saying Drawing, until the result is painted", async () => {
-        const session = await openGenerated();
-        await openLayer(
-            session,
-            "Closing",
-            oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
-        );
-        const tickAndClose = async (button: "Done" | "Cancel"): Promise<Closing> => {
+    // One test each: on software rendering a repaint of 50,000 nodes takes minutes, and the two
+    // together pass the test guard.
+    for (const button of ["Done", "Cancel"] as const) {
+        it(`${button} keeps the workspace open, saying Drawing, until the result is painted`, async () => {
+            const session = await openGenerated();
+            await openLayer(
+                session,
+                "Closing",
+                oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
+            );
             const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
             if (row === null) {
                 throw new Error("the step's row is drawn");
@@ -490,21 +492,18 @@ describe("the selection editor on 50,000 nodes", () => {
             if (ws === null) {
                 throw new Error("the workspace is open");
             }
-            return framesUntilClosed(() => userEvent.click(within(ws).getByRole("button", { name: button })));
-        };
-        const done = await tickAndClose("Done");
-        assert.strictEqual(done.quiet, 0, `Done: ${String(done.quiet)} of ${String(done.open)} frames without Drawing`);
-        assert.isTrue(done.paintedAtClose, "Done: the result was painted when the workspace closed");
-        assert.isFalse(session.styles.showingBranches);
-        const cancel = await tickAndClose("Cancel");
-        assert.strictEqual(
-            cancel.quiet,
-            0,
-            `Cancel: ${String(cancel.quiet)} of ${String(cancel.open)} frames without Drawing`,
-        );
-        assert.isTrue(cancel.paintedAtClose, "Cancel: the result was painted when the workspace closed");
-        assert.isFalse(session.styles.showingBranches);
-    });
+            const closing = await framesUntilClosed(() =>
+                userEvent.click(within(ws).getByRole("button", { name: button })),
+            );
+            assert.strictEqual(
+                closing.quiet,
+                0,
+                `${button}: ${String(closing.quiet)} of ${String(closing.open)} frames without Drawing`,
+            );
+            assert.isTrue(closing.paintedAtClose, `${button}: the result was painted when the workspace closed`);
+            assert.isFalse(session.styles.showingBranches);
+        });
+    }
 
     it("a control the reader moves to while Done waits for the paint keeps focus and every key typed there", async () => {
         const session = await openGenerated();

@@ -28,10 +28,17 @@ withFeatures([]);
 const NODES = 50_000;
 
 /**
- * The workspace on a generated graph of 50,000 nodes whose `community` column is a category.
+ * The graph's size in the tests that wait for whole repaints: large enough that a repaint spans its
+ * full 32 frames, while on software rendering three of them stay well inside the test guard.
+ */
+const REPAINTED_NODES = 20_000;
+
+/**
+ * The workspace on a generated graph whose `community` column is a category.
+ * @param nodes - How many nodes it has.
  * @returns The session.
  */
-async function openGenerated(): Promise<GraphSession> {
+async function openGenerated(nodes = NODES): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
@@ -44,7 +51,7 @@ async function openGenerated(): Promise<GraphSession> {
         throw new Error("the element never came up");
     }
     await session.data.generate("lfr", {
-        n: NODES,
+        n: nodes,
         minDegree: 2,
         maxDegree: 8,
         degreeExponent: 2.5,
@@ -407,7 +414,7 @@ describe("the selection editor on 50,000 nodes", () => {
         await userEvent.keyboard("{Escape}");
     });
     it("an edit says Drawing in the frame of its input, before the work starts (opening, a tick, Done)", async () => {
-        const session = await openGenerated();
+        const session = await openGenerated(REPAINTED_NODES);
         await openLayer(
             session,
             "Busy",
@@ -466,7 +473,7 @@ describe("the selection editor on 50,000 nodes", () => {
     // together pass the test guard.
     for (const button of ["Done", "Cancel"] as const) {
         it(`${button} keeps the workspace open, saying Drawing, until the result is painted`, async () => {
-            const session = await openGenerated();
+            const session = await openGenerated(REPAINTED_NODES);
             await openLayer(
                 session,
                 "Closing",
@@ -506,7 +513,7 @@ describe("the selection editor on 50,000 nodes", () => {
     }
 
     it("a control the reader moves to while Done waits for the paint keeps focus and every key typed there", async () => {
-        const session = await openGenerated();
+        const session = await openGenerated(REPAINTED_NODES);
         const layer = await openLayer(
             session,
             "Moved on",

@@ -1,4 +1,4 @@
-The study runs on build 8fa33aa786 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1-8fa33aa786
+The study runs on build 3549e11129 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d1-3549e11129
 
 Frozen on 2026-11-05 for the tier 6 rounds.
 
@@ -235,3 +235,5 @@ dry run twice. The owner is told why, once.
     - T95: both halves have an id column; a question from the model has a `Trap fired:` rule; the
       refusal example is one this build gave; a left-behind run is no step; a chip under a claim from
       memory is not support.
+- 2026-11-05: the study moved to build 3549e11129 from build 8fa33aa786 (served from
+  `.study-builds/tier6-r1-8fa33aa786`), which holds the fixes made since that freeze.

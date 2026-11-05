@@ -65,4 +65,19 @@ describe("a gradient read off a picture's pixels", () => {
             pictureGradient(picture(40, (x, y) => ((Math.floor(x * 5) + Math.floor(y * 5)) % 2 === 0 ? WHITE : BLUE))),
         );
     });
+
+    it("reads a checkerboard of a pixel a square as no gradient, at whatever angle its places hold a pixel each", () => {
+        // cytoscapejs-specimen-images-charts's checker.png: 4 by 4 pixels, yellow and blue
+        const YELLOW = [255, 255, 0];
+        const checker = picture(4, (x, y) =>
+            (Math.round(x * 2 + 2) + Math.round(y * 2 + 2)) % 2 === 0 ? YELLOW : BLUE,
+        );
+        assert.isNull(pictureGradient(checker));
+    });
+
+    it("still reads a ramp across a small picture", () => {
+        const g = pictureGradient(picture(8, (x) => mix(WHITE, BLUE, (x + 1) / 2)));
+        assert.strictEqual(g?.kind, "linear");
+        assert.strictEqual(g?.angle, 0);
+    });
 });

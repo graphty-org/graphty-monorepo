@@ -32,8 +32,9 @@
  * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
  * that this file does not implement -- projections, slices, functions, pipes, multi-selects,
  * wildcards, the current-node reference -- is rejected where it was typed, by name, with the
- * offset. A selector that is accepted means exactly what JMESPath means by it. A wrong picture
- * is worse than a refusal, so there is no branch that guesses.
+ * offset. A selector that is accepted means exactly what JMESPath means by it, with one stated
+ * exception: a lone `true`, `false` or `null` word is that value (see `VALUE_WORDS`). A wrong
+ * picture is worse than a refusal, so there is no branch that guesses.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -512,6 +513,17 @@ interface Token {
     readonly at: number;
 }
 
+/**
+ * The words a rule reads as values when they stand alone. JMESPath spells these values in backticks
+ * and reads the bare word as a field, but every value here sits under `data.` or `results.`, so
+ * that field never exists and `trained == false` would answer nothing for a column of nine falses.
+ */
+const VALUE_WORDS: ReadonlyMap<string, boolean | null> = new Map([
+    ["true", true],
+    ["false", false],
+    ["null", null],
+]);
+
 /** The operators the subset reads, longest first so `<=` is never lexed as `<` then `=`. */
 const OPERATORS = ["&&", "||", "==", "!=", "<=", ">=", "!", "<", ">", ".", "(", ")"] as const;
 
@@ -734,13 +746,38 @@ function tokenize(where: Query): readonly Token[] {
 
         rejectUnsupported(where, at, character);
         const lexed = lexToken(where, at, character) ?? rejectCharacter(where, at, character);
-        tokens.push(lexed.token);
+        tokens.push(loneValue(where, lexed, tokens.at(-1)) ?? lexed.token);
         at = lexed.next;
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });
 
     return tokens;
+}
+
+/**
+ * The value a lone `true`, `false` or `null` word stands for. A word inside a path (`data.false`,
+ * `false.x`), a function's name and a quoted name (`"false"`) stay names.
+ * @param where - The expression as it was typed.
+ * @param lexed - The token and the offset after it.
+ * @param lexed.token - The token.
+ * @param lexed.next - The offset after it.
+ * @param previous - The token before it.
+ * @returns The literal, or undefined when the token is not a lone value word.
+ */
+function loneValue(
+    where: Query,
+    { token, next }: { token: Token; next: number },
+    previous: Token | undefined,
+): Token | undefined {
+    const value = VALUE_WORDS.get(token.text);
+    const quoted = where.charAt(token.at) === '"';
+    const inPath = previous?.kind === "operator" && previous.text === ".";
+    if (value === undefined || quoted || inPath || /^\s*[.(]/.test(where.slice(next))) {
+        return undefined;
+    }
+
+    return { kind: "literal", text: "", value, at: token.at };
 }
 
 /**
@@ -1603,7 +1640,7 @@ export function quotePath(path: Path): Query {
  */
 export function rulePath(path: Path): Query {
     const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
-    return isUnquotedName(bare) ? bare : quotePath(path);
+    return isUnquotedName(bare) && !VALUE_WORDS.has(bare) ? bare : quotePath(path);
 }
 
 /**

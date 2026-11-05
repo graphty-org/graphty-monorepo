@@ -96,7 +96,7 @@ function exampleRule(session: GraphSession): string | null {
 
 /**
  * A rule as the reader reads and types it: its numbers without the backticks the element writes
- * around them. Only numbers: a backticked text or `true` means something else bare.
+ * around them. Only numbers: a backticked text means something else bare.
  * @param rule - the rule, without "=".
  * @returns the rule.
  */

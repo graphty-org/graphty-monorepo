@@ -163,15 +163,17 @@ then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
-by name, with the offset. A selector that is accepted means exactly what JMESPath means by it.
+by name, with the offset. A selector that is accepted means exactly what JMESPath means by it,
+but for one convenience below: a lone `true`, `false` or `null` is that value.
 
 Two spelling rules catch everyone once:
 
 - **A record's own fields live under `data.`** So a node imported as `{id: "n1", type: "server"}`
   is selected with `data.type == 'server'`, not `type == 'server'`.
 - **A number or a boolean goes between backticks**, as JMESPath requires: `` data.weight > `0.5` ``
-  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A string
-  literal takes single quotes: `'server'`.
+  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A lone `true`,
+  `false` or `null` also reads as that value, so `data.active == true` works too, while
+  `data.false` still names a column. A string literal takes single quotes: `'server'`.
 
 **An edge's endpoints are `data.source` and `data.target`**, the ids of the nodes it leaves and
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So

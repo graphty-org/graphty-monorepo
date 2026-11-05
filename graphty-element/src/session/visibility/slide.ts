@@ -92,8 +92,8 @@ interface KindState {
 /** One direction of the graph's adjacency. */
 type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
 
-/** The edges one move took in and out of view. */
-interface EdgeRows {
+/** The rows of one kind a small move took in and out of view. */
+interface MovedRows {
     readonly entered: number[];
     readonly left: number[];
 }
@@ -340,33 +340,93 @@ function countCrossed(
 }
 
 /**
- * Bring a moved node's edges up to date, from one direction of the graph. The arc names the other
+ * How many edges re-testing some nodes would look at.
+ * @param directions - The graph's directions.
+ * @param rows - The nodes.
+ * @returns Their summed degree.
+ */
+function degreesOf(directions: readonly Arcs[], rows: readonly number[]): number {
+    let degrees = 0;
+    for (const { rowPtr } of directions) {
+        for (const row of rows) {
+            degrees += rowPtr[row + 1] - rowPtr[row];
+        }
+    }
+
+    return degrees;
+}
+
+/**
+ * Write the nodes that changed. A row can repeat: the second visit finds nothing left to change.
+ * @param state - The slide.
+ * @param nodes - The node mask.
+ * @param rows - The nodes.
+ * @returns The nodes that came and went.
+ */
+function moveNodes(state: SlideState, nodes: ElementMask<NodeId>, rows: readonly number[]): MovedRows {
+    const moved: MovedRows = { entered: [], left: [] };
+    for (const row of rows) {
+        if (nodeShows(state, row)) {
+            if (nodes.add(row)) {
+                moved.entered.push(row);
+            }
+        } else if (nodes.delete(row)) {
+            moved.left.push(row);
+        }
+    }
+
+    return moved;
+}
+
+/**
+ * Write edges by their own tests and both ends.
+ * @param state - The slide.
+ * @param target - The masks.
+ * @param rows - The edges.
+ * @returns The edges that came and went.
+ */
+function retestEdges(state: SlideState, target: SlideTarget, rows: readonly number[]): MovedRows {
+    const { graph, nodes, edges } = target;
+    const { src, dst } = graph.edgeList();
+    const moved: MovedRows = { entered: [], left: [] };
+    for (const row of rows) {
+        if (edgePasses(state, row) && nodes.has(src[row]) && nodes.has(dst[row])) {
+            if (edges.add(row)) {
+                moved.entered.push(row);
+            }
+        } else if (edges.delete(row)) {
+            moved.left.push(row);
+        }
+    }
+
+    return moved;
+}
+
+/**
+ * Bring moved nodes' edges up to date, from one direction of the graph. The arc names the other
  * end, so this reads no endpoint list. An edge failing its own tests needs no look: if it showed,
  * it crossed the window and was re-tested already.
  * @param state - The slide.
  * @param target - The masks.
  * @param arcs - That direction of the graph.
- * @param row - The node.
- * @param rows - Takes the edges that came and went.
+ * @param rows - The nodes.
+ * @param moved - Takes the edges that came and went.
  */
-function walkArcs(state: SlideState, target: SlideTarget, arcs: Arcs, row: number, rows: EdgeRows): void {
+function walkArcs(state: SlideState, target: SlideTarget, arcs: Arcs, rows: readonly number[], moved: MovedRows): void {
     const { rowPtr, colIdx, arcToEdge } = arcs;
     const { nodes, edges } = target;
-    const end = rowPtr[row + 1];
-    if (!nodes.has(row)) {
+    for (const row of rows) {
+        const shown = nodes.has(row);
+        const end = rowPtr[row + 1];
         for (let arc = rowPtr[row]; arc < end; arc++) {
-            if (edges.delete(arcToEdge[arc])) {
-                rows.left.push(arcToEdge[arc]);
+            const edge = arcToEdge[arc];
+            if (!shown) {
+                if (edges.delete(edge)) {
+                    moved.left.push(edge);
+                }
+            } else if (edgePasses(state, edge) && nodes.has(colIdx[arc]) && edges.add(edge)) {
+                moved.entered.push(edge);
             }
-        }
-
-        return;
-    }
-
-    for (let arc = rowPtr[row]; arc < end; arc++) {
-        const edge = arcToEdge[arc];
-        if (edgePasses(state, edge) && nodes.has(colIdx[arc]) && edges.add(edge)) {
-            rows.entered.push(edge);
         }
     }
 }
@@ -652,29 +712,15 @@ export class WindowSlider {
 
         // A row can repeat in these lists: the second visit finds nothing left to change.
         const changing = dirtyNodes.filter((row) => nodeShows(state, row) !== nodes.has(row));
-        const reverse = graph.directed ? graph.reverse() : null;
-        let degrees = 0;
-        for (const row of changing) {
-            degrees += graph.rowPtr[row + 1] - graph.rowPtr[row];
-            degrees += reverse === null ? 0 : reverse.rowPtr[row + 1] - reverse.rowPtr[row];
-        }
-
+        const directions: readonly Arcs[] = graph.directed ? [graph, graph.reverse()] : [graph];
+        const degrees = degreesOf(directions, changing);
         const inWindow = windowRows(state, graph);
         const work = edgeRows.length + Math.min(degrees, inWindow);
         if (work > budget) {
             return this.jump(target, state, from, to);
         }
 
-        const enteredNodes: number[] = [];
-        const leftNodes: number[] = [];
-        for (const row of changing) {
-            const shows = nodeShows(state, row);
-            if (shows && nodes.add(row)) {
-                enteredNodes.push(row);
-            } else if (!shows && nodes.delete(row)) {
-                leftNodes.push(row);
-            }
-        }
+        const moved = moveNodes(state, nodes, changing);
 
         // A node that came or went takes its edges with it: the node's, or the window's when there
         // are fewer of those.
@@ -685,25 +731,11 @@ export class WindowSlider {
             }
         }
 
-        const rows: EdgeRows = { entered: [], left: [] };
-        const { src, dst } = graph.edgeList();
-        for (const row of edgeRows) {
-            const shows = edgePasses(state, row) && nodes.has(src[row]) && nodes.has(dst[row]);
-            if (shows && edges.add(row)) {
-                rows.entered.push(row);
-            } else if (!shows && edges.delete(row)) {
-                rows.left.push(row);
-            }
-        }
-
+        const rows = retestEdges(state, target, edgeRows);
         if (scan === null) {
-            for (const moved of [enteredNodes, leftNodes]) {
-                for (const row of moved) {
-                    walkArcs(state, target, graph, row, rows);
-                    if (reverse !== null) {
-                        walkArcs(state, target, reverse, row, rows);
-                    }
-                }
+            for (const arcs of directions) {
+                walkArcs(state, target, arcs, moved.entered, rows);
+                walkArcs(state, target, arcs, moved.left, rows);
             }
         }
 
@@ -712,9 +744,14 @@ export class WindowSlider {
         state.edgeVersion = edges.version;
 
         return {
-            entered: { nodes: enteredNodes.length, edges: rows.entered.length },
-            left: { nodes: leftNodes.length, edges: rows.left.length },
-            rows: { enteredNodes, leftNodes, enteredEdges: rows.entered, leftEdges: rows.left },
+            entered: { nodes: moved.entered.length, edges: rows.entered.length },
+            left: { nodes: moved.left.length, edges: rows.left.length },
+            rows: {
+                enteredNodes: moved.entered,
+                leftNodes: moved.left,
+                enteredEdges: rows.entered,
+                leftEdges: rows.left,
+            },
         };
     }
 }

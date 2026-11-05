@@ -2142,8 +2142,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @returns One byte per row, or null to count every row.
      */
     const rowBytes = (kind: "node" | "edge", options: TimeBinsOptions): Uint8Array | null => {
-        const passing =
-            options.scope === "visible" ? visibility.passingBytes()[kind === "node" ? "nodes" : "edges"] : null;
+        const key = kind === "node" ? "nodes" : "edges";
+        const passing = options.scope === "visible" ? visibility.passingBytes()[key] : null;
         if (options.of === undefined) {
             return passing;
         }

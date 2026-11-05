@@ -290,7 +290,8 @@ import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { CompiledLayer } from "./session/styles/Layer";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -1138,44 +1139,7 @@ export class Graph implements GraphContext {
                 await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
             }
 
-            // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
-            // their own rows only (and the waiting edges their nodes completed). While an import
-            // reads there is no whole-graph pass until its end, so a paged or streamed load was
-            // drawn in the element's defaults while the layout ran, often until after it had
-            // settled. No frame is drawn while an element built from the defaults waits for this.
-            const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
-            if (!paintsWhole) {
-                if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
-                    await paintAddedRows(this.session, target.styles, dirty, this.dataManager.takeLateEdgeRows());
-                }
-
-                this.dataManager.notePainted(dirty);
-            }
-
-            // A change to graph values alone (the source's name, the import report) moves nothing
-            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
-            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
-                return;
-            }
-
-            // While an import reads, the pass after each chunk builds what arrived but does not
-            // paint; the pass its end schedules paints the whole graph once. Likewise a graph
-            // write with another still waiting behind it leaves the paint to the last of them,
-            // so a run of queued adds repaints once, not once per add. Everything else -- undo,
-            // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            if (paintsWhole) {
-                // A forward add over a picture that is current names what it changed; undo, redo
-                // and a paint an earlier write left owed have no such list.
-                const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
-                dispatcher.paintOwed = false;
-                this.#passRepainted = true;
-                await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
-                // The whole graph is painted, whatever an import stopped part way left waiting:
-                // a pass that painted only the changed rows found every other row painted already.
-                this.dataManager.notePainted(null);
-            } else if (this.#importsReading === 0) {
-                dispatcher.paintOwed = true;
-            }
+            await this.paintGraphPass(target.styles, dirty, cause);
         });
 
         // The `arrangement` hook's engine is this graph's layout: a history call stops it, a restore
@@ -4292,6 +4256,59 @@ export class Graph implements GraphContext {
      */
     getStylePainter(): StylePainter {
         return this.stylePainter;
+    }
+
+    /**
+     * Bring the paint up to date at the end of a `graph` pass.
+     * @param stack - The stack the pass derived.
+     * @param dirty - The pass's dirty keys.
+     * @param cause - What caused the pass.
+     * @returns Settles once the paint this pass owes is done.
+     */
+    private async paintGraphPass(
+        stack: readonly CompiledLayer[],
+        dirty: ReadonlySet<string>,
+        cause: HistoryCause,
+    ): Promise<void> {
+        // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
+        // their own rows only (and the waiting edges their nodes completed). While an import
+        // reads there is no whole-graph pass until its end, so a paged or streamed load was
+        // drawn in the element's defaults while the layout ran, often until after it had
+        // settled. No frame is drawn while an element built from the defaults waits for this.
+        const dispatcher = dispatcherOf(this.session);
+        const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
+        if (!paintsWhole) {
+            if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
+                await paintAddedRows(this.session, stack, dirty, this.dataManager.takeLateEdgeRows());
+            }
+
+            this.dataManager.notePainted(dirty);
+        }
+
+        // A change to graph values alone (the source's name, the import report) moves nothing
+        // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+        if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+            return;
+        }
+
+        // While an import reads, the pass after each chunk builds what arrived but does not
+        // paint; the pass its end schedules paints the whole graph once. Likewise a graph
+        // write with another still waiting behind it leaves the paint to the last of them,
+        // so a run of queued adds repaints once, not once per add. Everything else -- undo,
+        // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
+        if (paintsWhole) {
+            // A forward add over a picture that is current names what it changed; undo, redo
+            // and a paint an earlier write left owed have no such list.
+            const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
+            dispatcher.paintOwed = false;
+            this.#passRepainted = true;
+            await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
+            // The whole graph is painted, whatever an import stopped part way left waiting:
+            // a pass that painted only the changed rows found every other row painted already.
+            this.dataManager.notePainted(null);
+        } else if (this.#importsReading === 0) {
+            dispatcher.paintOwed = true;
+        }
     }
 
     /**

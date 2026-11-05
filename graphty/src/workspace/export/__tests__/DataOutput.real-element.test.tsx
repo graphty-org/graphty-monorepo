@@ -45,6 +45,11 @@ async function warningsFor(
     const { lossNotes } = await element.exportGraph(format, options);
     assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
     const note = await within(dialog).findByRole("note", {});
+    // The rows sit behind the one-line summary's Details (R14).
+    const details = within(note).getByRole("button", { name: "Details" });
+    if (details.getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(details);
+    }
     // Each row's words; its column and count chips name the file's own columns.
     const lines = within(note)
         .getAllByRole("listitem")
@@ -81,9 +86,9 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
         await pick(dialog, "Format", "CSV");
         await pick(dialog, "Table", "Edges");
         const edges = await warningsFor(dialog, element, "csv", { table: "edges" });
-        // Include Styles is on: the styles go along as each element's values, and say so. The
-        // data prototype's compact rows: a few words, the columns and counts as chips.
-        assert.include(edges, "Style rules written as values");
+        // CSV holds no styles, so it offers no Include styles and says the layers are not
+        // written. The data prototype's compact rows: a few words, the columns and counts as chips.
+        assert.include(edges, "Style layers not written");
         assert.include(
             edges,
             "Nodes table only",

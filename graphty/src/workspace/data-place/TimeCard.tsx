@@ -1,6 +1,6 @@
 /**
- * The time window's condition card, drawn by the filter step editor (Keep: a time window) and
- * opened from the Filters section's Time row: the time field, its unit, and the step, mode,
+ * The Time window's settings, opened in the inspector from the Filters section's Time window
+ * card: the time field, its unit, and the step, mode,
  * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
  * which keeps the settings with the field (`time.settings`), so turning the window off leaves
  * them as they are. The window itself moves in the timeline dock under the canvas.

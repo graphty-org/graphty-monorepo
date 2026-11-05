@@ -140,15 +140,17 @@ export class RichTextParser {
      * @param options.textOutline - Whether text outline is enabled
      * @param options.textOutlineWidth - Width of text outline
      * @param options.runAlign - Where runs of different sizes meet on a line
-     * @returns Maximum width and total height of the text
+     * @returns Maximum width and total height of the text, and how far the first line's font box sits below the
+     *     text's top and the last line's above its bottom
      */
     measureText(
         parsedContent: TextSegment[][],
         ctx: CanvasRenderingContext2D,
         options: LineOptions,
-    ): { maxWidth: number; totalHeight: number } {
+    ): { maxWidth: number; totalHeight: number; leadTop: number; leadBottom: number } {
         let maxWidth = 0;
         let totalHeight = 0;
+        const leads: number[] = [];
 
         for (const lineSegments of parsedContent) {
             const line = measureLine(ctx, lineSegments, options);
@@ -156,9 +158,11 @@ export class RichTextParser {
 
             maxWidth = Math.max(maxWidth, lineWidth);
             totalHeight += line.lineBox;
+            // the room between the line's box and its font's box, above and below alike (see measureLine)
+            leads.push((line.lineBox - (line.ascent + line.descent)) / 2);
         }
 
-        return { maxWidth, totalHeight };
+        return { maxWidth, totalHeight, leadTop: leads[0] ?? 0, leadBottom: leads.at(-1) ?? 0 };
     }
 }
 

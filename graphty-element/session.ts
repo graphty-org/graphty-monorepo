@@ -111,6 +111,7 @@ export type {
     JoinKey,
     JoinRecord,
     JoinReport,
+    JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
@@ -280,7 +281,7 @@ export type {
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
-export { LOAD_ROLES } from "./src/session";
+export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
@@ -497,6 +498,7 @@ export type {
     FilterConditionMatches,
     FilterEffect,
     FilterResult,
+    FilterSelectWithin,
     FilterStep,
     RuleTree,
     StepCounts,

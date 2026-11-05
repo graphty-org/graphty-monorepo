@@ -148,6 +148,8 @@ export const RichTextStyle = z.strictObject({
     shiftY: z.number().optional(),
     // What the shifts are fractions of: the whole box (margins and all) or the words alone.
     shiftOf: z.enum(["box", "words"]).optional(),
+    // What a label outside its target is placed against it by: the whole box, or the words' own font box.
+    gapOf: z.enum(["box", "words"]).optional(),
 
     // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
     // exactly as before.

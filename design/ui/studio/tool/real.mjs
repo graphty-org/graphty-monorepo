@@ -4068,8 +4068,13 @@ async function proveTier6(base, check, step, warmEnv) {
         r.status === 1 && !existsSync(home),
         `exit ${r.status} ${r.stdout}${r.stderr}`,
     );
-    await rm(join(SCRATCH, "tier6"), { recursive: true });
-    await rm(join(STUDIO, "tier6/rounds"), { recursive: true });
+    // only the proof's own round: its neighbors are a study's committed reports and session folders
+    const neighbor = join(STUDIO, "tier6/rounds/prove-neighbor");
+    await mkdir(neighbor, { recursive: true });
+    await rm(join(SCRATCH, "tier6/rounds/prove"), { recursive: true, force: true });
+    await rm(join(STUDIO, "tier6/rounds/prove"), { recursive: true, force: true });
+    check("the proof removes its own round and no other", existsSync(neighbor) && !existsSync(dirname(dirname(home))));
+    await rm(neighbor, { recursive: true });
 }
 function finish(bad, dirs) {
     for (const d of dirs)

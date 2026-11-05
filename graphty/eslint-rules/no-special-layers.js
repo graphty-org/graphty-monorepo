@@ -31,6 +31,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * @typedef {{ file: string, rule: string, detail: string, count: number }} LintBaselineRow
+ * @typedef {() => ReadonlyArray<LintBaselineRow>} ReadBaseline
  * @typedef {import("eslint").Rule.Node} Node
  * @typedef {import("eslint").Rule.RuleContext} RuleContext
  */
@@ -99,7 +100,7 @@ function lastName(node) {
 
 /**
  * Builds the rule.
- * @param {() => readonly LintBaselineRow[]} readBaseline - the listed exceptions, read on first use.
+ * @param {ReadBaseline} readBaseline - the listed exceptions, read on first use.
  * @returns {import("eslint").Rule.RuleModule} the rule.
  */
 export function createRule(readBaseline) {

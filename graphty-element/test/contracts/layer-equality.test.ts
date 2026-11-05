@@ -15,10 +15,11 @@ import { readFileSync } from "node:fs";
 
 import { assert, describe, it } from "vitest";
 
+import type { Channel, StyleDocument } from "../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
-import type { Layer, StyleDocument } from "../../src/session/styles";
+import type { Layer } from "../../src/session/styles";
 import type { StyleRow } from "../../src/session/styles/tree";
 
 const BASELINE = JSON.parse(
@@ -71,14 +72,13 @@ async function startingRowsOn(): Promise<GraphSession> {
     return session;
 }
 
-/** A template somebody wrote: a node layer, an edge layer and a layer for both kinds' selection. */
+/** A template somebody wrote: a node layer and an edge layer. */
 const WRITTEN_TEMPLATE: StyleDocument = {
-    version: 1,
     layers: [
         { name: "Template nodes", target: "node", selector: { match: "everything" }, set: { "node.color": "#123456" } },
         { name: "Template edges", target: "edge", selector: { match: "everything" }, set: { "edge.color": "#654321" } },
     ],
-} as unknown as StyleDocument;
+};
 
 /** Each way a project comes to hold layers. */
 const SCENARIOS: readonly { readonly name: string; readonly build: () => Promise<GraphSession> }[] = [
@@ -155,15 +155,18 @@ function snapshot(session: GraphSession): string {
 const NARROWER: Layer["selector"] = { match: "has", path: "data.only" };
 
 /** A channel of a layer's kind that an encoding of the layer does not already write. */
-function channel(layer: Layer): string {
-    const unused = [`${layer.target}.color`, layer.target === "node" ? "node.haloColor" : "edge.bandColor"];
-    return unused.find((each) => layer.encode?.[each as keyof typeof layer.encode] === undefined) ?? unused[0];
+function channel(layer: Layer): Channel {
+    const unused: readonly Channel[] = [
+        `${layer.target}.color`,
+        layer.target === "node" ? "node.haloColor" : "edge.bandColor",
+    ];
+    return unused.find((each) => layer.encode?.[each] === undefined) ?? unused[0];
 }
 
 interface Operation {
     readonly name: string;
     /** Does it. A rejection means the operation failed. */
-    readonly run: (session: GraphSession, layer: Layer) => Promise<unknown>;
+    readonly run: (session: GraphSession, layer: Layer) => PromiseLike<unknown>;
     /** Whether it did what it does on a caller's layer; a failure names what is wrong. */
     readonly effect: (session: GraphSession, layer: Layer) => void;
 }

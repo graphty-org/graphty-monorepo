@@ -24,6 +24,9 @@ const ELEMENT_EXPORTS = Object.keys(
 )
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
+/** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
+const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {
@@ -121,7 +124,7 @@ export default tseslint.config(
         files: ["src/**/*.ts", "src/**/*.tsx"],
         // Stories are linted without type information (root eslint.config.js), and the rule needs it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
-        plugins: { graphty: { rules: { "no-element-mutation": noElementMutation } } },
+        plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-element-mutation": "error" },
     },
 
@@ -132,7 +135,7 @@ export default tseslint.config(
         files: ["src/**/*.ts", "src/**/*.tsx"],
         // The same files tools/check-special-layers.mjs judges.
         ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
-        plugins: { graphty: { rules: { "no-special-layers": noSpecialLayers } } },
+        plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-special-layers": "error" },
     },
 

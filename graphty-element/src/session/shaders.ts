@@ -836,7 +836,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                     code: "shader.compile",
                     params: { line: 0, column: 0, message: error instanceof Error ? error.message : String(error) },
                 };
-                compiled.set(shader.hash, problem);
+                // A host taken back while this ran says nothing about the text on the next host.
+                if (compiled.get(shader.hash) === running) {
+                    compiled.set(shader.hash, problem);
+                }
+
                 refresh();
                 return problem;
             },

@@ -13,6 +13,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
+import noSpecialLayers from "./eslint-rules/no-special-layers.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -122,6 +123,17 @@ export default tseslint.config(
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         plugins: { graphty: { rules: { "no-element-mutation": noElementMutation } } },
         rules: { "graphty/no-element-mutation": "error" },
+    },
+
+    // ============================================
+    // NO STYLE LAYER IS SPECIAL (issue #5905)
+    // ============================================
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // The same files tools/check-special-layers.mjs judges.
+        ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
+        plugins: { graphty: { rules: { "no-special-layers": noSpecialLayers } } },
+        rules: { "graphty/no-special-layers": "error" },
     },
 
     // ============================================

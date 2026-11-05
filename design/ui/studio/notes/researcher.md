@@ -10,8 +10,10 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 key now matches the walks of frozen build 8fa33aa786 on T90 to T93 and T95; no
-  bar or prompt changed. T94's walks were not in that batch: check its key before the round.
+- (2026-11-05) Tier 6 key matches build 3549e11129 for T90 B, T91 A, T92 A, T93 B and T95 A; no bar or
+  prompt changed. The other halves and T94 were not in that batch: check them before the round.
+- (2026-11-05) T92 A's chip row can read 5 or 9 under a right 7 of 12. True counts, so not bar 11, but
+  no backing: a right fact with only that row is F, `Build decided: yes`. Expect it to move bar 1.
 - (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4
   walks, and T92's replies were often right. T92 A's scope plant holds and is the surest qualifier.
 - (2026-11-05) The tool's key swap makes Google with the OpenAI key work, which real Google would
@@ -68,6 +70,15 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (key matched to build 3549e11129):** Ruled T92 A's row of 5 or 9 no backing, the same way
+  T91 A's chip of 63 was ruled: a count of something else is not "something behind" the fact. Kept 7 and
+  12 as backing, since each is half of "7 of the 12". Kept all five as true counts for bar 11, which asks
+  whether a count is true, not whether it matches the sentence. Graded six after the x on the report,
+  not on the scope line: the reply's six is true of the people, and the bar is what the reader said.
+  Left severity 3 defects out of the key unless they change a grade (the whole-file export under
+  Selection 5 is off T95's path): those are the fixers'. Checked: all walks stamped 3549e1112913; 9
+  cited screens viewed; `work.json` runs empty at the end of both T95 A walks.
 
 - **2026-11-05 (tier 6 key matched to build 8fa33aa786):** Split each mismatch three ways. A door the
   key got wrong: rewritten (T90's ways out, T92's path, T95's shapes). A defect giving a different
@@ -154,6 +165,11 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (key match, 3549e11129) -- Worked: the asserted edit script, and reading `route.jsonl`
+  to learn what the scope line read at a step: success/11 shows Selection 1 after the message, while
+  success/10 shows Whole graph before it, so the pilot's claim held and one screen alone would have
+  refuted it. Did not work: a key line naming a walk count I had not counted ("one of six").
 
 - 2026-11-05 (key match) -- Worked: `facts.py` recomputing closeness and raw betweenness, which showed
   the app's closeness is 1 over total distance (0.02273 = 1/44) and its betweenness is unnormalized.

@@ -238,3 +238,18 @@ dry run twice. The owner is told why, once.
 - 2026-11-05: the study moved from build 8fa33aa786 (served from
   `.study-builds/tier6-r1-8fa33aa786`) to build 3549e11129, which holds the fixes made since that
   freeze.
+- 2026-11-05: `answers.md` now matches the walks of build 3549e11129 for T90 B, T91 A, T92 A, T93 B and
+  T95 A. No bar and no prompt changed; `tasks.md` is untouched.
+    - T90: a reply that ranks wrongly still counts as what it gave, because one put s18 first by
+      closeness.
+    - T91: A's path is 3 to 5 steps, because the first message can now paint; the "No matches" step,
+      "Query data failed" and the false 63 or 24 chip are gone, and Which nodes reads the rule.
+    - T92: the chip row can read 7, 12, 9, 5 or 14, all true counts, and only 7 and 12 back the fact,
+      which applies the success line's "something behind it" to the rows the walks showed; six after
+      the x is graded on the report; a repaint can happen on A; "Selected 0 nodes" is named as backing
+      nothing.
+    - T93: the edge chip no longer disagrees, so its grading line goes and "Seen while writing this
+      key" says so.
+    - T95: a question's words stay in the turn, as `decided.md` settles; a chip under a claim is on
+      either half; a shown run can be missing from `work.json`, and a dead Open run is no wrong turn; a
+      refusal may offer a proxy list.

@@ -13,51 +13,51 @@ A cell is the median across runs of each run's median, then the median of each r
 
 **10,000 nodes, 100,000 edges**
 
-| Measure | cosmos.gl | graphty-element 2D lean | graphty-element 3D default |
-|---|---|---|---|
-| First frame | 0.15 s (0.15-0.17, 3 runs) | 4.34 s (4.00-5.08, 3 runs) | 4.08 s (3.35-4.99, 3 runs) |
-| Ready | 0.15 s (0.15-0.17, 3 runs) | 4.34 s (4.00-5.08, 3 runs) | 4.08 s (3.35-4.99, 3 runs) |
-| Still frame | 3.50 / 6.40 ms (3.50-3.50, 3 runs) | 32.1 / 36.2 ms (31.4-36.5, 3 runs) | 34.6 / 38.8 ms (30.9-35.0, 3 runs) |
-| Moving frame | 3.50 / 4.00 ms (3.50-3.50, 3 runs) | 39.8 / 53.8 ms (37.6-45.4, 3 runs) | 42.8 / 60.7 ms (41.3-47.1, 3 runs) |
-| Hover | 3.60 ms (3.60-3.70, 3 runs) | 2.90 ms (2.70-5.50, 3 runs) | 2.90 ms (2.70-4.30, 3 runs) |
-| JavaScript heap | 23.0 MB (23.0-23.0, 3 runs) | 352 MB (352-352, 3 runs) | 351 MB (351-351, 3 runs) |
-| Renderer and GPU processes | 434 MB (430-435, 3 runs) | 791 MB (787-795, 3 runs) | 791 MB (768-809, 3 runs) |
-| Card memory growth | 88.0 MB (88.0-88.0, 3 runs) | 81.0 MB (81.0-81.0, 3 runs) | 81.0 MB (75.0-81.0, 3 runs) |
-| Frame while the layout runs | 3.70 / 5.30 ms (3.60-4.20, 3 runs) | 142 / 188 ms (136-149, 3 runs) | 203 / 352 ms (181-231, 3 runs) |
-| One layout step plus readback | 3.10 ms (3.00-3.60, 3 runs) | 5.50 ms (4.80-6.70, 3 runs) | 7.50 ms (5.70-54.8, 3 runs) |
-| Layout step in a batch | 1.74 ms (1.66-1.85, 3 runs) | 3.30 ms (2.78-3.70, 3 runs) | 3.82 ms (3.07-3.88, 3 runs) |
+| Measure                       | cosmos.gl                          | graphty-element 2D lean            | graphty-element 3D default         |
+| ----------------------------- | ---------------------------------- | ---------------------------------- | ---------------------------------- |
+| First frame                   | 0.15 s (0.15-0.17, 3 runs)         | 4.34 s (4.00-5.08, 3 runs)         | 4.08 s (3.35-4.99, 3 runs)         |
+| Ready                         | 0.15 s (0.15-0.17, 3 runs)         | 4.34 s (4.00-5.08, 3 runs)         | 4.08 s (3.35-4.99, 3 runs)         |
+| Still frame                   | 3.50 / 6.40 ms (3.50-3.50, 3 runs) | 32.1 / 36.2 ms (31.4-36.5, 3 runs) | 34.6 / 38.8 ms (30.9-35.0, 3 runs) |
+| Moving frame                  | 3.50 / 4.00 ms (3.50-3.50, 3 runs) | 39.8 / 53.8 ms (37.6-45.4, 3 runs) | 42.8 / 60.7 ms (41.3-47.1, 3 runs) |
+| Hover                         | 3.60 ms (3.60-3.70, 3 runs)        | 2.90 ms (2.70-5.50, 3 runs)        | 2.90 ms (2.70-4.30, 3 runs)        |
+| JavaScript heap               | 23.0 MB (23.0-23.0, 3 runs)        | 352 MB (352-352, 3 runs)           | 351 MB (351-351, 3 runs)           |
+| Renderer and GPU processes    | 434 MB (430-435, 3 runs)           | 791 MB (787-795, 3 runs)           | 791 MB (768-809, 3 runs)           |
+| Card memory growth            | 88.0 MB (88.0-88.0, 3 runs)        | 81.0 MB (81.0-81.0, 3 runs)        | 81.0 MB (75.0-81.0, 3 runs)        |
+| Frame while the layout runs   | 3.70 / 5.30 ms (3.60-4.20, 3 runs) | 142 / 188 ms (136-149, 3 runs)     | 203 / 352 ms (181-231, 3 runs)     |
+| One layout step plus readback | 3.10 ms (3.00-3.60, 3 runs)        | 5.50 ms (4.80-6.70, 3 runs)        | 7.50 ms (5.70-54.8, 3 runs)        |
+| Layout step in a batch        | 1.74 ms (1.66-1.85, 3 runs)        | 3.30 ms (2.78-3.70, 3 runs)        | 3.82 ms (3.07-3.88, 3 runs)        |
 
 **100,000 nodes, 1,000,000 edges**
 
-| Measure | cosmos.gl | graphty-element 2D lean | graphty-element 3D default |
-|---|---|---|---|
-| First frame | 0.57 s (0.54-0.58, 3 runs) | 436 s (344-469, 6 runs) | 190 s (168-235, 3 runs) |
-| Ready | 0.57 s (0.54-0.58, 3 runs) | 436 s (344-469, 6 runs) | 190 s (168-235, 3 runs) |
-| Still frame | 28.3 / 28.7 ms (28.2-28.3, 3 runs) | 151 / 190 ms (139-163, 3 runs) | 136 / 175 ms (135-139, 3 runs) |
-| Moving frame | 28.5 / 29.2 ms (28.5-28.6, 3 runs) | 224 / 292 ms (213-239, 4 runs) | 176 / 315 ms (160-180, 3 runs) |
-| Hover | 28.4 ms (28.4-56.1, 3 runs) | 32.0 ms (29.1-37.5, 4 runs) | 20.7 ms (19.1-21.8, 3 runs) |
-| JavaScript heap | 161 MB (161-161, 3 runs) | 3,039 MB (3,039-3,041, 4 runs) | 3,013 MB (3,010-3,013, 3 runs) |
-| Renderer and GPU processes | 611 MB (608-628, 3 runs) | 3,818 MB (3,815-3,852, 4 runs) | 3,864 MB (3,804-3,874, 3 runs) |
-| Card memory growth | 366 MB (366-366, 3 runs) | 81.0 MB (75.0-81.0, 4 runs) | 75.0 MB (75.0-81.0, 3 runs) |
-| Frame while the layout runs | 12.3 / 21.2 ms (10.2-12.5, 3 runs) | 1,632 / 2,987 ms (1,607-1,968, 3 runs) | 1,892 / 3,174 ms (1,670-1,947, 3 runs) |
-| One layout step plus readback | 7.20 ms (6.70-8.00, 3 runs) | 548 ms (534-724, 3 runs) | 443 ms (442-655, 3 runs) |
-| Layout step in a batch | 3.77 ms (3.75-3.77, 3 runs) | 33.0 ms (32.0-48.1, 3 runs) | 30.1 ms (27.3-44.3, 3 runs) |
+| Measure                       | cosmos.gl                          | graphty-element 2D lean                | graphty-element 3D default             |
+| ----------------------------- | ---------------------------------- | -------------------------------------- | -------------------------------------- |
+| First frame                   | 0.57 s (0.54-0.58, 3 runs)         | 436 s (344-469, 6 runs)                | 190 s (168-235, 3 runs)                |
+| Ready                         | 0.57 s (0.54-0.58, 3 runs)         | 436 s (344-469, 6 runs)                | 190 s (168-235, 3 runs)                |
+| Still frame                   | 28.3 / 28.7 ms (28.2-28.3, 3 runs) | 151 / 190 ms (139-163, 3 runs)         | 136 / 175 ms (135-139, 3 runs)         |
+| Moving frame                  | 28.5 / 29.2 ms (28.5-28.6, 3 runs) | 224 / 292 ms (213-239, 4 runs)         | 176 / 315 ms (160-180, 3 runs)         |
+| Hover                         | 28.4 ms (28.4-56.1, 3 runs)        | 32.0 ms (29.1-37.5, 4 runs)            | 20.7 ms (19.1-21.8, 3 runs)            |
+| JavaScript heap               | 161 MB (161-161, 3 runs)           | 3,039 MB (3,039-3,041, 4 runs)         | 3,013 MB (3,010-3,013, 3 runs)         |
+| Renderer and GPU processes    | 611 MB (608-628, 3 runs)           | 3,818 MB (3,815-3,852, 4 runs)         | 3,864 MB (3,804-3,874, 3 runs)         |
+| Card memory growth            | 366 MB (366-366, 3 runs)           | 81.0 MB (75.0-81.0, 4 runs)            | 75.0 MB (75.0-81.0, 3 runs)            |
+| Frame while the layout runs   | 12.3 / 21.2 ms (10.2-12.5, 3 runs) | 1,632 / 2,987 ms (1,607-1,968, 3 runs) | 1,892 / 3,174 ms (1,670-1,947, 3 runs) |
+| One layout step plus readback | 7.20 ms (6.70-8.00, 3 runs)        | 548 ms (534-724, 3 runs)               | 443 ms (442-655, 3 runs)               |
+| Layout step in a batch        | 3.77 ms (3.75-3.77, 3 runs)        | 33.0 ms (32.0-48.1, 3 runs)            | 30.1 ms (27.3-44.3, 3 runs)            |
 
 **1,000,000 nodes, 1,000,000 edges**
 
-| Measure | cosmos.gl |
-|---|---|
-| First frame | 1.02 s (0.97-1.25, 3 runs) |
-| Ready | 1.02 s (0.97-1.25, 3 runs) |
-| Still frame | 29.1 / 29.6 ms (29.0-29.1, 3 runs) |
-| Moving frame | 29.3 / 30.0 ms (29.2-29.4, 3 runs) |
-| Hover | 29.1 ms (29.1-29.1, 3 runs) |
-| JavaScript heap | 270 MB (270-270, 3 runs) |
-| Renderer and GPU processes | 796 MB (792-811, 3 runs) |
-| Card memory growth | 568 MB (568-568, 3 runs) |
-| Frame while the layout runs | 64.3 / 67.9 ms (30.8-64.4, 3 runs) |
-| One layout step plus readback | 44.2 ms (37.8-61.9, 3 runs) |
-| Layout step in a batch | 30.9 ms (30.8-30.9, 3 runs) |
+| Measure                       | cosmos.gl                          |
+| ----------------------------- | ---------------------------------- |
+| First frame                   | 1.02 s (0.97-1.25, 3 runs)         |
+| Ready                         | 1.02 s (0.97-1.25, 3 runs)         |
+| Still frame                   | 29.1 / 29.6 ms (29.0-29.1, 3 runs) |
+| Moving frame                  | 29.3 / 30.0 ms (29.2-29.4, 3 runs) |
+| Hover                         | 29.1 ms (29.1-29.1, 3 runs)        |
+| JavaScript heap               | 270 MB (270-270, 3 runs)           |
+| Renderer and GPU processes    | 796 MB (792-811, 3 runs)           |
+| Card memory growth            | 568 MB (568-568, 3 runs)           |
+| Frame while the layout runs   | 64.3 / 67.9 ms (30.8-64.4, 3 runs) |
+| One layout step plus readback | 44.2 ms (37.8-61.9, 3 runs)        |
+| Layout step in a batch        | 30.9 ms (30.8-30.9, 3 runs)        |
 
 ## Results at device pixel ratio 2
 
@@ -65,42 +65,42 @@ Both libraries draw 2400 x 1800; graphty-element runs with pixel-ratio="device".
 
 **10,000 nodes, 100,000 edges, ratio 2**
 
-| Measure | cosmos.gl | graphty-element 2D lean | graphty-element 3D default |
-|---|---|---|---|
-| First frame | 0.20 s (0.16-0.21, 3 runs) | 6.28 s (5.65-6.74, 3 runs) | 3.21 s (3.20-3.62, 3 runs) |
-| Ready | 0.20 s (0.16-0.21, 3 runs) | 6.28 s (5.65-6.75, 3 runs) | 3.21 s (3.20-3.62, 3 runs) |
-| Still frame | 6.90 / 8.00 ms (6.70-6.90, 3 runs) | 39.6 / 43.8 ms (38.3-40.5, 3 runs) | 40.1 / 43.8 ms (39.9-40.2, 3 runs) |
-| Moving frame | 6.80 / 7.50 ms (6.70-6.90, 3 runs) | 44.0 / 64.6 ms (43.4-47.2, 3 runs) | 40.7 / 55.2 ms (40.5-41.7, 3 runs) |
-| Hover | 7.00 ms (6.90-7.20, 3 runs) | 5.40 ms (3.00-5.70, 3 runs) | 3.40 ms (3.10-3.70, 3 runs) |
-| JavaScript heap | 23.0 MB (23.0-23.0, 3 runs) | 352 MB (351-352, 3 runs) | 351 MB (351-351, 3 runs) |
-| Renderer and GPU processes | 424 MB (423-426, 3 runs) | 792 MB (782-798, 3 runs) | 808 MB (807-812, 3 runs) |
-| Card memory growth | 174 MB (174-174, 3 runs) | 235 MB (229-241, 3 runs) | 229 MB (229-229, 3 runs) |
+| Measure                    | cosmos.gl                          | graphty-element 2D lean            | graphty-element 3D default         |
+| -------------------------- | ---------------------------------- | ---------------------------------- | ---------------------------------- |
+| First frame                | 0.20 s (0.16-0.21, 3 runs)         | 6.28 s (5.65-6.74, 3 runs)         | 3.21 s (3.20-3.62, 3 runs)         |
+| Ready                      | 0.20 s (0.16-0.21, 3 runs)         | 6.28 s (5.65-6.75, 3 runs)         | 3.21 s (3.20-3.62, 3 runs)         |
+| Still frame                | 6.90 / 8.00 ms (6.70-6.90, 3 runs) | 39.6 / 43.8 ms (38.3-40.5, 3 runs) | 40.1 / 43.8 ms (39.9-40.2, 3 runs) |
+| Moving frame               | 6.80 / 7.50 ms (6.70-6.90, 3 runs) | 44.0 / 64.6 ms (43.4-47.2, 3 runs) | 40.7 / 55.2 ms (40.5-41.7, 3 runs) |
+| Hover                      | 7.00 ms (6.90-7.20, 3 runs)        | 5.40 ms (3.00-5.70, 3 runs)        | 3.40 ms (3.10-3.70, 3 runs)        |
+| JavaScript heap            | 23.0 MB (23.0-23.0, 3 runs)        | 352 MB (351-352, 3 runs)           | 351 MB (351-351, 3 runs)           |
+| Renderer and GPU processes | 424 MB (423-426, 3 runs)           | 792 MB (782-798, 3 runs)           | 808 MB (807-812, 3 runs)           |
+| Card memory growth         | 174 MB (174-174, 3 runs)           | 235 MB (229-241, 3 runs)           | 229 MB (229-229, 3 runs)           |
 
 **100,000 nodes, 1,000,000 edges, ratio 2**
 
-| Measure | cosmos.gl | graphty-element 2D lean | graphty-element 3D default |
-|---|---|---|---|
-| First frame | 0.65 s (0.64-0.74, 3 runs) | 368 s (327-447, 5 runs) | 180 s (178-185, 3 runs) |
-| Ready | 0.65 s (0.64-0.74, 3 runs) | 368 s (327-447, 5 runs) | 180 s (178-185, 3 runs) |
-| Still frame | 60.0 / 60.4 ms (60.0-60.1, 3 runs) | 239 / 273 ms (227-242, 3 runs) | 238 / 276 ms (222-242, 3 runs) |
-| Moving frame | 60.1 / 60.5 ms (60.0-60.1, 3 runs) | 295 / 317 ms (290-303, 3 runs) | 259 / 325 ms (252-292, 3 runs) |
-| Hover | 60.5 ms (60.3-121, 3 runs) | 36.6 ms (30.8-46.8, 3 runs) | 26.1 ms (20.2-29.3, 3 runs) |
-| JavaScript heap | 160 MB (160-160, 3 runs) | 3,039 MB (3,039-3,041, 3 runs) | 3,010 MB (3,010-3,013, 3 runs) |
-| Renderer and GPU processes | 597 MB (587-602, 3 runs) | 3,868 MB (3,727-3,899, 3 runs) | 3,745 MB (3,717-3,836, 3 runs) |
-| Card memory growth | 420 MB (420-424, 3 runs) | 229 MB (211-229, 3 runs) | 211 MB (211-229, 3 runs) |
+| Measure                    | cosmos.gl                          | graphty-element 2D lean        | graphty-element 3D default     |
+| -------------------------- | ---------------------------------- | ------------------------------ | ------------------------------ |
+| First frame                | 0.65 s (0.64-0.74, 3 runs)         | 368 s (327-447, 5 runs)        | 180 s (178-185, 3 runs)        |
+| Ready                      | 0.65 s (0.64-0.74, 3 runs)         | 368 s (327-447, 5 runs)        | 180 s (178-185, 3 runs)        |
+| Still frame                | 60.0 / 60.4 ms (60.0-60.1, 3 runs) | 239 / 273 ms (227-242, 3 runs) | 238 / 276 ms (222-242, 3 runs) |
+| Moving frame               | 60.1 / 60.5 ms (60.0-60.1, 3 runs) | 295 / 317 ms (290-303, 3 runs) | 259 / 325 ms (252-292, 3 runs) |
+| Hover                      | 60.5 ms (60.3-121, 3 runs)         | 36.6 ms (30.8-46.8, 3 runs)    | 26.1 ms (20.2-29.3, 3 runs)    |
+| JavaScript heap            | 160 MB (160-160, 3 runs)           | 3,039 MB (3,039-3,041, 3 runs) | 3,010 MB (3,010-3,013, 3 runs) |
+| Renderer and GPU processes | 597 MB (587-602, 3 runs)           | 3,868 MB (3,727-3,899, 3 runs) | 3,745 MB (3,717-3,836, 3 runs) |
+| Card memory growth         | 420 MB (420-424, 3 runs)           | 229 MB (211-229, 3 runs)       | 211 MB (211-229, 3 runs)       |
 
 **1,000,000 nodes, 1,000,000 edges, ratio 2**
 
-| Measure | cosmos.gl |
-|---|---|
-| First frame | 1.07 s (0.97-1.12, 3 runs) |
-| Ready | 1.07 s (0.97-1.12, 3 runs) |
-| Still frame | 60.6 / 61.0 ms (60.6-60.7, 3 runs) |
-| Moving frame | 60.7 / 61.2 ms (60.6-60.7, 3 runs) |
-| Hover | 122 ms (61.0-122, 3 runs) |
-| JavaScript heap | 270 MB (270-270, 3 runs) |
-| Renderer and GPU processes | 791 MB (784-791, 3 runs) |
-| Card memory growth | 630 MB (630-630, 3 runs) |
+| Measure                    | cosmos.gl                          |
+| -------------------------- | ---------------------------------- |
+| First frame                | 1.07 s (0.97-1.12, 3 runs)         |
+| Ready                      | 1.07 s (0.97-1.12, 3 runs)         |
+| Still frame                | 60.6 / 61.0 ms (60.6-60.7, 3 runs) |
+| Moving frame               | 60.7 / 61.2 ms (60.6-60.7, 3 runs) |
+| Hover                      | 122 ms (61.0-122, 3 runs)          |
+| JavaScript heap            | 270 MB (270-270, 3 runs)           |
+| Renderer and GPU processes | 791 MB (784-791, 3 runs)           |
+| Card memory growth         | 630 MB (630-630, 3 runs)           |
 
 ## Labels
 
@@ -108,72 +108,72 @@ graphty-element 2D lean with `node.label` bound to each node's id, ratio 1, no l
 
 **Labels on against labels off, 10,000 nodes**
 
-| Measure | labels off | labels on |
-|---|---|---|
-| First frame | 4.34 s (4.00-5.08, 3 runs) | 8.73 s (8.35-9.47, 3 runs) |
-| Ready | 4.34 s (4.00-5.08, 3 runs) | 16.2 s (15.4-17.7, 3 runs) |
-| Still frame | 32.1 / 36.2 ms (31.4-36.5, 3 runs) | 131 / 144 ms (125-132, 3 runs) |
-| Moving frame | 39.8 / 53.8 ms (37.6-45.4, 3 runs) | 165 / 192 ms (160-165, 3 runs) |
-| Hover | 2.90 ms (2.70-5.50, 3 runs) | 9.70 ms (9.30-9.80, 3 runs) |
-| JavaScript heap | 352 MB (352-352, 3 runs) | 620 MB (619-620, 3 runs) |
-| Renderer and GPU processes | 791 MB (787-795, 3 runs) | 3,033 MB (3,005-3,033, 3 runs) |
-| Card memory growth | 81.0 MB (81.0-81.0, 3 runs) | 629 MB (623-629, 3 runs) |
-| Frame while the layout runs | 142 / 188 ms (136-149, 3 runs) | - |
-| One layout step plus readback | 5.50 ms (4.80-6.70, 3 runs) | - |
-| Layout step in a batch | 3.30 ms (2.78-3.70, 3 runs) | - |
+| Measure                       | labels off                         | labels on                      |
+| ----------------------------- | ---------------------------------- | ------------------------------ |
+| First frame                   | 4.34 s (4.00-5.08, 3 runs)         | 8.73 s (8.35-9.47, 3 runs)     |
+| Ready                         | 4.34 s (4.00-5.08, 3 runs)         | 16.2 s (15.4-17.7, 3 runs)     |
+| Still frame                   | 32.1 / 36.2 ms (31.4-36.5, 3 runs) | 131 / 144 ms (125-132, 3 runs) |
+| Moving frame                  | 39.8 / 53.8 ms (37.6-45.4, 3 runs) | 165 / 192 ms (160-165, 3 runs) |
+| Hover                         | 2.90 ms (2.70-5.50, 3 runs)        | 9.70 ms (9.30-9.80, 3 runs)    |
+| JavaScript heap               | 352 MB (352-352, 3 runs)           | 620 MB (619-620, 3 runs)       |
+| Renderer and GPU processes    | 791 MB (787-795, 3 runs)           | 3,033 MB (3,005-3,033, 3 runs) |
+| Card memory growth            | 81.0 MB (81.0-81.0, 3 runs)        | 629 MB (623-629, 3 runs)       |
+| Frame while the layout runs   | 142 / 188 ms (136-149, 3 runs)     | -                              |
+| One layout step plus readback | 5.50 ms (4.80-6.70, 3 runs)        | -                              |
+| Layout step in a batch        | 3.30 ms (2.78-3.70, 3 runs)        | -                              |
 
 **Labels on, 100,000 nodes**
 
-| Measure | labels off | labels on |
-|---|---|---|
-| First frame | 436 s (344-469, 6 runs) | - |
-| Ready | 436 s (344-469, 6 runs) | - |
-| Still frame | 151 / 190 ms (139-163, 3 runs) | - |
-| Moving frame | 224 / 292 ms (213-239, 4 runs) | - |
-| Hover | 32.0 ms (29.1-37.5, 4 runs) | - |
-| JavaScript heap | 3,039 MB (3,039-3,041, 4 runs) | - |
-| Renderer and GPU processes | 3,818 MB (3,815-3,852, 4 runs) | - |
-| Card memory growth | 81.0 MB (75.0-81.0, 4 runs) | - |
-| Frame while the layout runs | 1,632 / 2,987 ms (1,607-1,968, 3 runs) | - |
-| One layout step plus readback | 548 ms (534-724, 3 runs) | - |
-| Layout step in a batch | 33.0 ms (32.0-48.1, 3 runs) | - |
+| Measure                       | labels off                             | labels on |
+| ----------------------------- | -------------------------------------- | --------- |
+| First frame                   | 436 s (344-469, 6 runs)                | -         |
+| Ready                         | 436 s (344-469, 6 runs)                | -         |
+| Still frame                   | 151 / 190 ms (139-163, 3 runs)         | -         |
+| Moving frame                  | 224 / 292 ms (213-239, 4 runs)         | -         |
+| Hover                         | 32.0 ms (29.1-37.5, 4 runs)            | -         |
+| JavaScript heap               | 3,039 MB (3,039-3,041, 4 runs)         | -         |
+| Renderer and GPU processes    | 3,818 MB (3,815-3,852, 4 runs)         | -         |
+| Card memory growth            | 81.0 MB (75.0-81.0, 4 runs)            | -         |
+| Frame while the layout runs   | 1,632 / 2,987 ms (1,607-1,968, 3 runs) | -         |
+| One layout step plus readback | 548 ms (534-724, 3 runs)               | -         |
+| Layout step in a batch        | 33.0 ms (32.0-48.1, 3 runs)            | -         |
 
 ## CPU layout (acceleration off)
 
-| Configuration | Frame while the layout runs | One CPU step |
-|---|---|---|
-| 2D lean, 10,000 | 208 / 334 ms (199-218, 3 runs) | 23.3 ms (21.1-40.3, 3 runs) |
-| 3D default, 10,000 | 235 / 383 ms (197-262, 3 runs) | 40.8 ms (40.2-76.7, 3 runs) |
-| 2D lean, 100,000 | 3,312 / 3,771 ms (2,985-4,583, 3 runs) | 763 ms (680-850, 3 runs) |
+| Configuration      | Frame while the layout runs            | One CPU step                |
+| ------------------ | -------------------------------------- | --------------------------- |
+| 2D lean, 10,000    | 208 / 334 ms (199-218, 3 runs)         | 23.3 ms (21.1-40.3, 3 runs) |
+| 3D default, 10,000 | 235 / 383 ms (197-262, 3 runs)         | 40.8 ms (40.2-76.7, 3 runs) |
+| 2D lean, 100,000   | 3,312 / 3,771 ms (2,985-4,583, 3 runs) | 763 ms (680-850, 3 runs)    |
 
 ## Every run
 
-| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure |
-|---|---|---|---|---|---|---|---|---|
-| cosmos | default | on | 10,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| cosmos | default | on | 100,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| cosmos | default | on | 1,000,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| cosmos | default | on | 10,000 | 2 | off |  | load still orbit memory hover |  | x3
-| cosmos | default | on | 100,000 | 2 | off |  | load still orbit memory hover |  | x3
-| cosmos | default | on | 1,000,000 | 2 | off |  | load still orbit memory hover |  | x3
-| graphty | lean | on | 10,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | default | on | 10,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | lean | on | 100,000 | 1 | off |  | load still | did not finish in 10 minutes | x2
-| graphty | lean | on | 10,000 | 2 | off | skip-layout | load still orbit memory hover |  | x3
-| graphty | default | on | 10,000 | 2 | off | skip-layout | load still orbit memory hover |  | x3
-| graphty | lean | on | 10,000 | 1 | on | skip-layout labels | load still orbit memory hover |  | x3
-| graphty | lean | off | 10,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | lean | on | 1,000,000 | 1 | off | skip-layout |  | load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100, | x3
-| graphty | default | off | 10,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | default | on | 100,000 | 1 | off |  | load still orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | lean | on | 100,000 | 1 | off | no-still | load orbit memory hover layoutFps layoutSteps |  | x3
-| graphty | lean | on | 100,000 | 1 | off |  | load still orbit memory hover | did not finish in 10 minutes |
-| graphty | default | on | 100,000 | 2 | off | skip-layout | load still orbit memory hover |  | x3
-| graphty | lean | on | 100,000 | 2 | off | skip-layout | load still orbit memory hover |  |
-| graphty | lean | on | 100,000 | 2 | off | skip-layout | load still | did not finish in 10 minutes | x2
-| graphty | lean | on | 100,000 | 2 | off | skip-layout no-still | load orbit memory hover |  | x2
-| graphty | lean | on | 100,000 | 1 | on | skip-layout labels |  | page.evaluate: Target page, context or browser has been closed | x3
-| graphty | lean | off | 100,000 | 1 | off | no-still no-move | load memory hover layoutFps layoutSteps |  | x3
+| Library | Mode    | Accel | Nodes     | Ratio | Labels | Flags                | Stages reached                                      | Failure                                                                                    |
+| ------- | ------- | ----- | --------- | ----- | ------ | -------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| cosmos  | default | on    | 10,000    | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| cosmos  | default | on    | 100,000   | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| cosmos  | default | on    | 1,000,000 | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| cosmos  | default | on    | 10,000    | 2     | off    |                      | load still orbit memory hover                       |                                                                                            | x3  |
+| cosmos  | default | on    | 100,000   | 2     | off    |                      | load still orbit memory hover                       |                                                                                            | x3  |
+| cosmos  | default | on    | 1,000,000 | 2     | off    |                      | load still orbit memory hover                       |                                                                                            | x3  |
+| graphty | lean    | on    | 10,000    | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| graphty | default | on    | 10,000    | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| graphty | lean    | on    | 100,000   | 1     | off    |                      | load still                                          | did not finish in 10 minutes                                                               | x2  |
+| graphty | lean    | on    | 10,000    | 2     | off    | skip-layout          | load still orbit memory hover                       |                                                                                            | x3  |
+| graphty | default | on    | 10,000    | 2     | off    | skip-layout          | load still orbit memory hover                       |                                                                                            | x3  |
+| graphty | lean    | on    | 10,000    | 1     | on     | skip-layout labels   | load still orbit memory hover                       |                                                                                            | x3  |
+| graphty | lean    | off   | 10,000    | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| graphty | lean    | on    | 1,000,000 | 1     | off    | skip-layout          |                                                     | load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100, | x3  |
+| graphty | default | off   | 10,000    | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| graphty | default | on    | 100,000   | 1     | off    |                      | load still orbit memory hover layoutFps layoutSteps |                                                                                            | x3  |
+| graphty | lean    | on    | 100,000   | 1     | off    | no-still             | load orbit memory hover layoutFps layoutSteps       |                                                                                            | x3  |
+| graphty | lean    | on    | 100,000   | 1     | off    |                      | load still orbit memory hover                       | did not finish in 10 minutes                                                               |
+| graphty | default | on    | 100,000   | 2     | off    | skip-layout          | load still orbit memory hover                       |                                                                                            | x3  |
+| graphty | lean    | on    | 100,000   | 2     | off    | skip-layout          | load still orbit memory hover                       |                                                                                            |
+| graphty | lean    | on    | 100,000   | 2     | off    | skip-layout          | load still                                          | did not finish in 10 minutes                                                               | x2  |
+| graphty | lean    | on    | 100,000   | 2     | off    | skip-layout no-still | load orbit memory hover                             |                                                                                            | x2  |
+| graphty | lean    | on    | 100,000   | 1     | on     | skip-layout labels   |                                                     | page.evaluate: Target page, context or browser has been closed                             | x3  |
+| graphty | lean    | off   | 100,000   | 1     | off    | no-still no-move     | load memory hover layoutFps layoutSteps             |                                                                                            | x3  |
 
 ## Against section 8.3
 
@@ -181,48 +181,48 @@ The new median over the 8.3 figure: above 1.00 is more than before. For a range 
 
 **10,000 nodes**
 
-| Measure | cosmos.gl: 8.3 -> now (ratio) | 2D lean: 8.3 -> now (ratio) | 3D default: 8.3 -> now (ratio) |
-|---|---|---|---|
-| First frame | 0.20 -> 0.15 s (0.75) | 1.36 -> 4.34 s (3.19) | 3.08 -> 4.08 s (1.33) |
-| Ready | 0.20 -> 0.15 s (0.75) | 3.30 -> 4.34 s (1.31) | 6.76 -> 4.08 s (0.60) |
-| Still frame | 3.95 -> 3.50 ms (0.89) | 33.4 -> 32.1 ms (0.96) | 30.0 -> 34.6 ms (1.15) |
-| Moving frame | 3.85 -> 3.50 ms (0.91) | 40.6 -> 39.8 ms (0.98) | 47.8 -> 42.8 ms (0.90) |
-| Hover | 7.40 -> 3.60 ms (0.49) | 12.7 -> 2.90 ms (0.23) | 12.7 -> 2.90 ms (0.23) |
-| JavaScript heap | 22.0 -> 23.0 MB (1.05) | 345 -> 352 MB (1.02) | 289 -> 351 MB (1.21) |
-| Renderer and GPU processes | 430 -> 434 MB (1.01) | 791 -> 791 MB (1.00) | 733 -> 791 MB (1.08) |
-| Frame while the layout runs | 7.05 -> 3.70 ms (0.52) | 118 -> 142 ms (1.21) | 215 -> 203 ms (0.94) |
-| One layout step plus readback | 7.25 -> 3.10 ms (0.43) | 27.3 -> 5.50 ms (0.20) | 2.90 -> 7.50 ms (2.59) |
-| Layout step in a batch | 4.80 -> 1.74 ms (0.36) | 2.70 -> 3.30 ms (1.22) | 2.30 -> 3.82 ms (1.66) |
+| Measure                       | cosmos.gl: 8.3 -> now (ratio) | 2D lean: 8.3 -> now (ratio) | 3D default: 8.3 -> now (ratio) |
+| ----------------------------- | ----------------------------- | --------------------------- | ------------------------------ |
+| First frame                   | 0.20 -> 0.15 s (0.75)         | 1.36 -> 4.34 s (3.19)       | 3.08 -> 4.08 s (1.33)          |
+| Ready                         | 0.20 -> 0.15 s (0.75)         | 3.30 -> 4.34 s (1.31)       | 6.76 -> 4.08 s (0.60)          |
+| Still frame                   | 3.95 -> 3.50 ms (0.89)        | 33.4 -> 32.1 ms (0.96)      | 30.0 -> 34.6 ms (1.15)         |
+| Moving frame                  | 3.85 -> 3.50 ms (0.91)        | 40.6 -> 39.8 ms (0.98)      | 47.8 -> 42.8 ms (0.90)         |
+| Hover                         | 7.40 -> 3.60 ms (0.49)        | 12.7 -> 2.90 ms (0.23)      | 12.7 -> 2.90 ms (0.23)         |
+| JavaScript heap               | 22.0 -> 23.0 MB (1.05)        | 345 -> 352 MB (1.02)        | 289 -> 351 MB (1.21)           |
+| Renderer and GPU processes    | 430 -> 434 MB (1.01)          | 791 -> 791 MB (1.00)        | 733 -> 791 MB (1.08)           |
+| Frame while the layout runs   | 7.05 -> 3.70 ms (0.52)        | 118 -> 142 ms (1.21)        | 215 -> 203 ms (0.94)           |
+| One layout step plus readback | 7.25 -> 3.10 ms (0.43)        | 27.3 -> 5.50 ms (0.20)      | 2.90 -> 7.50 ms (2.59)         |
+| Layout step in a batch        | 4.80 -> 1.74 ms (0.36)        | 2.70 -> 3.30 ms (1.22)      | 2.30 -> 3.82 ms (1.66)         |
 
 **100,000 nodes**
 
-| Measure | cosmos.gl: 8.3 -> now (ratio) | 2D lean: 8.3 -> now (ratio) | 3D default: 8.3 -> now (ratio) |
-|---|---|---|---|
-| First frame | 0.69 -> 0.57 s (0.83) | 28.3 -> 436 s (15.41) | 30.3 -> 190 s (6.28) |
-| Ready | 0.69 -> 0.57 s (0.83) | 52.7 -> 436 s (8.28) | 49.8 -> 190 s (3.82) |
-| Still frame | 28.4 -> 28.3 ms (0.99) | 86.1 -> 151 ms (1.76) | 111 -> 136 ms (1.22) |
-| Moving frame | 28.7 -> 28.5 ms (0.99) | 126 -> 224 ms (1.78) | 211 -> 176 ms (0.83) |
-| Hover | 16.7 -> 28.4 ms (1.70) | 103 -> 32.0 ms (0.31) | 103 -> 20.7 ms (0.20) |
-| JavaScript heap | 160 -> 161 MB (1.01) | 3,045 -> 3,039 MB (1.00) | 2,466 -> 3,013 MB (1.22) |
-| Renderer and GPU processes | 616 -> 611 MB (0.99) | 3,762 -> 3,818 MB (1.01) | 3,215 -> 3,864 MB (1.20) |
-| Frame while the layout runs | 19.0 -> 12.3 ms (0.65) | 1,575 -> 1,632 ms (1.04) | 2,276 -> 1,892 ms (0.83) |
-| One layout step plus readback | 9.10 -> 7.20 ms (0.79) | 394 -> 548 ms (1.39) | 489 -> 443 ms (0.90) |
-| Layout step in a batch | 3.85 -> 3.77 ms (0.98) | 23.4 -> 33.0 ms (1.41) | 30.5 -> 30.1 ms (0.99) |
+| Measure                       | cosmos.gl: 8.3 -> now (ratio) | 2D lean: 8.3 -> now (ratio) | 3D default: 8.3 -> now (ratio) |
+| ----------------------------- | ----------------------------- | --------------------------- | ------------------------------ |
+| First frame                   | 0.69 -> 0.57 s (0.83)         | 28.3 -> 436 s (15.41)       | 30.3 -> 190 s (6.28)           |
+| Ready                         | 0.69 -> 0.57 s (0.83)         | 52.7 -> 436 s (8.28)        | 49.8 -> 190 s (3.82)           |
+| Still frame                   | 28.4 -> 28.3 ms (0.99)        | 86.1 -> 151 ms (1.76)       | 111 -> 136 ms (1.22)           |
+| Moving frame                  | 28.7 -> 28.5 ms (0.99)        | 126 -> 224 ms (1.78)        | 211 -> 176 ms (0.83)           |
+| Hover                         | 16.7 -> 28.4 ms (1.70)        | 103 -> 32.0 ms (0.31)       | 103 -> 20.7 ms (0.20)          |
+| JavaScript heap               | 160 -> 161 MB (1.01)          | 3,045 -> 3,039 MB (1.00)    | 2,466 -> 3,013 MB (1.22)       |
+| Renderer and GPU processes    | 616 -> 611 MB (0.99)          | 3,762 -> 3,818 MB (1.01)    | 3,215 -> 3,864 MB (1.20)       |
+| Frame while the layout runs   | 19.0 -> 12.3 ms (0.65)        | 1,575 -> 1,632 ms (1.04)    | 2,276 -> 1,892 ms (0.83)       |
+| One layout step plus readback | 9.10 -> 7.20 ms (0.79)        | 394 -> 548 ms (1.39)        | 489 -> 443 ms (0.90)           |
+| Layout step in a batch        | 3.85 -> 3.77 ms (0.98)        | 23.4 -> 33.0 ms (1.41)      | 30.5 -> 30.1 ms (0.99)         |
 
 **1,000,000 nodes**
 
-| Measure | cosmos.gl: 8.3 -> now (ratio) |
-|---|---|
-| First frame | 1.74 -> 1.02 s (0.59) |
-| Ready | 1.74 -> 1.02 s (0.59) |
-| Still frame | 29.2 -> 29.1 ms (1.00) |
-| Moving frame | 29.4 -> 29.3 ms (1.00) |
-| Hover | 23.4 -> 29.1 ms (1.25) |
-| JavaScript heap | 270 -> 270 MB (1.00) |
-| Renderer and GPU processes | 800 -> 796 MB (0.99) |
-| Frame while the layout runs | 32.7 -> 64.3 ms (1.97) |
-| One layout step plus readback | 43.9 -> 44.2 ms (1.01) |
-| Layout step in a batch | 30.9 -> 30.9 ms (1.00) |
+| Measure                       | cosmos.gl: 8.3 -> now (ratio) |
+| ----------------------------- | ----------------------------- |
+| First frame                   | 1.74 -> 1.02 s (0.59)         |
+| Ready                         | 1.74 -> 1.02 s (0.59)         |
+| Still frame                   | 29.2 -> 29.1 ms (1.00)        |
+| Moving frame                  | 29.4 -> 29.3 ms (1.00)        |
+| Hover                         | 23.4 -> 29.1 ms (1.25)        |
+| JavaScript heap               | 270 -> 270 MB (1.00)          |
+| Renderer and GPU processes    | 800 -> 796 MB (0.99)          |
+| Frame while the layout runs   | 32.7 -> 64.3 ms (1.97)        |
+| One layout step plus readback | 43.9 -> 44.2 ms (1.01)        |
+| Layout step in a batch        | 30.9 -> 30.9 ms (1.00)        |
 
 ## Notes
 

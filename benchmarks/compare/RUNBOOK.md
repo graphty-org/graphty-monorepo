@@ -105,6 +105,7 @@ needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 ## 4. Summarize and stop
 
     node summarize.mjs ../results/$LABEL/results.jsonl > ../results/$LABEL/summary.md
+    ../../node_modules/.bin/prettier --write ../results/$LABEL/summary.md
 
 Check the header of `summary.md`: one commit, working tree clean, the render path you asked for, the RTX
 renderer, 0 void rows. Its last section

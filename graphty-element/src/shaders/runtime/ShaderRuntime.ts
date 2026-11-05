@@ -134,7 +134,6 @@ export class ShaderRuntime {
      */
     constructor(private readonly scene: Scene) {
         this.engine = scene.getEngine();
-        this.abandoned.catch(() => undefined);
         this.uniforms = new SceneUniforms(this.engine, scene);
         this.lostObserver = this.engine.onContextLostObservable.add(() => {
             this.contextLost();
@@ -236,6 +235,8 @@ export class ShaderRuntime {
         }
 
         this.disposed = true;
+        // A runtime with nothing queued has nobody listening, and that is not an unhandled failure.
+        this.abandoned.catch(() => undefined);
         this.abandon(disposedError());
         this.engine.onContextLostObservable.remove(this.lostObserver);
         globalThis.document?.removeEventListener("visibilitychange", this.onVisibility);

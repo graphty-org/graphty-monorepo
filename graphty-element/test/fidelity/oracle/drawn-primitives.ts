@@ -6,7 +6,7 @@
  * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM.
  */
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
+import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
 import {
@@ -361,9 +361,7 @@ function arrowShapeNamed(name: string): ArrowShape {
  * @param ramp - the drawn ramp
  * @returns the gradient, or null
  */
-function gradientOf(
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null,
-): PGradient | null {
+function gradientOf(ramp: DrawnNode["ramp"]): PGradient | null {
     if (ramp === null) {
         return null;
     }
@@ -372,6 +370,7 @@ function gradientOf(
         kind: ramp.kind,
         stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
         angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+        ...(ramp.center === undefined ? {} : { center: ramp.center }),
     };
 }
 

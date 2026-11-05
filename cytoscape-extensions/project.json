@@ -44,7 +44,7 @@
                 "command": "npm run lint",
                 "cwd": "cytoscape-extensions"
             },
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build", "build"]
         },
         "typecheck": {
             "executor": "nx:run-commands",

@@ -672,6 +672,9 @@ function channelPlans(
             ["fillGradientColors", [id("node.gradientColors")]],
             ["fillGradientStops", [id("node.gradientStops")]],
             ["fillGradientKind", [table("node.gradientKind", NODE_GRADIENT_KINDS)]],
+            ["fillGradientCenterX", [id("node.gradientCenterX")]],
+            ["fillGradientCenterY", [id("node.gradientCenterY")]],
+            ["fillGradientRadius", [id("node.gradientRadius")]],
             // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
             // back there. Another program's border is a ring sized with the node: drawn as the
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).

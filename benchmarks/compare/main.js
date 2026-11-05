@@ -556,6 +556,23 @@ async function graphtyAdapter({ mode, accel, onDemand, dpr, labels, renderPath }
                 }
                 out.stepPlusReadback = stats(single);
                 out.perStepBatched16 = stats(b16);
+                const publish = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    eng.publishPositions();
+                    publish.push(now() - t);
+                }
+                out.publish = stats(publish);
+                // Nothing runs after this stage, so the frame loop can stop for good: what is left of
+                // the step is the simulation and its readback, without the frames sharing the card.
+                graph.scene.getEngine().stopRenderLoop();
+                const undrawn = [];
+                for (let i = 0; i < 10; i++) {
+                    const t = now();
+                    await eng.stepAsync(1);
+                    undrawn.push(now() - t);
+                }
+                out.stepUndrawn = stats(undrawn);
             } else {
                 const single = [];
                 const budget = now() + 20000;

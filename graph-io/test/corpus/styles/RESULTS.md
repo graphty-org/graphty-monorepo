@@ -207,7 +207,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 755 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 470 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 230 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 734 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 734 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 353 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 1170 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |

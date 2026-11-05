@@ -344,6 +344,15 @@ const OFF_SHARDS = [
         local: "when-paths-change",
         "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
     },
+    // The WebGPU device destroyed and the GPU process crashed under the element, on the full Chromium build.
+    {
+        shard: "graphty-element-gpu-loss",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=gpu-loss ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
+        "local-paths": ["graphty-element/test/gpu-loss/", "graphty-element/src/managers/RecoveringWebGPUEngine.ts"],
+    },
     // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
     // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
     // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
@@ -539,6 +548,7 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "graphty-element-webgpu",
+        "graphty-element-gpu-loss",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
@@ -553,6 +563,7 @@ export const GROUPS = {
 const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-element-webgpu",
+    "graphty-element-gpu-loss",
     "graphty-storybook",
     "algorithms-storybook",
     "graph-io-storybook-1",

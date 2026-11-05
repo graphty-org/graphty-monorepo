@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    type ActionManager,
     type BaseTexture,
     type BoundingBox,
     Camera,
@@ -1317,6 +1318,15 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The radius of the sphere the node is drawn in, in world space.
+     * @returns The radius.
+     * @internal
+     */
+    get drawnWorldRadius(): number {
+        return this.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+    }
+
+    /**
      * The node's scale in world space.
      * @returns The scale on each axis.
      * @internal
@@ -1350,6 +1360,44 @@ export class Node implements ModelUser {
      */
     get drawnScene(): Scene {
         return this.mesh.getScene();
+    }
+
+    /**
+     * Whether the node is on the canvas now: neither disposed nor switched off.
+     * @returns True when it is.
+     * @internal
+     */
+    get isDrawn(): boolean {
+        return !this.mesh.isDisposed() && this.mesh.isEnabled();
+    }
+
+    /**
+     * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
+     * @returns The number.
+     * @internal
+     */
+    get drawnGeneration(): number {
+        return this.mesh.uniqueId;
+    }
+
+    /**
+     * The scale of what the node is drawn inside: `graph-root`, which an XR gesture scales.
+     * @returns The scale, or 1 when the node has no such parent.
+     * @internal
+     */
+    get drawnRootScale(): number {
+        const { parent } = this.mesh;
+        return parent instanceof TransformNode ? parent.absoluteScaling.x : 1;
+    }
+
+    /**
+     * Let the pointer reach the node. A rebuilt mesh starts without this, so a restyle says it again.
+     * @param actions - What the node does when the pointer acts on it.
+     * @internal
+     */
+    makeDrawnPickable(actions: ActionManager): void {
+        this.mesh.isPickable = true;
+        this.mesh.actionManager = actions;
     }
 
     /**

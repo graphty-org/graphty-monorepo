@@ -103,6 +103,11 @@ export const NodeShapes = z.enum([
     // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
     "rectangle",
     "round-rectangle",
+    // A rectangle with only its top two or bottom two corners rounded, the other two square
+    // (yFiles' `corners`, Cytoscape.js bottom-round-rectangle); `shape.cornerRadius` and its kin
+    // round them as they round a round-rectangle's.
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -145,6 +150,8 @@ export const NodeShapes = z.enum([
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "rectangle",
     "round-rectangle",
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",

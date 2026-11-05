@@ -8,7 +8,7 @@
  * defaults go beneath the file's own values; igraph and unknown writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
- * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fontSize`, `fontName`,
+ * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
  * `fontStyle`) replace every style key any reader here reads, inside the records the graph already has, so positions,
  * bends and other keys stay. The `graphty.styles` block and the per-element values its rules read are keys too,
  * named by the GML writer's rule for names that are not GML keys (`graphty_styles`, `graphty_style_node_<key>`).
@@ -939,8 +939,8 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
-    if (lg.fill !== undefined && yedLabel) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
+    if (yedLabel) {
+        readYedLabelBox(lg, writer, put, at);
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
@@ -991,6 +991,21 @@ function sideSign(place: string): number {
         return 1;
     }
     return place.includes("right") ? -1 : 0;
+}
+
+/**
+ * Reads the box yEd draws behind a label's words: its `fill`, and its `outline`, a one-pixel line round the box.
+ * @param lg - the label record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYedLabelBox(lg: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(lg.fill, "labelBackground", null, writer, put, at);
+    if (lg.outline !== undefined) {
+        readColor(lg.outline, "labelBorderColor", null, writer, put, at);
+        put("labelBorderWidth", 1);
+    }
 }
 
 /**
@@ -1637,6 +1652,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelWeight",
         "labelItalic",
         "labelPosition",
+        "labelBackground",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1655,6 +1671,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelBackground",
     ] as const),
     block: "native",
 });
@@ -1691,7 +1708,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
+    label: new Set(["text", "color", "fill", "outline", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1805,6 +1822,10 @@ function labelGraphics(get: Get): Rec | null {
     const color = get("labelColor");
     if (typeof color === "string") {
         lg.color = color.toUpperCase();
+    }
+    const background = get("labelBackground");
+    if (typeof background === "string") {
+        lg.fill = background.toUpperCase();
     }
     const size = get("labelSize");
     if (typeof size === "number") {

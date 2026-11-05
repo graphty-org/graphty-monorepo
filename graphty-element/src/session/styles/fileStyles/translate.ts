@@ -1285,7 +1285,7 @@ function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: 
  * @param pixel - One of yEd's pixels (`ARROW_RUNS`) as an element cap's length, at this edge's line width.
  * @returns The `stack` value.
  */
-function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
+export function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
     return parts
         .map(({ type, along, across }) => {
             const size = round((along * pixel) / (CAP_DEPTH.get(type) ?? 1));

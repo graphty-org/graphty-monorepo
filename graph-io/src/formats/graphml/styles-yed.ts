@@ -1197,7 +1197,18 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
             number,
             string,
         ][]
-    ).filter(([size]) => size > 0);
+    )
+        .filter(([size]) => size > 0)
+        // yEd paints neighbouring lanes of one color as one band
+        .reduce<[number, string][]>((merged, [size, color]) => {
+            const last = merged.at(-1);
+            if (last?.[1] === color) {
+                last[0] += size;
+            } else {
+                merged.push([size, color]);
+            }
+            return merged;
+        }, []);
     put("stripeColors", bands.map(([, color]) => color).join(" "));
     put("stripeSizes", bands.map(([size]) => String(Number((size / total).toFixed(6)))).join(" "));
     if (across) {

@@ -397,10 +397,10 @@ describe("GraphML styles: yEd", () => {
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
-        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0 #c0c0c0");
+        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0");
         expect([colors[at("cols")], sizes[at("cols")], direction[at("cols")]]).toEqual([
-            "#ecf5ff #c0c0c0 #c0c0c0",
-            "0.133333 0.333333 0.533333",
+            "#ecf5ff #c0c0c0",
+            "0.133333 0.866667",
             "right",
         ]);
         expect(direction[at("rows")]).toBeNull();
@@ -757,6 +757,17 @@ describe("GraphML styles: yFiles 3", () => {
         expect(resolveStyles(styles, "node", "width", snapshot)[i]).toBe(145);
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Order");
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[i]).toBe("Arial");
+    });
+
+    it("reads a RectangleNodeStyle's corners=TOP as a box rounded along its top", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml"),
+            ),
+        );
+        const shape = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
     });
 
     it("notes shared references that refer to each other and finishes", async () => {

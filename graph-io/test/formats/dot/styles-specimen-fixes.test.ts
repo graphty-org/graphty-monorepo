@@ -327,9 +327,16 @@ describe("DOT styles: an arrow's whole name written back (#5925, #5947)", () => 
     });
 
     it("keeps a lone other: name Graphviz reads as it was written", async () => {
-        for (const name of ["empty", "ediamond", "open", "halfopen", "invempty", "lteeoldiamond"]) {
+        const NAMES = ["empty", "ediamond", "open", "halfopen", "invempty", "lteeoldiamond", "lempty", "oempty"];
+        for (const name of NAMES) {
             expect((await withArrow(`other:${name}`)).name).toBe(name);
         }
+    });
+
+    it("keeps a name of Graphviz's deprecated modifiers a file holds", async () => {
+        const NAMES = ["ebox", "halfbox", "lempty", "oempty", "emptydot"];
+        const doc = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        expect((await written(doc, "arrowhead")).names).toEqual(NAMES);
     });
 
     it("leaves out of the name a shape Graphviz has no name for, and any past the fourth", async () => {

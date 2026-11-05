@@ -2850,10 +2850,11 @@ const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
 /** The most shapes a Graphviz arrow name holds (arrows.c's NUMB_OF_ARROWHEADS). */
 const MAX_ARROW_NAME_SHAPES = 4;
 
-/** An `other:` arrow whose name Graphviz reads: up to four shapes in its grammar, or one of its synonyms. */
-const GRAPHVIZ_OTHER_ARROW_NAME = new RegExp(
-    `^other:((?:[olr]{0,3}(?:${GRAPHVIZ_ARROW_SHAPES})){1,${String(MAX_ARROW_NAME_SHAPES)}}|ediamond|open|halfopen|empty|invempty)$`,
-);
+/**
+ * An `other:` arrow whose name Graphviz reads: its shapes and modifiers in any order, the deprecated `e`, `half`, `empty`
+ * and `open` included (`ebox`, `halfbox`, `emptydot`). No word here is made of others, so a long name cannot backtrack.
+ */
+const GRAPHVIZ_OTHER_ARROW_NAME = new RegExp(`^other:((?:o|l|r|e|half|empty|open|${GRAPHVIZ_ARROW_SHAPES})+)$`);
 
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
 const STROKES: ReadonlyMap<string, string> = new Map([

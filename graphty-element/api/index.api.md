@@ -4989,6 +4989,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
@@ -5003,10 +5005,14 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal

@@ -5144,9 +5144,19 @@ export function sliceRecords(
 
             // A walk of the map as the rows ask: rows and records run in the same order almost
             // always, and printing a counter and hashing it for each row costs more than the sort.
-            const walk = edges.entries();
+            // Only a pass from the first row walks: reaching an appended row's record that way
+            // would step over every record before it, so a read starting later looks each one up.
+            let walk: MapIterator<[EdgeId, GraphRecord]> | undefined;
+            let walkRow = 0;
             const byCounter: (GraphRecord | undefined)[] = [];
-            const recordOf = (counter: number): GraphRecord | undefined => {
+            const recordOf = (row: number): GraphRecord | undefined => {
+                const counter = counters[row];
+                if (row !== walkRow) {
+                    return edges.get(edgeIdOf(counter));
+                }
+
+                walkRow++;
+                walk ??= edges.entries();
                 while (byCounter[counter] === undefined) {
                     const next = walk.next();
                     if (next.done === true) {
@@ -5159,7 +5169,7 @@ export function sliceRecords(
                 return byCounter[counter];
             };
 
-            return (row) => (recordOf(counters[row]) ?? fallback?.edgeAttributes(row))?.[key];
+            return (row) => (recordOf(row) ?? fallback?.edgeAttributes(row))?.[key];
         },
     };
 }

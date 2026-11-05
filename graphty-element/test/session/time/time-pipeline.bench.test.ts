@@ -18,7 +18,7 @@
  *
  * THE BUDGETS ARE PRINTED, NOT ASSERTED: a stopwatch on a busy machine measures the machine. Each
  * measurement prints as a `[time-pipeline]` line, passing when its slowest round is within budget,
- * and each graph appends a row
+ * and each case appends a row
  * to `benchmarks/results/browser-<host>.jsonl`, the ignored file of this machine's runs. Run with:
  * npx vitest run --project=bench test/session/time/time-pipeline.bench.test.ts
  */
@@ -240,6 +240,18 @@ function report(name: string, measure: Measure, timing: Timing): void {
 }
 
 /**
+ * Append a case's row to this machine's results.
+ * @param name - The case.
+ * @param row - What it measured.
+ */
+function writeRow(name: string, row: Record<string, unknown>): void {
+    appendFileSync(
+        new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
+        `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, ...row })}\n`,
+    );
+}
+
+/**
  * The bytes a designated field, a window, a slide and a histogram add, per timed element.
  * @param harness - The session, nothing designated yet.
  * @param graph - The graph.
@@ -390,10 +402,7 @@ describe("the timeline at 1,000,000 edges", () => {
             console.log(
                 `[time-pipeline] ${name} bytes added per timed element: ${bytes.perTimed.toFixed(1)} (${bytes.historyPerTimed.toFixed(1)} held by the undo history), budget ${bytes.budget.toFixed(1)}: ${bytes.perTimed <= bytes.budget ? "pass" : "fail"}`,
             );
-            appendFileSync(
-                new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
-                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, binnedRows, timings, crossed, bytes })}\n`,
-            );
+            writeRow(name, { visibleEdges, binnedRows, timings, crossed, bytes });
             session.dispose();
         });
     }
@@ -425,6 +434,7 @@ describe("the timeline at 1,000,000 edges", () => {
         );
 
         report("records", "build", build);
+        writeRow("records", { timings: { build } });
         session.dispose();
     });
 
@@ -456,6 +466,7 @@ describe("the timeline at 1,000,000 edges", () => {
         );
 
         report("zoned-text", "build", build);
+        writeRow("zoned-text", { timings: { build } });
         session.dispose();
     });
 });

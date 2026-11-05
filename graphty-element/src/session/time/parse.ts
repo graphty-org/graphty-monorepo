@@ -401,7 +401,8 @@ function readText(
     unit: TimeUnit,
     timeZone: string | undefined,
 ): { readonly at: number; readonly how: InstantReading } {
-    // Only a caller naming a zone reads this way, which with the timeline off none does.
+    // With the timeline off nothing names a zone: `time.parse` passes none and the window bounds'
+    // zone is the timeline's, so text reads below as it did before zones.
     if (timeZone !== undefined) {
         const exact = exactIso(value);
         if (!Number.isNaN(exact)) {

@@ -319,6 +319,37 @@ describe("merging appended rows", () => {
     });
 });
 
+/**
+ * Whether a session's index answers as an index built from nothing over the same records does.
+ * @param session - The session, with a time field designated over `t`.
+ * @param message - What to say on a difference.
+ */
+async function assertFreshAgrees(session: GraphSession, message: string): Promise<void> {
+    const snapshot = session.data.snapshot();
+    const { nodes, edges } = dispatcherOf(session).graph.slice;
+    const space = edgeSpaceOf(snapshot);
+    const fresh = createGraphSession();
+    await fresh.data.addNodes(
+        Array.from({ length: snapshot.nodeCount }, (_, row) => {
+            const id = snapshot.ids.idOf(row);
+            return { id, t: nodes.get(id)?.t };
+        }),
+    );
+    await fresh.data.addEdges(
+        Array.from({ length: snapshot.edgeCount }, (_, row) => ({
+            source: snapshot.ids.idOf(snapshot.edgeSource(row)),
+            target: snapshot.ids.idOf(snapshot.edgeTarget(row)),
+            t: edges.get(space.idOf(row))?.t,
+        })),
+    );
+    await fresh.time.setField(session.time.field);
+
+    assert.deepEqual(session.time.extent(), fresh.time.extent(), message);
+    assert.deepEqual(session.time.bins({ count: 16 }), fresh.time.bins({ count: 16 }), message);
+    assert.deepEqual(session.time.notices(), fresh.time.notices(), message);
+    fresh.dispose();
+}
+
 describe("counted work", () => {
     it("parses a column once: a second window parses nothing", async () => {
         const session = await nodesSession(50);
@@ -410,6 +441,29 @@ describe("counted work", () => {
         }
     });
 
+    it("reads only an append's records, and walks the record map only for a whole column", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        const edges = (from: number, count: number): Record<string, unknown>[] =>
+            Array.from({ length: count }, (_, at) => ({ source: "a", target: "b", t: T0 + from + at }));
+        await session.data.addEdges(edges(0, 40));
+        await session.time.setField({ edges: { start: "t", unit: "s" } });
+        const records = (): ReadonlyMap<unknown, unknown> => dispatcherOf(session).graph.slice.edges;
+
+        await session.data.addEdges(edges(40, 3));
+        const walked = vi.spyOn(records(), "entries");
+        const looked = vi.spyOn(records(), "get");
+        assert.strictEqual(session.time.extent()?.edges.timed, 43);
+        assert.strictEqual(walked.mock.calls.length, 0);
+        assert.strictEqual(looked.mock.calls.length, 3);
+        vi.restoreAllMocks();
+
+        await session.data.updateEdges([{ id: [...records().keys()][0] as string, values: { t: T0 - 1 } }]);
+        const rewalked = vi.spyOn(records(), "entries");
+        assert.strictEqual(session.time.extent()?.edges.timed, 43);
+        assert.strictEqual(rewalked.mock.calls.length, 1);
+    });
+
     it("a merged index equals a fresh one after a seeded mix of writes", async () => {
         const next = mulberry32(21);
         const session = await nodesSession(40);
@@ -420,7 +474,14 @@ describe("counted work", () => {
         await session.time.setField({ nodes: { start: "t", unit: "s" }, edges: { start: "t", unit: "s" } });
         const graph = (): ReturnType<typeof dispatcherOf>["graph"] => dispatcherOf(session).graph;
         let serial = 0;
-        const instant = (): number => T0 + pick(200);
+        const instant = (): number | string | null => {
+            const kind = pick(10);
+            if (kind === 0) {
+                return null;
+            }
+
+            return kind === 1 ? "no such date" : T0 + pick(200);
+        };
         const anyEdge = (): string => {
             const ids = [...graph().slice.edges.keys()];
             return ids[pick(ids.length)];
@@ -462,6 +523,7 @@ describe("counted work", () => {
             }
 
             assert.isNotNull(extent);
+            await assertFreshAgrees(session, `round ${String(round)}`);
             const from = T0 * 1000 + pick(100) * 1000;
             const to = from + 50_000;
             await session.time.window({ from, to, nodes: "all" });
@@ -686,6 +748,10 @@ class HeldChunks extends DataSource {
     };
     static reached = (): void => undefined;
     static gate: Promise<void> = Promise.resolve();
+    static chunks: readonly [DataSourceChunk, DataSourceChunk] = [
+        { nodes: [], edges: [] },
+        { nodes: [], edges: [] },
+    ];
 
     constructor(private readonly config: BaseDataSourceConfig) {
         super(config.errorLimit ?? 100, config.chunkSize);
@@ -696,31 +762,40 @@ class HeldChunks extends DataSource {
     }
 
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk> {
-        yield { nodes: [{ id: "first", t: T0 + 98 }], edges: [] };
+        const [first, second] = HeldChunks.chunks;
+        yield first;
         HeldChunks.reached();
         await HeldChunks.gate;
-        yield { nodes: [{ id: "second", t: T0 + 99 }], edges: [] };
+        yield second;
     }
 }
 
 DataSource.register(HeldChunks);
 
+/**
+ * Start a load and hold it between its two chunks.
+ * @param session - The session.
+ * @param chunks - What the load writes; by default a timed node each.
+ * @returns The load, and what lets it finish.
+ */
+async function heldLoad(
+    session: GraphSession,
+    chunks: typeof HeldChunks.chunks = [
+        { nodes: [{ id: "first", t: T0 + 98 }], edges: [] },
+        { nodes: [{ id: "second", t: T0 + 99 }], edges: [] },
+    ],
+): Promise<{ load: Promise<unknown>; open: () => void }> {
+    HeldChunks.chunks = chunks;
+    const reached = new Promise<void>((resolve) => (HeldChunks.reached = resolve));
+    let open = (): void => undefined;
+    HeldChunks.gate = new Promise<void>((resolve) => (open = resolve));
+    const load = session.data.import({ type: HeldChunks.type, config: {} }, { mode: "merge" });
+    await reached;
+
+    return { load, open };
+}
+
 describe("a streaming load", () => {
-    /**
-     * Start a load and hold it between its two chunks.
-     * @param session - The session.
-     * @returns The load, and what lets it finish.
-     */
-    async function heldLoad(session: GraphSession): Promise<{ load: Promise<unknown>; open: () => void }> {
-        const reached = new Promise<void>((resolve) => (HeldChunks.reached = resolve));
-        let open = (): void => undefined;
-        HeldChunks.gate = new Promise<void>((resolve) => (open = resolve));
-        const load = session.data.import({ type: HeldChunks.type, config: {} }, { mode: "merge" });
-        await reached;
-
-        return { load, open };
-    }
-
     it("starts no build until it settles, and a held ready waits for it", async () => {
         const session = await nodesSession(10);
         await session.time.setField(SECONDS);
@@ -760,6 +835,26 @@ describe("a streaming load", () => {
 
         assert.strictEqual(nodes?.timed, 12);
         assert.strictEqual(timeIndexCounters.parsed - before, 12);
+    });
+
+    it("keeps a node's time when its record lands after an index read its row as untimed", async () => {
+        const session = await nodesSession(10);
+        await session.time.setField(SECONDS);
+        await session.time.window({ from: T0 * 1000, to: (T0 + 5) * 1000 });
+        const { load, open } = await heldLoad(session, [
+            { nodes: [], edges: [{ source: "n0", target: "x" }] },
+            { nodes: [{ id: "x", t: T0 + 50 }], edges: [] },
+        ]);
+
+        // The window needs the instants now, so this indexes `x` before its record has arrived.
+        session.visibility.nodeMask();
+        open();
+        await load;
+        await session.time.ready;
+
+        assert.strictEqual(session.time.extent()?.nodes.timed, 11);
+        await session.time.window(null);
+        await assertFreshAgrees(session, "after the load");
     });
 
     it("notices, parse and spanOf start no build during it", async () => {
@@ -864,13 +959,67 @@ describe("with the timeline off", () => {
         assert.strictEqual(rewrites.mock.calls.length, 0);
     });
 
-    it("answers at once over the threshold, with no slices", async () => {
+    it("builds a time range whole and at once over the threshold", async () => {
         const values = Array.from({ length: SLICED_ROWS + 10 }, (_, at) => T0 * 1000 + at);
         const session = await offSession(values);
         const { parsed: before } = timeIndexCounters;
 
-        assert.strictEqual(session.time.parse("2026-01-15"), Date.UTC(2026, 0, 15));
+        const mask = await keptBetween(session, T0 * 1000 + 5, T0 * 1000 + 7);
 
+        assert.deepEqual(
+            mask.flatMap((kept, row) => (kept === 1 ? [row] : [])),
+            [5, 6, 7],
+        );
         assert.strictEqual(timeIndexCounters.parsed - before, values.length);
+    });
+
+    it("reads parse's text as it does with no zone, whatever zone a project saved", async () => {
+        const session = await offSession([T0 * 1000, T0 * 1000 + 1]);
+
+        for (const [text, at] of [
+            ["2026-01-15", Date.UTC(2026, 0, 15)],
+            ["2026-01-15T12:00:00", Date.UTC(2026, 0, 15, 12)],
+            ["2026-01-15T12:30:45.123Z", Date.UTC(2026, 0, 15, 12, 30, 45, 123)],
+            ["2026-01-15T12:00:00+02:00", Date.UTC(2026, 0, 15, 10)],
+            ["Jan 15, 2026 12:00", Date.UTC(2026, 0, 15, 12)],
+            ["no such date", null],
+        ] as const) {
+            assert.strictEqual(session.time.parse(text), at, text);
+            assert.strictEqual(session.time.parse(text, { timeZone: NEW_YORK }), at, text);
+        }
+    });
+
+    it("lets a load hold back neither parse nor a time range", async () => {
+        const session = await offSession([T0 * 1000, T0 * 1000 + 1]);
+        const kept = await keptBetween(session, T0 * 1000, T0 * 1000 + 1);
+        assert.deepEqual(kept, [1, 1]);
+        const { load, open } = await heldLoad(session, [
+            { nodes: [{ id: "first", t: T0 * 1000 + 5 }], edges: [] },
+            { nodes: [], edges: [] },
+        ]);
+        const { parsed: before } = timeIndexCounters;
+
+        assert.strictEqual(session.time.parse("2026-01-15"), Date.UTC(2026, 0, 15));
+        assert.strictEqual(timeIndexCounters.parsed - before, 3);
+        assert.deepEqual([...session.visibility.nodeMask()], [1, 1, 0]);
+
+        open();
+        await load;
+    });
+
+    it("reads an edge column through the per-row reads", async () => {
+        const session = createGraphSession({ features: [] });
+        sessions.push(session);
+        await session.data.addEdges(
+            Array.from({ length: 3 }, (_, at) => ({ source: "a", target: "b", t: T0 * 1000 + at })),
+        );
+        await session.config.set({ data: { knownFields: { edgeTimePath: "t" } } });
+        const walked = vi.spyOn(dispatcherOf(session).graph.slice.edges, "entries");
+        const { parsed: before } = timeIndexCounters;
+
+        session.time.parse("2026-01-15");
+
+        assert.strictEqual(timeIndexCounters.parsed - before, 3);
+        assert.strictEqual(walked.mock.calls.length, 0);
     });
 });

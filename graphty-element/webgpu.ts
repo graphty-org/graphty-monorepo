@@ -242,7 +242,7 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
     const gpu = acquireAccelerator({
         acceptSoftware: options?.acceptSoftware ?? false,
         accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
-        device: options?.device as GPUDevice | undefined,
+        ...(options?.device === undefined ? {} : { device: options.device as GPUDevice }),
     });
     const result = await gpu.current();
     if (!result.ok) {

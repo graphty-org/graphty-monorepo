@@ -918,7 +918,7 @@ export class AccelerationController {
      * @throws Whatever the factory or the self-check threw.
      */
     async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
-        const device = await this.#sharedDevice?.();
+        const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
         const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
         let built: { accelerator: GraphAccelerator | null; software: boolean };

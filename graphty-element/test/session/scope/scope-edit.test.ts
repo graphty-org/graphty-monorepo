@@ -8,13 +8,12 @@
 
 import { assert, describe, it } from "vitest";
 
-import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
-
 import type { StepsReading } from "../../../session";
 import type { RuleTree, UnionLeaf } from "../../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
+import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
 
 const IDS = ["a", "b", "c", "d", "e"];
 

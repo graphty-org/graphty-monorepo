@@ -169,7 +169,7 @@ describe("paper mode: force-form swing / traction, fresh sums over free nodes (S
         expect(o.settledCount).toBe(0);
     });
 
-    it("a fixed node keeps its force but leaves the sums, the mean displacement and its position untouched", () => {
+    it("a fixed node keeps its force but leaves the sums, the stored force, the mean displacement and its position", () => {
         const o = oracle("paper", { fixed: fixedNode2() });
         const t1 = o.step();
         expectCloseArray(o.stages.swingPerNode, [2 * S74, 21, 0], "swing_i (node 2 excluded)");
@@ -182,7 +182,11 @@ describe("paper mode: force-form swing / traction, fresh sums over free nodes (S
         expectCloseArray(o.positions.subarray(6, 9), [1, 0, 0], "p[2] unchanged");
         expect(o.stages.partials.free).toBe(2);
         const t2 = o.step();
-        expectCloseArray(o.stages.oldForce.subarray(6, 9), [7, -5, 0], "oldForce[2] stored although fixed (7.11)");
+        expectCloseArray(
+            o.stages.oldForce.subarray(6, 9),
+            [0, 0, 0],
+            "oldForce[2] is 0 while fixed, as after load (7.11, #3255)",
+        );
         expectClose(t2.meanDisplacement, 0.43099299338212244, "mean over the two free nodes");
         expectCloseArray(t2.centroid, [-0.13250496775385567, 0.36317975688994736, 0], "centroid(2)");
         expectClose(t2.rmsRadius, 1.2284253278295167, "rmsRadius(2)");
@@ -199,7 +203,7 @@ describe("paper mode: force-form swing / traction, fresh sums over free nodes (S
     });
 });
 
-describe("networkx mode: position-mixed swing / traction, accumulated from 1 over every node (SWING_MODE 1)", () => {
+describe("networkx mode: position-mixed swing / traction, accumulated from 1 over every free node (SWING_MODE 1)", () => {
     it("per-node and global values at iteration 1, then the second iteration with the m |F| local factor", () => {
         const o = oracle("networkx");
         const t1 = o.step();
@@ -271,42 +275,39 @@ describe("networkx mode: position-mixed swing / traction, accumulated from 1 ove
         expect(o.settledCount).toBe(0);
     });
 
-    it("a fixed node still counts in the sums (every node) and is not moved", () => {
+    it("a fixed node leaves the sums, as in paper mode, and is not moved (#3255)", () => {
         const o = oracle("networkx", { fixed: fixedNode2() });
         const t1 = o.step();
-        expectCloseArray(o.stages.swingPerNode, [S61, 18, S61], "swing_i includes node 2");
-        expectClose(t1.swing, 19 + 2 * S61, "swing unchanged by the mask");
-        expectClose(t1.traction, 13 + 2 * S89, "traction unchanged by the mask");
+        expectCloseArray(o.stages.swingPerNode, [S61, 18, 0], "swing_i (node 2 excluded)");
+        expectCloseArray(o.stages.tractionPerNode, [S89, 12, 0], "traction_i (node 2 excluded)");
+        expectClose(t1.swing, 19 + S61, "swing = 1 + fresh, without node 2");
+        expectClose(t1.traction, 13 + S89, "traction = 1 + fresh, without node 2");
         expectCloseArray(o.stages.displacement.subarray(6, 9), [0, 0, 0], "dp[2] = 0");
         expectCloseArray(
             o.positions,
-            [-1.4812301414914453, -0.34373581535103237, 0, 0, 1.450689417816938, 0, 1, 0, 0],
+            [-1.4748189947307544, -0.3391564248076817, 0, 0, 1.4447840728195236, 0, 1, 0, 0],
             "positions",
         );
         const t2 = o.step();
         expectCloseArray(
             o.stages.force,
             [
-                -3.017142356219181, -2.1690161467684694, 0, -1.0634791984645702, 3.3396145477132526, 0,
-                4.028851058006053, -3.718490225410944, 0,
+                -3.0523773904608893, -2.1983966410205498, 0, -1.0582303907073705, 3.3825449614634464, 0,
+                4.059733149361271, -3.7359181350844675, 0,
             ],
             "F(2)",
         );
-        expectCloseArray(
-            o.stages.swingPerNode,
-            [4.7710269836206995, 6.503171177762884, 9.591894137877278],
-            "swing_i(2)",
-        );
-        expectClose(t2.swing, 71.10709100288747, "swing(2)");
-        expectClose(t2.traction, 50.63528169718428, "traction(2)");
-        expectClose(t2.speed, 0.2428732649702072, "speed(2)");
-        expectClose(t2.meanDisplacement, 0.5210374378666376, "mean over the two free nodes");
-        expectCloseArray(t2.centroid, [-0.1604100471638151, 0.3689845341553019, 0], "centroid(2)");
-        expectClose(t2.rmsRadius, 1.2925505915058775, "rmsRadius(2)");
-        expectClose(t2.layoutRadius, 1.628639114157258, "layoutRadius(2)");
+        expectCloseArray(o.stages.swingPerNode, [4.876664710033656, 6.623663592935019, 0], "swing_i(2)");
+        expectClose(t2.swing, 46.12082765478198, "swing(2)");
+        expectClose(t2.traction, 35.03678284443511, "traction(2)");
+        expectClose(t2.speed, 0.17928234036860424, "speed(2)");
+        expectClose(t2.meanDisplacement, 0.5141454246700581, "mean over the two free nodes");
+        expectCloseArray(t2.centroid, [-0.1582729982435848, 0.36854254933728064, 0], "centroid(2)");
+        expectClose(t2.rmsRadius, 1.2876033808900815, "rmsRadius(2)");
+        expectClose(t2.layoutRadius, 1.6209051613290624, "layoutRadius(2)");
         expectCloseArray(
             o.stages.displacement,
-            [-0.3126882928631277, -0.22479083717331966, 0, -0.09941780374814171, 0.3121990013329409, 0, 0, 0, 0],
+            [-0.25318944119683195, -0.18235321058545148, 0, -0.079692749104972, 0.25473120911789754, 0, 0, 0, 0],
             "dp(2)",
         );
     });

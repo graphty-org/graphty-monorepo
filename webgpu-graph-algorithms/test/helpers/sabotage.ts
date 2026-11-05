@@ -329,8 +329,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // oldForce never stored: iteration 2's swing becomes m |F| instead of m |F - F_old| (paper mode)
             name: "store-old-skipped",
-            find: "if (SWING_MODE == 0u) { store_old(i, f); }",
-            replace: "if (SWING_MODE == 2u) { store_old(i, f); }",
+            find: "if (SWING_MODE == 0u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
+            replace: "if (SWING_MODE == 2u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
             minFactor: 10,
             test: TRACE_TEST,
         },

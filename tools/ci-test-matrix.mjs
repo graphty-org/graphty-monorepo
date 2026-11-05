@@ -57,6 +57,15 @@ import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
 
+/**
+ * How many parts the graphty-element browser shards split their files into (vitest --shard, by file count). The
+ * family's cost is mostly per file -- each file runs alone in the browser and pays 5 to 7.5 s of setup and import
+ * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
+ * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
+ * the 900 s shard budget (#5822); eight bring that to about 630 s.
+ */
+const ELEMENT_BROWSER_PARTS = 8;
+
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
@@ -310,14 +319,14 @@ const OFF_SHARDS = [
         "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": false,
     },
-    // graphty-element browser tests (5 shards)
+    // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
     // "minimum-work" runs the tests of "the picture is final" again with every frame doing the least
     // work it can (graphty-element/src/managers/minimumWork.ts, issue #4218).
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work --shard=${n}/${ELEMENT_BROWSER_PARTS} --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.

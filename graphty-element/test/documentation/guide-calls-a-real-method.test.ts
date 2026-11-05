@@ -243,6 +243,7 @@ describe("the session doors the guides teach", () => {
             "cancelRun",
             "checkStep",
             "count",
+            "edit",
             "histogram",
             "list",
             "options",

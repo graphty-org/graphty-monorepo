@@ -267,7 +267,7 @@ export function CardList({
             <section
                 key={item.id}
                 tabIndex={-1}
-                className={item.className === undefined ? "cm-card" : `cm-card ${item.className}`}
+                className={item.className === undefined ? "cm-list-card" : `cm-list-card ${item.className}`}
                 aria-label={item.label ?? item.title}
                 data-card-id={item.id}
                 data-folded={isFolded ? "" : undefined}

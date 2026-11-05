@@ -7,22 +7,22 @@ import { cmFont } from "../tokens";
 
 const css = `
 .cm-card-list { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cm-card {
+.cm-list-card {
     --cm-card-color: var(--cm-border);
     min-width: 0;
     background: var(--cm-bg);
     border: 1px solid var(--cm-border);
     border-radius: 6px;
 }
-.cm-card[data-colored] {
+.cm-list-card[data-colored] {
     background: color-mix(in srgb, var(--cm-card-color) 7%, var(--cm-bg));
     border-color: color-mix(in srgb, var(--cm-card-color) 45%, var(--cm-bg));
     border-inline-start: 4px solid var(--cm-card-color);
 }
-.cm-card:focus { outline: none; }
-.cm-card:focus-visible { outline: 1px solid var(--cm-border-selected); }
-.cm-card[data-off] { opacity: 0.6; }
-.cm-card[data-dragging] { box-shadow: 0 4px 12px rgb(0 0 0 / 18%); }
+.cm-list-card:focus { outline: none; }
+.cm-list-card:focus-visible { outline: 1px solid var(--cm-border-selected); }
+.cm-list-card[data-off] { opacity: 0.6; }
+.cm-list-card[data-dragging] { box-shadow: 0 4px 12px rgb(0 0 0 / 18%); }
 .cm-card-head {
     display: flex;
     align-items: center;
@@ -33,8 +33,8 @@ const css = `
     border-start-end-radius: 5px;
     ${cmFont("body")}
 }
-.cm-card[data-colored] .cm-card-head { background: color-mix(in srgb, var(--cm-card-color) 14%, var(--cm-bg)); }
-.cm-card[data-folded] .cm-card-head { border-end-end-radius: 5px; }
+.cm-list-card[data-colored] .cm-card-head { background: color-mix(in srgb, var(--cm-card-color) 14%, var(--cm-bg)); }
+.cm-list-card[data-folded] .cm-card-head { border-end-end-radius: 5px; }
 .cm-card-head > * { flex: none; }
 .cm-card-icon {
     display: inline-flex;
@@ -55,11 +55,11 @@ const css = `
 /* At rest a card's header holds its name and what it says: the grip and the x come with the pointer
    or the keyboard, and stay where a pointer cannot hover. */
 @media (hover: hover) {
-    .cm-card:not(:hover, :focus-within) .cm-card-grip,
-    .cm-card:not(:hover, :focus-within) [data-card-remove] { opacity: 0; }
+    .cm-list-card:not(:hover, :focus-within) .cm-card-grip,
+    .cm-list-card:not(:hover, :focus-within) [data-card-remove] { opacity: 0; }
 }
-.cm-card[data-dragging] .cm-card-grip { cursor: grabbing; }
-.cm-card[data-folded] .cm-card-fold svg { transform: rotate(-90deg); }
+.cm-list-card[data-dragging] .cm-card-grip { cursor: grabbing; }
+.cm-list-card[data-folded] .cm-card-fold svg { transform: rotate(-90deg); }
 .cm-card-chit {
     width: 12px;
     height: 12px;
@@ -71,8 +71,8 @@ const css = `
 .cm-card-head > .cm-card-title,
 .cm-card-head > .mantine-TextInput-root { flex: 0 1 auto; min-width: 24px; }
 /* Folded, a long title leaves the summary its share of the line. */
-.cm-card[data-folded] .cm-card-head > .cm-card-name,
-.cm-card[data-folded] .cm-card-head > .cm-card-title { max-width: 40%; }
+.cm-list-card[data-folded] .cm-card-head > .cm-card-name,
+.cm-list-card[data-folded] .cm-card-head > .cm-card-title { max-width: 40%; }
 .cm-card-name {
     display: inline-flex;
     min-width: 0;

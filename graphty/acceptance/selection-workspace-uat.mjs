@@ -66,7 +66,7 @@ class Visit {
     }
 
     card(at) {
-        return this.ws.locator(".cm-card-list > .cm-card").nth(at);
+        return this.ws.locator(".cm-card-list > .cm-list-card").nth(at);
     }
 
     step(at, index) {
@@ -288,7 +288,7 @@ class Visit {
     shown() {
         return this.ws.evaluate((box) => ({
             title: box.querySelector(":scope .sel-ws-head > .sel-count")?.textContent ?? "",
-            cards: [...box.querySelectorAll(".cm-card-list > .cm-card")].map(
+            cards: [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
                 (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "(waits)",
             ),
             rows: Number(box.querySelector("[role=grid]")?.getAttribute("aria-rowcount") ?? 1) - 1,
@@ -308,7 +308,7 @@ class Visit {
             .waitForFunction(
                 (w) => {
                     const box = document.querySelector(".sel-ws.sel-modal");
-                    const seen = [...box.querySelectorAll(".cm-card-list > .cm-card")].map(
+                    const seen = [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
                         (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "",
                     );
                     const grid = box.querySelector("[role=grid]");
@@ -742,7 +742,7 @@ const LONG_TITLE = "Characters who meet Valjean in the first volume of the novel
 async function checkHeads(v, when) {
     const clash = await v.ws.evaluate((box) => {
         const out = [];
-        for (const card of box.querySelectorAll(".cm-card-list > .cm-card")) {
+        for (const card of box.querySelectorAll(".cm-card-list > .cm-list-card")) {
             const edge = card.getBoundingClientRect();
             const parts = [...card.querySelector(".cm-card-head").children]
                 .flatMap((each) => (each.classList.contains("cm-card-slot") ? [...each.children] : [each]))
@@ -775,7 +775,7 @@ const rename = async (v, at, title) => {
     await v.check("rename");
 };
 
-const order = (v) => v.ws.locator(".cm-card-list > .cm-card").evaluateAll((cs) => cs.map((c) => c.dataset.cardId));
+const order = (v) => v.ws.locator(".cm-card-list > .cm-list-card").evaluateAll((cs) => cs.map((c) => c.dataset.cardId));
 
 const assertOrder = async (v, when) => {
     const want = v.cards.map((c) => c.id);
@@ -821,7 +821,9 @@ const EDITS = {
         await v.page.waitForFunction(
             (want) =>
                 JSON.stringify(
-                    [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-card")].map((c) => c.dataset.cardId),
+                    [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map(
+                        (c) => c.dataset.cardId,
+                    ),
                 ) === want,
             JSON.stringify(v.cards.map((c) => c.id)),
             { timeout: SETTLE },
@@ -1341,7 +1343,7 @@ const cardKeys = async (page) => {
     await v.page.waitForFunction(
         (want) =>
             JSON.stringify(
-                [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-card")].map((c) => c.dataset.cardId),
+                [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
         { timeout: SETTLE },
@@ -1352,10 +1354,10 @@ const cardKeys = async (page) => {
     await v.page.keyboard.press("Escape");
     await grip(0).focus();
     await v.page.keyboard.press("ControlOrMeta+d");
-    await v.ws.locator(".cm-card-list > .cm-card").nth(2).waitFor();
+    await v.ws.locator(".cm-card-list > .cm-list-card").nth(2).waitFor();
     await grip(1).focus();
     await v.page.keyboard.press("Delete");
-    await v.ws.locator(".cm-card-list > .cm-card").nth(2).waitFor({ state: "detached" });
+    await v.ws.locator(".cm-card-list > .cm-list-card").nth(2).waitFor({ state: "detached" });
     await v.check("after the keys");
 };
 
@@ -1543,7 +1545,7 @@ const dragBothWays = async (page) => {
     await v.page.waitForFunction(
         (want) =>
             JSON.stringify(
-                [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-card")].map((c) => c.dataset.cardId),
+                [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
         { timeout: SETTLE },

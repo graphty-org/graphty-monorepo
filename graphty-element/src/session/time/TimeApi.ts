@@ -390,9 +390,10 @@ export interface TimeApi {
     /** The window in force (`visibility.window`). Its `step` is the step in use, also under `"auto"`. */
     readonly current: TimeWindow | null;
     /**
-     * The window history and the project file hold (`visibility.window`). It stays put while a play
-     * or a `seek` with `commit: false` moves {@link TimeApi.current}. Reading it with the experiment
-     * off throws `E_FEATURE_OFF`.
+     * The window history and the project file hold (`visibility.window`). It stays put while a
+     * smooth play or a `seek` with `commit: false` moves {@link TimeApi.current}; a stepped play
+     * records each window in the play's one history step, so it follows every step. Reading it with
+     * the experiment off throws `E_FEATURE_OFF`.
      */
     readonly committed: TimeWindow | null;
     /** Whether the window is the first one: a step back would leave the data. False with no window. */
@@ -1063,6 +1064,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let loop = false;
     /** The history step this play's moves merge into. */
     let playStep: HistoryStepId | null = null;
+    /** How many times the window has slid, so a move can tell a newer slide took the cursor. */
+    let slides = 0;
     let disposed = false;
     /** Runs that were out of date at the last visibility change, so "keep" never revives one. */
     let staleBefore = new Set<RunId>();
@@ -1568,6 +1571,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @returns The event, once the masks and any re-runs the results setting started have settled.
      */
     const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
+        const slide = slides;
         const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
         if (cause === "play") {
             await dispatcher.transaction("time.play", (tx) => tx.dispatch({ op: "visibility.window", window: next }), {
@@ -1582,7 +1586,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             await visibility.setWindow(next);
         }
 
-        cursor = null;
+        // A play that began while this was recording owns the cursor now.
+        if (slide === slides) {
+            cursor = null;
+        }
+
         const event = afterMove(before, next, cause);
         await reruns;
 
@@ -1622,6 +1630,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const slideTo = (next: TimeWindow, cause: TimeStepEvent["cause"]): TimeStepEvent => {
         const counts = visibility.slideWindow(next);
         cursor = next;
+        slides++;
         const graph = sources.snapshot();
         const rows = counts?.rows;
         let cached: TimeChanges | null = null;
@@ -2287,27 +2296,34 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             playing = true;
             playStep = null;
             sources.emit("time:play", { window: current });
-            if (canSlide()) {
-                let start = current ?? firstWindow(options);
-                if (current !== null && (options.step !== undefined || options.mode !== undefined)) {
-                    start = Object.freeze({
-                        ...current,
-                        ...(options.step === undefined ? {} : { step: options.step }),
-                        ...(options.mode === undefined ? {} : { mode: options.mode }),
-                    });
-                } else if (current !== null && isLast(current)) {
-                    // Pressing play at the end starts again from the first window.
-                    start = firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" });
-                }
+            let start: TimeWindow;
+            if (current === null) {
+                start = firstWindow(options);
+            } else if (isLast(current)) {
+                // Pressing play at the end starts again from the first window.
+                start = firstWindow({
+                    step: options.step ?? stepOf(current),
+                    mode: options.mode ?? current.mode ?? "sliding",
+                });
+            } else if (options.step !== undefined || options.mode !== undefined) {
+                start = Object.freeze({
+                    ...current,
+                    ...(options.step === undefined ? {} : { step: options.step }),
+                    ...(options.mode === undefined ? {} : { mode: options.mode }),
+                });
+            } else {
+                start = current;
+            }
 
+            if (canSlide()) {
                 slideTo(start, "play");
                 lastFrameAt = performance.now();
                 frame = requestAnimationFrame(glide);
                 return;
             }
 
-            const begin = (window: TimeWindow): void => {
-                void move(window, "play")
+            if (start !== current) {
+                void move(start, "play")
                     .then(() => {
                         if (playing) {
                             timer = setTimeout(() => void tick(), interval);
@@ -2316,26 +2332,6 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     .catch(() => {
                         api.pause();
                     });
-            };
-            if (current === null) {
-                begin(firstWindow(options));
-                return;
-            }
-
-            if (options.step !== undefined || options.mode !== undefined) {
-                begin(
-                    Object.freeze({
-                        ...current,
-                        ...(options.step === undefined ? {} : { step: options.step }),
-                        ...(options.mode === undefined ? {} : { mode: options.mode }),
-                    }),
-                );
-                return;
-            }
-
-            // Pressing play at the end starts again from the first window.
-            if (isLast(current)) {
-                begin(firstWindow({ step: stepOf(current), mode: current.mode ?? "sliding" }));
                 return;
             }
 

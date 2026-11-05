@@ -75,9 +75,11 @@ Each of these is one undoable step, and the window is saved in the project. `pla
 for the whole play. It takes `step`, `mode` (`"sliding"`, or `"cumulative"` to grow from the start),
 `interval` (milliseconds per step, default 1000), `loop` and `motion`.
 
-While a window is moving without being recorded, as in a play or a `seek` with `commit: false`, the
-two windows differ: `time.current` is the window on screen, and `time.committed` is the one undo and
-the project file hold. `await time.commit()` records where a `seek` left it.
+While a window is moving without being recorded, as in a smooth play or a `seek` with `commit: false`,
+the two windows differ: `time.current` is the window on screen, and `time.committed` is the one undo
+and the project file hold. `await time.commit()` records where a `seek` left it. A stepped play
+(`motion: "steps"`, reduced motion, or `results: "rerun"`) records each window in the play's one
+history step, so `time.committed` follows every step.
 
 ## Jumping to the selection
 

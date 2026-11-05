@@ -1964,6 +1964,13 @@ export class Graphty extends LitElement {
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
+                findsUrlFormat: async () => {
+                    await this.updateComplete;
+                    return (
+                        this.session.features.enabled.includes("timeline") &&
+                        !DataSource.getRegisteredTypes().includes("url")
+                    );
+                },
                 readFailed: (error) => {
                     this.#reportLoadFailure(error);
                 },

@@ -132,6 +132,26 @@ describe("time.committed", () => {
         assert.strictEqual(time.committed?.from, T0 + 2 * DAY);
         assert.strictEqual(time.committed, harness.session.visibility.window);
     });
+
+    it("follows every step of a stepped play", async () => {
+        const { session } = emails();
+        const { time } = session;
+        await time.setField({ edges: { start: "sent" } });
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const seen: unknown[][] = [];
+        session.on("time:step", (step) => seen.push([step.from, time.current?.from, time.committed?.from]));
+        await new Promise<void>((resolve) => {
+            session.on("time:end", () => {
+                resolve();
+            });
+            time.play({ interval: 0, motion: "steps" });
+        });
+        assert.isNotEmpty(seen);
+        for (const [from, current, committed] of seen) {
+            assert.strictEqual(current, from);
+            assert.strictEqual(committed, from);
+        }
+    });
 });
 
 describe("reading instants", () => {
@@ -436,6 +456,18 @@ describe("session.time: playback", () => {
 
         return steps;
     }
+
+    it("starts again from the first window when played at the end with a step", async () => {
+        const { session } = emails();
+        await session.time.setField({ edges: { start: "sent" } });
+        const first = await playToEnd(session, { interval: 0, motion: "steps", step: "day" });
+        const second = await playToEnd(session, { interval: 0, motion: "steps", step: "day" });
+        assert.isAbove(first.length, 1);
+        assert.deepEqual(
+            second.map((step) => step.from),
+            first.map((step) => step.from),
+        );
+    });
 
     it("plays a sliding window to the end as one undoable step, and pauses", async () => {
         const harness = emails();

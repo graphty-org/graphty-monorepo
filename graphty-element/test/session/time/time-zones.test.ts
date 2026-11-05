@@ -3,17 +3,20 @@
  * change shortens, a midnight it removes, and BCE years, on a real session over imported data.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
 import { setDefaultFeatures } from "../../../src/features/resolve";
+import { createRunResult } from "../../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import { wallClock } from "../../../src/session/time/zone";
 
 const NEW_YORK = "America/New_York";
 const KOLKATA = "Asia/Kolkata";
 const LOS_ANGELES = "America/Los_Angeles";
+const TOKYO = "Asia/Tokyo";
 /** Clocks here went forward at midnight, so some days have no 00:00. */
 const HAVANA = "America/Havana";
 const APIA = "Pacific/Apia";
@@ -51,6 +54,36 @@ const DAY_WINDOW = { attribute: "at", from: "2026-01-15", to: "2026-01-16" };
 
 /** A half year of instants, a few hours apart from midnight in several zones. */
 const SPREAD = Array.from({ length: 180 }, (_, day) => Date.UTC(2026, 0, 1 + day, (day * 7) % 24));
+
+/**
+ * A stand-in algorithm with one value.
+ * @param context - The run.
+ * @returns Its outcome.
+ */
+async function oneNodeResult(context: RunExecutionContext): Promise<RunOutcome> {
+    await Promise.resolve();
+    return {
+        result: createRunResult({
+            runId: context.runId,
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "Value",
+                    technicalName: "value",
+                    kind: "node",
+                    type: "number",
+                    path: `results.${context.runId}.value`,
+                },
+            ],
+            measured: { nodes: 1, edges: 0 },
+            nodes: [{ id: "A", values: { value: 1 } }],
+            edges: [],
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", facts: [], notes: [] },
+            durationMs: 1,
+        }),
+    };
+}
 
 /**
  * The code and reason a call was refused with.
@@ -214,6 +247,113 @@ describe("calendar steps in a zone", () => {
     });
 });
 
+describe("a window in its own zone, under another setting", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /**
+     * A session whose window reads in Kolkata while the setting says Los Angeles.
+     * @returns The session.
+     */
+    async function kolkataWindow(): Promise<GraphSession> {
+        const session = await edgesAt(SPREAD);
+        await session.time.setField({ edges: { start: "at" } });
+        await session.time.setSettings({ timeZone: LOS_ANGELES });
+        await session.time.window({ from: SPREAD[0], to: SPREAD[1], step: "day", timeZone: KOLKATA });
+
+        return session;
+    }
+
+    /**
+     * The next `count` steps a session takes.
+     * @param session - The session.
+     * @param count - How many.
+     * @returns A promise that settles on the last of them.
+     */
+    function steps(session: GraphSession, count: number): Promise<void> {
+        let left = count;
+
+        return new Promise((resolve) => {
+            session.on("time:step", () => {
+                left--;
+                if (left === 0) {
+                    resolve();
+                }
+            });
+        });
+    }
+
+    it("seeks to the start and the end on the window's day boundaries", async () => {
+        const session = await kolkataWindow();
+        await session.time.seek("start");
+        assert.strictEqual(session.time.current?.from, alignTo(SPREAD[0], "day", KOLKATA));
+        assert.strictEqual(session.time.current?.timeZone, KOLKATA);
+        await session.time.seek("end");
+        assert.strictEqual(session.time.current?.from, alignTo(SPREAD[179], "day", KOLKATA));
+        assert.strictEqual(session.time.current?.timeZone, KOLKATA);
+        session.dispose();
+    });
+
+    it("keeps the window's zone when play at the end starts again", async () => {
+        const session = await kolkataWindow();
+        await session.time.seek("end");
+        const restarted = steps(session, 1);
+        session.time.play({ motion: "steps" });
+        await restarted;
+        session.time.pause();
+        assert.strictEqual(session.time.current?.from, alignTo(SPREAD[0], "day", KOLKATA));
+        assert.strictEqual(session.time.current?.timeZone, KOLKATA);
+        session.dispose();
+    });
+
+    it("keeps the window's zone when a loop starts again", async () => {
+        const session = await kolkataWindow();
+        await session.time.seek("end");
+        await session.time.stepBy(-1);
+        const looped = steps(session, 2);
+        session.time.play({ motion: "steps", loop: true, interval: 1 });
+        await looped;
+        session.time.pause();
+        assert.strictEqual(session.time.current?.from, alignTo(SPREAD[0], "day", KOLKATA));
+        assert.strictEqual(session.time.current?.timeZone, KOLKATA);
+        session.dispose();
+    });
+
+    it("keeps the window's zone when a smooth loop starts again", async () => {
+        const frames: FrameRequestCallback[] = [];
+        vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => frames.push(frame));
+        vi.stubGlobal("cancelAnimationFrame", () => undefined);
+        const session = await kolkataWindow();
+        await session.time.seek("end");
+        await session.time.stepBy(-1);
+        session.time.play({ motion: "smooth", loop: true, interval: 100 });
+        // One frame a tenth of a second on moves a whole step, past the last window's end.
+        frames[0](performance.now() + 100);
+        assert.strictEqual(session.time.current?.from, alignTo(SPREAD[0], "day", KOLKATA));
+        assert.strictEqual(session.time.current?.timeZone, KOLKATA);
+        const recorded = steps(session, 1);
+        session.time.pause();
+        await recorded;
+        session.dispose();
+    });
+
+    it("records a visible run's text bounds as the column reads them", async () => {
+        const session = createGraphSession({ runs: { execute: oneNodeResult } });
+        const edges = DAY_ROWS.map((at, index) => ({ source: "A", target: `n${String(index)}`, at }));
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ edges }) } });
+        await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });
+        await session.visibility.setWindow(DAY_WINDOW);
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        assert.deepInclude(session.runs.get(run.id)?.caveats.window, {
+            from: Date.UTC(2026, 0, 15, 5),
+            to: Date.UTC(2026, 0, 16, 5),
+        });
+        session.dispose();
+    });
+});
+
 describe("bins in a zone", () => {
     it("starts day bins at local midnight", async () => {
         const session = await edgesAt(SPREAD);
@@ -288,6 +428,14 @@ describe("reading text in a zone", () => {
         await session.time.setField({ edges: { start: "at", unit: "year", parseZone: LOS_ANGELES } });
         assert.strictEqual(session.time.extent()?.from, Date.UTC(1995, 0, 1));
         assert.strictEqual(session.time.parse("1995-06"), Date.UTC(1995, 5, 1));
+        session.dispose();
+    });
+
+    it("reads a year column's text in UTC whatever the zone", async () => {
+        const session = await edgesAt(["1995-06", "2001-01"]);
+        await session.time.setField({ edges: { start: "at", unit: "year", parseZone: LOS_ANGELES } });
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(1995, 5, 1));
+        assert.strictEqual(session.time.parse("1995-06", { timeZone: LOS_ANGELES }), Date.UTC(1995, 5, 1));
         session.dispose();
     });
 
@@ -369,13 +517,134 @@ describe("reading text in a zone", () => {
         session.dispose();
     });
 
-    it("takes a new parseZone as another timeline: the window goes", async () => {
-        const session = await edgesAt(SPREAD);
+    it("takes a new parseZone as another timeline: the window goes and the instants move", async () => {
+        const session = await edgesAt(["2026-01-15T12:00:00"]);
         await session.time.setField({ edges: { start: "at" } });
         await session.time.stepBy(1);
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 12));
         await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });
         assert.isNull(session.time.current);
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 17));
         session.dispose();
+    });
+
+    it("moves a node column's instants with a new parseZone too", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "a", at: "2026-01-15T12:00:00" }], edges: [] }) },
+        });
+        await session.time.setField({ nodes: { start: "at" } });
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 12));
+        await session.time.setField({ nodes: { start: "at", parseZone: NEW_YORK } });
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 17));
+        session.dispose();
+    });
+});
+
+describe.each([LOS_ANGELES, TOKYO])("on a machine in %s", (machineZone) => {
+    const machine = process.env.TZ;
+
+    beforeAll(() => {
+        process.env.TZ = machineZone;
+        // Without this the tests below would pass on a clock they never moved.
+        assert.notStrictEqual(new Date(2026, 0, 15).getTimezoneOffset(), 0);
+    });
+
+    afterAll(() => {
+        if (machine === undefined) {
+            Reflect.deleteProperty(process.env, "TZ");
+        } else {
+            process.env.TZ = machine;
+        }
+    });
+
+    describe("with the timeline on", () => {
+        const NOON = "Jan 15, 2026 12:00";
+
+        it("reads loose text in UTC when no zone is named", async () => {
+            const session = await edgesAt([NOON]);
+            await session.time.setField({ edges: { start: "at" } });
+            assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 12));
+            assert.strictEqual(session.time.parse(NOON), Date.UTC(2026, 0, 15, 12));
+            session.dispose();
+        });
+
+        it("reads loose text in UTC when UTC is named", async () => {
+            const session = await edgesAt([NOON]);
+            await session.time.setField({ edges: { start: "at", parseZone: "UTC" } });
+            assert.strictEqual(session.time.extent()?.from, Date.UTC(2026, 0, 15, 12));
+            session.dispose();
+        });
+
+        it("reads a year column's loose text in UTC, so January 1 stays in its year", async () => {
+            const session = await edgesAt(["Jan 1, 1995", "Jan 15, 2001 12:00"]);
+            await session.time.setField({ edges: { start: "at", unit: "year", parseZone: KOLKATA } });
+            assert.strictEqual(session.time.extent()?.from, Date.UTC(1995, 0, 1));
+            assert.strictEqual(session.time.parse("Jan 1, 1995"), Date.UTC(1995, 0, 1));
+            session.dispose();
+        });
+
+        it("reads a window's loose bounds in UTC, for the window and the mask", async () => {
+            const session = await edgesAt(DAY_ROWS.map((row) => `${row}Z`));
+            await session.time.setField({ edges: { start: "at" } });
+            await session.visibility.setWindow({
+                attribute: "at",
+                from: "Jan 15, 2026 00:00",
+                to: "Jan 15, 2026 09:00",
+            });
+            assert.deepEqual([...session.visibility.edgeMask()], [1, 1, 1, 0]);
+
+            await session.time.window({ from: NOON, to: "Jan 16, 2026 12:00" });
+            assert.strictEqual(session.time.current?.from, Date.UTC(2026, 0, 15, 12));
+            session.dispose();
+        });
+    });
+
+    describe("with the timeline off", () => {
+        /** Instants on either side of a morning: the bounds below hold one or the other by zone. */
+        const ROWS = ["2026-01-15T03:00:00Z", "2026-01-15T12:00:00Z"];
+
+        /**
+         * The edge mask of a designated column under a window.
+         * @param values - The column's values.
+         * @param from - The window's start.
+         * @param to - The window's end.
+         * @returns The mask.
+         */
+        async function maskOf(
+            values: readonly string[],
+            from: number | string,
+            to: number | string,
+        ): Promise<readonly number[]> {
+            const session = await edgesAt(values, OFF);
+            await session.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
+            await session.visibility.setWindow({ attribute: "at", from, to });
+            const mask = [...session.visibility.edgeMask()];
+            session.dispose();
+
+            return mask;
+        }
+
+        it("reads a zone-less date-time bound as Date.parse does", async () => {
+            const from = "2026-01-15T00:00:00";
+            const to = "2026-01-15T09:00:00";
+            assert.deepEqual(await maskOf(ROWS, from, to), await maskOf(ROWS, Date.parse(from), Date.parse(to)));
+        });
+
+        it("reads a column's loose text as Date.parse does, under a window a project saved", async () => {
+            const text = "Jan 15, 2026 12:00";
+            const at = Date.parse(text);
+            const session = await edgesAt([text]);
+            await session.time.setField({ edges: { start: "at" } });
+            await session.visibility.setWindow({ attribute: "at", from: at, to: at + 1 });
+            const saved = await session.project.save();
+            const reopened = createGraphSession(OFF);
+            await reopened.project.open(saved.text);
+            assert.deepEqual([...reopened.visibility.edgeMask()], [1]);
+            session.dispose();
+            reopened.dispose();
+        });
     });
 });
 
@@ -505,6 +774,16 @@ describe("with the timeline off", () => {
         assert.deepEqual([...zoned.visibility.edgeMask()], [...plain.visibility.edgeMask()]);
         plain.dispose();
         zoned.dispose();
+    });
+
+    it("reads a bound of plain digits as Date.parse does, not as an epoch", async () => {
+        const session = createGraphSession(OFF);
+        const edges = [{ source: "a", target: "b", at: 5 }];
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ edges }) } });
+        await session.config.set({ data: { knownFields: { edgeTimePath: "at" } } });
+        await session.visibility.setWindow({ attribute: "at", from: "1", to: "2030" });
+        assert.deepEqual([...session.visibility.edgeMask()], [0]);
+        session.dispose();
     });
 
     it("saves and opens a project with every zone it holds unchanged, even a bad one", async () => {

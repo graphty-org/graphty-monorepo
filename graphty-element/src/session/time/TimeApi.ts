@@ -754,7 +754,7 @@ function mostlyText(count: number, read: (row: number) => unknown): boolean {
  * @param zone - The zone text with no offset reads in.
  * @returns The index.
  */
-function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit, zone: string): KindIndex {
+function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit, zone?: string): KindIndex {
     const rows = new Float64Array(count);
     let untimed = 0;
     let unparsed = 0;
@@ -1214,10 +1214,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const indexKind = (kind: "node" | "edge", column: string, unit: TimeUnit, zone = UTC_ZONE): KindIndex => {
         const graph = sources.snapshot();
         const attribute = `${ATTRIBUTE_PREFIX}${column}`;
+        // With the timeline off no zone is named, and text reads as it did before zones.
+        const named = sources.timeline?.() === false ? undefined : zone;
 
         return kind === "node"
-            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit, zone)
-            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit, zone);
+            ? buildKind(graph.nodeCount, (row) => sources.values.nodeValue(row, attribute), unit, named)
+            : buildKind(graph.edgeCount, (row) => sources.values.edgeValue(row, attribute), unit, named);
     };
 
     /**

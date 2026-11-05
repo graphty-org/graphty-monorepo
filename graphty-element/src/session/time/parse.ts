@@ -4,8 +4,9 @@
  * Parsed ONCE per designated column, never per window: the index in `./TimeApi` holds the result.
  *
  * Every instant is UTC epoch milliseconds (or, for `unit: "ordinal"`, the plain number). A
- * date-time written with no offset is read in the zone the caller names, by default UTC and never
- * the machine's local time, so the same file gives the same timeline on every machine.
+ * date-time written with no offset is read in the zone the caller names, never the machine's local
+ * time, so the same file gives the same timeline on every machine. With no zone named, strict text
+ * reads in UTC and loose text as `Date.parse` reads it, which is how it reads with the timeline off.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -223,13 +224,14 @@ function looseIn(text: string, zone: string): number {
  * then `Date.parse` as a last resort, reported as `"loose"`. Nothing parses: `"unparsed"`.
  * @param value - The value an element carries.
  * @param unit - How numbers are read.
- * @param timeZone - The zone text with no offset reads in.
+ * @param timeZone - The zone text with no offset reads in, UTC included. Absent, strict text reads
+ *     in UTC and loose text as `Date.parse` reads it.
  * @returns The instant (NaN when there is none) and how it was read.
  */
 export function readInstant(
     value: unknown,
     unit: TimeUnit,
-    timeZone: string = UTC_ZONE,
+    timeZone?: string,
 ): { readonly at: number; readonly how: InstantReading } {
     if (value === undefined || value === null || value === "") {
         return { at: Number.NaN, how: "missing" };
@@ -255,7 +257,7 @@ export function readInstant(
         return { at: numberOf(Number(text), unit), how: "strict" };
     }
 
-    const zone = zoneUnder(unit, timeZone);
+    const zone = zoneUnder(unit, timeZone ?? UTC_ZONE);
     const iso = strictIso(text, zone);
     if (iso !== null) {
         return { at: iso, how: "strict" };
@@ -265,7 +267,7 @@ export function readInstant(
         return { at: numberOf(Number(text), unit), how: "strict" };
     }
 
-    const loose = zone === UTC_ZONE ? Date.parse(text) : looseIn(text, zone);
+    const loose = timeZone === undefined ? Date.parse(text) : looseIn(text, zone);
 
     return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
 }
@@ -300,10 +302,10 @@ export function readTimeValue(value: unknown, unit: TimeUnit, timeZone?: string)
 /**
  * A window bound as a number: text is read as a date-time is read in a time column.
  * @param bound - The bound.
- * @param timeZone - The zone text with no offset reads in.
+ * @param timeZone - The zone text with no offset reads in, as {@link readInstant} takes it.
  * @returns The number, NaN when the text names no instant.
  */
-export function numericBound(bound: number | string, timeZone: string = UTC_ZONE): number {
+export function numericBound(bound: number | string, timeZone?: string): number {
     return typeof bound === "number" ? bound : readInstant(bound, "ms", timeZone).at;
 }
 

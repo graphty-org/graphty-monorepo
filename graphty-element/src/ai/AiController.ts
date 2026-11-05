@@ -53,7 +53,7 @@ import {
 import { ENGINE_OVERRIDE, engineFor } from "./engine/load";
 import type { AiEngine, SavedMessage, ToolSpec } from "./engine/types";
 import type { LlmProvider } from "./providers/types";
-import { checkAgents } from "./roles";
+import { checkAgents, checkGeneratedOnly } from "./roles";
 import {
     addUsage,
     ASK_READER,
@@ -486,8 +486,9 @@ export interface AiCommandOptions {
      */
     readonly pointing?: AiPointing;
     /**
-     * What the message is about, read when it is sent: `"selection"` limits every tool call to the
-     * whole selection, however large, hidden elements included; `"graph"` is the whole graph,
+     * What the message is about, read when it is sent: `"selection"` limits every element a tool
+     * call names, styles or edits to the whole selection, however large, hidden elements included,
+     * and refuses a call that can only reach the whole graph; `"graph"` is the whole graph,
      * whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
      * message then reports it (`AiConversationMessage.scope`). Needs `toolset: "generated"`
      * (otherwise `AI_CONFIG_INVALID`) and the `assistant` experiment (otherwise it rejects with
@@ -673,6 +674,11 @@ export class AiController {
     /** The open history store, once opened. */
     private store: ConversationStore | undefined;
     private stopStore = (): void => undefined;
+    /**
+     * Stops following the graph's loads and the history's undos.
+     * @returns Nothing.
+     */
+    private stopSession = (): void => undefined;
     /** The open conversation, as last saved or loaded. */
     private current: ConversationRecord | undefined;
     /** Settles once the store is open and the conversation reopened. */
@@ -716,6 +722,10 @@ export class AiController {
         this.emitEvent = options.emitEvent;
         this.toolset = options.toolset ?? (hasAssistantTools(options.commandRegistry) ? "generated" : "commands");
         const generated = this.toolset === "generated";
+        if (!generated) {
+            checkGeneratedOnly(options);
+        }
+
         this.instructions = generated && options.instructions !== undefined ? `\n${options.instructions}` : "";
         this.profile = generated ? (options.toolProfile ?? "standard") : "standard";
         this.gate =
@@ -2395,11 +2405,105 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 this.emitChanged();
                 this.reopenPending(reopened);
             }
+
+            this.followSession();
         } catch (error) {
             // ponytail: an unreadable store reads as no history; the controller still answers.
             logger.warn("History could not open", { error: toSafeError(error).name });
             this.current = undefined;
         }
+    }
+
+    /**
+     * Follow what changes the open conversation from outside it: a graph that loads after the
+     * assistant came up, and undos.
+     */
+    private followSession(): void {
+        const session = this.graph.getSession();
+        const stopLoads = session.on("project:changed", ({ slices }) => {
+            if (slices.includes("graph")) {
+                void this.enqueue(() => this.reopenForGraph());
+            }
+        });
+        const stopUndos = session.on("history:changed", () => {
+            if (this.recordsEvidence(session)) {
+                void this.enqueue(() => this.noteUndone(session));
+            }
+        });
+        this.stopSession = () => {
+            stopLoads();
+            stopUndos();
+        };
+    }
+
+    /**
+     * Reopen the saved conversation of the graph just loaded, so a host may set its data before or
+     * after `enableAiControl`. A conversation the reader has begun stays open.
+     * @returns When done.
+     */
+    private async reopenForGraph(): Promise<void> {
+        const { store, current } = this;
+        if (this.disposed || store === undefined || current === undefined || current.messages.length > 0) {
+            return;
+        }
+
+        const found = conversationToReopen(await store.list(this.key()), this.key(), this.graphFacts());
+        if (found !== undefined && found.id !== current.id) {
+            this.current = found;
+            this.emitChanged();
+            this.reopenPending(found);
+        }
+    }
+
+    /**
+     * Record on the open conversation which of its messages are undone: a later edit drops undone
+     * steps from the history and a reload drops every step, so the history alone cannot say.
+     * @param session - The session.
+     * @returns When saved.
+     */
+    private async noteUndone(session: GraphSession): Promise<void> {
+        const { store, current } = this;
+        if (this.disposed || store === undefined || current === undefined) {
+            return;
+        }
+
+        const { steps, position } = session.history;
+        const standing = new Set(steps.slice(0, position).map((step) => step.provenance.message));
+        const taken = new Set(steps.slice(position).map((step) => step.provenance.message));
+        let changed = false;
+        const messages = current.messages.map((message) => ({
+            ...message,
+            parts: message.parts.map((part) => {
+                const { provenance } = part.type === "text" ? part : { provenance: undefined };
+                if (part.type !== "text" || provenance === undefined) {
+                    return part;
+                }
+
+                const undone = !standing.has(provenance);
+                // In neither list, its steps left the history: it stays as it was.
+                if ((undone && !taken.has(provenance)) || undone === (part.undone === true)) {
+                    return part;
+                }
+
+                changed = true;
+                const { undone: _was, ...rest } = part;
+                return undone ? { ...rest, undone } : rest;
+            }),
+        }));
+        if (!changed) {
+            return;
+        }
+
+        const record: ConversationRecord = { ...current, messages, updatedAt: new Date().toISOString() };
+        this.current = record;
+        try {
+            this.current = await store.save(record);
+        } catch (error) {
+            // A store reports its own write failures; the mark stays on the copy in hand.
+            logger.warn("Undone message not saved", { error: toSafeError(error).name });
+        }
+
+        this.emitChanged();
     }
 
     /**
@@ -2551,6 +2655,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         await this.supersedePending(true);
         this.current = record;
         this.liveStale();
+        // The last run's streamed words and tool calls were another conversation's.
+        this.statusManager.reset();
         this.emitChanged();
         this.reopenPending(record);
         return true;
@@ -2607,6 +2713,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 // The old conversation's requests end with it, as a new message would end them.
                 await this.supersedePending(true);
                 this.current = this.freshRecord();
+                this.statusManager.reset();
                 this.emitChanged();
             }
 
@@ -2643,6 +2750,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 await this.supersedePending(false);
                 this.current = this.freshRecord();
                 this.liveStale();
+                this.statusManager.reset();
                 this.emitChanged();
             }
         });
@@ -2664,6 +2772,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             await this.supersedePending(false);
             await this.store.clear();
             this.current = this.freshRecord();
+            this.statusManager.reset();
             this.emitChanged();
         });
     }
@@ -2747,14 +2856,29 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         this.disposed = true;
         // A waiting request stays saved for the next element on this conversation (a reload, a
         // remount): only this controller forgets it, so the cancel below does not end it.
+        const ended = [
+            ...[...this.approvals.keys()].map((id) => ({ id, kind: "approval" })),
+            ...[...this.questions.keys()].map((id) => ({ id, kind: "question" })),
+        ];
         for (const pending of [...this.approvals.values(), ...this.questions.values()]) {
             pending.stopWatching();
         }
 
         this.approvals.clear();
         this.questions.clear();
+        for (const { id, kind } of ended) {
+            this.emitAiEvent({
+                type: "ai-pending-resolved",
+                id,
+                kind,
+                code: "AI_APPROVAL_STALE",
+                params: { request: id, reason: "disposed" },
+            });
+        }
+
         this.cancel();
         this.stopStore();
+        this.stopSession();
         // Closed once the turns before it have settled, so the last save still lands.
         void this.queue.then(() => this.store?.close());
         this.engine.dispose();

@@ -10,6 +10,7 @@ import type { NodeId } from "../../catalog/types";
 import type { AiApprovalRequest, AiQuestionRequest } from "../../events";
 import { type AiApprovalAnswer, type AiCommandOptions, type ExecutionResult, LIVE_MESSAGE } from "../AiController";
 import type { AiVoiceOptions, AiVoicePath, AiVoiceSupport } from "../AiManager";
+import { comparable } from "../comparable";
 import type { AiEngine, LiveConnection, LiveOpened, LiveOptions } from "../engine/types";
 import type { AiPointing } from "../tools/prompt";
 import {
@@ -101,19 +102,6 @@ export interface VoiceHost {
     onPointed?(listener: (id: NodeId) => void): () => void;
     /** A spoken message's outcome, before it is spoken. */
     answered?(result: ExecutionResult): void;
-}
-
-/**
- * An utterance as replies and choices are compared: case, punctuation and spacing ignored.
- * @param text - The utterance.
- * @returns Its comparable form.
- */
-export function comparable(text: string): string {
-    return text
-        .toLowerCase()
-        .replaceAll(/[\p{P}\p{S}]/gu, "")
-        .replaceAll(/\s+/g, " ")
-        .trim();
 }
 
 /** One assistant's push-to-talk. */

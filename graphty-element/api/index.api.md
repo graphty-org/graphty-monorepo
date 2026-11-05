@@ -2647,9 +2647,11 @@ export class Graph implements GraphContext {
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
-    clearAiHistory(): Promise<void>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
-    static createApiKeyManager(): Promise<ApiKeyManager>;
+    static createApiKeyManager(options?: ApiKeyManagerOptions): Promise<ApiKeyManager>;
     deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     disableAiControl(): void;
@@ -2679,6 +2681,10 @@ export class Graph implements GraphContext {
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    forgetAiKeys(options?: {
+        readonly provider?: ProviderType;
+        readonly prefix?: string;
+    }): Promise<void>;
     getAcceleration(): AccelerationController;
     getAiCapabilities(): AiCapabilities | null;
     getAiConversation(): AiConversationSnapshot | null;
@@ -3140,7 +3146,9 @@ export class Graphty extends LitElement {
     cancelAnimationCapture(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
-    clearAiHistory(): Promise<void>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
@@ -3196,6 +3204,7 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void>;
     getAiCapabilities(): AiCapabilities | null;
     getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;

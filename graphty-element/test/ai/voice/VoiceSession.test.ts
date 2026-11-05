@@ -12,10 +12,11 @@ import { AiController, type AiControllerOptions, type ExecutionResult } from "..
 import type { AiVoiceOptions, AiVoiceSupport } from "../../../src/ai/AiManager";
 import { CommandRegistry } from "../../../src/ai/commands";
 import type { CommandContext } from "../../../src/ai/commands/types";
+import { comparable } from "../../../src/ai/comparable";
 import { FakeEngine } from "../../../src/ai/engine/FakeEngine";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import { installAssistantTools } from "../../../src/ai/tools/install";
-import { comparable, type VoiceEventType, VoiceSession } from "../../../src/ai/voice/VoiceSession";
+import { type VoiceEventType, VoiceSession } from "../../../src/ai/voice/VoiceSession";
 import { AI_VOICE_APPROVABLE_GATES } from "../../../src/catalog/ai";
 import type { AiApprovalRequest, AiEvent } from "../../../src/events";
 import { assistantSession, callsTurn, digest, textTurn } from "../../helpers/assistant";

@@ -13,8 +13,11 @@ import type { TransactionScope } from "../../../session/types";
 import { styleEffects } from "../effects";
 import {
     attributeNames,
+    boundIds,
     idsOf,
     MAX_STRING,
+    refuseWhenBound,
+    requireMatch,
     requireTarget,
     resolveNode,
     resolveRun,
@@ -552,7 +555,12 @@ async function encode(
         ...(spec.missing === undefined ? {} : { missing: { value: spec.missing } }),
     };
     const name = typeof args.name === "string" ? args.name : undefined;
-    const layer = Object.keys(scaleOptions).every((key) => key === "reverse")
+    const bound = boundIds(args, kind);
+    if (bound !== undefined) {
+        requireMatch(bound.length, { kind: "ids", ids: [] });
+    }
+
+    const made = Object.keys(scaleOptions).every((key) => key === "reverse")
         ? await encodeChannel(tx, {
               ...source,
               channel,
@@ -568,6 +576,13 @@ async function encode(
               selector: { match: "has", path },
               encode: { [channel]: { by: path, ...binding, ...scaleOptions } },
           });
+    // Planned over the graph, as any encoding is, and drawn on the selection only.
+    const layer =
+        bound === undefined
+            ? made
+            : await coded(() =>
+                  tx.styles.update(made.id, { selector: selectorOf({ kind: "ids", ids: [...bound] }, kind) }),
+              );
     return {
         ...ok(
             { layer: layer.id, name: layer.name },
@@ -791,6 +806,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
             effect: "write",
             reaches: [{ door: "Run.suggestEncodings" }, { door: "RunsApi.start" }, { op: "algo.run" }],
             run: ({ tx, message }, args) => {
+                refuseWhenBound(args, "apply_suggestion");
                 const id = resolveRun(tx, text(args.run, "latest"));
                 const run = tx.runs.get(id);
                 if (run === undefined) {

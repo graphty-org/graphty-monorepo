@@ -114,6 +114,10 @@
                                             "const": "text",
                                             "type": "string"
                                         },
+                                        "undone": {
+                                            "const": true,
+                                            "type": "boolean"
+                                        },
                                         "via": {
                                             "enum": [
                                                 "text",
@@ -576,6 +580,10 @@
                                                                         "type": {
                                                                             "const": "text",
                                                                             "type": "string"
+                                                                        },
+                                                                        "undone": {
+                                                                            "const": true,
+                                                                            "type": "boolean"
                                                                         },
                                                                         "via": {
                                                                             "enum": [

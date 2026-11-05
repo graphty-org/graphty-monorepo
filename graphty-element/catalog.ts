@@ -83,7 +83,7 @@ export {
     checkApiKeyShape,
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
-export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS, calledAlgorithm } from "./src/catalog/algorithms";
 export type {
     AiToolCauseCode,
     AssistantToolDescriptor,

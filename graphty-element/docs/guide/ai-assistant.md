@@ -299,8 +299,10 @@ if (first.code === "AI_QUESTION_ASKED") {
 - **`aiCommand` resolves when the question is asked**, with `code: "AI_QUESTION_ASKED"` and
   `params: { request }`, where `request` is the question's id. Tool calls the model made before
   the question in the same turn have run; nothing after it has.
-- **`answerAiQuestion(id, answer)` answers by value**: `answer` is one of `request.choices`,
-  exactly as given, or an array of them when `request.multiple` is true. The answer becomes the
+- **`answerAiQuestion(id, answer)` answers by value**: `answer` is one of `request.choices`, or an
+  array of them when `request.multiple` is true. Case, punctuation and spacing do not count, so you
+  can pass what the reader typed as it stands, and a question that takes several also takes one
+  text with commas between its choices. The answer becomes the
   result of the model's question, the model goes on, and the promise resolves with the message's
   final result. An answer that is not among the choices (or several for a question that takes one)
   resolves `AI_ANSWER_INVALID` with `{ request }`; nothing continues and the question stays open.
@@ -308,7 +310,9 @@ if (first.code === "AI_QUESTION_ASKED") {
 - **A question ends on an event, never on a timer**, as an approval does: on the answer; on a new
   message or `retryLastAiCommand()` (`AI_APPROVAL_STALE`, `reason: "superseded"`); on
   `cancelAiCommand()` (`AI_CANCELLED`); when the message's step is undone (`AI_UNDONE`); or when the
-  conversation is replaced or cleared (`AI_APPROVAL_STALE`, `reason: "superseded"`). Each emits
+  conversation is replaced or cleared (`AI_APPROVAL_STALE`, `reason: "superseded"`). When the
+  assistant itself goes (`disableAiControl`, or a new `enableAiControl`) it ends with `reason:
+"disposed"` and stays saved for the next assistant on that conversation. Each emits
   `ai-pending-resolved { id, kind: "question", code, params }`.
 - **Replay after a reload**, as for approvals: with `history: "browser"` an open question is asked
   again with `replayed: true`, and of two tabs answering one question, the late one resolves
@@ -350,23 +354,25 @@ history: {
   apart. Give each element an `id`.
 - **`enableAiControl` reopens** the newest conversation of that `key` whose `dataKey` matches, or
   failing that, whose graph matches the loaded one (same nodes and edges). Otherwise it starts a
-  new one; the others stay listed.
+  new one; the others stay listed. Set your data before or after `enableAiControl`: while the open
+  conversation is still empty, loading a graph reopens that graph's conversation.
 - **`budgetTokens`** is measured as characters / 4. The default is 16,000 (3,000 with
   `toolProfile: "small"`). Older exchanges drop out of what the model is shown, whole and oldest
   first; they stay in the conversation.
 
 The methods, on the element (and on `Graph`):
 
-| Method                              | What it does                                                                                   |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `getAiConversation()`               | the open conversation, or `null`; see below                                                    |
-| `listAiConversations({ allKeys? })` | summaries of this `key`'s conversations (every key's with `allKeys: true`)                     |
-| `openAiConversation(id)`            | make a saved conversation the open one                                                         |
-| `newAiConversation()`               | start an empty one                                                                             |
-| `aiCommand(text, { conversation })` | open that conversation and send into it                                                        |
-| `deleteAiConversation(id)`          | delete one                                                                                     |
-| `clearAiHistory()`                  | delete every saved conversation and open request in the store, of every key                    |
-| `exportAiConversation(id)`          | the saved record as JSON text (the [conversation format](./ai-conversation-format)), or `null` |
+| Method                              | What it does                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `getAiConversation()`               | the open conversation, or `null`; see below                                                      |
+| `listAiConversations({ allKeys? })` | summaries of this `key`'s conversations (every key's with `allKeys: true`)                       |
+| `openAiConversation(id)`            | make a saved conversation the open one                                                           |
+| `newAiConversation()`               | start an empty one                                                                               |
+| `aiCommand(text, { conversation })` | open that conversation and send into it                                                          |
+| `deleteAiConversation(id)`          | delete one                                                                                       |
+| `clearAiHistory({ database? })`     | delete every saved conversation and open request in the store, of every key; no assistant needed |
+| `forgetAiKeys({ provider? })`       | forget the reader's API keys, in memory and in both storages; no assistant needed                |
+| `exportAiConversation(id)`          | the saved record as JSON text (the [conversation format](./ai-conversation-format)), or `null`   |
 
 `aiCommand` with an unknown `conversation`, or any `conversation` with `history: "none"`,
 resolves `AI_HISTORY_UNAVAILABLE` with `reason: "unknown-conversation"` and sends nothing.

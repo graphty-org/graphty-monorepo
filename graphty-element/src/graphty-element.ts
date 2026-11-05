@@ -5732,11 +5732,28 @@ export class Graphty extends LitElement {
 
     /**
      * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * Works with no assistant enabled too: it then clears the browser's store.
+     * @param options - Which store, with no assistant open on one.
+     * @param options.database - The IndexedDB database `history.database` named; `graphty-ai` when absent.
      * @returns When they are deleted.
      * @since 4.0.0
      */
-    async clearAiHistory(): Promise<void> {
-        return this.#graph.clearAiHistory();
+    async clearAiHistory(options?: { readonly database?: string }): Promise<void> {
+        return this.#graph.clearAiHistory(options);
+    }
+
+    /**
+     * Forget the reader's API keys, from memory and from both storages, whether or not an assistant
+     * is enabled: for a "clear my data" page. An assistant already running keeps the key its provider
+     * was given until `disableAiControl`.
+     * @param options - Which keys.
+     * @param options.provider - One provider's key; every provider's when absent.
+     * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
+     * @returns When they are forgotten.
+     * @experimental assistant
+     */
+    async forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void> {
+        return this.#graph.forgetAiKeys(options);
     }
 
     /**

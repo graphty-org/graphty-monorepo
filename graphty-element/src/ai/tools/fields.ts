@@ -246,6 +246,32 @@ export function attributeNames(session: Pick<GraphSession, "data">, kind: "node"
 /** The arguments' key the executor hands a message's bound selection under: no model can write it. */
 export const BOUND_SELECTION: unique symbol = Symbol("graphty.ai.bound-selection");
 
+/**
+ * The ids of a message's bound selection, for an action that writes without a target.
+ * @param args - The call's arguments.
+ * @param kind - Nodes or edges.
+ * @returns The ids, or undefined when the message is not bound.
+ */
+export function boundIds(
+    args: Record<string, unknown>,
+    kind: "node" | "edge",
+): readonly (string | number)[] | undefined {
+    const bound = (args as { [BOUND_SELECTION]?: BoundSelection })[BOUND_SELECTION];
+    return kind === "node" ? bound?.nodes : bound?.edges;
+}
+
+/**
+ * Refuse an action that can only reach the whole graph, on a message bound to a selection.
+ * @param args - The call's arguments.
+ * @param name - The action, for the model.
+ * @throws {ToolRefusal} `AI_NOT_AVAILABLE` when the message is bound.
+ */
+export function refuseWhenBound(args: Record<string, unknown>, name: string): void {
+    if ((args as { [BOUND_SELECTION]?: BoundSelection })[BOUND_SELECTION] !== undefined) {
+        throw new ToolRefusal("AI_NOT_AVAILABLE", { name, requirement: "whole-graph" });
+    }
+}
+
 /** The word a call under a bound selection names all of it by. */
 const SELECTION_WORD = "selection";
 

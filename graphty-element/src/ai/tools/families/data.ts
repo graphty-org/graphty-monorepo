@@ -14,10 +14,12 @@ import type { Graph } from "../../../Graph";
 import type { TransactionScope } from "../../../session/types";
 import { dataEffects, effectTarget } from "../effects";
 import {
+    boundIds,
     idsOf,
     MAX_STRING,
     recordField,
     recordsField,
+    refuseWhenBound,
     requireMatch,
     requireTarget,
     resolveNode,
@@ -84,6 +86,14 @@ async function update(
 
             return { id: kind === "node" ? resolveNode(tx, String(id)) : String(id), values };
         });
+        const bound = boundIds(args, kind);
+        if (bound !== undefined) {
+            const held = new Set(bound.map(String));
+            const named = rows.length;
+            rows = rows.filter((row) => held.has(row.id));
+            requireMatch(rows.length, { kind: "ids", ids: [] });
+            notes = { outsideSelection: named - rows.length };
+        }
     } else {
         if (args.values === undefined) {
             throw new ToolRefusal("AI_ARG_INVALID", {
@@ -273,7 +283,8 @@ export const editDataTool: ToolDefinition = {
             fields: {},
             effect: "write",
             reaches: [{ door: "SessionDataApi.clear" }, { op: "data.apply" }],
-            run: async ({ tx, message }) => {
+            run: async ({ tx, message }, args) => {
+                refuseWhenBound(args, "delete_all");
                 const { nodes, edges } = tx.status.counts;
                 if (gated(message, "replaces") && nodes > 0) {
                     throw new GateHold("replaces", { nodes, edges });

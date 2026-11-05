@@ -7,8 +7,8 @@
 import { z } from "zod";
 
 import type { AiEffect, AiTarget } from "../../../catalog/ai";
-import { algorithmByLegacyKey } from "../../../catalog/algorithms";
-import type { AlgorithmDescriptor, LayerId } from "../../../catalog/types";
+import { algorithmKeyOf } from "../../../catalog/algorithms";
+import type { LayerId } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { GraphSession, TransactionScope } from "../../../session/types";
 import { foundEffects } from "../effects";
@@ -28,28 +28,6 @@ import {
     ToolRefusal,
 } from "../types";
 import { coded, codedNow, nameField, ok } from "./common";
-
-/**
- * The catalog key a name means: its own key, any case, `_` for `-`, a `graphty:` prefix, or a
- * legacy key (`dijkstra` is `shortest-path` with `method: "dijkstra"`).
- * @param name - The name the model wrote.
- * @param algorithms - The catalog's algorithms.
- * @returns The key and the parameters the legacy key implies, or undefined.
- */
-export function algorithmKeyOf(
-    name: string,
-    algorithms: readonly AlgorithmDescriptor[],
-): { key: string; params: Readonly<Record<string, unknown>> } | undefined {
-    const bare = name.trim().replace(/^graphty:/i, "");
-    const lower = bare.toLowerCase().replaceAll("_", "-");
-    const direct = algorithms.find((entry) => entry.key === bare || entry.key.toLowerCase() === lower);
-    if (direct !== undefined) {
-        return { key: direct.key, params: {} };
-    }
-
-    const legacy = algorithmByLegacyKey(lower) ?? algorithmByLegacyKey(lower.replaceAll("-", ""));
-    return legacy === undefined ? undefined : { key: legacy.descriptor.key, params: legacy.params };
-}
 
 /**
  * A registered algorithm class with no descriptor, which runs through the legacy op by its address.

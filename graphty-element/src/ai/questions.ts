@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import type { AiQuestionRequest } from "../events";
+import { comparable } from "./comparable";
 import { compactSchema, toolJsonSchema } from "./engine/jsonSchema";
 import type { JsonSchema, ToolSpec } from "./engine/types";
 import { ASK_READER, type AskedQuestion } from "./runConversation";
@@ -53,17 +54,70 @@ export function askedQuestion(call: ToolCallRequest): AskedQuestion | undefined 
 }
 
 /**
- * The choices an answer picks, when they are among the question's.
+ * The choice some text names: itself, else the one choice alike with case, punctuation and spacing
+ * ignored, as a spoken answer is matched.
+ * @param text - The text.
+ * @param choices - The choices.
+ * @returns The choice, or undefined when none is, or two are alike.
+ */
+function choiceNamed(text: string, choices: readonly string[]): string | undefined {
+    if (choices.includes(text)) {
+        return text;
+    }
+
+    const said = comparable(text);
+    const alike = choices.filter((choice) => comparable(choice) === said);
+    return said !== "" && alike.length === 1 ? alike[0] : undefined;
+}
+
+/**
+ * The choices a comma list names, each the longest run of its pieces that is a choice, so a choice
+ * with a comma in it stays one.
+ * @param text - The list.
+ * @param choices - The choices.
+ * @returns The choices, or undefined when a piece names none.
+ */
+function choicesListed(text: string, choices: readonly string[]): string[] | undefined {
+    const pieces = text.split(",");
+    const picked: string[] = [];
+    for (let start = 0; start < pieces.length;) {
+        let end = pieces.length;
+        let choice: string | undefined;
+        for (; end > start && choice === undefined; end -= 1) {
+            choice = choiceNamed(pieces.slice(start, end).join(","), choices);
+        }
+
+        if (choice === undefined) {
+            return undefined;
+        }
+
+        picked.push(choice);
+        start = end + 1;
+    }
+
+    return picked;
+}
+
+/**
+ * The choices an answer picks, when they are among the question's: what a reader types or says
+ * counts with case, punctuation and spacing ignored, and a question that takes several also takes
+ * one text of its choices with commas between them.
  * @param request - The question.
  * @param answer - The answer: one choice, or several for a question that takes several.
- * @returns The choices, or undefined when the answer is not one of them.
+ * @returns The choices as the question gave them, or undefined when the answer is not among them.
  */
 export function pickedChoices(request: AiQuestionRequest, answer: string | readonly string[]): string[] | undefined {
-    const values = typeof answer === "string" ? [answer] : [...answer];
+    const { choices, multiple } = request;
+    const named =
+        typeof answer === "string" && multiple
+            ? choicesListed(answer, choices)
+            : (typeof answer === "string" ? [answer] : answer).map((value) => choiceNamed(value, choices));
+    const values = named?.filter((value) => value !== undefined);
     const valid =
+        values !== undefined &&
         values.length > 0 &&
-        (request.multiple || values.length === 1) &&
-        new Set(values).size === values.length &&
-        values.every((value) => request.choices.includes(value));
+        values.length === named?.length &&
+        (multiple || values.length === 1) &&
+        new Set(values).size === values.length;
     return valid ? values : undefined;
 }

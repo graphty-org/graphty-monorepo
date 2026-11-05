@@ -439,6 +439,9 @@ export interface ByDesignWaiver {
 }
 
 // @public
+export function calledAlgorithm(tool: string, args: Readonly<Record<string, unknown>> | undefined): BuiltInAlgorithmDescriptor | undefined;
+
+// @public
 export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[];
 
 // @public

@@ -116,6 +116,7 @@ const ASSISTANT_VERBS = [
     "newAiConversation",
     "deleteAiConversation",
     "clearAiHistory",
+    "forgetAiKeys",
     "retryLastAiCommand",
     "startVoiceInput",
     "stopVoiceInput",

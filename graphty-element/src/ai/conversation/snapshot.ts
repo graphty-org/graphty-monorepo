@@ -80,6 +80,13 @@ export type AiConversationMessage =
            * @experimental assistant
            */
           readonly provenance?: string;
+          /**
+           * Set once none of the message's changes stands: its steps were undone. It stays through
+           * later edits and reloads, which drop those steps from `session.history`, and goes if they
+           * are redone.
+           * @experimental assistant
+           */
+          readonly undone?: true;
       }
     | {
           /** The message's id, stable across saves and reloads. */
@@ -294,6 +301,7 @@ function readerEntry(message: SavedMessage): AiConversationMessage[] {
             via: said.some((part) => part.via === "voice") ? "voice" : "text",
             ...(said[0].scope === undefined ? {} : { scope: said[0].scope }),
             ...(said[0].provenance === undefined ? {} : { provenance: said[0].provenance }),
+            ...(said[0].undone === undefined ? {} : { undone: said[0].undone }),
         },
     ];
 }

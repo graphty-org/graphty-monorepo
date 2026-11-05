@@ -8253,10 +8253,22 @@ export class Graph implements GraphContext {
 
     /**
      * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * Works with no assistant enabled too: it then clears the browser's store.
+     * @param options - Which store, with no assistant open on one.
+     * @param options.database - The IndexedDB database `history.database` named; `graphty-ai` when absent.
      * @since 4.0.0
      */
-    async clearAiHistory(): Promise<void> {
-        await this.aiManager?.clearHistory();
+    async clearAiHistory(options: { readonly database?: string } = {}): Promise<void> {
+        const manager = this.aiManager;
+        if (manager !== null && manager.getConversation() !== null) {
+            await manager.clearHistory();
+            return;
+        }
+
+        const { openConversationStore } = await import("./ai/conversation/Conversation");
+        const { store } = await openConversationStore({ store: "browser", ...options });
+        await store.clear();
+        store.close();
     }
 
     /**
@@ -8442,6 +8454,28 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Forget the reader's API keys, from memory and from both storages, whether or not an assistant
+     * is enabled: for a "clear my data" page. An assistant already running keeps the key its provider
+     * was given until `disableAiControl`.
+     * @param options - Which keys.
+     * @param options.provider - One provider's key; every provider's when absent.
+     * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
+     * @experimental assistant
+     */
+    async forgetAiKeys(
+        options: { readonly provider?: import("./ai/providers").ProviderType; readonly prefix?: string } = {},
+    ): Promise<void> {
+        const { provider, prefix } = options;
+        const keys =
+            this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
+        if (provider === undefined) {
+            keys.forgetKeys();
+        } else {
+            keys.forgetKey(provider);
+        }
+    }
+
+    /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
@@ -8456,6 +8490,7 @@ export class Graph implements GraphContext {
      * A consumer who wants it synchronously imports `ApiKeyManager` from
      * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
      * because they are then choosing to load the encryption library.
+     * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
@@ -8468,11 +8503,11 @@ export class Graph implements GraphContext {
      * keyManager.setKey('openai', apiKey);
      * ```
      */
-    static async createApiKeyManager(): Promise<ApiKeyManager> {
+    static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
         const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
         await loadEncryptStorage();
 
-        return new KeyManager();
+        return new KeyManager(options);
     }
 
     // ===========================================

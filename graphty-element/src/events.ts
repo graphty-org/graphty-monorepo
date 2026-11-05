@@ -1052,7 +1052,11 @@ export interface AiPendingResolvedEvent {
      * `AI_CANCELLED` or `AI_UNDONE`.
      */
     code: AiResultCode;
-    /** The facts behind `code` (`reason` for a stale request). */
+    /**
+     * The facts behind `code` (`reason` for a stale request). `reason: "disposed"`: the assistant
+     * went (`disableAiControl`, or a new `enableAiControl`); the request stays saved, and the next
+     * assistant on its conversation asks it again.
+     */
     params: AiResultParams;
 }
 

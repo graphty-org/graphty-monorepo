@@ -287,6 +287,59 @@ export class ApiKeyManager {
      */
     forgetKey(provider: ProviderType): void {
         this.keys.delete(provider);
+        this.eachStore((store) => {
+            const stored = readKeys(store);
+            if (stored !== null && provider in stored) {
+                const { [provider]: _forgotten, ...kept } = stored;
+                store.setItem(KEYS_ITEM, kept);
+            }
+        });
+    }
+
+    /**
+     * Remove every provider's key from memory and from both storages; see {@link forgetKey}.
+     * @experimental assistant
+     */
+    forgetKeys(): void {
+        this.keys.clear();
+        this.eachStore((store) => {
+            store.removeItem(KEYS_ITEM);
+        });
+    }
+
+    /**
+     * Move the keys another `storage` setting left into the storage in use, so a key is never kept
+     * in the one the host just moved away from. Nothing without persistence on.
+     * @experimental assistant
+     */
+    retireOtherStorage(): void {
+        const config = this.persistenceConfig;
+        if (config === null || typeof window === "undefined") {
+            return;
+        }
+
+        const storage = config.storage === "localStorage" ? "sessionStorage" : "localStorage";
+        const store = this.openStorage({ ...config, storage });
+        const stored = readKeys(store);
+        if (stored === null) {
+            return;
+        }
+
+        for (const [provider, key] of Object.entries(stored)) {
+            if (!this.keys.has(provider as ProviderType)) {
+                this.keys.set(provider as ProviderType, key);
+            }
+        }
+
+        this.persistKeys();
+        store.removeItem(KEYS_ITEM);
+    }
+
+    /**
+     * Visit the encrypted store of both storages, under the key persistence uses.
+     * @param visit - What to do with each.
+     */
+    private eachStore(visit: (store: EncryptStorage) => void): void {
         if (typeof window === "undefined") {
             return;
         }
@@ -296,12 +349,7 @@ export class ApiKeyManager {
             prefix: this.prefix,
         };
         for (const storage of ["localStorage", "sessionStorage"] as const) {
-            const store = this.openStorage({ encryptionKey, storage, prefix });
-            const stored = readKeys(store);
-            if (stored !== null && provider in stored) {
-                const { [provider]: _forgotten, ...kept } = stored;
-                store.setItem(KEYS_ITEM, kept);
-            }
+            visit(this.openStorage({ encryptionKey, storage, prefix }));
         }
     }
 

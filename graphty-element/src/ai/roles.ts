@@ -57,10 +57,20 @@ export function checkAiConfig(config: AiManagerConfig): void {
     }
 
     if (config.toolset !== "generated") {
-        const field = GENERATED_ONLY.find((name) => config[name] !== undefined);
-        if (field !== undefined) {
-            throw new AiConfigError({ field, reason: "needs-generated-toolset" });
-        }
+        checkGeneratedOnly(config);
+    }
+}
+
+/**
+ * Refuse a setting only `toolset: "generated"` honors: left unread, `approvals` would run writes
+ * unasked, and `tools` would run them after reading the web.
+ * @param config - The settings of an assistant on the hand-written commands.
+ * @throws {AiConfigError} On the first such setting.
+ */
+export function checkGeneratedOnly(config: Partial<Record<(typeof GENERATED_ONLY)[number], unknown>>): void {
+    const field = GENERATED_ONLY.find((name) => config[name] !== undefined);
+    if (field !== undefined) {
+        throw new AiConfigError({ field, reason: "needs-generated-toolset" });
     }
 }
 

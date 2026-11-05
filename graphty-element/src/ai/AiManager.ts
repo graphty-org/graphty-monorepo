@@ -503,6 +503,7 @@ export class AiManager {
                 storage: config.keyPersistence.storage ?? "localStorage",
                 prefix: config.keyPersistence.prefix,
             });
+            this.apiKeyManager.retireOtherStorage();
         }
 
         // Use custom provider instance if provided, otherwise create one
@@ -556,7 +557,9 @@ export class AiManager {
             schemaManager: this.schemaManager,
             toolset,
             ...(config.instructions === undefined ? {} : { instructions: config.instructions }),
-            toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile,
+            ...(toolset === "generated"
+                ? { toolProfile: profile === "auto" ? toolProfileFor(smallModel) : profile }
+                : {}),
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),

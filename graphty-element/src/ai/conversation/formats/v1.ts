@@ -64,6 +64,8 @@ const textPart = z.strictObject({
     scope: scopeSchema.optional(),
     /** The id the reader's message's history steps carry (`provenance.message`). */
     provenance: id.optional(),
+    /** Set once no step of the reader's message stands: they were all undone. */
+    undone: z.literal(true).optional(),
 });
 
 /** Which elements an effect or a held change names, as `AiTarget` states it. */

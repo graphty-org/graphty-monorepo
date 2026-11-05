@@ -173,7 +173,7 @@ export const snapshotLayoutInternals = {} as {
  * @param path - the path
  * @returns the value, or undefined
  */
-function atPath(data: unknown, path: string): unknown {
+export function atPath(data: unknown, path: string): unknown {
     let value = data;
     for (const key of path.split(".")) {
         if (value === null || typeof value !== "object") {

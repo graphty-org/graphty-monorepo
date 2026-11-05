@@ -63,6 +63,7 @@ import type {
 } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { featureOff } from "../../features/resolve";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
 import { Dispatcher } from "../project/Dispatcher";
 import type { VisibilityState } from "../project/state";
@@ -116,7 +117,9 @@ import {
     type RuleTree,
     runPass,
     type ScopeLeaf,
+    type TimePlayback,
     type TimeWindow,
+    windowNeedsTimeline,
 } from "./filter";
 import { type SlideCounts, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
@@ -488,6 +491,27 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The run, which resolves with the counts.
      */
     restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult>;
+    /**
+     * Record a window read back from a project file, kept as saved whatever the session switched
+     * on, so a project saved with the timeline on survives being opened and saved with it off.
+     * @param window - The window.
+     * @param raw - Whether the file says its bounds are values to compare as they stand.
+     * @returns The run, which resolves with the counts.
+     */
+    restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult>;
+    /**
+     * Record timeline settings read back from a project file, or clear them, kept as saved
+     * whatever the session switched on.
+     * @param playback - The settings, or null.
+     * @returns Resolves once they are recorded.
+     */
+    restorePlayback(playback: TimePlayback | null): Promise<unknown>;
+    /**
+     * Whether a window's bounds are instants of a time column's parsed values.
+     * @param window - The window.
+     * @returns True with the timeline on, and for a window a project saved as instants.
+     */
+    holdsInstants(window: TimeWindow): boolean;
     /**
      * Move the time window without recording it, writing only the rows whose membership changes:
      * the cursor `session.time` plays and drags. Recording the window afterwards (`setWindow`, or
@@ -1049,17 +1073,30 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const passSources = (graph: GraphSnapshot): FilterSources => {
         const { scope, dependencies } = sources;
         if (scope === undefined) {
-            return sources;
+            return { ...sources, holdsInstants };
         }
 
         return {
             ...sources,
+            holdsInstants,
             scope: (spec): ScopeLeaf =>
                 dependencies !== undefined && visibilityCycle({ kind: "member", of: spec }, dependencies) !== null
                     ? { nodes: makeMask(graph.nodeCount), edges: null }
                     : scope(spec),
         };
     };
+
+    /** The window a project restored as instants, as text: undo brings back a copy of it. */
+    let savedInstants: string | null = null;
+
+    /**
+     * Whether a window's bounds are instants. With the timeline off a window set live reads values
+     * as they stand, as it did before the timeline; only a saved one holds instants.
+     * @param window - The window.
+     * @returns True for instants.
+     */
+    const holdsInstants = (window: TimeWindow): boolean =>
+        sources.timeline?.() !== false || JSON.stringify(window) === savedInstants;
 
     /**
      * Write the whole membership into the masks from a filter and a window.
@@ -1242,6 +1279,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
     const timeGhosting = (): boolean =>
+        sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
 
@@ -1406,6 +1444,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     // The visibility ops of this dispatcher refuse what this session cannot evaluate.
     dispatcher.services.visibility = {
+        timeline: () => sources.timeline?.() !== false,
         check: (filter, window) => {
             assertEvaluable(filter, window, sources);
         },
@@ -2103,6 +2142,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
             assertVisibility(null, window);
+            if (sources.timeline?.() === false && windowNeedsTimeline(window)) {
+                throw featureOff("timeline", "visibility.window");
+            }
 
             return edit({ op: "visibility.window", window }, ruleNow(), window, options);
         },
@@ -2178,6 +2220,19 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 {},
             );
         },
+
+        restoreWindow(window: TimeWindow, raw: boolean): Run<FilterResult> {
+            assertVisibility(null, window);
+            savedInstants = raw ? null : JSON.stringify(window);
+
+            return edit({ op: "visibility.window", window }, ruleNow(), window, {});
+        },
+
+        restorePlayback(playback: TimePlayback | null): Promise<unknown> {
+            return dispatcher.dispatch({ op: "visibility.playback", playback });
+        },
+
+        holdsInstants,
 
         get rule(): RuleTree | null {
             return ruleNow();

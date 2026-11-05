@@ -69,6 +69,7 @@ import {
     configurationOutline,
     FONT_STYLES,
     putOutline,
+    putRaisedBorder,
     typeOutline,
     type ValueColumns,
     valueColumns,
@@ -544,18 +545,33 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         }
         put("shape", shape ?? null);
     } else if (g.type !== undefined) {
-        const outline = v === "yed" ? typeOutline(g.type, "ellipse") : null;
-        if (outline === null) {
-            put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
-        } else {
-            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
-        }
+        readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         const outline = configurationOutline(g.customconfiguration);
         if (outline !== null) {
             putOutline(outline, boxSide(g.w), boxSide(g.h), put);
         }
+    }
+}
+
+/**
+ * Reads a node's `type`, by what yEd draws for it where the writer is yEd.
+ * @param g - the graphics record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readTypedShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const outline = writer.vocabulary === "yed" ? typeOutline(g.type, "ellipse") : null;
+    if (outline === null) {
+        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        return;
+    }
+    putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+    if (outline.raised === true) {
+        const fill = Number(g.hasFill) === 0 ? undefined : g.fill;
+        putRaisedBorder(canonColor(fill, writer.spelling, at("fill"))?.color ?? null, put);
     }
 }
 
@@ -730,7 +746,8 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     // OGDF's GraphIO::writeGML writes the stroke color as `outline`; older OGDF wrote `line`
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
-    put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
+    const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
 /**

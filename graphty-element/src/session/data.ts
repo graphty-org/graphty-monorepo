@@ -48,6 +48,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
@@ -316,6 +317,11 @@ interface PageSources {
      * @returns The count, or undefined.
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
+    /**
+     * Whether the timeline experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    timeline?(): boolean;
     /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
@@ -1564,6 +1570,7 @@ export class SessionData implements SessionDataApi {
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
+            readDates: () => this.timelineOn,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -1645,6 +1652,7 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
+                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -3689,6 +3697,14 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether the timeline experiment is on; a session built without the switch reads on.
+     * @returns True when it is on.
+     */
+    private get timelineOn(): boolean {
+        return this.pages.timeline?.() !== false;
+    }
+
+    /**
      * Every attribute the graph's records carry.
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -3700,7 +3716,11 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
         const described = this.attributeCache.get("", () =>
-            Object.freeze(describeAttributes(snapshot, this.records).filter((each) => !isSourceFactKey(each.name))),
+            Object.freeze(
+                describeAttributes(snapshot, this.records, this.timelineOn).filter(
+                    (each) => !isSourceFactKey(each.name),
+                ),
+            ),
         );
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
@@ -3743,6 +3763,7 @@ export class SessionData implements SessionDataApi {
             joined,
             parsed,
             snapshot,
+            timeline: this.timelineOn,
         };
         const result =
             declarations.size === 0 &&
@@ -4031,6 +4052,10 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
+        if (role === "time" && !this.timelineOn) {
+            throw featureOff("timeline", "data.setRole");
+        }
+
         const { kind, name } = resolveColumn(this.attributes(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
@@ -4693,6 +4718,8 @@ function unboundFactsOf(
 
 /** What `attributes()` lays over the described columns. */
 interface AttributeOverlay {
+    /** Whether the timeline experiment is on, so a time role measures time. */
+    readonly timeline: boolean;
     readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
     readonly roles: ReadonlyMap<string, AttributeRole[]>;
     readonly uses: ReadonlyMap<string, AttributeUse[]>;
@@ -4715,6 +4742,7 @@ interface ColumnOverlay {
     readonly isJoined: boolean;
     readonly times: number | undefined;
     readonly rows: number;
+    readonly timeline: boolean;
 }
 
 /**
@@ -4735,6 +4763,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
         isJoined: overlay.joined.has(key),
         times: overlay.parsed.get(each),
         rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
+        timeline: overlay.timeline,
     };
     return facts.declared === undefined &&
         facts.played === undefined &&
@@ -4755,7 +4784,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
  * @returns The fields.
  */
 function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
-    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows, timeline } = facts;
     return {
         ...(isJoined ? { origin: "joined" as const } : {}),
         ...(typed === undefined ? {} : typedFields(each, typed)),
@@ -4767,7 +4796,7 @@ function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial
                   measurementSource: "declared" as const,
               }),
         // Designating a column as the time field makes it time.
-        ...(declared === undefined && played?.includes("time") === true
+        ...(timeline && declared === undefined && played?.includes("time") === true
             ? { measurement: "time" as const, measurementSource: "declared" as const }
             : {}),
         ...(played === undefined ? {} : { roles: Object.freeze(played) }),

@@ -162,6 +162,8 @@ interface ParsedSimulationOptions {
     scale?: number;
     dim?: 2 | 3;
     seed?: number | null;
+    clusterBy?: string | null;
+    clusterStrength?: number;
     nodeGap?: number | null;
     nodeGapFront?: boolean;
 }
@@ -292,6 +294,8 @@ export function resolveSimulationOptions(
     return {
         model: simulationModel(type, declared),
         scalingFactor: publishedRadius(declared),
+        clusterBy: declared.clusterBy,
+        clusterStrength: declared.clusterStrength,
         nodeGap: declared.nodeGap ?? null,
         nodeGapFront: declared.nodeGapFront === true,
         iterationsPerStep: explicit ?? behavior.iterationsPerStep ?? null,
@@ -990,6 +994,21 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A run's results changed: a layout clustering by them reads them again, and moves when the communities did.
+     * @internal
+     */
+    clustersChanged(): void {
+        try {
+            if (this.layoutEngine?.wakeForClusters() === true) {
+                this.running = !this.restoring();
+            }
+        } catch (error) {
+            this.running = false;
+            this.reportSimulationFailure(error);
+        }
+    }
+
+    /**
      * Which engine draws the layout a consumer asked for, over a graph this size, right now.
      *
      * The element has one arrangement with two drivers -- see {@link FORCE_ACCELERATED_ENGINE} --
@@ -1498,6 +1517,11 @@ export class LayoutManager implements Manager {
 
         if (engine instanceof SnapshotLayoutEngine) {
             this.connectSnapshotEngine(type, engine);
+        }
+
+        if (engine) {
+            engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>
+                this.scopeSource?.nodeValues?.(graph, path) ?? null;
         }
 
         if (!engine) {
@@ -2519,7 +2543,7 @@ export class LayoutManager implements Manager {
         plane.computeWorldMatrix(true);
         const { minimumWorld: lo, maximumWorld: hi } = plane.getBoundingInfo().boundingBox;
         const words = label.textBounds;
-        const origin = node.mesh.getAbsolutePosition();
+        const origin = node.drawnWorldPosition;
         // the words' fractions run across from the plane's left and down from its top; y runs up
         const w = hi.x - lo.x;
         const h = hi.y - lo.y;

@@ -103,6 +103,11 @@ export const NodeShapes = z.enum([
     // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
     "rectangle",
     "round-rectangle",
+    // A rectangle with only its top two or bottom two corners rounded, the other two square
+    // (yFiles' `corners`, Cytoscape.js bottom-round-rectangle); `shape.cornerRadius` and its kin
+    // round them as they round a round-rectangle's.
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -145,6 +150,8 @@ export const NodeShapes = z.enum([
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "rectangle",
     "round-rectangle",
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -434,6 +441,18 @@ export const NodeStyle = z.strictObject({
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
             count: z.number().min(1).optional(),
+        })
+        .optional(),
+    /**
+     * Strips `width` wide along the inside of the node's edge, in the units of the border's width: `lightColor` on its
+     * left and top and `darkColor` on its bottom and right, so the node looks raised (yEd's 3D rectangle). They are cut
+     * to the node's outline. No width draws none.
+     */
+    raisedBorder: z
+        .strictObject({
+            width: z.number().nonnegative().optional(),
+            lightColor: ColorStyle.optional(),
+            darkColor: ColorStyle.optional(),
         })
         .optional(),
     /**

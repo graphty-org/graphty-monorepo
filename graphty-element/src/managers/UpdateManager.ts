@@ -127,8 +127,8 @@ export function nodeFramingBox(
  * @returns The center as both corners.
  */
 function centerOf(node: Node): { min: Vector3; max: Vector3 } {
-    node.mesh.computeWorldMatrix(true);
-    const center = node.mesh.getAbsolutePosition();
+    node.drawnWorldMatrix(true);
+    const center = node.drawnWorldPosition;
     return { min: center.clone(), max: center.clone() };
 }
 
@@ -2409,7 +2409,7 @@ export class UpdateManager implements Manager {
         const bowed =
             !this.dataManager.drawHeld &&
             this.dataManager.supportPoints.update(
-                () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
+                () => Array.from(this.layoutManager.nodes, (node) => node.drawnPosition),
                 this.layoutManager.edges,
                 (edge) => edge.supportEdge(),
                 walk,
@@ -2513,7 +2513,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            const { position } = node.mesh;
+            const position = node.drawnPosition;
 
             if (
                 this.lastNodePositions[at] !== position.x ||
@@ -2542,7 +2542,7 @@ export class UpdateManager implements Manager {
             }
 
             const at = index * 3;
-            const { position } = node.mesh;
+            const position = node.drawnPosition;
 
             this.lastNodePositions[at] = position.x;
             this.lastNodePositions[at + 1] = position.y;
@@ -2667,7 +2667,7 @@ export class UpdateManager implements Manager {
     private nodesInFrustum(planes: Plane[]): Set<Node> {
         const onScreen = new Set<Node>();
         for (const node of this.layoutManager.nodes) {
-            if (node.mesh.isInFrustum(planes)) {
+            if (node.isDrawnInFrustum(planes)) {
                 onScreen.add(node);
             }
         }
@@ -2682,8 +2682,8 @@ export class UpdateManager implements Manager {
     private resetNodeScales(): boolean {
         let changed = false;
         for (const node of this.layoutManager.nodes) {
-            if (node.mesh.scaling.x !== 1) {
-                node.mesh.scaling.setAll(1);
+            if (node.drawnScale !== 1) {
+                node.drawnScale = 1;
                 changed = true;
             }
         }
@@ -2805,15 +2805,14 @@ export class UpdateManager implements Manager {
     ): boolean {
         let changed = false;
         for (const node of this.layoutManager.nodes) {
-            const { mesh } = node;
             let scale = screen ?? 1;
             if (pivot !== null) {
-                const depth = depthOf(mesh.getAbsolutePosition());
+                const depth = depthOf(node.drawnWorldPosition);
                 scale *= depth > 0 ? depth / reference : 1;
             }
 
-            if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
-                mesh.scaling.setAll(scale);
+            if (Math.abs(node.drawnScale - scale) > 1e-4) {
+                node.drawnScale = scale;
                 changed = true;
             }
         }
@@ -3282,9 +3281,9 @@ export class UpdateManager implements Manager {
  * @returns Their center, in world space.
  */
 function selectionCenter(nodes: readonly Node[]): Vector3 {
-    const center = nodes[0].mesh.position.clone();
+    const center = nodes[0].drawnPosition.clone();
     for (const node of nodes.slice(1)) {
-        center.addInPlace(node.mesh.position);
+        center.addInPlace(node.drawnPosition);
     }
 
     return center.scaleInPlace(1 / nodes.length);

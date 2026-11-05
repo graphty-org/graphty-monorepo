@@ -16,11 +16,17 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../test/open";
+import { siteFeatures } from "../../test/siteFeatures";
 import { findValuePicker, render, screen, waitFor, within } from "../../test/test-utils";
 import { tooltipOf } from "../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { colorName, FIND_ATTRIBUTE } from "../style/words";
 import { Workspace } from "../Workspace";
+
+// The timeline is an experiment: this file's workspaces switch it on.
+beforeAll(async () => {
+    await siteFeatures(["timeline"]);
+});
 
 /** Three kinds of node, a few of each. */
 const KINDS = ["agency", "company", "person"] as const;

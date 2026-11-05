@@ -1402,7 +1402,8 @@ export interface SessionDataApi {
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded, and `E_FEATURE_OFF` for
+     *     `time` with the `timeline` experiment off.
      * @since 3.30.0
      */
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
@@ -2073,6 +2074,8 @@ export interface TableMapping {
      * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
      * the values decide when the column is designated. Written to
      * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
+     * @experimental timeline
+     * @beta
      */
     readonly timeUnit?: TimeUnit | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
@@ -2945,21 +2948,47 @@ export interface SessionEventMap {
     "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
-    /** The time window moved through `session.time`: where it is now and what entered and left. */
+    /**
+     * The time window moved through `session.time`: where it is now and what entered and left.
+     * @experimental timeline
+     * @beta
+     */
     "time:step": TimeStepEvent;
-    /** Playback started, from this window (null when it opens one). */
+    /**
+     * Playback started, from this window (null when it opens one).
+     * @experimental timeline
+     * @beta
+     */
     "time:play": { readonly window: TimeWindow | null };
-    /** Playback stopped at this window. */
+    /**
+     * Playback stopped at this window.
+     * @experimental timeline
+     * @beta
+     */
     "time:pause": { readonly window: TimeWindow | null };
-    /** Playback reached the end of the data; `time:pause` follows. */
+    /**
+     * Playback reached the end of the data; `time:pause` follows.
+     * @experimental timeline
+     * @beta
+     */
     "time:end": { readonly window: TimeWindow | null };
-    /** The designated time field changed through `session.time.setField`. */
+    /**
+     * The designated time field changed through `session.time.setField`.
+     * @experimental timeline
+     * @beta
+     */
     "time:field": { readonly field: TimeField | null };
-    /** The designated time field was indexed, so `time.extent()` and `time.bins()` answer. */
+    /**
+     * The designated time field was indexed, so `time.extent()` and `time.bins()` answer.
+     * @experimental timeline
+     * @beta
+     */
     "time:ready": { readonly field: TimeField | null };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
      * error's code and details.
+     * @experimental timeline
+     * @beta
      */
     "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
     /**
@@ -3954,7 +3983,10 @@ export interface GraphSession {
     readonly visibility: VisibilityApi;
     /**
      * The timeline: designate a time field, read its extent and histogram, and move the time
-     * window along it -- set it, step it, seek it, or play it.
+     * window along it -- set it, step it, seek it, or play it. It needs `features="timeline"`, and
+     * refuses with `E_FEATURE_OFF` otherwise.
+     * @experimental timeline
+     * @beta
      */
     readonly time: TimeApi;
     /**

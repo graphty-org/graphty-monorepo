@@ -205,7 +205,9 @@ function curvedShapeOf(p: Prim): PShape | null {
     const onSide = p.points.filter(
         ([x, y]) => Math.min(x - b.x0, b.x1 - x) < 0.03 * 2 * a || Math.min(y - b.y0, b.y1 - y) < 0.03 * 2 * c,
     ).length;
-    return fills > 0.86 && onSide >= 0.3 * p.points.length ? "roundrect" : "other";
+    // a rounded rectangle rounds every corner: one drawn square is a shape with a curved side (yEd's delay, document
+    // and stored data), which also fills most of its box
+    return fills > 0.86 && onSide >= 0.3 * p.points.length && p.squareCorner !== true ? "roundrect" : "other";
 }
 
 /**
@@ -219,7 +221,8 @@ const guideSize = (n: PNode): number => Math.max(n.w, n.h) + (n.inset === true ?
 /**
  * The shapes a node's drawing holds that are an underlay or a halo, not its body: a see-through, unstroked fill drawn
  * before a smaller, opaque shape of the node and reaching past it by the same padding on every side (Cytoscape.js's
- * `underlay-*`). Neither its size, nor its color, nor an outline is the node's.
+ * `underlay-*`), or drawn just before an opaque copy of itself, off its spot (Cytoscape.js's `ghost`: json-cyjs-synth-nodes
+ * n78). Neither its size, nor its color, nor an outline is the node's.
  * @param shapes - the node's shapes
  * @returns the underlays
  */
@@ -238,7 +241,16 @@ export function underlaysOf(shapes: readonly Prim[]): Set<Prim> {
                 return false;
             }
             const pad = [v.box.x0 - u.box.x0, v.box.y0 - u.box.y0, u.box.x1 - v.box.x1, u.box.y1 - v.box.y1];
-            return Math.min(...pad) >= 1 && Math.max(...pad) - Math.min(...pad) <= Math.max(1, 0.1 * Math.min(...pad));
+            const ghost =
+                v.index === u.index + 1 &&
+                v.fill?.color === u.fill?.color &&
+                Math.abs(bw(u.box) - bw(v.box)) <= 0.5 &&
+                Math.abs(bh(u.box) - bh(v.box)) <= 0.5 &&
+                Math.max(...pad.map(Math.abs)) >= 1;
+            return (
+                ghost ||
+                (Math.min(...pad) >= 1 && Math.max(...pad) - Math.min(...pad) <= Math.max(1, 0.1 * Math.min(...pad)))
+            );
         });
         if (over) {
             out.add(u);
@@ -343,6 +355,13 @@ function toOutline(p: Pt, outline: readonly Pt[]): number {
 /** How much of a node's box, and of a picture's, the two share for the picture to be the node's face. */
 const FACE_COVERED = 0.9;
 
+/**
+ * How much of a node's largest shape another of its shapes covers to count toward its box: half, a hair under so a part
+ * drawn exactly half as large counts whatever the file's coordinates round to (Graphviz's `fivepoverhang` and
+ * `threepoverhang` bars, 24 and 12 wide: the same two bars, 0.5 by a float's rounding either way).
+ */
+const PART_OF_BODY = 0.499;
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(
     id: string,
@@ -374,7 +393,7 @@ function nodeFrom(
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
     // and a table's rows, however short each is: the table is their union (#5347)
     const drawnBox = body
-        ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box) || rows.has(s)).map((s) => s.box))
+        ? union(sorted.filter((s) => area(s.box) >= PART_OF_BODY * area(body.box) || rows.has(s)).map((s) => s.box))
         : union(texts.map((t) => t.box));
     // its body's, and half the wave's line round it, as any border drawn on the body's outline reaches
     const grow = (all.find((s) => s.tag === PAINTED_OUTLINE && swings(s))?.stroke?.width ?? 0) / 2;
@@ -1631,8 +1650,12 @@ export function arrowheadEdge(
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
     // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
+    // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
+    // spans its middle (gml-synthetic-coverage, 29->40).
+    const armsOnly = p.closed && p.points.length > 2 && areaCentroid(p.points) === null;
     if (
         !lineEnd &&
+        !armsOnly &&
         nodes.some(
             (n) =>
                 inside([n.cx, n.cy], p.box) ||
@@ -1744,7 +1767,14 @@ export function arrowheadEdge(
                   ["source", "target"],
               )) ??
         pointed ??
-        (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
+        // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
+        // short line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2), where a
+        // middle cap, however it is set on the middle, covers it
+        (held ||
+        middle === null ||
+        (ends !== null && (ends.d < middle.d || toBox(pointAlong(middle.e.points, 0.5), p.box) > 1))
+            ? ends
+            : middle);
     if (best === null) {
         return null;
     }

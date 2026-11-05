@@ -1,12 +1,16 @@
 import {
     AbstractMesh,
+    type ActionManager,
     type BaseTexture,
+    type BoundingBox,
     Camera,
     Color3,
     Color4,
     InstancedMesh,
+    type Matrix,
     Mesh,
     MeshBuilder,
+    type Plane,
     type Scene,
     StandardMaterial,
     TransformNode,
@@ -1261,6 +1265,158 @@ export class Node implements ModelUser {
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
         this.syncOverlayPositions();
+    }
+
+    /**
+     * Where the node is drawn, in graph-root's space: live, so read it and never write it
+     * ({@link Node.setMeshPosition} is the only way to move a node). Code outside this class reads
+     * this and the other `drawn*` members, never `mesh`: the `local/node-mesh-funnel` lint rule
+     * reports any other read, so a node can later be drawn with no mesh of its own.
+     * @returns The position.
+     * @internal
+     */
+    get drawnPosition(): Readonly<Vector3> {
+        return this.mesh.position;
+    }
+
+    /**
+     * Where the node is drawn, in world space.
+     * @returns The position.
+     * @internal
+     */
+    get drawnWorldPosition(): Vector3 {
+        return this.mesh.getAbsolutePosition();
+    }
+
+    /**
+     * The matrix that places the node in world space.
+     * @param force - Recompute it even if Babylon already did this frame.
+     * @returns The matrix.
+     * @internal
+     */
+    drawnWorldMatrix(force?: boolean): Matrix {
+        return this.mesh.computeWorldMatrix(force);
+    }
+
+    /**
+     * The mesh that draws this node: the source of its instance, or its own when it is not one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnSourceMesh(): AbstractMesh {
+        const { mesh } = this;
+        return "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+    }
+
+    /**
+     * The box the node is drawn in.
+     * @returns The box.
+     * @internal
+     */
+    get drawnBoundingBox(): BoundingBox {
+        return this.mesh.getBoundingInfo().boundingBox;
+    }
+
+    /**
+     * The radius of the sphere the node is drawn in, in world space.
+     * @returns The radius.
+     * @internal
+     */
+    get drawnWorldRadius(): number {
+        return this.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+    }
+
+    /**
+     * The node's scale in world space.
+     * @returns The scale on each axis.
+     * @internal
+     */
+    get drawnWorldScaling(): Vector3 {
+        return this.mesh.absoluteScaling;
+    }
+
+    /**
+     * The node's own scale, the same on every axis.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScale(): number {
+        return this.mesh.scaling.x;
+    }
+
+    /**
+     * Set the node's own scale on every axis.
+     * @param scale - The scale.
+     * @internal
+     */
+    set drawnScale(scale: number) {
+        this.mesh.scaling.setAll(scale);
+    }
+
+    /**
+     * The scene the node is drawn in.
+     * @returns The scene.
+     * @internal
+     */
+    get drawnScene(): Scene {
+        return this.mesh.getScene();
+    }
+
+    /**
+     * Whether the node is on the canvas now: neither disposed nor switched off.
+     * @returns True when it is.
+     * @internal
+     */
+    get isDrawn(): boolean {
+        return !this.mesh.isDisposed() && this.mesh.isEnabled();
+    }
+
+    /**
+     * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
+     * @returns The number.
+     * @internal
+     */
+    get drawnGeneration(): number {
+        return this.mesh.uniqueId;
+    }
+
+    /**
+     * The scale of what the node is drawn inside: `graph-root`, which an XR gesture scales.
+     * @returns The scale, or 1 when the node has no such parent.
+     * @internal
+     */
+    get drawnRootScale(): number {
+        const { parent } = this.mesh;
+        return parent instanceof TransformNode ? parent.absoluteScaling.x : 1;
+    }
+
+    /**
+     * Let the pointer reach the node. A rebuilt mesh starts without this, so a restyle says it again.
+     * @param actions - What the node does when the pointer acts on it.
+     * @internal
+     */
+    makeDrawnPickable(actions: ActionManager): void {
+        this.mesh.isPickable = true;
+        this.mesh.actionManager = actions;
+    }
+
+    /**
+     * Whether the node is inside a view.
+     * @param planes - The view's frustum planes.
+     * @returns True when any of it is inside.
+     * @internal
+     */
+    isDrawnInFrustum(planes: Plane[]): boolean {
+        return this.mesh.isInFrustum(planes);
+    }
+
+    /**
+     * The mesh a graph teardown disposes for this node, with its children.
+     * @returns The mesh.
+     * @internal
+     */
+    get teardownMesh(): AbstractMesh {
+        return this.mesh;
     }
 
     /**

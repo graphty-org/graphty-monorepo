@@ -592,6 +592,19 @@ describe("GraphML styles: yEd", () => {
             expect(await values(nodes, "borderWidth")).toEqual([0, 1, 0]);
         });
 
+        it("reads the strips of a raised node from its fill, as Java's brighter() and darker() paint them", async () => {
+            const uml = (id: string, fill: string): string =>
+                `<node id="${id}"><data key="d6"><y:UMLClassNode>${box}${fill}<y:UML use3DEffect="true"/></y:UMLClassNode></data></node>`;
+            const nodes =
+                uml("a", '<y:Fill color="#FFCC00" transparent="false"/>') +
+                uml("b", '<y:Fill color="#000000" transparent="false"/>') +
+                uml("c", '<y:Fill hasColor="false" transparent="false"/>') +
+                uml("d", '<y:Fill color="#FFCC00" transparent="true"/>');
+            expect(await values(nodes, "raisedBorderWidth")).toEqual([1, 1, null, null]);
+            expect(await values(nodes, "raisedBorderLightColor")).toEqual(["#ffff00", "#030303", null, null]);
+            expect(await values(nodes, "raisedBorderDarkColor")).toEqual(["#b28e00", "#000000", null, null]);
+        });
+
         it("draws a UML note as a box with a notch of 15 out of its top right corner", async () => {
             const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
             expect(await values(nodes, "shape")).toEqual(["polygon"]);
@@ -630,6 +643,21 @@ describe("GraphML styles: yEd", () => {
                 generic("d", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_TRANSACTION"));
             expect(await values(nodes, "borderWidth")).toEqual([3, 3, 1, 1]);
             expect((await values(nodes, "cornerRadius"))[1]).toBe(4);
+        });
+
+        it("draws the second line of an intermediate event and a transaction, and a message's flap", async () => {
+            const nodes =
+                generic("a", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_INTERMEDIATE_CATCHING")) +
+                generic("b", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_TRANSACTION")) +
+                generic("c", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_START")) +
+                generic("d", "bpmn.Artifact", prop("type", "ARTIFACT_TYPE_REPLY_MESSAGE"));
+            const [event, transaction, start, message] = await values(nodes, "shapeLines");
+            // 2.5 inside the outline, at the circle's right and round the box's corner of 4
+            expect(String(event).split(" ")[0]).toBe("1-2.5,0+0");
+            expect(String(transaction).split(" ")[0]).toBe("1-2.5,1-6.5");
+            expect(String(transaction).split(" ").at(-1)).toBe("1-2.5,1-6.5");
+            expect(start).toBeNull();
+            expect(message).toBe("-1,1 0,0 1,1");
         });
 
         it("draws BPMN group, annotation and message artifacts as yEd does", async () => {
@@ -674,14 +702,14 @@ describe("GraphML styles: yEd", () => {
             expect(String(points[3]).endsWith("-1,-0.333")).toBe(true);
         });
 
-        it("draws the old bevel nodes as boxes with corners of 3", async () => {
+        it("draws the old bevel nodes as boxes with corners of 3, the second and third of 10", async () => {
             const nodes =
                 generic("a", "bevelNode") +
                 generic("b", "bevelNode2") +
                 generic("c", "bevelNode3") +
                 generic("d", "bevelNodeWithShadow");
             expect(await values(nodes, "shape")).toEqual(Array.from({ length: 4 }, () => "round-rectangle"));
-            expect(await values(nodes, "cornerRadius")).toEqual([3, 3, 3, 3]);
+            expect(await values(nodes, "cornerRadius")).toEqual([3, 10, 10, 3]);
         });
 
         it("draws the ShapeNode types yEd draws differently from their names", async () => {
@@ -729,6 +757,17 @@ describe("GraphML styles: yFiles 3", () => {
         expect(resolveStyles(styles, "node", "width", snapshot)[i]).toBe(145);
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Order");
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[i]).toBe("Arial");
+    });
+
+    it("reads a RectangleNodeStyle's corners=TOP as a box rounded along its top", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml"),
+            ),
+        );
+        const shape = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
     });
 
     it("notes shared references that refer to each other and finishes", async () => {

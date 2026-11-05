@@ -1,5 +1,5 @@
 import { detCos, detSin, type NodeMask } from "@graphty/graph-format";
-import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
+import ngraphCreateLayout, { Body, Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
 import { z } from "zod";
@@ -9,6 +9,14 @@ import { getDefaults } from "../config/OptionsSchema";
 import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import {
+    clusterByOption,
+    clusterCentroids,
+    type ClusterPoint,
+    clusterStrengthOption,
+    readCommunities,
+    sameCommunities,
+} from "./clusterForce";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 
@@ -19,6 +27,8 @@ import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
  * for 80 got eight times the spring length and a drawing that never formed groups.
  */
 const ngraphLayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
     dim: {
         schema: z.number().int().min(2).max(3).default(3),
         meta: {
@@ -169,6 +179,17 @@ export class NGraphEngine extends LayoutEngine {
     private round = new Uint8Array(0);
     private movable = new Uint8Array(0);
     private readonly cells = new Map<number, number[]>();
+    /** What `clusterBy` names, or null for no pull. */
+    private readonly clusterBy: string | null = null;
+    private readonly clusterStrength: number = 1;
+    /** The last read of `clusterBy`, and each member's body and community, in the same order. */
+    private communities = new Map<Node, number>();
+    private clusterBodies: Body[] = [];
+    private clusterPoints: ClusterPoint[] = [];
+    private clusterOf: number[] = [];
+    private clusterCount = 0;
+    /** The nodes changed since `clusterBy` was read. */
+    private clustersStale = true;
     /** Places each new node when `seed` is set; null leaves placement to ngraph. */
     private readonly seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
@@ -235,6 +256,13 @@ export class NGraphEngine extends LayoutEngine {
         this.nodeGapFront = typedConfig.nodeGapFront === true;
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
+        if (typeof typedConfig.clusterBy === "string") {
+            this.clusterBy = typedConfig.clusterBy;
+            this.clusterStrength = typedConfig.clusterStrength as number;
+            this.ngraphLayout.simulator.addForce("cluster", () => {
+                this.pullClusters();
+            });
+        }
     }
 
     /**
@@ -251,6 +279,10 @@ export class NGraphEngine extends LayoutEngine {
      * Advance the NGraph simulation by one step
      */
     step(): void {
+        if (this.clustersStale && this.clusterBy !== null) {
+            this.readClusters();
+        }
+
         const ngraphSettled = this.ngraphLayout.step();
         const { lastMove } = this.ngraphLayout;
         const nodeCount = this.nodeMapping.size;
@@ -557,6 +589,60 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Read `clusterBy` again and start the simulation when the communities changed.
+     * @returns True when the simulation was woken.
+     */
+    override wakeForClusters(): boolean {
+        if (this.clusterBy === null || !this.readClusters()) {
+            return false;
+        }
+
+        this._settled = false;
+        this._stepCount = 0;
+        this._lastMoves = [];
+        return true;
+    }
+
+    /**
+     * Read `clusterBy` and note each member's body.
+     * @returns True when the communities changed.
+     */
+    private readClusters(): boolean {
+        this.clustersStale = false;
+        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
+            this.isFollower(row),
+        );
+        const same = sameCommunities(read, this.communities);
+        this.communities = read;
+        this.clusterBodies = [...read.keys()].map((node) => this.ngraphLayout.getBody(node.id) as Body);
+        this.clusterPoints = this.clusterBodies.map((body) => body.pos);
+        this.clusterOf = [...read.values()];
+        this.clusterCount = new Set(this.clusterOf).size;
+        return !same;
+    }
+
+    /** The cluster force, ngraph's spring of rest length 0 to the centroid: spring-electrical's law on the accelerator. */
+    private pullClusters(): void {
+        const { clusterBodies: bodies, clusterOf, clusterStrength } = this;
+        const centroids = clusterCentroids(
+            this.clusterPoints,
+            clusterOf,
+            this.clusterCount,
+            (member) => bodies[member].mass,
+        );
+        const coefficient = clusterStrength * this.ngraphLayout.simulator.settings.springCoefficient;
+        bodies.forEach(({ force, mass, pos }, member) => {
+            const at = 3 * clusterOf[member];
+            const pull = coefficient * mass;
+            force.x += pull * (centroids[at] - pos.x);
+            force.y += pull * (centroids[at + 1] - pos.y);
+            if (pos.z !== undefined && force.z !== undefined) {
+                force.z += pull * (centroids[at + 2] - pos.z);
+            }
+        });
+    }
+
+    /**
      * Copy the simulation's node coordinates into the shared position array.
      *
      * `ngraphLayout.getNodePosition` hands back the body's own position object rather than a copy,
@@ -565,10 +651,20 @@ export class NGraphEngine extends LayoutEngine {
      * z at all, and the row is published flat rather than left unplaced.
      */
     override publishPositions(): void {
+        const { rows, coords } = this.publishScratch(this.nodeMapping.size);
+        let count = 0;
+        let first: Node | undefined;
         for (const [node, ngraphNode] of this.nodeMapping) {
             const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
-            this.writeNodePosition(node, pos.x, pos.y, pos.z ?? 0);
+            first ??= node;
+            rows[count] = node.index;
+            coords[3 * count] = pos.x;
+            coords[3 * count + 1] = pos.y;
+            coords[3 * count + 2] = pos.z ?? 0;
+            count++;
         }
+
+        this.publishColumn(first, rows, coords, count);
     }
 
     /**
@@ -586,6 +682,7 @@ export class NGraphEngine extends LayoutEngine {
     addNode(n: Node): void {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
+        this.clustersStale = true;
         if (this.seededPlacement) {
             // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
             // spring length of the origin -- only drawn from the seed. A wider start is a graph
@@ -771,6 +868,8 @@ export class NGraphEngine extends LayoutEngine {
         if (!ngraphNode) {
             return;
         }
+
+        this.clustersStale = true;
 
         // The node's own links, not every link: each carries the edges between its pair.
         for (const link of ngraphNode.links ?? []) {

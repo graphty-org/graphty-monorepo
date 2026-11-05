@@ -49,7 +49,13 @@ lose every frame the shader is part of: a `graph-error` event carries `E_SHADER_
 step that gave up in `error.details.stage` (`"compiler"`, `"translator"` or `"device"`) and what it
 said in `error.details.messages`. The translator says nothing the element can read, so its list is
 empty; the page's console holds its line. A shader passed to `defineShader` may use a name
-WGSL reserves, such as `pass`, `target` or `fn`: the element renames it for you.
+WGSL or the Vulkan GLSL compiler reserves, such as `pass`, `target`, `fn` or `image2D`: the element
+renames it for you. One thing still differs: a `const` at the top of a shader may not call `acosh`,
+`asinh` or `atanh` under WebGPU, so move it into the function that uses it.
+
+If the WebGPU device is lost, by a driver reset or a GPU process crash, the element opens a new one,
+rebuilds and draws the same graph, with nothing for you to do. If no new device can be had,
+`rendererStatus.drawing` turns false and a `graph-error` event carries `E_DEVICE_LOST`.
 
 ## What differs under WebGPU
 

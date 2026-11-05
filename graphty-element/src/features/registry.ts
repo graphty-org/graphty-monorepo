@@ -23,10 +23,11 @@ export interface FeatureDescriptor {
     readonly since: string;
 }
 
-/** Every experiment this build can switch on; empty when there are none. */
+/** Every experiment this build can switch on. */
 export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's full-screen selection editor; graphty-element's selection API is not gated.
     { id: "selection-workspace", plainName: "Selection workspace", issue: 5805, since: "2026-11-04" },
+    { id: "timeline", plainName: "Timeline", issue: 300, since: "2026-11-04" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

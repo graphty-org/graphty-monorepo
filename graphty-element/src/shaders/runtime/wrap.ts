@@ -34,7 +34,7 @@ import {
     type ShaderParamDescriptor,
     type ShaderProblem,
 } from "../../catalog/shaders";
-import { GLSL_HELPERS, GLSL_STRUCTS } from "./glsl";
+import { GLSL_HELPERS, GLSL_STRUCTS, WEBGPU_BUILT_INS } from "./glsl";
 
 export { uniformValueOf } from "./nodeLayout";
 
@@ -75,7 +75,8 @@ const LIBRARY_PREFIX = "graphty_";
  *
  * The body's uses of these names are renamed `graphty_u_<name>`, except the GLSL keywords, which a body
  * cannot declare, and the calls and fields of a GLSL built-in function ({@link GLSL_FUNCTIONS}). `modf`
- * is not here because it is a library helper, which is renamed like every other (see `glsl.ts`).
+ * is not here because it is a library helper, which is renamed like every other (see `glsl.ts`). The
+ * same goes for the built-ins of `WEBGPU_BUILT_INS`, whose names stay here for a reader's own locals.
  */
 export const WGSL_NAMES: ReadonlySet<string> = new Set(
     // Keywords.
@@ -118,6 +119,26 @@ export const WGSL_NAMES: ReadonlySet<string> = new Set(
     ).split(" "),
 );
 
+/**
+ * The keywords of the Vulkan GLSL that WebGPU's compiler reads, which GLSL ES 3.00 leaves free or
+ * only reserves: every name of the kind that compiler refused as a local. They are renamed
+ * like {@link WGSL_NAMES}, fields too, but left alone where called: Babylon.js rewrites calls such as
+ * `texture2D(`, and a body's own function of one of these names is renamed by being declared.
+ */
+export const VULKAN_GLSL_NAMES: ReadonlySet<string> = new Set([
+    ...["texture", "itexture", "utexture", "image", "iimage", "uimage"].flatMap((kind) =>
+        ["1D", "2D", "3D", "Cube", "1DArray", "2DArray", "CubeArray", "2DRect", "Buffer", "2DMS", "2DMSArray"].map(
+            (shape) => kind + shape,
+        ),
+    ),
+    ...["", "i", "u"].flatMap((kind) => [`${kind}subpassInput`, `${kind}subpassInputMS`]),
+    ...["2", "3", "4", "2x2", "2x3", "2x4", "3x2", "3x3", "3x4", "4x2", "4x3", "4x4"].map((shape) => `dmat${shape}`),
+    ...(
+        "atomic_uint sample devicecoherent queuefamilycoherent workgroupcoherent subgroupcoherent nonprivate " +
+        "pervertexNV perprimitiveNV perviewNV"
+    ).split(" "),
+]);
+
 /** One token, as the checker's tokenizer reads it. */
 type Token = ReturnType<typeof tokenize>["tokens"][number];
 
@@ -128,6 +149,10 @@ const NESTING: ReadonlyMap<string, readonly [number, number]> = new Map([
     ["(", [0, 1]],
     [")", [0, -1]],
 ]);
+
+/** The brackets that open and close a nested span. */
+const OPENERS = new Set(["(", "[", "{"]);
+const CLOSERS = new Set([")", "]", "}"]);
 
 /** Tokens after which an identifier is being declared, not used. */
 const DECLARATOR_FOLLOWERS = new Set(["(", "=", ",", ";", "["]);
@@ -213,11 +238,13 @@ function isMemberName(tokens: readonly Token[], i: number, inStruct: boolean): b
 /**
  * Rename identifiers in a GLSL text, in place, keeping every other character -- comments, spaces
  * and line breaks -- so line numbers stay. A field after `.` and a struct member keep their names,
- * unless the name is in `fields`, and a name in `calls` keeps it where it is called.
+ * unless the name is in `fields`, and a name in `calls` keeps it where it is called, as does each
+ * token in `kept`.
  * @param text - The text.
  * @param rename - The new name of each identifier to rename.
  * @param fields - Names renamed as fields and struct members too.
  * @param calls - Names left alone directly before a `(`.
+ * @param kept - Indexes of tokens left alone.
  * @returns The renamed text.
  */
 export function renameIdentifiers(
@@ -225,6 +252,7 @@ export function renameIdentifiers(
     rename: ReadonlyMap<string, string>,
     fields: ReadonlySet<string> = new Set(),
     calls: ReadonlySet<string> = new Set(),
+    kept: ReadonlySet<number> = new Set(),
 ): string {
     const { tokens } = tokenize(text, { line: 1, column: 1 });
     const lineStarts = lineStartsOf(text);
@@ -235,7 +263,7 @@ export function renameIdentifiers(
         const to = token.kind === "id" ? rename.get(token.text) : undefined;
         const field = tokens[i - 1]?.text === "." || isMemberName(tokens, i, inStruct[i]);
         const call = calls.has(token.text) && tokens[i + 1]?.text === "(";
-        if (to === undefined || call || (field && !fields.has(token.text))) {
+        if (to === undefined || call || kept.has(i) || (field && !fields.has(token.text))) {
             continue;
         }
 
@@ -323,7 +351,11 @@ let library: string | null = null;
 export function wrappedLibrary(): string {
     if (library === null) {
         const rename = new Map([...namesOfLibrary()].map((name) => [name, LIBRARY_PREFIX + name]));
-        library = `${renameIdentifiers(GLSL_STRUCTS, rename)}\n${renameIdentifiers(GLSL_HELPERS, rename)}`;
+        const builtIns = WEBGPU_BUILT_INS.map((name) => `#define ${LIBRARY_PREFIX}${name} ${name}`).join("\n");
+        library = `${renameIdentifiers(GLSL_STRUCTS, rename)}\n${renameIdentifiers(GLSL_HELPERS, rename)}
+#ifndef WEBGPU
+${builtIns}
+#endif`;
     }
 
     return library;
@@ -343,6 +375,12 @@ function wgslRenames(tokens: readonly Token[]): {
     const fields = new Set<string>();
     const calls = new Set<string>();
     for (const { kind, text } of tokens) {
+        if (kind === "id" && VULKAN_GLSL_NAMES.has(text)) {
+            rename.set(text, BODY_PREFIX + text);
+            fields.add(text);
+            calls.add(text);
+        }
+
         if (kind !== "id" || !WGSL_NAMES.has(text)) {
             continue;
         }
@@ -364,6 +402,102 @@ function wgslRenames(tokens: readonly Token[]): {
     });
 
     return { rename, fields, calls };
+}
+
+/**
+ * The index of the first `stop` after `from` outside any bracket, or of the bracket that closes the
+ * one `from` is in. A ternary's `:` is not a stop.
+ * @param tokens - The tokens.
+ * @param from - The index to start at.
+ * @param stop - The token to look for.
+ * @returns The index, or the last one when the text ends first.
+ */
+function endOf(tokens: readonly Token[], from: number, stop: string): number {
+    let depth = 0;
+    let ternaries = 0;
+    for (let i = from; i < tokens.length; i++) {
+        const { text } = tokens[i];
+        depth += OPENERS.has(text) ? 1 : 0;
+        depth -= CLOSERS.has(text) ? 1 : 0;
+        ternaries += text === "?" ? 1 : 0;
+        if (depth < 0 || (depth === 0 && text === stop && ternaries === 0)) {
+            return i;
+        }
+
+        ternaries -= text === ":" && ternaries > 0 ? 1 : 0;
+    }
+
+    return tokens.length - 1;
+}
+
+/**
+ * Whether the `[` at `open` may give an array's size. Only what is certainly an index says no, so
+ * a doubtful bracket keeps the built-in, which at worst is refused as it was before the helper.
+ * @param tokens - The tokens.
+ * @param open - The index of the bracket.
+ * @returns False for an index.
+ */
+function maySizeAnArray(tokens: readonly Token[], open: number): boolean {
+    const before = tokens[open - 2];
+    const after = tokens[endOf(tokens, open + 1, "]") + 1];
+    return (
+        tokens[open - 1]?.kind !== "id" ||
+        before?.text === "," ||
+        (before?.kind === "id" && !["return", "else"].includes(before.text)) ||
+        after?.kind === "id" ||
+        after?.text === "("
+    );
+}
+
+/**
+ * The last token of the span of a function body that must be a constant expression, if one starts
+ * at `i`: a `const` declaration, a `case` label or an array's size.
+ * @param tokens - The tokens.
+ * @param i - The index.
+ * @returns The index, or -1 when none starts here.
+ */
+function constantSpanEnd(tokens: readonly Token[], i: number): number {
+    const { text } = tokens[i];
+    if (text === "const") {
+        return endOf(tokens, i, ";");
+    }
+
+    if (text === "case") {
+        return endOf(tokens, i, ":");
+    }
+
+    return text === "[" && maySizeAnArray(tokens, i) ? endOf(tokens, i + 1, "]") : -1;
+}
+
+/**
+ * The calls of `isnan` and `isinf` that stay the built-in: all but those in a function body's
+ * ordinary code. Everywhere else GLSL takes only a constant expression, which a helper cannot be
+ * and which the WebGPU compiler folds, so such a call never reaches the translator. Its answer does
+ * not depend on recognizing the arguments. `acosh` and its kin are not folded, so a helper loses
+ * nothing there.
+ * @param tokens - The body's tokens.
+ * @returns The indexes of the called names.
+ */
+function constantCalls(tokens: readonly Token[]): Set<number> {
+    const kept = new Set<number>();
+    let depth = 0;
+    let inFunction = false;
+    let spanEnd = -1;
+    tokens.forEach(({ text }, i) => {
+        if (text === "{") {
+            inFunction ||= depth === 0 && tokens[i - 1]?.text === ")";
+            depth++;
+        } else if (text === "}") {
+            depth--;
+            inFunction &&= depth > 0;
+        }
+
+        spanEnd = Math.max(spanEnd, inFunction ? constantSpanEnd(tokens, i) : -1);
+        if ((text === "isnan" || text === "isinf") && tokens[i + 1]?.text === "(" && (!inFunction || i <= spanEnd)) {
+            kept.add(i);
+        }
+    });
+    return kept;
 }
 
 /**
@@ -394,7 +528,7 @@ export function prefixBody(body: string, params: readonly ShaderParamDescriptor[
         calls.delete(param.name);
     }
 
-    return renameIdentifiers(body, rename, fields, calls);
+    return renameIdentifiers(body, rename, fields, calls, constantCalls(tokens));
 }
 
 /**
@@ -738,7 +872,10 @@ void main() {
  * @returns The GLSL.
  */
 export function fragmentPrelude(): string {
-    return `precision highp float;
+    // GLSL leaves a derivative in a branch undefined and draws; WGSL refuses the program. A body
+    // always runs behind the wrapper's own branches, so without this its first `fwidth` is refused.
+    return `#define DISABLE_UNIFORMITY_ANALYSIS
+precision highp float;
 precision highp int;
 uniform ${SCENE_BLOCK} {
 ${SCENE_MEMBERS.map((member) => `    vec4 ${member};`).join("\n")}

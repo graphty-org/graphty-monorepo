@@ -20,6 +20,7 @@ import { valueWord } from "../inspector/words";
 import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
+import { timelineOn } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -293,7 +294,7 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
  * @returns true when a time window can be offered.
  */
 export function offersTime(session: GraphSession): boolean {
-    return session.time.field !== null || session.time.candidates().length > 0;
+    return timelineOn(session) && (session.time.field !== null || session.time.candidates().length > 0);
 }
 
 /**

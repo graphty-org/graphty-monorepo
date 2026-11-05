@@ -29,7 +29,6 @@ import { parse as parseYaml } from "yaml";
 
 import {
     ciCommand,
-    FEATURES_ON_SHARDS,
     groupEntry,
     GROUPS,
     MATRIX_CAP,
@@ -43,7 +42,6 @@ import {
     STORY_RUNS,
     STORY_SHARDS,
 } from "./ci-test-matrix.mjs";
-import { FEATURES_DECLARED } from "./features-on.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -110,13 +108,14 @@ const job = (text, name) => {
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
-// A full run's jobs: the On twins of the shards exist only while graphty-element declares an experiment.
-const FULL_RUN_JOBS = 34 + (FEATURES_DECLARED ? FEATURES_ON_SHARDS.length : 0);
 const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
+// a full run's jobs: one per shard, a group's members sharing one
+const FULL_RUN_JOBS = SHARDS.length - Object.values(GROUPS).flat().length + Object.keys(GROUPS).length;
+
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run (the four fidelity slices among them)", () => {
+    it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
@@ -2883,7 +2882,10 @@ describe("actions/cache in the workflows", () => {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(target.options.command, /^eslint [^&]*\$ESLINT_CACHE &&/);
+            assert.match(
+                target.options.command,
+                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
+            );
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
@@ -7483,7 +7485,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
                 },
             ],
             whole: [],
-            none: ["graphty-element-default", "graphty-element-webgpu"],
+            none: ["graphty-element-default", "graphty-element-webgpu", "graphty-element-gpu-loss"],
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");

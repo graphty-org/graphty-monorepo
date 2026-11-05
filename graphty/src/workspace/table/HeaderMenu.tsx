@@ -12,6 +12,7 @@ import React from "react";
 
 import { remap } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { timelineOn } from "../time/timeActions";
 import {
     failWords,
     fixLabel,
@@ -188,20 +189,22 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                             <Menu.Sub.Item>Role</Menu.Sub.Item>
                         </Menu.Sub.Target>
                         <Menu.Sub.Dropdown>
-                            {[null, ...headerRoles(kind, load !== undefined)].map((each) => (
-                                <MenuCheckItem
-                                    key={each ?? "none"}
-                                    radio
-                                    checked={each === role}
-                                    onClick={() => {
-                                        if (each !== role) {
-                                            assignRole(session, ref, each, kind, load).catch(fail);
-                                        }
-                                    }}
-                                >
-                                    {each === null ? "None" : ROLE_WORDS[each]}
-                                </MenuCheckItem>
-                            ))}
+                            {[null, ...headerRoles(kind, load !== undefined)]
+                                .filter((each) => each !== "time" || timelineOn(session) || role === "time")
+                                .map((each) => (
+                                    <MenuCheckItem
+                                        key={each ?? "none"}
+                                        radio
+                                        checked={each === role}
+                                        onClick={() => {
+                                            if (each !== role) {
+                                                assignRole(session, ref, each, kind, load).catch(fail);
+                                            }
+                                        }}
+                                    >
+                                        {each === null ? "None" : ROLE_WORDS[each]}
+                                    </MenuCheckItem>
+                                ))}
                         </Menu.Sub.Dropdown>
                     </Menu.Sub>
                     <Menu.Item onClick={actions.rename}>Rename...</Menu.Item>

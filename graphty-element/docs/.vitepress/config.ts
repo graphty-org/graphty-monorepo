@@ -105,6 +105,7 @@ export default defineConfig({
                         { text: "Project Files", link: "/guide/project-file" },
                         { text: "Autosave", link: "/guide/autosave" },
                         { text: "Experiments", link: "/guide/experiments" },
+                        { text: "Timeline", link: "/guide/timeline" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Where a Node Is on Screen", link: "/guide/screen-position" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },

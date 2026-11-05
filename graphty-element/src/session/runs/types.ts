@@ -169,6 +169,8 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 /**
  * The time window a run over the visible graph was computed in, and what it left visible then.
  * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
+ * @experimental timeline
+ * @beta
  */
 export interface RunWindow {
     /** The attribute the window read. */
@@ -201,6 +203,8 @@ export interface StaleNote {
     /**
      * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
      * params: { from, to, nodes, edges } }`.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: CodedFact<"window-moved">;
     /** How many elements the run was computed over. */
@@ -275,7 +279,11 @@ export interface Caveats {
     readonly filterScope?: boolean;
     /** Whether a time window narrowed what the run looked at. */
     readonly windowScope?: boolean;
-    /** The time window a run over the visible graph was computed in, and its visible counts. */
+    /**
+     * The time window a run over the visible graph was computed in, and its visible counts.
+     * @experimental timeline
+     * @beta
+     */
     readonly window?: RunWindow;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
@@ -389,6 +397,8 @@ export interface RunScopeRecord {
     /**
      * For a scope over the visible graph: the time window in force when it resolved, or null when
      * there was none. Absent for every other scope.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: RunWindow | null;
 }

@@ -74,6 +74,13 @@ const ArrowStyle = z.strictObject({
      */
     side: z.enum(["left", "right"]).optional(),
     /**
+     * How thick an open cap's outline is drawn (open-normal, open-diamond, open-dot, open-inverted, open-box), in the
+     * line's own width units (`line.width`): set it to the line's width to stroke the cap with the line's pen, as
+     * Graphviz and Cytoscape.js do. Unset or 0, the cap keeps its own thin frame. Other cap types ignore it. The
+     * outline is never drawn more than half way to the shape's middle, so the cap always reads as open.
+     */
+    outlineWidth: z.number().nonnegative().optional(),
+    /**
      * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
      * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the
      * cap sits on it, pointing the way the line goes at that end.
@@ -90,7 +97,8 @@ const ArrowStyle = z.strictObject({
      * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
      * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
-     * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
+     * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
+     * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
      * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
      * row there too.
      */

@@ -255,6 +255,55 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
     });
 });
 
+describe("FilledArrowRenderer - open outlines drawn at an outline width (#5800)", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        const engine = new NullEngine();
+        scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
+    test.each(Object.keys(FilledArrowRenderer.OPEN_OUTLINES))(
+        "%s is a frame as thick as the stroke it is given, its middle left open",
+        (type) => {
+            for (const stroke of [0.05, 0.1]) {
+                const mesh = FilledArrowRenderer.createOpenOutline(type, scene, stroke);
+                const p = mesh.getVerticesData("position") ?? [];
+                assert.isTrue(
+                    p.every((v, i) => i % 3 !== 1 || v === 0),
+                    "in the XZ plane",
+                );
+                // the box's frame: its outer side at z = 0.5, its inner side the stroke in from it
+                const zs = [...new Set(p.filter((_, i) => i % 3 === 2).map((z) => Math.round(z * 1e6) / 1e6))];
+                if (type === "open-box") {
+                    assert.sameMembers(zs, [-0.5, 0.5, -(0.5 - stroke), 0.5 - stroke]);
+                }
+                assert.isAbove(mesh.getTotalIndices(), 0);
+                mesh.dispose();
+            }
+        },
+    );
+
+    test("a stroke as thick as the shape is held to half the way to its middle, so it stays open", () => {
+        const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 2);
+        const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+        assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.25, 1e-9);
+        mesh.dispose();
+    });
+
+    test("its width is applied before it is framed, so the frame stays as thick", () => {
+        const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 0.1, 2);
+        const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+        assert.closeTo(Math.max(...zs), 1, 1e-9);
+        assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.9, 1e-9);
+        mesh.dispose();
+    });
+});
+
 describe("FilledArrowRenderer - 3D Shader Application", () => {
     let scene: Scene;
 

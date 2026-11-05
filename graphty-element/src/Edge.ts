@@ -982,6 +982,7 @@ export class Edge {
                 side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
                 image: style.arrowHead?.image,
+                outline: style.arrowHead?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -999,6 +1000,7 @@ export class Edge {
                 side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
                 image: style.arrowTail?.image,
+                outline: style.arrowTail?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -1587,6 +1589,7 @@ export class Edge {
                 side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
                 image: style.arrowHead?.image,
+                outline: style.arrowHead?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -1608,6 +1611,7 @@ export class Edge {
                 side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
                 image: style.arrowTail?.image,
+                outline: style.arrowTail?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -3844,6 +3848,7 @@ export class Edge {
                     side: arrow?.side,
                     opacity: arrow?.opacity,
                     image: arrow?.image,
+                    outline: arrow?.outlineWidth,
                 },
                 this.context.getScene(),
             );
@@ -3870,6 +3875,7 @@ export class Edge {
                               size: part.size ?? arrow.size,
                               width: part.width,
                               side: part.side,
+                              outlineWidth: part.outline ?? arrow.outlineWidth,
                           },
                           `${suffix}-${String(i)}`,
                       );

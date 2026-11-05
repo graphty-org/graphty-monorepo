@@ -890,6 +890,49 @@ describe("a file's arrowheads", () => {
         assert.approximately(headPerNode(session, filled.id, filled.source), 8 / 54, 1e-6);
         session.dispose();
     });
+
+    it("strokes Graphviz's open arrowheads with the edge's pen: the outline as thick as the line (#5800)", async () => {
+        const session = createGraphSession();
+        const dot =
+            "digraph { a -> b [arrowhead=obox penwidth=3]; b -> c [arrowhead=lteeoldiamond penwidth=2]; c -> d }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [obox, stacked, plain] = session.data.edges();
+        for (const edge of [obox, stacked, plain]) {
+            const line = drawn(session, { edge: edge.id }, "edge.width");
+            assert.isNumber(line);
+            assert.strictEqual(drawn(session, { edge: edge.id }, "edge.arrowHeadOutlineWidth"), line, edge.id);
+        }
+        assert.isAbove(
+            drawn(session, { edge: obox.id }, "edge.arrowHeadOutlineWidth") as number,
+            drawn(session, { edge: stacked.id }, "edge.arrowHeadOutlineWidth") as number,
+        );
+        session.dispose();
+    });
+
+    it("strokes Cytoscape.js's hollow arrowheads with the edge's pen too (#5800)", async () => {
+        const session = createGraphSession();
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "e", source: "a", target: "b" } }],
+            style: [
+                {
+                    selector: "edge",
+                    style: {
+                        "curve-style": "straight",
+                        "target-arrow-shape": "diamond",
+                        "target-arrow-fill": "hollow",
+                        width: 3,
+                    },
+                },
+            ],
+        });
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        const [edge] = session.data.edges();
+        assert.strictEqual(drawn(session, { edge: edge.id }, "edge.arrowHead"), "open-diamond");
+        const line = drawn(session, { edge: edge.id }, "edge.width");
+        assert.isNumber(line);
+        assert.strictEqual(drawn(session, { edge: edge.id }, "edge.arrowHeadOutlineWidth"), line);
+        session.dispose();
+    });
 });
 
 describe("a file's drawing order", () => {

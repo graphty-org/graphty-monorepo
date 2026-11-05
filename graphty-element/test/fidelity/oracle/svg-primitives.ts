@@ -12,6 +12,7 @@ import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     crossedStrokes,
+    dashAsDrawn,
     dashClassOf,
     dented,
     isLettering,
@@ -285,7 +286,7 @@ function strokeOf(
         color: flat.hex,
         opacity: r3(alpha),
         width: r3(width),
-        dash: solid ? null : dash,
+        dash: solid ? null : dashAsDrawn(dash, width, cs.strokeLinecap),
         dashClass: dashClassOf(solid ? null : dash, width, cs.strokeLinecap),
         gradient,
     };

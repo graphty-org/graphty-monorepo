@@ -10,7 +10,7 @@
  * a recorded window and the second as a smooth play frame does, from a place where that day takes
  * in a quantile instant or, in the last round, the best connected node's instant: every round must
  * cross rows, and the rows crossed print beside the timings. `binsVisible` is the first read after
- * a filter change.
+ * a filter change, with no window: a window would leave it about 1% of the rows that pass the filter.
  *
  * THE BUDGETS ARE PRINTED, NOT ASSERTED: a stopwatch on a busy machine measures the machine. Each
  * measurement prints as a `[time-pipeline]` line with its pass or fail, and each graph appends a row
@@ -40,6 +40,8 @@ const DAY = 86_400_000;
 const START = Date.UTC(2020, 0, 1);
 const SPAN = 5 * 365 * DAY;
 const WIDTH = 30 * DAY;
+/** The window the measurements start from, in the middle of the data. */
+const OPENING = { from: START + SPAN / 2, to: START + SPAN / 2 + WIDTH, step: DAY };
 const BINS = 500;
 /** How many bursts the Zipf graph's times fall in, and how long one lasts. */
 const BURSTS = 40;
@@ -247,12 +249,11 @@ async function bytesAdded(
     const historyBefore = history.bytes;
     const before = bytesHeld();
     await time.setField(graph.field);
-    const from = START + SPAN / 2;
-    await time.window({ from, to: from + WIDTH, step: DAY });
+    await time.window(OPENING);
     await time.stepBy(1);
     await time.ready;
     // A slide holds what a play or a drag holds, and it stays held after the commit.
-    await time.seek(from + 2 * DAY, { commit: false });
+    await time.seek(OPENING.from + 2 * DAY, { commit: false });
     await time.commit();
     time.bins({ count: BINS, scope: "visible" });
 
@@ -314,6 +315,22 @@ describe("the timeline at 1,000,000 edges", () => {
             const crossed = { stepBy: Array<number>(ROUNDS), slide: Array<number>(ROUNDS) };
             let hidden = 9;
 
+            await time.window(null);
+            // Ends where it began: the warm-up and the seven rounds are eight changes.
+            const binsVisible = await timed(
+                () => time.bins({ count: BINS, scope: "visible" }),
+                () => {
+                    hidden = hidden === 9 ? 8 : 9;
+                    return hideTenth(hidden);
+                },
+            );
+            const binnedRows = (time.bins({ count: BINS, scope: "visible" }) ?? []).reduce(
+                (sum, { nodes, edges }) => sum + nodes + edges,
+                0,
+            );
+            // Seeking with no window would open the first one, not this one.
+            await time.window(OPENING);
+
             const timings: Record<Measure, Timing> = {
                 jump: await timed(seek),
                 stepBy: await timed(
@@ -331,14 +348,7 @@ describe("the timeline at 1,000,000 edges", () => {
                     (round) => time.seek(stops[round], { commit: false }),
                 ),
                 bins: await timed(() => time.bins({ count: BINS })),
-                // Ends where it began: the warm-up and the seven rounds are eight changes.
-                binsVisible: await timed(
-                    () => time.bins({ count: BINS, scope: "visible" }),
-                    () => {
-                        hidden = hidden === 9 ? 8 : 9;
-                        return hideTenth(hidden);
-                    },
-                ),
+                binsVisible,
                 // A new data token drops the index; the snapshot is rebuilt before the clock starts. The
                 // `extent()` asks for the build, and `ready` holds until it is done.
                 build: await timed(
@@ -358,6 +368,8 @@ describe("the timeline at 1,000,000 edges", () => {
             await seek(0);
             const visibleEdges = visibility.edgeMask().reduce((sum, shown) => sum + shown, 0);
             assert.isAbove(visibleEdges, 0);
+            // Nor can a histogram that reached only a few of the rows.
+            assert.isAbove(binnedRows, timedRows / 2);
 
             for (const measure of Object.keys(BUDGET_MS) as Measure[]) {
                 const timing = timings[measure];
@@ -368,12 +380,13 @@ describe("the timeline at 1,000,000 edges", () => {
             }
 
             console.log(`[time-pipeline] ${name} rows crossed per round: ${crossed.stepBy.join(", ")}`);
+            console.log(`[time-pipeline] ${name} rows binsVisible counted: ${String(binnedRows)}`);
             console.log(
                 `[time-pipeline] ${name} bytes added per timed element: ${bytes.perTimed.toFixed(1)} (${bytes.historyPerTimed.toFixed(1)} held by the undo history), budget ${bytes.budget.toFixed(1)}: ${bytes.perTimed <= bytes.budget ? "pass" : "fail"}`,
             );
             appendFileSync(
                 new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
-                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, timings, crossed, bytes })}\n`,
+                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, binnedRows, timings, crossed, bytes })}\n`,
             );
         });
     }

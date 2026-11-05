@@ -137,7 +137,9 @@ describe("the outline holds only recipe rows", () => {
         });
         const before = rowTops();
         for (const id of ["a", "deg", "b", "iso", "title"]) {
-            await userEvent.click(row(id).querySelector(".sel-value, .sel-title") ?? row(id));
+            // The row itself: a group's letter is also every matching table row's Group cell, so a
+            // click found by the letter alone is ambiguous once the group holds nodes.
+            await userEvent.click(row(id));
             await waitFor(() => {
                 assert.equal(row(id).getAttribute("aria-selected"), "true");
             });

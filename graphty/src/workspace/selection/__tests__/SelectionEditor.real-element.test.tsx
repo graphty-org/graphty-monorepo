@@ -762,7 +762,9 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
             assert.isNotNull(document.querySelector(".sel-pane-box"));
         });
         assert.isNull(screen.queryByRole("radiogroup", { name: "Start with" }), "not in the title pane");
-        await userEvent.click(row("a").querySelector(".sel-value") ?? row("a"));
+        // The group's row by its own name: its letter alone is also every matching row's Group
+        // cell in the table once the group holds nodes, so a click by the letter is ambiguous.
+        await userEvent.click(row("a"));
         const caption = screen.queryByText("Start with");
         assert.isTrue(caption === null || !caption.checkVisibility(), "collapsed at first");
         await userEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));

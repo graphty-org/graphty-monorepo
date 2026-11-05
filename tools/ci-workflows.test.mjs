@@ -112,11 +112,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 27 jobs", () => {
+    it("runs every shard exactly once on a full run, in 30 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 27);
+        assert.equal(include.length, 30);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -1195,7 +1195,7 @@ describe("ci.yml", () => {
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 27, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 30, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
@@ -1313,7 +1313,7 @@ describe("verification runs of ci.yml", () => {
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
         assert.equal(called.out.light, undefined, "a verification run is not light");
-        assert.equal(called.out["test-count"], "27");
+        assert.equal(called.out["test-count"], "30");
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
         assert.equal(master.out.light, "true");
@@ -7452,7 +7452,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
         assert.equal(bin.coverage, undefined, "a bin writes no coverage");
         assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
-        assert.ok(!include.some((e) => /^graphty-element-browser-[2-5]$/.test(e.shard)), "the bin replaces its shards");
+        assert.ok(!include.some((e) => /^graphty-element-browser-[2-9]$/.test(e.shard)), "the bin replaces its shards");
         assert.ok(
             !include.some((e) => e.shard === "graphty-element-default"),
             "a shard with nothing selected runs nowhere",

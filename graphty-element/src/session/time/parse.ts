@@ -199,7 +199,7 @@ function zoneUnder(unit: TimeUnit, zone: string): string {
  * @returns True when the text says its zone.
  */
 function namesOwnZone(text: string): boolean {
-    return OWN_ZONE.test(text.replaceAll(/\([^)]*\)/g, ""));
+    return OWN_ZONE.test(text.replaceAll(/\([^()]*\)/g, ""));
 }
 
 /**

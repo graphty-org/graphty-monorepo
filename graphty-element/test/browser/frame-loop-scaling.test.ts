@@ -21,7 +21,7 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
-import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { Node } from "../../src/Node";
@@ -716,6 +716,7 @@ describe("a repaint of every node", () => {
     it("visits each edge a fixed number of times, however many frames it is spread over", async () => {
         const size = 400;
         const edges = size - 1;
+        const minimumWork = minimumWorkPerFrame();
         setMinimumWorkPerFrame(true);
         const element = await mount(size);
         const visits = countCalls(Edge.prototype, "update");
@@ -747,7 +748,7 @@ describe("a repaint of every node", () => {
             assert.isAtMost(visits.count.calls, 8 * edges, "a fixed number of visits per edge, not one a frame");
         } finally {
             visits.restore();
-            setMinimumWorkPerFrame(false);
+            setMinimumWorkPerFrame(minimumWork);
             element.remove();
         }
     });

@@ -757,6 +757,26 @@ function unwrapped(refs: References, first: Resolved): Resolved {
     return st;
 }
 
+/** The shapes of a RectangleNodeStyle that rounds only the corners of one side (`corners`). */
+const ONE_SIDE_ROUND: ReadonlyMap<string, string> = new Map([
+    ["TOP", "other:top-round-rectangle"],
+    ["BOTTOM", "other:bottom-round-rectangle"],
+]);
+
+/**
+ * What a RectangleNodeStyle draws: a box, rounded when it has a `cornerSize`, on the corners it names. Its other
+ * `corners` values (one corner, the left or right side) and its other `cornerStyle`s are read as rounded all round.
+ * @param style - the style
+ * @returns the shape
+ */
+function rectangleStyleShape(style: StyleObject): string {
+    if (treeAttr(style.e, "cornerSize") === undefined) {
+        return "rectangle";
+    }
+    const round = (treeAttr(style.e, "cornerStyle") ?? "ROUND") === "ROUND";
+    return (round ? ONE_SIDE_ROUND.get(treeAttr(style.e, "corners") ?? "") : undefined) ?? "round-rectangle";
+}
+
 /**
  * A node style's shape: its `shape`, else what its kind draws.
  * @param style - the style
@@ -769,7 +789,7 @@ function nodeShapeOf(style: StyleObject, at: SiteOf): string | null {
         return SHAPES_26.get(shapeKey(shape) ?? "")?.shape ?? canonEnum("shape", shape, "yfiles3", at("shape"));
     }
     if (style.tag === "RectangleNodeStyle") {
-        return treeAttr(style.e, "cornerSize") === undefined ? "rectangle" : "round-rectangle";
+        return rectangleStyleShape(style);
     }
     if (style.tag === "ShapeNodeStyle") {
         return "rectangle";

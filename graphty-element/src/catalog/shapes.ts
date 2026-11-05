@@ -131,6 +131,8 @@ export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[] = des
     // The flat shapes: drawn on one plane, so each glyph is its outline.
     ["rectangle", "Rectangle", '<rect x="3" y="6" width="18" height="12"/>'],
     ["round-rectangle", "Rounded rectangle", '<rect x="3" y="6" width="18" height="12" rx="3"/>'],
+    ["top-round-rectangle", "Rectangle, rounded top", '<path d="M3 18V9a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v9z"/>'],
+    ["bottom-round-rectangle", "Rectangle, rounded bottom", '<path d="M3 6v9a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V6z"/>'],
     ["ellipse", "Ellipse", '<ellipse cx="12" cy="12" rx="9" ry="6"/>'],
     ["diamond", "Diamond", '<path d="M12 3l9 9-9 9-9-9z"/>'],
     ["triangle", "Triangle", '<path d="M12 4l9 16H3z"/>'],

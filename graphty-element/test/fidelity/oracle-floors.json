@@ -56209,22 +56209,6 @@
                 "date": "2026-11-01"
             }
         },
-        "cytoscapejs-specimen-node-shapes": {
-            "node.shape": {
-                "floor": 1,
-                "to": 0.957,
-                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
-                "date": "2026-11-05"
-            }
-        },
-        "cytoscapejs-specimen-node-shapes@matched": {
-            "node.shape": {
-                "floor": 1,
-                "to": 0.957,
-                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
-                "date": "2026-11-05"
-            }
-        },
         "dot-real-crazy": {
             "node.position": {
                 "floor": 1,
@@ -56433,22 +56417,6 @@
                 "date": "2026-11-01"
             }
         },
-        "json-cyjs-synth-nodes": {
-            "node.shape": {
-                "floor": 1,
-                "to": 0.981,
-                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
-                "date": "2026-11-05"
-            }
-        },
-        "json-cyjs-synth-nodes@matched": {
-            "node.shape": {
-                "floor": 1,
-                "to": 0.981,
-                "reason": "comparator: a curved outline with a corner on its box's corner now reads as no rounded rectangle; Cytoscape.js's bottom-round-rectangle has two square corners and graphty draws all four rounded, a drawing gap this reading exposed, passed by chance before",
-                "date": "2026-11-05"
-            }
-        },
         "json-graphology-synth": {
             "stray.extra": {
                 "floor": 0.667,
@@ -56617,22 +56585,6 @@
                 "to": 0.75,
                 "reason": "first judgment of this sheet after the yEd references changed (2026-11-04, #3109): yEd refuses the file, so these are draw.io's stand-in drawing judged by the corrected comparator, not yEd's; followed up in #5792",
                 "date": "2026-11-04"
-            }
-        },
-        "yed-live-graphml-specimen-node-shapes": {
-            "node.shape": {
-                "floor": 0.585,
-                "to": 0.561,
-                "reason": "comparator (#5789): yEd Live's RectangleNodeStyle corners=TOP rounds two corners and graphty draws all four rounded, a drawing gap the square-corner reading exposed, passed by chance before",
-                "date": "2026-11-05"
-            }
-        },
-        "yed-live-graphml-specimen-node-shapes@matched": {
-            "node.shape": {
-                "floor": 0.585,
-                "to": 0.561,
-                "reason": "comparator (#5789): yEd Live's RectangleNodeStyle corners=TOP rounds two corners and graphty draws all four rounded, a drawing gap the square-corner reading exposed, passed by chance before",
-                "date": "2026-11-05"
             }
         }
     }

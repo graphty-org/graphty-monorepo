@@ -173,6 +173,9 @@ const ARROW_OF = inverse(
  */
 const stackShape = (stack: string): string => stack.replaceAll(/\*[^x\s]+/g, "");
 
+/** The formats whose writers spell yEd's arrows; every other format writes the end cap, which it has a name for. */
+const YED_ARROW_FORMATS: ReadonlySet<string> = new Set(["graphml", "gml"]);
+
 // yEd's arrows of several pieces share end caps, so `ARROW_OF` names only one of them: the whole row names each
 const ARROW_ROWS = new Map(
     [...ARROW_RUNS].map(([shape, run]) => [
@@ -637,11 +640,11 @@ class KindExport {
      * @param channel - The channel.
      * @param cap - The channel's value.
      * @param row - The element.
-     * @returns The neutral arrow, or undefined when the channel is no end cap of such an arrow.
+     * @returns The neutral arrow, or undefined when the channel is no end cap of such an arrow or the format has none.
      */
     #arrowRow(channel: string, cap: unknown, row: number): string | undefined {
         const stack = this.#merged[row]?.[`${channel}Stack`];
-        return typeof stack === "string" && typeof cap === "string"
+        return YED_ARROW_FORMATS.has(this.#input.format) && typeof stack === "string" && typeof cap === "string"
             ? ARROW_ROWS.get(`${cap} ${stackShape(stack)}`)
             : undefined;
     }

@@ -49,12 +49,19 @@ function yedFile(arrows: readonly string[], width = 1): string {
  * A file read with its styles and written again through the layers.
  * @param file - The file.
  * @param type - Its format.
- * @returns The GraphML written.
+ * @param format - The format written.
+ * @param options - The writer's options.
+ * @returns What is written.
  */
-async function rewritten(file: string, type = "graphml"): Promise<string> {
+async function rewritten(
+    file: string,
+    type = "graphml",
+    format = "graphml",
+    options: Readonly<Record<string, unknown>> = {},
+): Promise<string> {
     const session = createGraphSession();
     await session.data.import({ type, config: { data: file } }, { styles: "file" });
-    const text = await exportSession(session, "graphml", { styles: true }).text();
+    const text = await exportSession(session, format, { ...options, styles: true }).text();
     session.dispose();
     return text;
 }
@@ -100,6 +107,23 @@ describe("an export through the layers", () => {
     it("keeps Graphviz's crow with a ring behind it a crow, which draws the same caps as yEd's row", async () => {
         const text = await rewritten("digraph { a -> b [arrowhead=crowodot]; }", "dot");
         assert.include(text, 'target="crows_foot_many"');
+    });
+
+    it("writes yEd's arrows into GML, which spells them too", async () => {
+        const text = await rewritten(yedFile(["crows_foot_many_optional"]), "graphml", "gml", {
+            sanitizeIds: "mangle",
+            sanitizeKeys: "mangle",
+        });
+        assert.include(text, 'targetArrow "crows_foot_many_optional"');
+    });
+
+    it("writes the end cap into a format that has no name for yEd's arrow", async () => {
+        const rows = ["crows_foot_many_optional", "crows_foot_many_mandatory", "white_delta_bar"];
+        const text = await rewritten(yedFile(rows), "graphml", "dot");
+        assert.deepEqual(
+            [...text.matchAll(/arrowhead="?(\w+)/g)].map((m) => m[1]),
+            ["crow", "crow", "onormal"],
+        );
     });
 
     it("keeps a stem with no row behind it as it was written", async () => {

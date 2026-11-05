@@ -3955,8 +3955,8 @@ async function proveWarm(base, check, step) {
     step(W2, "--click", "New project");
     const facts = await ask(W2, { op: "tier-facts" }).catch((e) => ({ data: e.message }));
     check(
-        "a session of another tier is unchanged: no site.json answered, no Assistant, no Gemini route",
-        facts.data?.siteStatus === 404 && facts.data.assistant === 0 && facts.data.routed === false,
+        "a session of another tier is unchanged: production's site.json, no Assistant, no Gemini route",
+        facts.data?.siteStatus === 200 && facts.data.assistant === 0 && facts.data.routed === false,
         JSON.stringify(facts.data),
     );
     for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));

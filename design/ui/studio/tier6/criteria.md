@@ -1,4 +1,4 @@
-The study runs on build <sha> served from <dir>
+The study runs on build 8fa33aa786 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1-8fa33aa786
 
 Frozen on 2026-11-05 for the tier 6 rounds.
 
@@ -212,3 +212,5 @@ dry run twice. The owner is told why, once.
       reproduction and T92 A's selection cover the question with setup alone, and the limit is stated
       under "Not asked". The selection was walked on ad16c1f2dd: the reply read "Of the 9 on-record
       sources in the selection, 6 gave donations", where the file's answer is 7 of 12.
+- 2026-11-05, the first freeze: no build was named before this one, so the first line moves from its
+  placeholder to round r1's build 8fa33aa786, which holds master merged in. No bar changed.

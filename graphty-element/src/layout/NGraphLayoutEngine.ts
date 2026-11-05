@@ -651,10 +651,20 @@ export class NGraphEngine extends LayoutEngine {
      * z at all, and the row is published flat rather than left unplaced.
      */
     override publishPositions(): void {
+        const { rows, coords } = this.publishScratch(this.nodeMapping.size);
+        let count = 0;
+        let first: Node | undefined;
         for (const [node, ngraphNode] of this.nodeMapping) {
             const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
-            this.writeNodePosition(node, pos.x, pos.y, pos.z ?? 0);
+            first ??= node;
+            rows[count] = node.index;
+            coords[3 * count] = pos.x;
+            coords[3 * count + 1] = pos.y;
+            coords[3 * count + 2] = pos.z ?? 0;
+            count++;
         }
+
+        this.publishColumn(first, rows, coords, count);
     }
 
     /**

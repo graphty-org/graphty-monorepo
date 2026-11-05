@@ -265,6 +265,73 @@ describe("a shared device lost in the middle of a layout", () => {
     }
 });
 
+describe("a shared device that does not come back", () => {
+    /**
+     * Opens a graph on a shared device and loses the device for good.
+     * @param policy - The acceleration policy.
+     * @returns The graph, once it has said it stopped drawing.
+     */
+    async function openAndLoseForGood(policy: "auto" | "required"): Promise<Graph> {
+        adapterSays("test-hardware");
+        const graph = await open(policy);
+        vi.spyOn(GPU.prototype, "requestAdapter").mockResolvedValue(null);
+        const gone = new Promise<void>((resolve) => {
+            graph.on("error", () => {
+                resolve();
+            });
+        });
+        (await deviceOf(graph)).destroy();
+        await gone;
+        return graph;
+    }
+
+    it("leaves a later search for the accelerator to end on the CPU", async () => {
+        const graph = await openAndLoseForGood("auto");
+
+        graph.acceleration.setPolicy("off");
+        graph.acceleration.setPolicy("auto");
+        await graph.acceleration.ready();
+
+        assert.isNull(graph.acceleration.accelerator);
+        assert.strictEqual(graph.acceleration.status.state, "unavailable");
+    });
+
+    it("refuses a later search under the required policy", async () => {
+        const graph = await openAndLoseForGood("required");
+
+        graph.acceleration.setPolicy("off");
+        graph.acceleration.setPolicy("required");
+        const answer = await graph.acceleration.ready().then(
+            () => "ready",
+            () => "refused",
+        );
+
+        assert.strictEqual(answer, "refused");
+    });
+
+    it("tells whoever waits for the device when the graph is disposed during the loss", async () => {
+        adapterSays("test-hardware");
+        const graph = await open();
+        const engine = graph.engine as RecoveringWebGPUEngine;
+        const lost = new Promise<void>((resolve) => {
+            engine.onContextLostObservable.addOnce(() => {
+                resolve();
+            });
+        });
+        (await deviceOf(graph)).destroy();
+        await lost;
+
+        const waiting = engine.drawingDevice();
+        unmount();
+
+        const answers = await Promise.allSettled([waiting, engine.drawingDevice()]);
+        assert.deepEqual(
+            answers.map(({ status }) => status),
+            ["rejected", "rejected"],
+        );
+    });
+});
+
 describe("errors on a shared device", () => {
     it("fails no layout batch when the renderer's error reaches the device", async () => {
         adapterSays("test-hardware");

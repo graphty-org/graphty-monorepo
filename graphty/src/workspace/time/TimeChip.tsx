@@ -17,7 +17,7 @@ import { useTimeVersion } from "./useTimeVersion";
 export function TimeChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
-    if (session === null || session.time.field === null || session.time.current === null) {
+    if (!session?.time.field || session.time.current === null) {
         return null;
     }
     const window = session.time.current;

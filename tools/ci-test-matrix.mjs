@@ -70,6 +70,9 @@ const ELEMENT_BROWSER_PARTS = 8;
 const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
 
+// graphty's projects the five graphty parts run: all but the stories and large-graph, which have shards of their own.
+const GRAPHTY_PROJECTS = "--project=browser --project=real-element --project=eslint-rules --project=node";
+
 const OFF_SHARDS = [
     // graph-format - single shard (Node.js, no browser)
     {
@@ -264,14 +267,26 @@ const OFF_SHARDS = [
     // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
     // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
-    // these commands never set, so "!storybook" never runs them.
+    // these commands never set. The projects are named one by one because vitest runs a project that any one
+    // --project matches, so a second "!name" would select the project the first one left out.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/5 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run ${GRAPHTY_PROJECTS} --shard=${n}/5 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
+    // LargeGraph.real-element.test.tsx, the `large-graph` project: alone at load average 20 it took 1,434 s of
+    // the file guard's 1,560 s (tools/test-wait-guard.mjs), and it held graphty-4 near the job's 30-minute limit.
+    // Its pickers on 50,000 nodes pin their own experiments, so the On twins would repeat it: no twin runs it. No
+    // coverage: it would slow the file further, and the graphty parts measure the source.
+    {
+        shard: "graphty-large-graph",
+        package: "graphty",
+        "test-command": "cd graphty && pnpm exec vitest run --project=large-graph",
+        "needs-browser": true,
+        local: "when-paths-change",
+    },
     // graphty's stories: every play function run as a test, as graphty-element's storybook shards
     // do. No coverage: the stories exercise the same source the graphty shard measures.
     {
@@ -526,8 +541,8 @@ export const STORY_RUNS = {
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
- * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
- * small-browser took over 64 minutes with the graphty shards in it).
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph (one file of about 24 minutes)
+ * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
  */
 export const GROUPS = {
     "small-node": [
@@ -565,6 +580,7 @@ const NO_COVERAGE = new Set([
     "graphty-element-webgpu",
     "graphty-element-gpu-loss",
     "graphty-storybook",
+    "graphty-large-graph",
     "algorithms-storybook",
     "graph-io-storybook-1",
     "graph-io-storybook-2",

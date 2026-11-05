@@ -193,6 +193,21 @@ describe("the test matrix", () => {
         assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
+    // Vitest runs a project any one --project matches, so the graphty parts name theirs, and a project missing from
+    // the list would silently never run in CI.
+    it("runs every graphty project in one shard family: large-graph alone, the stories alone, the rest in the parts", () => {
+        const config = readFileSync(new URL("../graphty/vitest.config.ts", import.meta.url), "utf8");
+        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)].map(
+            (m) => m[1] ?? m[2],
+        );
+        const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
+        const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
+        assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
+        const large = SHARDS.find((s) => s.shard === "graphty-large-graph");
+        assert.match(large["test-command"], /--project=large-graph$/);
+        assert.equal(plan(PACKAGES).find((e) => e.shard === large.shard).coverage, undefined);
+    });
+
     // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
     // decode and every story errors (#4989). The test job pulls a matrix entry's "lfs" (see ci.yml below).
     it("names the Git LFS files a shard reads, alone, in its group and in a light-check bin", () => {
@@ -3444,7 +3459,8 @@ describe("the webgpu-graph-algorithms node suite on every lane", () => {
             readFileSync(new URL("../webgpu-graph-algorithms/package.json", import.meta.url), "utf8"),
         );
         const lines = [
-            ...SHARDS.map((s) => s["test-command"]),
+            // graphty has a `node` project of its own, with no GPU in it
+            ...SHARDS.filter((s) => s.package === "webgpu-graph-algorithms").map((s) => s["test-command"]),
             ...Object.values(pkg.scripts),
             ...workflow("hosts.yml").split("\n"),
             ...workflow("gpu.yml").split("\n"),

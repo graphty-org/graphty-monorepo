@@ -33,6 +33,10 @@
             "why": "1m23s before the Sentry regression, 60-63 s after the fix (uncached)"
         },
         "job:ci.yml:Test (*)": { "minutes": 15, "why": "tools/ci-test-matrix.mjs plans every shard under 15" },
+        "job:ci.yml:Test (graphty-large-graph)": {
+            "minutes": 28,
+            "why": "one file of 1,434 s (24 min) alone at load average 20, plus setup; its guard ends it at 26 min"
+        },
         "job:ci.yml:Stories (*)": { "minutes": 10, "why": "story bins of at most 8 min plus setup (report-only)" },
         "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
         "ttg:owner-wait": { "record": true, "why": "recorded, no line" },

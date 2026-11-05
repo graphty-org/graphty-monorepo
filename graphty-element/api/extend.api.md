@@ -80,6 +80,7 @@ import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -2105,6 +2106,8 @@ class Node_2 implements ModelUser {
     dragHandler?: NodeDragHandler;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
     get drawnFill(): string | null;
     // @internal
     get drawnGeneration(): number;
@@ -2133,6 +2136,8 @@ class Node_2 implements ModelUser {
     get drawnWorldRadius(): number;
     // @internal
     get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;

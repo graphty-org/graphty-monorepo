@@ -82,6 +82,7 @@ import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -2756,6 +2757,8 @@ export class Graph implements GraphContext {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    // @internal
+    getRowTable(): RowTable | null;
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -2833,6 +2836,8 @@ export class Graph implements GraphContext {
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
+    // @internal
+    openRowTable(): RowTable;
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
@@ -3006,6 +3011,8 @@ export interface GraphContext {
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
+    getRowTable?(): RowTable | null;
     getScene(): Scene;
     getSelectionManager?(): SelectionManager | undefined;
     getSession?(): GraphSession;
@@ -4979,6 +4986,8 @@ class Node_2 implements ModelUser {
     dragHandler?: NodeDragHandler;
     // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
     get drawnFill(): string | null;
     // @internal
     get drawnGeneration(): number;
@@ -5007,6 +5016,8 @@ class Node_2 implements ModelUser {
     get drawnWorldRadius(): number;
     // @internal
     get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;

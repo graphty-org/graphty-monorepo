@@ -1792,17 +1792,18 @@ node-sizes-opacity 3 -> 2. Still open, and why:
   background; `node-shapes`, `images-charts`) failed `stray.extra` (`graphty:annotation-image`): the oracle side
   folds the program's `<image>` into the node, so nothing was left for graphty's picture to match. Comparator, fixed in
   fix round 3: the oracle node keeps the boxes of the pictures it is drawn with (`pictures`), and graphty's picture
-  matches one of them as it would a stray. `annotation-image#5` on `images-charts` still fails: graphty places the
-  `coordinate-origin-circular` node 23 px off (`node.position`, shared with `unpositioned-layout-scale`).
+  matches one of them as it would a stray. `annotation-image#5` on `images-charts` failed while graphty placed the
+  `coordinate-origin-circular` node 23 px off; graph-io now puts its center half its square from `x` and `y` (#4515).
 - `json-vis-siblings` (200 nodes / 284 edges drawn, 83 / 104 associated): not an import gap. The file has no hidden or
   duplicate record and vis-network draws all of them (`observed` 200 / 284 in the oracle's metadata); it stores no
   positions, so graphty lays it out itself and the geometric association pairs 83 of its nodes by chance. Shared
   with the other vis-network documents without positions (`unpositioned-layout-scale`).
 - `json-vis-synth` `curve`, `inv_curve` and `image` arrows (5->6, 6->7, 11->12) read as no arrow on the oracle: the
   arc sits against the target dot where the next edge starts at the same center, and the comparator gives it to
-  neither; the image arrow is read as a stray picture.
+  neither. The image arrow (11->12) was read as a stray picture until the comparator gave a picture a tip (its box) and
+  measured it by its turned corners (#4515).
 - Unchanged from round 1: `database` (no stroke on the oracle, sized from its label's width), `border-radius-12`
-  (shape class), `coordinate-origin-circular` and `image-background` (images-charts), `self-reference-front`.
+  (shape class), `image-background` (images-charts), `self-reference-front`.
 
 Checked again on a clean copy of the commits (2026-10-20), every vis-network sheet run against the committed floors
 and known failures:
@@ -4633,6 +4634,57 @@ Only a person can judge whether the drawings got better. These stories of the gr
     judged).
 12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
     branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.
+
+## The full-run gate's drift after round 4, explained (#4270, 2026-10-29)
+
+Before round 5 the full oracle gate (`oracle-known-failures.json`, run by `oracle-report.test.ts` over all 563
+samples) failed 27 samples, and the plain-view total had moved from round 4's 10,359 failing elements to 10,469.
+Nothing in CI ran the full comparison, so nobody saw it move. Measured by full runs of round 4's own measurement
+commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before round 5 (780b7edbe6) and master on
+2026-10-29 (ea5b2c9f29):
+
+- **Not a GPU difference.** Master drawn on the workstation's NVIDIA card and without a GPU (headless Chromium's
+  SwiftShader, which is what CI uses) fails exactly the same elements on all 563 samples, in both views, and the 27
+  samples fail the same way on both paths at 0ba5008d36 and at 780b7edbe6. Only the raster regions differ between
+  the paths, and they are reported, never gated.
+- **26 of the 27 samples were already red at round 4's own measurement**: f0b669df00 fails 30 samples against its
+  own records (309 clean, 10,378 failing elements). Round 4 said so ("not green against its own records") and left
+  the recording pass undone. Their drawings did not change between 0ba5008d36 and 780b7edbe6.
+- **The +110, split.** 19 of it is already in a fresh run of round 4's own measurement commit: f0b669df00 fails
+  10,378 elements against the 10,359 round 4 reported. The other +91, from f0b669df00 to 780b7edbe6, is two changes
+  that partly cancel (+251 - 160). `dot-real-siblings` went from 225 to 476 failing elements: all 284 edges now fail
+  edge.width. The edges are as wide as before. A bisect over the 1,351 commits between f0b669df00 and 0ba5008d36
+  names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not depend on load order): the
+  unhinted labels measure a little differently, this file's nodes are sized to their labels, so graphty's Graphviz
+  run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines 0.22 units wide that moves the
+  width ratio from inside [0.9, 1.1] to 1.101. No reader can see it; the comparator's edge.width is too strict on
+  sub-pixel lines (#4451). It moved no other sample. Against it, eight `gml-specimen-*` pages went from 160 failing
+  elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged beside it
+  (802cb125e1): an oracle change, not a drawing change.
+- **The 11 samples round 5 added** are elements its comparator newly judges (listed under "Round 5", "The full-run
+  gate"). Three more were classified element by element against round 5's own run, judged again by today's
+  comparator (`GRAPHTY_ORACLE_BASELINE`; until this change a baseline outside the worktree was silently unreadable,
+  so every element came out "unclassified"): of their 76 elements, 33 already failed in round 5's run (most of
+  `json-cyjs-perf`'s arrows, `json-cyjs-tokyo`'s extra nodes and sizes, failing since round 4), 24 appear with the
+  comparator's twin pairing (#4265) on round 5's drawings, and 19 in the position-matched views of `cx2-wp1449-tlr`
+  and `json-cyjs-tokyo` come from a drawing change since round 5 that is not explained yet (#4452). Whether the
+  twin pairing pairs twins rightly is not settled.
+- **One recorded element is a drawing regression.** The four `syn-mappings` copies each add one route since round
+  5's arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253. It is in the known
+  failures now, so the gate no longer shows it.
+
+What changed:
+
+- The 6-hour full run now runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
+  (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
+  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Timed on
+  CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
+  job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
+  on the same inputs is never quarantined as flaky: it fails the run.
+- The gate is green on master (2026-11-04, master 19fb4bf684 merged in, workstation, all four slices: 567 samples, none
+  failing). Every failure listed above has since been fixed on master or recorded in its known failures, under the
+  issues it was traced to (#5116 to #5119, #4253, #4452, #4523, #3103, #4514, #4524; #4515, still open, is recorded),
+  so the full run starts from green.
 
 ## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
 

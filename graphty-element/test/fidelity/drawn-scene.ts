@@ -42,6 +42,7 @@ import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { convexHull, isFlatShape, piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
+import { FIGURE_FILLS, twiceArea } from "./oracle/primitives";
 import { spansAlongCenters } from "./pattern-spans";
 
 /**
@@ -707,7 +708,14 @@ export interface DrawnNode {
      * The ramp the texture is painted with, as the node's style asked its renderer for it (NodeMesh paints its stops
      * evenly, a linear one along `direction` degrees on the upright texture, clockwise from +x on screen), or null.
      */
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null;
+    ramp: {
+        kind: "linear" | "radial";
+        colors: string[];
+        direction: number | null;
+        stops?: number[];
+        /** A radial ramp's middle, in fractions of the node's box, when its style moves it. */
+        center?: [number, number];
+    } | null;
     instanceColor: boolean;
     visible: boolean;
     /**
@@ -729,6 +737,11 @@ export interface DrawnNode {
     innerBorder?: DrawnBorder | null;
     /** The outer ring (Cytoscape.js's outline) and how far its inner edge is out from the fill, or null for none. */
     outer?: { border: DrawnBorder; gapPx: number; ringsPx?: number } | null;
+    /**
+     * Where the node's face has a dent (Pajek's man, woman and cross, a star), the edges of its outline on screen, in
+     * render pixels, as the oracle's side reads a figure (`figureOf`); absent for any other shape, a solid's included.
+     */
+    figure?: [Xy, Xy][];
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
@@ -1084,6 +1097,32 @@ function frontFace(mesh: AbstractMesh): {
     return { area, points: [...points.values()], triangles, boundary };
 }
 
+/** Each node mesh's front outline where it has a dent, in its own units; null where it has none (`readFigure`). */
+const figureEdges = new WeakMap<AbstractMesh, { a: Xyz; b: Xyz }[] | null>();
+
+/**
+ * A node's figure on screen (`DrawnNode.figure`): the edges of its front face's outline, where that face fills under
+ * `FIGURE_FILLS` of its convex hull, as the oracle's side tells a figure (`figureOf`).
+ * @param mesh - the node's mesh
+ * @param p - the projector
+ * @returns the edges in render pixels, or undefined for a shape with no dent
+ */
+function readFigure(mesh: AbstractMesh, p: Projector): [Xy, Xy][] | undefined {
+    const source = sourceOf(mesh);
+    let edges = figureEdges.get(source);
+    if (edges === undefined) {
+        const { area, points, boundary } = frontFace(source);
+        // a dent as `dented` tells one, by the area the face's triangles cover (its edges come in no order)
+        const hull = convexHull(points.map((q) => [q[0], q[1]] as const));
+        edges = area > 0 && 2 * area < FIGURE_FILLS * twiceArea(hull) ? boundary : null;
+        figureEdges.set(source, edges);
+    }
+    return edges?.map((e) => {
+        const [a, b] = onScreen(mesh, [e.a, e.b], p);
+        return [a, b];
+    });
+}
+
 /**
  * How thick the band a ring's front face draws is on screen: twice its area over the length of its edges, both measured
  * on screen. A band of one width all round, the ring's own offset of the fill's outline, is exactly that width
@@ -1193,19 +1232,36 @@ function readInset(node: Node, p: Projector): number {
  */
 function rampOf(node: Node): DrawnNode["ramp"] {
     const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
-        { colorType?: string; colors?: unknown[]; direction?: unknown; stops?: unknown[] } | undefined;
+        | {
+              colorType?: string;
+              colors?: unknown[];
+              direction?: unknown;
+              stops?: unknown[];
+              radius?: unknown;
+              centerX?: unknown;
+              centerY?: unknown;
+          }
+        | undefined;
     if (color?.colorType !== "gradient" && color?.colorType !== "radial-gradient") {
         return null;
     }
     const colors = (color.colors ?? []).flatMap((c) => (typeof c === "string" ? [c.toLowerCase()] : []));
+    const written =
+        color.stops?.length === colors.length && color.stops.every((t) => typeof t === "number") ? color.stops : null;
+    // a radial gradient reaching `radius` halves of the node's side: its stops, in halves of the side as the oracle's
+    // picture is read
+    const radius = color.colorType === "radial-gradient" && typeof color.radius === "number" ? color.radius : 1;
+    const last = Math.max(colors.length - 1, 1);
+    const stops = radius === 1 ? written : (written ?? colors.map((_, i) => i / last)).map((t) => t * radius);
     return colors.length === 0
         ? null
         : {
               kind: color.colorType === "gradient" ? "linear" : "radial",
               colors,
               direction: color.colorType === "gradient" && typeof color.direction === "number" ? color.direction : null,
-              ...(color.stops?.length === colors.length && color.stops.every((t) => typeof t === "number")
-                  ? { stops: color.stops }
+              ...(stops === null ? {} : { stops }),
+              ...(typeof color.centerX === "number" || typeof color.centerY === "number"
+                  ? { center: [Number(color.centerX ?? 0.5), Number(color.centerY ?? 0.5)] as [number, number] }
                   : {}),
           };
 }
@@ -1287,6 +1343,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a body drawn off its position (a glyph above its baseline, in pieces) is placed by its box, as a program's is
     const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
     const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
+    const figure = faces ? readFigure(mesh, p) : undefined;
     return {
         x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
         y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
@@ -1316,6 +1373,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
         // the image of a node with no body is the node itself
         ...(picture === undefined ? {} : { picture: picture.box }),
+        ...(figure === undefined ? {} : { figure }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
             .map((piece) => ({ kind: piece.kind as "shape" | "image", box: piece.box })),

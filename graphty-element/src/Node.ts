@@ -25,7 +25,6 @@ import { drawnText } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
-import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -54,9 +53,9 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { drawnAgainstBox, isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
+import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
-import { TextureCache } from "./models/TextureCache";
+import { publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -272,6 +271,9 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  * no single radius that describes where its surface is.
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+/** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
+const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
@@ -569,6 +571,14 @@ export class Node implements ModelUser {
     private halfExtentsMesh: AbstractMesh | null = null;
     private readonly halfExtentsScale = { x: 0, y: 0, z: 0 };
     private readonly halfExtentsValue = { x: 0, y: 0, z: 0 };
+
+    /** What {@link Node.reachOutline} last built, and the mesh, style and label fit it built it from. */
+    private reachOutlineBuilt: {
+        mesh: AbstractMesh;
+        style: NodeStyleConfig | null;
+        fit: { width: number; height: number } | null;
+        value: readonly Point2[] | null;
+    } | null = null;
 
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
@@ -938,6 +948,9 @@ export class Node implements ModelUser {
             this.size,
             this.mesh,
             this.context.getScene(),
+            (ref, failed) => {
+                publishImageFailure(this.context.getSession?.(), ref, failed);
+            },
         );
         this.decorations = [pieces, image, glyph].filter((m): m is InstancedMesh => m !== null);
         for (const mesh of this.decorations) {
@@ -1878,7 +1891,7 @@ export class Node implements ModelUser {
         const engine = this.context.getLayoutManager().layoutEngine;
         // Once the frame loop has seen it settle it stops stepping it, so a woken layout is
         // started again too; otherwise it stays unsettled and nothing ever pushes the nodes apart.
-        if (engine instanceof NGraphEngine && engine.wakeForResize()) {
+        if (engine?.wakeForResize() === true) {
             this.context.getLayoutManager().running = true;
         }
 
@@ -2505,6 +2518,22 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The radius of a sphere holding the whole node, for a layout that keeps nodes apart as spheres: a shape that is not
+     * round reaches furthest at its corners, past {@link Node.layoutRadius}, its largest half-extent.
+     * @param flat - Whether depth does not count: a 2D layout, or one measured from the front.
+     * @returns The radius.
+     * @internal
+     */
+    spacingRadius(flat: boolean): number {
+        if (this.roundRadius !== null) {
+            return this.layoutRadius;
+        }
+
+        const { x, y, z } = this.drawnHalfExtents;
+        return Math.hypot(x, y, flat ? 0 : z);
+    }
+
+    /**
      * How far the node's drawn surface reaches from its centre at most, without its border.
      * Measured once per mesh and scaling: a bounding-box read per node per layout step is the cost
      * {@link Node.roundRadius} documents.
@@ -2618,6 +2647,40 @@ export class Node implements ModelUser {
      */
     get surfaceIsBox(): boolean {
         return this.glyphBoxHalf() !== null;
+    }
+
+    /**
+     * The outline an edge ends on, for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
+     * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size, which
+     * {@link Node.drawnHalfExtents} scales back out. Built once per mesh, style and label fit, so an edge pays one
+     * pass over the outline's sides. Null for a shape whose box or ellipse is its outline, or that is not flat.
+     * @returns The outline, counter-clockwise, or null.
+     * @internal
+     */
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
+        const built = this.reachOutlineBuilt;
+        if (built?.mesh === this.mesh && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
+            return built.value;
+        }
+
+        const style = this.drawnStyle;
+        const shape = style?.shape;
+        const type = shape?.type;
+        const outlined = type !== undefined && isFlatShape(type) && !BOX_OR_ELLIPSE.has(type) && !this.surfaceIsBox;
+        const value = outlined
+            ? inUnitBox(
+                  NodeMesh.faceOf(
+                      {
+                          shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent },
+                          border: style?.border,
+                      },
+                      this.size,
+                      this.mesh,
+                  ).outline,
+              )
+            : null;
+        this.reachOutlineBuilt = { mesh: this.mesh, style, fit: this.fittedExtent, value };
+        return value;
     }
 
     /**

@@ -1066,7 +1066,9 @@ export class UpdateManager implements Manager {
             this.syncNodeStyles(painter, deadline);
         }
 
-        if (painter.hasPendingEdges) {
+        // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
+        // out of step, so the nodes finish first and each edge is placed once, at its nodes' sizes.
+        if (painter.hasPendingEdges && !(painter.hasPendingNodes && this.dataManager.drawHeld)) {
             this.syncEdgeStyles(painter, deadline);
         }
 
@@ -1086,6 +1088,15 @@ export class UpdateManager implements Manager {
     /** The token held while a repaint's batches remain; see {@link UpdateManager.syncStyles}. */
     private paintBatches: (() => void) | null = null;
 
+    /** The edges a repaint touched since the last edge pass, which that pass places. */
+    private edgesToPlace: Edge[] = [];
+
+    /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
+    private paintIndex: {
+        rows: { version: number; map: Map<number, Node> } | null;
+        incident: { version: number; map: Map<Node, Edge[]> } | null;
+    } = { rows: null, incident: null };
+
     /** Release the token held while a repaint's batches remain, when one is held. */
     private paintBatchesDone(): void {
         this.paintBatches?.();
@@ -1099,17 +1110,12 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
     private syncEdgeStyles(painter: StylePainter, deadline: number): void {
-        // ONLY THE EDGES PAINTED ARE PLACED AGAIN. A repaint that rebuilt an edge's line drops its
-        // position cache, so the edge places itself the next time it is updated; it is updated here,
-        // with its batch. Forcing the walk of every edge on each frame of a repaint spread over
-        // many frames walked 200,000 edges about 200 times on a 50,000-node graph (ws-polish 3):
-        // the frame that empties the queue still walks them all once, as syncNodeStyles does.
-        // An edge in a fanned bundle is placed from its siblings' paint, so the edges are placed
-        // after the frame's batches, and once more when the queue empties: one painted in an
-        // earlier frame was placed before the siblings painted after it.
+        // A repainted edge's own appearance changed, so this frame places the edges it painted (in the
+        // edge pass, after every batch: a fanned edge is placed from its siblings' paint), and the
+        // frame that finishes the repaint visits every edge. A frame paints at least a
+        // REPAINT_FRAMES-th of the graph's edges, whatever the budget.
         this.sceneChanged = true;
-        const painted: Edge[] = [];
-        // Never less than a REPAINT_FRAMES-th of the graph's edges a frame, whatever the budget.
+        let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
 
         do {
@@ -1119,42 +1125,31 @@ export class UpdateManager implements Manager {
 
                 if (edge !== undefined && paint !== null) {
                     edge.applySessionPaint(paint);
-                    painted.push(edge);
+                    this.edgesToPlace.push(edge);
+                    painted++;
                 }
             }
-        } while (painter.hasPendingEdges && (performance.now() < deadline || painted.length < least));
+        } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
-        if (painter.hasPendingEdges) {
-            for (const edge of painted) {
-                edge.update();
-                this.repaintedEdges.push(edge);
-            }
-            return;
+        // Visiting every edge on each frame made a repaint cost its frames times the edges: a
+        // million edges take about a thousand frames, and those walks were most of a 100,000-node load.
+        if (!painter.hasPendingEdges) {
+            this.forceEdgeWalk();
         }
-
-        for (const edge of this.repaintedEdges) {
-            edge.invalidatePositionCache();
-        }
-        this.repaintedEdges = [];
-        this.forceEdgeWalk();
     }
 
     /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
-     * @param pending - The nodes that were pending when the frame began, by index.
+     * @param rows - Every node, by index.
      * @param size - The most nodes the batch takes.
      * @returns Each node of the batch and its paint.
      */
-    private takeNodeBatch(
-        painter: StylePainter,
-        pending: ReadonlyMap<number, Node>,
-        size: number,
-    ): [Node, NodePaint][] {
+    private takeNodeBatch(painter: StylePainter, rows: ReadonlyMap<number, Node>, size: number): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
         for (const index of painter.takeNodes(size)) {
-            const node = pending.get(index);
+            const node = rows.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
             if (node !== undefined && paint !== null) {
@@ -1195,16 +1190,7 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame's paint budget runs out.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
-        // Walked once a frame rather than indexed, because the data manager keeps its nodes by id.
-        // The membership test is one hash lookup per node and touches no mesh; every rebuild is
-        // still bounded by the batches taken.
-        const pending = new Map<number, Node>();
-
-        for (const node of this.dataManager.nodes.values()) {
-            if (painter.isNodePending(node.index)) {
-                pending.set(node.index, node);
-            }
-        }
+        const rows = this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
         // every scene list (`disposeReleased`) whatever its size, about 28 ms at 50,000 nodes, so
@@ -1217,7 +1203,7 @@ export class UpdateManager implements Manager {
             const start = performance.now();
             const batch = this.takeNodeBatch(
                 painter,
-                pending,
+                rows,
                 this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
             );
             const painted = this.paintNodes(batch);
@@ -1232,27 +1218,89 @@ export class UpdateManager implements Manager {
             }
         }
 
+        if (resized.size > 0) {
+            this.remeasureEdgesOf(resized);
+        }
+
         // A repaint can change how a node is drawn in ways that move where its edges stop without
-        // moving the node, so the frame that finishes the repaint visits every edge. A frame that
-        // resized a node or changed its shape places only that node's edges again, found in one
-        // pass over the edges. Walking every edge on each such frame placed all 200,000 edges of a
-        // 50,000-node graph on every frame of a repaint that rebuilt meshes: 3.8 s of an 8.8 s view
-        // switch (ws-polish 3). A mesh rebuilt at the same size and shape moves no edge end.
+        // moving the node, so the frame that finishes the repaint visits every edge. The frames in
+        // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
+        // repaint was spread over. A frame that resized a node places only that node's edges again.
         if (!painter.hasPendingNodes) {
             this.forceEdgeWalk();
+            this.paintIndex = { rows: null, incident: null };
         }
+    }
 
-        if (resized.size === 0) {
-            return;
-        }
-
+    /**
+     * Make the edges of resized nodes measure again, and place them this frame. While a load holds
+     * the draw they wait for their own paint, or for the walk that ends the repaint.
+     * @param resized - The nodes this frame resized.
+     */
+    private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
         this.sceneChanged = true;
-        for (const edge of this.dataManager.edges.values()) {
-            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+        const incident = this.edgesByNode();
+        const place = !this.dataManager.drawHeld;
+
+        for (const node of resized) {
+            for (const edge of incident.get(node) ?? []) {
                 edge.invalidatePositionCache();
-                edge.update();
+                if (place) {
+                    this.edgesToPlace.push(edge);
+                }
             }
         }
+    }
+
+    /**
+     * Every node by its row, built once for a repaint rather than on each frame of it, because the
+     * data manager keeps its nodes by id.
+     * @returns The nodes by index.
+     */
+    private nodesByRow(): ReadonlyMap<number, Node> {
+        const { nodeVersion } = this.dataManager;
+
+        if (this.paintIndex.rows?.version !== nodeVersion) {
+            const map = new Map<number, Node>();
+
+            for (const node of this.dataManager.nodes.values()) {
+                map.set(node.index, node);
+            }
+
+            this.paintIndex.rows = { version: nodeVersion, map };
+        }
+
+        return this.paintIndex.rows.map;
+    }
+
+    /**
+     * Each node's edges, built once for a repaint rather than on each frame that resizes a node.
+     * @returns The edges at each node.
+     */
+    private edgesByNode(): ReadonlyMap<Node, Edge[]> {
+        const { edgeVersion } = this.dataManager;
+
+        if (this.paintIndex.incident?.version !== edgeVersion) {
+            const map = new Map<Node, Edge[]>();
+            const add = (node: Node, edge: Edge): void => {
+                const edges = map.get(node);
+
+                if (edges === undefined) {
+                    map.set(node, [edge]);
+                } else {
+                    edges.push(edge);
+                }
+            };
+
+            for (const edge of this.dataManager.edges.values()) {
+                add(edge.srcNode, edge);
+                add(edge.dstNode, edge);
+            }
+
+            this.paintIndex.incident = { version: edgeVersion, map };
+        }
+
+        return this.paintIndex.incident.map;
     }
 
     /**
@@ -2314,8 +2362,6 @@ export class UpdateManager implements Manager {
 
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
-    /** The edges a repaint spread over several frames placed before its queue emptied. */
-    private repaintedEdges: Edge[] = [];
 
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
@@ -2332,14 +2378,18 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        const walk = this.edgesNeedWalking();
+        // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
+        // every node on each of a load's thousands of frames, waits for the first frame it releases.
+        const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
         // support points move after their nodes stop, until they come to rest, and their edges with them
-        const bowed = this.dataManager.supportPoints.update(
-            () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
-            this.layoutManager.edges,
-            (edge) => edge.supportEdge(),
-            walk,
-        );
+        const bowed =
+            !this.dataManager.drawHeld &&
+            this.dataManager.supportPoints.update(
+                () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
+                this.layoutManager.edges,
+                (edge) => edge.supportEdge(),
+                walk,
+            );
         this.sceneChanged ||= bowed;
         if (walk || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
@@ -2347,7 +2397,13 @@ export class UpdateManager implements Manager {
             for (const edge of this.layoutManager.edges) {
                 edge.update();
             }
+        } else {
+            for (const edge of this.edgesToPlace) {
+                edge.update();
+            }
         }
+
+        this.edgesToPlace = [];
 
         this.statsManager.edgeUpdate.endMonitoring();
     }

@@ -450,6 +450,9 @@ export interface ChannelValues {
     "node.gradientColors": string;
     "node.gradientStops": string;
     "node.gradientKind": NodeGradientKindValue;
+    "node.gradientCenterX": number;
+    "node.gradientCenterY": number;
+    "node.gradientRadius": number;
     "node.image": string;
     "node.imageFallback": string;
     "node.imageFit": NodeImageFitValue;
@@ -567,6 +570,7 @@ export interface ChannelValues {
     "edge.arrowHeadSize": number;
     "edge.arrowHeadWidth": number;
     "edge.arrowHeadSide": "left" | "right";
+    "edge.arrowHeadOutlineWidth": number;
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadGap": number;
     "edge.arrowHeadStack": string;
@@ -589,6 +593,7 @@ export interface ChannelValues {
     "edge.arrowTailSize": number;
     "edge.arrowTailWidth": number;
     "edge.arrowTailSide": "left" | "right";
+    "edge.arrowTailOutlineWidth": number;
     "edge.arrowTailPosition": number;
     "edge.arrowTailGap": number;
     "edge.arrowTailStack": string;
@@ -611,6 +616,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadSize": number;
     "edge.arrowMiddleHeadWidth": number;
     "edge.arrowMiddleHeadSide": "left" | "right";
+    "edge.arrowMiddleHeadOutlineWidth": number;
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
@@ -619,6 +625,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTailSize": number;
     "edge.arrowMiddleTailWidth": number;
     "edge.arrowMiddleTailSide": "left" | "right";
+    "edge.arrowMiddleTailOutlineWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
@@ -1005,6 +1012,13 @@ const NODE_GRADIENT_CAVEAT =
     '`node.gradientKind` "linear" runs it the way `node.gradientDirection` says; "radial" runs it out ' +
     "from the node's middle to its edge. Each distinct gradient is its own source mesh and ramp texture.";
 
+const NODE_GRADIENT_CIRCLE_CAVEAT =
+    'Places a radial gradient fill (`node.gradientKind` "radial"): `node.gradientCenterX` and ' +
+    "`node.gradientCenterY` are where its middle is, fractions of the node's box from its left side " +
+    "and its top (unset: 0.5, the node's middle), and `node.gradientRadius` how far its last stop " +
+    "reaches from there, in halves of the node's side (unset: 1, its edge); past it the last color " +
+    "goes on. A linear gradient or a flat fill ignores them.";
+
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
@@ -1130,7 +1144,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1194,6 +1208,20 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
                 "looking along the line toward the cap's tip. Unset, the whole cap.",
         },
         {
+            ...id("OutlineWidth"),
+            plainName: `Arrow ${end} Outline Width`,
+            shortName: `${end} outline width`,
+            group: "arrows",
+            default: 0,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.outlineWidth`,
+            renderable: true,
+            caveat:
+                "How thick an open cap's outline is drawn, in the line's own width units: the line's width strokes " +
+                "it with the line's pen. Unset or 0, the cap's own thin frame. Only open caps draw it.",
+        },
+        {
             ...id("Position"),
             plainName: `Arrow ${end} Position`,
             shortName: `${end} position`,
@@ -1230,7 +1258,8 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             caveat:
                 "More caps drawn in a row behind this one, nearest first, each from where the one before it ends; " +
                 "the line stops at the last. Cap types separated by spaces, each optionally followed by :left or " +
-                ":right, then * and its size, then x and its width: `dot normal`, `open-diamond:left*1.2`. " +
+                ":right, then * and its size, then x and its width, then o and its outline width: `dot normal`, " +
+                "`open-diamond:left*1.2`. " +
                 "Unset, the cap alone.",
         },
         {
@@ -1403,7 +1432,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
@@ -3796,6 +3825,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.color.colorType",
         renderable: true,
         caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientCenterX": {
+        channel: "node.gradientCenterX",
+        target: "node",
+        plainName: "Node Gradient Center X",
+        shortName: "Gradient center x",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerX",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientCenterY": {
+        channel: "node.gradientCenterY",
+        target: "node",
+        plainName: "Node Gradient Center Y",
+        shortName: "Gradient center y",
+        group: "color",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "texture.color.centerY",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
+    },
+    "node.gradientRadius": {
+        channel: "node.gradientRadius",
+        target: "node",
+        plainName: "Node Gradient Radius",
+        shortName: "Gradient radius",
+        group: "color",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "texture.color.radius",
+        renderable: true,
+        caveat: NODE_GRADIENT_CIRCLE_CAVEAT,
     },
     "node.model": {
         channel: "node.model",

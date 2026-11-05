@@ -57,6 +57,15 @@ import { FEATURES_DECLARED, ON_ENV, ON_SUFFIX } from "./features-on.mjs";
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
 
+/**
+ * How many parts the graphty-element browser shards split their files into (vitest --shard, by file count). The
+ * family's cost is mostly per file -- each file runs alone in the browser and pays 5 to 7.5 s of setup and import
+ * on top of its tests (FAMILY_BIN_COST in tools/test-select.mjs) -- so a part's time follows its file count. Its
+ * files went from 267 to 542 between 2026-10-10 and 2026-11-04, and five parts reached a median of 1013 s against
+ * the 900 s shard budget (#5822); eight bring that to about 630 s.
+ */
+const ELEMENT_BROWSER_PARTS = 8;
+
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
@@ -310,14 +319,14 @@ const OFF_SHARDS = [
         "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": false,
     },
-    // graphty-element browser tests (5 shards)
+    // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
     // "minimum-work" runs the tests of "the picture is final" again with every frame doing the least
     // work it can (graphty-element/src/managers/minimumWork.ts, issue #4218).
-    ...[1, 2, 3, 4, 5].map((n) => ({
+    ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work --shard=${n}/5 --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work --shard=${n}/${ELEMENT_BROWSER_PARTS} --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -346,6 +355,27 @@ const OFF_SHARDS = [
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
+    // The style fidelity gate over every oracle (graphty-element/test/fidelity/oracle-report.test.ts, 563 samples
+    // against the programs' own drawings): a sample fails only when an element fails a property that
+    // oracle-known-failures.json does not list. Pull requests run its 28-sample subset (oracle-scorecard.test.ts, in
+    // the browser shards); the whole set drifted red unseen for a week with nothing running it (issue #4270), so the
+    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Timed on ubuntu-24.04 runners
+    // without a GPU (a dispatch of ci.yml with these four shards, run 40890370190, 2026-10-29): 285 to 355 s of
+    // samples a slice, 6 to 8 minutes a job with its setup, against the job's 30; 807 s for all 563 on the
+    // workstation. The gate's elements are the same with and without a GPU, and on the runner and the workstation
+    // (#4270); only the raster regions differ, and they are reported, never gated. No coverage: the fidelity
+    // project measures none.
+    ...[1, 2, 3, 4].map((n) => ({
+        shard: `graphty-element-fidelity-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_ORACLE_SLICE=${n}/4 pnpm exec vitest run --project=fidelity test/fidelity/oracle-report.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // every oracle's rasterized PNG, Git LFS objects (about 48 MB)
+        lfs: "graph-io/test/fidelity/oracles/*.png",
+        // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
+        local: "never",
+    })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.

@@ -14,6 +14,7 @@ export { resolveNodeVector, resolveWeights } from "./inputs.js";
 export { Lcg, seedPositions } from "./seed.js";
 export { toLayoutSnapshot } from "./snapshot.js";
 export type {
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

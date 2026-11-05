@@ -17,6 +17,7 @@ import {
     compareIds,
     type DashClass,
     dashClassOf,
+    insideFigure,
     isPattern,
     type PArrow,
     type PBox,
@@ -219,6 +220,8 @@ export const ORACLE_TOLERANCES = {
     edgeWidthRatio: [0.9, 1.1],
     /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
     gradientAngleDeg: 15,
+    /** A radial gradient's middle within this fraction of its node's box. */
+    gradientCenter: 0.1,
     /**
      * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
      * oracle's, which a rounding on a small head moves by more than the ratio allows.
@@ -774,6 +777,15 @@ const ARROW_ALONG_SHARE = 0.05;
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
 
+/** How near a figure's box center a line must end, as a share of its smaller side, to have run to its middle. */
+const FIGURE_MIDDLE = 1 / 8;
+
+/** Whether a line's end runs under a figure to its middle (Pajek's center to center), not stopped at its outline. */
+const runsToMiddle = (n: PNode, end: Pt | undefined): end is Pt =>
+    n.figure !== undefined &&
+    end !== undefined &&
+    Math.hypot(end[0] - n.cx, end[1] - n.cy) < FIGURE_MIDDLE * Math.min(n.w, n.h);
+
 /**
  * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
  * rounding on a head a few pixels long moves by more than the ratio allows.
@@ -913,11 +925,17 @@ export function curvatureOf(pts: readonly Pt[]): number {
     return m / L;
 }
 
-/** Whether a point is inside a node: its box for a rectangle, else the ellipse its box holds. */
+/**
+ * Whether a point is inside a node: its own outline for a figure (`PNode.figure`: Pajek's man, beside whose arm a line
+ * runs on in the ellipse his box holds), its box for a rectangle, else the ellipse its box holds.
+ */
 const insideNode = (n: PNode, [x, y]: Pt): boolean => {
     const [u, v] = [Math.abs(x - n.cx) / (n.w / 2), Math.abs(y - n.cy) / (n.h / 2)];
     if (!(n.w > 0 && n.h > 0)) {
         return false;
+    }
+    if (n.figure !== undefined) {
+        return insideFigure(n.figure, n, [x, y]);
     }
     return n.shape === "rect" || n.shape === "roundrect" ? u < 1 && v < 1 : u * u + v * v < 1;
 };
@@ -1281,7 +1299,7 @@ function runsBackwards(o: PGradient, g: PGradient, angles: { o: number | null; g
 
 /**
  * How far two gradients are from alike: one on each side or on neither; the same kind; their colors at five places
- * along them within the color tolerance; a linear one's direction within its tolerance.
+ * along them within the color tolerance; a linear one's direction and a radial one's middle within their tolerances.
  * @param o - the oracle's gradient, or null
  * @param g - graphty's, or null
  * @param angles - each linear gradient's direction as judged (in the oracle's frame, or against its edge's chord)
@@ -1322,7 +1340,12 @@ function gradientMissAsRun(
     const show = (x: PGradient | null, angle: number | null): unknown =>
         x === null
             ? null
-            : { kind: x.kind, angle: angle === null ? null : R(angle, 1), colors: RAMP_AT.map((t) => rampColor(x, t)) };
+            : {
+                  kind: x.kind,
+                  angle: angle === null ? null : R(angle, 1),
+                  colors: RAMP_AT.map((t) => rampColor(x, t)),
+                  ...(x.center === undefined ? {} : { center: x.center }),
+              };
     const out = { oracle: show(o, angles.o), graphty: show(g, angles.g) };
     if (o === null || g === null) {
         return { miss: (o === null) === (g === null) ? 0 : 1, ...out };
@@ -1339,6 +1362,8 @@ function gradientMissAsRun(
     if (o.kind === "linear" && angles.o !== null && angles.g !== null && (changes(o) || changes(g))) {
         miss += Math.max(0, Math.abs(turnOf(angles.g - angles.o)) - ORACLE_TOLERANCES.gradientAngleDeg) / 90;
     }
+    const [oc, gc] = [o.center ?? [0.5, 0.5], g.center ?? [0.5, 0.5]];
+    miss += Math.max(0, Math.hypot(oc[0] - gc[0], oc[1] - gc[1]) - ORACLE_TOLERANCES.gradientCenter);
     return { miss, ...out };
 }
 
@@ -1396,7 +1421,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
-    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
@@ -2211,7 +2236,13 @@ export function compareOracle(
         }
         const [w, h] = outerOf(n, "graphty");
         const [cx, cy] = edgeFrame([n.cx, n.cy]);
-        return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale };
+        // a figure turned and mirrored as the fit turns graphty's drawing, in halves of its box in the oracle's frame
+        const turn = (u: number, v: number): Pt => {
+            const [x, y] = vecToOracle([u * n.w, v * n.h]);
+            return [x / (n.w * lengthScale), y / (n.h * lengthScale)];
+        };
+        const figure = n.figure?.map(([a, b]): [Pt, Pt] => [turn(...a), turn(...b)]);
+        return { ...n, cx, cy, w: w * lengthScale, h: h * lengthScale, ...(figure === undefined ? {} : { figure }) };
     };
     // a node with no body (graphty's faceless node, the oracle's node found only by its label or by its lines' ends)
     // has no outline to cut a line at
@@ -2219,9 +2250,28 @@ export function compareOracle(
         n !== undefined &&
         n.faceless === undefined &&
         (n.fill !== null || n.stroke !== null || (n.pictures?.length ?? 0) > 0);
-    /** An end's outline on each side, or none on either where one side draws none there. */
-    const cutAt = (on: PNode | undefined, at: PNode | undefined): [PNode | undefined, PNode | undefined] =>
-        bodied(on) && bodied(at) ? [on, at] : [undefined, undefined];
+    /**
+     * An end's outline on each side, or none on either where one side draws none there. A figure (`PNode.figure`) cuts
+     * a line both sides draw it on and the oracle runs under it to its middle. Elsewhere both are cut at the ellipse
+     * their boxes hold: where only one side draws a figure (Pajek draws its cross as an ellipse, graphty as a plus, a
+     * shape judged apart as node.shape) the route is not judged on its node's shape, and a line the program stops at
+     * the figure itself is not cut again (draw.io stops at a star's box, where graphty reaches its notch).
+     */
+    const cutAt = (
+        on: PNode | undefined,
+        at: PNode | undefined,
+        end: Pt | undefined,
+    ): [PNode | undefined, PNode | undefined] => {
+        if (!bodied(on) || !bodied(at)) {
+            return [undefined, undefined];
+        }
+        return at.figure !== undefined && runsToMiddle(on, end)
+            ? [on, at]
+            : [
+                  { ...on, figure: undefined },
+                  { ...at, figure: undefined },
+              ];
+    };
     /** Both routes between their own nodes, graphty's in the oracle's frame and direction. */
     const visible = (o: PEdge, g: PEdge): [Pt[], Pt[]] => {
         const [vo, vg] = shownParts(o, g);
@@ -2230,8 +2280,8 @@ export function compareOracle(
     /** Each route's part between its own nodes, or null where none of it shows (`shownPart`). */
     const shownParts = (o: PEdge, g: PEdge): [Pt[] | null, Pt[] | null] => {
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs));
-        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt));
+        const [os, gsAt] = cutAt(oOuter(oById.get(o.source)), gOuter(gs), o.points[0]);
+        const [ot, gtAt] = cutAt(oOuter(oById.get(o.target)), gOuter(gt), o.points.at(-1));
         return [shownPart(o.points, os, ot), shownPart(routeOf(o, g), gsAt, gtAt)];
     };
     /** How far graphty's route's shape is from the oracle's (`routeShape`), and the least gap that fails. */
@@ -2243,9 +2293,16 @@ export function compareOracle(
             return { gap: 0, near: T.edgePathOfLength };
         }
         const [gs, gt] = flips(o, g) ? [g.target, g.source] : [g.source, g.target];
-        const shiftOf = (gId: string, oId: string): Pt => {
+        // a figure's box is not centered where its lines meet (pajek-synth-vertices woman 25: 1.2 px above them; turned
+        // house 23: 3.5 px beside them, on both sides): a line run to its middle says where the figure sits
+        const sitsAt = (n: PNode, end: Pt | undefined): Pt => (runsToMiddle(n, end) ? end : [n.cx, n.cy]);
+        const shiftOf = (gId: string, oId: string, gEnd: Pt | undefined, oEnd: Pt | undefined): Pt => {
             const [at, on] = [gOuter(gId), oById.get(oId)];
-            return at === undefined || on === undefined ? [0, 0] : [at.cx - on.cx, at.cy - on.cy];
+            if (at === undefined || on === undefined) {
+                return [0, 0];
+            }
+            const [[gx, gy], [ox, oy]] = [sitsAt(at, gEnd), sitsAt(on, oEnd)];
+            return [gx - ox, gy - oy];
         };
         const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
@@ -2256,8 +2313,11 @@ export function compareOracle(
         // where it sits on its node) is judged by its whole route (pajek-synth-vertices 41 -> 42: both lines run
         // center to center within 0.3 px between figures 55 px apart, and the sliver read 9.65 of its chord). A route
         // one side ends elsewhere (an arc to its arrowhead's back, pajek-synth-lines) keeps its sliver.
-        const shifts = [shiftOf(gs, o.source), shiftOf(gt, o.target)];
         const whole = routeOf(o, g);
+        const shifts = [
+            shiftOf(gs, o.source, whole[0], o.points[0]),
+            shiftOf(gt, o.target, whole.at(-1), o.points.at(-1)),
+        ];
         // as drawn, or where each sits on its node: a figure's box is not centered where its lines meet (pajek-synth-
         // vertices 17, 1.6 px above them)
         const meet = (p: Pt | undefined, q: Pt | undefined, [sx, sy]: Pt): boolean =>

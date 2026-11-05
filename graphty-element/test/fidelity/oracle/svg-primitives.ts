@@ -12,6 +12,7 @@ import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     dashClassOf,
+    dented,
     isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
@@ -28,6 +29,8 @@ const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "poly
 const CLOSED = new Set(["rect", "circle", "ellipse", "polygon"]);
 /** Points an outline is sampled to, by arc length. */
 const SAMPLES = 48;
+/** Points a curved figure's outline is sampled to (`Prim.fine`): a few to a pixel round a node. */
+const FIGURE_SAMPLES = 512;
 /** Points an open path (an edge's line) is sampled to, by arc length: enough for a route's wave or bend. */
 const PATH_SAMPLES = 128;
 
@@ -1141,12 +1144,19 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 const href = el.getAttribute("href") ?? el.getAttributeNS("http://www.w3.org/1999/xlink", "href");
                 const pixels = href === null ? undefined : pictures.get(unbrokenHref(href));
                 const gradient = pixels === undefined ? null : pictureGradient(pixels);
+                const b = el.getBBox();
                 prims.push({
                     ...(gradient === null ? {} : { gradient }),
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, el.getBBox()),
+                    box: boxThrough(m, b),
+                    quad: [
+                        at(m, b.x, b.y),
+                        at(m, b.x + b.width, b.y),
+                        at(m, b.x + b.width, b.y + b.height),
+                        at(m, b.x, b.y + b.height),
+                    ],
                     points: [],
                     closed: true,
                     corners: 4,
@@ -1212,6 +1222,11 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 points = [...points, ...points.slice(0, -1).reverse()];
             }
             const closed = isClosed(el, points) || fill !== null || outlineOfFill || stamped;
+            // a curved figure with a dent (Pajek's man) read again finely, its corners where it draws them (`figureOf`)
+            const fine =
+                closed && points.length === SAMPLES && dented(points)
+                    ? geometryPoints(el as SVGGeometryElement, m, FIGURE_SAMPLES)
+                    : undefined;
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
@@ -1236,6 +1251,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 kind: closed ? "shape" : "path",
                 box: painted?.box ?? boxOfPoints(points),
                 points,
+                ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
                 fill: closed ? fill : null,

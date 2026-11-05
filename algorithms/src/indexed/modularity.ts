@@ -59,15 +59,16 @@ interface CommunitySums {
  * @param sums - The running totals, updated in place
  */
 function addRow(s: AdjacencyView, labels: U32, weights: NumericVector | null, u: number, sums: CommunitySums): void {
-    const end = s.rowPtr[u + 1];
-    for (let a = s.rowPtr[u]; a < end; a++) {
-        const v = s.colIdx[a];
+    const { rowPtr, colIdx, directed } = s;
+    const end = rowPtr[u + 1];
+    for (let a = rowPtr[u]; a < end; a++) {
+        const v = colIdx[a];
         const w = weights === null ? 1 : weights[a];
         // An undirected edge between two nodes is read from both rows; a self-loop and a
         // directed arc only once, so they count double here.
-        const twice = s.directed || v === u ? 2 * w : w;
+        const twice = directed || v === u ? 2 * w : w;
         sums.m2 += twice;
-        if (s.directed) {
+        if (directed) {
             addTo(sums.tot, labels[u], w);
             addTo(sums.tot, labels[v], w);
         } else {

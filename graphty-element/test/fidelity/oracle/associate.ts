@@ -19,6 +19,8 @@ import {
     bandPaintedAsFill,
     boxOfPoints,
     compareIds,
+    figureOf,
+    insideFigure,
     PAINTED_OUTLINE,
     type PaintedBand,
     type PArrow,
@@ -420,6 +422,12 @@ function nodeFrom(
     };
     if (outline !== undefined && shape !== null && SLANTED.has(shape) && outline.points.length >= 3) {
         slantedOutlines.set(node, outline.points);
+    }
+    // a figure with a dent (Pajek's man): its lines are cut, and what it hides judged, at its own outline
+    const figure =
+        outline?.closed === true && shape !== null ? figureOf(outline.fine ?? outline.points, node) : undefined;
+    if (figure !== undefined) {
+        node.figure = figure;
     }
     return node;
 }
@@ -1328,7 +1336,10 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
     const q = drawnEnd(e.points, end, nodeById(nodes, id));
-    return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
+    // a picture has no outline points: its tip is wherever its box meets the end (vis-network's image arrows)
+    return p.kind === "image"
+        ? toBox(q, p.box)
+        : Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
 /**
@@ -2926,7 +2937,7 @@ export function associate(
         // its own
         if (picture) {
             const { x0, y0, x1, y1 } = p.box;
-            const corners: Pt[] = [
+            const corners: readonly Pt[] = p.quad ?? [
                 [x0, y0],
                 [x1, y0],
                 [x1, y1],
@@ -4512,9 +4523,38 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         shown.has(b.id) &&
         boxWithin(boxOf(a), boxOf(b), slack) &&
         boxWithin(boxOf(b), boxOf(a), slack);
+    // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
+    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
+    // point round a round node's outline
+    const underFigure = (n: PNode, c: PNode): boolean => {
+        if (c.figure === undefined) {
+            return true;
+        }
+        const b = boxOf(n);
+        const [mx, my, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+        const points: Pt[] =
+            n.shape === "ellipse"
+                ? Array.from({ length: 16 }, (_, k) => [
+                      mx + rx * Math.cos((k * Math.PI) / 8),
+                      my + ry * Math.sin((k * Math.PI) / 8),
+                  ])
+                : [
+                      [b.x0, b.y0],
+                      [b.x1, b.y0],
+                      [b.x0, b.y1],
+                      [b.x1, b.y1],
+                  ];
+        const reach = slack + (c.stroke?.width ?? 0) / 2;
+        return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
+    };
     for (const n of scene.nodes) {
         const over = covers.filter(
-            (c) => c.n !== n && c.order > (n.order ?? Infinity) && boxWithin(boxOf(n), c.box, slack) && !twins(n, c.n),
+            (c) =>
+                c.n !== n &&
+                c.order > (n.order ?? Infinity) &&
+                boxWithin(boxOf(n), c.box, slack) &&
+                underFigure(n, c.n) &&
+                !twins(n, c.n),
         );
         if (over.length > 0) {
             coverOf.set(n, over.reduce((a, b) => (b.order > a.order ? b : a)).n);

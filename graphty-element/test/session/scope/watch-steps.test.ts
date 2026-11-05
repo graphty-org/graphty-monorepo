@@ -567,15 +567,24 @@ describe("measure steps and runs", () => {
                 },
             ],
         };
-        await session.visibility.addCondition({ effect: "keep", rule });
-        await vi.waitFor(() => {
-            assert.isBelow(session.visibility.nodes.size, staff);
-        });
-        assert.strictEqual(session.runs.list().length, 1, "no second run over the whole graph");
-        assert.deepEqual(executions.sizes, [staff], "computed once, over what was showing");
+        // Read as a selection (a style layer's), it reads that run. As a filter condition it would
+        // read its own output (what it hides moves the visible graph the run is over), so a filter
+        // refuses it.
         const watch = session.scope.watchSteps(rule, () => undefined);
+        await vi.waitFor(() => {
+            assert.isBelow(watch.current.total.count, staff, "the step narrows what was showing");
+        });
         assert.strictEqual(watch.current.branches[0].steps[0].run, run.id, "the step reads the run it was picked from");
         watch.end();
+        assert.strictEqual(session.runs.list().length, 1, "no second run over the whole graph");
+        assert.deepEqual(executions.sizes, [staff], "computed once, over what was showing");
+        let refused = "";
+        try {
+            await session.visibility.addCondition({ effect: "keep", rule });
+        } catch (error) {
+            refused = (error as { code?: string }).code ?? "";
+        }
+        assert.strictEqual(refused, "E_BAD_COMMAND", "a filter never reads a run over the visible graph");
     });
 
     it("a measure with no test starts its run and, once it finishes, adds every measured element", async () => {

@@ -1,5 +1,5 @@
 /**
- * A raised border is its node's, never an arrowhead or a stray: yEd draws a UML class node and a 3D rectangle with
+ * A raised border is its node's, never an arrowhead, and stays a stray graphty's flat box does not draw: yEd draws a UML class node and a 3D rectangle with
  * Java's `fill3DRect`, a body and then four one-pixel strips round it. In graphml-libcitygml-mapping 67 ends of 57 edges
  * read as arrowed, the file arrowing 9: a line ending at a node takes the strip it stops at as its head.
  */
@@ -91,7 +91,7 @@ describe("a raised border", () => {
         assert.deepEqual(foldRaisedBorders(stroked), stroked);
     });
 
-    it("gives no line an arrowhead and leaves no stray", () => {
+    it("gives no line an arrowhead and keeps its strips as strays", () => {
         const line: Prim = {
             ...rect(5, 646, 200, 0, 0),
             tag: "path",
@@ -125,6 +125,9 @@ describe("a raised border", () => {
             scene.edges.flatMap((e) => e.arrows),
             [],
         );
-        assert.isEmpty(scene.strays.filter((s) => s.tag === "rect" && s.box.y1 - s.box.y0 < 2));
+        assert.lengthOf(
+            scene.strays.filter((s) => s.fill === "#ffff00" || s.fill === "#b28e00"),
+            4,
+        );
     });
 });

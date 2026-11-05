@@ -2161,8 +2161,9 @@ function raisedFrame(strips: readonly Prim[]): { box: PBox; thickness: number } 
 }
 
 /**
- * The drawing with each raised border folded into its body, so a strip is read as neither an arrowhead at a line
- * stopping on it nor a stray, and the body has its whole size. The body is inside the frame, drawn just before it, or
+ * The drawing with each raised border folded into its body, so a strip is not read as an arrowhead at a line stopping
+ * on it, and the body has its whole size. `associate` keeps the strips as strays: they are drawn, and graphty's flat box
+ * does not draw them. The body is inside the frame, drawn just before it, or
  * under it at the frame's own size, drawn before the node's label (yEd's 3D rectangle in GML, gml-synthetic-coverage
  * v10: an 80 x 40 body, the label, then the strips along the body's edge). Strips round no body are left as they are.
  * @param prims - the oracle's primitives
@@ -2213,6 +2214,8 @@ export function associate(
     options: { ownLayout?: boolean } = {},
 ): Association {
     const prims = foldRaisedBorders(primitives);
+    const kept = new Set(prims.map((p) => p.index));
+    const strips = primitives.filter((p) => !kept.has(p.index));
     const used = new Set<number>();
     const take = (p: Prim): Prim => {
         used.add(p.index);
@@ -3521,7 +3524,7 @@ export function associate(
             edges: [...edges].sort((a, b) => compareIds(a.id, b.id)),
             groups: [...groups].sort((a, b) => (a.id < b.id ? -1 : 1)),
             texts: rest.flatMap((p) => (p.text ? [p.text] : [])).sort(byText),
-            strays: rest.filter((p) => p.text === null).map(strayOf),
+            strays: [...rest.filter((p) => p.text === null), ...strips].map(strayOf),
         },
     };
 }

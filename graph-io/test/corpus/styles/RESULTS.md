@@ -207,7 +207,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 755 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 470 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 230 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 717 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 729 | 100% | 0% | 0 | 447 | 0 | W_STYLE_GRADIENT, W_STYLE_NOT_CARRIED, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 353 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 1170 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
@@ -237,7 +237,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 6 | 143 | 59% | 2% | 0 | 207 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 330 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 5 | 6 | 59 | 54% | 0% | 0 | 227 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 353 | 100% | 0% | 0 | 446 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 446 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 2 | 374 | 100% | 0% | 0 | 180 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 111 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 328 | 87% | 0% | 0 | 100 | 0 |  |

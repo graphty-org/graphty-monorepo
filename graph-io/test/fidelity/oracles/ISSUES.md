@@ -2679,10 +2679,10 @@ Rows still open, each with what stops it:
   graphty smooths it as a canvas would. `broken-image-none` (a picture that cannot load and no `brokenImage`): the
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
 - yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
-  agent, the raised UML class and 3D rectangle, the UML note and the shapes that keep their proportions in a box of
+  agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
   another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
-  process, internal storage, direct data's rim, the big entity's header) and a BPMN intermediate event's and
-  transaction's double line are not drawn.
+  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
+  BPMN intermediate event's and transaction's double line are not drawn.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
   the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its

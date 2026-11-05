@@ -175,6 +175,17 @@ export const ARROW_ROWS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * The arrow shape whose size a row's part is drawn at, where it is not the part's own: yEd draws the bar behind its
+ * crow's feet 16 wide, not the tee's 10, and the circle 10 across, not the ring's 8 (yed-graphml-specimen-arrows).
+ */
+export const ARROW_ROW_SIZES: ReadonlyMap<string, string> = new Map([
+    ["other:crows_foot_many_optional", "other:crows_foot_optional"],
+    ["other:crows_foot_many_mandatory", "other:crows_foot_one"],
+    ["other:crows_foot_one_mandatory", "other:crows_foot_one"],
+    ["other:crows_foot_one_optional", "other:crows_foot_optional"],
+]);
+
+/**
  * The element's arrow for an arrow shape a program draws unlike the shape's own cap, per program: Cytoscape desktop
  * strokes its half arrows (HALF_TOP, HALF_BOTTOM) as one thin barb where Graphviz's halfopen is a filled wedge, and
  * vis-network's crow is a vee turned round where Graphviz's is a crow's foot with a tine along the line.

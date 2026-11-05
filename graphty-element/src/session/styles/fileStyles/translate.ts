@@ -51,6 +51,7 @@ import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
+    ARROW_ROW_SIZES,
     ARROW_ROWS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
@@ -1121,7 +1122,14 @@ const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
  * How deep along its line an element cap of a neutral arrow shape is, as a fraction of its size's
  * length, where it is not the whole length (FilledArrowRenderer: a tee is 0.5 deep).
  */
-const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
+const CAP_DEPTH: ReadonlyMap<string, number> = new Map([
+    ["tee", 0.5],
+    // yEd's bars, drawn as the tee
+    ["other:dash", 0.5],
+    ["other:crows_foot_one", 0.5],
+    ["other:crows_foot_one_mandatory", 0.5],
+    ["other:crows_foot_one_optional", 0.5],
+]);
 
 /**
  * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
@@ -1160,6 +1168,15 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     // a picture on a square, stretched to its own width and length
     ["other:image", 1],
+    // yEd's own arrows, as wide as the element cap each is drawn as
+    ["other:open-vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:white_delta_bar", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:crows_foot_many_mandatory", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:crows_foot_many_optional", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["other:dash", 3],
+    ["other:crows_foot_one", 3],
+    ["other:crows_foot_one_mandatory", 3],
+    ["other:crows_foot_one_optional", 3],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -3268,7 +3285,9 @@ class KindTranslation {
                         arrowStackOf(value ?? ARROW_ROWS.get(sides.shapes[i] as string) ?? null, (shape) => {
                             const part: ArrowEnd = {
                                 ...sides,
-                                shapes: sides.shapes.map((_s, j) => (j === i ? shape : null)),
+                                shapes: sides.shapes.map((own, j) =>
+                                    j === i ? (ARROW_ROW_SIZES.get(own as string) ?? shape) : null,
+                                ),
                             };
                             return {
                                 size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),

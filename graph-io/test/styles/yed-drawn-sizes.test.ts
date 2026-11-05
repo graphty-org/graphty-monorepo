@@ -78,6 +78,17 @@ describe("yEd's arrowheads", () => {
         ["circle-open", 8, 8],
         ["square", 8, 8],
         ["tee", 1, 10],
+        ["crow", 12, 16],
+        ["other:crows_foot_many_mandatory", 12, 16],
+        ["other:crows_foot_many_optional", 12, 16],
+        ["other:crows_foot_one", 1, 16],
+        ["other:crows_foot_one_mandatory", 1, 16],
+        ["other:crows_foot_one_optional", 1, 16],
+        ["other:crows_foot_optional", 10, 10],
+        ["other:dash", 1, 8],
+        ["other:cross", 8, 8],
+        ["other:open-vee", 12, 12],
+        ["other:white_delta_bar", 16, 12],
     ] as const)("draws %s %d long and %d wide on a line 1 wide", (shape, length, across) => {
         expect(drawn(head, shape, 1)).toEqual([length, across]);
     });
@@ -93,6 +104,12 @@ describe("yEd Live's arrowheads", () => {
     it("draws a diamond 10 by 6 and an ellipse 6 by 6", () => {
         expect(drawn(head, "diamond", 1.5)).toEqual([10, 6]);
         expect(drawn(head, "circle", 1.5)).toEqual([6, 6]);
+    });
+
+    it("draws a cross 10 by 10, a kite 10 by 6 and a deltoid 5.2 by 6", () => {
+        expect(drawn(head, "other:cross", 1.5)).toEqual([10, 10]);
+        expect(drawn(head, "other:kite", 1.5)).toEqual([10, 6]);
+        expect(drawn(head, "other:deltoid", 1.5)).toEqual([5.2, 6]);
     });
 
     it("reads an arrow's scales", async () => {
@@ -123,11 +140,25 @@ describe("yEd Live's arrowheads", () => {
 });
 
 describe("yEd's short arrow", () => {
-    it("is two thirds of the triangle's length, in GraphML and in GML", async () => {
+    it("is 8 x 12 against the standard head's 12 x 10, in GraphML and in GML", async () => {
         const graphml = await specimen("graphml", "yed-graphml/specimen-arrows.graphml");
-        expect(graphml.edges("targetArrowLength")).toContain(8 / 12);
+        expect(graphml.edge("targetArrowLength", "target-short")).toBe(8 / 12);
+        expect(graphml.edge("targetArrowWidth", "target-short")).toBe(12 / 10);
+        expect(graphml.edge("sourceArrowWidth", "source-short")).toBe(12 / 10);
         const gml = await specimen("gml", "gml/specimen-arrows-p2.gml");
         expect(gml.edges("targetArrowLength")).toContain(8 / 12);
+        expect(gml.edges("targetArrowWidth")).toContain(12 / 10);
+    });
+});
+
+describe("yEd's two-armed arrows", () => {
+    it("draw concave 10 x 12 and convex 10 x 10 against plain's 12 x 12", async () => {
+        const { edge } = await specimen("graphml", "yed-graphml/specimen-arrows.graphml");
+        expect(edge("targetArrowLength", "target-plain")).toBeNull();
+        expect(edge("targetArrowLength", "target-concave")).toBe(10 / 12);
+        expect(edge("targetArrowWidth", "target-concave")).toBeNull();
+        expect(edge("targetArrowLength", "target-convex")).toBe(10 / 12);
+        expect(edge("targetArrowWidth", "target-convex")).toBe(10 / 12);
     });
 });
 

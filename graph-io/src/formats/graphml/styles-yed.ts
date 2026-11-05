@@ -1233,13 +1233,32 @@ export function yedDrawnWidth(width: number | null): number | null {
 }
 
 /**
- * How long yEd draws an arrow as a fraction of its shape's length: its `short` arrow reads as the triangle and is 8
- * long to the triangle's 12, as wide (yed-graphml-specimen-arrows).
+ * The arrows yEd draws at another size than the shape they read as, as fractions of its length and width
+ * (yed-graphml-specimen-arrows at line width 1): `short` is a standard head (12 x 10) drawn 8 x 12, and `concave` and
+ * `convex` are `plain`'s two arms (12 x 12) drawn 10 x 12 and 10 x 10.
+ */
+const YED_ARROW_SIZES: ReadonlyMap<unknown, { length: number; width?: number }> = new Map([
+    ["short", { length: 8 / 12, width: 12 / 10 }],
+    ["concave", { length: 10 / 12 }],
+    ["convex", { length: 10 / 12, width: 10 / 12 }],
+]);
+
+/**
+ * How long yEd draws an arrow as a fraction of its shape's length.
  * @param arrow - the arrow's name in the file
  * @returns the fraction, or null for the shape's own length
  */
 export function yedArrowLength(arrow: unknown): number | null {
-    return arrow === "short" ? 8 / 12 : null;
+    return YED_ARROW_SIZES.get(arrow)?.length ?? null;
+}
+
+/**
+ * How wide yEd draws an arrow as a fraction of its shape's width.
+ * @param arrow - the arrow's name in the file
+ * @returns the fraction, or null for the shape's own width
+ */
+export function yedArrowWidth(arrow: unknown): number | null {
+    return YED_ARROW_SIZES.get(arrow)?.width ?? null;
 }
 
 /**
@@ -1262,6 +1281,8 @@ function readEdge(real: Realizer, put: PutValue, at: SiteOf): void {
         put("targetArrow", canonEnum("arrow", treeAttr(arrows, "target"), "yed", at("targetArrow")));
         put("sourceArrowLength", yedArrowLength(treeAttr(arrows, "source")));
         put("targetArrowLength", yedArrowLength(treeAttr(arrows, "target")));
+        put("sourceArrowWidth", yedArrowWidth(treeAttr(arrows, "source")));
+        put("targetArrowWidth", yedArrowWidth(treeAttr(arrows, "target")));
     }
     put("curved", edgeCurved(real));
     if (real.type === "ArcEdge") {

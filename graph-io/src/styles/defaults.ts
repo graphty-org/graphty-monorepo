@@ -268,6 +268,17 @@ const YED_ARROWHEAD: ToolArrowhead = {
         "circle-open": { length: 8 / 12, aspect: 1 },
         square: { length: 8 / 12, aspect: 1 },
         tee: { length: 1 / 12, aspect: 10 },
+        crow: { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_many_mandatory": { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_many_optional": { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_one": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_one_mandatory": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_one_optional": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_optional": { length: 10 / 12, aspect: 1 },
+        "other:dash": { length: 1 / 12, aspect: 8 },
+        "other:cross": { length: 8 / 12, aspect: 1 },
+        "other:open-vee": { length: 1, aspect: 1 },
+        "other:white_delta_bar": { length: 16 / 12, aspect: 12 / 16 },
     },
     source: `${MEASURED}yed-graphml-specimen-arrows.svg, yed-graphml-specimen-edges-lines.svg: widths 1, 2, 3, 5 and 8 draw the standard head 12, 13.5, 15, 18 and 22.5 long, 10, 11.25, 12.5, 15 and 18.75 wide)`,
 };
@@ -279,6 +290,9 @@ const YED_LIVE_ARROWHEAD: ToolArrowhead = {
     shapes: {
         diamond: { length: 10 / 8, aspect: 6 / 10 },
         circle: { length: 6 / 8, aspect: 1 },
+        "other:cross": { length: 10 / 8, aspect: 1 },
+        "other:kite": { length: 10 / 8, aspect: 6 / 10 },
+        "other:deltoid": { length: 5.2 / 8, aspect: 6 / 5.2 },
     },
     source: `${MEASURED}yed-live-graphml-specimen-arrows.svg, yed-live-graphml-specimen-edges-lines.svg: widths 1 to 6 all draw 8 long, 6 wide)`,
 };

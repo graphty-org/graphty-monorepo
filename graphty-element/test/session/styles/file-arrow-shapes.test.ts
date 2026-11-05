@@ -5,7 +5,12 @@
 import { assert, describe, it } from "vitest";
 
 import { EdgeArrowTypes } from "../../../src/config/EdgeStyle";
-import { ARROW_ROWS, ARROW_SHAPES, arrowShapesOf } from "../../../src/session/styles/fileStyles/shapes";
+import {
+    ARROW_ROW_SIZES,
+    ARROW_ROWS,
+    ARROW_SHAPES,
+    arrowShapesOf,
+} from "../../../src/session/styles/fileStyles/shapes";
 
 describe("the cap a file's arrow is drawn as, by the program that wrote it", () => {
     it("draws Cytoscape's half arrows as the half barb, on either side", () => {
@@ -53,6 +58,12 @@ describe("the cap a file's arrow is drawn as, by the program that wrote it", () 
         for (const [shape, [cap, behind]] of Object.entries(rows)) {
             assert.strictEqual(ARROW_SHAPES.get(shape), cap, shape);
             assert.strictEqual(ARROW_ROWS.get(shape), behind, shape);
+        }
+    });
+
+    it("sizes a row's part as an arrow drawn with the same cap", () => {
+        for (const [shape, sizedAs] of ARROW_ROW_SIZES) {
+            assert.strictEqual(ARROW_SHAPES.get(sizedAs), ARROW_SHAPES.get(ARROW_ROWS.get(shape) ?? ""), shape);
         }
     });
 

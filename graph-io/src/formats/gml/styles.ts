@@ -76,6 +76,7 @@ import {
     YED_LINES,
     YED_SHAPES,
     yedArrowLength,
+    yedArrowWidth,
     yedColor,
     yedDrawnWidth,
     yedFontName,
@@ -814,6 +815,7 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         );
         if (writer.tool === "yed") {
             put(`${property}Length`, yedArrowLength(raw));
+            put(`${property}Width`, yedArrowWidth(raw));
         }
     }
 }

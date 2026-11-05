@@ -954,6 +954,69 @@ describe("measure steps and runs", () => {
     });
 });
 
+describe("measure steps with settings their run name does not carry", () => {
+    const LOUVAIN = (params: Readonly<Record<string, unknown>>): RuleTree => ({
+        kind: "measure",
+        algorithm: "louvain",
+        field: "group",
+        params,
+        test: { kind: "categories", values: ["1"] },
+    });
+
+    it("a step with another setting starts a run of its own and leaves the reader's run as it was", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        const before = session.runs.start("louvain", {}, { scope: "graph", style: false });
+        await before;
+        const beforeParams = JSON.stringify(before.params);
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [{ start: "none", steps: [{ op: "add", rule: LOUVAIN({ maxIterations: 1 }) }] }],
+        };
+        const ready = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0].state === "ready") {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const stepRun = ready.branches[0].steps[0].run;
+        assert.notStrictEqual(stepRun, before.id, "the step reads its own run");
+        assert.strictEqual(JSON.stringify(session.runs.get(before.id)?.params), beforeParams, "never re-run in place");
+        assert.strictEqual(session.runs.list().length, 2);
+        assert.strictEqual(executions.sizes.length, 2, "each run computed once");
+    });
+
+    it("two branches of one algorithm under different settings each settle on their own run", async () => {
+        const executions: Executions = { sizes: [], hold: false };
+        const session = await lesMis(executions);
+        const rule: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                { start: "none", steps: [{ op: "add", rule: LOUVAIN({}) }] },
+                { start: "none", steps: [{ op: "add", rule: LOUVAIN({ maxIterations: 1 }) }] },
+            ],
+        };
+        const ready = await new Promise<StepsReading>((resolve) => {
+            const each = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches.every((branch) => branch.state === "ready")) {
+                    each.end();
+                    resolve(reading);
+                }
+            });
+        });
+        const [first, second] = ready.branches.map((branch) => branch.steps[0].run);
+        assert.notStrictEqual(first, second);
+        assert.strictEqual(session.runs.list().length, 2);
+        assert.strictEqual(executions.sizes.length, 2, "no run is restarted back and forth");
+    });
+});
+
 describe("scope.histogram", () => {
     it("bins degree over a step's input, and counts a category with the best-connected member of each", async () => {
         const session = await lesMis();

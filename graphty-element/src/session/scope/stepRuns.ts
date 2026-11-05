@@ -24,7 +24,8 @@ import type {
 import type { RunResult } from "../results/types";
 import type { RunExecutor } from "../runs";
 import { canonicalize } from "../runs/runId";
-import type { ResolvedScope, Run, RunsApi } from "../runs/types";
+import type { SessionRunsApi } from "../runs/RunsApi";
+import type { ResolvedScope, Run } from "../runs/types";
 import type { CodedFact } from "../shared";
 import type { FilterRunResult, UnionStepSource } from "../visibility/filter";
 import { type Bytes, referenceOf, type StepFrame, type StepGate } from "../visibility/union";
@@ -48,7 +49,8 @@ const LIVE_MS_PER_ELEMENT = 0.001;
 
 /** What the step runs read from the session. */
 export interface StepRunsSources {
-    readonly runs: RunsApi;
+    /** The session's runs; a step starts its own (`startOwn`), never re-running another's in place. */
+    readonly runs: SessionRunsApi;
     /** The session's executor, for a step's own computation. */
     readonly execute: RunExecutor;
     /**
@@ -465,7 +467,9 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         const scope = leaf.scope ?? baseScope(frame);
         const options = { scope, style: false } as const;
         const done =
-            leaf.scope === undefined ? sources.runs.answered(leaf.algorithm, params, options) : boundRun(leaf, params);
+            leaf.scope === undefined
+                ? sources.runs.answeredOwn(leaf.algorithm, params, options)
+                : boundRun(leaf, params);
         if (done?.result !== undefined) {
             started.set(definitionKey(step, frame.within), done.id);
             return { gate: null, result: sources.readerOf(done.result, done.id) };
@@ -499,7 +503,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         // Started outside the pass that asked: a run is a command, and a pass does not dispatch.
         started.set(key, "");
         queueMicrotask(() => {
-            const begun = sources.runs.start(leaf.algorithm, params, options);
+            const begun = sources.runs.startOwn(leaf.algorithm, params, options);
             started.set(key, begun.id);
             begunIds.push(begun.id);
             consent.delete(key);

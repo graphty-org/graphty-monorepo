@@ -143,6 +143,26 @@ describe("scope.edit", () => {
         assert.deepEqual(executions, ["pagerank", "degree"]);
     });
 
+    it("Cancel keeps the reader's run when a step in the visit changed a setting its name does not carry", async () => {
+        const { session } = await pathSession();
+        const before = session.runs.start("louvain", {}, { scope: "graph", style: false });
+        await before;
+        const edit = session.scope.edit();
+        const rule = measuring("louvain");
+        const step = rule.branches[0].steps[0].rule as Extract<RuleTree, { kind: "measure" }>;
+        const tuned: UnionLeaf = {
+            ...rule,
+            branches: [{ start: "all", steps: [{ op: "keep", rule: { ...step, params: { maxIterations: 1 } } }] }],
+        };
+        const started = await readRun(session, tuned);
+        assert.notStrictEqual(started, before.id);
+        await edit.discard();
+        assert.deepEqual(
+            session.runs.list().map((run) => [run.id, JSON.stringify(run.params)]),
+            [[before.id, JSON.stringify(before.params)]],
+        );
+    });
+
     it("a run the visit did not start is never removed, even when nothing reads it", async () => {
         const { session } = await pathSession();
         const analyze = session.runs.start("degree", {}, { scope: "graph", style: false });

@@ -65,7 +65,7 @@ export interface JoinedLineOptions {
      *
      * The text goes to Babylon inline, never through a shader store: the module that writes it
      * loads lazily, and on a page where that gave it a second copy of Babylon, its store is not
-     * the one this module's material reads (issue #5894).
+     * the engine's, which is the one the compile reads (issue #5894).
      */
     program?: {
         readonly name: string;

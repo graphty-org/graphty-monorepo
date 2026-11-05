@@ -28,7 +28,8 @@ export type StyleValueKind =
     | "weight"
     | "textAlign"
     | "position"
-    | "labelFit";
+    | "labelFit"
+    | "labelBox";
 
 /**
  * The value kind of every neutral property, per target.
@@ -140,6 +141,7 @@ export const STYLE_PROPERTIES: {
         ["labelPadding", "number"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
+        ["labelBox", "labelBox"],
         ["image", "text"],
         ["imageFit", "text"],
         ["imageFallback", "text"],
@@ -377,6 +379,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
     ["weight", ["normal", "bold"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
+    ["labelBox", ["words", "words-at-side", "target-width"]],
     [
         "position",
         [

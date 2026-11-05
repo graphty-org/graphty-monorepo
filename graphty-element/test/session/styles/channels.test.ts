@@ -67,6 +67,7 @@ const DECLARED = [
     "node.labelShiftY",
     "node.labelShiftOf",
     "node.labelGapOf",
+    "node.labelBox",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -369,6 +370,7 @@ const DECLARED = [
     "edge.labelShiftY",
     "edge.labelShiftOf",
     "edge.labelGapOf",
+    "edge.labelBox",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
@@ -409,9 +411,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ninety-four node channels and one hundred and sixty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 194);
-        assert.strictEqual(channelsFor("edge").length, 161);
+    it("splits into one hundred and ninety-five node channels and one hundred and sixty-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 195);
+        assert.strictEqual(channelsFor("edge").length, 162);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -825,6 +827,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelShiftY",
         "node.labelShiftOf",
         "node.labelGapOf",
+        "node.labelBox",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -854,6 +857,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelShiftY",
         "edge.labelShiftOf",
         "edge.labelGapOf",
+        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */

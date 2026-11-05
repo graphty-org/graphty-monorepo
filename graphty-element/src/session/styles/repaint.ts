@@ -394,8 +394,13 @@ export interface RepaintEngine extends ElementPaint {
      *
      * What a removal from the middle of the rows costs the picture: the elements after it move
      * down, and moving their paint is a copy per column rather than every layer evaluated over
-     * every element again. Only right when no layer's paint of one element depends on another
-     * element, which the caller decides.
+     * every element again. The record of what each layer was applied to moves with them, so a
+     * layer can still take its paint back.
+     *
+     * A layer that encodes is settled against the rows as they stand first, and when any of them
+     * settles differently (a domain, a list of categories, a set of cut points) every element is
+     * painted, because the same value now paints differently. Beyond that, an element's paint
+     * must depend on no other element unless the caller names it in `dirty`.
      * @param stack - The stack to paint from, bottom first.
      * @param moved - The freeze's remaps, old index to new, or null for a kind it did not renumber.
      * @param kept - How many elements of each kind, from index zero up, were painted before it.
@@ -415,6 +420,27 @@ export interface RepaintEngine extends ElementPaint {
         context: RepaintContext,
         still: () => boolean,
     ): Promise<RepaintReport>;
+}
+
+/**
+ * Everything a layer's paint closures took from the whole column, as one comparable string: two
+ * preparations with the same facts paint the same value the same. A template's `|count` and
+ * `|rank` read the column too and are not here, so the caller keeps those off a narrowed pass.
+ * @param layer - The prepared layer.
+ * @returns The facts.
+ */
+function settledFacts(layer: PreparedLayer): string {
+    return JSON.stringify(
+        layer.channels.map(({ binding }) => [
+            binding.domain,
+            binding.categories,
+            binding.lumped,
+            binding.steps,
+            binding.groups,
+            binding.palette,
+            binding.range,
+        ]),
+    );
 }
 
 /** A renumbering per kind of element: old index to new, INVALID_INDEX for one dropped. */
@@ -2030,6 +2056,47 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             ),
         );
 
+    /**
+     * Whether a layer that encodes now paints a value differently from what is on screen, read
+     * off everything a paint closure takes from the column.
+     * @param entry - The layer.
+     * @returns True when every element has to be painted again.
+     */
+    const settledDifferently = (entry: CompiledLayer): boolean => {
+        if (entry.layer.encode === undefined || !entry.layer.enabled) {
+            return false;
+        }
+
+        const before = lastPreparedFrom.get(entry);
+        return before === undefined || settledFacts(before) !== settledFacts(prepareLayer(entry));
+    };
+
+    /**
+     * Carry the record of what each layer was applied to through a renumbering.
+     * @param stack - The layers whose records are carried. A hidden layer's stays behind: none of
+     *     its paint is on screen to take back, so all a stale record costs is a needless repaint.
+     * @param moved - The freeze's remaps.
+     */
+    const followApplied = (stack: readonly CompiledLayer[], moved: ElementRemaps): void => {
+        for (const entry of stack) {
+            const remap = moved[entry.layer.target];
+            const record = appliedTo.get(entry);
+            if (remap === null || record === undefined) {
+                continue;
+            }
+
+            const store = stores[entry.layer.target];
+            const carried = new Uint8Array(store.capacity);
+            for (let from = 0; from < Math.min(record.length, remap.length); from++) {
+                if (record[from] === 1 && remap[from] < store.count) {
+                    carried[remap[from]] = 1;
+                }
+            }
+
+            appliedTo.set(entry, carried);
+        }
+    };
+
     /** Put every element of both kinds in the dirty set. */
     const markEverything = (): void => {
         for (const store of [stores.node, stores.edge]) {
@@ -2110,6 +2177,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         ): Promise<RepaintReport> {
             return exclusively(async () => {
                 if (!still()) {
+                    appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
                     return runPass(stack, context, markEverything, null);
                 }
 
@@ -2117,10 +2185,16 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
                     edge: follow(stores.edge, moved.edge, kept.edge, sources.edgeCount()),
                 };
+                followApplied(stack, moved);
                 return runPass(
                     stack,
                     context,
                     () => {
+                        if (stack.some(settledDifferently)) {
+                            markEverything();
+                            return;
+                        }
+
                         for (const store of [stores.node, stores.edge]) {
                             for (const indices of [holes[store.target], dirty[store.target]]) {
                                 for (let at = 0; at < indices.length; at++) {

@@ -159,6 +159,7 @@ import { atStylePath, channelsFor } from "./styles/channels";
 import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
 import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
+import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
 import { renamePaths, rulePath } from "./styles/predicate";
 import {
@@ -2414,13 +2415,12 @@ function repaintAgainstCurrentData(
             return engine.repaintElements(stack, dirty, context);
         },
         repaintMoved: async (stack, moved, kept, dirty, context, still) => {
-            // Rows only appended: every index still names its element, and this pass repaints too
-            // few elements to rebuild the record of what each layer was applied to, which a layer
-            // needs to take its paint back once its selector matches nothing.
-            if (moved.node === null && moved.edge === null) {
-                indexedBy = readSnapshot();
-            }
-
+            // The engine carries the record of what each layer was applied to with the rows: this
+            // pass repaints too few elements to rebuild it, and a layer needs it to take its paint
+            // back once its selector matches nothing. Every binding is settled again, whether or
+            // not the snapshot changed, because the engine compares that with what is on screen.
+            indexedBy = readSnapshot();
+            painted = null;
             againstCurrentData();
 
             return engine.repaintMoved(stack, moved, kept, dirty, context, still);
@@ -3681,6 +3681,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // carried to and the rows whose records changed. At a hundred thousand nodes that is the
     // difference between one row and a hundred thousand per layer. The default layers are of
     // this kind, so a session nobody styled takes this path on every add.
+    //
+    // AN ADD ALSO LEAVES AN ENCODING OR AN EXPRESSION ON THAT PATH (issue #5897), when rows were
+    // only appended and the layer reads nothing but its own row and a whole column: the engine
+    // settles each binding again and paints everything if one settled differently, and a degree
+    // moves only at the ends of the added edges, which are painted with the new rows.
     /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
     let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
     /**
@@ -3712,22 +3717,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const through = paintedThrough;
         const moved = rowsMoved(through, now, store.store.lastRenumbering ?? null);
         const followed = moved !== null && (followsRenumbering || (moved.node === null && moved.edge === null));
-        if (through === null || !followed || ![...dirty].every(changesRowsOnly) || !stack.every(paintsRowAlone)) {
+        const added = dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED);
+        const narrows = added && through?.renumbers === now.renumbers ? paintsFromRowAndColumn : paintsRowAlone;
+        if (through === null || !followed || ![...dirty].every(changesRowsOnly) || !stack.every(narrows)) {
             return false;
         }
 
         const kept = { node: through.nodes, edge: through.edges };
         const still = (): boolean => store.store.renumberCount === now.renumbers;
-        await painter.repaintMoved(stack, moved, kept, editedRows(snapshot(), dirty), RUNS_PASS, still);
+        const graph = snapshot();
+        const rows = editedRows(graph, dirty);
+        if (stack.some(readsStructure)) {
+            rows.node.push(...endsOfEdgesFrom(graph, through.edges));
+        }
+
+        await painter.repaintMoved(stack, moved, kept, rows, RUNS_PASS, still);
         // A freeze that renumbered the rows while the pass ran leaves the next pass to paint
         // everything.
         paintedThrough = still() ? now : null;
         return true;
     };
-    // The renderer's half of the same rule, for rows appended only: a pass that follows a
-    // renumbering forgets what each layer was applied to, and only a whole pass writes it back.
-    // ponytail: any encode or expression layer still repaints the whole graph on an add; an edge
-    // add could leave node layers that read no structure alone if a styled graph needs that.
+    // The renderer's half of the same rule, for rows appended only.
+    // ponytail: an add settles every encoding again, O(n log n) per continuous binding, and paints
+    // only if one moved; keep running extents per column if adds to a huge encoded graph show it.
     GRAPH_REPAINTS.set(dispatcher, async (dirty, paintWhole) => {
         const added = dirty?.has(NODES_ADDED) === true || dirty?.has(EDGES_ADDED) === true;
         if (dirty !== null && added && (await paintChangedRows(styles.compiled(), dirty, false))) {
@@ -3744,6 +3756,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         rows.edge.push(...edgeRows.filter((row) => row < graph.edgeCount));
         if (layers.length > 0 && (rows.node.length > 0 || rows.edge.length > 0)) {
             await painter.repaintElements(layers, rows, RUNS_PASS);
+            // These rows settled each binding against a graph the other rows were not painted for.
+            if (!layers.every(paintsRowAlone)) {
+                paintedThrough = null;
+            }
         }
     });
     HEADLESS_GRAPH_PAINT.set(
@@ -3947,12 +3963,54 @@ const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
  * @returns True when it does.
  */
 function paintsRowAlone(entry: CompiledLayer): boolean {
+    return entry.layer.encode === undefined && entry.selector.match !== "expression" && paintsFromRowAndColumn(entry);
+}
+
+/**
+ * Whether a layer paints each element from that element's own values, read through bindings the
+ * engine can tell have settled differently. Appended rows beside it change nothing it painted but
+ * what those two checks find: a degree at an added edge's end, and a binding that settled apart.
+ *
+ * Not of this kind, so an add under one paints the whole graph: a `top`, which ranks a column; a
+ * `member` or `rule` selector, whose set can follow the structure; `state` and `hover`, which can
+ * reach a neighbor; a value read at an edge's end, which an edit or a degree moves on every edge
+ * at that node; and a template's `|count` or `|rank`, which no settled fact describes.
+ * @param entry - The layer.
+ * @returns True when it does.
+ */
+function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
     const { match } = entry.selector;
     return (
-        entry.layer.encode === undefined &&
-        (match === "everything" || match === "has" || match === "ids") &&
-        !entry.reads.some((path) => edgeEndPathOf(path) !== undefined)
+        (match === "everything" || match === "has" || match === "ids" || match === "expression") &&
+        !entry.reads.some((path) => edgeEndPathOf(path) !== undefined) &&
+        !Object.values(entry.layer.encode ?? {}).some(
+            (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),
+        )
     );
+}
+
+/**
+ * Whether a layer reads a node's degree.
+ * @param entry - The layer.
+ * @returns True when it does.
+ */
+function readsStructure(entry: CompiledLayer): boolean {
+    return entry.reads.some((path) => (STRUCTURE_PATHS as readonly string[]).includes(path));
+}
+
+/**
+ * The node rows at the ends of the edges from one row on.
+ * @param graph - The snapshot.
+ * @param from - The first edge row.
+ * @returns The rows, repeats included.
+ */
+function endsOfEdgesFrom(graph: GraphSnapshot, from: number): number[] {
+    const ends: number[] = [];
+    for (let edge = from; edge < graph.edgeCount; edge++) {
+        ends.push(graph.edgeSource(edge), graph.edgeTarget(edge));
+    }
+
+    return ends;
 }
 
 /**

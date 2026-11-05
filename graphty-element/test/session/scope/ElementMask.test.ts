@@ -283,4 +283,23 @@ describe("ElementMask, as bytes for a worker", () => {
         assert.isFalse(mask.has(1), "the mask is unmoved");
         assert.notStrictEqual(mask.bytes(), bytes, "and the next read is a fresh copy too");
     });
+
+    it("assigns a whole membership in one version bump, by rows or outright", () => {
+        const mask = fillWith(maskOf(["a", "b", "c"]), ["a"]);
+        const { version } = mask;
+        mask.assign(Uint8Array.of(0, 1, 1), 2, Uint32Array.of(0, 1, 2));
+        assert.deepEqual([...mask.bytes()], [0, 1, 1]);
+        assert.strictEqual(mask.size, 2);
+        assert.strictEqual(mask.version, version + 1);
+
+        mask.assign(Uint8Array.of(1, 0, 0), 1, null);
+        assert.deepEqual([...mask.bytes()], [1, 0, 0]);
+        assert.strictEqual(mask.version, version + 2);
+
+        mask.assign(Uint8Array.of(1, 0, 0), 1, []);
+        assert.strictEqual(mask.version, version + 2, "no rows, no change");
+        assert.throws(() => {
+            mask.readOnlyCopy().assign(Uint8Array.of(0, 0, 0), 0, null);
+        });
+    });
 });

@@ -377,6 +377,20 @@ describe("a project saved with the timeline on, opened with it off", () => {
         }
     });
 
+    it('gives a saved `nodes: "ends"` window under a filter the masks of its bounds alone', async () => {
+        const saved = await loaded(ON);
+        await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
+        await saved.time.window({ from: FIRST_DAYS.from, to: FIRST_DAYS.to });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open(text);
+        assert.strictEqual(session.visibility.window?.nodes, "ends");
+
+        await session.visibility.setSteps([{ id: "first", on: true, rule: { kind: "edges", where: "source == 'A'" } }]);
+        assert.strictEqual(session.visibility.summary.visibleEdges, 1);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 4, "the option stays saved and is not applied");
+    });
+
     it("keeps its time field, its settings and its Ghost row, and draws no ghosts", async () => {
         const saved = await loaded(ON);
         await saved.config.set({ startingRows: true });

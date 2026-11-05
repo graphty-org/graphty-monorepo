@@ -5,12 +5,15 @@
  *
  * Three seeded graphs, each under a node filter that hides a tenth of the nodes: uniform edge
  * instants, node-timed, and Zipf (bursty times on hub-heavy degrees, nodes and edges both timed).
- * Each measurement is the median of seven rounds after one warm-up. The window is 30 days wide.
+ * Each measurement is the median of seven rounds, after one untimed pass through the same rounds: a
+ * play is hundreds of moves, so a stopwatch on the first few would time the compiler. The window is
+ * 30 days wide.
  * A jump goes between quantiles of the data. `stepBy` and `slide` move it a day, the first through
  * a recorded window and the second as a smooth play frame does, from a place where that day takes
  * in a quantile instant or, in the last round, the best connected node's instant: every round must
  * cross rows, and the rows crossed print beside the timings. `binsVisible` is the first read after
- * a filter change, with no window: a window would leave it about 1% of the rows that pass the filter.
+ * a filter change, with no window; `binsWindowed` the same under a window, which reads the filter's
+ * tests again where the masks cannot answer.
  *
  * Two more cases time only the build, the one budget that depends on where the values live: edge
  * records loaded through `session.data`, as an application's are, and date text with no offset read
@@ -56,7 +59,7 @@ const BURST_SPAN = 3 * DAY;
 const JUMP_ORDER = [3, 0, 5, 1, 6, 2, 4];
 
 /** Design 5.2's budgets, in milliseconds. */
-const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5 };
+const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5, binsWindowed: 5 };
 type Measure = keyof typeof BUDGET_MS;
 
 /** Design 5.2's memory: 24 bytes per timed element, and 1 per element for the cached filter mask. */
@@ -145,7 +148,7 @@ const CASES: Record<string, () => Graph> = {
 };
 
 /**
- * Time some work over the rounds, after one warm-up.
+ * Time some work over the rounds, after one untimed pass through them.
  * @param work - The work, handed its round.
  * @param prepare - What each round needs first, untimed.
  * @returns The median and the slowest round.
@@ -161,8 +164,11 @@ async function timed(
         return performance.now() - start;
     };
 
-    // The warm-up stands at the last round's place, so the first round still moves.
-    await round(ROUNDS - 1);
+    // The warm-up ends at the last round's place, so the first round still moves.
+    for (let at = 0; at < ROUNDS; at++) {
+        await round(at);
+    }
+
     const rounds: number[] = [];
     for (let at = 0; at < ROUNDS; at++) {
         rounds.push(await round(at));
@@ -334,7 +340,7 @@ describe("the timeline at 1,000,000 edges", () => {
             let hidden = 9;
 
             await time.window(null);
-            // Ends where it began: the warm-up and the seven rounds are eight changes.
+            // Ends where it began: the warm-up and the rounds are fourteen changes.
             const binsVisible = await timed(
                 () => time.bins({ count: BINS, scope: "visible" }),
                 () => {
@@ -348,6 +354,13 @@ describe("the timeline at 1,000,000 edges", () => {
             );
             // Seeking with no window would open the first one, not this one.
             await time.window(OPENING);
+            const binsWindowed = await timed(
+                () => time.bins({ count: BINS, scope: "visible" }),
+                () => {
+                    hidden = hidden === 9 ? 8 : 9;
+                    return hideTenth(hidden);
+                },
+            );
 
             const timings: Record<Measure, Timing> = {
                 jump: await timed(seek),
@@ -367,6 +380,7 @@ describe("the timeline at 1,000,000 edges", () => {
                 ),
                 bins: await timed(() => time.bins({ count: BINS })),
                 binsVisible,
+                binsWindowed,
                 // A new data token drops the index; the snapshot is rebuilt before the clock starts. The
                 // `extent()` asks for the build, and `ready` holds until it is done.
                 build: await timed(

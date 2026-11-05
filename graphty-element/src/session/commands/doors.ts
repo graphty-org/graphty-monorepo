@@ -3382,12 +3382,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            filterBytes: READ,
+            passingBytes: READ,
             commitWindow: calls(
                 [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 }, ownStep: true }],
             ),
             slideWindow: exempt(
-                "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
+                "Moves the masks for session.time; the window the project records is unchanged until session.time records it.",
             ),
         },
     },

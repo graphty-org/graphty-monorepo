@@ -103,7 +103,7 @@ export interface TimeWindow {
     /**
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
-     * window ends at it, so nodes follow their edges.
+     * window, and passing the filter, ends at it, so nodes follow their edges.
      * @experimental timeline
      * @beta
      */
@@ -1801,24 +1801,36 @@ export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: F
 }
 
 /**
+ * A window's bounds as instants: an unreadable bound leaves that side open.
+ * @param window - The window.
+ * @param sources - Where a designated column's zone is read.
+ * @returns `[from, to)`.
+ */
+export function windowBounds(window: TimeWindow, sources: FilterSources): readonly [number, number] {
+    const zone = sources.boundZone?.(window.attribute);
+    const boundOf = (bound: number | string): number | null =>
+        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
+
+    return [boundOf(window.from) ?? Number.NEGATIVE_INFINITY, boundOf(window.to) ?? Number.POSITIVE_INFINITY];
+}
+
+/**
  * Compile a time window into its node half and its edge half.
  *
  * Both halves read the SAME attribute path and share one mark, so a window on `data.timestamp`
  * that only the edges answer does not report the path as unresolved.
  * @param window - The window.
  * @param context - The compile context.
+ * @param filterEdge - The filter's edge test, which an edge passes too before it counts for
+ *     `nodes: "ends"`; null when the filter says nothing of edges.
  * @returns The two halves.
  * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session cannot read attributes.
  */
-function compileWindow(window: TimeWindow, context: CompileContext): CompiledHalves {
+function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: ElementTest | null): CompiledHalves {
     const values = valuesOf(context, "window");
     const { graph } = context;
     const mark = markFor(context, window.attribute);
-    const zone = context.sources.boundZone?.(window.attribute);
-    const boundOf = (bound: number | string): number | null =>
-        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
-    const from = boundOf(window.from) ?? Number.NEGATIVE_INFINITY;
-    const to = boundOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const [from, to] = windowBounds(window, context.sources);
     // With the timeline off a saved window's options stay saved and are not applied.
     const timeline = context.sources.timeline?.() !== false;
     const missingInside = !timeline || window.missing !== "outside";
@@ -1859,16 +1871,22 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
         return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));
     };
 
-    const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
-    let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
+    // The designated field names which kinds it times: the other kind has no time, whatever its
+    // records hold under the same name.
+    const silent = (parsed: TimeInstants | null | undefined): boolean =>
+        timeline && indexed !== null && parsed === null;
+    const edge = silent(indexed?.edge)
+        ? null
+        : half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
+    let node = silent(indexed?.node)
+        ? null
+        : half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
     if (timeline && window.nodes === "ends" && edge !== null) {
-        // ponytail: counts an edge inside the window, not one that also passes the filter's edge
-        // half, as the `ends` of a range leaf does; the design's rule ANDs both.
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
         for (let index = 0; index < graph.edgeCount; index++) {
-            if (edge(index)) {
+            if (edge(index) && (filterEdge === null || filterEdge(index))) {
                 ends[list.src[index]] = 1;
                 ends[list.dst[index]] = 1;
             }
@@ -1915,13 +1933,14 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
+    const filtering = filter === null ? null : compileOne(filter, context);
 
-    if (filter !== null) {
-        halves.push(compileOne(filter, context));
+    if (filtering !== null) {
+        halves.push(filtering);
     }
 
     if (window !== null) {
-        halves.push(compileWindow(window, context));
+        halves.push(compileWindow(window, context, filtering?.edge ?? null));
     }
 
     const folded =

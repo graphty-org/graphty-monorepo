@@ -50,6 +50,7 @@ const MUTATORS = [
     "subtract",
     "symmetricDifference",
     "load",
+    "assign",
 ] as const;
 
 /**
@@ -443,6 +444,28 @@ export class ElementMask<TId> {
         this.array.set(bytes);
         this.members = this.countMembers();
         this.revision += 1;
+    }
+
+    /**
+     * Rewrite the membership in one version bump: what a time window's jump does, where a bump per
+     * row would cost more than the rows. The row count stays.
+     * @param bytes - One byte per row, `1` for a member.
+     * @param size - How many members that makes, which the caller counted as it wrote them.
+     * @param rows - The rows that differ, and only those are written; null to write them all.
+     */
+    assign(bytes: U8, size: number, rows: ArrayLike<number> | null): void {
+        if (rows === null) {
+            this.array.set(bytes.subarray(0, this.rows));
+        } else if (rows.length === 0) {
+            return;
+        } else {
+            for (let at = 0; at < rows.length; at++) {
+                this.array[rows[at]] = bytes[rows[at]];
+            }
+        }
+
+        this.members = size;
+        this.bump();
     }
 
     /**

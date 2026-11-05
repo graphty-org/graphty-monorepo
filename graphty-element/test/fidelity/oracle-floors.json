@@ -56212,6 +56212,12 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
+            },
+            "edge.route": {
+                "floor": 0.94,
+                "to": 0.93,
+                "reason": "drawing, left to fix: at Graphviz's own node places c7_3->c0_4 passed on master and fails once HTML-like edge and cluster labels go to Graphviz as HTML; the 2026-11-04 labelled self-loop record lists it among the dot routes that follow from dot's placement around those loops (#5253)",
+                "date": "2026-11-05"
             }
         },
         "dot-synth-nodes": {

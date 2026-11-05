@@ -107,7 +107,7 @@ export interface RendererStatus {
     /**
      * Whether anything is drawn. False when the browser gave the page no working WebGL context:
      * the graph's data, its session and autosave still work, and the canvas stays empty. The log
-     * records it as `E_NO_WEBGL`. Also false once the WebGPU device refuses a shader, which loses
+     * records it as `E_NO_WEBGL`. Also false once a shader cannot be built for WebGPU, which can lose
      * every frame it is part of; that is reported as a `graph-error` with `E_SHADER_REFUSED`.
      * @since 3.29.0
      */

@@ -124,42 +124,6 @@
     "panelControls": [
         {
             "row": "Everything",
-            "control": "missing node which: Which nodes",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "missing node which open: Done",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "missing edge which: Which edges",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "missing edge which open: Done",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "extra node which: no control",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
-            "control": "extra edge which: no control",
-            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
-            "issue": "#5905"
-        },
-        {
-            "row": "Everything",
             "control": "missing menu: Move to folder",
             "reason": "RowMenu leaves Move to folder off the base row",
             "issue": "#5905"
@@ -212,7 +176,7 @@
             "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
             "rule": "named",
             "detail": "isBaseRow",
-            "count": 3,
+            "count": 2,
             "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
@@ -334,38 +298,6 @@
             "detail": "startingEverything",
             "count": 2,
             "reason": "the starting rows are remembered after they are created",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/style/StylePanel.tsx",
-            "rule": "named",
-            "detail": "base",
-            "count": 1,
-            "reason": "gives the base row its own behavior",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/style/StylePanel.tsx",
-            "rule": "named",
-            "detail": "isBaseRow",
-            "count": 1,
-            "reason": "gives the base row its own behavior",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/style/WhichPicker.tsx",
-            "rule": "named",
-            "detail": "BaseRow",
-            "count": 2,
-            "reason": "gives the base row its own behavior",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty/src/workspace/style/WhichPicker.tsx",
-            "rule": "named",
-            "detail": "base",
-            "count": 1,
-            "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
         {

@@ -229,12 +229,6 @@
     line-height: 18px;
 }
 
-/* The base layer's Which row: plain text, not a control, at the panel's reading color. */
-.ws-which-base {
-    padding: 4px 0;
-    line-height: 18px;
-}
-
 /* One condition card: its header (name, count, x), its Match select and its editor. */
 .ws-card {
     position: relative;

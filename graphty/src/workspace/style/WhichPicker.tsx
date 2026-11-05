@@ -383,12 +383,6 @@ interface WhichPickerProps {
     readonly side: Side;
     /** Open on arrival: a new layer, or a kind just turned on with no cards. */
     readonly autoOpen?: boolean;
-    /**
-     * The base layer (Everything holding the base look): it styles every element, so it is never
-     * narrowed. It reads "All 24 nodes", with no condition to add; a card it already holds can
-     * still be removed.
-     */
-    readonly base?: boolean;
     /** A field to open on with a card on it (the other kind's tab sent the reader here for it). */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
@@ -406,7 +400,6 @@ interface WhichPickerProps {
  * @param props.rows - the rows it writes
  * @param props.side - nodes or edges
  * @param props.autoOpen - open on arrival when it has no cards
- * @param props.base - the base layer, which is never narrowed
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.held - cards it edits instead of a layer's
@@ -418,19 +411,18 @@ export function WhichPicker({
     held,
     side,
     autoOpen = false,
-    base = false,
     adding,
     onElsewhere,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = held === undefined ? pickRows(session, ids, side) : [];
     const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
-    const [open, setOpen] = useState((autoOpen && !base && shown.length === 0) || (adding !== undefined && !base));
-    // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md); a
-    // base layer, several layers at once and held cards keep the cards. Cards opened stay until
+    const [open, setOpen] = useState((autoOpen && shown.length === 0) || adding !== undefined);
+    // One layer's own selector is edited as a selection (design/ui/selection-groups/spec.md);
+    // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
     const editable =
-        held === undefined && rows.length === 1 && !base ? layerSelection(session, rows[0].layer.selector, side) : null;
+        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -454,9 +446,6 @@ export function WhichPicker({
     useAnnounceChange(/\d of \d/.test(settled) ? settled : null, true, covered || wasCovered);
     if (rows.length === 0 && held === undefined) {
         return null;
-    }
-    if (base && shown.length === 0 && !open) {
-        return <BaseRow session={session} rows={rows} side={side} />;
     }
     // Done, Enter or Escape: focus goes back to the Which row it opened from -- the one drawn now,
     // when the panel was drawn again for the row the cards changed (a new layer's first edit).
@@ -485,7 +474,6 @@ export function WhichPicker({
                     initial={shown}
                     focusKey={focusKey}
                     regionId={regionId}
-                    base={base}
                     adding={adding}
                     onElsewhere={onElsewhere}
                     onClose={close}
@@ -633,31 +621,6 @@ function WhichRow({
 }
 
 /**
- * The base layer's Which row: one line of plain text saying it styles every element and why,
- * never a control.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.rows - the rows it reads
- * @param props.side - nodes or edges
- * @returns The line
- */
-function BaseRow({
-    session,
-    rows,
-    side,
-}: Readonly<{ session: GraphSession; rows: readonly PickRow[]; side: Side }>): React.JSX.Element {
-    const total = drawnTotal(session, rows[0]?.layer.id, side);
-    return (
-        <div className="ws-which" data-testid="which-picker" data-side={side} data-base="">
-            <Text size="xs" className="ws-which-base">
-                {rows[0]?.name ?? "This layer"} styles all {many(total, side)}: it is the base layer, under every other
-                layer.
-            </Text>
-        </div>
-    );
-}
-
-/**
  * How many elements of a kind are drawn, the base a layer styles over (`styles.counts(id).visible`):
  * what the filter leaves, the graph's count with no filter on.
  * @param session - the element's session.
@@ -777,7 +740,6 @@ type OnCard = (next: Card) => void;
  * @param props.initial - the cards when it opened
  * @param props.focusKey - the card (or "add") to focus first
  * @param props.regionId - the open cards' id, which the row controls
- * @param props.base - the base layer: no condition is added to it
  * @param props.adding - a field to add a card on when the cards open
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.onClose - closes the cards, handing focus back to the Which row
@@ -792,7 +754,6 @@ function Cards({
     initial,
     focusKey,
     regionId,
-    base,
     adding,
     onElsewhere,
     onClose,
@@ -805,7 +766,6 @@ function Cards({
     initial: readonly Shown[];
     focusKey: string | null;
     regionId: string;
-    base: boolean;
     adding?: string;
     onElsewhere?: (field: CardField) => void;
     onClose: () => void;
@@ -933,7 +893,7 @@ function Cards({
         const narrows = (cards: readonly Shown[]): boolean =>
             cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
         const removed = list[at];
-        if (holder === undefined && !bulk && !base && removed !== undefined && narrows(list) && !narrows(next)) {
+        if (holder === undefined && !bulk && removed !== undefined && narrows(list) && !narrows(next)) {
             // Undo gives the layer back its cards and the name it had with them.
             const row = rows[0];
             const names = new Map(
@@ -987,10 +947,10 @@ function Cards({
         addOnce.current = undefined;
         const field = path === undefined ? undefined : fields.find((each) => each.path === path);
         const alone = initial.some((each) => each.card.type === "fixed" && each.card.leaf === null);
-        if (field !== undefined && !base && !alone) {
+        if (field !== undefined && !alone) {
             adder.current(field);
         }
-    }, [fields, initial, base]);
+    }, [fields, initial]);
 
     // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
     // elsewhere) drops it, and says so. Held cards stay as the caller holds them.
@@ -1113,7 +1073,7 @@ function Cards({
                     {why}
                 </Text>
             )}
-            {!standsAlone && !base && (
+            {!standsAlone && (
                 <AddCondition
                     fields={fields}
                     elsewhere={elsewhere}

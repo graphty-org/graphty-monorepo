@@ -33,17 +33,16 @@ export interface RowCommand {
     readonly run: (ctx: CommandContext, row: StyleRow) => void | Promise<void>;
 }
 
-/** Why the Everything row holding the base look never moves or goes. */
+/** Why the Everything row holding the base look keeps its pin. */
 const BASE_STAYS = "Everything holds the base look and stays at the bottom";
 
 /**
  * Whether a row holds the base look.
  * @param session - the session.
- * @param row - the row, if any.
+ * @param row - the row.
  * @returns true when it does.
  */
-const holdsBase = (session: GraphSession | null, row: StyleRow | undefined): boolean =>
-    row !== undefined && isBaseRow(session, row.id);
+const holdsBase = (session: GraphSession | null, row: StyleRow): boolean => isBaseRow(session, row.id);
 
 /** Why the base layer cannot be deleted: its own reason, drawn under Delete. */
 const BASE_KEPT = "Everything holds the base look, so it cannot be deleted";
@@ -135,11 +134,8 @@ function moveCommand(by: 1 | -1): RowCommand {
         applies: () => true,
         disabled: (row, session) => {
             const { siblings, at } = place(session, row);
-            const next = siblings[at + by];
-            if (holdsBase(session, row) || holdsBase(session, next)) {
-                return BASE_STAYS;
-            }
-            if (next === undefined) {
+            // A pin is a band: a row moved out of its own goes back (graphty-element's tree).
+            if (siblings[at + by]?.pin !== row.pin) {
                 return up ? "Already at the top" : "Already at the bottom";
             }
             return null;

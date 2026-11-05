@@ -7,7 +7,9 @@
  * names, and adds a reader's layer beside each: same kinds, same pin, same values, its own "every
  * element" selector. It then selects each of the two, reads the inspector's controls and the row
  * menu's items with whether each is enabled, and compares the two sets. Values and counts may
- * differ; the controls may not.
+ * differ; the controls may not. It does so with the selection workspace off and on: opened, a
+ * selection must take a new condition in whichever editor holds it. Move up and Move down are read
+ * against the row's place in its list, the one thing that may tell two rows apart, for every row.
  *
  * A difference must be listed in the `panelControls` section of
  * `tools/special-layers-baseline.json`, which `tools/check-special-layers.mjs` lets only shrink. A
@@ -36,6 +38,15 @@ const CONTROLS =
 
 /** A Which row. */
 const WHICH = '[data-testid="which-picker"]';
+
+/**
+ * What changes a selection, in each editor that opens: the cards' Add a condition, the workspace's
+ * Card, the inline editor's And..., and a step's Value in either.
+ */
+const CHANGES_SELECTION = /^(?:Add a condition|Card|And\.\.\.|Value(?:: .*)?)$/;
+
+/** What every open editor must offer, under one name however it draws it. */
+const TAKES_CONDITION = "which open: Add a condition";
 
 /**
  * A new project as the app starts one, with a graph, a time field and an algorithm's suggested style.
@@ -167,8 +178,8 @@ async function closeCards(inspector: HTMLElement): Promise<void> {
 
 /**
  * Reads the controls of the kind on show, then opens its Which row with a real click and reads what
- * a reader can do to the selection. The cards hold the selection's values, so only the two
- * controls every Which row must offer are read from them.
+ * a reader can do to the selection. The cards hold the selection's values, so only what every open
+ * editor must offer is read from them: Done, and a way to change what it selects.
  * @param inspector - the inspector.
  * @param kind - the kind.
  * @param row - the row's name.
@@ -196,21 +207,40 @@ async function readKind(
     } else if (button !== null && button !== undefined) {
         await userEvent.click(button);
         const done = await waitFor(() => within(editing(inspector)).getByRole("button", { name: "Done" }));
-        const add = within(editing(inspector)).queryByRole("button", { name: "Add a condition" });
+        const changes = within(editing(inspector)).queryAllByRole("button", { name: CHANGES_SELECTION });
         controls.set(`${kind} which open: Done`, enabled(done));
-        if (add !== null) {
-            controls.set(`${kind} which open: Add a condition`, enabled(add));
+        if (changes.length > 0) {
+            controls.set(`${kind} ${TAKES_CONDITION}`, changes.some(enabled));
         }
         await closeCards(inspector);
     }
 }
 
 /**
+ * What a layer row's place allows: a move to a neighbor in its own pin band, since a row moved out
+ * of its band goes back.
+ * @param rows - a list of the tree, bottom first.
+ * @param name - the row's name.
+ * @returns whether Move up and Move down can run, or undefined when no row has the name.
+ */
+function movesOf(rows: readonly StyleRow[], name: string): Readonly<Record<string, boolean>> | undefined {
+    const at = rows.findIndex((row) => row.kind === "layer" && row.name === name);
+    if (at === -1) {
+        return rows.flatMap((row) => (row.kind === "layer" ? [] : [movesOf(row.children, name)])).find(Boolean);
+    }
+    const { pin } = rows[at];
+    return { "Move up": rows[at + 1]?.pin === pin, "Move down": rows[at - 1]?.pin === pin };
+}
+
+/**
  * Selects a row with a real click and reads its controls, then its menu with a real right click.
+ * Move up and Move down must say what the row's place allows; the comparison then only needs them
+ * to be there, since two rows stand in different places.
+ * @param session - the session.
  * @param name - the row's name.
  * @returns each control's name and whether it is enabled.
  */
-async function controlsOf(name: string): Promise<Map<string, boolean>> {
+async function controlsOf(session: GraphSession, name: string): Promise<Map<string, boolean>> {
     const row = await within(screen.getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
         name: new RegExp(`^${name}, `),
     });
@@ -226,10 +256,15 @@ async function controlsOf(name: string): Promise<Map<string, boolean>> {
     }
     await userEvent.click(row, { button: "right" });
     const menu = await screen.findByRole("menu");
+    const moves = movesOf(session.styles.tree(), name);
+    assert.isDefined(moves);
     for (const item of within(menu).getAllByRole("menuitem")) {
         const words = controlName(spokenName(item), name);
-        // Whether a row can move says where it stands in the list, not what kind of row it is.
-        controls.set(`menu: ${words}`, words.startsWith("Move ") && words !== "Move to folder" ? true : enabled(item));
+        const allowed = moves[words] as boolean | undefined;
+        if (allowed !== undefined) {
+            assert.strictEqual(enabled(item), allowed, `${name}: ${words} says what its place allows`);
+        }
+        controls.set(`menu: ${words}`, allowed === undefined ? enabled(item) : true);
     }
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
@@ -253,9 +288,12 @@ function difference(row: Map<string, boolean>, reader: Map<string, boolean>): st
     return [...missing, ...extra, ...state];
 }
 
-describe("the panel of every style row", () => {
+describe.each([
+    ["off", ["timeline"]],
+    ["on", ["timeline", "selection-workspace"]],
+])("the panel of every style row, selection workspace %s", (_state, features) => {
     beforeAll(async () => {
-        await siteFeatures(["timeline"]);
+        await siteFeatures(features);
         await page.viewport(1366, 768);
     });
 
@@ -268,8 +306,12 @@ describe("the panel of every style row", () => {
         }
         const found = new Set<string>();
         for (const [row, name] of readers) {
-            const lines = difference(await controlsOf(row.name), await controlsOf(name));
-            for (const line of lines) {
+            const reader = await controlsOf(session, name);
+            assert.isTrue(
+                [...reader].some(([control, on]) => control.endsWith(TAKES_CONDITION) && on),
+                `${name}: a reader's layer takes a new condition, or the comparison reads nothing`,
+            );
+            for (const line of difference(await controlsOf(session, row.name), reader)) {
                 found.add(`${row.name} | ${line}`);
             }
         }

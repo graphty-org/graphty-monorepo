@@ -490,8 +490,6 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             name,
             label: `${name}, ${(layerKindWords(session, row.id) ?? "Layer").toLowerCase()}, ${paintsWords(paints)}`,
             icon: marks,
-            // Everything holding the base look stays at the bottom.
-            movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
             count: over ? <PaintedOverMark words={overWords} /> : counted,

@@ -10,6 +10,16 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-05) Tier 6 (the Assistant) is one quick user group: 6 tasks (T90 to T95), 12 sessions, 5
+  personas, one round, then fixes. With one session per task half the bars count across the round;
+  every bar comes from grades and expert findings, none from a script. Materials in `tier6/`.
+- (2026-11-05) A live model is a second participant: replies vary between runs, so the key states
+  what the reader must conclude, never the model's words. Grades carry `Model decided: yes` where
+  the model made a task impossible, and a wrong reply is graded by what the reader did with it.
+- (2026-11-05) A prompt's openness sets the bill: "a bolder look" cost 9 model calls and changed
+  nothing, a concrete recolor cost 2. Prompts ask for concrete things.
+- (2026-11-05) A failure can be real and free: the study tool swaps only Google's key, so a made-up
+  OpenAI key fails for real, at no cost, with no tool change. T90 gives that key first.
 - (2026-10-21) Tier 3 closed after round 1 at the 1-round safety cap without meeting the bars.
   Bar 5 fails only on the two backlog 3s (node Fill "+" one-node layer; folder chain icon, 0
   sessions reached it); bar 1 fails only on T49 B's "gold" F. Neither is new evidence about the
@@ -79,6 +89,16 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-11-05 (tier 6 materials):** Kept to 6 tasks by 2 halves, which is exactly the 12-session
+  limit, rather than a seventh task on one half: every task then reaches two domains. Put the
+  failed-message path inside T90 instead of a task of its own, because the expired key is what a
+  first-time reader really meets. T93 grades reading, not obedience: a wrong remembered number
+  ("about three") beside the true count, and either decision passes if the report is right, so the
+  prompt never says to stop. No planted wrong count: it needs the tool to falsify a reply, so T95
+  asks what the file cannot answer, which makes the model's own reading the trap. Put the message
+  limit in each persona's history as money, since the product's reader does pay. Left the
+  screen-reader persona to the accessibility expert, since a sixth persona would not fit.
+
 - **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
   one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
   left the node's Style tab without a change, and r1-s35 rated the one-node layer 2, so only r1-s53
@@ -124,6 +144,13 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (tier 6 materials) -- Worked: walking each kind of task on the real build before writing
+  its key (about 40 model calls), which found the approval's own words and the `look` hash that
+  grades T94 with no script; computing every reference value from the files; `--brief` for all 12
+  rows to prove the roster, prompts and facts parse. Did not work: a setup clicking Graph right
+  after Save (the Settings dialog can still be open; `--expect-not` on its text settles it) or
+  plain `--click Graph` (it also matches a heading).
 
 - (2026-10-21) Worked: two independent skeptics per insight -- every single-half 3 came down to 2,
   two build defects were restated or weakened to tool artifacts. Did not work: bars that require
@@ -204,6 +231,9 @@ logged). Their reasons, in short:
 
 ## Sources
 
+- Tier 6: `tier6/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md`, `decided.md`,
+  `connected-*.txt` setups; tool: `tool/tier6.mjs`, README "Tier 6 sessions". Pilot walks:
+  main checkout `tmp/design-studio/tier6/prep/`.
 - Tier 3: `tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md` (2026-10-16
   section), `bulk-edit-plan.md`, `pilot-materials/README.md`; tool: `tool/score.mjs`
   (ROUTE_TASKS), `tool/wording.mjs`, `tool/bars.mjs`; vocabulary `tmp/style-study/bars3/`.

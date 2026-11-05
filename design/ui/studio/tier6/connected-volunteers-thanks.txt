@@ -1,0 +1,10 @@
+# The saved food bank project, with the assistant already connected and its panel closed.
+--click Open a file
+--upload volunteers-thanks.graphty.json
+--click Assistant
+--click AI provider...
+--click API key
+--type study-access-4471
+--click Save
+--expect-not Get a key from Google
+--click role=button:Graph

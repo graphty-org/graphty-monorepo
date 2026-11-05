@@ -108,6 +108,11 @@ export interface SourceHost {
      */
     labelPath(): string | null;
     /**
+     * Whether a text column of plain dates measures time: the timeline experiment is on.
+     * @returns true when it does
+     */
+    readDates(): boolean;
+    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */

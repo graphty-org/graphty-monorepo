@@ -1046,7 +1046,14 @@ const TIME_API: Readonly<Record<string, Door>> = {
                 op: "config.set",
                 values: {
                     data: {
-                        knownFields: { nodeTimePath: null, nodeTimeUnit: null, edgeTimePath: "t", edgeTimeUnit: null },
+                        knownFields: {
+                            nodeTimePath: null,
+                            nodeTimeUnit: null,
+                            nodeTimeParseZone: null,
+                            edgeTimePath: "t",
+                            edgeTimeUnit: null,
+                            edgeTimeParseZone: null,
+                        },
                     },
                 },
             },
@@ -1055,8 +1062,10 @@ const TIME_API: Readonly<Record<string, Door>> = {
     ready: READ,
     extent: READ,
     bins: READ,
+    spanOf: READ,
     changes: READ,
     current: READ,
+    committed: READ,
     // The window takes the step in use: with no data, the automatic step is a day.
     window: calls(
         [{ attribute: "data.t", from: 0, to: 1 }],
@@ -1462,6 +1471,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             autosaver: READ,
             features: exempt("Which experiments the page switches on; not part of the work a project saves."),
             enabledFeatures: READ,
+            refusedFeatures: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -3342,6 +3352,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+            restoreWindow: calls(
+                [{ attribute: "data.t", from: 0, to: 1 }, false],
+                [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
+            ),
+            restorePlayback: calls(
+                [{ mode: "cumulative" }],
+                [{ op: "visibility.playback", playback: { mode: "cumulative" } }],
+            ),
+            holdsInstants: READ,
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,

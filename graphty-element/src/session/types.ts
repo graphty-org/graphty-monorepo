@@ -3058,8 +3058,9 @@ export interface SessionEventMap {
      */
     "render:quality": RenderQualityChange;
     /**
-     * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
-     * event per model and state, never one per node. Mirrored on the element as
+     * A model a style layer names moved on: requested, checked, drawn, refused or failed; or a
+     * picture a node draws (`node.image`) failed, `E_IMAGE_LOAD`. One event per model and state,
+     * never one per node. Mirrored on the element as
      * `graphty-model-change`.
      */
     "model:changed": ModelChange;
@@ -3079,8 +3080,9 @@ export interface SessionEventMap {
 }
 
 /**
- * What happened to one model a style layer names (`node.model`), for `model:changed` and the
- * element's `graphty-model-change`.
+ * What happened to one model a style layer names (`node.model`), or to a node's picture
+ * (`node.image`) that could not be loaded, for `model:changed` and the element's
+ * `graphty-model-change`.
  */
 export interface ModelChange {
     /** What the layer named: the URL or the asset id, exactly as written. */
@@ -3095,7 +3097,7 @@ export interface ModelChange {
      * fetched); `failed` when it could not be drawn. Nodes keep `node.shape` until `drawn`.
      */
     readonly state: ModelState;
-    /** Why it was refused or failed (`E_MODEL_*`), and what is worth knowing (`W_MODEL_*`). */
+    /** Why it was refused or failed (`E_MODEL_*`, `E_IMAGE_LOAD`), and what is worth knowing (`W_MODEL_*`). */
     readonly problems: readonly CodedFact[];
 }
 

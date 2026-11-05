@@ -99,11 +99,12 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
  */
 function powerStep(rel: Relation, x: F64, next: F64): number {
     const n = x.length;
+    const { rowPtr, colIdx } = rel;
     for (let v = 0; v < n; v++) {
         let sum = x[v];
-        const end = rel.rowPtr[v + 1];
-        for (let a = rel.rowPtr[v]; a < end; a++) {
-            sum += x[rel.colIdx[a]];
+        const end = rowPtr[v + 1];
+        for (let a = rowPtr[v]; a < end; a++) {
+            sum += x[colIdx[a]];
         }
         next[v] = sum;
     }

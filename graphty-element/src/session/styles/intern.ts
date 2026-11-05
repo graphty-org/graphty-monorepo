@@ -209,6 +209,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientColors": "mesh",
     "node.gradientStops": "mesh",
     "node.gradientKind": "mesh",
+    "node.gradientCenterX": "mesh",
+    "node.gradientCenterY": "mesh",
+    "node.gradientRadius": "mesh",
     // A model and the options that change its geometry pick the template a node is drawn from.
     // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
     // colour is written into the model's instances (Node.applyInstanceColor).
@@ -266,6 +269,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowHeadSize": "mesh",
     "edge.arrowHeadWidth": "mesh",
     "edge.arrowHeadSide": "mesh",
+    "edge.arrowHeadOutlineWidth": "mesh",
     "edge.arrowHeadPosition": "mesh",
     "edge.arrowHeadGap": "mesh",
     "edge.arrowHeadStack": "mesh",
@@ -276,6 +280,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailSize": "mesh",
     "edge.arrowTailWidth": "mesh",
     "edge.arrowTailSide": "mesh",
+    "edge.arrowTailOutlineWidth": "mesh",
     "edge.arrowTailPosition": "mesh",
     "edge.arrowTailGap": "mesh",
     "edge.arrowTailStack": "mesh",
@@ -286,6 +291,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleHeadSize": "mesh",
     "edge.arrowMiddleHeadWidth": "mesh",
     "edge.arrowMiddleHeadSide": "mesh",
+    "edge.arrowMiddleHeadOutlineWidth": "mesh",
     "edge.arrowMiddleHeadPosition": "mesh",
     "edge.arrowMiddleHeadColor": "mesh",
     "edge.arrowMiddleHeadOpacity": "mesh",
@@ -294,6 +300,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowMiddleTailSize": "mesh",
     "edge.arrowMiddleTailWidth": "mesh",
     "edge.arrowMiddleTailSide": "mesh",
+    "edge.arrowMiddleTailOutlineWidth": "mesh",
     "edge.arrowMiddleTailPosition": "mesh",
     "edge.arrowMiddleTailColor": "mesh",
     "edge.arrowMiddleTailOpacity": "mesh",

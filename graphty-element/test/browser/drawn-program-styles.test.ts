@@ -312,6 +312,53 @@ describe("a half arrow's line and barb (#5490)", () => {
     });
 });
 
+describe("an open cap's outline width (#5800)", () => {
+    /**
+     * How thick the drawn frame of an open box is across its line, in pixels: its outer side less its inner side.
+     * @returns the frame's thickness
+     */
+    function boxFrame(): number {
+        const head = drawnHead();
+        const sides = [...new Set(head.across.map((a) => Math.round(Math.abs(a) * 100) / 100))].sort((a, b) => b - a);
+        assert.isAtLeast(sides.length, 2, "an outer side and an inner side");
+        return sides[0] - sides[1];
+    }
+
+    test.each([1, 2])(
+        "open-box with an outline width of its line's (%s) is outlined as thick as its line, whatever its size",
+        async (width) => {
+            for (const size of [2, 4]) {
+                await oneEdge({
+                    "edge.arrowHead": "open-box",
+                    "edge.arrowHeadSize": size,
+                    "edge.arrowHeadOutlineWidth": width,
+                    "edge.width": width,
+                    "edge.color": "#123456",
+                });
+                assert(graph);
+                const drawn = [...readDrawn(graph).edges.values()][0];
+                const cap = drawn?.caps.find((c) => c.end === "arrowHead");
+                assert.closeTo(boxFrame(), drawn?.thicknessPx ?? 0, 0.5, `size ${String(size)}`);
+                assert.strictEqual(cap?.color, "#123456");
+                graph.dispose();
+                container?.remove();
+            }
+        },
+    );
+
+    test("unset, open-box keeps its own frame, a share of the cap's size", async () => {
+        const frames: number[] = [];
+        for (const size of [2, 4]) {
+            await oneEdge({ "edge.arrowHead": "open-box", "edge.arrowHeadSize": size, "edge.width": 1 });
+            frames.push(boxFrame());
+            assert(graph);
+            graph.dispose();
+            container?.remove();
+        }
+        assert.closeTo(frames[1], 2 * frames[0], 1);
+    });
+});
+
 describe("a vee turned round, vis-network's crow (#5491)", () => {
     test("inverted-vee has its point back on the line and no tine reaching toward the node, where crow has one", async () => {
         await oneEdge({ "edge.arrowHead": "inverted-vee", "edge.arrowHeadSize": 3 });

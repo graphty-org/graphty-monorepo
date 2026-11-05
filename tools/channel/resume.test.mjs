@@ -203,3 +203,59 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
         assert.match(out.why, /promoted/);
     });
 });
+
+describe("resume.mjs record, a refused approval (#5835)", () => {
+    // a stand-in store, gh and tools/release-held.sh that log their calls
+    async function record(hold) {
+        const dir = mkdtempSync(join(tmpdir(), "resume-record-"));
+        mkdirSync(join(dir, "tools"));
+        mkdirSync(join(dir, "bin"));
+        const log = join(dir, "calls.log");
+        writeFileSync(log, "");
+        for (const [file, name] of [
+            [join(dir, "bin", "gh"), "gh"],
+            [join(dir, "tools", "release-held.sh"), "release-held"],
+        ]) {
+            writeFileSync(file, `#!/bin/sh\necho "${name} $*" >> "${log}"\n`, { mode: 0o755 });
+        }
+        const server = createServer((req, res) => {
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ hold }));
+        });
+        await new Promise((r) => server.listen(0, "127.0.0.1", r));
+        const script = new URL("./resume.mjs", import.meta.url).pathname;
+        const code = await new Promise((resolve) => {
+            const child = spawn(process.execPath, [script, "record"], {
+                cwd: dir,
+                stdio: "ignore",
+                env: {
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                    RESULTS_URL: `http://127.0.0.1:${server.address().port}`,
+                    GRAPHTY_RESULTS_TOKEN: "t",
+                    STATE: "rejected",
+                    TESTED: H,
+                    ACCEPT: A,
+                    WHY: "the screenshot gate refused",
+                },
+            });
+            child.on("exit", resolve);
+        });
+        server.close();
+        return { code, calls: readFileSync(log, "utf8") };
+    }
+
+    it("comments on the hold issue the store names, and fails the run", async () => {
+        const { code, calls } = await record({ head: H, issue: 77 });
+        assert.equal(code, 1);
+        assert.match(calls, /^gh issue comment 77 --body-file /m);
+    });
+
+    it("with no hold issue recorded, comments on or opens the Nightly held issue, and fails the run", async () => {
+        const { code, calls } = await record({ head: H, issue: null });
+        assert.equal(code, 1);
+        assert.match(
+            calls,
+            new RegExp(`^release-held open Nightly held on ${H.slice(0, 12)} \\S+ Nightly held on$`, "m"),
+        );
+    });
+});

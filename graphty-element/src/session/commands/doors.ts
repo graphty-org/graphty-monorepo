@@ -1856,11 +1856,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnFill: READ,
             drawnRadius: READ,
             layoutRadius: READ,
+            spacingRadius: READ,
             paintedColor: READ,
             borderReach: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
+            reachOutline: READ,
             outlineHalfExtents: READ,
             groupSizing: READ,
             wordedLabel: READ,
@@ -3419,6 +3421,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // each start.
             setHoldMask: TRANSPORT,
             holdMask: READ,
+            // A node's drawn size changed, so a layout keeping nodes apart by it starts again.
+            wakeForResize: TRANSPORT,
         },
     },
     {

@@ -197,6 +197,9 @@ const DECLARED = [
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.gradientCenterX",
+    "node.gradientCenterY",
+    "node.gradientRadius",
     "node.model",
     "node.modelSourceUp",
     "node.modelTurn",
@@ -256,6 +259,7 @@ const DECLARED = [
     "edge.arrowHeadSize",
     "edge.arrowHeadWidth",
     "edge.arrowHeadSide",
+    "edge.arrowHeadOutlineWidth",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
     "edge.arrowHeadStack",
@@ -278,6 +282,7 @@ const DECLARED = [
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
     "edge.arrowTailSide",
+    "edge.arrowTailOutlineWidth",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
     "edge.arrowTailStack",
@@ -300,6 +305,7 @@ const DECLARED = [
     "edge.arrowMiddleHeadSize",
     "edge.arrowMiddleHeadWidth",
     "edge.arrowMiddleHeadSide",
+    "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
     "edge.arrowMiddleHeadOpacity",
@@ -308,6 +314,7 @@ const DECLARED = [
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailSide",
+    "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
     "edge.arrowMiddleTailOpacity",
@@ -396,9 +403,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-six node channels and one hundred and fifty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 186);
-        assert.strictEqual(channelsFor("edge").length, 156);
+    it("splits into one hundred and eighty-nine node channels and one hundred and sixty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 189);
+        assert.strictEqual(channelsFor("edge").length, 160);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

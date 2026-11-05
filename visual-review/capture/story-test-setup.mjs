@@ -97,6 +97,19 @@ function runningClock() {
 }
 
 /**
+ * The globals a story is rendered with in one capture mode, by the rule Storybook's iframe.html
+ * applies to capture.mjs's `&globals=` URL (StoryStore.getStoryContext): the mode's globals over the
+ * story's defaults, and the story's own `globals` over the mode's. A story that forces a global (a
+ * color scheme) draws it in every mode, in both captures; when the mode won here only, its shot here
+ * and its re-capture by capture.mjs drew different pictures and the story was always unstable (#5836).
+ * @param {Record<string, unknown> | undefined} globals the composed story's globals (defaults and its own)
+ * @param {Record<string, unknown>} forced the globals the story sets itself
+ * @param {Record<string, unknown> | null | undefined} mode the mode's globals
+ * @returns {Record<string, unknown>} the globals to render with
+ */
+export const modeGlobals = (globals, forced, mode) => ({ ...globals, ...mode, ...forced });
+
+/**
  * Installs the visual step in the tester page.
  * @param {{ afterEach: Function, beforeEach: Function, vi?: any, commands: any }} options the setup
  *     file's Vitest hooks and `commands` from `vitest/browser` (`vi` is accepted and not used)
@@ -127,6 +140,9 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
     globalThis.addEventListener("error", (e) => lines.push(`pageerror: ${e.error?.stack ?? e.message}`));
 
     let head = null;
+    // The globals the running story sets itself (`globals` in its annotations), read from its context.
+    /** @type {Record<string, unknown>} */
+    let forced = {};
     const layout = (name) => {
         document.body.classList.remove("sb-main-padded", "sb-main-centered", "sb-main-fullscreen");
         document.body.classList.add("sb-show-main", `sb-main-${name}`);
@@ -159,7 +175,8 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
             const project = globalThis.globalProjectAnnotations;
             project.beforeEach = [
                 ...(project.beforeEach ?? []),
-                ({ parameters, canvasElement }) => {
+                ({ parameters, canvasElement, storyGlobals }) => {
+                    forced = storyGlobals ?? {};
                     layout(parameters.layout ?? "padded");
                     if (canvasElement && !document.getElementById("storybook-root")) {
                         canvasElement.id = "storybook-root";
@@ -168,17 +185,20 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
             ];
         });
         await head;
+        forced = {};
         await fresh();
         lines.length = 0;
     });
 
     const render = async (story, mode) => {
         await fresh();
-        await story.run(mode.globals ? { globals: { ...story.globals, ...mode.globals } } : undefined);
+        await story.run(mode.globals ? { globals: modeGlobals(story.globals, forced, mode.globals) } : undefined);
     };
     // The test's own render is the first mode's when that mode changes no global.
-    const rendered = (story, mode, i) =>
-        i === 0 && Object.entries(mode.globals ?? {}).every(([k, v]) => story.globals?.[k] === v);
+    const rendered = (story, mode, i) => {
+        const globals = modeGlobals(story.globals, forced, mode.globals);
+        return i === 0 && Object.keys(mode.globals ?? {}).every((k) => story.globals?.[k] === globals[k]);
+    };
 
     // The project's wait on every matching element. `settled`: for a story that is not shot (excluded, or
     // already failed), so the wait only lets its scene finish here, not in the next story's test, and its

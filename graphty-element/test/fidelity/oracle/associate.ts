@@ -359,16 +359,31 @@ function nodeFrom(
     // zigzag spikes past a small node) is its line, not its extent
     const rest = all.filter((s) => s.tag !== PAINTED_OUTLINE);
     const reach = rest.length === 0 ? Infinity : 1.25 * Math.max(bw(rest[0].box), bh(rest[0].box));
-    const sorted = all.filter((s) => s.tag !== PAINTED_OUTLINE || Math.max(bw(s.box), bh(s.box)) <= reach);
+    // a wave's swing is the line's on either axis: 38 px tall round a 48 x 18 hexagon (cx2-syn-mappings 195)
+    const swings = (s: Prim): boolean =>
+        rest.length > 0 &&
+        (s.stroke?.dashClass === "zigzag" || s.stroke?.dashClass === "sinewave") &&
+        (bw(s.box) > 1.25 * bw(rest[0].box) || bh(s.box) > 1.25 * bh(rest[0].box));
+    const sorted = all.filter(
+        (s) => s.tag !== PAINTED_OUTLINE || (Math.max(bw(s.box), bh(s.box)) <= reach && !swings(s)),
+    );
     const body = sorted[0];
     // an image drawn over a node (a custom graphic) has no outline of its own: the shape is the largest drawn one
     // and an outline drawn as a fill of its own (`outlinePaintedAsFill`) says nothing of the shape: its body does
     const outline =
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
     // and a table's rows, however short each is: the table is their union (#5347)
-    const box = body
+    const drawnBox = body
         ? union(sorted.filter((s) => area(s.box) >= 0.5 * area(body.box) || rows.has(s)).map((s) => s.box))
         : union(texts.map((t) => t.box));
+    // its body's, and half the wave's line round it, as any border drawn on the body's outline reaches
+    const grow = (all.find((s) => s.tag === PAINTED_OUTLINE && swings(s))?.stroke?.width ?? 0) / 2;
+    const box = {
+        x0: drawnBox.x0 - grow,
+        y0: drawnBox.y0 - grow,
+        x1: drawnBox.x1 + grow,
+        y1: drawnBox.y1 + grow,
+    };
     // a fill over no area paints nothing: Cytoscape draws a 1 x 1 anchor node with a 1 px border as a
     // shape of size 0, its round-capped outline a dot and its fill nowhere
     const filled = piecesFirst(sorted) ?? sorted.find((s) => s.fill !== null && area(s.box) > 0);
@@ -719,10 +734,10 @@ function endBack(pts: readonly Pt[], reach: number): Pt | undefined {
 const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
 
 /**
- * The axis of a pointed cap symmetric about the line from a point through its tip: the unit direction from the point
- * to the cap's farthest point from it, when every point away from that tip lies well behind it (a box's or a tee's two
- * front corners do not, nor an inverted triangle's or a crow's) and the cap's middle (the centroid of its area, which
- * a repeated closing point does not move) lies on that line, within CAP_AXIS_AGREE.
+ * The axis of a pointed cap symmetric about the line from a point through its tip: the unit direction from the cap's
+ * middle (the centroid of its area, which a repeated closing point does not move) to its farthest point from the point,
+ * when every point away from that tip lies well behind it (a box's or a tee's two front corners do not, nor an inverted
+ * triangle's or a crow's) and the middle lies on the line from the point to the tip, within CAP_AXIS_AGREE.
  * @param pts - the cap's points
  * @param end - the point
  * @returns the direction, or null for a cap that is not so
@@ -743,7 +758,13 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
     const mid = areaCentroid(pts);
     const off =
         mid === null ? Math.PI : Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
-    return pointed && Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
+    if (mid === null || !pointed || Math.min(off, 2 * Math.PI - off) > CAP_AXIS_AGREE) {
+        return null;
+    }
+    // through its own middle: the point is only near the axis where a line's end is itself read roughly (a zigzag's
+    // fitted axis, cx-syn-mappings 342->345: 6 degrees off a flat diamond's, which makes no shape of it)
+    const own = Math.hypot(tip[0] - mid[0], tip[1] - mid[1]);
+    return own > 1e-9 ? [(tip[0] - mid[0]) / own, (tip[1] - mid[1]) / own] : axis;
 }
 
 /**
@@ -1256,6 +1277,43 @@ export function lineCapSize(e: Pick<PEdge, "stroke">): number {
 }
 
 /**
+ * How thin a shape is, however it is turned: the least of its extents square to each of its sides.
+ * @param pts - the shape's points
+ * @returns the extent
+ */
+function thinnest(pts: readonly Pt[]): number {
+    const across = pts.map(([x, y], i) => {
+        const [qx, qy] = pts[(i + 1) % pts.length];
+        const len = Math.hypot(qx - x, qy - y);
+        const offs = pts.map(([px, py]) => ((px - x) * (qy - y) - (py - y) * (qx - x)) / (len || 1));
+        return len > 1e-9 ? Math.max(...offs) - Math.min(...offs) : Infinity;
+    });
+    return Math.min(...across);
+}
+
+/**
+ * Whether a shape is the end of a line, painted in the line's own color and no wider than the line however it is turned
+ * (Cytoscape desktop closes a line under a diamond head with a notched square, which is 1.4 widths across its box when
+ * the line runs at 45 degrees): it is the line, not one of its arrowheads. A head of that color and box is wider than
+ * the line, or points away from the line's end (yEd Live's 8 x 6 head on a 5 px line, as thin as the line across its
+ * slanted sides), and stays a head.
+ * @param p - the shape
+ * @param e - the line
+ * @param end - the end of the line nearest the shape
+ * @returns true for the line's end
+ */
+function lineEndPiece(p: Prim, e: Pick<PEdge, "stroke">, end: Pt): boolean {
+    const size = lineCapSize(e);
+    return (
+        p.fill !== null &&
+        p.fill.color === e.stroke?.color &&
+        Math.max(bw(p.box), bh(p.box)) <= Math.SQRT2 * size &&
+        thinnest(p.points) <= size &&
+        pointedAxis(p.points, end) === null
+    );
+}
+
+/**
  * Where an edge's line meets the node at one end: its end point, or, for a line drawn on to the node's center
  * under the node (vis-network draws each edge from center to center and its arrowhead at the node's outline), where
  * it leaves the node's box, beside which the arrowhead sits.
@@ -1336,7 +1394,10 @@ const endOf = (e: PEdge, end: "source" | "target"): Pt =>
 function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
     const id = end === "source" ? e.source : e.target;
     const q = drawnEnd(e.points, end, nodeById(nodes, id));
-    return Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
+    // a picture has no outline points: its tip is wherever its box meets the end (vis-network's image arrows)
+    return p.kind === "image"
+        ? toBox(q, p.box)
+        : Math.min(...p.points.map((v) => Math.hypot(v[0] - q[0], v[1] - q[1])));
 }
 
 /**
@@ -1876,6 +1937,9 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
  */
 const OWN_HEAD_REACH = 8;
 
+/** The most of the sheet's longer side an arrowhead spans. */
+const HEAD_MOST = 0.5;
+
 /** The arrowheads drawn with a line, by the end each caps: its source's, its target's. */
 type OwnHeads = readonly [readonly Prim[], readonly Prim[]];
 
@@ -2385,13 +2449,20 @@ export function associate(
     }
     // a line drawn in pieces is no arrowhead (cys-syn-mappings 420->426: an open half circle at its end, read through
     // its double line to the far node, was taken for the edge)
-    const heads = free().filter(
-        (q) =>
-            q.kind === "shape" &&
-            q.lettering !== true &&
-            !painted.has(q) &&
-            !nodeList.some((n) => inside([n.cx, n.cy], q.box)),
-    );
+    const shapes = free().filter((q) => q.kind === "shape" && q.lettering !== true && !painted.has(q));
+    const heads = shapes.filter((q) => !nodeList.some((n) => inside([n.cx, n.cy], q.box)));
+    // a big head may lie over a small node, painted alone (cx-syn-mappings 408->414: 92 px over 411, 30 px across); a
+    // group's box, drawn after a line too, is outlined or holds its members
+    const overNode = shapes.filter((q) => {
+        const under = nodeList.filter((n) => inside([n.cx, n.cy], q.box));
+        return (
+            q.stroke === null &&
+            q.fill !== null &&
+            deltaE(q.fill.color, canvas) > 3 &&
+            under.length === 1 &&
+            Math.max(under[0].w, under[0].h) < Math.max(bw(q.box), bh(q.box))
+        );
+    });
     const gap = (a: PBox, b: PBox): number =>
         Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
     // every node one of some shapes reaches, nearest first
@@ -2617,7 +2688,7 @@ export function associate(
     // An edge's line a program drew as a filled band (Cytoscape desktop's zigzag, sine-wave, dotted, slashed and double
     // edges), its route the band's axis: one of the pairs graphty draws, between two nodes, read after the lines.
     const byIndex = new Map(prims.map((p) => [p.index, p]));
-    const headSet = new Set(heads);
+    const headSet = new Set([...heads, ...overNode]);
     // A program that draws each edge whole draws its arrowheads right after its line (Cytoscape desktop: the line, then
     // its source's and its target's arrowheads): of those, the ones by an end, within the line's width or a band's swing,
     // cap that end.
@@ -2627,15 +2698,24 @@ export function associate(
         const dot = lineCapSize(p);
         let caps = 0;
         for (let q = byIndex.get(p.index + 1); q !== undefined && caps < 2; q = byIndex.get(q.index + 1)) {
-            if (!headSet.has(q)) {
+            const end = lineEndPiece(q, p, toBox(a, q.box) <= toBox(b, q.box) ? a : b);
+            if (!end && !headSet.has(q)) {
                 break;
             }
             after.push(q);
-            caps += Math.max(bw(q.box), bh(q.box)) > dot ? 1 : 0;
+            caps += !end && Math.max(bw(q.box), bh(q.box)) > dot ? 1 : 0;
         }
         const reach = Math.max(OWN_HEAD_REACH, Number.isFinite(swing) ? swing : 0);
         const by = (end: Pt, other: Pt): Prim[] =>
-            after.filter((h) => toBox(end, h.box) <= reach && toBox(end, h.box) < toBox(other, h.box));
+            // by its outline: a half arrow leaning off its line has a box nearer the far end, if the line is short
+            // (cx-syn-mappings 408->414: a 33 px line under a 86 px barb); a shape along the whole line, at both its ends,
+            // caps neither (yEd's framed line, its frame drawn after the band)
+            after.filter(
+                (h) =>
+                    toBox(end, h.box) <= reach &&
+                    toOutline(end, h.points) < toOutline(other, h.points) &&
+                    (toBox(end, h.box) < toBox(other, h.box) || toOutline(other, h.points) > reach),
+            );
         return [by(a, b), by(b, a)];
     };
     const ownCaps = new Map<Prim, { e: PEdge; end: "source" | "target" }>();
@@ -2904,12 +2984,15 @@ export function associate(
     // such, even at a line's end (cx2-wp1449-tlr: a circle annotation where lines meet at an anchor)
     const annotated = frame === null ? [] : guide.strays.map((x) => carryBox(frame, x.box));
     const knockouts = new Map<string, { arrow: PArrow; box: PBox }>();
+    const ownArrows = new Set<PArrow>();
     for (const p of free()) {
         const picture = p.kind === "image";
         // words drawn as glyph outlines beside an end (a custom graphic's label) are no arrowhead
         if (
             (p.kind !== "shape" && !picture) ||
             p.lettering === true ||
+            // a group's title bar across the sheet by an end (graphml-cla-checker-graph) is no head of any line
+            Math.max(bw(p.box), bh(p.box)) > HEAD_MOST * Math.max(width, height) ||
             annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
             noteHeads.has(p) ||
             wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
@@ -2934,7 +3017,7 @@ export function associate(
         // its own
         if (picture) {
             const { x0, y0, x1, y1 } = p.box;
-            const corners: Pt[] = [
+            const corners: readonly Pt[] = p.quad ?? [
                 [x0, y0],
                 [x1, y0],
                 [x1, y1],
@@ -2947,7 +3030,8 @@ export function associate(
         }
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
-        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {
+        const lineEnd = best.end === "source" ? best.e.points[0] : best.e.points[best.e.points.length - 1];
+        if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e) && !lineEndPiece(p, best.e, lineEnd)) {
             const arrow = arrowFrom(p, best.e.points, best.end, canvas);
             // Cytoscape.js erases the canvas under a translucent edge's arrowhead before it paints it (cytoscape.js
             // 3.34.3 `drawArrowhead`: the same shape filled white under `destination-out`, which the SVG replay records
@@ -2962,10 +3046,18 @@ export function associate(
                 knockouts.set(key, { arrow, box: p.box });
             }
             best.e.arrows.push(arrow);
+            if (ownCaps.has(p)) {
+                ownArrows.add(arrow);
+            }
             if (best.end !== "middle") {
                 best.e.points = extendToTip(best.e.points, p.points, best.end);
             }
         }
+    }
+    // an end's own head comes first: a head some other line lost lands on the nearest end (a line Cytoscape desktop did
+    // not draw, its two heads meeting: cx2-syn-mappings 189->192)
+    for (const e of withPieces) {
+        e.arrows.sort((a, b) => Number(ownArrows.has(b)) - Number(ownArrows.has(a)));
     }
     // a small open stroke at an edge's end is its arrowhead, beside the line, which it does not carry on
     // a small curved open stroke no edge took, across an edge's end: that end's arrowhead drawn as a stroke (vis-network's

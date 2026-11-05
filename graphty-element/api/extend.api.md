@@ -1552,6 +1552,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* The WebGPU device refused a shader, usually because a name in it is reserved in WGSL though
+* legal in GLSL. A refused shader loses every frame it is part of, so `rendererStatus.drawing`
+* turns false. `details.messages` carry what the device said. Reported as `graph-error`.
+*/
+| "E_SHADER_REFUSED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -1769,7 +1775,11 @@ export type GraphtyErrorCode =
 * A model a project file embeds does not match the digest the file records for it (or its id,
 * for an unnamed asset), so it was not added. `params.id`.
 */
-| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
+| "E_MODEL_DIGEST_MISMATCH"
+/**
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+*/
+| "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1986,6 +1996,8 @@ export abstract class LayoutEngine {
     get type(): string;
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
+    // @internal
+    wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema_2;
 }
@@ -2134,6 +2146,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
+    // @internal
     refitPicture(): void;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
@@ -2156,6 +2170,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
     // @internal

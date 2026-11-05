@@ -142,6 +142,12 @@ export interface ImporterPositions extends PositionColumnExtra {
     /** The tool that wrote the file, when the importer knows it better than `meta.creator`. */
     readonly tool?: GraphTool | null;
     /**
+     * How far one node's center is from its stored coordinate, spelled like the coordinates, or null for none: a node
+     * the program draws from another point than its neighbors are drawn from (vis-network's top-left `circularImage`).
+     * Simple form only.
+     */
+    readonly centerOffset?: (row: number) => readonly [number, number] | null;
+    /**
      * Where the program that draws the file puts its nodes when the file places none: evenly round a circle in node
      * order, the first at `startDegrees`, each next one further round in `direction` (1: the angle grows, -1: it
      * shrinks), in the file's own coordinates as the rest of this answer spells them (Pajek: center 0.5, 0.5, radius

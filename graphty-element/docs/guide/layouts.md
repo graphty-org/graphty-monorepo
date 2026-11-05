@@ -115,12 +115,13 @@ graph.setLayout("ngraph", {
 
 ### Keeping nodes from being drawn inside each other
 
-The force layout treats every node as a point, so two nodes drawn large -- a size bound to a
+A force layout treats every node as a point, so two nodes drawn large -- a size bound to a
 ranking, say -- can land inside each other. Set `nodeGap` and the layout keeps every two nodes at
-least their drawn radii plus `nodeGap` apart, in the same units as `springLength`. It reads each
-node's size as it is drawn, so a style that makes nodes larger after the layout came to rest starts
-the layout again until no two of them overlap. `0` lets nodes touch; unset (`null`, the default)
-keeps the layout as it always was.
+least their drawn radii plus `nodeGap` apart, in scene units. It reads each node's size as it is
+drawn, so a style that makes nodes larger after the layout came to rest starts the layout again
+until no two of them overlap. `0` lets nodes touch; unset (`null`, the default) keeps the layout as
+it always was. A shape that is not round is kept apart by a circle around its corners, except under
+`ngraph`, which compares bounding boxes.
 
 ```typescript
 element.layoutConfig = { nodeGap: 2 };
@@ -134,8 +135,11 @@ the graph from the front, so no node is drawn over another until the camera is t
 element.layoutConfig = { nodeGap: 2, nodeGapFront: true };
 ```
 
-`nodeGap` is honored by the `ngraph` engine; from two thousand nodes, with a hardware accelerator
-attached, the element draws the default arrangement with `spring-electrical`, which does not read it.
+`nodeGap` works on `ngraph`, `d3`, `forceatlas2`, `spring` and `spring-electrical`, on the processor
+and on a hardware accelerator alike; `nodeGapFront` on all of them but `d3`. `forceatlas2` and `spring`
+fit a graph to `scalingFactor`, so a graph whose nodes do not fit in that radius is published wider
+rather than left overlapping. In a very crowded graph a run may end with a few pairs still overlapping
+by a small share of their size.
 
 ### The same drawing every time
 
@@ -353,13 +357,15 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
   the whole globe, which fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
-  than `size` makes it while nodes and edges keep their size (in scene units, or on screen with
-  `nodeScale: "screen"`), so a dense region (an airline network over the United States or
+  than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
   Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
-  three times the room between neighbors. The camera still opens framed on the whole map.
+  three times the room between neighbors. The camera still opens framed on the whole map. With
+  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
+  gives the same room; a globe's keep their size on screen.
 - **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
   so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
-  whatever the zoom, measured at the map's surface, with its arrowheads in proportion.
+  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
+  the zoom, measured at the map's surface, with its arrowheads in proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
   draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view

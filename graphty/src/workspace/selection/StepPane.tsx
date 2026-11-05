@@ -6,7 +6,7 @@
  * graphty-element; every edit goes to the host as a new rule.
  */
 
-import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
+import { FieldCaret, Popout, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     RuleTree,
@@ -24,6 +24,7 @@ import {
     InputBase,
     Menu,
     NumberInput,
+    Select,
     Stack,
     Switch,
     Text,
@@ -32,7 +33,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { optionWords } from "../analyze/words";
+import { optionWords, wordsFor } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget, printable } from "../keys/keys";
@@ -43,6 +44,7 @@ import { type Verb, verbsAt } from "./model";
 import { ReferencePicker } from "./ReferencePicker";
 import { SelectionMenuItems } from "./SelectionMenu";
 import {
+    freshTest,
     type Host,
     isRelative,
     modeOf,
@@ -289,6 +291,8 @@ function withMissing(rule: RuleTree, include: boolean): RuleTree {
  * @param props.value - the value's name
  * @param props.hostPicks - the host's own picker entries
  * @param props.onRule - takes the new value's rule
+ * @param props.perAlgorithm - the picker lists one entry per algorithm (a workspace card)
+ * @param props.glyph - drawn before the value's name (an algorithm's, on a workspace card)
  * @returns The field
  */
 function ValueField({
@@ -298,6 +302,8 @@ function ValueField({
     value,
     hostPicks,
     onRule,
+    perAlgorithm = false,
+    glyph,
 }: Readonly<{
     session: GraphSession;
     rule: UnionLeaf;
@@ -305,6 +311,8 @@ function ValueField({
     value: string;
     hostPicks: readonly PickSection[];
     onRule: (stepRule: RuleTree) => void;
+    perAlgorithm?: boolean;
+    glyph?: React.ReactNode;
 }>): React.JSX.Element {
     const [open, setOpen] = useState(false);
     // A letter typed on the field opens the picker with it in the search (ws-polish 3).
@@ -316,10 +324,10 @@ function ValueField({
     return (
         <AddCondition
             // The lists are read only while the picker is open: on a large graph they are not free.
-            fields={open ? pickerFields(session, sideOf(rule), rule.within) : []}
+            fields={open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm) : []}
             used={usedPaths(rule, branch)}
             placeholder="Find attributes, results"
-            sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
+            sections={open ? [...hostPicks, ...pickSections(session, rule, choose, perAlgorithm)] : []}
             opened={open}
             seed={seed}
             onAdd={(field) => {
@@ -339,6 +347,7 @@ function ValueField({
                     variant="outlined"
                     rightSection={<FieldCaret />}
                     rightSectionPointerEvents="none"
+                    {...(glyph === undefined ? {} : { leftSection: glyph, leftSectionPointerEvents: "none" as const })}
                     type="button"
                     pointer
                     aria-label={`Value: ${value}`}
@@ -710,6 +719,7 @@ export function StepPane({
         ...(missing === true ? ["Not measured"] : []),
     ];
     const hasAdvanced =
+        (cards && card?.type === "number") ||
         textCard !== null ||
         canSoFar ||
         linked ||
@@ -743,35 +753,303 @@ export function StepPane({
     const soFar = cards ? changeChip : null;
     const cardBelow = !head && count !== total ? changeChip : null;
     const soFarBelow = cards ? cardBelow : soFarText;
+    const paneLabel = [
+        step.op === "keep" ? value : `${VERB_WORDS[step.op].word}, ${value}`,
+        ...(count === undefined ? [] : [`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`]),
+    ].join(", ");
+    const paneKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing && draft !== null) {
+            commit();
+        }
+    };
+    const paneBlur = (event: React.FocusEvent<HTMLElement>): void => {
+        const to = event.relatedTarget;
+        if (draft === null || (to instanceof Element && to.closest("[data-portal]") !== null)) {
+            return;
+        }
+        // Leaving the text box commits its text, as the Min and Max boxes do; moving between
+        // the pane's other controls keeps nothing to commit.
+        const inside = to instanceof Element && event.currentTarget.contains(to);
+        if (!inside || isTypingTarget(event.target)) {
+            commit();
+        }
+    };
+    // On a card: the settings popover's state (a changed setting's chip opens it), the measure, and
+    // the nodes the algorithm reads (node-id options), chosen on the card.
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const measure = step.rule.kind === "measure" ? step.rule : undefined;
+    const references = algorithm?.options.filter((o) => o.internal !== true && o.type === "node-id") ?? [];
+    // An algorithm's step is named by its method on a card, the field chosen beside it.
+    const algorithmWords = algorithm === undefined ? undefined : wordsFor(algorithm).name;
+    const outputs =
+        algorithm?.fields.filter(
+            (field) =>
+                field.kind === side && field.type !== "table" && field.name !== "rank" && field.name !== "percentile",
+        ) ?? [];
+    const testBody = (
+        <div ref={testBox} className="sel-test-box">
+            {isRelative(step.rule) ? (
+                <RelativeBody
+                    session={session}
+                    rule={step.rule}
+                    host={host}
+                    firstStep={first}
+                    onRule={(next) => {
+                        onStep({ rule: next });
+                    }}
+                />
+            ) : (
+                <>
+                    <RunButton session={session} rule={rule} step={step} reading={reading} />
+                    {card !== null && (
+                        <CardBody
+                            session={session}
+                            card={card}
+                            side={"field" in card ? card.field.on : side}
+                            onChange={onCard}
+                            variant="step"
+                            bare={cards}
+                        />
+                    )}
+                    {tieWords !== null && (
+                        <Text size="sm" c="dimmed" data-ties="">
+                            {tieWords}
+                        </Text>
+                    )}
+                </>
+            )}
+        </div>
+    );
+    // Advanced's rows: under its disclosure in a pane, behind the settings button on a card.
+    const advancedRows = (
+        <Stack gap={6}>
+            {cards && card?.type === "number" && (
+                <CaptionedRow>
+                    <SegmentedControl
+                        label="Test"
+                        fullWidth
+                        data={[
+                            { value: "range", label: "By value" },
+                            { value: "top", label: "By position" },
+                        ]}
+                        value={card.match === "top" ? "top" : "range"}
+                        onChange={(next) => {
+                            if (next === "top" && card.match !== "top") {
+                                commit({ ...card, match: "top", min: undefined, max: undefined, top: undefined });
+                            } else if (next === "range" && card.match === "top") {
+                                commit({ ...card, match: "range", top: undefined });
+                            }
+                        }}
+                    />
+                </CaptionedRow>
+            )}
+            {textCard !== null && (
+                <Checkbox
+                    size="xs"
+                    label="Match case"
+                    checked={textCard.caseSensitive}
+                    onChange={(event) => {
+                        commit({ ...textCard, caseSensitive: event.currentTarget.checked });
+                    }}
+                />
+            )}
+            {canSoFar && (
+                <CaptionedRow>
+                    <SegmentedControl
+                        label="Computed on"
+                        fullWidth
+                        data={[
+                            { value: "base", label: base },
+                            { value: "so-far", label: "So far" },
+                        ]}
+                        value={step.computedOn === "so-far" ? "so-far" : "base"}
+                        onChange={(next) => {
+                            onStep({ computedOn: next === "so-far" ? "so-far" : "base" });
+                        }}
+                    />
+                </CaptionedRow>
+            )}
+            {linked && (
+                <LinksBody
+                    session={session}
+                    step={step}
+                    within={rule.within}
+                    onLinks={(links) => {
+                        onStep({ links });
+                    }}
+                />
+            )}
+            {readsEnds && (
+                <CaptionedRow>
+                    <SegmentedControl
+                        label="Edge ends"
+                        fullWidth
+                        data={[
+                            { value: "both", label: "Both" },
+                            { value: "either", label: "Either" },
+                        ]}
+                        value={step.ends ?? "both"}
+                        onChange={(next) => {
+                            onStep({ ends: next === "either" ? "either" : "both" });
+                        }}
+                    />
+                </CaptionedRow>
+            )}
+            {step.rule.kind === "touching" && (
+                <CaptionedRow>
+                    <SegmentedControl
+                        label="Edge ends"
+                        fullWidth
+                        data={[
+                            { value: "either", label: "Either" },
+                            { value: "both", label: "Both" },
+                            { value: "one", label: "One" },
+                        ]}
+                        value={step.rule.ends}
+                        onChange={(next) => {
+                            onStep({
+                                rule: { ...step.rule, ends: next } as RuleTree,
+                            });
+                        }}
+                    />
+                </CaptionedRow>
+            )}
+            {algorithm !== undefined && settings.length > 0 && step.rule.kind === "measure" && (
+                <OptionsForm
+                    session={session}
+                    options={settings}
+                    values={step.rule.params ?? {}}
+                    words={(option) => optionWords(algorithm.key, option)}
+                    weightReads={algorithm.weightMeaning ?? null}
+                    algorithm={algorithm.key}
+                    onChange={(name, next) => {
+                        const measure = step.rule as Extract<RuleTree, { kind: "measure" }>;
+                        onStep({
+                            rule: { ...measure, params: { ...measure.params, [name]: next } },
+                        });
+                    }}
+                />
+            )}
+            {offersMissing && (
+                <Checkbox
+                    size="xs"
+                    label="Include not measured"
+                    checked={missing}
+                    onChange={(event) => {
+                        onStep({ rule: withMissing(step.rule, event.currentTarget.checked) });
+                    }}
+                />
+            )}
+        </Stack>
+    );
+    if (cards) {
+        return (
+            <CardStep
+                label={paneLabel}
+                stepId={step.id}
+                pending={pending}
+                onKeyDown={paneKeys}
+                onBlur={paneBlur}
+                valueRow={
+                    <>
+                        {adds}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <ValueField
+                                session={session}
+                                rule={rule}
+                                branch={branch}
+                                value={step.rule.kind === "nonempty" ? WHILE : (algorithmWords ?? value)}
+                                hostPicks={hostPicks}
+                                perAlgorithm
+                                glyph={algorithm === undefined ? undefined : <GLYPHS.analyze size={12} aria-hidden />}
+                                onRule={(stepRule) => {
+                                    setDraft(null);
+                                    toTest.current = true;
+                                    onStep({ rule: stepRule });
+                                }}
+                            />
+                        </div>
+                        {algorithm !== undefined && outputs.length > 1 && step.rule.kind === "measure" && (
+                            <OutputSelect
+                                name={algorithmWords ?? value}
+                                rule={step.rule}
+                                outputs={outputs}
+                                onRule={(next) => {
+                                    setDraft(null);
+                                    onStep({ rule: next });
+                                }}
+                            />
+                        )}
+                        {hasAdvanced && (
+                            <SettingsButton
+                                name={algorithmWords ?? value}
+                                changed={changed}
+                                opened={settingsOpen}
+                                onOpened={setSettingsOpen}
+                            >
+                                {advancedRows}
+                            </SettingsButton>
+                        )}
+                        {done}
+                    </>
+                }
+                // The card says no sentence for a missing reference: its reference box shows it empty.
+                state={reasonCode === "no-reference" ? "" : stateShown}
+                test={
+                    <>
+                        {measure !== undefined && algorithm !== undefined && (
+                            <SettingChips
+                                options={settings}
+                                params={measure.params ?? {}}
+                                onOpen={() => {
+                                    setSettingsOpen(true);
+                                }}
+                                onReset={(name) => {
+                                    const { [name]: _gone, ...kept } = measure.params ?? {};
+                                    onStep({ rule: { ...measure, params: kept } });
+                                }}
+                            />
+                        )}
+                        {measure !== undefined &&
+                            references.map((option) => (
+                                // A node an algorithm reads (Shortest path's From and To) is chosen on
+                                // the card, by search or on the canvas, never from a list of every node.
+                                <Group key={option.name} gap={6} wrap="nowrap" className="sel-card-ref">
+                                    <Text size="sm" className="sel-card-ref-name">
+                                        {option.plainName}
+                                    </Text>
+                                    <ReferencePicker
+                                        session={session}
+                                        host={host}
+                                        name={option.plainName}
+                                        reference={measure.bind?.[option.name]}
+                                        firstStep={first}
+                                        onReference={(reference) => {
+                                            onStep({
+                                                rule: {
+                                                    ...measure,
+                                                    bind: { ...measure.bind, [option.name]: reference },
+                                                },
+                                            });
+                                        }}
+                                    />
+                                </Group>
+                            ))}
+                        {testBody}
+                    </>
+                }
+            />
+        );
+    }
     return (
         <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
             role="group"
-            aria-label={[
-                step.op === "keep" ? value : `${VERB_WORDS[step.op].word}, ${value}`,
-                ...(count === undefined
-                    ? []
-                    : [`${formatNumber(count)} of ${formatNumber(of)} ${NOUNS[side].many} so far`]),
-            ].join(", ")}
+            aria-label={paneLabel}
             className="sel-pane"
             data-step-pane={step.id}
             data-pending={pending ? "" : undefined}
-            onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing && draft !== null) {
-                    commit();
-                }
-            }}
-            onBlur={(event) => {
-                const to = event.relatedTarget;
-                if (draft === null || (to instanceof Element && to.closest("[data-portal]") !== null)) {
-                    return;
-                }
-                // Leaving the text box commits its text, as the Min and Max boxes do; moving between
-                // the pane's other controls keeps nothing to commit.
-                const inside = to instanceof Element && event.currentTarget.contains(to);
-                if (!inside || isTypingTarget(event.target)) {
-                    commit();
-                }
-            }}
+            onKeyDown={paneKeys}
+            onBlur={paneBlur}
         >
             <Stack gap={6}>
                 {head && (
@@ -836,37 +1114,7 @@ export function StepPane({
                     </div>
                     {!(switchShown || stateShown !== "") && soFarBelow}
                 </Group>
-                <div ref={testBox} className="sel-test-box">
-                    {isRelative(step.rule) ? (
-                        <RelativeBody
-                            session={session}
-                            rule={step.rule}
-                            host={host}
-                            firstStep={first}
-                            onRule={(next) => {
-                                onStep({ rule: next });
-                            }}
-                        />
-                    ) : (
-                        <>
-                            <RunButton session={session} rule={rule} step={step} reading={reading} />
-                            {card !== null && (
-                                <CardBody
-                                    session={session}
-                                    card={card}
-                                    side={"field" in card ? card.field.on : side}
-                                    onChange={onCard}
-                                    variant="step"
-                                />
-                            )}
-                            {tieWords !== null && (
-                                <Text size="sm" c="dimmed" data-ties="">
-                                    {tieWords}
-                                </Text>
-                            )}
-                        </>
-                    )}
-                </div>
+                {testBody}
                 {hasAdvanced && (
                     <>
                         <UnstyledButton
@@ -890,111 +1138,220 @@ export function StepPane({
                                 </Text>
                             )}
                         </UnstyledButton>
-                        <Collapse in={advanced}>
-                            <Stack gap={6}>
-                                {textCard !== null && (
-                                    <Checkbox
-                                        size="xs"
-                                        label="Match case"
-                                        checked={textCard.caseSensitive}
-                                        onChange={(event) => {
-                                            commit({ ...textCard, caseSensitive: event.currentTarget.checked });
-                                        }}
-                                    />
-                                )}
-                                {canSoFar && (
-                                    <CaptionedRow>
-                                        <SegmentedControl
-                                            label="Computed on"
-                                            fullWidth
-                                            data={[
-                                                { value: "base", label: base },
-                                                { value: "so-far", label: "So far" },
-                                            ]}
-                                            value={step.computedOn === "so-far" ? "so-far" : "base"}
-                                            onChange={(next) => {
-                                                onStep({ computedOn: next === "so-far" ? "so-far" : "base" });
-                                            }}
-                                        />
-                                    </CaptionedRow>
-                                )}
-                                {linked && (
-                                    <LinksBody
-                                        session={session}
-                                        step={step}
-                                        within={rule.within}
-                                        onLinks={(links) => {
-                                            onStep({ links });
-                                        }}
-                                    />
-                                )}
-                                {readsEnds && (
-                                    <CaptionedRow>
-                                        <SegmentedControl
-                                            label="Edge ends"
-                                            fullWidth
-                                            data={[
-                                                { value: "both", label: "Both" },
-                                                { value: "either", label: "Either" },
-                                            ]}
-                                            value={step.ends ?? "both"}
-                                            onChange={(next) => {
-                                                onStep({ ends: next === "either" ? "either" : "both" });
-                                            }}
-                                        />
-                                    </CaptionedRow>
-                                )}
-                                {step.rule.kind === "touching" && (
-                                    <CaptionedRow>
-                                        <SegmentedControl
-                                            label="Edge ends"
-                                            fullWidth
-                                            data={[
-                                                { value: "either", label: "Either" },
-                                                { value: "both", label: "Both" },
-                                                { value: "one", label: "One" },
-                                            ]}
-                                            value={step.rule.ends}
-                                            onChange={(next) => {
-                                                onStep({
-                                                    rule: { ...step.rule, ends: next } as RuleTree,
-                                                });
-                                            }}
-                                        />
-                                    </CaptionedRow>
-                                )}
-                                {algorithm !== undefined && settings.length > 0 && step.rule.kind === "measure" && (
-                                    <OptionsForm
-                                        session={session}
-                                        options={settings}
-                                        values={step.rule.params ?? {}}
-                                        words={(option) => optionWords(algorithm.key, option)}
-                                        weightReads={algorithm.weightMeaning ?? null}
-                                        algorithm={algorithm.key}
-                                        onChange={(name, next) => {
-                                            const measure = step.rule as Extract<RuleTree, { kind: "measure" }>;
-                                            onStep({
-                                                rule: { ...measure, params: { ...measure.params, [name]: next } },
-                                            });
-                                        }}
-                                    />
-                                )}
-                                {offersMissing && (
-                                    <Checkbox
-                                        size="xs"
-                                        label="Include not measured"
-                                        checked={missing}
-                                        onChange={(event) => {
-                                            onStep({ rule: withMissing(step.rule, event.currentTarget.checked) });
-                                        }}
-                                    />
-                                )}
-                            </Stack>
-                        </Collapse>
+                        <Collapse in={advanced}>{advancedRows}</Collapse>
                     </>
                 )}
             </Stack>
         </div>
+    );
+}
+
+/**
+ * A step on a workspace card (the `selection-workspace` experiment): its value row (the value
+ * picker, an algorithm's output and settings), its state word, then its test inline.
+ * @param props - Component props
+ * @param props.label - the step's accessible name
+ * @param props.stepId - the step's id
+ * @param props.pending - it waits on a run
+ * @param props.onKeyDown - the pane's keys
+ * @param props.onBlur - the pane's blur
+ * @param props.valueRow - the value row's controls
+ * @param props.state - the state word, or ""
+ * @param props.test - the test
+ * @returns The step
+ */
+function CardStep({
+    label,
+    stepId,
+    pending,
+    onKeyDown,
+    onBlur,
+    valueRow,
+    state,
+    test,
+}: Readonly<{
+    label: string;
+    stepId: string | undefined;
+    pending: boolean;
+    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+    onBlur: (event: React.FocusEvent<HTMLElement>) => void;
+    valueRow: React.ReactNode;
+    state: string;
+    test: React.ReactNode;
+}>): React.JSX.Element {
+    return (
+        <div // NOSONAR(S6819): an ARIA group naming one step's controls; a fieldset draws its own border and legend
+            role="group"
+            aria-label={label}
+            className="sel-pane sel-card-body"
+            data-step-pane={stepId}
+            data-pending={pending ? "" : undefined}
+            onKeyDown={onKeyDown}
+            onBlur={onBlur}
+        >
+            <Stack gap={6}>
+                <Group gap={4} wrap="nowrap" className="sel-card-value">
+                    {valueRow}
+                </Group>
+                {state !== "" && (
+                    <Text size="sm" c="dimmed" className="sel-state">
+                        {state}
+                    </Text>
+                )}
+                {test}
+            </Stack>
+        </div>
+    );
+}
+
+/**
+ * An algorithm step's output on a card: which of the algorithm's fields the card tests
+ * ("Community", "Community size"). A change drops the test, which another field reads otherwise.
+ * @param props - Component props
+ * @param props.name - the algorithm's name
+ * @param props.rule - the step's measure
+ * @param props.outputs - the algorithm's fields for the side
+ * @param props.onRule - takes the measure on the new field
+ * @returns The select
+ */
+function OutputSelect({
+    name,
+    rule,
+    outputs,
+    onRule,
+}: Readonly<{
+    name: string;
+    rule: Extract<RuleTree, { kind: "measure" }>;
+    outputs: readonly { name: string; plainName: string; type: string; measurement?: string }[];
+    onRule: (rule: RuleTree) => void;
+}>): React.JSX.Element {
+    return (
+        <Select
+            aria-label={`${name} output`}
+            allowDeselect={false}
+            w={124}
+            data={outputs.map((each) => ({ value: each.name, label: each.plainName }))}
+            value={rule.field}
+            comboboxProps={{ withinPortal: true }}
+            onChange={(next) => {
+                const output = outputs.find((each) => each.name === next);
+                if (output !== undefined && next !== rule.field) {
+                    const { test: _test, ...rest } = rule;
+                    const test = freshTest(output);
+                    onRule({ ...rest, field: output.name, ...(test === undefined ? {} : { test }) });
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * A card's settings button: the algorithm's settings and the step's other choices (Advanced in a
+ * pane) in a popover beside it. The workspace holds its PopoutManager, outside the modal, so the
+ * panel is drawn over the preview's canvas, never under it.
+ * @param props - Component props
+ * @param props.name - what the settings are for
+ * @param props.changed - the choices set away from their defaults, said in its tooltip
+ * @param props.opened - its popover is open
+ * @param props.onOpened - opens or closes its popover
+ * @param props.children - the rows
+ * @returns The button and its popover
+ */
+function SettingsButton({
+    name,
+    changed,
+    opened,
+    onOpened,
+    children,
+}: Readonly<{
+    name: string;
+    changed: readonly string[];
+    opened: boolean;
+    onOpened: (opened: boolean) => void;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    const setOpened = onOpened;
+    const label = changed.length === 0 ? "Settings" : `Settings: ${changed.join(", ")}`;
+    return (
+        <Popout opened={opened} onOpenChange={setOpened}>
+            <Popout.Trigger>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={`Settings for ${name}`}
+                    title={label}
+                    aria-haspopup="dialog"
+                    aria-expanded={opened}
+                    data-settings=""
+                    data-changed={changed.length > 0 ? "" : undefined}
+                >
+                    <GLYPHS.settings size={14} aria-hidden />
+                </ActionIcon>
+            </Popout.Trigger>
+            <Popout.Panel width={280} placement="right" alignment="start" header={{ variant: "title", title: name }}>
+                <Popout.Content>
+                    {/* A portal: Escape here closes the panel, never the workspace around it. */}
+                    <div data-portal="">{children}</div>
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/**
+ * A card's changed settings as chips (the approved prototype): each says its setting and value,
+ * opens the settings on a click, and goes back to the default on its x.
+ * @param props - Component props
+ * @param props.options - the algorithm's settings
+ * @param props.params - the step's settings
+ * @param props.onOpen - opens the settings
+ * @param props.onReset - takes a setting back to its default
+ * @returns The chips, or nothing when none changed
+ */
+function SettingChips({
+    options,
+    params,
+    onOpen,
+    onReset,
+}: Readonly<{
+    options: readonly { name: string; plainName: string; default?: unknown }[];
+    params: Readonly<Record<string, unknown>>;
+    onOpen: () => void;
+    onReset: (name: string) => void;
+}>): React.JSX.Element | null {
+    const changed = options.filter(
+        (option) =>
+            params[option.name] !== undefined && JSON.stringify(params[option.name]) !== JSON.stringify(option.default),
+    );
+    if (changed.length === 0) {
+        return null;
+    }
+    return (
+        <Group gap={4} className="sel-card-chips">
+            {changed.map((option) => {
+                const value = params[option.name];
+                const said = `${option.plainName} ${typeof value === "number" ? formatNumber(value) : String(value)}`;
+                return (
+                    <Group key={option.name} gap={0} wrap="nowrap" className="ws-chip sel-setting-chip">
+                        <UnstyledButton aria-label={`${said}, settings`} onClick={onOpen}>
+                            <Text size="sm" span>
+                                {said}
+                            </Text>
+                        </UnstyledButton>
+                        <ActionIcon
+                            variant="subtle"
+                            size="xs"
+                            aria-label={`Reset ${option.plainName}`}
+                            onClick={() => {
+                                onReset(option.name);
+                            }}
+                        >
+                            <GLYPHS.close size={10} aria-hidden />
+                        </ActionIcon>
+                    </Group>
+                );
+            })}
+        </Group>
     );
 }
 

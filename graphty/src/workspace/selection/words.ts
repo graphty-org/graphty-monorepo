@@ -11,6 +11,7 @@ import type {
     StepReading,
     StepReasonCode,
     StepReference,
+    StepsReading,
     UnionLeaf,
     UnionStep,
 } from "@graphty/graphty-element/session";
@@ -465,4 +466,33 @@ export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
             .join(", "),
     );
     return groups.filter((each) => each !== "").join(" or ") || "a selection";
+}
+
+/**
+ * The workspace's cards as one line, each card as its rows say it, with no "or" between them:
+ * "Louvain: Community Group 3 + Degree 8 to 36". A card's value says no verb; a condition under it
+ * says Add, Keep or Except. What a filter card is called until the reader names it.
+ * @param session - the element's session.
+ * @param rule - the selection.
+ * @param reading - its reading, which an algorithm's test is said from.
+ * @returns the words, or "" for cards with no value yet.
+ */
+export function cardsWords(session: GraphSession, rule: UnionLeaf, reading?: StepsReading): string {
+    const side: Side = rule.side === "nodes" ? "node" : "edge";
+    return rule.branches
+        .map((branch) =>
+            branch.steps
+                .map((step, index) => {
+                    const read = reading?.branches.flatMap((each) => each.steps).find((each) => each.id === step.id);
+                    const words = rowWords(session, step, side, read);
+                    const said = [words.value, rowTest(words)].filter((each) => each !== "").join(" ");
+                    const natural = branch.start === "all" ? "keep" : "add";
+                    return index === 0 && step.op === natural
+                        ? said
+                        : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
+                })
+                .join(", "),
+        )
+        .filter((each) => each !== "")
+        .join(" + ");
 }

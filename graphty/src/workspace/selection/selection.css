@@ -269,7 +269,7 @@
 .sel-cards {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 10px;
 }
 
 .sel-card {
@@ -313,7 +313,31 @@
 }
 
 .sel-card-new {
-    padding-top: 4px;
+    margin-top: -4px;
+}
+
+.sel-card-new .mantine-Button-root {
+    color: var(--mantine-color-dimmed);
+}
+
+/* A card's value row: the value picker, an algorithm's output and its settings, inline. */
+.sel-card-value > :first-child:not(.sel-card-verb),
+.sel-card-value > .sel-card-verb + * {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A narrowing condition's verb, in the verb's color. */
+.sel-card-verb {
+    flex: 0 0 auto;
+}
+
+.sel-card-verb[data-op="keep"] {
+    color: var(--mantine-color-blue-7);
+}
+
+.sel-card-verb[data-op="except"] {
+    color: var(--mantine-color-red-7);
 }
 
 .sel-ws-gap {
@@ -328,8 +352,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 36px;
-    padding-inline: 6px 4px;
+    height: 30px;
+    padding-inline: 4px;
     background: color-mix(in srgb, var(--sel-card-color) 14%, var(--cm-bg));
     border-start-end-radius: 5px;
 }
@@ -366,12 +390,18 @@
     border-end-end-radius: 5px;
 }
 
+/* A card's start, All or No nodes, beside its letter: compact, never a row of its own. */
 .sel-card-start {
-    padding: 6px 12px 0;
+    flex: 0 0 auto;
+}
+
+/* A key shown on its button ("Cancel Esc"). */
+.sel-key {
+    font-size: inherit;
 }
 
 .sel-card-step {
-    padding: 8px 12px;
+    padding: 8px;
     border-top: 1px solid color-mix(in srgb, var(--sel-card-color) 30%, var(--cm-bg));
 }
 

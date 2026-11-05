@@ -7,7 +7,7 @@
  * matters. The app holds only a card not yet written.
  */
 
-import { ControlSection, EntityChip, focusWithRing, SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip, focusWithRing, InlineRename, SegmentedControl } from "@graphty/compact-mantine";
 import type {
     FilterCondition,
     FilterConditionCount,
@@ -21,6 +21,7 @@ import {
     Checkbox,
     CloseButton,
     Group,
+    Menu,
     Stack,
     Text,
     Tooltip,
@@ -29,14 +30,15 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { FilterSelection } from "../selection/FilterSelection";
 import { addStep, editBranch, newSelection } from "../selection/model";
-import type { SelectionMenuItem } from "../selection/SelectionMenu";
+import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { rowTest, rowWords, stepWords, VERB_WORDS } from "../selection/words";
+import { cardsWords, rowTest, rowWords, stepWords, VERB_WORDS } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -501,7 +503,27 @@ function FilterCard({
         void writeCondition(store, () => session.visibility.removeCondition(id));
     };
     // Drawn: the values the card reads; said: the card's rule in words, as the filter chip says it.
-    const title = cardName(session, condition, selection, side, fresh?.field?.name);
+    // In the selection workspace a card is named by what the reader typed, else by all its cards'
+    // summary ("Louvain: Group 3 + Degree 8 to 36"), never only its first value.
+    const cards = selectionWorkspaceOn(session);
+    const [draftName, setDraftName] = useState<string | undefined>(undefined);
+    const given = condition === undefined ? draftName : condition.name;
+    const summary =
+        selection === null || selection.branches.every((branch) => branch.steps.length === 0)
+            ? undefined
+            : cardsWords(session, selection, reading);
+    const title = cards
+        ? (given ?? summary ?? cardName(session, condition, selection, side, fresh?.field?.name))
+        : cardName(session, condition, selection, side, fresh?.field?.name);
+    const rename = (next: string | undefined): void => {
+        if (condition === undefined) {
+            setDraftName(next);
+            return;
+        }
+        // One undo step, through the session: an empty name goes back to the cards' summary.
+        void writeCondition(store, () => session.visibility.updateCondition(id, { name: next }));
+    };
+    const [renaming, setRenaming] = useState(false);
     // A selection is said as its title says it; a rule no editor reads, in its own words.
     const name = title;
     // The box says what the element holds: a saved Select card that is on still selects, so it
@@ -606,6 +628,7 @@ function FilterCard({
                         }
                         titleOff={!on}
                         titleMenu={menu}
+                        {...(cards ? { name: draftName, onRename: rename } : {})}
                         titleExtra={
                             draft ? (
                                 // A new card's side; switching starts its selection again on the other side.
@@ -667,32 +690,79 @@ function FilterCard({
                 ) : (
                     <div className="sel-row dp-filter-row">
                         {onBox(false)}
+                        {cards && renaming && (
+                            <InlineRename
+                                value={title}
+                                label={`Rename ${title}`}
+                                onCommit={(typed) => {
+                                    const text = typed.trim();
+                                    if (text !== title) {
+                                        rename(text === "" ? undefined : text);
+                                    }
+                                    setRenaming(false);
+                                }}
+                                onCancel={() => {
+                                    setRenaming(false);
+                                }}
+                            />
+                        )}
                         {/* The whole row opens the card, as Figma's collapsed layer rows do; the on box stays its own. */}
-                        <UnstyledButton
-                            className="dp-filter-name"
-                            aria-label={[
-                                title,
-                                ...(total === undefined ? [] : [`${total} ${things}`]),
-                                ...(on ? [] : ["off"]),
-                            ].join(", ")}
-                            aria-expanded={open}
-                            onClick={() => {
-                                focusOnOpen.current = !open;
-                                switchIn.current = !open && store.get().selectionWorkspace !== null;
-                                onOpen(!open);
-                            }}
-                        >
-                            <Text size="sm" fw={600} truncate span className="dp-filter-title">
-                                {title}
-                            </Text>
-                            <span className="sel-spacer" />
-                            {!editing && total === undefined && <CountChips count={count} effect={condition?.effect} />}
-                            {!editing && total !== undefined && (
-                                <Text size="sm" c="dimmed" span className="sel-count">
-                                    {total}
+                        {!(cards && renaming) && (
+                            <UnstyledButton
+                                className="dp-filter-name"
+                                aria-label={[
+                                    title,
+                                    ...(total === undefined ? [] : [`${total} ${things}`]),
+                                    ...(on ? [] : ["off"]),
+                                ].join(", ")}
+                                aria-expanded={open}
+                                onClick={() => {
+                                    focusOnOpen.current = !open;
+                                    switchIn.current = !open && store.get().selectionWorkspace !== null;
+                                    onOpen(!open);
+                                }}
+                            >
+                                <Text size="sm" fw={600} truncate span className="dp-filter-title">
+                                    {title}
                                 </Text>
-                            )}
-                        </UnstyledButton>
+                                <span className="sel-spacer" />
+                                {!editing && total === undefined && (
+                                    <CountChips count={count} effect={condition?.effect} />
+                                )}
+                                {!editing && total !== undefined && (
+                                    <Text size="sm" c="dimmed" span className="sel-count">
+                                        {total}
+                                    </Text>
+                                )}
+                            </UnstyledButton>
+                        )}
+                        {cards && !renaming && (
+                            // The card's commands, Rename first (Figma's layer row menu).
+                            <Menu position="bottom-end" withinPortal>
+                                <Menu.Target>
+                                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${title}`}>
+                                        <GLYPHS.more size={14} aria-hidden />
+                                    </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                    <SelectionMenuItems
+                                        items={[
+                                            {
+                                                id: "rename",
+                                                label: "Rename",
+                                                icon: "rename",
+                                                group: "edit",
+                                                key: "F2",
+                                                onRun: () => {
+                                                    setRenaming(true);
+                                                },
+                                            },
+                                            ...menu,
+                                        ]}
+                                    />
+                                </Menu.Dropdown>
+                            </Menu>
+                        )}
                     </div>
                 )}
                 {open && selection === null && (

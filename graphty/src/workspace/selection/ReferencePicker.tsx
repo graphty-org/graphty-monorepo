@@ -61,6 +61,7 @@ function referenceOfValue(value: string): StepReference {
  * @param props.reference - the step's reference, or undefined while none is chosen
  * @param props.firstStep - the step is its group's first
  * @param props.onReference - takes the chosen reference
+ * @param props.name - what the field is called ("From"); "Reference" when absent
  * @returns The field
  */
 export function ReferencePicker({
@@ -69,12 +70,14 @@ export function ReferencePicker({
     reference,
     firstStep,
     onReference,
+    name = "Reference",
 }: Readonly<{
     session: GraphSession;
     host: Host;
     reference: StepReference | undefined;
     firstStep: boolean;
     onReference: (reference: StepReference) => void;
+    name?: string;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     const listId = useId();
@@ -168,7 +171,7 @@ export function ReferencePicker({
                         type="button"
                         pointer
                         data-first-focus
-                        aria-label={token === "" ? "Reference" : `Reference: ${token}`}
+                        aria-label={token === "" ? name : `${name}: ${token}`}
                         aria-haspopup="listbox"
                         aria-expanded={combobox.dropdownOpened}
                         style={{ flex: 1, minWidth: 0 }}

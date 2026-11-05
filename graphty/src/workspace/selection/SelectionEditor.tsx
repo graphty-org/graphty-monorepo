@@ -16,6 +16,8 @@ import {
     FieldCaret,
     focusWithRing,
     InlineRename,
+    Popout,
+    PopoutManager,
     SegmentedControl,
     TargetTooltip,
     ToggleIconButton,
@@ -28,6 +30,7 @@ import type {
     StepsReading,
     UnionBranch,
     UnionLeaf,
+    UnionStep,
 } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, InputBase, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
@@ -57,8 +60,6 @@ import {
     removeBranch,
     removeStep,
     type Verb,
-    verbsAt,
-    verbsFor,
 } from "./model";
 import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
@@ -74,13 +75,13 @@ import {
     usedPaths,
 } from "./values";
 import {
+    cardsWords,
     countWords,
     letterOf,
     NOUNS,
     reasonWords,
     rowTest,
     rowWords,
-    selectionWords,
     shortCount,
     stepWords,
     VERB_WORDS,
@@ -141,6 +142,11 @@ interface SelectionEditorProps {
     readonly onTitleToggle?: () => void;
     /** The host's on box is off: said with the title row's name. */
     readonly titleOff?: boolean;
+    /**
+     * Renames the selection (a filter card): its name is edited in the workspace's title bar, and
+     * an empty name goes back to the one its cards give it.
+     */
+    readonly onRename?: (name: string | undefined) => void;
 }
 
 /** The rule kinds a step takes with no test: picking one applies it, and the pane shows no test. */
@@ -202,6 +208,7 @@ function afterPaint(work: () => void): void {
  * @param props.onEmptyCancel - a new selection goes (left with no step, or Cancel on it)
  * @param props.onTitleToggle - Space on the title row
  * @param props.titleOff - the host's on box is off
+ * @param props.onRename - renames the selection, from the title bar
  * @returns The editor
  */
 export function SelectionEditor({
@@ -225,9 +232,24 @@ export function SelectionEditor({
     onEmptyCancel,
     onTitleToggle,
     titleOff = false,
+    onRename,
 }: SelectionEditorProps): React.JSX.Element {
     const { store, element } = useWorkspace();
-    const reading = useSteps(session, given);
+    const owner = useId();
+    // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
+    // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
+    // the panels around it follow, after that frame is painted.
+    const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
+    const [opening, setOpening] = useState(false);
+    const open = named || opening;
+    // An empty selection (All, no condition) opens as one empty card that holds nothing, "0 of N"
+    // (the approved prototype); nothing is written until a card has a value, and a workspace left
+    // with no value keeps All.
+    const converted = open && isEmptyAll(given);
+    const reading = useSteps(session, converted ? asNone(given) : given);
+    // Whether the host holds a rule now: what it was given, read as the element holds it.
+    const hostHolds = (held: UnionLeaf): boolean =>
+        converted ? isEmptyAll(held) : JSON.stringify(held) === JSON.stringify(reading.rule);
     // The element's canonical form: every group and step has its id and color.
     // An edit is handed to the host after the frame of its input is painted (see afterPaint); until
     // then the outline shows it, and the next edit builds on it, never on the rule before it.
@@ -258,14 +280,7 @@ export function SelectionEditor({
     const side = sideOf(rule);
     const name = title ?? `Which ${NOUNS[side].many}`;
     const wsTitle = ownerName === undefined ? name : `${ownerName} / ${name}`;
-    const owner = useId();
     const titleId = useId();
-    // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
-    // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
-    // the panels around it follow, after that frame is painted.
-    const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
-    const [opening, setOpening] = useState(false);
-    const open = named || opening;
     const mounted = useRef(true);
     useEffect(() => {
         mounted.current = true;
@@ -292,6 +307,8 @@ export function SelectionEditor({
     addingNow.current = adding;
     const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
+    // The selection's own name being typed in the title bar (a filter card's).
+    const [renamingTitle, setRenamingTitle] = useState(false);
     // The cards folded to their header line; a new group folds every card before it.
     const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
     const fold = (id: string, to: boolean): void => {
@@ -406,13 +423,14 @@ export function SelectionEditor({
                 : row;
         setSelected(add === undefined ? shown : null);
         setActive(shown);
-        if (add !== undefined) {
+        if (add !== undefined && add.steps.length > 0) {
             setAdding({ branch: add.id ?? "", op: newVerb(add), open: !shut, back: row });
-        } else if (stepless) {
-            // The new step's row is the one lit, never the title's too, and its value picker is
-            // open under its field, its search focused (the owner's review, ws-polish 3).
+        } else if (add !== undefined || stepless) {
+            // An empty card waits with its value picker shut, its field focused (the approved
+            // prototype): Enter or a click opens it.
             setSelected(null);
-            setAdding({ branch: only.id ?? "", op: newVerb(only), open: true });
+            setAdding(null);
+            focusAfter.current = EMPTY_VALUE;
         } else {
             focusAfter.current = [
                 `[data-row="${CSS.escape(shown)}"]`,
@@ -448,8 +466,7 @@ export function SelectionEditor({
             onEmptyCancel !== undefined &&
             openedNew.current &&
             (how === "cancel" || left.branches.every((branch) => branch.steps.length === 0));
-        const restore =
-            !goes && how === "cancel" && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule);
+        const restore = !goes && how === "cancel" && back !== null && !hostHolds(back);
         if (restore) {
             onChange(back);
         }
@@ -494,8 +511,14 @@ export function SelectionEditor({
     handBackRef.current = (how) => {
         const back = openedWith.current;
         const goes = onEmptyCancel !== undefined && how === "cancel" && openedNew.current;
-        if (how === "cancel" && !goes && back !== null && JSON.stringify(back) !== JSON.stringify(reading.rule)) {
+        if (how === "cancel" && !goes && back !== null && !hostHolds(back)) {
             handOn(back);
+        }
+        // Done with no card holding a value keeps All, as a new selection starts.
+        const emptied = reading.rule.branches.every((branch) => branch.steps.length === 0);
+        if (how === "done" && emptied && !converted && !isEmptyAll(reading.rule)) {
+            const none = newSelection(reading.rule.side, reading.rule.within);
+            handOn({ ...none, branches: none.branches.map((branch) => ({ ...branch, start: "all" as const })) });
         }
     };
     const closeAfterPaint = (how: "done" | "cancel"): void => {
@@ -752,16 +775,6 @@ export function SelectionEditor({
             focusAfter.current = `[data-row="${CSS.escape(made.id)}"]`;
         }
     };
-    const addOr = (): void => {
-        if (reading.branchesLeft === 0) {
-            return;
-        }
-        const made = addBranch(rule);
-        onChange(made.rule);
-        setFolded(new Set(rule.branches.map((branch) => branch.id ?? "")));
-        setAdding({ branch: made.id, op: "add", fresh: true, open: true, back: selected });
-        setSelected(null);
-    };
     // Only the step being added is lit while it is added: the row selected before is selected
     // again if nothing is picked.
     const startAdding = (branch: UnionBranch, op: Verb): void => {
@@ -868,17 +881,12 @@ export function SelectionEditor({
     // Clear (spec 3.0): back to where a new layer or card starts -- All nodes, no step -- as one
     // undo step. A filter card keeps its name and on box.
     const clear = (): void => {
-        const empty = newSelection(rule.side, rule.within);
-        const first = empty.branches[0];
-        const cleared = first === undefined ? empty : editBranch(empty, first.id ?? "", { start: "all" });
-        onChange(cleared);
+        onChange(newSelection(rule.side, rule.within));
         say("Cleared");
-        // A cleared rule has no step: it opens on its new step with the value picker open, as a new
-        // rule does (ws-polish 3).
-        const only = cleared.branches[0];
+        // A cleared rule is one empty card, its value picker shut, as a new rule opens.
         setSelected(null);
-        setAdding(only === undefined ? null : { branch: only.id ?? "", op: newVerb(only), open: true });
-        focusAfter.current = only === undefined ? `[data-row="${TITLE}"]` : null;
+        setAdding(null);
+        focusAfter.current = EMPTY_VALUE;
     };
     // A group's members: selected (a style layer), or the strip on them (a filter, spec 2).
     const showMembers = (members: StepsReading["result"] | undefined, branch: string | null): void => {
@@ -1117,7 +1125,7 @@ export function SelectionEditor({
      */
     const restSummary = empty
         ? `${rule.branches[0]?.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
-        : selectionWords(session, rule);
+        : cardsWords(session, rule, reading);
     const outline = (where: "rest" | "ws"): React.JSX.Element => {
         const ws = where === "ws";
         // While the workspace is open the sidebar keeps only the title row, marked as being edited,
@@ -1533,8 +1541,42 @@ export function SelectionEditor({
         );
     };
 
-    // The title's "..." items: a style layer's Select N, then the host's own (a filter card's).
+    // The title's "..." items: framing the matches and the table, a style layer's Select N, then
+    // the host's own (a filter card's).
     const titleItems: readonly SelectionMenuItem[] = [
+        ...(onRename === undefined
+            ? []
+            : [
+                  {
+                      id: "rename",
+                      label: "Rename",
+                      icon: "rename" as const,
+                      group: "edit" as const,
+                      onRun: () => {
+                          setRenamingTitle(true);
+                      },
+                  },
+              ]),
+        {
+            id: "fit",
+            label: "Frame the matches",
+            icon: "maximize",
+            group: "edit",
+            onRun: () => {
+                void element?.applyCameraView("fitToGraph", {
+                    scope: reading.result,
+                    params: { keepAngle: true },
+                    animate: true,
+                });
+            },
+        },
+        {
+            id: "table",
+            label: strip ? "Hide table" : "Show table",
+            icon: "table",
+            group: "edit",
+            onRun: toggleStrip,
+        },
         ...(host === "selector"
             ? [
                   {
@@ -1607,9 +1649,223 @@ export function SelectionEditor({
         focusAfter.current = `[data-grip="${CSS.escape(id)}"]`;
     };
 
+    // A folded card's summary: its value and conditions in one line.
+    const foldedWords = (branch: UnionBranch): string =>
+        branch.steps.length === 0
+            ? `${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
+            : branch.steps
+                  .map((step, index) => {
+                      const words = outlineWords.get(step.id ?? "");
+                      const said = [words?.value ?? "", words ? rowTest(words) : ""]
+                          .filter((each) => each !== "")
+                          .join(" ");
+                      return index === 0 && step.op === newVerb(branch)
+                          ? said
+                          : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
+                  })
+                  .join(", ");
     /**
-     * The workspace's group cards: one colored card per group, its steps inside it, each step's
-     * controls in the step, and the card's actions along its bottom (Add, Keep, Except, Or).
+     * A card's step: the card's value (its first step) or a narrowing condition under it, its
+     * controls inline in the card (the approved prototype).
+     * @param branch - the card's group.
+     * @param step - the step.
+     * @param index - its place in the group.
+     * @returns the step.
+     */
+    const cardStep = (branch: UnionBranch, step: UnionStep, index: number): React.JSX.Element => {
+        const id = step.id ?? "";
+        const branchId = branch.id ?? "";
+        // The card's value says no verb; a narrowing condition says Keep or Except.
+        const natural = index === 0 && step.op === newVerb(branch);
+        return (
+            <div
+                key={id}
+                className="sel-card-step"
+                data-row={id}
+                data-state={step.on === false ? "off" : readingOf(id)?.state}
+            >
+                <StepPane
+                    session={session}
+                    rule={rule}
+                    branch={branch}
+                    step={step}
+                    reading={readingOf(id)}
+                    host={host}
+                    of={of}
+                    first={index === 0}
+                    last={index === branch.steps.length - 1}
+                    total={reading.total.count}
+                    hostPicks={hostPicks}
+                    adds={
+                        natural ? undefined : (
+                            <Text size="sm" fw={600} className="sel-card-verb" data-op={step.op}>
+                                {VERB_WORDS[step.op].word}
+                            </Text>
+                        )
+                    }
+                    cards
+                    done={
+                        index === 0 ? undefined : (
+                            <TargetTooltip label="Remove">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    aria-label={`Remove ${stepName(step)}`}
+                                    onClick={() => {
+                                        removeStepAt(branch, id);
+                                    }}
+                                >
+                                    <GLYPHS.close size={12} aria-hidden />
+                                </ActionIcon>
+                            </TargetTooltip>
+                        )
+                    }
+                    onStep={(patch) => {
+                        lastEdited.current = id;
+                        onChange(editStep(rule, branchId, id, patch));
+                    }}
+                    onMove={(by) => {
+                        moveStepBy(branch, id, by);
+                    }}
+                    onToggle={() => {
+                        toggle(branch, id);
+                    }}
+                    onDuplicate={() => {
+                        duplicate(branch, id);
+                    }}
+                    onRemove={() => {
+                        removeStepAt(branch, id);
+                    }}
+                />
+            </div>
+        );
+    };
+    // A card's x: the card goes; the last card goes back to one empty card.
+    const removeCard = (branch: UnionBranch): void => {
+        if (rule.branches.length > 1) {
+            removeBranchOf(branch);
+            return;
+        }
+        onChange(newSelection(rule.side, rule.within));
+        say(`Removed ${branchName(branch)}`);
+        setSelected(null);
+        setAdding(null);
+    };
+    // A card's "..." items.
+    const cardItems = (branch: UnionBranch, at: number): readonly SelectionMenuItem[] => {
+        const branchId = branch.id ?? "";
+        const letter = branchName(branch);
+        const branchRead = branchReading(branch.id);
+        const on = branch.on !== false;
+        return [
+            {
+                id: "rename",
+                label: "Rename",
+                icon: "rename",
+                group: "edit",
+                onRun: () => {
+                    setRenaming(branchId);
+                },
+            },
+            {
+                id: "hide",
+                label: on ? "Turn off" : "Turn on",
+                icon: on ? "hide" : "show",
+                group: "edit",
+                onRun: () => {
+                    toggle(branch);
+                },
+            },
+            {
+                id: "duplicate",
+                label: "Duplicate",
+                icon: "duplicate",
+                group: "edit",
+                reason: reading.branchesLeft === 0 ? "No more cards" : null,
+                onRun: () => {
+                    duplicate(branch);
+                },
+            },
+            {
+                id: "save",
+                label: "Save as set",
+                icon: "several",
+                group: "edit",
+                reason: (branchRead?.count ?? 0) === 0 ? `No ${NOUNS[side].many} in it` : null,
+                onRun: () => {
+                    const members = branchRead?.members;
+                    if (members !== undefined) {
+                        void session.sets.createFrom(members, { name: letter }).then(() => {
+                            say(`Saved ${letter} as a set`);
+                        });
+                    }
+                },
+            },
+            {
+                id: "up",
+                label: "Move up",
+                icon: "moveUp",
+                group: "edit",
+                reason: at === 0 ? "Already at the top" : null,
+                reasonDrawn: false,
+                onRun: () => {
+                    moveBranchBy(branchId, -1);
+                },
+            },
+            {
+                id: "down",
+                label: "Move down",
+                icon: "moveDown",
+                group: "edit",
+                reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
+                reasonDrawn: false,
+                onRun: () => {
+                    moveBranchBy(branchId, 1);
+                },
+            },
+            {
+                id: "delete",
+                label: "Delete",
+                icon: "delete",
+                group: "remove",
+                onRun: () => {
+                    removeCard(branch);
+                },
+            },
+        ];
+    };
+    // "+ Card": the value picked is the new card's value; the cards before it fold.
+    const addCard = (stepRule: RuleTree): void => {
+        const made = addBranch(rule);
+        const withValue = addStep(made.rule, made.id, "add", stepRule);
+        lastEdited.current = withValue.id;
+        onChange(withValue.rule);
+        setFolded(new Set(rule.branches.map((branch) => branch.id ?? "")));
+        setAdding(null);
+        if (hasTest(stepRule)) {
+            focusAfter.current = TEST_FOCUS.map((each) =>
+                each.replace(".sel-ws-cards", `[data-step-pane="${CSS.escape(withValue.id)}"]`),
+            );
+        }
+    };
+    // The value picker of an empty card closed with nothing chosen: a new filter card taken back
+    // by Escape goes (spec 25); otherwise the card stays empty.
+    const emptyClosed = (): void => {
+        if (
+            escaped.current &&
+            onEmptyCancel !== undefined &&
+            openedNew.current &&
+            rule.branches.every((each) => each.steps.length === 0)
+        ) {
+            say("Filter not added");
+            onEmptyCancel();
+        }
+    };
+
+    /**
+     * The workspace's cards (the approved prototype): one colored card per group -- its header
+     * (color, letter, count, "..." and x), its value picker, and once it has a value, that value's
+     * controls inline and Keep and Except along its bottom -- then "+ Card".
      * @returns the cards.
      */
     const cards = (): React.JSX.Element => (
@@ -1621,384 +1877,217 @@ export function SelectionEditor({
                 const letter = branchName(branch);
                 const branchId = branch.id ?? "";
                 const on = branch.on !== false;
-                const addingHere = adding !== null && adding.branch === branchId;
-                const isFolded = folded.has(branchId) && !addingHere;
+                const narrowing = adding !== null && adding.branch === branchId;
+                const isFolded = folded.has(branchId) && !narrowing;
                 return (
-                    <React.Fragment key={branchId}>
-                        <section
-                            className="sel-card"
-                            data-branch={branchId}
-                            data-off={on ? undefined : ""}
-                            data-folded={isFolded ? "" : undefined}
-                            data-dragging={draggingCard === branchId ? "" : undefined}
-                            aria-label={`${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`}
-                            style={{ "--sel-card-color": color } as React.CSSProperties}
-                        >
-                            <header className="sel-card-head">
-                                <TargetTooltip label="Drag, or Up and Down arrows, to reorder">
-                                    <ActionIcon
-                                        variant="subtle"
-                                        size="sm"
-                                        className="sel-card-grip"
-                                        data-grip={branchId}
-                                        aria-label={`Move ${letter}`}
-                                        onPointerDown={(event) => {
-                                            grabCard(event, branchId);
-                                        }}
-                                        onKeyDown={(event) => {
-                                            moveCardKeys(event, branchId);
-                                        }}
-                                    >
-                                        <GLYPHS.drag size={12} aria-hidden />
-                                    </ActionIcon>
-                                </TargetTooltip>
+                    <section
+                        key={branchId}
+                        className="sel-card"
+                        data-branch={branchId}
+                        data-off={on ? undefined : ""}
+                        data-folded={isFolded ? "" : undefined}
+                        data-dragging={draggingCard === branchId ? "" : undefined}
+                        aria-label={`${letter}, ${countWords(branchRead?.count ?? 0, of, side)}`}
+                        style={{ "--sel-card-color": color } as React.CSSProperties}
+                    >
+                        <header className="sel-card-head">
+                            <TargetTooltip label="Drag, or Up and Down arrows, to reorder">
                                 <ActionIcon
                                     variant="subtle"
                                     size="sm"
-                                    className="sel-card-fold"
-                                    aria-label={`${isFolded ? "Expand" : "Collapse"} ${letter}`}
-                                    onClick={() => {
-                                        fold(branchId, !isFolded);
+                                    className="sel-card-grip"
+                                    data-grip={branchId}
+                                    aria-label={`Move ${letter}`}
+                                    onPointerDown={(event) => {
+                                        grabCard(event, branchId);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        moveCardKeys(event, branchId);
                                     }}
                                 >
-                                    <GLYPHS.expand size={12} aria-hidden />
+                                    <GLYPHS.drag size={12} aria-hidden />
                                 </ActionIcon>
-                                <span className="sel-chit" data-filled="" aria-hidden />
-                                {renaming === branchId ? (
-                                    <InlineRename
-                                        value={letter}
-                                        label={`Rename ${letter}`}
-                                        onCommit={(typed) => {
-                                            const text = typed.trim();
-                                            if (text !== letter) {
-                                                onChange(
-                                                    editBranch(rule, branchId, {
-                                                        name: text === "" ? undefined : text,
-                                                    }),
-                                                );
-                                            }
-                                            setRenaming(null);
-                                        }}
-                                        onCancel={() => {
-                                            setRenaming(null);
-                                        }}
-                                    />
-                                ) : (
-                                    <Tooltip label="Rename" openDelay={500}>
-                                        <UnstyledButton
-                                            className="sel-card-name"
-                                            aria-label={`Rename ${letter}`}
-                                            onClick={() => {
-                                                setRenaming(branchId);
-                                            }}
-                                        >
-                                            <Text size="sm" fw={600} span truncate>
-                                                {letter}
-                                            </Text>
-                                        </UnstyledButton>
-                                    </Tooltip>
-                                )}
-                                {(!on || startEmpties(branch, branchRead)) && (
-                                    <Text size="sm" c="dimmed" className="sel-state">
-                                        {on ? "Passes none" : "Off"}
-                                    </Text>
-                                )}
-                                {isFolded ? (
-                                    <Text size="sm" c="dimmed" truncate className="sel-card-summary">
-                                        {branch.steps.length === 0
-                                            ? `${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`
-                                            : branch.steps
-                                                  .map((step, index) => {
-                                                      const words = outlineWords.get(step.id ?? "");
-                                                      const said = [words?.value ?? "", words ? rowTest(words) : ""]
-                                                          .filter((each) => each !== "")
-                                                          .join(" ");
-                                                      return index === 0 && step.op === newVerb(branch)
-                                                          ? said
-                                                          : `${VERB_WORDS[step.op].word.toLowerCase()} ${said}`;
-                                                  })
-                                                  .join(", ")}
-                                    </Text>
-                                ) : (
-                                    <span className="sel-spacer" />
-                                )}
-                                {branchRead?.state === "pending" ? (
-                                    <Text size="sm" c="dimmed" className="sel-state">
-                                        Waits
-                                    </Text>
-                                ) : (
-                                    <CountChip
-                                        count={branchRead?.count ?? 0}
-                                        of={of}
-                                        side={side}
-                                        host={host}
-                                        onClick={() => {
-                                            showMembers(branchRead?.members, branchId);
-                                        }}
-                                    />
-                                )}
-                                <ToggleIconButton
-                                    variant="swap"
-                                    label={`Use ${letter}`}
-                                    tooltip={`Use ${letter} (Space)`}
-                                    icon={<GLYPHS.hide size={12} aria-hidden />}
-                                    checkedIcon={<GLYPHS.show size={12} aria-hidden />}
-                                    checked={on}
-                                    onChange={() => {
-                                        toggle(branch);
+                            </TargetTooltip>
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                className="sel-card-fold"
+                                aria-label={`${isFolded ? "Expand" : "Collapse"} ${letter}`}
+                                onClick={() => {
+                                    fold(branchId, !isFolded);
+                                }}
+                            >
+                                <GLYPHS.expand size={12} aria-hidden />
+                            </ActionIcon>
+                            <span className="sel-chit" data-filled="" aria-hidden />
+                            {renaming === branchId ? (
+                                <InlineRename
+                                    value={letter}
+                                    label={`Rename ${letter}`}
+                                    onCommit={(typed) => {
+                                        const text = typed.trim();
+                                        if (text !== letter) {
+                                            onChange(
+                                                editBranch(rule, branchId, {
+                                                    name: text === "" ? undefined : text,
+                                                }),
+                                            );
+                                        }
+                                        setRenaming(null);
+                                    }}
+                                    onCancel={() => {
+                                        setRenaming(null);
                                     }}
                                 />
-                                <PaneMenu
-                                    name={letter}
-                                    items={[
-                                        {
-                                            id: "rename",
-                                            label: "Rename",
-                                            icon: "rename",
-                                            group: "edit",
-                                            onRun: () => {
-                                                setRenaming(branchId);
-                                            },
-                                        },
-                                        {
-                                            id: "start",
-                                            label:
-                                                branch.start === "all"
-                                                    ? `Start with no ${NOUNS[side].many}`
-                                                    : `Start with all ${NOUNS[side].many}`,
-                                            icon: branch.start === "all" ? "empty" : "everything",
-                                            group: "edit",
-                                            onRun: () => {
-                                                onChange(
-                                                    editBranch(rule, branchId, {
-                                                        start: branch.start === "all" ? "none" : "all",
-                                                    }),
-                                                );
-                                            },
-                                        },
-                                        {
-                                            id: "duplicate",
-                                            label: "Duplicate",
-                                            icon: "duplicate",
-                                            group: "edit",
-                                            reason: reading.branchesLeft === 0 ? "No more groups" : null,
-                                            onRun: () => {
-                                                duplicate(branch);
-                                            },
-                                        },
-                                        {
-                                            id: "save",
-                                            label: "Save as set",
-                                            icon: "several",
-                                            group: "edit",
-                                            reason:
-                                                (branchRead?.count ?? 0) === 0 ? `No ${NOUNS[side].many} in it` : null,
-                                            onRun: () => {
-                                                const members = branchRead?.members;
-                                                if (members !== undefined) {
-                                                    void session.sets.createFrom(members, { name: letter }).then(() => {
-                                                        say(`Saved ${letter} as a set`);
-                                                    });
-                                                }
-                                            },
-                                        },
-                                        {
-                                            id: "up",
-                                            label: "Move up",
-                                            icon: "moveUp",
-                                            group: "edit",
-                                            reason: at === 0 ? "Already at the top" : null,
-                                            reasonDrawn: false,
-                                            onRun: () => {
-                                                moveBranchBy(branchId, -1);
-                                            },
-                                        },
-                                        {
-                                            id: "down",
-                                            label: "Move down",
-                                            icon: "moveDown",
-                                            group: "edit",
-                                            reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
-                                            reasonDrawn: false,
-                                            onRun: () => {
-                                                moveBranchBy(branchId, 1);
-                                            },
-                                        },
-                                        ...(multi
-                                            ? [
-                                                  {
-                                                      id: "delete",
-                                                      label: "Delete",
-                                                      icon: "delete" as const,
-                                                      group: "remove" as const,
-                                                      onRun: () => {
-                                                          removeBranchOf(branch);
-                                                      },
-                                                  },
-                                              ]
-                                            : []),
-                                    ]}
-                                />
-                            </header>
-                            {!isFolded && (
-                                <div className="sel-card-start">
-                                    <Tooltip
-                                        label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
-                                        openDelay={500}
+                            ) : (
+                                <Tooltip label="Rename" openDelay={500}>
+                                    <UnstyledButton
+                                        className="sel-card-name"
+                                        aria-label={`Rename ${letter}`}
+                                        onClick={() => {
+                                            setRenaming(branchId);
+                                        }}
                                     >
+                                        <Text size="sm" fw={600} span truncate>
+                                            {letter}
+                                        </Text>
+                                    </UnstyledButton>
+                                </Tooltip>
+                            )}
+                            <Tooltip
+                                label={`Start with ${branch.start === "all" ? "no" : "all"} ${NOUNS[side].many}`}
+                                openDelay={500}
+                            >
+                                <Button
+                                    size="compact-xs"
+                                    variant="default"
+                                    className="sel-card-start"
+                                    data-start={branch.start}
+                                    onClick={() => {
+                                        onChange(
+                                            editBranch(rule, branchId, {
+                                                start: branch.start === "all" ? "none" : "all",
+                                            }),
+                                        );
+                                    }}
+                                >
+                                    {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
+                                </Button>
+                            </Tooltip>
+                            {(!on || startEmpties(branch, branchRead)) && (
+                                <Text size="sm" c="dimmed" className="sel-state">
+                                    {on ? "Passes none" : "Off"}
+                                </Text>
+                            )}
+                            {isFolded ? (
+                                <Text size="sm" c="dimmed" truncate className="sel-card-summary">
+                                    {foldedWords(branch)}
+                                </Text>
+                            ) : (
+                                <span className="sel-spacer" />
+                            )}
+                            {branchRead?.state === "pending" ? (
+                                <Text size="sm" c="dimmed" className="sel-state">
+                                    Waits
+                                </Text>
+                            ) : (
+                                <CountChip
+                                    count={branchRead?.count ?? 0}
+                                    of={of}
+                                    side={side}
+                                    host={host}
+                                    onClick={() => {
+                                        showMembers(branchRead?.members, branchId);
+                                    }}
+                                />
+                            )}
+                            <PaneMenu name={letter} items={cardItems(branch, at)} />
+                            <TargetTooltip label="Delete">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    data-card-delete=""
+                                    aria-label={`Delete ${letter}`}
+                                    onClick={() => {
+                                        removeCard(branch);
+                                    }}
+                                >
+                                    <GLYPHS.close size={12} aria-hidden />
+                                </ActionIcon>
+                            </TargetTooltip>
+                        </header>
+                        {!isFolded && branch.steps.length === 0 && (
+                            <div className="sel-card-step" data-new-step="">
+                                <NewStepPane
+                                    key={branchId}
+                                    session={session}
+                                    rule={rule}
+                                    branch={branch}
+                                    open={false}
+                                    hostPicks={hostPicks}
+                                    onPick={(stepRule) => {
+                                        pick(branch, newVerb(branch), stepRule);
+                                    }}
+                                    onCancel={emptyClosed}
+                                />
+                            </div>
+                        )}
+                        {(isFolded ? [] : branch.steps).map((step, index) => cardStep(branch, step, index))}
+                        {narrowing && (
+                            <div className="sel-card-step" data-new-step="">
+                                <NewStepPane
+                                    key={`${adding.branch}:${adding.op}`}
+                                    session={session}
+                                    rule={rule}
+                                    branch={branch}
+                                    open={adding.open}
+                                    hostPicks={hostPicks}
+                                    lead={
+                                        <Text size="sm" fw={600} className="sel-card-verb" data-op={adding.op}>
+                                            {VERB_WORDS[adding.op].word}
+                                        </Text>
+                                    }
+                                    onPick={(stepRule) => {
+                                        pick(branch, adding.op, stepRule);
+                                    }}
+                                    onCancel={() => {
+                                        stopAdding(branch);
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {!isFolded && !narrowing && branch.steps.length > 0 && (
+                            // Shown once the card has a value: Add, Keep and Except change it.
+                            <footer className="sel-card-actions">
+                                {CARD_VERBS.map((op) => (
+                                    <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
                                         <Button
                                             size="compact-xs"
-                                            variant="default"
-                                            data-start={branch.start}
+                                            variant="subtle"
+                                            data-verb={op}
+                                            data-add={op === "add" ? branchId : undefined}
+                                            leftSection={<VerbGlyph op={op} />}
                                             onClick={() => {
-                                                onChange(
-                                                    editBranch(rule, branchId, {
-                                                        start: branch.start === "all" ? "none" : "all",
-                                                    }),
-                                                );
+                                                startAdding(branch, op);
                                             }}
                                         >
-                                            {`${branch.start === "all" ? "All" : "No"} ${NOUNS[side].many}`}
+                                            {VERB_WORDS[op].word}
                                         </Button>
                                     </Tooltip>
-                                </div>
-                            )}
-                            {(isFolded ? [] : branch.steps).map((step, index) => {
-                                const id = step.id ?? "";
-                                const previous = readingOf(branch.steps[index - 1]?.id);
-                                const before = index === 0 ? startCount(branch, of) : previous?.count;
-                                return (
-                                    <div
-                                        key={id}
-                                        className="sel-card-step"
-                                        data-row={id}
-                                        data-state={step.on === false ? "off" : readingOf(id)?.state}
-                                    >
-                                        <StepPane
-                                            session={session}
-                                            rule={rule}
-                                            branch={branch}
-                                            step={step}
-                                            reading={readingOf(id)}
-                                            host={host}
-                                            of={of}
-                                            first={index === 0}
-                                            last={index === branch.steps.length - 1}
-                                            total={reading.total.count}
-                                            before={previous?.waiting === true ? undefined : before}
-                                            hostPicks={hostPicks}
-                                            adds={
-                                                <VerbBadge
-                                                    op={step.op}
-                                                    verbs={verbsAt(branch, index)}
-                                                    onVerb={(op) => {
-                                                        onChange(editStep(rule, branchId, id, { op }));
-                                                    }}
-                                                />
-                                            }
-                                            verbSwitch={false}
-                                            cards
-                                            done={
-                                                <TargetTooltip label="Remove">
-                                                    <ActionIcon
-                                                        variant="subtle"
-                                                        size="sm"
-                                                        aria-label={`Remove ${stepName(step)}`}
-                                                        onClick={() => {
-                                                            removeStepAt(branch, id);
-                                                        }}
-                                                    >
-                                                        <GLYPHS.close size={12} aria-hidden />
-                                                    </ActionIcon>
-                                                </TargetTooltip>
-                                            }
-                                            onStep={(patch) => {
-                                                lastEdited.current = id;
-                                                onChange(editStep(rule, branchId, id, patch));
-                                            }}
-                                            onMove={(by) => {
-                                                moveStepBy(branch, id, by);
-                                            }}
-                                            onToggle={() => {
-                                                toggle(branch, id);
-                                            }}
-                                            onDuplicate={() => {
-                                                duplicate(branch, id);
-                                            }}
-                                            onRemove={() => {
-                                                removeStepAt(branch, id);
-                                            }}
-                                        />
-                                    </div>
-                                );
-                            })}
-                            {addingHere && (
-                                <div className="sel-card-step" data-new-step="">
-                                    <Group gap={4} wrap="nowrap" className="sel-pane-head">
-                                        <VerbBadge op={adding.op} />
-                                    </Group>
-                                    <NewStepPane
-                                        key={`${adding.branch}:${String(adding.open)}`}
-                                        session={session}
-                                        rule={rule}
-                                        branch={branch}
-                                        open={adding.open}
-                                        hostPicks={hostPicks}
-                                        onPick={(stepRule) => {
-                                            pick(branch, adding.op, stepRule);
-                                        }}
-                                        onCancel={() => {
-                                            stopAdding(branch);
-                                        }}
-                                    />
-                                </div>
-                            )}
-                            {!isFolded && (
-                                <footer className="sel-card-actions">
-                                    {verbsFor(branch).map((op) => (
-                                        <Tooltip key={op} label={VERB_TIPS[op]} openDelay={500}>
-                                            <Button
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                data-verb={op}
-                                                data-add={op === newVerb(branch) ? branchId : undefined}
-                                                leftSection={<VerbGlyph op={op} />}
-                                                onClick={() => {
-                                                    startAdding(branch, op);
-                                                }}
-                                            >
-                                                {VERB_WORDS[op].word}
-                                            </Button>
-                                        </Tooltip>
-                                    ))}
-                                </footer>
-                            )}
-                        </section>
-                    </React.Fragment>
+                                ))}
+                            </footer>
+                        )}
+                    </section>
                 );
             })}
-            <div className="sel-card-new">
-                <Tooltip
-                    label={
-                        reading.branchesLeft === 0
-                            ? `No more: ${String(rule.branches.length)} is the most`
-                            : "Or: a new group, in its own color"
-                    }
-                    openDelay={500}
-                >
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        data-or=""
-                        aria-disabled={reading.branchesLeft === 0}
-                        data-disabled={reading.branchesLeft === 0 ? true : undefined}
-                        leftSection={<GLYPHS.add size={12} aria-hidden />}
-                        onClick={addOr}
-                    >
-                        Group
-                    </Button>
-                </Tooltip>
-            </div>
+            <AddCard
+                session={session}
+                rule={rule}
+                hostPicks={hostPicks}
+                left={reading.branchesLeft}
+                most={rule.branches.length}
+                onPick={addCard}
+            />
         </div>
     );
 
@@ -2077,16 +2166,19 @@ export function SelectionEditor({
         };
     }, [open, element, wsTitle]);
 
-    // Escape closes the innermost open thing per press and never discards work (spec 3.4): a list
-    // or a menu closes itself; then Advanced; then focus goes from the pane to its outline row;
-    // then the workspace closes as Done.
+    // Escape closes the innermost open thing per press (spec 3.4): a list, a menu or a card's
+    // settings closes itself; then Advanced; then the workspace closes as Cancel, as its Cancel
+    // button shows (the owner, 2026-11-04).
     const wsKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
         if (event.key !== "Escape" || (event.defaultPrevented && event.eventPhase !== Event.CAPTURING_PHASE)) {
             return;
         }
         const target = event.target as HTMLElement;
         if (
-            target.closest("[data-portal]") !== null ||
+            // A list, a menu or a card's settings closes itself on Escape: never the workspace too.
+            target.closest(
+                "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown",
+            ) !== null ||
             // An open Advanced is the disclosure Escape closes below, not a list that closes itself.
             target.matches("[aria-expanded=true]:not(.sel-advanced)") ||
             "expanded" in target.dataset
@@ -2117,7 +2209,7 @@ export function SelectionEditor({
                 return;
             }
         }
-        closeAfterPaint("done");
+        closeAfterPaint("cancel");
     };
 
     // Tab past the workspace's last control goes to its header (Done, Cancel, Clear), never on to
@@ -2142,7 +2234,8 @@ export function SelectionEditor({
     const workspace =
         open && frame !== null
             ? createPortal(
-                  <>
+                  // The cards' settings panels are drawn after the modal, above the preview's canvas.
+                  <PopoutManager>
                       <div className="sel-ws-scrim" aria-hidden />
                       <section // NOSONAR(S6847): only catches keys and presses bubbling from its own controls
                           ref={wsBox}
@@ -2180,9 +2273,20 @@ export function SelectionEditor({
                           }}
                       >
                           <header className="sel-ws-head">
-                              <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
-                                  {wsTitle}
-                              </Text>
+                              {onRename === undefined ? (
+                                  <Text size="sm" fw={600} className="sel-ws-title" id={titleId} truncate>
+                                      {wsTitle}
+                                  </Text>
+                              ) : (
+                                  <TitleName
+                                      id={titleId}
+                                      owner={ownerName}
+                                      name={name}
+                                      renaming={renamingTitle}
+                                      onRenaming={setRenamingTitle}
+                                      onRename={onRename}
+                                  />
+                              )}
                               <Text size="sm" className="sel-count">
                                   {`${formatNumber(reading.total.count)} of ${formatNumber(of)}`}
                               </Text>
@@ -2196,7 +2300,7 @@ export function SelectionEditor({
                                   label="Preview"
                                   value={colors ? "colors" : "styled"}
                                   data={[
-                                      { value: "colors", label: "Group colors" },
+                                      { value: "colors", label: "Card colors" },
                                       { value: "styled", label: "Styled" },
                                   ]}
                                   onChange={(value) => {
@@ -2204,53 +2308,37 @@ export function SelectionEditor({
                                       setColors(value === "colors");
                                   }}
                               />
-                              <Tooltip label="Frame the matches">
-                                  <Button
-                                      size="compact-xs"
-                                      variant="subtle"
-                                      className="sel-ws-fit"
-                                      onClick={() => {
-                                          void element?.applyCameraView("fitToGraph", {
-                                              scope: reading.result,
-                                              params: { keepAngle: true },
-                                              animate: true,
-                                          });
-                                      }}
-                                  >
-                                      Fit
-                                  </Button>
-                              </Tooltip>
-                              <ToggleIconButton
-                                  label="Table of matches"
-                                  tooltip="Table"
-                                  icon={<GLYPHS.table size={14} aria-hidden />}
-                                  checked={strip}
-                                  onChange={toggleStrip}
-                              />
                               <PaneMenu name={wsTitle} items={titleItems} />
                               <span className="sel-ws-gap" />
                               <Button
                                   size="compact-xs"
                                   variant="subtle"
+                                  aria-keyshortcuts="Escape"
+                                  rightSection={
+                                      <Text span size="sm" c="dimmed" className="sel-key">
+                                          Esc
+                                      </Text>
+                                  }
                                   onClick={() => {
                                       closeAfterPaint("cancel");
                                   }}
                               >
                                   Cancel
                               </Button>
-                              <Tooltip label="Done (Escape)">
-                                  <Button
-                                      size="compact-xs"
-                                      onClick={() => {
-                                          closeAfterPaint("done");
-                                      }}
-                                  >
-                                      Done
-                                  </Button>
-                              </Tooltip>
+                              <Button
+                                  size="compact-xs"
+                                  onClick={() => {
+                                      closeAfterPaint("done");
+                                  }}
+                              >
+                                  Done
+                              </Button>
                           </header>
                           <div className="sel-ws-body">
-                              <div className="sel-ws-cards">{cards()}</div>
+                              {/* A card's settings open flush with the cards' column, beside the drawing. */}
+                              <Popout.Anchor>
+                                  <div className="sel-ws-cards">{cards()}</div>
+                              </Popout.Anchor>
                               <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
                                   <div className="sel-ws-preview" />
                                   {strip && warm && (
@@ -2265,7 +2353,7 @@ export function SelectionEditor({
                               </div>
                           </div>
                       </section>
-                  </>,
+                  </PopoutManager>,
                   frame,
               )
             : null;
@@ -2294,6 +2382,27 @@ function paneTarget(root: HTMLElement | null): HTMLElement | undefined {
         }
     }
     return undefined;
+}
+
+/** Where focus goes on an empty card: its value field. */
+const EMPTY_VALUE = ".sel-ws-cards [data-new-step] [data-first-focus]";
+
+/**
+ * Whether a selection is All with no condition: what a new layer or filter card holds.
+ * @param rule - the selection.
+ * @returns true when it is.
+ */
+function isEmptyAll(rule: UnionLeaf): boolean {
+    return rule.branches.length === 1 && rule.branches[0]?.start === "all" && rule.branches[0].steps.length === 0;
+}
+
+/**
+ * A selection with every group starting from nothing.
+ * @param rule - the selection.
+ * @returns the selection.
+ */
+function asNone(rule: UnionLeaf): UnionLeaf {
+    return { ...rule, branches: rule.branches.map((branch) => ({ ...branch, start: "none" as const })) };
 }
 
 /** Where focus goes once a value is picked: the test's first control, when it is drawn. */
@@ -2404,6 +2513,7 @@ function stateWord(
  * @param props.branch - the group
  * @param props.open - whether the value picker opens at once
  * @param props.hostPicks - the host's own picker entries
+ * @param props.lead - drawn before the field (a narrowing condition's Keep or Except)
  * @param props.onPick - takes the value's rule
  * @param props.onCancel - takes the step back (the picker closed with nothing chosen)
  * @returns The pane
@@ -2414,6 +2524,7 @@ function NewStepPane({
     branch,
     open: openAtFirst,
     hostPicks,
+    lead,
     onPick,
     onCancel,
 }: Readonly<{
@@ -2422,6 +2533,7 @@ function NewStepPane({
     branch: UnionBranch;
     open: boolean;
     hostPicks: readonly PickSection[];
+    lead?: React.ReactNode;
     onPick: (stepRule: RuleTree) => void;
     onCancel: () => void;
 }>): React.JSX.Element {
@@ -2437,13 +2549,14 @@ function NewStepPane({
         onPick(stepRule);
     };
     return (
-        <Stack gap={6} className="sel-pane" role="group" aria-label="New step">
+        <Group gap={4} wrap="nowrap" className="sel-pane sel-card-value" role="group" aria-label="New step">
+            {lead}
             <AddCondition
                 // The lists are read only while the picker is open: on a large graph they are not free.
-                fields={open ? pickerFields(session, sideOf(rule), rule.within) : []}
+                fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
                 used={usedPaths(rule, branch)}
                 placeholder="Find attributes, results"
-                sections={open ? [...hostPicks, ...pickSections(session, rule, choose)] : []}
+                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, true)] : []}
                 opened={open}
                 seed={seed}
                 onAdd={(field) => {
@@ -2502,11 +2615,153 @@ function NewStepPane({
                             }
                         }}
                     >
-                        <span className="sel-field-text sel-field-empty">Value...</span>
+                        <span className="sel-field-text sel-field-empty">Value</span>
                     </InputBase>
                 }
             />
-        </Stack>
+        </Group>
+    );
+}
+
+/**
+ * The workspace's title when the selection can be renamed: "Filters / " and its name, which a click
+ * or Rename turns into a box (Figma's rename: the name preselected, Enter or a click away keeps it).
+ * @param props - Component props
+ * @param props.id - the title's id, which names the workspace
+ * @param props.owner - what the selection belongs to
+ * @param props.name - its name now
+ * @param props.renaming - its box is open
+ * @param props.onRenaming - opens or closes its box
+ * @param props.onRename - takes the typed name, or undefined for none
+ * @returns The title
+ */
+function TitleName({
+    id,
+    owner,
+    name,
+    renaming,
+    onRenaming,
+    onRename,
+}: Readonly<{
+    id: string;
+    owner: string | undefined;
+    name: string;
+    renaming: boolean;
+    onRenaming: (on: boolean) => void;
+    onRename: (name: string | undefined) => void;
+}>): React.JSX.Element {
+    return (
+        <Group gap={4} wrap="nowrap" className="sel-ws-title" id={id}>
+            {owner !== undefined && (
+                <Text size="sm" fw={600} span style={{ flexShrink: 0 }}>
+                    {`${owner} /`}
+                </Text>
+            )}
+            {renaming ? (
+                <InlineRename
+                    value={name}
+                    label={`Rename ${name}`}
+                    onCommit={(typed) => {
+                        const text = typed.trim();
+                        if (text !== name) {
+                            onRename(text === "" ? undefined : text);
+                        }
+                        onRenaming(false);
+                    }}
+                    onCancel={() => {
+                        onRenaming(false);
+                    }}
+                />
+            ) : (
+                <Tooltip label="Rename" openDelay={500}>
+                    <UnstyledButton
+                        className="sel-card-name"
+                        aria-label={`${name}, rename`}
+                        onClick={() => {
+                            onRenaming(true);
+                        }}
+                    >
+                        <Text size="sm" fw={600} span truncate>
+                            {name}
+                        </Text>
+                    </UnstyledButton>
+                </Tooltip>
+            )}
+        </Group>
+    );
+}
+
+/**
+ * "+ Card" under the cards: it opens the value picker, and the value picked is a new card's value.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rule - the selection
+ * @param props.hostPicks - the host's own picker entries
+ * @param props.left - how many more cards there is room for
+ * @param props.most - how many cards there are
+ * @param props.onPick - takes the new card's value
+ * @returns The button and its picker
+ */
+function AddCard({
+    session,
+    rule,
+    hostPicks,
+    left,
+    most,
+    onPick,
+}: Readonly<{
+    session: GraphSession;
+    rule: UnionLeaf;
+    hostPicks: readonly PickSection[];
+    left: number;
+    most: number;
+    onPick: (stepRule: RuleTree) => void;
+}>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const full = left === 0;
+    const choose = (stepRule: RuleTree): void => {
+        setOpen(false);
+        onPick(stepRule);
+    };
+    return (
+        <div className="sel-card-new">
+            <AddCondition
+                fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
+                used={[]}
+                placeholder="Find attributes, results"
+                sections={open ? [...hostPicks, ...pickSections(session, rule, choose, true)] : []}
+                opened={open}
+                listWidth={ADD_CARD_LIST}
+                onAdd={(field) => {
+                    choose(ruleOfField(session, field, rule.within));
+                }}
+                onOpened={(next) => {
+                    if (!next) {
+                        setOpen(false);
+                    }
+                }}
+                anchor={
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        data-or=""
+                        title={full ? `No more: ${String(most)} is the most` : undefined}
+                        aria-disabled={full}
+                        data-disabled={full ? true : undefined}
+                        aria-haspopup="dialog"
+                        aria-expanded={open}
+                        leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        onClick={() => {
+                            if (!full) {
+                                setOpen(true);
+                            }
+                        }}
+                    >
+                        Card
+                    </Button>
+                }
+            />
+        </div>
     );
 }
 
@@ -2656,6 +2911,12 @@ function colorWord(color: string): string {
     return /^#[0-9a-f]{6}/i.test(color) ? colorName(color.slice(0, 7)).toLowerCase() : "";
 }
 
+/** The "+ Card" picker's width: wide enough for its rows whatever the button's width (the prototype's). */
+const ADD_CARD_LIST = 280;
+
+/** The verbs along a card's bottom once it has a value, in any order: Add widens, Keep and Except narrow. */
+const CARD_VERBS: readonly Verb[] = ["add", "keep", "except"];
+
 /** What each card action does, said in its tooltip. */
 const VERB_TIPS: Readonly<Record<Verb, string>> = {
     add: "Add what matches to this group",
@@ -2672,62 +2933,4 @@ const VERB_TIPS: Readonly<Record<Verb, string>> = {
 function VerbGlyph({ op }: Readonly<{ op: Verb }>): React.JSX.Element {
     const Glyph = GLYPHS[{ add: "union", keep: "intersect", except: "subtract" }[op] as "union"];
     return <Glyph size={12} aria-hidden />;
-}
-
-/**
- * A step's verb, its glyph and word in the verb's color; a menu of the verbs it can change to.
- * @param props - Component props
- * @param props.op - the verb
- * @param props.verbs - the verbs it can change to
- * @param props.onVerb - takes the new verb
- * @returns The badge
- */
-function VerbBadge({
-    op,
-    verbs = [],
-    onVerb,
-}: Readonly<{ op: Verb; verbs?: readonly Verb[]; onVerb?: (op: Verb) => void }>): React.JSX.Element {
-    const badge = (
-        <span className="sel-verb-badge" data-op={op}>
-            <VerbGlyph op={op} />
-            <Text size="sm" span fw={600}>
-                {VERB_WORDS[op].word}
-            </Text>
-        </span>
-    );
-    if (onVerb === undefined || verbs.length < 2) {
-        return badge;
-    }
-    return (
-        <Menu position="bottom-start" withinPortal>
-            <Menu.Target>
-                <Button size="compact-xs" variant="subtle" aria-label={`${VERB_WORDS[op].word}, change`}>
-                    {badge}
-                </Button>
-            </Menu.Target>
-            <Menu.Dropdown data-portal="">
-                {verbs.map((each) => (
-                    <Menu.Item
-                        key={each}
-                        leftSection={<VerbGlyph op={each} />}
-                        onClick={() => {
-                            onVerb(each);
-                        }}
-                    >
-                        {VERB_WORDS[each].word}
-                    </Menu.Item>
-                ))}
-            </Menu.Dropdown>
-        </Menu>
-    );
-}
-
-/**
- * How many a group holds before its first step: the base when it starts with all, else none.
- * @param branch - the group.
- * @param of - the base's size.
- * @returns the count.
- */
-function startCount(branch: UnionBranch, of: number): number {
-    return branch.start === "all" ? of : 0;
 }

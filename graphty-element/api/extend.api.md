@@ -2126,6 +2126,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
+    // @internal
     refitPicture(): void;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;

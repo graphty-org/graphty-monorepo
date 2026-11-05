@@ -73,6 +73,7 @@ export interface GraphContext {
      * Get the row tables, when something has opened them. Optional because a context with no
      * scene of its own has none.
      * @returns The tables, or null.
+     * @internal
      */
     getRowTable?(): RowTable | null;
 

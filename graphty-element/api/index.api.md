@@ -3011,6 +3011,7 @@ export interface GraphContext {
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
     getRowTable?(): RowTable | null;
     getScene(): Scene;
     getSelectionManager?(): SelectionManager | undefined;

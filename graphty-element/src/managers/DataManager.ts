@@ -1456,6 +1456,8 @@ export class DataManager implements Manager {
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
             placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
         }
+
+        this.nodeVersion++;
     }
 
     /**

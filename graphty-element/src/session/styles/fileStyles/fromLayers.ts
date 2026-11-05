@@ -46,6 +46,7 @@ import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
 import {
+    ARROW_RUNS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -54,7 +55,7 @@ import {
     TOOL_ARROW_SHAPES,
 } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
-import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
+import { arrowRunStack, LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -163,6 +164,24 @@ const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
 const ARROW_OF = inverse(
     [ARROW_SHAPES, ...TOOL_ARROW_SHAPES.values()].flatMap((table) => [...table]),
     ARROW_SHAPES_NEAREST,
+);
+
+/**
+ * A stack without its sizes, which grow with the line.
+ * @param stack - An end cap's `stack` value.
+ * @returns Its caps and their widths.
+ */
+const stackShape = (stack: string): string => stack.replaceAll(/\*[^x\s]+/g, "");
+
+/** The formats whose writers spell yEd's arrows; every other format writes the end cap, which it has a name for. */
+const YED_ARROW_FORMATS: ReadonlySet<string> = new Set(["graphml", "gml"]);
+
+// yEd's arrows of several pieces share end caps, so `ARROW_OF` names only one of them: the whole row names each
+const ARROW_ROWS = new Map(
+    [...ARROW_RUNS].map(([shape, run]) => [
+        `${String(ARROW_SHAPES.get(shape))} ${stackShape(arrowRunStack(run.parts, 1))}`,
+        shape,
+    ]),
 );
 
 const color: PropertyPlan["toNeutral"] = (value) => {
@@ -349,6 +368,8 @@ class KindExport {
     readonly #n: number;
     /** Per layer id, per channel, what the layer painted each element. */
     readonly #painted = new Map<string, Map<string, unknown[]>>();
+    /** Per row, everything the element is drawn with, whichever layers painted it. */
+    readonly #merged: Readonly<Record<string, unknown>>[] = [];
     readonly #columns = new Map<string, StyleColumn>();
     /** Per file-style path, the key it is written under. */
     readonly #fileKeys = new Map<string, string>();
@@ -371,7 +392,9 @@ class KindExport {
         this.#n = ids.length;
         ids.forEach((id, row) => {
             const target: ExplainTarget = kind === "node" ? { node: id } : { edge: id as EdgeId };
-            for (const contribution of input.explain(target).contributions) {
+            const { merged, contributions } = input.explain(target);
+            this.#merged[row] = merged;
+            for (const contribution of contributions) {
                 let channels = this.#painted.get(contribution.layerId);
                 if (channels === undefined) {
                     channels = new Map();
@@ -595,7 +618,9 @@ class KindExport {
     #neutral(channel: string, values: readonly unknown[]): NeutralChannel | null {
         const known = PLANS[this.#kind].get(channel);
         if (known !== undefined) {
-            const converted = values.map((value) => (value === null ? null : known.toNeutral(value)));
+            const converted = values.map((value, row) =>
+                value === null ? null : (this.#arrowRow(channel, value, row) ?? known.toNeutral(value)),
+            );
             if (converted.every((value, i) => value !== null || values[i] === null)) {
                 return { properties: known.properties, values: converted, convert: known.toNeutral };
             }
@@ -607,6 +632,21 @@ class KindExport {
         }
 
         return { properties: [`graphty:${channel}`], values: converted, convert: graphtyValue };
+    }
+
+    /**
+     * The arrow of several pieces an end cap is the first of, read from the whole stack the element is drawn with: the
+     * stack may come from another layer than the cap.
+     * @param channel - The channel.
+     * @param cap - The channel's value.
+     * @param row - The element.
+     * @returns The neutral arrow, or undefined when the channel is no end cap of such an arrow or the format has none.
+     */
+    #arrowRow(channel: string, cap: unknown, row: number): string | undefined {
+        const stack = this.#merged[row]?.[`${channel}Stack`];
+        return YED_ARROW_FORMATS.has(this.#input.format) && typeof stack === "string" && typeof cap === "string"
+            ? ARROW_ROWS.get(`${cap} ${stackShape(stack)}`)
+            : undefined;
     }
 
     /**

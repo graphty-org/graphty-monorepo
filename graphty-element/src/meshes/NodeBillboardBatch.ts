@@ -465,7 +465,8 @@ export class NodeBillboardBatch {
             this.slotsChanged ||= written;
             if (this.sortBackToFront(camera) || written) {
                 this.pack();
-                this.buffer?.update(this.drawn);
+                // Up to the high-water mark: past it the array holds nothing to draw.
+                this.buffer?.updateDirectly(this.drawn, 0, this.highWater);
             }
         }
 

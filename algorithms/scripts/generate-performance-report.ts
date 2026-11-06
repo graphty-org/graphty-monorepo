@@ -503,5 +503,5 @@ async function main() {
 
 // Run the script, unless a test imported generateHTML
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    await main();
+    main().catch(console.error); // NOSONAR(S7785): module ES2020 (tsconfig.base.json) has no top-level await
 }

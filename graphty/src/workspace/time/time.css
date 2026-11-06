@@ -83,6 +83,79 @@
     }
 }
 
+/* The workspace's side panels take a phone's whole width, and the dock lives beside them, so while
+   the phone's dock is open the panels step aside for it and the canvas. */
+.ws-body:has(.tl-phone) {
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.ws-body:has(.tl-phone) > .ws-left,
+.ws-body:has(.tl-phone) > .ws-right {
+    display: none;
+}
+
+/* A phone: one 44px row over the 32px sparkline, and nothing else, so the canvas keeps its height.
+   Its targets take the full 44px whatever the pointer. The edge is a shadow, which adds no height. */
+.tl-phone {
+    gap: 0;
+    padding: 0 8px;
+    border-top: 0;
+    box-shadow: 0 -1px 0 var(--mantine-color-default-border);
+}
+
+.tl-phone-row {
+    min-height: 44px;
+}
+
+.tl-phone .mantine-ActionIcon-root,
+.tl-sheet .mantine-ActionIcon-root,
+.tl-sheet .mantine-Button-root,
+.tl-sheet-close {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+/* The row's room goes to the readout, cut off rather than pushing the transport out. */
+.tl-phone .tl-readout {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    margin-inline-start: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* As tall as what it holds, so the graph stays in view above it. */
+.mantine-Drawer-content.tl-sheet-content {
+    flex: 0 0 auto;
+    height: auto;
+}
+
+/* The bottom sheet: the dock's parts laid out in a column, and the dock's class for its touch rules. */
+.tl-sheet {
+    gap: 8px;
+    padding: 0;
+    border-top: 0;
+}
+
+.tl-sheet .tl-all {
+    position: static;
+}
+
+.tl-sheet .tl-counts {
+    flex: 1 1 0;
+}
+
+.tl-sheet .tl-range-form .mantine-InputWrapper-root {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+}
+
+.tl-sheet .mantine-Input-input {
+    min-height: 44px;
+}
+
 /* The header's time chip: a fixed width and tabular figures, so the header does not move while
    time plays. */
 .tl-chip-words {

@@ -154,6 +154,30 @@ export async function dragAcross(element: Element, dx: number, at?: { x: number;
 }
 
 /**
+ * Drags a finger sideways from the middle of an element, as the reader drags a thumb or a handle on
+ * a touch screen.
+ * @param element - Where the finger goes down.
+ * @param dx - How far it moves, in CSS pixels of the test page; negative moves left.
+ */
+export async function swipeAcross(element: Element, dx: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const frame = window.frameElement;
+    const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
+    const steps = 10;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x: x + (dx * scale * step) / steps, y }],
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
  * Puts a finger down on the middle of an element and keeps it there, still, until `released`
  * settles, then lifts it: a touch hold that lasts as long as the test's condition takes, never a
  * fixed time.
@@ -239,6 +263,22 @@ export async function pinchFrom(element: Element, spread: number): Promise<void>
     }
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Makes the browser a touch screen for what `run` does, so the styles for a coarse pointer apply,
+ * and puts it back after.
+ * @param run - What to do on it.
+ * @returns settles once the browser is back.
+ */
+export async function onTouchScreen(run: () => Promise<void>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    try {
+        await run();
+    } finally {
+        await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    }
 }
 
 /**

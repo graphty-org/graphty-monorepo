@@ -4,7 +4,7 @@
  * the designated field with its range brush and the selection's activity on the second. Everything
  * it shows is graphty-element's (`session.time`): the bins, their step, the window and whether it is
  * at either end. The app holds only a drag in progress and the stretch of the axis zoomed to, and
- * writes the words.
+ * writes the words. A phone gets the same parts in another arrangement (`TimePhoneDock`).
  */
 
 import "./time.css";
@@ -19,7 +19,7 @@ import type {
     TimeWindowInput,
 } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
+import { useElementSize, useMediaQuery } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -37,6 +37,7 @@ import {
     togglePlay,
     unitOf,
 } from "./timeActions";
+import { TimePhoneDock } from "./TimePhoneDock";
 import { countWords, instantWords, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 import { useTimeZoom } from "./useTimeZoom";
@@ -45,6 +46,8 @@ import { useTimeZoom } from "./useTimeZoom";
 const PX_PER_BIN = 3;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+/** Where the dock gives way to the phone's: the width frame.css folds the workspace's columns at. */
+const PHONE_WIDTH = "(max-width: 720px)";
 
 /**
  * How far a brush thumb moves: a fixed calendar step's length, a day for months and longer, or the
@@ -99,34 +102,34 @@ function overlaps(bin: TimeBin, range: readonly [number, number]): boolean {
 }
 
 /**
- * The readout's popover: type the first and last day of the window.
+ * The window as typed: its first and last day, starting from the range shown now.
  * @param props - Component props
  * @param props.session - the element's session.
  * @param props.store - the chrome store.
  * @param props.unit - how the field reads numbers.
  * @param props.zone - the zone dates read in, so a typed date means what the readout shows.
  * @param props.range - the range shown now.
- * @param props.readout - the readout's words.
- * @returns the readout button and its popover.
+ * @param props.onSet - called once a typed range has been sent to the element.
+ * @returns the form.
  */
-function ReadoutEntry({
+function RangeForm({
     session,
     store,
     unit,
     zone,
     range,
-    readout,
+    onSet,
 }: Readonly<{
     session: GraphSession;
     store: WorkspaceStore;
     unit: TimeUnit;
     zone: string;
     range: readonly [number, number];
-    readout: string;
+    onSet: () => void;
 }>): React.JSX.Element {
-    const [opened, setOpened] = useState(false);
-    const [from, setFrom] = useState("");
-    const [to, setTo] = useState("");
+    const [from, setFrom] = useState(() => instantWords(range[0], unit, undefined, zone));
+    // The last included instant, as the readout writes it.
+    const [to, setTo] = useState(() => instantWords(range[1] - 1, unit, undefined, zone));
     const ordinal = unit === "ordinal";
     // An inclusive last value back to the half-open end the element takes: the next number, or the
     // end of that day on the element's calendar, which a clock change makes 23 or 25 hours long.
@@ -146,7 +149,7 @@ function ReadoutEntry({
         session.time.window({ from: start, to: end }).then(() => {
             announceWindow(session, store);
         }, reportTimeError(store));
-        setOpened(false);
+        onSet();
     };
     const field = (label: string, value: string, set: (next: string) => void): React.JSX.Element =>
         ordinal ? (
@@ -170,6 +173,38 @@ function ReadoutEntry({
             />
         );
     return (
+        <form
+            className="tl-range-form"
+            onSubmit={(event) => {
+                event.preventDefault();
+                submit();
+            }}
+        >
+            {field("From", from, setFrom)}
+            {field("To", to, setTo)}
+            <Button size="compact-xs" type="submit">
+                Set
+            </Button>
+        </form>
+    );
+}
+
+/**
+ * The readout's popover: type the first and last day of the window.
+ * @param props - Component props
+ * @param props.readout - the readout's words.
+ * @param props.form - the range form's props, but for what closes the popover.
+ * @returns the readout button and its popover.
+ */
+function ReadoutEntry({
+    readout,
+    form,
+}: Readonly<{
+    readout: string;
+    form: Omit<React.ComponentProps<typeof RangeForm>, "onSet">;
+}>): React.JSX.Element {
+    const [opened, setOpened] = useState(false);
+    return (
         <PopoutManager>
             <Popout opened={opened} onOpenChange={setOpened}>
                 <Popout.Trigger>
@@ -179,11 +214,6 @@ function ReadoutEntry({
                         aria-label={`Time window ${readout}`}
                         aria-haspopup="dialog"
                         aria-expanded={opened}
-                        onClick={() => {
-                            setFrom(instantWords(range[0], unit, undefined, zone));
-                            // The last included instant, as the readout writes it.
-                            setTo(instantWords(range[1] - 1, unit, undefined, zone));
-                        }}
                     >
                         {readout}
                     </UnstyledButton>
@@ -196,19 +226,12 @@ function ReadoutEntry({
                     closeLabel="Close Time window"
                 >
                     <Popout.Content>
-                        <form
-                            className="tl-range-form"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                submit();
+                        <RangeForm
+                            {...form}
+                            onSet={() => {
+                                setOpened(false);
                             }}
-                        >
-                            {field("From", from, setFrom)}
-                            {field("To", to, setTo)}
-                            <Button size="compact-xs" type="submit">
-                                Set
-                            </Button>
-                        </form>
+                        />
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
@@ -419,6 +442,124 @@ function ViewButtons({
 }
 
 /**
+ * Step back, play or pause, and step forward.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @param props.store - the chrome store.
+ * @returns the three buttons.
+ */
+function Transport({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+    const { playing, atStart, atEnd } = session.time;
+    const playLabel = playing ? "Pause" : "Play";
+    return (
+        <>
+            <Tooltip label={`Step back (${formatKey(",")})`}>
+                <ActionIcon
+                    variant="subtle"
+                    aria-label="Step back"
+                    disabled={atStart}
+                    onClick={() => {
+                        stepWindow(session, store, -1);
+                    }}
+                >
+                    <GLYPHS.stepBack size={16} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+            <Tooltip label={playLabel}>
+                <ActionIcon
+                    variant={playing ? "light" : "subtle"}
+                    aria-label={playLabel}
+                    onClick={() => {
+                        togglePlay(session, store);
+                    }}
+                >
+                    {playing ? <GLYPHS.pause size={16} aria-hidden /> : <GLYPHS.play size={16} aria-hidden />}
+                </ActionIcon>
+            </Tooltip>
+            <Tooltip label={`Step forward (${formatKey(".")})`}>
+                <ActionIcon
+                    variant="subtle"
+                    aria-label="Step forward"
+                    disabled={atEnd}
+                    onClick={() => {
+                        stepWindow(session, store, 1);
+                    }}
+                >
+                    <GLYPHS.stepForward size={16} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        </>
+    );
+}
+
+/**
+ * The speed button: each press takes the next speed.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @param props.store - the chrome store.
+ * @param props.speed - the speed now.
+ * @returns the button.
+ */
+function SpeedButton({
+    session,
+    store,
+    speed,
+}: Readonly<{ session: GraphSession; store: WorkspaceStore; speed: (typeof SPEEDS)[number] }>): React.JSX.Element {
+    const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    return (
+        <Tooltip label="Speed">
+            <Button
+                variant="subtle"
+                size="compact-xs"
+                className="tl-speed"
+                aria-label={`Speed ${String(speed)}x`}
+                onClick={() => {
+                    store.set({ timeSpeed: nextSpeed });
+                    // A play in progress goes on at the new speed.
+                    if (session.time.playing) {
+                        session.time.pause();
+                        playAt(session, nextSpeed);
+                    }
+                }}
+            >
+                {`${String(speed)}x`}
+            </Button>
+        </Tooltip>
+    );
+}
+
+/**
+ * The button that clears the window, while there is one.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @param props.store - the chrome store.
+ * @returns the button, or nothing with no window.
+ */
+function AllTimeButton({
+    session,
+    store,
+}: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element | null {
+    if (session.time.current === null) {
+        return null;
+    }
+    return (
+        <Tooltip label="Show all time">
+            <ActionIcon
+                className="tl-all"
+                variant="subtle"
+                aria-label="Show all time"
+                onClick={() => {
+                    session.time.pause();
+                    session.time.window(null).then(() => undefined, reportTimeError(store));
+                }}
+            >
+                <GLYPHS.allTime size={14} aria-hidden />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -432,6 +573,7 @@ export function TimeDock(): React.JSX.Element | null {
     // A brush gesture under way; a whole-window drag's release commits it as its own step.
     const hold = useRef<BrushHold | null>(null);
     const { ref, width } = useElementSize();
+    const phone = useMediaQuery(PHONE_WIDTH, false, { getInitialValueInEffect: false });
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
     const { view, reset, chartRef, pinched } = useTimeZoom(session, maxCount);
 
@@ -475,18 +617,75 @@ export function TimeDock(): React.JSX.Element | null {
     const step = window?.step;
     const readout = readoutWords(drag, window, extent, unit, zone);
     const { visibleEdges, visibleNodes } = session.visibility.summary;
-    const { playing, atStart, atEnd } = time;
-    const playLabel = playing ? "Pause" : "Play";
     const valueText = (value: number, thumb: 0 | 1): string =>
         thumb === 0 ? instantWords(value, unit, step, zone) : rangeWords(value - 1, value, unit, step, zone);
     const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
     // With no window and no zoom the axis is the whole span, which the readout already names.
     const axisHidden = window === null && view === null;
-    const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    const minLabel = axisHidden ? "" : instantWords(min, unit, first?.step, zone);
+    const maxLabel = axisHidden ? "" : instantWords(max - 1, unit, last?.step, zone);
+    const label = histogramName(whole, onEdges, unit, zone);
+    // The window the readout names, not the brush's range clamped to the bins.
+    const named: [number, number] =
+        window === null ? [extent.from, extent.to] : [Number(window.from), Number(window.to)];
+    const form = { session, store, unit, zone, range: named };
+    const transport = <Transport session={session} store={store} />;
+    const speedButton = <SpeedButton session={session} store={store} speed={speed} />;
+    const counts = (
+        <Text size="xs" c="dimmed" className="tl-counts">
+            {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
+        </Text>
+    );
+    const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
+    const allTime = <AllTimeButton session={session} store={store} />;
+    const chart = (
+        <div className="tl-chart" data-panel-start="" ref={chartRef}>
+            <HistogramRow
+                label={label}
+                bins={all.map((bin, index) => {
+                    const inside = window !== null && overlaps(bin, range);
+                    const shown = countOf(visible[index]);
+                    return {
+                        label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
+                        count: shown,
+                        ghost: countOf(bin),
+                        from: bin.start,
+                        to: bin.end,
+                        // Lit only for a bin holding something the window shows; outside it, dimmed.
+                        highlighted: inside && shown > 0,
+                        dimmed: window !== null && !inside,
+                    };
+                })}
+                minLabel={minLabel}
+                maxLabel={maxLabel}
+                {...(profile === null || profile.length === 0
+                    ? {}
+                    : { overlay: { label: "Selection over time", values: profile.map(countOf) } })}
+                brush={{
+                    min,
+                    max,
+                    step: Math.min(brushStep(first?.step), brushStep(step)),
+                    value: range,
+                    startLabel: "Window start",
+                    endLabel: "Window end",
+                    bodyLabel: "Window",
+                    valueText,
+                    rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
+                    thumbLabel: (value) => {
+                        const bin = binAt(value);
+                        return bin === undefined
+                            ? instantWords(value, unit, step, zone)
+                            : `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
+                    },
+                    ...brushGesture(session, store, setDrag, hold, pinched, shown),
+                }}
+            />
+        </div>
+    );
 
     return (
         <section // NOSONAR(S6847): Space plays and pauses as it bubbles from the dock's own controls
-            className="tl-dock"
+            className={phone ? "tl-dock tl-phone" : "tl-dock"}
             aria-label="Timeline"
             ref={ref}
             onPointerCancel={() => {
@@ -501,130 +700,37 @@ export function TimeDock(): React.JSX.Element | null {
                 }
             }}
         >
-            <Group gap={4} className="tl-bar">
-                <Tooltip label={`Step back (${formatKey(",")})`}>
-                    <ActionIcon
-                        variant="subtle"
-                        aria-label="Step back"
-                        disabled={atStart}
-                        onClick={() => {
-                            stepWindow(session, store, -1);
-                        }}
-                    >
-                        <GLYPHS.stepBack size={16} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-                <Tooltip label={playLabel}>
-                    <ActionIcon
-                        variant={playing ? "light" : "subtle"}
-                        aria-label={playLabel}
-                        onClick={() => {
-                            togglePlay(session, store);
-                        }}
-                    >
-                        {playing ? <GLYPHS.pause size={16} aria-hidden /> : <GLYPHS.play size={16} aria-hidden />}
-                    </ActionIcon>
-                </Tooltip>
-                <Tooltip label={`Step forward (${formatKey(".")})`}>
-                    <ActionIcon
-                        variant="subtle"
-                        aria-label="Step forward"
-                        disabled={atEnd}
-                        onClick={() => {
-                            stepWindow(session, store, 1);
-                        }}
-                    >
-                        <GLYPHS.stepForward size={16} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-                <Tooltip label="Speed">
-                    <Button
-                        variant="subtle"
-                        size="compact-xs"
-                        className="tl-speed"
-                        aria-label={`Speed ${String(speed)}x`}
-                        onClick={() => {
-                            store.set({ timeSpeed: nextSpeed });
-                            // A play in progress goes on at the new speed.
-                            if (time.playing) {
-                                time.pause();
-                                playAt(session, nextSpeed);
-                            }
-                        }}
-                    >
-                        {`${String(speed)}x`}
-                    </Button>
-                </Tooltip>
-                <ReadoutEntry
-                    session={session}
-                    store={store}
-                    unit={unit}
-                    zone={zone}
-                    // The window the readout names, not the brush's range clamped to the bins.
-                    range={window === null ? [extent.from, extent.to] : [Number(window.from), Number(window.to)]}
+            {phone ? (
+                <TimePhoneDock
+                    transport={transport}
                     readout={readout}
-                />
-                <Text size="xs" c="dimmed" className="tl-counts">
-                    {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
-                </Text>
-                <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />
-            </Group>
-            <div className="tl-chart" data-panel-start="" ref={chartRef}>
-                <HistogramRow
-                    label={histogramName(whole, onEdges, unit, zone)}
-                    bins={all.map((bin, index) => {
-                        const inside = window !== null && overlaps(bin, range);
-                        const shown = countOf(visible[index]);
-                        return {
-                            label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
-                            count: shown,
-                            ghost: countOf(bin),
-                            from: bin.start,
-                            to: bin.end,
-                            // Lit only for a bin holding something the window shows; outside it, dimmed.
-                            highlighted: inside && shown > 0,
-                            dimmed: window !== null && !inside,
-                        };
-                    })}
-                    minLabel={axisHidden ? "" : instantWords(min, unit, first?.step, zone)}
-                    maxLabel={axisHidden ? "" : instantWords(max - 1, unit, last?.step, zone)}
-                    {...(profile === null || profile.length === 0
-                        ? {}
-                        : { overlay: { label: "Selection over time", values: profile.map(countOf) } })}
-                    brush={{
-                        min,
-                        max,
-                        step: Math.min(brushStep(first?.step), brushStep(step)),
-                        value: range,
-                        startLabel: "Window start",
-                        endLabel: "Window end",
-                        bodyLabel: "Window",
-                        valueText,
-                        rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
-                        thumbLabel: (value) => {
-                            const bin = binAt(value);
-                            return bin === undefined
-                                ? instantWords(value, unit, step, zone)
-                                : `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
-                        },
-                        ...brushGesture(session, store, setDrag, hold, pinched, shown),
+                    onOpen={() => {
+                        time.pause();
                     }}
+                    line={{ label, minLabel, maxLabel, values: visible.map(countOf) }}
+                    tools={
+                        <>
+                            {speedButton}
+                            {counts}
+                            {viewButtons}
+                            {allTime}
+                        </>
+                    }
+                    chart={chart}
+                    renderFields={(close) => <RangeForm key={form.range.join()} {...form} onSet={close} />}
                 />
-            </div>
-            {window === null ? null : (
-                <Tooltip label="Show all time">
-                    <ActionIcon
-                        className="tl-all"
-                        variant="subtle"
-                        aria-label="Show all time"
-                        onClick={() => {
-                            time.pause();
-                            time.window(null).then(() => undefined, reportTimeError(store));
-                        }}
-                    >
-                        <GLYPHS.allTime size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
+            ) : (
+                <>
+                    <Group gap={4} className="tl-bar">
+                        {transport}
+                        {speedButton}
+                        <ReadoutEntry readout={readout} form={form} />
+                        {counts}
+                        {viewButtons}
+                    </Group>
+                    {chart}
+                    {allTime}
+                </>
             )}
         </section>
     );

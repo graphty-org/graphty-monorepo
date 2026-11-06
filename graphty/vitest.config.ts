@@ -21,6 +21,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+/** Long enough that each file needs a CI shard of its own (tools/ci-test-matrix.mjs, graphty-large-graph-N). */
+const LARGE_GRAPH_TESTS = "src/workspace/selection/__tests__/LargeGraph.*.real-element.test.tsx";
 /** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
 const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
@@ -133,6 +135,36 @@ const chromium = () => ({
     commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
 });
 
+/**
+ * A project of tests that mount the real graphty-element.
+ * @param name - the project's name.
+ * @param files - which files it runs, over all of REAL_ELEMENT_TESTS unless `include` says otherwise.
+ * @param files.include - the files it runs.
+ * @param files.exclude - the files it leaves out.
+ * @returns the project.
+ */
+const realElementProject = (
+    name: string,
+    { include = [REAL_ELEMENT_TESTS], exclude = BASE_EXCLUDE }: { include?: string[]; exclude?: string[] },
+) => ({
+    extends: true,
+    plugins: [testStandIns()],
+    test: {
+        name,
+        include,
+        exclude,
+        sequence: { groupOrder: 1 },
+        browser: chromium(),
+        // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+        setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
+        // One file at a time. Every file mounts a real element, and the files share
+        // the renderer's main thread: in parallel, nine files took 158 s and single
+        // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
+        // 4.5 s one after another.
+        fileParallelism: false,
+    },
+});
+
 const config = defineConfig({
     plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
     // The same aliases as the dev server, so tests run graphty-element from source rather
@@ -188,23 +220,8 @@ const config = defineConfig({
                     setupFiles: [MAP_TILES_SETUP, "./src/test/setup.ts"],
                 },
             },
-            {
-                extends: true,
-                plugins: [testStandIns()],
-                test: {
-                    name: "real-element",
-                    include: [REAL_ELEMENT_TESTS],
-                    sequence: { groupOrder: 1 },
-                    browser: chromium(),
-                    // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
-                    // One file at a time. Every file mounts a real element, and the files share
-                    // the renderer's main thread: in parallel, nine files took 158 s and single
-                    // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
-                    // 4.5 s one after another.
-                    fileParallelism: false,
-                },
-            },
+            realElementProject("real-element", { exclude: [...BASE_EXCLUDE, LARGE_GRAPH_TESTS] }),
+            realElementProject("large-graph", { include: [LARGE_GRAPH_TESTS] }),
             {
                 // Every story's play function, run as a test: a story that shows an interaction
                 // drives it, and a play that throws or asserts wrongly fails here rather than

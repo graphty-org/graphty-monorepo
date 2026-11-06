@@ -212,6 +212,7 @@ describe("effects", () => {
         );
 
         const removed = effectsOf(assistant).at(-1);
+        assert.exists(removed);
         assert.strictEqual(removed?.code, "AI_EFFECT_RUN_REMOVED");
         assert.strictEqual(removed.params.algorithm, "degree");
         assert.isString(removed.params.run);

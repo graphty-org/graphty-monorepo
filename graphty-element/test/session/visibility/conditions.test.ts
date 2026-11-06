@@ -439,6 +439,48 @@ describe("filter conditions", () => {
         session.dispose();
     });
 
+    it("refuses a condition that reads a run over the visible graph, which it would move itself", async () => {
+        const session = await graph();
+        const circular = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "none",
+                    steps: [
+                        { op: "add", rule: { kind: "measure", algorithm: "degree", field: "value", scope: "visible" } },
+                    ],
+                },
+            ],
+        } as const;
+        try {
+            await session.visibility.addCondition({ effect: "keep", rule: circular });
+            assert.fail("a circular condition is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_COMMAND");
+        }
+        assert.lengthOf(session.visibility.conditions, 0);
+        session.dispose();
+    });
+
+    it("keeps a condition's name: a rename is one undo step and changes nothing it matches", async () => {
+        const session = await graph();
+        const { id } = await session.visibility.addCondition({ effect: "keep", rule: HOSTS });
+        const shown = visible(session);
+        const steps = session.history.steps.length;
+        await session.visibility.updateCondition(id, { name: "Hosts only" });
+        assert.strictEqual(session.visibility.conditions[0]?.name, "Hosts only");
+        assert.deepStrictEqual(visible(session), shown, "a name matches nothing");
+        assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        await session.visibility.updateCondition(id, { on: false });
+        assert.strictEqual(session.visibility.conditions[0]?.name, "Hosts only", "an edit keeps the name");
+        await session.undo();
+        await session.undo();
+        assert.isUndefined(session.visibility.conditions[0]?.name, "undo takes the name back");
+        session.dispose();
+    });
+
     it("switches every keep and exclude condition off in one transaction, one undo step", async () => {
         const session = await graph();
         await session.visibility.setConditions([

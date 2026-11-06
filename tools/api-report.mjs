@@ -143,6 +143,9 @@ const SESSION_ROOT = "GraphSession";
 export const PLAIN_STRING_ALLOWLIST = new Set([
     // identifiers and keys
     "id",
+    // the consumer's own name for how a step's test is edited (UnionStep.mode): written and read
+    // only by the consumer, never words graphty-element shows
+    "mode",
     "key",
     "nodeId",
     "edgeId",
@@ -151,6 +154,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "credentialSlot",
     "field",
     "column",
+    // a table's id in a load draft, ready for a mapping (TimeFound)
+    "table",
     // the column a load read (the weight's attribute, the columns an edge's ends came from)
     "attribute",
     "source",
@@ -222,6 +227,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "within",
     // the name of the credential slot a load filled, an identifier its source's descriptor declares
     "credentialSlot",
+    // a branches view's held filter condition and marked branch, each by its id (BranchesView)
+    "hold",
+    "mark",
 ]);
 
 const DECLARATION =

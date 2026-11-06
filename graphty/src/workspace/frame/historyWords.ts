@@ -362,7 +362,8 @@ export async function undoOrRedo(session: GraphSession, undo: boolean, store: Wo
     if (next === null) {
         return null;
     }
-    const words = filterStep ?? filterChange(session, next.fact) ?? before ?? "the last change";
+    // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
+    const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
     const message = `${undo ? "Undid" : "Redid"} ${words}`;
     const inTurn = next.provenance?.message !== undefined && assistantShown(store);
     store.set(inTurn ? { announcement: message } : { notice: { message } });

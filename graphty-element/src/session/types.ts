@@ -111,7 +111,7 @@ import type {
     SourcePreviewOptions,
     SourceRefreshReport,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
@@ -154,7 +154,8 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * edge), read literally; on nodes also a structure path (`graphty.degree`, and on a directed
+     * graph `graphty.inDegree` and `graphty.outDegree`). Numbers (bigints among them) come before text, text sorts in natural
      * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;
@@ -262,7 +263,22 @@ export interface RecordPageOptions {
      * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
      * ```
      */
-    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+        /**
+         * Look only at what a record is called: a node's id and its name ({@link SessionDataApi.name}'s
+         * label column), an edge's id and its endpoints' ids, never the other columns. What a
+         * picker of nodes by name wants on a graph whose columns hold numbers and codes. A graph
+         * with no label column names its nodes in its other columns, so there every value is read.
+         *
+         * ```ts
+         * session.data.nodePage({ matching: { text: "1", names: true }, limit: 8 }); // n1, n10, ...
+         * ```
+         * @beta
+         */
+        readonly names?: boolean;
+    };
     /**
      * Only the records an expression matches, read the way a style layer's selector reads it: a
      * node page tests each node, an edge page each edge, so `data.weight > \`0.5\`` pages the
@@ -1348,6 +1364,17 @@ export interface SessionDataApi {
      * @since 3.35.0
      */
     structureValues(): readonly StructureValue[];
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     * @example
+     * const degree = session.data.structureValue("Valjean", "graphty.degree");
+     */
+    structureValue(id: NodeId, path: Path): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1826,6 +1853,25 @@ export interface DatasetLoadOptions extends ImportOptions {
 }
 
 /**
+ * A column of a {@link LoadDraft} that looks like time.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFound extends CodedFact<"time.found"> {
+    /**
+     * `table` is the table's id and `column` the column's name, ready for a load's mapping. `from`
+     * and `to` are the earliest and latest instant a designation reads from it, as epoch
+     * milliseconds.
+     */
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
+}
+
+/**
  * A source read by `data.prepare`, held until `load()` or `dispose()`. After either, every method
  * rejects with `E_DISPOSED`.
  */
@@ -1843,6 +1889,13 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
+    /**
+     * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
+     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
+     * @experimental timeline
+     * @beta
+     */
+    readonly findings: readonly TimeFound[];
     /**
      * Every table's roles as a load with these choices reads them: the reader's mapping over the
      * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
@@ -1945,7 +1998,10 @@ export interface DraftTable {
     readonly name: string;
     /** How many rows it holds. */
     readonly rowCount: number;
-    /** True when the format sets the roles (every format but CSV). A mapping for it is refused with `E_BAD_COMMAND`. */
+    /**
+     * True when the format sets the roles (every format but CSV). A mapping for it is refused with
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
@@ -1971,6 +2027,15 @@ export interface DraftColumn extends Pick<
 > {
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
+    /**
+     * Set when the column has no role and its values look like time, with the timeline experiment
+     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * epoch or a calendar year. It applies nothing: a load designates the column only when the
+     * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
+     * @experimental timeline
+     * @beta
+     */
+    readonly looksLike?: "time";
 }
 
 /**
@@ -2986,6 +3051,12 @@ export interface SessionEventMap {
      */
     "style:changed": StyleChange;
     /**
+     * A layer was refused for what it says about shaders: published as well as rejected, for a
+     * `styles.add()` nobody awaits, whose refusal otherwise leaves no trace.
+     * @since 3.46.0
+     */
+    "style:refused": StyleRefusal;
+    /**
      * Once per repaint, after the last `style:changed` it published: how many edits it told and
      * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,
      * `styles.counts()`) after a change listens here, so a pass that tells 51 edits -- a grouping
@@ -2994,6 +3065,12 @@ export interface SessionEventMap {
      * @since 3.36.0
      */
     "style:batch-changed": StyleBatchChange;
+    /**
+     * A branches view (`styles.showBranches`) started or ended.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "style:branches-shown-changed": { readonly shown: boolean };
     /**
      * The element tried to paint something of its own and was refused.
      *
@@ -3460,9 +3537,10 @@ export interface SessionHistory {
      * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
      * of undos or redos. Resolves once the picture matches the state.
      * @param step - The step, or null for the state before every step.
+     * @param options - Whether the steps after it can still be redone.
      * @returns What was done.
      */
-    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    restoreTo(step: HistoryStepId | null, options?: HistoryRestoreOptions): Promise<HistoryOutcome>;
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
@@ -3479,6 +3557,16 @@ export interface SessionHistory {
      * @param options - What happens to pending work that has changed nothing yet.
      */
     clear(options?: HistoryClearOptions): void;
+}
+
+/** What `history.restoreTo` leaves to redo. */
+export interface HistoryRestoreOptions {
+    /**
+     * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
+     * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
+     * abandoned (a cancelled edit) leaves nothing to redo.
+     */
+    readonly redo?: "keep" | "drop";
 }
 
 /** How `history.clear` treats work that is still pending. */

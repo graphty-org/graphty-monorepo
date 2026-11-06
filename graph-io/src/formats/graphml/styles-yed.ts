@@ -22,7 +22,7 @@ import {
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber, canonSigned } from "../../styles/canon/number.js";
+import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import {
@@ -750,6 +750,16 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
 }
 
 /**
+ * Whether yEd draws a label: it is visible and has words.
+ * @param label - the label element
+ * @returns true when it is drawn
+ */
+function labelShown(label: unknown): boolean {
+    const hidden = treeAttr(label, "visible") === "false" || treeAttr(label, "hasText") === "false";
+    return !hidden && (treeText(label)?.trim() ?? "").length > 0;
+}
+
+/**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
  * label first); further visible labels are noted for the element.
  * @param labels - the label elements, in file order
@@ -757,19 +767,26 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
  * @param put - receives the values
  * @param at - the sites
  * @param geometry - a node label's node `y:Geometry`, which places the label inside or outside the node
+ * @param uml - whether the node is a UML class
  */
-function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at: SiteOf, geometry?: unknown): void {
+function readLabels(
+    labels: readonly unknown[],
+    node: boolean,
+    put: PutValue,
+    at: SiteOf,
+    geometry?: unknown,
+    uml = false,
+): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
     for (const l of labels) {
-        const t = treeText(l)?.trim() ?? "";
-        if (t.length === 0 || treeAttr(l, "visible") === "false" || treeAttr(l, "hasText") === "false") {
+        if (!labelShown(l)) {
             continue;
         }
         if (label === undefined) {
             label = l;
-            text = t;
+            text = treeText(l)?.trim() ?? "";
         } else {
             extra++;
         }
@@ -782,6 +799,9 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
     }
     put("label", canonText(text, at("label")));
     readLabelLook(label, node, put, at, geometry);
+    if (node && !uml) {
+        readSmartPlace(label, geometry, put);
+    }
 }
 
 /**
@@ -827,6 +847,38 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
         readLabelBoxSize(label, position, put);
         readOutsideOffset(label, geometry, position, put);
     }
+}
+
+/**
+ * Reads where a SmartNodeLabelModel pins a label over its node: yEd puts the point `labelRatio` of the label's box on
+ * the screen (-0.5..0.5 of its size from its middle) on the point `nodeRatio` of the node, moved by the offsets, and
+ * places it by these on load, not by the box's stored place. Its stored size is the size yEd drew it. A UML class draws
+ * its stereotype above the label, so there the stored place is the true one, and a box beside the node has its side.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the values
+ */
+function readSmartPlace(label: unknown, geometry: unknown, put: PutValue): void {
+    const smart = treeChild(treeChild(label, "ModelParameter"), "SmartNodeLabelModelParameter");
+    if (smart === undefined || sizedLabelPosition(label, boxPosition(label, geometry)) !== "center") {
+        return;
+    }
+    const num = (o: unknown, k: string): number => {
+        const n = Number(treeAttr(o, k));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const turn = (num(label, "rotationAngle") * Math.PI) / 180;
+    const [cos, sin] = [Math.abs(Math.cos(turn)), Math.abs(Math.sin(turn))];
+    const [w, h] = [num(label, "width"), num(label, "height")];
+    const point = (axis: "X" | "Y", extent: string, drawn: number): number =>
+        Math.round(
+            1000 *
+                (num(smart, `nodeRatio${axis}`) * num(geometry, extent) +
+                    num(smart, `offset${axis}`) -
+                    num(smart, `labelRatio${axis}`) * drawn),
+        ) / 1000;
+    put("labelOffsetX", point("X", "width", w * cos + h * sin));
+    put("labelOffsetY", point("Y", "height", w * sin + h * cos));
 }
 
 /**
@@ -1027,7 +1079,7 @@ function customPosition(label: unknown, outside: string | null, at: SiteOf): str
         noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, "custom");
         return outside;
     }
-    // the stored box is where yEd drew the label; the ratios place it only when the file stores no box
+    // with a stored box over the node, `readSmartPlace` pins the label; the ratios name a side only when none is stored
     return outside ?? smartPosition(smart);
 }
 
@@ -1264,6 +1316,39 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
     if (across) {
         put("stripeDirection", "right");
     }
+}
+
+/** The depth of an entity's header over its lines of words, and each line against the font's size (yEd 3.25.1). */
+const ENTITY_HEADER_INSET = 12;
+const ENTITY_HEADER_LINE = 1.164;
+
+/**
+ * Reads the header of an entity relationship node: yEd paints its name label's background not behind the words but
+ * across the node, down to `12 + 1.164 x font size` per line of the name (graphml-galaxy-lcms-workflow's one and two
+ * lines at 12, yed-graphml-specimen-labels at 10). The line yEd draws under the header is not drawn.
+ * @param real - the realizer
+ * @param height - the node's height
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns the name label, whose background is the header, or null for a node with no header
+ */
+function readEntityHeader(real: Realizer, height: number | null, put: PutValue, at: SiteOf): unknown {
+    const name = treeChildren(real.r, "NodeLabel").find(
+        (l) => treeAttr(l, "configuration")?.toLowerCase() === "com.yworks.entityrelationship.label.name",
+    );
+    const color =
+        name === undefined || treeAttr(name, "hasBackgroundColor") === "false"
+            ? null
+            : canonColor(treeAttr(name, "backgroundColor"), "yed", at("stripeColors"))?.color;
+    if (color === null || color === undefined || height === null || height <= 0) {
+        return null;
+    }
+    const lines = (treeText(name)?.trim() ?? "").split("\n").length;
+    const size = Number(treeAttr(name, "fontSize") ?? 12) || 12;
+    const depth = ENTITY_HEADER_INSET + lines * ENTITY_HEADER_LINE * size;
+    put("stripeColors", color);
+    put("stripeSizes", String(Number(Math.min(1, depth / height).toFixed(6))));
+    return name;
 }
 
 /**
@@ -1552,7 +1637,13 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
         readPicture(real, resources, put);
     }
-    readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
+    const header = readEntityHeader(real, height, put, at);
+    const labelPut: PutValue = (property, value) => {
+        if (header === null || property !== "labelBackground") {
+            put(property, value);
+        }
+    };
+    readLabels(treeChildren(r, "NodeLabel"), true, labelPut, at, geometry, treeChild(r, "UML") !== undefined);
 }
 
 /**
@@ -1704,6 +1795,229 @@ function readEdgeRoute(real: Realizer, nodes: Float64Array, source: number, targ
 /** yEd's quad curve straightness when a file gives none. */
 const YED_STRAIGHTNESS = 0.1;
 
+/**
+ * Where graphty-element hangs an edge's label on a route drawn through these points (its centers and bends): the
+ * middle of its middle segment, or the joint between its two middle ones; `labelOffsetX` / `labelOffsetY` move it
+ * from there.
+ * @param points - the route, from the source's center to the target's
+ * @returns the point
+ */
+export function routeMiddle(points: readonly BendPoint[]): BendPoint {
+    const m = points.length - 1;
+    if (m % 2 === 0) {
+        return points[m / 2];
+    }
+    const [a, b] = [points[(m - 1) / 2], points[(m + 1) / 2]];
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+/** Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it. */
+type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1];
+
+/** Each yEd edge label model's positions, `model/position` (yed-graphml-specimen-edge-labels). */
+const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
+    ["centered/center", ["middle", 0]],
+    ["center_slider/center", ["middle", 0]],
+    ["side_slider/center", ["middle", -1]],
+    ["two_pos/head", ["middle", -1]],
+    ["two_pos/tail", ["middle", 1]],
+    ["three_center/scentr", ["source", 0]],
+    ["three_center/center", ["middle", 0]],
+    ["three_center/tcentr", ["target", 0]],
+    ["six_pos/shead", ["source", -1]],
+    ["six_pos/head", ["middle", -1]],
+    ["six_pos/thead", ["target", -1]],
+    ["six_pos/stail", ["source", 1]],
+    ["six_pos/tail", ["middle", 1]],
+    ["six_pos/ttail", ["target", 1]],
+] as [string, EdgeSpot][]);
+
+/** How far from the line's end yEd starts a label at a source or target position. */
+const YED_EDGE_LABEL_END = 10;
+
+/** A label's box round its lines of words: yEd's padding, and each line against the font's size. */
+export const YED_LABEL_BOX_PADDING = 4;
+export const YED_LABEL_LINE = 1.164;
+
+/** A label's words against their font size, for a file that stores no width. */
+export const YED_LABEL_CHARACTER = 0.55;
+
+/**
+ * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
+ * @param box - the box's center x and y, width and height
+ * @param from - the point
+ * @param to - the line's end
+ * @returns the point
+ */
+function boxExit(box: readonly number[], from: BendPoint, to: BendPoint): BendPoint {
+    const [x, y, w, h] = box;
+    const [dx, dy] = [to[0] - from[0], to[1] - from[1]];
+    const reach = (d: number, start: number, middle: number, half: number): number =>
+        d === 0 ? Infinity : Math.max(0, (middle + Math.sign(d) * half - start) / d);
+    const k = Math.min(1, reach(dx, from[0], x, w / 2), reach(dy, from[1], y, h / 2));
+    return [from[0] + k * dx, from[1] + k * dy];
+}
+
+/**
+ * A point along a polyline and the way the line runs there.
+ * @param line - the polyline
+ * @param distance - how far from its start
+ * @returns the point and its direction
+ */
+export function pointAlong(line: readonly BendPoint[], distance: number): { at: BendPoint; dir: BendPoint } {
+    let left = distance;
+    for (let i = 1; i < line.length; i++) {
+        const [a, b] = [line[i - 1], line[i]];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (len > 0 && (left <= len || i === line.length - 1)) {
+            const dir: BendPoint = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+            return { at: [a[0] + left * dir[0], a[1] + left * dir[1]], dir };
+        }
+        left -= len;
+    }
+    return { at: line[0], dir: [1, 0] };
+}
+
+/**
+ * A polyline's length.
+ * @param line - the polyline
+ * @returns its length
+ */
+export function lineLength(line: readonly BendPoint[]): number {
+    return line.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - line[i][0], p[1] - line[i][1]), 0);
+}
+
+/** What a yEd edge label's place is worked out from. */
+interface YedEdgeLabel {
+    /** Its model's name and position, as `YED_EDGE_SPOTS` keys them. */
+    spot: string;
+    /** The file's `x`, `y`, `width` and `height`, where the file's box is the label's place; null where its model is. */
+    stored: readonly number[] | null;
+    /** Whether a stored box is in the file's coordinates (yEd's GML), not from where the line starts (its GraphML). */
+    storedOnPage?: boolean;
+    /** How far it stays clear of the line. */
+    distance: number;
+    width: number;
+    fontSize: number;
+    lines: number;
+}
+
+/**
+ * The middle of a yEd edge label's box.
+ * @param label - the label
+ * @param line - the line drawn between the nodes' sides
+ * @returns the point, or null for a model not read here
+ */
+function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendPoint | null {
+    if (label.stored !== null) {
+        const [x, y, w, h] = label.stored;
+        const [ox, oy] = label.storedOnPage === true ? [0, 0] : line[0];
+        return [ox + x + w / 2, oy + y + h / 2];
+    }
+    const spot =
+        YED_EDGE_SPOTS.get(label.spot) ?? YED_EDGE_SPOTS.get(`${label.spot.slice(0, label.spot.indexOf("/"))}/center`);
+    if (spot === undefined) {
+        return null;
+    }
+    const [along, side] = spot;
+    const length = lineLength(line);
+    const end = YED_EDGE_LABEL_END + label.width / 2;
+    const reach = { source: end, middle: length / 2, target: Math.max(0, length - end) };
+    const { at, dir } = pointAlong(line, reach[along]);
+    const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
+    return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
+}
+
+/**
+ * Puts a place worked out on the line drawn between the nodes' sides as an offset from where graphty-element hangs the
+ * edge's label.
+ * @param boxes - the source's and the target's center x and y, width and height
+ * @param route - the route, from port to port through its bends
+ * @param centerOn - the middle of the label's box on that line, or null to keep graphty's place
+ * @param put - receives the values
+ */
+export function putEdgeLabelAt(
+    boxes: readonly [readonly number[], readonly number[]],
+    route: readonly BendPoint[],
+    centerOn: (line: readonly BendPoint[]) => BendPoint | null,
+    put: PutValue,
+): void {
+    const last = route.length - 1;
+    const line = [
+        boxExit(boxes[0], route[0], route[1]),
+        ...route.slice(1, -1),
+        boxExit(boxes[1], route[last], route[last - 1]),
+    ];
+    const center = centerOn(line);
+    if (center?.every(Number.isFinite) !== true) {
+        return;
+    }
+    const hang = routeMiddle(route);
+    put("labelPosition", "center");
+    put("labelOffsetX", num6(center[0] - hang[0]) || null);
+    put("labelOffsetY", num6(center[1] - hang[1]) || null);
+}
+
+/**
+ * Puts where yEd draws an edge's label: a model's position is an end or the middle of the line drawn between the nodes'
+ * sides, on the line or `distance` clear of it to one side; a stored box is relative to where that line starts.
+ * @param boxes - the source's and the target's center x and y, width and height
+ * @param route - the route, from port to port through its bends
+ * @param label - the label
+ * @param put - receives the values
+ */
+export function putYedEdgeLabel(
+    boxes: readonly [readonly number[], readonly number[]],
+    route: readonly BendPoint[],
+    label: YedEdgeLabel,
+    put: PutValue,
+): void {
+    putEdgeLabelAt(boxes, route, (line) => edgeLabelCenter(label, line), put);
+}
+
+/**
+ * Reads where yEd draws an edge's label, from the model the file names; a free label and a SmartEdgeLabelModel off the
+ * line's middle by the box the file stores. A curved line, a self-loop or a label naming no model (as graphty writes
+ * one, its place in the styles block) keeps graphty's place.
+ * @param real - the edge realizer
+ * @param nodes - each node's center x and y, width and height
+ * @param source - the source node's index
+ * @param target - the target node's index
+ * @param put - receives the values
+ */
+function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+    const label = treeChildren(real.r, "EdgeLabel").find(labelShown);
+    const path = treeChild(real.r, "Path");
+    const points = treeChildren(path, "Point").map((p): BendPoint => [
+        Number(treeAttr(p, "x")),
+        Number(treeAttr(p, "y")),
+    ]);
+    const model = treeAttr(label, "modelName");
+    if (model === undefined || source === target || (real.type !== "PolyLineEdge" && points.length > 0)) {
+        return;
+    }
+    const box = (k: number): number[] => [...nodes.subarray(4 * k, 4 * k + 4)];
+    const [s, t] = [box(source), box(target)];
+    const offset = (key: string): number => Number(treeAttr(path, key) ?? 0) || 0;
+    const smart = treeChild(treeChild(label, "ModelParameter"), "SmartEdgeLabelModelParameter");
+    const smartMiddle = treeAttr(smart, "position") === "center" && Number(treeAttr(smart, "ratio")) === 0.5;
+    const stored = model === "free" || (model === "custom" && smart !== undefined && !smartMiddle);
+    const position = smartMiddle ? "center" : (treeAttr(label, "modelPosition") ?? "tail");
+    putYedEdgeLabel(
+        [s, t],
+        [[s[0] + offset("sx"), s[1] + offset("sy")], ...points, [t[0] + offset("tx"), t[1] + offset("ty")]],
+        {
+            spot: `${smartMiddle ? "centered" : model}/${position}`,
+            stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
+            distance: Number(treeAttr(label, "distance") ?? 2) || 0,
+            width: Number(treeAttr(label, "width")) || 0,
+            fontSize: Number(treeAttr(label, "fontSize") ?? 12) || 12,
+            lines: (treeText(label)?.trim() ?? "").split("\n").length,
+        },
+        put,
+    );
+}
+
 /** Canonical values per property, by element index. */
 export type ValueColumns = Partial<Record<string, (StyleValue | null)[]>>;
 
@@ -1783,6 +2097,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             } else {
                 readEdge(real, put, at);
                 readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+                readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
             }
         }
         return out.values;

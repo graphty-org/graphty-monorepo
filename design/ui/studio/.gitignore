@@ -12,10 +12,12 @@ tmp/
 !**/rounds/pilot/**/
 !**/rounds/**/*.md
 
-# Study rounds keep their .md reports in git; their walk screenshots and step files go under the
-# main checkout's tmp/design-studio/<tier>/rounds/<round>/ (owner, 2026-10-21).
+# A round's sessions, expert walkthroughs and repros keep only their .md files in git too; their
+# screenshots live under the main checkout's tmp/design-studio/<tier>/rounds/ (owner, 2026-10-21:
+# walk screenshots never go into git; the tier 4 round's 1,233 images tripped the image guard).
+**/rounds/round-*/sessions/**
 **/rounds/round-*/expert/**
 **/rounds/round-*/repro/**
-**/rounds/round-*/sessions/**
 !**/rounds/round-*/**/
 !**/rounds/**/*.md
+!**/rounds/**/*.json

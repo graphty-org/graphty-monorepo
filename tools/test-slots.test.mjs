@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -22,6 +22,7 @@ import {
     packageName,
     shardCacheDir,
     slotCount,
+    statusLines,
     workerShare,
 } from "./test-slots.mjs";
 import { trackedFiles } from "./tracked-files.mjs";
@@ -243,12 +244,49 @@ describe("test-slots", () => {
     });
 
     it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
-        assert.equal(workerShare({}, 32), 8);
-        assert.equal(workerShare({}, 4), 2);
-        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32), 5);
-        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
+        assert.equal(workerShare({}, 32, 32), 8);
+        assert.equal(workerShare({}, 4, 4), 2);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32, 32), 5);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32, 32), 1);
+        assert.equal(workerShare({}, 32, 1), 1, "a pinned run has one core to use");
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
+    // The real pin, on a stand-in 32-core machine: CI's 4 cores give 2 slots with or without the pin.
+    it("counts the machine's slots under taskset, and a worker share of the one core it has", () => {
+        const child = [
+            `import os from "node:os";`,
+            `import { syncBuiltinESMExports } from "node:module";`,
+            `os.cpus = () => Array(32).fill({});`,
+            `syncBuiltinESMExports();`,
+            `const { slotCount, workerShare } = await import(${JSON.stringify(pathToFileURL(SCRIPT).href)});`,
+            `console.log(JSON.stringify([slotCount({}), workerShare({})]));`,
+        ].join("\n");
+        const run = spawnSync("taskset", ["-c", "0", process.execPath, "--input-type=module", "-e", child], {
+            encoding: "utf8",
+        });
+        assert.equal(run.status, 0, run.stderr);
+        assert.deepEqual(JSON.parse(run.stdout), [slotCount({}, 32), 1]);
+    });
+
+    it("says holds only for a ticket that was granted", async () => {
+        const dir = fresh();
+        const release = await acquire({ ...quiet, dir, slots: 1, label: "granted" });
+        // First in line among the waiters and within any slot count, but not granted yet.
+        const pid = sleeper().pid;
+        writeFileSync(join(dir, "1"), JSON.stringify({ pid, start: null, label: "queued", since: Date.now() }));
+        const lines = statusLines(dir).slice(1);
+        assert.equal(lines.length, 2);
+        assert.match(
+            lines.find((l) => l.includes("queued")),
+            /^waits /,
+        );
+        assert.match(
+            lines.find((l) => l.includes("granted")),
+            /^holds /,
+        );
+        release();
     });
 
     it("gives each gate shard its own Vite cache, and Vite's default outside one", () => {

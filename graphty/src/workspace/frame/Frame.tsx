@@ -13,6 +13,7 @@ import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
+import { selectionWorkspaceOn } from "../features";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
@@ -58,7 +59,7 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store, element } = useWorkspace();
+    const { store, element, session } = useWorkspace();
     const canvasDrop = useCanvasDrop();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
@@ -69,6 +70,10 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
+    // The selection workspace covers one side panel (spec 3.0): it takes no focus under it.
+    const covered = useWorkspaceState((state) => state.selectionWorkspace?.host ?? null);
+    // The full-screen selection workspace (an experiment) covers both side panels.
+    const modalCover = covered !== null && selectionWorkspaceOn(session);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -127,6 +132,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     aria-label="Left panel"
                     hidden={!panels}
                     data-fills={left.fills ? "" : undefined}
+                    inert={modalCover || covered === "selector"}
                 >
                     <div className="ws-panel-body">
                         <PanelBoundary key={place} name="Place">
@@ -161,7 +167,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
-                            <div className="ws-toolbar-dock">
+                            {/* The workspace's columns and matches table lie over the toolbar while it is
+                                open: it is hidden and takes no focus until it closes (spec 3.0). */}
+                            <div className="ws-toolbar-dock" inert={covered !== null} hidden={covered !== null}>
                                 <WorkspaceToolbar />
                             </div>
                             <NoticeSlot />
@@ -170,11 +178,15 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <TimeDock />
                     {dockOpen ? (
                         // Maximized, the dock covers the canvas area (table.css), so it takes no height
-                        // of its own and has nothing to resize.
+                        // of its own and has nothing to resize. Under an open selection workspace it
+                        // keeps its place (the canvas is not resized) but is not drawn and takes no
+                        // input or focus: the workspace's matches strip is the one table there.
                         <section
                             className="ws-dock"
                             aria-label="Table"
                             data-maximized={dockMaximized ? "" : undefined}
+                            data-covered={covered === null ? undefined : ""}
+                            inert={covered !== null}
                             style={dockMaximized ? undefined : { height: dockHeight }}
                         >
                             {dockMaximized ? null : (
@@ -203,7 +215,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-right"
                         aria-label="Inspector"
                         hidden={!panels || left.fills}
-                        inert={left.fills}
+                        inert={left.fills || modalCover || covered === "filter"}
                     >
                         <div className="ws-panel-body">
                             <PanelBoundary name="Inspector">

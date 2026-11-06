@@ -159,14 +159,31 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
         if (session === null) {
             return undefined;
         }
+        // While the selection workspace is open a click on its preview selects but never moves the
+        // inspector: that would unmount the editor and close the workspace as Done (spec 3.0, 9).
+        // The inspector follows the selection once the workspace closes.
+        let owed = false;
         const close = (): void => {
+            if (store.get().selectionWorkspace !== null) {
+                owed = true;
+                return;
+            }
             if (store.get().inspected !== null) {
                 store.set({ inspected: null });
+            }
+        };
+        const settle = (): void => {
+            if (owed && store.get().selectionWorkspace === null) {
+                owed = false;
+                if (session.selection.size > 0) {
+                    close();
+                }
             }
         };
         // A click on the node or edge already selected changes no selection, yet the reader asked
         // for it again: its inspector comes back.
         const stops = [
+            store.subscribe(settle),
             // A selection emptied (Escape, Clear selection) shows nothing new: the open row stays,
             // so one Escape does one thing.
             session.on("selection:changed", () => {
@@ -183,6 +200,9 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
             session.on("canvas:element-click", close),
             // A click on a group outline selects the layer that draws it, as a click on its tree row.
             session.on("canvas:group-outline-click", ({ layer }) => {
+                if (store.get().selectionWorkspace !== null) {
+                    return;
+                }
                 const id = session.styles.get(layer)?.row ?? layer;
                 store.set({ inspected: { kind: "layer-row", id } });
             }),

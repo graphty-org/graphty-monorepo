@@ -51,6 +51,44 @@ save and reopen.
     reopen of a saved project, a real-notch wheel repro. Name the mechanism before any fix.
 15. Standing: a failure is strong evidence, a pass weak; trust repros and code causes over tool text;
     graph facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
+1. (2026-11-03) **Tier 5 round 1 closed at its cap, bars 1, 3, 4, 8 and 9 failing.** 30 valid
+   sessions on build 1e123d7d33 (the earlier void launch taught: run the start gate first). Two
+   severity 3 stand: a covered panel speaking (fixed after the freeze) and a results picker
+   binding a different run. My own walk never ran, so bar 7 is unmeasured: run it next round.
+2. (2026-11-03) **One live region, one speaker -- the visible surface.** The covered inspector
+   row announced a count over a base nothing on screen named. `WhichPicker.tsx` goes quiet while
+   the workspace is open; re-walk it by keys on the next build.
+3. (2026-11-03) **An entry must bind what it names.** A value-picker entry described the visible
+   run and bound a whole-graph run (Group 1, 549 under 112 of 549). Every run entry carries its
+   scope from graphty-element's facts; the app words it.
+4. (2026-11-03) **Never lose a card the reader saved.** Clear then Escape (and probably Clear then
+   Done) on a reopened card deletes it, and Undo cannot restore it. Escape on an emptied card
+   reverts to the saved card, never discards; gate `onEmptyCancel` on `openedNew`.
+5. (2026-11-03) **A just-added thing starts empty and says what it joins.** The new Or group
+   opened at "B 0" with a full-width untouched range; "Condition..." and "Or..." never say "and"
+   or "or else" (3 sessions, 3 halves). Draw untouched steps as untouched; name the join.
+6. (2026-11-03) **A box states its direction and unit.** By position's lone box ("of all nodes",
+   9 px) got "top 5" from 3 of 3; its error claimed a limit of 10 it did not apply. Top or bottom,
+   number or percent, visible; errors only from live state.
+7. (2026-11-03) **A choice takes on the first try, empty or not.** "Is exactly" on an empty text
+   step stayed "Contains"; the empty color box gave no cue and its picker closed on the first click
+   (7 sessions, largest share of T70's overage).
+8. (2026-11-03) **The workspace header is far back in Tab order** (Done 11 to 34 keys away, no F6
+   stop). Make the header an F6 stop; counted in bar 9.
+9. (2026-11-03) **Decided rules can collide into loss;** write precedence into decided.md:
+   "Escape never discards work" wins once a card holds steps.
+10. (2026-11-03) **Names keep saying what a thing is:** Clear keeps the card's name; a chosen
+    reference shows the matched value; the card's name follows Or groups and second steps.
+11. (2026-11-03) **Below 1280 px the workspace needs a width rule** (preview a 44 px sliver at
+    900 x 700). Columns yield to the preview.
+12. (2026-10-30) **Show what an act will do before it happens; decide before the act;** a new
+    filter card starts non-destructive and every choice names its consequence.
+13. (2026-10-30) One fact, one drawing; one number format within one surface.
+14. Standing: never trust tool text over the screenshot; one model plays every persona -- a
+    failure is strong evidence, a pass weak; check task wording against the key (T73 measured the
+    key, not the build).
+15. Standing: graph facts in graphty-element, flows/focus/words in the app, shared control
+    defects in compact-mantine.
 
 ## Priorities and values
 
@@ -113,6 +151,20 @@ Each with its reason. A screen that breaks one is a defect.
     "Label line".
 
 ## Decisions and reasons
+
+- 2026-11-03 **A picker entry binds exactly the run it names, scope included.** Evidence: r1-s23
+  plus repro, Group 1 549 under 112 of 549; both skeptics kept severity 3.
+- 2026-11-03 **Escape or Done on an emptied saved card reverts to the saved card.** Reason: Undo
+  cannot restore the deleted card; `SelectionEditor.tsx:812` ignores `openedNew`.
+- 2026-11-03 **An Or group's first state is untouched and its words name the join.** Evidence:
+  3 sessions on 3 halves asked whether Condition/Or meant "and" or "or else".
+
+- 2026-11-03 **One live region has one speaker: the surface on screen.** Evidence: tier 5 walk,
+  workspace count replaced by a hidden inspector row's count; both skeptics kept it at 3.
+- 2026-11-03 **Once a new card holds steps, Escape no longer takes it back;** undo covers Clear.
+  Reason: two decided rules met and lost work with no undo; loss-safety outranks tidiness.
+- 2026-11-03 **Every searchable picker is the one shared combobox.** Reason: the hand-built
+  reference picker broke Tab, Escape and spoken counts that the value picker gets right.
 
 - **2026-10-23, menu sections (issue #3315, director ruled).** Headings in both lists, no
   indent, every row in a section. My condition, adopted: headings are not stops. The Layout
@@ -193,6 +245,20 @@ Each with its reason. A screen that breaks one is a defect.
   found). Six scope routes fell to about three mechanisms once checked: a chip click is the
   reader's own act, not a defect. Taught: a study that never reaches a reader still pays through
   walks, but only for what is on screen.
+- 2026-11-03 Tier 5 round 1 (30 valid, build 1e123d7d33). Worked: 0 of 30 false "done"; both
+  keyboard sessions finished with no block and 0 serious axe findings; colleagues' two-step cards
+  still let T77 succeed. Did not: the empty Fill color box (no cue, first-click commit); By
+  position's lone box; the Or group's first state and its unworded join; the results picker
+  binding a different run; "Is exactly" on an empty step; Clear then Escape on a reopened card;
+  the workspace header's Tab position. Not run: my walk and the content designer's, so bars 6
+  and 7 had no feed -- schedule both walks before launch, not after.
+
+- 2026-11-03 Did not work: launching a round without the start gate's evidence in plan.md --
+  every session refused, a whole round of participants lost. Expert and scripted walks still
+  found the severity 3; keep them, they are the round's floor.
+- 2026-11-03 Did not work: the scripted word count as a calm-first verdict -- it counts chrome,
+  graph statistics and the user's own names. Only a hand count decides.
+
 - 2026-10-30 Tier 4 round 1 (returning users managing data). Worked: the header Role menu for
   places (T63), the header "..." on hover (every T62 session found it), Hide for T66. Did not
   work: the join preview tags; deciding unknown ends after Join; Hide as a new card's default when
@@ -235,6 +301,13 @@ Each with its reason. A screen that breaks one is a defect.
   under Betweenness for "path", the table ignoring a filter step, an off step's editor turning it
   on, New project then Discard crashing. Taught: my focus walk covered what I fixed, not every
   route into a form; a fix matching a habit is used at once, but the briefing primed it.
+- 2026-10-09..11 (summarized 2026-11-03) Tier 2 rounds 1-4. Worked: 0 false "done", the path
+  run, Replace page, the find box's example line with "=" kept on the suggestion, Shift-click adds
+  (7 of 7), the toolbar Filters icon as first door, two-Escape and Tab-commit focus fixes. Did not:
+  doors behind right-click, "No match" with no help, the "start with =" hint and backticks, style
+  "+" on the drawn default, Follow arrows, a bare number offering only "is equal to", an off
+  step's editor turning it on. Taught: a dry run or focus walk certifies only the routes it walks;
+  a fix matching a habit is used at once, but check the briefing did not prime it.
 
 - 2026-10-21 Tier 3 round 1 (55 of 56, frozen build 758b8e8081). Worked: every keyboard session
   finished (cost in key presses, not failure); the Which-nodes door after a run (T48 6 of 6, median
@@ -256,6 +329,11 @@ Each with its reason. A screen that breaks one is a defect.
   anything that moves selection without a line (model, undo, rollback, Esc) changes what the next
   message does. Candidate criterion, once a reader confirms it: state that scopes a command is
   changed only by the reader or by an act that says so.
+- 2026-11-03 **Cost, not failure, is where the editor loses.** Every Or session succeeded at
+  overwhelm 2 or 3; the round fails on steps and on named doubts. The fixes are first states,
+  join words and unit labels -- small, in place -- not new controls.
+- 2026-11-03 **A study fixture can manufacture a finding.** Fixtures pre-colored in an
+  orange ramp made "new orange drowned" look common; vary the asked color before generalizing.
 
 - 2026-10-30 **Skeptic checks move severities more than sessions do.** All four severity 3
   candidates fell to 2 or below once two skeptics re-read the evidence; a grader's "trap" often
@@ -275,6 +353,17 @@ Each with its reason. A screen that breaks one is a defect.
   name-like ordering is a data fact from the element. A 6 s notice with Undo is a WCAG 2.2.1 risk:
   its action duplicates a route that never expires. Explicit Save makes a dirty state readers must
   notice. Mid-path starts isolate one step when a chain fails.
+- 2026-10-06 **The "held back" run is the hardest feedback case.** When a reader colored
+  Everything by hand and then runs Louvain, the owner's rule is that the run paints, yet the
+  reader's own layer wins color. Today the canvas says "Hidden by your layer <name>" with Show
+  anyway. Open owner question: should a run's suggested style land above a hand-written layer
+  that colors everything? Until then, the notice must name both layers and the one action.
+- 2026-10-06 (summarized 2026-11-03) Older tier 1 threads: label lines must say "Pick an
+  attribute" in place, name-like ordering comes from graphty-element; neighbors one click from
+  the node with names, not ids; a timed notice's action must duplicate a route that never expires
+  (Ctrl+Z); explicit Save makes a dirty state readers must notice; mid-path starts isolate a step.
+- 2026-11-03 **A round with no sessions still teaches through expert walks,** but only about what
+  is wrong on screen, never how often it hurts. Gate the launch, not the grading.
 
 ## Sources
 

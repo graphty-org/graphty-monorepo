@@ -1,0 +1,12 @@
+{
+    "../../stories/Layout.stories.ts 3D D3": "D3 physics has no seed: its layout differs between two loads",
+    "../../stories/AutosaveDiagnostics.stories.ts Diagnostics": "Its panel grows the canvas between two loads",
+    "../../stories/EdgeStyles.stories.ts ArrowColor": "Its play counts line pixels for Storybook's viewport and fails on objects at this size",
+    "../../stories/EdgeStyles.stories.ts ArrowOpacity": "Its play counts line pixels for Storybook's viewport and fails on objects at this size",
+    "../../stories/EdgeStyles.stories.ts CombinedOpacity": "Its play reads mesh.visibility, which a hidden proxy answers with 0 until stage 11 takes the proxy away",
+    "../../stories/NodeModels.stories.ts ModelAndTextureByUrl": "Its model is served by the Storybook server, which this project does not start",
+    "../../stories/Screenshot.stories.ts Image": "Fails on objects here: its play reads a capture this harness does not make",
+    "../../stories/shaders/EdgePresets.stories.ts EdgeChange": "Fails on objects here: its play waits on a removed edge in a run with no Storybook args",
+    "../../stories/shaders/LayoutTransitions.stories.ts Glide": "A timed transition: one pixel differs between two object loads",
+    "../../stories/shaders/LayoutTransitions.stories.ts Particles": "A timed transition: one pixel differs between two object loads"
+}

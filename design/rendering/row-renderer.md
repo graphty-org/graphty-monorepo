@@ -62,7 +62,7 @@ A row is an object row for one of two reasons. _Paint or view_: `batchableOf(pai
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
-New option `renderPath` (attribute `render-path`), additive:
+New option `renderPath` (attribute `render-path`, read but not reflected, so an element on the default gains no attribute), additive:
 
 - `"objects"`, the default: every node and edge is today's object. No picture, event or Babylon object changes.
 - `"batched"`: eligible rows are batched and eligible edges pulled. Reading `Node.mesh` makes that one row an object row; `getScene()`
@@ -127,6 +127,17 @@ swap-with-last breaks parity. Freeing a slot stays one write: `graphtyRow` becom
 (The hole is in the slot, not the table: a row leaving for the object path keeps w = 1 for its edges.) A row coming back refills its own
 hole. At a repaint, once holes pass a quarter of the slots, one typed pass compacts them, preserves ascending row order and uploads once;
 never during a drag. A row whose hole is gone rewrites its batch's list at that repaint. There is no per-instance culling.
+
+As built (stage 8): `MeshCache.batchFor` takes the source mesh, and `NodeBatches` keeps one group per source. A proxy is hidden by
+`source.visibility = 0`, as `NodeShaderDrawing` already does: `InstancedMesh.visibility` is the source's, so one write hides every row of a
+source, while `isVisible`, `isEnabled` and `isPickable` stay as they were, so `scene.pick`, the element's picks and XR all land on the proxy.
+That is why `raySelectionPredicate` needs no change while proxies exist: Babylon leaves it unset and its default reads `isVisible`, and
+`node-batch-xr.test.ts` shows both eyes equal, laser included. A read of `mesh.visibility` answers 0 until stage 11. `RowPullPlugin` is
+attached when a batch is built, not when the material is made, thawing a frozen material for the moment: `render-path` can change live and
+materials then already exist, and with the proxies kept, neither direction rebuilds a row. A row whose number the table does not hold yet
+keeps its whole source on the object path until the freeze brings it in; a group measures its highest row at the flush, not at the freeze, since a
+node the freeze removed has lost its row but stays a member until it disposes. `batchableOf` is an allow list of style keys, so a new style option
+stays an object row until a batch is proven to draw it.
 
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
@@ -194,6 +205,16 @@ end or both batched, under a moved, turned and scaled graph root, and counts 0 r
 - `RowTable.measure` still reads the mesh, the one read left: `Node.measureRow` steps around the row reads so paint sees the mesh and not the table's own
   old values. Stage 11 has to measure from the source mesh and the style.
 
+As built (stage 15, first pull request): `EDGE_PULLED` is in `meshes/edgeJoinShader.ts` and `PulledLineBatch` (`meshes/PulledLineBatch.ts`) draws
+with it, from `CustomLineRenderer.createJoinedLineMesh({ pulled: true })`. No edge uses it yet: `Edge` joining it behind the internal switch, the
+6-vertex program, the stray pixel, `render-parity` with the switch on and WebGPU are the stage's later pull requests. The draw is the join
+template's 30 indices per piece, `piece * 14 + k`, so `gl_VertexID / 14` names the piece; the material declares no attribute. A piece pulls
+only a straight line between node centres, written as `EdgeLineBatch.place` writes one (neighbours its own ends, run zero), so its vertex inputs
+equal a placed slot's. A row of w = 0, or a freed piece (rows -1), puts every point at the origin, as a hidden slot does.
+`test/browser/pulled-edge-lines.test.ts` holds it on SwiftShader WebGL with anti-aliasing, for screen, world and minimum widths: 0 pixels differ
+from the placed line at rest, after every row moves (0 edge bytes uploaded), and with a row at w = 0 and a piece freed. Found building it: the
+batch must not dispose its mesh with its textures, since `rowPosition` belongs to the row table.
+
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
 
@@ -247,6 +268,17 @@ and each candidate's matrix is multiplied by the root's, so an XR gesture change
   tie `scene.pick` then answers the other row, and the scan keeps the lower row, the section 9 rule. Only a pick on an open table can
   see this, and a batched row has no place in `scene.meshes` to lose.
 - An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
+
+As built (stage 9): `NodePointerRoster.byId` names nodes, not handlers, and `Node.dragHandler` is an accessor that
+builds the handler on first read, on both paths, so a node the pointer never reaches has none (`dragHandlersBuilt`
+counts them). A batched row's click and double-click arrive as Babylon's own `POINTERTAP` and `POINTERDOUBLETAP`, so
+the click detection is the one the actions use; the roster names the node from the picked mesh, else from
+`pickNodeId`, and answers only when `NodeBatches.draws(node)`. The shared actions skip such a node, since its hidden
+proxy still carries them until stage 11. The roster sets `hoverCursor` over a batched row after Babylon resets the
+cursor. The shared `ActionManager` is built at scene setup only under `"objects"`; under `"batched"` the first mesh
+makes it, which while proxies exist is the first node. Two corrections to the stage 9 row: `XRInputHandler` was
+already on the merged ray pick (`pickRayAsDrawn`, stage 5), and the one XR laser proxy moves to stage 11, since with
+hidden proxies the predicate alone serves and nothing could prove the proxy before the meshes go.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by
@@ -435,6 +467,12 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
    review, or those rows stay ineligible. A wanted picture change becomes an option, off by default, under the same review. Agents accept
    nothing, and never touch the gate, what is captured or any threshold.
 
+As built (stage 8): `test/render-parity/stories.test.ts` loads each captured story twice on `"objects"` and once on `"batched"`, composing it
+in the browser with a one-function renderer, on the URL a capture uses. WebGPU's canvas holds nothing once a frame ends, so every read
+happens inside a frame, by `engine.readPixels` (`test/helpers/whole-canvas.ts`). `test/render-parity/unstable.json` names each story left out
+and why; most fail on `"objects"` here because their play needs Storybook itself. `unstable-webgpu.json` adds the stories that fail only on WebGPU,
+all with no batch involved, so WebGL keeps them; `SWAP_REJECTS` leaves out the two scene shader files there, which reject on either path. `VITE_PARITY_RENDERER` picks the engine: the story is built off the page so it is set before the element connects, and each load asserts the engine that drew.
+
 A missed millisecond target does not block a parity-clean stage: the Proof file states it and stage 38 reports it. Counts (uploads, walks,
 `Node`s built, draws) are tests.
 
@@ -504,6 +542,8 @@ Labels
 
 - **Experiments are not the product**: harness shaders, tables filled from real meshes, machine load 15-77, so timings are upper bounds.
 - **Babylon's laser misses in about one page load in six**, on objects too, cause unknown; beam tests count only loads where it hits.
+  Stage 8 found one candidate, untested as the cause: with no `preferredHandedness`, Babylon casts from one controller only, whichever attached
+  first, so a test that aims one controller can miss. `node-batch-xr.test.ts` aims both.
   Hand-tracked pinch, AR and translucent batches were not run.
 - **Heap at a million is 850-920 MB by estimate** against 800 MB, before 20-byte batches and released staging. Holders at 100,000 are scaled
   from 50,000, because the snapshot crashed the renderer.

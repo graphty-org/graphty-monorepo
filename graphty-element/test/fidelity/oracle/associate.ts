@@ -458,17 +458,24 @@ function nodeFrom(
             ? []
             : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
+    const nodeFill = paintedFill ?? filled?.fill ?? null;
+    const bands = shapes.flatMap((s) =>
+        s.uncut !== undefined && s.fill !== null && s.fill.color !== nodeFill?.color
+            ? [{ box: s.box, color: s.fill.color }]
+            : [],
+    );
     const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
         ...(faces.length > 0 ? { faces } : {}),
+        ...(bands.length > 0 ? { bands } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
         h: bh(box),
         // a dot (an outline of no size, drawn by its round-capped stroke) has no shape to read
         shape,
-        fill: paintedFill ?? filled?.fill ?? null,
+        fill: nodeFill,
         stroke: stroked?.stroke ?? null,
         ring:
             ringPrim === null || ringPrim.stroke === null
@@ -547,6 +554,41 @@ function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => bo
     return out;
 }
 
+/** How much of a fill's box an outline drawn round it covers (the same box, give or take a stroke). */
+const ROUND_THE_FILL = 0.9;
+
+/** How far apart, as a share of the shorter one's height, two texts' middles may sit and still be one row. */
+const ONE_ROW = 0.25;
+
+/**
+ * Texts in reading order: the level ones row by row, top to bottom (a text joins the row of the first one in it when
+ * their middles are under a quarter of a line apart, `ONE_ROW`), each row left to right; the turned ones after them
+ * (`byText`). Words drawn side by side on one row read left to right even where one sits a little lower than the
+ * others, as a reader reads them (graphty's edge label and its head and tail labels, each placed by a rule of its own,
+ * where Graphviz draws all three on one baseline: dot-specimen-edge-labels label-and-head-tail).
+ * @param texts - the texts
+ * @returns them, in reading order
+ */
+function readingOrder(texts: readonly PText[]): PText[] {
+    const sorted = [...texts].sort(byText);
+    const rows: PText[][] = [];
+    for (const t of sorted.filter((x) => x.rotation === 0)) {
+        const row = rows.at(-1);
+        if (
+            row !== undefined &&
+            Math.abs(cy(row[0].box) - cy(t.box)) <= ONE_ROW * Math.min(bh(row[0].box), bh(t.box))
+        ) {
+            row.push(t);
+        } else {
+            rows.push([t]);
+        }
+    }
+    return [
+        ...rows.flatMap((row) => row.sort((a, b) => a.x - b.x || a.y - b.y)),
+        ...sorted.filter((x) => x.rotation !== 0),
+    ];
+}
+
 /**
  * Lines of one label, drawn as separate text elements, as one text.
  * @param texts - the lines
@@ -557,7 +599,7 @@ export function mergeTexts(texts: readonly PText[], apart?: (a: PText, b: PText)
     if (texts.length === 0) {
         return null;
     }
-    const lines = joinRuns(texts, apart).sort(byText);
+    const lines = readingOrder(joinRuns(texts, apart));
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
     return {
@@ -1445,6 +1487,22 @@ function offPath(q: Pt, pts: readonly Pt[]): number {
     return best;
 }
 
+/** How far apart, in px, two lines between one pair of nodes are drawn to be one line to a reader (`oneRoute`). */
+const ONE_ROUTE_PX = 1;
+
+/**
+ * Whether two lines of one pair of nodes are drawn over one another: one lies along the other, either way round.
+ * yEd stops a line at the back of its arrowhead, so two drawn together may differ in length by a head's length, which
+ * `sameRoute` reads as lines apart (graphml-synthetic-edges n13 -> n14: 6.5 px longer, 0.03 px off).
+ * @param a - one line
+ * @param b - the other
+ * @returns true when they share a route
+ */
+function oneRoute(a: PEdge, b: PEdge): boolean {
+    const along = (x: PEdge, y: PEdge): boolean => x.points.every((q) => offPath(q, y.points) <= ONE_ROUTE_PX);
+    return along(a, b) || along(b, a);
+}
+
 const endOf = (e: PEdge, end: "source" | "target"): Pt =>
     end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
 
@@ -1840,6 +1898,7 @@ function openStroke(p: Prim): boolean {
  * @param edges - the edges of the drawing
  * @param nodes - its nodes
  * @param centerLines - whether its lines run on to the nodes' centers
+ * @param drawnAt - where in the drawing each edge found by geometry was drawn
  * @returns each head, its strokes and its outline as one primitive
  */
 function strokedHeads(
@@ -1847,6 +1906,7 @@ function strokedHeads(
     edges: readonly PEdge[],
     nodes: readonly PNode[],
     centerLines: boolean,
+    drawnAt: ReadonlyMap<PEdge, number>,
 ): { e: PEdge; end: "source" | "target"; outline: Prim; parts: readonly Prim[] }[] {
     const ends = (p: Prim): [Pt, Pt] => [p.points[0], p.points.at(-1) ?? p.points[0]];
     const meet = (a: Prim, b: Prim): Pt | null =>
@@ -1864,8 +1924,22 @@ function strokedHeads(
         const lines = edges.filter((e) => e.stroke?.color === p.stroke?.color);
         const at = arrowheadEdge(p, lines, nodes, centerLines);
         if (at !== null && at.end !== "middle") {
-            const key = `${at.e.id}\u0000${at.end}`;
-            const held = byEnd.get(key) ?? { e: at.e, end: at.end, parts: [] };
+            // of lines drawn over one another, the last drawn before it: a bar stood back from one line's end sits at
+            // the end of the line stopped short for another's head (graphml-synthetic-edges n16 -> n17)
+            const before = (o: PEdge): number => drawnAt.get(o) ?? p.index;
+            const e =
+                lines
+                    .filter(
+                        (o) =>
+                            o.source === at.e.source &&
+                            o.target === at.e.target &&
+                            before(o) < p.index &&
+                            oneRoute(o, at.e),
+                    )
+                    .sort((x, y) => before(x) - before(y))
+                    .at(-1) ?? at.e;
+            const key = `${e.id}\u0000${at.end}`;
+            const held = byEnd.get(key) ?? { e, end: at.end, parts: [] };
             held.parts.push(p);
             byEnd.set(key, held);
         }
@@ -3290,6 +3364,7 @@ export function associate(
         edges,
         nodeList,
         centerLines,
+        drawnAt,
     );
     const headPieces = new Set(stroked.flatMap((h) => h.parts).map((p) => strokes.get(p)));
     const capped = withPieces.filter((e) => !headPieces.has(e));
@@ -3540,6 +3615,11 @@ export function associate(
     // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
     // their own words, and each of the oracle's lines there takes one of them.
     const pairWords = wordsByPair(guide.edges);
+    const pairLines = new Map<string, PEdge[]>();
+    for (const e of edges) {
+        const k = unorderedPair(e.source, e.target);
+        pairLines.set(k, [...(pairLines.get(k) ?? []), e]);
+    }
     const edgeCandidates = edges.flatMap((e, ei) => {
         const wants = pairWords.get(unorderedPair(e.source, e.target));
         if (e.label !== null || wants === undefined) {
@@ -3547,8 +3627,12 @@ export function associate(
         }
         // the whole label near the edge's middle, halfway along it: a straight line drawn as one segment has two
         // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
-        // to the edge whose target end it sat next to)
-        const mid = pointAlong(e.points, 0.5);
+        // to the edge whose target end it sat next to). Lines drawn over one another share one middle: where a line
+        // stops short of its arrowhead says nothing about the words, which `edgeCandidates` then give by paint order
+        const mid = pointAlong(
+            (pairLines.get(unorderedPair(e.source, e.target))?.find((o) => oneRoute(o, e)) ?? e).points,
+            0.5,
+        );
         // graphty's words for this very edge go before others within a pixel of as near: two lines drawn one over
         // the other between the same nodes, each label on the same spot, were told apart by sub-pixel noise
         // (json-cyjs-tokyo's 7634 -> 7635 and 7635 -> 7634, #5506)
@@ -3557,10 +3641,17 @@ export function associate(
             .filter((p) => wants.has(norm(p.text?.content ?? "")))
             .map((p) => {
                 const d = Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]);
-                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1) };
+                // how far back in the drawing the line lies, none before the text counting as farthest
+                const at = drawnAt.get(e) ?? p.index;
+                const back = at < p.index ? p.index - at : Number.MAX_SAFE_INTEGER;
+                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1), back };
             });
     });
-    edgeCandidates.sort((a, b) => a.rank - b.rank || a.p.index - b.p.index || a.ei - b.ei);
+    // Of lines drawn over one another, words go to the last drawn before them: nothing on the page tells two such lines
+    // apart, but a program that draws each edge whole draws an edge's label straight after its line and head
+    // (graphml-synthetic-edges: yEd's "label 0" on n4 -> n5, 0.02 px from either line, follows the line with the
+    // standard head that the file gives it, not the one with the diamond)
+    edgeCandidates.sort((a, b) => a.rank - b.rank || a.back - b.back || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];
@@ -3704,7 +3795,12 @@ export function associate(
             )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
-        const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        // the outline is the one drawn round the fill, else the smallest: a table's cell outlines are drawn inside its
+        // own (Graphviz's HTML-like table label, BORDER round CELLBORDER, the table's fill and outline one box), and
+        // stay shapes of their own, which graphty draws as its cells
+        const strokes = backs.filter((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        const bordered =
+            strokes.find((p) => filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL) ?? strokes[0];
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
         if (parts.length === 0) {
             continue;
@@ -4404,7 +4500,9 @@ function matchBodies(
     const dot = (p: Prim): boolean =>
         p.kind === "shape" && area(p.box) === 0 && (p.stroke?.width ?? 0) > 0 && Math.max(bw(p.box), bh(p.box)) < 1;
     const shapes = free.filter((p) => ((p.kind === "shape" || p.kind === "image") && area(p.box) > 0) || dot(p));
-    const extent = (p: Prim): number => Math.max(bw(p.box), bh(p.box)) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
+    // a fill its clip cuts is matched as the whole shape it was drawn as, each piece the node's (yEd's entity header)
+    const whole = (p: Prim): PBox => p.uncut ?? p.box;
+    const extent = (p: Prim): number => Math.max(bw(whole(p)), bh(whole(p))) + (dot(p) ? (p.stroke?.width ?? 0) : 0);
     // A box drawn tight round a label is its background (Cytoscape's NODE_LABEL_BACKGROUND), a poorer body than any
     // shape near the node; still the body where nothing else is drawn there (vis-network's box fits its label).
     const texts = free.filter((p) => p.text !== null);
@@ -4464,7 +4562,7 @@ function matchBodies(
     for (const [n, at] of spots) {
         const { x: px, y: py, s, reach } = at;
         for (const p of shapes) {
-            const d = Math.hypot(cx(p.box) - px, cy(p.box) - py);
+            const d = Math.hypot(cx(whole(p)) - px, cy(whole(p)) - py);
             const size = extent(p);
             if (d > Math.max(s, 8) * reach) {
                 continue;
@@ -4538,13 +4636,14 @@ function matchBodies(
                     !drawnAlike(q, body) &&
                     !(
                         filledAlike(q, body) &&
-                        Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) > 0.05 * size + 0.5
+                        Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) > 0.05 * size + 0.5
                     ) &&
-                    Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
+                    Math.hypot(cx(whole(q)) - cx(whole(body)), cy(whole(q)) - cy(whole(body))) <= 0.2 * size + 0.5 &&
                     // and over it, not beside it: two flat boxes stacked a little under their height apart are two nodes,
                     // however short that is of their width (cx2-wp1449-tlr: two 45.7 x 10.5 labels 9.6 px apart)
-                    (dot(body) || around(q) || boxIoU(q.box, body.box) >= TWIN_OVERLAP) &&
-                    ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
+                    (dot(body) || around(q) || boxIoU(whole(q), whole(body)) >= TWIN_OVERLAP) &&
+                    ((near(bw(whole(q)) + 1, bw(whole(body)) + 1) && near(bh(whole(q)) + 1, bh(whole(body)) + 1)) ||
+                        around(q)) &&
                     // a group's twin is drawn over its box, not a flat node inside it of about its width
                     (!c.id.startsWith(GROUP_CLAIM) || boxIoU(q.box, body.box) >= 0.6),
             )

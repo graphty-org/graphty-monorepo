@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../test/features";
 import { openBy } from "../../test/open";
 import { pickSample } from "../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../test/test-utils";
@@ -26,6 +27,37 @@ import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
 import { cardFields } from "../style/cards";
 import { Workspace } from "../Workspace";
+
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
+
+/**
+ * Starts a new step, its value picker open: an empty None selection's Condition row; else, with
+ * the workspace closed, Edit (a selection with no step opens on its new step's pane); then the
+ * new step's Value field, or the selected row's pane button And... (spec 3.0, 3.2).
+ * @param scope - where to look.
+ */
+async function startCondition(scope?: HTMLElement): Promise<void> {
+    const where = scope ?? document.querySelector<HTMLElement>(".sel-ws") ?? document.body;
+    const row = within(where).queryByRole("treeitem", { name: /^(And|Add)\.\.\.$/ });
+    if (row !== null) {
+        await userEvent.click(row);
+        return;
+    }
+    if (document.querySelector(".sel-ws") === null) {
+        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+    }
+    const control = await waitFor(() => {
+        const ws = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(ws, "the workspace is open");
+        const found =
+            within(ws ?? document.body).queryByRole("button", { name: "Value" }) ??
+            within(ws ?? document.body).queryByRole("button", { name: /^(And|Add)\.\.\.$/ });
+        assert.isNotNull(found, "a new step's Value field or And...");
+        return found;
+    });
+    await userEvent.click(control);
+}
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -203,7 +235,7 @@ describe("focus after a command that moves the reader", () => {
         await onInspectorTitle();
     });
 
-    it("Enter on an unticked condition value ticks it and keeps the cards open; the next Enter is Done", async () => {
+    it("Enter on an unticked condition value ticks it and keeps focus on it", async () => {
         const session = await openScene(createWorkspaceStore({ project: { name: "Untitled", id: 1 } }));
         await session.runs.start("louvain", undefined, { style: false, seed: 1 });
         await session.styles.add({
@@ -216,24 +248,18 @@ describe("focus after a command that moves the reader", () => {
         await openRow("Groups");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         const name = group?.name ?? "";
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        const region = await screen.findByRole("group", { name: "Which nodes" });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await startCondition();
         await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
-        const card = await waitFor(() => within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) }));
-        const [first] = within(card).getAllByRole<HTMLInputElement>("checkbox");
+        const values = await screen.findByRole("group", { name: new RegExp(`values$`) });
+        const [first] = within(values).getAllByRole<HTMLInputElement>("checkbox");
         assert.isFalse(first.checked);
         first.focus();
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isTrue(first.checked, "Enter did not tick the value");
         });
-        assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter closed the cards");
+        assert.isNotNull(document.querySelector("[data-step-pane]"), "the step's pane stays");
         assert.strictEqual(document.activeElement, first, focused());
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter on a ticked value is Done");
-        });
     });
 
     it("Escape on Back to analyses steps back to the list", async () => {

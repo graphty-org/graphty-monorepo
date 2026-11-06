@@ -34,7 +34,7 @@ import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -61,7 +61,7 @@ import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { publishImageFailure, TextureCache } from "./models/TextureCache";
-import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
@@ -529,7 +529,30 @@ export class Node implements ModelUser {
      */
     private drawnLabelStyle?: NodeStyleConfig["label"];
 
-    dragHandler?: NodeDragHandler;
+    /** The handler, once something read it; see {@link Node.dragHandler}. */
+    private pointerHandler?: NodeDragHandler;
+
+    /**
+     * What the pointer does to this node: a press, a drag, a hover. Built on the first read, so a
+     * node the pointer never reaches has none (design/rendering/row-renderer.md 6).
+     * @returns The handler, or undefined once the node is disposed.
+     */
+    get dragHandler(): NodeDragHandler | undefined {
+        if (this.pointerHandler === undefined && !this.disposed) {
+            this.pointerHandler = new NodeDragHandler(this);
+        }
+
+        return this.pointerHandler;
+    }
+
+    /**
+     * Replace the handler.
+     * @param handler - The handler, or undefined to build a new one on the next read.
+     */
+    set dragHandler(handler: NodeDragHandler | undefined) {
+        this.pointerHandler = handler;
+    }
+
     dragging = false;
     pinOnDrag!: boolean;
     size!: number;
@@ -1366,8 +1389,36 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The mesh that draws this node: the source of its instance, or its own when it is not one.
-     * @returns The mesh.
+     * The color this node's instance was last painted.
+     * @returns The color, or null when no layer painted one.
+     * @internal
+     */
+    get drawnInstanceColor(): Rgba | null {
+        return this.drawnColor;
+    }
+
+    /**
+     * Whether a node batch can draw this node as it is painted now.
+     * @param view - The scene state it is drawn in.
+     * @returns True when it can.
+     * @internal
+     */
+    batchableIn(view: BatchView): boolean {
+        const style = this.drawnStyle ?? null;
+        return (
+            style !== null &&
+            this.mesh instanceof InstancedMesh &&
+            !this.drawnAsGroup &&
+            this.drawnModel === null &&
+            this.drawnImage === null &&
+            this.shaderPath === null &&
+            batchableOf({ style }, view)
+        );
+    }
+
+    /**
+     * The source mesh this node's instance draws from.
+     * @returns The source, or the mesh itself when it is not an instance.
      * @internal
      */
     get drawnSourceMesh(): AbstractMesh {
@@ -2244,6 +2295,8 @@ export class Node implements ModelUser {
         } else {
             this.drawPaint(meshKey, style, color);
         }
+
+        this.context.getNodeBatches?.()?.sync(this);
     }
 
     /**
@@ -2470,10 +2523,13 @@ export class Node implements ModelUser {
 
         this.disposed = true;
         this.rowTable?.drop(this.row);
+        this.context.getNodeBatches?.()?.leave(this);
 
-        if (this.dragHandler) {
-            this.dragHandler.dispose();
-            this.dragHandler = undefined;
+        this.pointerHandler?.dispose();
+        this.pointerHandler = undefined;
+        const { byId } = nodePointerRosterOf(this.drawnScene);
+        if (byId.get(this.id) === this) {
+            byId.delete(this.id);
         }
 
         if (this.label) {

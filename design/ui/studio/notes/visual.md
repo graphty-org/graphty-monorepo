@@ -7,6 +7,8 @@ as decisions land.
 
 Last updated: 2026-11-05 (tier 6 round 2 critique). Summarized on 2026-10-21 and 2026-11-05: the tier 2
 rounds, the bulk-edit iterations and the tier 3 iterations are condensed below; the full text is
+Last updated: 2026-11-03 (tier 5 round 1 closed). Summarized on 2026-10-21: the tier 2
+rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
@@ -40,6 +42,38 @@ in git history of this file.
     `colorWord` hue names, the purple "Layer" token.
 15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with PIL in `tmp/<task>/`; `--hover-at`
     on the name text itself; check a point still holds its control after the log grew.
+1. (2026-11-03, round 1 close) Tier 5 stopped at the 1-round cap with bars 1, 3, 4, 8 and 9
+   failing. Every severity 3 was behavior (speech from a hidden panel, a picker entry bound to a
+   different run), never pure look. Visual weight alone did not move a bar.
+2. The visual findings that counted were legibility of meaning: an untouched range drawn full while
+   it reads "0 so far" (Or group first state), By position's box with no direction or unit and a
+   9 px "of all nodes", an empty Fill color box with no cue. Rule: an empty or default state must
+   look empty and say what it wants.
+3. A control's drawing must never contradict its count or its text (full range bar vs 0 so far; the
+   "highest 10" error vs 24 of 24). Check drawn state against the count on every first state.
+4. Small helper text carrying the unit is a defect source: if the unit decides the answer, it is
+   not 9 px caption text.
+5. Bar 9 counts elements named by two sessions on different halves; the editor's Or group, the
+   Condition.../Or... words and By position's box are my share. Re-walk each on the next frozen
+   build.
+6. Skeptic checks weaken findings the fixture or task wording causes (orange in an orange ramp,
+   "top N" sending everyone to one box). Before rating, ask whether the fixture made it.
+7. compact-mantine's swatches and color input are Figma-locked: "no orange" was dropped; an
+   empty-box click bug in the shared color input goes to compact-mantine, not a local fix.
+8. Bar 7 consistency still open at sev 2: value picker jumping over its field and Done
+   (`decided.md` 734), Clear renaming a card "a selection" (631-632), a two-step card resting as
+   one row with no caret.
+9. 900 x 700: the preview is a 44 px sliver and the title loses the rule name; propose the
+   small-width rule rather than rate a gap as 3.
+10. Measure, then rate; cite a `decided.md` line or name the gap. Hover fakes theme defects.
+11. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
+12. Same frozen build: replay old routes (`real.mjs --replay`) instead of re-walking.
+13. Known and still open: Table "on" and Done share green (Figma lock), blank band under the
+    preview, key over a node, 1 px focus ring, Except column 1226 vs 1247.
+14. Open from tiers 3 and 4: `colorWord` hue names, the purple "Layer" token, the link glyph doing
+    two jobs.
+15. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; a diverged replay stays open:
+    look, `--step`, then `--end`.
 
 ## Priorities and values
 
@@ -91,6 +125,42 @@ in git history of this file.
   `decided.md` settles them.
 - **2026-11-05:** Stopped spending Gemini requests once the shared count neared 3,000 and listed the
   unreached states as not clean, rather than use `REAL_GEMINI_COUNT` to get past a spending cap.
+- 2026-11-03 (tier 5 round 1 close): Empty and default states must look empty and name what they
+  want (a range not yet set is not drawn full; an empty color box shows a cue). Reason: the Or
+  group's first state and the Fill color box were the two most repeated sev 2 visual findings,
+  7 sessions on 6 halves for the color box alone.
+- 2026-11-03: A unit or direction that decides the answer is never caption-size text. Reason: By
+  position's "of all nodes" at about 9 px; three T74 sessions typed "top 5".
+- 2026-11-03: Tried: rating my findings without sessions. Worked for finding them (every sev 2
+  editor issue I had flagged was met by people); did not work for severity (none of mine reached 3;
+  behavior findings did).
+
+- **2026-11-03 (tier 5 round 1 rerun):** Moved the value picker's cut list from 2 to 1 and kept
+  the Except column at 2, following the void round's skeptic check on the same build. Added the
+  two-group card title (2, known) because the card's boldest text contradicts its own count.
+- **2026-11-03 (rerun):** Rated the date box's 20 px height 1, citing `decided.md` 519 (pane
+  controls 24 px) and the cause in source (`Autocomplete size="xs"` in the date card), so the fix
+  is one prop. Rated the reference picker's 3.9:1 secondary text 1 with the width finding, since
+  both go away if it is built on the value picker's list.
+- **2026-11-03 (rerun):** Dropped "dark section titles lose their dim state" after finding it was
+  hover; dropped "so far shortens the field" as decided (`decided.md` 523).
+
+- **2026-11-03 (tier 5 round 1 closed):** After two skeptic checks, 1 of my 8 sev 2s held (Except
+  out of line, weakly); number mix and cut strip fell to 1; nothing visual gates a bar. Reason:
+  decided rules (short counts, widths to 1280) absorb findings I rated without citing them. From
+  now on each rating cites the decided line it breaks, or the gap it proposes to fill.
+- **2026-11-03 (tier 5 round 1 walk):** Rated nothing 3. Rated the No match chit 2, not 1: on a
+  filter card it sits one row under the card's real on box with the same shape, and with one group
+  nothing else in the outline has a chit (measured: grey 206 vs the canvas's lavender 209/210/232,
+  so it is not a legend either). Fix proposed: the preview's non-member color, no edge.
+- **2026-11-03:** Rated the sidebar Except row 2 and named what would make it 3 (a reader who
+  applies Except to both groups). Reason: spec 3.1 says the same rows draw both outlines; the
+  workspace keeps a 40 px verb column, the sidebar does not.
+- **2026-11-03:** Kept the blank preview band at 2 although `decided.md` calls it cosmetic: it is
+  the calm-first "blank pane the step does not use" and four task halves start with the node
+  table open. Proved the cause by closing the table and reopening (`v2/11.png` fills the cell).
+- **2026-11-03:** Marked Within hops' unmarked center "watch" at 2 and proposed the existing ring,
+  through the preview's style layer, so no element API is needed.
 
 - **2026-10-30 (tier 4 round 1 walk):** Rated nothing 3. The kind-glyph conflict (`opened` a
   calendar in the picker while text in the table) could mislead T62, but no reader has paid for it
@@ -137,6 +207,15 @@ in git history of this file.
   value; cut names, the raw query, Label settings' unreachable half and "no starting rows" rated 3, stacked
   fields and new labels 2; one Add strip per kind; visibility follows the rule, not the count; shape icons
   should come from the element; severity follows what misleads, not how much was fixed.
+- **Tier 3 iterations 1 to 4 (2026-10-12 to 2026-10-13), condensed:** cut property names rated 3
+  (the name is a row's only identifier; the gear moved to the right-hand columns); painted-over
+  mark as a dimmed value plus tooltip, not a glyph; Verdana fallback owned by graphty-element;
+  selection ring kept at 2; "one community, two names" kept at 3 (severity follows what misleads);
+  route's raw query 3, element first; stacked fields 2 (three reserved 24 px columns in a 240 px
+  panel); Label settings' unreachable half 3, compact-mantine's Popout clamp; "no starting rows" 3,
+  app; one Add strip of toggle icons per kind; group visibility follows the rule; shape icons from
+  graphty-element (`previewStyle`); domain and clamp as one gesture; saved label looks are copies.
+  Full text in this file's git history.
 
 - 2026-10-21 (round 1 closed): a visual finding keeps sev 3 only with a reader who paid for it
   or a scripted repro; both my sev 3 claims (key over nodes, empty picker) fell to 2 without one.
@@ -171,6 +250,28 @@ in git history of this file.
   moved Open run, so its `cursor: auto` was void and I dropped the claim.
 - 2026-11-05 did not work: `--wait` under about 20 s after a change request; 8 steps ran past 20 s, so
   look at `session.log` before judging a screen as stuck.
+- 2026-11-03 worked: replaying the void walk's routes on the same build; every check point matched
+  but one click that landed on the closing workspace (the table's Close button sits under the
+  pane while it closes). Carried on by hand from the open session.
+- 2026-11-03 worked: a script file (`tmp/visual-t5/v4.sh`) for a whole new walk run in the
+  background, with a Monitor on its log; `ledge.py` (left text edge per row) and `px.py`
+  (contrast of the darkest pixel against the commonest) in the worktree's `tmp/visual-t5/`.
+- 2026-11-03 did not work: chaining two replays with `&&`: the first diverged (exit 5) and the
+  second never ran. Run each replay as its own background command.
+
+- 2026-11-03: Rating from screenshots without pixel measures or decided-line citations -- did
+  not work; skeptics cut most sev 2s. Measuring offsets (985 vs 1006) -- worked, the one survivor.
+- 2026-11-03 worked: three sessions (light 1440 volunteers, dark 1280 x 800 colleague's river
+  project with the node table open, light 50,000 nodes in the background while the first two ran)
+  covered every tier 5 screen in about 50 steps.
+- 2026-11-03 worked: a small `tmp/visual-t5/crop.py` (crop + scale) and PIL `getpixel` for chit,
+  switch and field fills; measured the Except switch's thumb at 3.6:1 and dropped a contrast claim.
+- 2026-11-03 worked: an accidental Done with no value gave the "pick yes or no" card for free; a
+  wrong turn is a screen too.
+- 2026-11-03 did not work: `--click Yes` with a layer's outline also holding "Yes" (ambiguous, and
+  the batch's next step still ran: Done closed a half-made card). Name options by role.
+- 2026-11-03 did not work: typing a value ("Grants") into the attribute picker's search finds
+  nothing; type the attribute first.
 
 - 2026-10-30: Worked: rating no visual finding at sev 3 without a paying reader -- the skeptics cut
   every other team's sev 3 candidates to 2 or 1. Did not work: my "kind glyphs differ" finding (36)
@@ -263,6 +364,15 @@ in git history of this file.
 - `graphty/src/workspace/assistant/` at 3b2a7f0649: `assistant.css`, `Conversation.tsx`, `Checks.tsx`,
   `Composer.tsx`, `AiProviderSection.tsx`, `AssistantPanel.tsx`, `ConversationList.tsx`;
   `compact-mantine/src/theme/tokens.ts:395` (xs 9 px, sm 11 px)
+- `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 rerun, 23 findings);
+  sessions `expert/visual/v1..v4` (v1-v3 replay the void walk on 1e123d7d33); crops in
+  `tmp/visual-t5/r1/`; `decided.md` 519 (pane controls 24 px), 523, 734, 768, 774, 786, 877
+
+- `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 walkthrough, 19
+  findings); sessions `expert/visual/v1..v3`; crops in the worktree's `tmp/visual-t5/`
+- `design/ui/selection-groups/spec.md` 3.0 (workspace layout, canvas takes the preview cell), 3.1
+  (row anatomy: 40 px verb column, No match faint chit); `tier5/decided.md` workspace polish 2-3;
+  `tier5/rounds/round-1/calm-first-frozen.md` (calm-first findings 1-7)
 
 - `design/ui/studio/tier4/rounds/round-1/expert/visual.md` (tier 4 round 1 walkthrough, 29
   findings); sessions in `expert/visual/v1..v4`

@@ -2,6 +2,7 @@ import { defineRegistration } from "../commands/registry";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
@@ -74,7 +75,7 @@ export const registration = defineRegistration({
             label: "Graph",
             group: "Go to",
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "graph" });
+                workspace.set({ page: "panels", place: "graph", ...panelsInView() });
             },
         },
         {
@@ -82,7 +83,7 @@ export const registration = defineRegistration({
             label: "Data",
             group: "Go to",
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "data" });
+                workspace.set({ page: "panels", place: "data", ...panelsInView() });
             },
         },
         {

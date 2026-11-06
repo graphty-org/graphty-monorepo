@@ -33,6 +33,36 @@ I read this file at the start of every session and update it as I decide and lea
 - (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
 - (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
   pass weak. Element returns codes + params; the app writes every word.
+- (2026-11-03) Tier 5 round 1 closed at the 1-round cap, bars 1, 3, 4, 8, 9 failing. 30 valid
+  sessions (28 pointer, 2 keyboard). My walk did not run, so bar 6 (owner's data rules) went
+  unmeasured: next round my walk is a feed, not optional.
+- (2026-11-03) Speech is content: speak only from the surface that is showing. The covered
+  inspector's "4 of 24" after the workspace's "15 of 24" was a severity 3 (fixed after the freeze).
+- (2026-11-03) A label must bind what it names. "Connected components, 3 values" described one run
+  and bound another; only a column header said "(visible)". Two runs need two names, from the
+  element's scope fact (code + params), worded by the app.
+- (2026-11-03) "Condition..." and "Or..." do not say "and" vs "or else": three sessions on three
+  halves, unprompted. Connector words must name the logic; readers fell back on watching the count.
+- (2026-11-03) An error must never contradict the screen: By position's "still use the highest 10"
+  while 24 of 24 matched (built from a default the step never applied). Words from state, not
+  fallbacks. The box also needs direction and unit (top/bottom, number/percent).
+- (2026-11-03) An empty input needs a cue of what it takes (the Fill color box: people typed color
+  names). Cue by the control's form, not help text.
+- (2026-11-03) A name must survive every act: Clear keeps the card name; a reference shows the
+  matched value, not "v02"; a card's name must keep describing it after Or or a second step.
+- (2026-11-03) "Filter not added" after Clear+Escape is truthful but loses saved work; words
+  cannot fix it -- the behavior must change (reopened card is never deleted by cancel).
+- (2026-11-03) Study wording is content too: T73's words and key disagree; "Would you rather it
+  had shown something else?" invites a wish. Neutral follow-ups before round 2.
+- (2026-11-03) Fixtures pre-colored in the task's color inflate "drowned" findings; never
+  generalize a word or color change from one fixture.
+- (2026-11-03) One surface, one number format; counts state their basis.
+- (2026-10-31) Term collisions still open: "group" vs glossary group, "Focus", "picked", "whole
+  graph" vs Full/Filtered graph.
+- (2026-10-30) A preview tag names the act's outcome; a destructive choice names its effect.
+- (2026-10-21) Fix by pointing, not prose; do not rename on model opinion or task wording.
+- (2026-10-06) Budgets: at rest <= 50 words (hand count only), inspector ~30 (max 40). Element
+  returns codes + params; the app writes every word. Earlier Top of mind: git history at 5738a5b4b2.
 
 ## Priorities and values
 
@@ -248,19 +278,11 @@ I read this file at the start of every session and update it as I decide and lea
   (2026-10-06)
 - `design/ui/studio/digests/decisions.md`, `tier1.md`, `framework.md`, `owner-voice.md`,
   `study-rounds.md` (all 2026-10-06)
+- (2026-11-03) Summarized: tier 1-3 source lists (round insights, decisions, expert walks, owner
+  messages in `design/ui/studio/tmp/owner-all.jsonl`, framework docs) are in this file's git
+  history at e1237f47af.
 - `design/ui/framework/content-design.md`, `glossary.md`, `principles.md` (budgets, section 5)
-- `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md` sections 2.11, 4,
-  5.T10-T12, "Adversarial review changes"
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/round-8/insights.md`
-  findings 4, 5, 6, 13, 14, 15
-- `graphty/src/workspace/` in the studio worktree (strings checked 2026-10-06: start screen,
-  `style/LabelSection.tsx`, `analyze/AnalyzePopover.tsx`, `inspector/NodeValues.tsx`)
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/`: content designer
-  runs `wf_6818e34f-76d` (round 4 triage, 2026-09-29), `wf_6959c5f6-35c` (round 6 triage and
-  gallery wording pass, 2026-09-29), `wf_93e7ffbb-6da` (round 8 triage and skeleton wording pass,
-  2026-10-03); extraction script `design/ui/studio/tmp/content_agents.py`
-- Owner messages: `design/ui/studio/tmp/owner-all.jsonl` (2026-09-05 text-heavy, 2026-09-26 terms,
-  2026-09-29 overfitting, 2026-10-01 toolbar tooltips, 2026-10-03 presentation neutrality)
+- `design/ui/studio/tier5/rounds/round-1/insights.md`, `scores.md` (2026-11-03)
 
 ## Tier 4 round 1 lessons (2026-10-30)
 
@@ -289,3 +311,22 @@ I read this file at the start of every session and update it as I decide and lea
 - Did not work: "the connection failed" alone, 0 of 2 learned the cause; "Selection" as a one-word warning; plain names beside field names (Reach and Closeness on one screen).
 - Thinking: "Computed Bridges for 14 nodes" already carried the narrowing and no reader used it, so a true line after the fact is not a warning. Words must arrive before Send.
 - Open: "Rule: data.gal4RGexp < -1" on an app row (`cards.ts` 1068) keeps the field path; bar 10's audit decides it.
+## Tier 5 round 1 lessons (2026-11-03)
+
+- Decided: announcements follow what is visible. A covered panel stays silent (the selection
+  editor already does; the value picker did not). Reason: two messages into one live region, the
+  second wins, and it was the hidden one.
+- Decided: Clear keeps a card's name; a reference row shows the matched value beside its id.
+  Both are existing decided.md rules (631-632, 694); the build departs from them.
+- Tried: scripted word counts as the at-rest budget check -- did not work; it inflated three
+  screens with chrome, statistics and user layer names. Hand count remains the measure.
+- Thinking: the reference picker's silent search (no result count until ArrowDown) is a spoken
+  content gap caused by a second-built control; fix by one shared searchable combobox, not by
+  adding announcement text.
+- (2026-11-03, after the skeptic checks) Learned: of nine surviving editor insights, four are
+  word failures (run naming, Condition/Or connectors, By position's false error, reference ids)
+  and one is speech. Words were first-cause this round, unlike tier 3 and 4.
+- Did not work: leaving my walk out of the round -- bar 6 stayed unmeasured and the round could
+  not close on it.
+- Thinking: error and status sentences must be built from the state the step actually applies,
+  never from a `?? default`; a lint-able pattern worth a check in the app.

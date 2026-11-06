@@ -56,6 +56,7 @@ import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/re
 import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
+import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -2378,6 +2379,52 @@ export class Graphty extends LitElement {
      */
     set nodeTimePath(value: string | undefined) {
         this.#setTimeField("nodeTimePath", value);
+    }
+
+    /**
+     * The edge column that says when each edge ends, beside `edge-time-path`: the edge then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" edge-time-path="opened" edge-time-end-path="closed"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "edge-time-end-path" })
+    get edgeTimeEndPath(): string | undefined {
+        return this.#timeField("edgeTimeEndPath");
+    }
+    /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set edgeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("edgeTimeEndPath", value);
+    }
+
+    /**
+     * The node column that says when each node ends, beside `node-time-path`: the node then exists
+     * for a span. A missing end is open. A list of spells takes `session.time.setField`.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element features="timeline" node-time-path="hired" node-time-end-path="left"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     * @experimental timeline
+     * @beta
+     */
+    @property({ attribute: "node-time-end-path" })
+    get nodeTimeEndPath(): string | undefined {
+        return this.#timeField("nodeTimeEndPath");
+    }
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    set nodeTimeEndPath(value: string | undefined) {
+        this.#setTimeField("nodeTimeEndPath", value);
     }
 
     /**
@@ -4947,6 +4994,28 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that borrows the view and hands it back calls
+     * `zoomToFit()` instead of restoring what it read.
+     * @returns True while the element's own framing is under way.
+     * @example
+     * ```typescript
+     * const framing = element.framing;
+     * const camera = element.getCameraState();
+     * // ... the canvas is used for something else, then:
+     * if (framing) {
+     *     element.zoomToFit();
+     * } else {
+     *     await element.setCameraState(camera);
+     * }
+     * ```
+     */
+    get framing(): boolean {
+        return this.#graph.framing;
+    }
+
+    /**
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
@@ -5011,6 +5080,27 @@ export class Graphty extends LitElement {
         timeoutMs?: number;
     }): Promise<void> {
         return this.#graph.waitForStableFrame(options);
+    }
+
+    /**
+     * Resolve once every style change made so far is drawn on the canvas.
+     *
+     * `session.styles.settled()` resolves when the repaint passes have ended, but on a large graph
+     * the renderer applies their paint over many frames, so the canvas can show the old colors for
+     * seconds after it. This waits for the last batch too. Unlike {@link Graphty.waitForStableFrame}
+     * it does not wait for the layout or the camera, so a running layout never holds it, and it
+     * never rejects: an element removed from the page ends the wait.
+     * @returns Promise that resolves once the canvas shows every style change made so far.
+     * @beta
+     * @since 3.34.0
+     * @example
+     * ```typescript
+     * await element.session.styles.add(layer);
+     * await element.waitForPainted();
+     * ```
+     */
+    async waitForPainted(): Promise<void> {
+        return this.#graph.waitForPainted();
     }
 
     /**
@@ -6216,6 +6306,46 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
+     * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
+     * no change to the picture. It can change at any time.
+     * @returns The path asked for.
+     * @example
+     * ```html
+     * <graphty-element render-path="batched"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "render-path" })
+    get renderPath(): RenderPath {
+        return this.#graph.renderPath;
+    }
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    set renderPath(value: RenderPath) {
+        const oldValue = this.#graph.renderPath;
+
+        try {
+            this.#graph.setRenderPath(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderPath", oldValue);
+    }
+
+    /**
+     * How many nodes and edges each render path is drawing, as of the last frame.
+     * @returns The counts.
+     */
+    get rowCounts(): RowCounts {
+        return this.#graph.rowCounts;
     }
 
     /**

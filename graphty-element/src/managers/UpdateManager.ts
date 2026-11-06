@@ -25,6 +25,7 @@ import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { batchUploadFrames } from "../meshes/FrameRoster";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
@@ -288,6 +289,18 @@ export interface ViewMasks {
      * @returns True while ghosts are drawn.
      */
     readonly ghost?: () => boolean;
+    /**
+     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
+     * changed rows; off, every pass is the walk it always was.
+     * @returns True while the experiment is on.
+     */
+    readonly timeline?: () => boolean;
+    /**
+     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
+     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * @returns True while a window is in force.
+     */
+    readonly timeWindow?: () => boolean;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -323,6 +336,31 @@ const LAYOUT_FRAME_BUDGET_MS = 40;
  */
 const STYLE_FRAME_BUDGET_MS = 16;
 
+/**
+ * The share of a slow frame a repaint may take on top of it.
+ *
+ * A fixed 16 ms is right while frames are short, and starves the repaint when they are long for
+ * another reason -- a software GPU, a scene of 50,000 nodes: at a frame every 1.5 s, 16 ms of paint
+ * per frame was 1% of the time, and a 50,000 node preview took minutes to reach the screen. A
+ * quarter of the last frame settles at a third of the frame's own drawing (the frame grows by a
+ * third, never doubles), however long the frame is.
+ *
+ * It has no upper limit on purpose. Spreading a repaint keeps frames short only while painting is
+ * what makes them long; when the drawing does, every extra frame costs a whole drawing. A cap of
+ * 250 ms held a repaint of 50,000 nodes at its 32 frames on software rendering, 4.5 s each, 150 s
+ * and more for what a few seconds of paint could have done, three times over per edit (#5816).
+ */
+const STYLE_FRAME_SHARE = 0.25;
+
+/**
+ * How long one frame spends applying a repaint, from how long the last frame took.
+ * @param frameMs - The last frame's length.
+ * @returns The budget: {@link STYLE_FRAME_BUDGET_MS} for a short frame, a share of a long one.
+ */
+export function styleBudgetFor(frameMs: number): number {
+    return Math.max(STYLE_FRAME_BUDGET_MS, frameMs * STYLE_FRAME_SHARE);
+}
+
 /** How many nodes are painted between two looks at the clock. */
 const NODE_PAINT_BATCH = 128;
 
@@ -334,6 +372,15 @@ const MOST_MOVED_SHARE = 1 / 16;
 
 /** How many edges are painted between two looks at the clock. */
 const EDGE_PAINT_BATCH = 1024;
+
+/**
+ * The most frames a repaint of a large graph is spread over: a frame's batch is never less than
+ * this share of the graph. A batch has costs in proportion to the scene, not to the batch (a
+ * rebuilt node's teardown passes over every scene list), and a graph of 50,000 nodes and 200,000
+ * edges painted in fixed batches took about 390 frames and 12 s to show one view switch. With this
+ * floor a frame there paints for about 60 ms, still a short task, and the switch takes 32 frames.
+ */
+const REPAINT_FRAMES = 32;
 
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
@@ -417,6 +464,8 @@ export class UpdateManager implements Manager {
 
     /** Where the two masks are read from, or null while nothing has been bound. */
     private viewMasks: ViewMasks | null = null;
+    /** Whether the scene's batches are uploading only what they wrote. */
+    private rangedUploads = false;
 
     /** The mask versions the meshes on screen were last brought into line with. */
     private appliedNodeSelection = NO_MASK_VERSION;
@@ -607,6 +656,8 @@ export class UpdateManager implements Manager {
      */
     rebindScene(camera: CameraManager): void {
         this.camera = camera;
+        // The new scene's switch starts off, so the next pass must write it if a window is in force.
+        this.rangedUploads = false;
         this.watchFrames();
     }
 
@@ -704,6 +755,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Switch the scene's batches to uploading only what they wrote while a time window is in force.
+     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * @param masks - What the renderer reads.
+     */
+    private followTimeWindow(masks: ViewMasks): void {
+        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        if (ranged !== this.rangedUploads) {
+            this.rangedUploads = ranged;
+            batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
+        }
+    }
+
+    /**
      * Bring the meshes into line with the two masks.
      *
      * THE WHOLE POINT IS THE DELTA. A pass costs one integer comparison when nothing has moved,
@@ -738,6 +802,7 @@ export class UpdateManager implements Manager {
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
         this.followElementSets();
+        this.followTimeWindow(masks);
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -768,6 +833,16 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
+        // A time window's slide says which rows it moved, so a step costs those rows and not the
+        // graph. Anything else that moved a mask answers null here and walks, as below.
+        const sameLook =
+            masks.timeline?.() === true &&
+            this.appliedAnything &&
+            showContext === this.appliedShowContext &&
+            ghost === this.appliedGhost;
+        const nodeRows = sameLook ? (nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
+        const edgeRows = sameLook ? (edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
+
         // With what is drawn unchanged, only the selection moved: touch the elements that leave
         // it and the ones in it, not the whole graph. A visibility or context change rewrites its
         // mask wholesale, so that one still walks everything.
@@ -779,17 +854,28 @@ export class UpdateManager implements Manager {
         const edgeSelectionOnly =
             this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
-        if (nodesMoved && nodeSelectionOnly) {
-            this.applyNodeSelection(nodeSelection);
-        } else if (nodesMoved) {
-            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
-        }
-
-        if (edgesMoved && edgeSelectionOnly) {
-            this.applyEdgeSelection(edgeSelection);
-        } else if (edgesMoved) {
-            this.applyEdgeMasks(edgeVisibility, edgeSelection);
-        }
+        this.applyMove(nodeRows, nodesMoved, nodeSelectionOnly, nodeSelectionVersion !== this.appliedNodeSelection, {
+            rows: (rows) => {
+                this.applyNodeRows(rows, nodeVisibility, showContext);
+            },
+            selection: () => {
+                this.applyNodeSelection(nodeSelection);
+            },
+            walk: () => {
+                this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
+            },
+        });
+        this.applyMove(edgeRows, edgesMoved, edgeSelectionOnly, edgeSelectionVersion !== this.appliedEdgeSelection, {
+            rows: (rows) => {
+                this.applyEdgeRows(rows, edgeVisibility);
+            },
+            selection: () => {
+                this.applyEdgeSelection(edgeSelection);
+            },
+            walk: () => {
+                this.applyEdgeMasks(edgeVisibility, edgeSelection);
+            },
+        });
 
         this.appliedNodeSelection = nodeSelectionVersion;
         this.appliedEdgeSelection = edgeSelectionVersion;
@@ -798,6 +884,93 @@ export class UpdateManager implements Manager {
         this.appliedShowContext = showContext;
         this.appliedGhost = ghost;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Bring one kind of element into line by the cheapest way that is exact.
+     * @param rows - The rows a slide moved, or null when they are not known.
+     * @param moved - Whether anything of this kind moved.
+     * @param selectionOnly - Whether only its selection did.
+     * @param selectionMoved - Whether its selection did, which a click during play does in the same
+     *     pass as the window.
+     * @param apply - The three ways.
+     * @param apply.rows - Show and hide by rows.
+     * @param apply.selection - Follow the selection.
+     * @param apply.walk - Walk every element.
+     */
+    private applyMove(
+        rows: readonly number[] | null,
+        moved: boolean,
+        selectionOnly: boolean,
+        selectionMoved: boolean,
+        apply: { rows(rows: readonly number[]): void; selection(): void; walk(): void },
+    ): void {
+        if (rows !== null) {
+            apply.rows(rows);
+            if (selectionMoved) {
+                apply.selection();
+            }
+        } else if (moved && selectionOnly) {
+            apply.selection();
+        } else if (moved) {
+            apply.walk();
+        }
+    }
+
+    /**
+     * Show and hide only the nodes on some rows. A row with no render object yet has nothing drawn.
+     * @param rows - The rows a slide moved.
+     * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeRows(
+        rows: readonly number[],
+        nodeVisibility: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const { nodesByIndex } = this.dataManager;
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+
+        for (const row of rows) {
+            nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState);
+        }
+    }
+
+    /**
+     * Show and hide only the edges on some rows. A revealed edge is placed by its own update this
+     * frame (see {@link UpdateManager.applyEdgeMasks} for why it needs one), with no walk of every
+     * edge, unless {@link UpdateManager.hasSupportPoint} says a support point is involved.
+     * @param rows - The rows a slide moved.
+     * @param edgeVisibility - The visible edges.
+     */
+    private applyEdgeRows(rows: readonly number[], edgeVisibility: ElementMask<EdgeId> | null): void {
+        const { edgesByIndex } = this.dataManager;
+
+        for (const row of rows) {
+            const edge = edgesByIndex[row];
+            const visible = edgeVisibility?.has(row) === true;
+
+            if (edge?.setRenderVisible(visible) === true) {
+                if (visible) {
+                    this.edgesToPlace.push(edge);
+                }
+
+                if (this.hasSupportPoint(edge)) {
+                    this.forceEdgeWalk();
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether an edge wants a support point or the support points still hold one for it. Support
+     * points push on each other, and only a walk of every edge tells them who is in the model and
+     * under what forces, so a change to such an edge reaches more than the edge.
+     * @param edge - The edge, after the change.
+     * @returns True when the change needs a walk.
+     */
+    private hasSupportPoint(edge: Edge): boolean {
+        return edge.supportEdge() !== null || this.dataManager.supportPoints.pointOf(edge) !== null;
     }
 
     /**
@@ -1067,6 +1240,9 @@ export class UpdateManager implements Manager {
     /** The edges a repaint touched since the last edge pass, which that pass places. */
     private edgesToPlace: Edge[] = [];
 
+    /** Whether the repaint under way has painted an edge with a support point. */
+    private paintedSupportPoint = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
@@ -1080,44 +1256,72 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Paint the pending edges, batch by batch, until none is left or the frame's time is up.
+     * Paint the pending edges, batch by batch, until none is left or the frame's time is up and it
+     * has painted its share of the graph (see {@link REPAINT_FRAMES}).
      * @param painter - Where the paint is read from.
      * @param deadline - When this frame stops starting batches; the first always runs.
      */
     private syncEdgeStyles(painter: StylePainter, deadline: number): void {
+        // A repainted edge's own appearance changed, so this frame places the edges it painted (in the
+        // edge pass, after every batch: a fanned edge is placed from its siblings' paint), and the
+        // frame that finishes the repaint visits every edge. A frame paints at least a
+        // REPAINT_FRAMES-th of the graph's edges, whatever the budget.
         this.sceneChanged = true;
+        let painted = 0;
+        const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
 
         do {
-            for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
-                const edge = this.dataManager.edgesByIndex[index];
-                const paint = edge === undefined ? null : painter.edgePaint(index);
+            painted += this.paintEdgeBatch(painter);
+        } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
-                if (edge !== undefined && paint !== null) {
-                    edge.applySessionPaint(paint);
-                    this.edgesToPlace.push(edge);
-                }
-            }
-        } while (painter.hasPendingEdges && performance.now() < deadline);
-
-        // A repainted edge's own appearance changed, so this frame places the edges it painted, and
-        // the frame that finishes the repaint visits every edge. Visiting every edge on each frame
-        // made a repaint cost its frames times the edges: a million edges take about a thousand
-        // frames, and those walks were most of a 100,000-node load.
+        // Visiting every edge on each frame made a repaint cost its frames times the edges: a
+        // million edges take about a thousand frames, and those walks were most of a 100,000-node
+        // load. A time window's slide changes nothing but the rows it painted, so what this frame
+        // places is all of it, unless it painted an edge with a support point: a layer can change
+        // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
-            this.forceEdgeWalk();
+            if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
+                this.forceEdgeWalk();
+            }
+
+            this.paintedSupportPoint = false;
         }
+    }
+
+    /**
+     * Paint one batch of pending edges.
+     * @param painter - Where the paint is read from.
+     * @returns How many edges were painted.
+     */
+    private paintEdgeBatch(painter: StylePainter): number {
+        let painted = 0;
+
+        for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
+            const edge = this.dataManager.edgesByIndex[index];
+            const paint = edge === undefined ? null : painter.edgePaint(index);
+
+            if (edge !== undefined && paint !== null) {
+                edge.applySessionPaint(paint);
+                this.edgesToPlace.push(edge);
+                this.paintedSupportPoint ||= this.hasSupportPoint(edge);
+                painted++;
+            }
+        }
+
+        return painted;
     }
 
     /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
+     * @param size - The most nodes the batch takes.
      * @returns Each node of the batch and its paint.
      */
-    private takeNodeBatch(painter: StylePainter, rows: ReadonlyMap<number, Node>): [Node, NodePaint][] {
+    private takeNodeBatch(painter: StylePainter, rows: ReadonlyMap<number, Node>, size: number): [Node, NodePaint][] {
         const painted: [Node, NodePaint][] = [];
 
-        for (const index of painter.takeNodes(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : NODE_PAINT_BATCH)) {
+        for (const index of painter.takeNodes(size)) {
             const node = rows.get(index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
@@ -1129,22 +1333,61 @@ export class UpdateManager implements Manager {
         return painted;
     }
 
+    /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
+    private nodePaintRate = 0;
+
     /**
-     * Paint the pending nodes, batch by batch, until none is left or the frame's time is up.
+     * How many nodes a frame's batch takes: what the last batch's speed says fits in the budget,
+     * never fewer than {@link NODE_PAINT_BATCH}, and never fewer than a {@link REPAINT_FRAMES}-th of
+     * the graph's nodes.
+     * @param budgetMs - The frame's paint budget.
+     * @param nodes - How many nodes the graph holds.
+     * @returns The batch size.
+     */
+    private nodeBatchSize(budgetMs: number, nodes: number): number {
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
+        }
+
+        // An unbounded frame (no budget given) takes everything at once.
+        if (budgetMs === Number.POSITIVE_INFINITY) {
+            return budgetMs;
+        }
+
+        return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));
+    }
+
+    /**
+     * Paint one batch of the pending nodes, sized to the frame's budget.
      * @param painter - Where the paint is read from.
-     * @param deadline - When this frame stops starting batches; the first always runs.
+     * @param deadline - When this frame's paint budget runs out.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
+        // A rebuilt mesh leaves the scene's mesh count as it was, and a frozen scene draws the old one.
+        this.sceneChanged = true;
         const rows = this.nodesByRow();
-        const resized = new Set<Node>();
 
-        do {
-            for (const node of this.paintNodes(this.takeNodeBatch(painter, rows))) {
-                resized.add(node);
-            }
-        } while (painter.hasPendingNodes && performance.now() < deadline);
+        // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
+        // every scene list (`disposeReleased`) whatever its size, about 28 ms at 50,000 nodes, so
+        // batches of 128 nodes made a 50,000-node repaint about 390 such passes: 3.3 s of one
+        // checklist tick (ws-polish 3), and the pass alone overran the frame's budget. A frame now
+        // takes one batch: as many nodes as the last batch's speed says fit in the budget, and never
+        // less than a REPAINT_FRAMES-th of the graph, so the pass is paid at most that many times
+        // however large the graph. Labels the batch's rebuilds drop are released together too.
+        const { resized, rebuilt } = disposeLabelsTogether(() => {
+            const start = performance.now();
+            const batch = this.takeNodeBatch(
+                painter,
+                rows,
+                this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
+            );
+            const painted = this.paintNodes(batch);
+            const spent = performance.now() - start;
+            this.nodePaintRate = spent > 0 ? batch.length / spent : 0;
+            return { resized: new Set(painted.resized), rebuilt: painted.rebuilt };
+        });
 
-        if (resized.size > 0) {
+        if (rebuilt || resized.size > 0) {
             for (const group of this.redrawGroups()) {
                 resized.add(group);
             }
@@ -1157,8 +1400,10 @@ export class UpdateManager implements Manager {
         // A repaint can change how a node is drawn in ways that move where its edges stop without
         // moving the node, so the frame that finishes the repaint visits every edge. The frames in
         // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
-        // repaint was spread over.
-        if (!painter.hasPendingNodes) {
+        // repaint was spread over. A frame that resized a node places only that node's edges again.
+        // A time window's slide changes nothing but the rows it painted, and the lines above placed
+        // the edges of any node of those that changed size or was rebuilt.
+        if (!painter.hasPendingNodes && !painter.takeNodesRowsOnly()) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };
         }
@@ -1287,10 +1532,14 @@ export class UpdateManager implements Manager {
      * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
      * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
      * new ones are built after it, and the caller finds the edges of the resized nodes in one walk.
+     *
+     * A mesh rebuilt at the same size and shape (a new opacity) leaves its edges where they end, so
+     * only the nodes whose geometry changed are handed back for their edges to be placed again.
      * @param painted - Each node and the paint it is to be drawn with.
-     * @returns The nodes whose size or shape changed, or whose mesh was rebuilt.
+     * @returns The nodes whose size or shape changed, and whether any mesh was rebuilt (a group's
+     *     rebuilt mesh has to be stretched over its members again).
      */
-    private paintNodes(painted: readonly [Node, NodePaint][]): ReadonlySet<Node> {
+    private paintNodes(painted: readonly [Node, NodePaint][]): { resized: ReadonlySet<Node>; rebuilt: boolean } {
         const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
         disposeReleased(rebuilt, [], () => {
             for (const node of rebuilt) {
@@ -1303,11 +1552,7 @@ export class UpdateManager implements Manager {
             }
         });
 
-        for (const node of rebuilt) {
-            resized.add(node);
-        }
-
-        return resized;
+        return { resized, rebuilt: rebuilt.length > 0 };
     }
 
     /**
@@ -1940,7 +2185,7 @@ export class UpdateManager implements Manager {
             // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
             // applies the whole repaint, as a caller drawing one frame to read the result expects.
             // In the minimum-work mode a frame applies one batch of each kind and leaves the rest.
-            const budget = minimumWorkPerFrame() ? 0 : STYLE_FRAME_BUDGET_MS;
+            const budget = minimumWorkPerFrame() ? 0 : styleBudgetFor(frameMs);
             this.syncStyles(frameMs > 0 ? budget : Number.POSITIVE_INFINITY);
         });
     }
@@ -1973,6 +2218,7 @@ export class UpdateManager implements Manager {
         this.autoTurning = this.camera.autoTurn(
             (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
         );
+        this.pending.cameraTurnsByItself = this.autoTurning;
 
         // Always update camera
         this.camera.update();
@@ -2805,6 +3051,14 @@ export class UpdateManager implements Manager {
      */
     meshesShownOrHidden(): void {
         this.sceneChanged = true;
+    }
+
+    /**
+     * Whether a node's size follows the view, which a node batch cannot draw yet.
+     * @returns True under `depthIndependentSize` or a map's `nodeScale: "screen"`.
+     */
+    get nodesScaledByView(): boolean {
+        return this.depthSizingPivot() !== null || this.screenScaled !== null;
     }
 
     /**

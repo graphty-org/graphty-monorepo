@@ -610,6 +610,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
     "edge.labelPadding": "Label padding",
+    "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
     "edge.labelOffsetX": "Label offset x",
@@ -771,7 +772,8 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
  */
 export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+    // Every group's rank, not only the ten a summary lists, so a value is named one way.
+    return run?.result?.groupRanks()?.get(String(value));
 }
 
 /**

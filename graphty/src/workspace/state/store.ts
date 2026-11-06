@@ -17,6 +17,7 @@ import type {
     LoadDraft,
     NoteTargetInput,
     SourceKey,
+    UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
@@ -128,6 +129,30 @@ export interface WorkspaceState {
      */
     readonly dockIssue: string | null;
     /**
+     * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
+     * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
+     * strip to; null while none is open. The canvas key's preview reads it; the data table never does.
+     */
+    readonly editingSelection: {
+        /** The editor that holds the slot: only it replaces or clears it. */
+        readonly owner: string;
+        readonly rule: UnionLeaf;
+        readonly branch: string | null;
+        /** What the canvas key's preview is titled by: "Which nodes", or a filter card's name. */
+        readonly title: string;
+    } | null;
+    /**
+     * The selection editor whose workspace is open over the canvas column
+     * (design/ui/selection-groups/spec.md, section 3.0): one at a time, so opening another
+     * switches it. Null while it is closed.
+     */
+    readonly selectionWorkspace: {
+        /** The editor that opened it: only it draws the workspace, and only it clears it. */
+        readonly owner: string;
+        /** Its host: a style layer's selector covers the left panel, a filter card the inspector. */
+        readonly host: "selector" | "filter";
+    } | null;
+    /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
      * Filters); cleared by the section. Null when none is asked for.
@@ -169,6 +194,8 @@ export interface WorkspaceState {
      * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
      */
     readonly timelineOpen: boolean;
+    /** Whether the phone's Time window sheet is up over its dock. */
+    readonly timeSheetOpen: boolean;
     /**
      * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
      * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
@@ -307,6 +334,8 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    editingSelection: null,
+    selectionWorkspace: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,
@@ -315,6 +344,7 @@ const INITIAL: WorkspaceState = {
     ends: null,
     pickedSource: null,
     timelineOpen: false,
+    timeSheetOpen: false,
     timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,

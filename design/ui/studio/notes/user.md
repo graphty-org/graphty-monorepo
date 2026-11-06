@@ -38,6 +38,33 @@ something, or change my mind. Summarize when it passes about 25 KB.
   value reads as "it did nothing"; join preview before the act; one fact drawn once; data-screen keyboard.
 - No tours, hint panels or first-run aids; the same screens for everyone. No concept built around one
   task's wording or one domain.
+- (2026-11-03) Tier 5 round 1 ran (30 sessions) and failed bars 1, 3, 4, 8 and 9; the studio
+  stopped at its one-round cap. Bars 6 and 7 were never fed (two expert walks did not run):
+  unmeasured is not passed. Next round needs those walks and a fresh calm-first check.
+- (2026-11-03) My "count that looks right and answers wrong" rule caught two sev 3s: speech from
+  a covered panel ("4 of 24" under a visible "15 of 24"), and a step picked from one run's
+  results that binds another run. A count, spoken or drawn, must name its own base and scope.
+- (2026-11-03) graphty-element must hand over a run's scope as a fact; the app words it. Two
+  runs named alike is the defect, not the matches strip's "(visible)" label.
+- (2026-11-03) An error must never contradict the screen: By position says "highest 10" while
+  24 of 24 match. A default the step does not apply must not be stated.
+- (2026-11-03) Empty boxes need a cue of what they take: the empty Fill color box was the
+  biggest single cost on T70 and the "least sure" moment of 8 of 28. Fix in the shared input if
+  the click behavior is compact-mantine's.
+- (2026-11-03) "Condition..." and "Or..." do not say "and" / "or else"; three sessions resolved
+  it only by watching the count. Words must carry the logic, not the count.
+- (2026-11-03) Work the user built wins: Clear then Escape deletes a saved card, Undo cannot
+  restore it. Fix even with no participant hit.
+- (2026-11-03) Study hygiene: a task and its key must ask the same thing (T73 measured the key,
+  not the build); no wish-inviting follow-up; do not pre-color fixtures in the task's color.
+- (2026-11-03) Start gate before launch; a void round wastes the cap.
+- (2026-11-02) Check `git log <frozen>..HEAD` before reading any result; fixes after the freeze
+  count against the frozen build only.
+- (2026-10-30) Show the result before the act, in counts the reader trusts; severity 3 only
+  with a scripted repro and an end-state check.
+- Same-model participants: a failure is strong evidence, a pass is weak; blind graders; rate
+  first, then neutral questions; task wording never reuses screen words.
+- No product concept built around one task's wording, one fixture or one domain.
 
 ## Priorities and values
 
@@ -133,6 +160,14 @@ insights.md`; `sessions/r2-s05/05.png`, `r2-s02/29.png`, `r2-s10/05.png`; `shape
   without the thing being true. Evidence: `tier6/roster.md`, `tasks.md`, `answers.md` T93;
   `tool/tier6.mjs` geminiRouter; `real.mjs` taskWords and `styleChanges`; `design.md` section 12;
   `assistant/Conversation.tsx` line 390; `AiController.ts` `rolledBack`.
+- **2026-11-03 (me, tier 5 round 1 closed):** Fix order I back: the two sev 3 count defects
+  (speech base, run binding) first, then By position's contradicting error, Clear+Escape loss,
+  the Fill box, then the Or group's first state and its words. Reasons: trust over polish; each
+  is a screen that lies or loses work. Evidence: `tier5/rounds/round-1/insights.md` 1-7.
+- **2026-11-02 (me, two reviews of tier 5 criteria):** refreeze past the gate's fixes; one
+  bounded gate pass; wording check on prompts only; bar 9 counts a workspace element named in two
+  sessions on different halves at any rating; double count sev 3 only if equal on every project;
+  lures walked as detours. Evidence: `rounds/round-1/rating-check.md`, `tool/steps.mjs`.
 
 - **2026-10-30 (me, tier 4 round 1 closed at the one-round cap):** Lessons taken: (1) a study
   tool line that can contradict the screenshot is a severity-raising defect in the study, so it
@@ -218,6 +253,68 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
   grep for each kept word's other uses, which found T93 B's "connected". A word check does not see
   a value: the key `sk-study-expired-2025-key` passed it. Read the setup values too. Outcome of the
   eight changes is unknown until the round runs.
+- **2026-10-29 (me, review of tier 4 criteria and tasks; build not yet named, no session run):**
+  Eight changes: grade from a saved data state (sources, roles, kinds, filter cards with effect,
+  order and counts, visible and selected counts) with `real.mjs --end` refusing without it; a tier
+  4 scripted walk of the data screens and a passing wording check before sessions; T60 drops "web
+  address"; T64 asks for the outcome, not "stronger" / "farther"; T65 B moves to river data (both
+  halves were people networks); T63's place half needs no action (lat/lon detected at load), so
+  make it need one on B or stop claiming it is measured; answer key ambiguities (T61 "did not fit"
+  covers P13 only; every "pilot to confirm" value and criteria line one filled before the gate);
+  a cost bar (median steps at most 1.5x the key on core tasks), a scripted axe check in bar 5, and
+  Sam on a new surface (join screen) instead of T62. Reason: bars that cannot be read, prompts that
+  name their control, a "two domains" claim that is one domain. Evidence: `NetworkDataDialog.tsx:75`
+  placeholder, `Fields.tsx:560` "Higher weight means" (options stronger, farther),
+  `tool/bars.mjs` (WALKS, WALKS3 only), `tool/real.mjs` (styleTree capture only), `tier4/answers.md`
+  T63 note (lat/lon designated at load), `tier4/backlog.md` (families: only text operators).
+- **2026-10-20 (me, fifth review of tier 3 criteria and tasks; named build 3ef9e6c1ec, no
+  session run):** Eight changes: refreeze on the post-golden commit and re-read every reference
+  value; define "grading-spoiling" as a screen that disagrees with the style tree, and count a
+  keyboard block on Sam's halves as a blocked task; keyboard walks only on Sam's halves and a gate
+  that accepts a re-pilot of success paths only, with `gateCheck` keyed by half; make missing
+  WALKS3 screens a gate refusal and run the wording check (expect T41 "stays", T48 "look");
+  give every backlog row a severity and count 3+ once in bar 5; headline round 1 as
+  not passable by plan; settle T50 B's summary reading as SD, rule not read; run the audit's
+  key-and-drawing check on T46 B and T47 B for look-alike colors. Reason: the gate as written
+  refuses round 1 forever, two graders would split, or a bar reads clean because nothing checked
+  it. Evidence: pilot `session.json` build stamps (none on 3ef9e6c1ec); `git merge-base
+--is-ancestor f9d8b44b9 3ef9e6c1ec` false; `tool/bars.mjs` WALKS3 screen list;
+  `tool/real.mjs` gateCheck (`piloted.set(basename(dir))`); `tool/wording.mjs` stem();
+  `graphty/src/workspace/style/PropertyRow.tsx:1022` ("stays a fixed value").
+- **2026-10-17 to 2026-10-19 (me, first to fourth reviews of tier 3, summarized):** Landed: T51
+  at 4, B prompts a colleague's, exit test and `decided.md`, bar 5 not scored when the walk skips
+  a screen. Reason throughout: routes no check saw, grades the key could not give.
+- **2026-10-16 (me, combined V7 + cards + bulk review):** Accepted the owner's V7 and dropped my
+  2026-10-12 "groups, never tabs". Asks recorded in Top of mind.
+- **2026-10-16 (bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`):** SpreadValues deleted; a
+  bulk field whose layers differ draws BoundValue with <<Layer>>. Elena test: one look for one
+  layer or ten. Alex test: 35 clusters read as 5 chits + "+30", count spoken.
+- **2026-10-14, round 6:** The owner's confusions (empty palette, vanishing new layer, "Top 10"
+  selecting nothing, "End" not drawn, Highlight read as Headlight) were each a screen that said
+  nothing true. Decisions favor words that say what happened ("Draws nothing", count lines that
+  explain ties, Add Leiden layer).
+- **2026-10-13 (tier 3 pause, my answers to the owner):** Unset is Clear (minus at rest, tooltip
+  names what comes back, Undo); covering a lower layer is a separate act (own entry set to
+  nothing), acceptable only if a layer lists only its own entries. No "split parent" row: two row
+  kinds only, layer and folder. Figma: one-line rows, effect rows, Mixed only for multi-select,
+  popovers beside the panel; kept against Figma: the vary glyph at rest and the painted-over mark.
+  Also: nothing lost passing through a kind; focus never falls to the page; "one color per value"
+  gives distinct colors. Reason: each is a screen that lies or lost work.
+- **2026-10-12 (tier 3 open questions, `tier3/decide/user.md`):** Core single-value properties
+  always present as empty fields whose placeholder is what lies beneath; "+" only for lists and
+  rare properties; field picker ranked in use then fits; gradient as one picture with number
+  fields kept; one "which elements" rule with an edge clause; label looks as presets. Element asks,
+  all additive (agreement beneath a layer, kind previews, channel-fit codes, binding preview,
+  rule-tree selector with an edge reading, text leaf, label looks as catalog data).
+- **2026-10-08 to 2026-10-11 (tier 2, summarized 2026-10-17):** Criteria: a bar for expert and
+  screenshot findings, no round cap, "not scored" is not met, no door removed on fewer than 8
+  sessions. Rounds 1-4 critiques and closes: the gate and leak check enforced by the command every
+  session runs (a written rule failed twice); briefings name files and kinds only; Shift-click
+  adds; toolbar Filters icon; find box "or more" rows and only suggestions that read as a
+  condition (element); the table lists what a filter step keeps; one door per confirmed problem so
+  a round can credit each change; trust words never cut to pass a word count. Kept: Shift-click,
+  Filters icon, Analyze name ranking, Replace page. Rule language is copied, never discovered (0
+  of 16 typed "=").
 - **2026-09-26 to 2026-10-09 (tiers 1 and 2, summarized 2026-10-30):** Owner rules I work under:
   stop mocking and study the real app; element returns facts, app writes words; first-time users
   first; design for the intermediate user, personas validate and never generate; no one-domain
@@ -227,6 +324,26 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
   empty. My rules from then: a dry run walks the commonest detours, not only the key; test the
   real app before redesigning; every bar scorable without judgment; no door removed on fewer
   than 8 sessions.
+
+## Tried: worked / did not work
+
+- 2026-11-03 -- TIER 5 ROUND 1 RERUN (30 sessions). WORKED: repro folders for every sev 3 and
+  reading the frozen source to name the mechanism (`card.top ?? 10`, missing `openedNew`). DID
+  NOT: a "least sure" question as a bar 9 feed (it makes everyone name something); one session
+  carrying a task's success bar (T75 A); a task whose key wants a rule its words never ask for.
+- 2026-11-03 -- TIER 5 ROUND 1. DID NOT: launching with no start-gate evidence in plan.md (60 of
+  60 starts refused, round void, one-round cap spent). WORKED: two skeptic checks on expert
+  findings (dropped decided behaviors, weakened a words-budget count that included chrome and
+  user layer names); expert walks found a sev 3 speech defect with log and screenshot evidence.
+- 2026-11-02 (second review) -- WORKED: `git log <frozen>..HEAD` on the product folders; it showed
+  the gate's blockers already fixed past the frozen build. WORKED: running `wording.mjs` and
+  reading which words repeat in every task (the follow-up). DID NOT: the overwhelm rating as an
+  instrument (1.5 gap, reasons named defects not crowding); the 2-pass safety cap as written;
+  the Fill placeholder-of-what-lies-beneath (2 of 2 named it).
+- 2026-11-02 -- WORKED: grepping the tools for the tier's task ids before reading the bars; it
+  showed in one command that no tier 5 bar has a script. WORKED again: grepping the app's source
+  for each prompt's words (no success-path echo in tier 5). DID NOT (in the placement study): a
+  1-7 overwhelm rating from same-model participants as a discriminating measure.
 - 2026-10-30 -- Tier 4 with one round and a safety cap: did not reach the bars; three of seven
   failed on real defects (keyboard, clipped source row, join cost), two only as frozen. A single
   round finds problems but cannot credit fixes.
@@ -250,6 +367,31 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
   Filters icon (7 of 7 first door), find box hint, Replace and its marks, one path per problem. DID NOT:
   an unenforced gate, briefing leaks, a dry run walking only the key, several variants per problem, 0 of
   16 typed "=", Replace only on right-click, long names cut, scripts claimed built but absent.
+- 2026-10-20 -- DID NOT WORK (third time): asking for tool changes in criteria prose ("does not
+  pass until WALKS3 walks..."). Nothing was built across two reviews. WORKED: grouping pilot
+  `session.json` build stamps per half in one command, which showed the named build has no walk.
+
+- 2026-10-19 -- DID NOT WORK: a criteria line that says a check "does not pass until" a script
+  changes, with no owner for the script change. The five WALKS3 screens agreed on 2026-10-18 were
+  still unwalked a day later. WORKED: listing each pilot folder's `session.json` commit, which
+  showed in one command which halves the interrupted pass really covered.
+
+- 2026-10-18 -- DID NOT WORK: a dry run whose exit is "finds nothing new" while every pass's
+  fixes are judged only by the next full pass. Four passes, 41% of the last list caused by the
+  one before, three behaviors flip-flopped, and round 1 still has not started. WORKED: matching
+  each pass's rows to the commits before it (`tmp/tier3-dryrun-analysis/`), which named the
+  cause in one read.
+
+- 2026-10-17 -- WORKED: a first review of study materials that names each ask with its reason;
+  all eight landed in one pass. DID NOT (found on the second pass): a new task (T51) added
+  without adding its route's screens to the scripted walk, so the wording check and bars 6 and 8
+  were blind to the very screen the task exists to test. Lesson: a new task brings its screens
+  into WALKS3 in the same change.
+
+- 2026-10-09 to 2026-10-11, folded 2026-11-03 -- TIER 2. WORKED: Shift-click adds, toolbar
+  Filters icon, find box hint and example, Replace with marks, dry runs widened to detours and the
+  tool, one path per problem. DID NOT: unenforced gates, briefing leaks, several variants per
+  problem, Replace only on right-click, long names cut, scripts claimed built but absent.
 - 2026-10-02 to 2026-10-07, folded 2026-10-09 -- TIER 1 (mocks, then the real app). WORKED and
   kept: sample one click from start, match report and broken-file refusal, save and reopen, every
   run repainting drawing and legend together, the G/Degree neighbor list, "No crossings" refusal,
@@ -303,4 +445,19 @@ insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/
   `wording.mjs`; `tmp/tier3-dryrun-analysis/` (main checkout).
 - Tiers 1 and 2: `tier2/rounds/round-1..4/`; `digests/`; `.claudehistory/3a19ea55-f3cc-4fc0-b85f-
 842243f52536.jsonl` (2026-09-26, the role defined).
+- 2026-11-02: `tier5/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` headings,
+  `owner-feedback-2026-11-01.md`, `placement-study.md`; `selection-groups/spec.md` headings;
+  main checkout `tmp/selection-redesign/study/panel.md`; `tool/steps.mjs`, `bars.mjs`, `real.mjs`.
+- 2026-10-29: `tier4/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` (R1-R15),
+  `backlog.md`; `design/data/filter-cards.md`, `data-management-requirements.md`;
+  `graphty/src/workspace/start/NetworkDataDialog.tsx`, `data-place/Fields.tsx`, `data-place/words.ts`.
+- 2026-10-17 to 2026-10-21: `tier3/report.md`, `criteria.md`, `tasks.md`, `answers.md`,
+  `dry-run-r1-4.md`; `tool/bars.mjs` (WALKS3), `tool/real.mjs` (gateCheck, styleTree),
+  `tool/wording.mjs`; `tmp/tier3-dryrun-analysis/` (main checkout).
+- 2026-10-08 to 2026-10-12: `tier2/rounds/round-1..4/` insights, scores, expert walks;
+  `tier3/decide/user.md`; `graphty/src/workspace/graph-place/FindBox.tsx`, `canvas/legendWords.ts`.
+- 2026-09-26 to 2026-10-07: `digests/` (decisions, framework, owner-voice, study-rounds, tier1);
+  the storyboards worktree's `prototype/study/decision-log.md` "Round 8"; the User Advocate's own
+  outputs under `.claudehistory/3a19ea55-.../subagents/workflows/` (extraction scripts in
+  `design/ui/studio/tmp/user-notes/`).
 - `CLAUDE.md` (Architectural Principles; graphty-element is neutral about presentation).

@@ -198,30 +198,20 @@ interface EndRowProps {
 }
 
 /**
- * How a turn ended, in words from its code, with its buttons. A failure is the alert only as it
- * arrives: the row drawn again later (reopening the panel, closing the list) is read, never said
- * again. The buttons stay out of the alert, so the one going away on the next send changes nothing
+ * How a turn ended, in words from its code, with its buttons. A failure is the alert. The buttons
+ * stay out of the alert, so the one going away on the next send changes nothing
  * it says, and a space keeps its two lines two sentences when read as one.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
  * @param props.onAgain - sends the message again, on the newest turn
- * @param props.newest - whether the row is on the newest turn
  * @returns The row
  */
-function EndRow({ words, unchanged, onAgain, newest }: Readonly<EndRowProps>): React.JSX.Element {
-    const { run, store } = useWorkspace();
-    const due = useWorkspaceState((state) => state.assistantFailureDue);
-    // Taken once: the row keeps its role while it shows, and the next row drawn is not new.
-    const [alert] = useState(() => words.failed && newest && due);
-    useEffect(() => {
-        if (alert) {
-            store.set({ assistantFailureDue: false });
-        }
-    }, [alert, store]);
+function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX.Element {
+    const { run } = useWorkspace();
     return (
         <Group justify="space-between" align="flex-end" gap={4} wrap="nowrap">
-            <div role={alert ? "alert" : undefined}>
+            <div role={words.failed ? "alert" : undefined}>
                 <Text size="sm">{words.line}</Text>{" "}
                 {words.action !== null && unchanged ? (
                     <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>

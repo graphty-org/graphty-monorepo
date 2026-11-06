@@ -371,6 +371,17 @@ session.on("style:batch-changed", ({ edits, layers }) => {
 });
 ```
 
+A layer refused for what it says about shaders rejects its run, and a run nobody awaits leaves no
+trace of that. The session also publishes `style:refused` with `{ problems }`, each a
+`{ code, params }` your application words, such as `shader.uses-not-a-list` for a `node.shaders`
+written as something other than a list:
+
+```typescript
+session.on("style:refused", ({ problems }) => {
+    report(problems); // [{ code: "shader.uses-not-a-list", params: { channel, found } }]
+});
+```
+
 An edit to data alone -- `data.updateNodes()` moving a value into a new category -- repaints the
 layers that read it but publishes no `style:changed`, and `project:changed` fires before that
 repaint, so a legend read on it shows the previous categories. `project:derived`, with the same

@@ -117,6 +117,7 @@ import {
     type RunExecutor,
     type RunOptions,
     type RunOutcome,
+    type RunReader,
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
@@ -127,8 +128,11 @@ import {
     edgeSpaceOf,
     type MaskIdSpace,
     type ScopeApi,
+    type ScopeEdit,
     type ScopeResolver,
 } from "./scope";
+import { createStepRuns, type StepRuns } from "./scope/stepRuns";
+import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
 import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
 import { createMaterialiser } from "./sets/algebra";
@@ -194,6 +198,7 @@ import type {
     GroupOutlineClick,
     HistoryClearOptions,
     HistoryOutcome,
+    HistoryRestoreOptions,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -219,6 +224,7 @@ import type {
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import type { SlideCounts } from "./visibility/slide";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -1722,7 +1728,8 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
         set limitSteps(value: number) {
             history.limitSteps = value;
         },
-        restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
+        restoreTo: (step: string | null, options?: HistoryRestoreOptions) =>
+            dispatcher.restoreTo(step, options?.redo === "drop") as Promise<HistoryOutcome>,
         cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
         clear: (options?: HistoryClearOptions) => {
             dispatcher.clear(options?.pending === "keep");
@@ -2468,6 +2475,7 @@ function repaintAgainstCurrentData(
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
+            lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
             problems: () => engine.problems(),
@@ -2636,9 +2644,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Assigned below, and read only from inside a callback: a store this session built delivers
     // its freeze remaps here, and a freeze cannot happen before the store exists.
     let selection: SelectionOwner | null = null;
+    /**
+     * The hovered node, else the one selected node: what an `orSelected` hover layer and a union
+     * step's `"hovered-or-selected"` follow.
+     * @returns The node, or null.
+     */
+    const focusedNode = (): NodeId | null => {
+        const hovered = selection?.hovered ?? null;
+        const selected = selection?.nodes ?? [];
+        return hovered ?? (selected.length === 1 ? selected[0] : null);
+    };
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
-    let repaintGhosts = (): void => undefined;
+    let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2648,6 +2666,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
+    // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
+    // the style stack keeps its readings until it does.
+    let stateRevision = 0;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2744,7 +2765,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
-            textTest: (text, mode, target) => requireQuery(query).textTest(text, mode, target),
+            textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
             matchWhere: (where, target) =>
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
@@ -2930,7 +2951,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return {
             execution: executionOf(run),
-            fields: result.fields,
+            // With what the run's own fields carry from the catalogue (a field's unstable names).
+            fields: result.fields.map((field) => ({
+                ...runs.get(run)?.fields.find((each) => each.name === field.name),
+                ...field,
+            })),
             nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
             edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
         };
@@ -2954,6 +2979,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const suppliedNow = (keys: readonly SourceKey[]): ReturnType<typeof suppliedBy> =>
         suppliedBy(dispatcher.state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined, keys);
 
+    // The runs a union step's `measure` leaf reads, built once the runs and the planner exist.
+    const stepRunsRef: { current?: StepRuns } = {};
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -2980,6 +3007,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        focus: () => focusedNode(),
+        // The runs a union step's measure reads: built once the runs and the estimate exist.
+        stepRuns: () => stepRunsRef.current,
+        edit: () => openEdit(),
+        subscribe: (watch) => notifier.subscribe(watch),
+        runScopeOf: (run: RunId) => runs.get(run)?.record.scope.spec,
     });
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
@@ -2997,8 +3030,25 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         components,
         dispatcher,
         dependencies,
-        admit: (filter: RuleTree) => scope.admit(filter),
+        // A filter cannot follow the pointer: a union's live references are frozen to the nodes
+        // they hold as it is written (design/ui/selection-groups/element-api.md section 7).
+        admit: (filter: RuleTree) =>
+            mapUnions(scope.admit(filter), (leaf) =>
+                freezeLiveReferences(leaf, (reference) => {
+                    if (reference === "selection") {
+                        return selection?.nodes ?? [];
+                    }
+
+                    const focused = focusedNode();
+                    return focused === null ? [] : [focused];
+                }),
+            ),
         scope: (spec: Scope) => scope.leafOf(spec),
+        // A condition's union reads its measure steps' runs as the scope API does.
+        steps: {
+            gate: (step, frame) => stepRunsRef.current?.gate(step, frame) ?? null,
+            result: (leaf, frame) => stepRunsRef.current?.result(leaf, frame),
+        },
         // The resolver's context turns a capture into bitmaps over the current snapshot.
         captured: (item: ResultItem) => scope.contextNow().captured?.(item),
         watch: {
@@ -3020,8 +3070,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
         },
-        onSlide: () => {
-            repaintGhosts();
+        onSlide: (moved) => {
+            repaintGhosts(moved);
         },
         onMaskVersion: advanceTick,
         selection: {
@@ -3204,6 +3254,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 (stack?.list() ?? [])
                     .filter((layer) => layer.source.by === "run" && layer.source.runId === runId)
                     .map((layer) => layer.id),
+            // The selections whose steps read a run: what its removal leaves waiting.
+            readers: (runId) => runReaders(runId),
         },
         onChange: (change) => {
             // The token is minted when the work starts, but the result it stamps is published
@@ -3256,9 +3308,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
                 nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
+                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
                 edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
+                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -3417,6 +3473,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         records,
         onChange: (delta) => {
+            stateRevision++;
             notifier.notify({ kind: "selection" });
             repaintSelected();
             publish(watchers, "selection:changed", delta);
@@ -3433,6 +3490,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             });
             // An input moved: what a count read before the move is stale now.
             advanceTick();
+            // A union step reading "hovered-or-selected" follows the pointer.
+            notifier.notify({ kind: "hover" });
             repaintStates({ node: nodes, edge: [] });
             // The pointer moved to another node, or off every node: repaint what a hover layer paints.
             repaintHover();
@@ -3488,13 +3547,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
         stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
-    const repaintStates = (dirty: ElementIndices): void => {
+    const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
+        if (dirty.node.length > 0 || dirty.edge.length > 0) {
+            stateRevision++;
+        }
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
         }
 
         painter
-            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers reading the selection.", error);
@@ -3552,7 +3614,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
     // elements that became or stopped being ghosts.
     let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
-    repaintGhosts = (): void => {
+    repaintGhosts = (moved?: SlideCounts): void => {
         if (!readsState()) {
             paintedGhosts = null;
             return;
@@ -3560,6 +3622,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         const ghosts = visibility.ghosts();
         if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
+        if (moved !== undefined && ghosts !== null && ghosts.node === paintedGhosts?.node) {
+            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
+            paintedGhosts = ghosts;
+            repaintStates(
+                {
+                    node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
+                    edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
+                },
+                true,
+            );
             return;
         }
 
@@ -3605,6 +3681,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return painter
                 .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+                .then(() => {
+                    // The members moved without a command: a key and a count read again on this.
+                    dispatcher.repaintedOutsidePass(["styles"]);
+                })
                 .catch((error: unknown) => {
                     if (!teardown.signal.aborted) {
                         console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
@@ -3626,9 +3706,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     // The hovered node, else the one selected node: what an `orSelected` hover layer follows.
     const focusSource = createHoverSource(snapshot, () => {
-        const hovered = selection?.hovered ?? null;
-        const selected = selection?.nodes ?? [];
-        const id = hovered ?? (selected.length === 1 ? selected[0] : null);
+        const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
     const styles = createStylesApi({
@@ -3662,6 +3740,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             focus: focusSource,
         },
         admitScope: (spec: unknown) => scope.admit(spec),
+        admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         transient: () => peekLayers,
         directed: () => snapshot().directed,
@@ -3699,13 +3778,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         inputRevision: () => inputs.tick.value,
+        stateRevision: () => stateRevision,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
+        onRefused: (refusal) => {
+            publish(watchers, "style:refused", refusal);
+        },
         onBatch: (batch) => {
             publish(watchers, "style:batch-changed", batch);
+        },
+        onBranchesShown: (shown) => {
+            publish(watchers, "style:branches-shown-changed", { shown });
+        },
+        holdCondition: (id, all) => {
+            visibility.hold(id, all);
         },
         disposed: teardown.signal,
     });
@@ -3972,6 +4061,120 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
+    stepRunsRef.current = createStepRuns({
+        runs,
+        execute: sharingIndexes(
+            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
+            snapshot,
+            () => dispatcher.state.graph.token,
+        ),
+        resolveScope: (spec: Scope) => scope.resolveNow(spec),
+        idsOf: (nodes) => {
+            const graph = snapshot();
+            const ids: NodeId[] = [];
+            nodes.forEach((byte, index) => {
+                if (byte === 1) {
+                    ids.push(graph.ids.idOf(index));
+                }
+            });
+            return ids;
+        },
+        readerOf: (result, run) => {
+            const graph = snapshot();
+            const space = edgeSpaceOf(graph);
+            return {
+                execution: run === undefined ? `#${identityOf(result)}` : executionOf(run),
+                fields: result.fields,
+                nodeValue: (index: number, field: string): unknown => result.node(graph.ids.idOf(index))?.[field],
+                edgeValue: (index: number, field: string): unknown => result.edge(space.idOf(index))?.[field],
+            };
+        },
+        estimateMs: (algorithm, params, spec) => {
+            const estimate = estimateCommand(planning, { op: "algo.run", algorithm, params, scope: spec });
+            return estimate.available ? estimate.seconds * 1000 : undefined;
+        },
+        optionType: (algorithm, option) =>
+            SESSION_CATALOG_TABLES.algorithms()
+                .find((descriptor) => descriptor.key === algorithm)
+                ?.options.find((descriptor) => descriptor.name === option)?.type,
+        options: () => scope.options,
+        hovering: () => (selection?.hovered ?? null) !== null,
+        moved: () => {
+            advanceTick();
+            notifier.notify({ kind: "run", run: "graphty-steps" });
+        },
+    });
+
+    /**
+     * The selections whose steps read a run: style layers' selectors, then filter conditions.
+     * @param id - The run.
+     * @returns The readers.
+     */
+    function runReaders(id: RunId): RunReader[] {
+        const run = runs.get(id);
+        const stepRuns = stepRunsRef.current;
+        if (run === undefined || stepRuns === undefined) {
+            return [];
+        }
+
+        const reads = (rule: RuleTree): boolean => {
+            let found = false;
+            mapUnions(rule, (leaf) => {
+                found ||= leaf.branches.some((branch) =>
+                    branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)),
+                );
+                return leaf;
+            });
+            return found;
+        };
+        return [
+            ...(stack?.list() ?? []).flatMap((layer): RunReader[] =>
+                layer.selector.match === "rule" && reads(layer.selector.where) ? [{ kind: "layer", id: layer.id }] : [],
+            ),
+            ...visibility.conditions.flatMap((condition): RunReader[] =>
+                reads(condition.rule) ? [{ kind: "filter", id: condition.id }] : [],
+            ),
+        ];
+    }
+
+    /**
+     * Open a visit to a selection editor: the runs its steps start while it is open are its own.
+     * @returns The visit.
+     */
+    function openEdit(): ScopeEdit {
+        const from = stepRunsRef.current?.begun().length ?? 0;
+        const before = new Set(runs.list().map((run) => run.id));
+        let open = true;
+        const started = (): RunId[] =>
+            [...new Set((stepRunsRef.current?.begun() ?? []).slice(from))].filter(
+                (id) => !before.has(id) && runs.get(id) !== undefined,
+            );
+        const end = async (keep: (id: RunId) => boolean): Promise<void> => {
+            if (!open) {
+                return;
+            }
+
+            open = false;
+            const drop = started().filter((id) => !keep(id));
+            if (drop.length === 0) {
+                return;
+            }
+
+            await dispatcher.transaction("Remove runs", (tx) =>
+                Promise.all(drop.map((runId) => tx.dispatch({ op: "algo.remove", runId }))),
+            );
+            // Forgotten once gone, so a step that names one again later starts it rather than
+            // waiting as it does for a run the reader removed.
+            stepRunsRef.current?.forget(new Set(drop));
+        };
+        return {
+            get started() {
+                return Object.freeze(started());
+            },
+            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0),
+            discard: () => end(() => false),
+        };
+    }
 
     const shaders = createSessionShaders({
         dispatcher,

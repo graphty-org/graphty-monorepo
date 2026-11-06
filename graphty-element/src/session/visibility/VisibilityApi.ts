@@ -100,6 +100,7 @@ import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
+    assertNotCircular,
     combinedRule,
     conditionOf,
     conditionsOfSteps,
@@ -120,6 +121,7 @@ import {
     type TimePlayback,
     type TimeWindow,
     windowBounds,
+    windowInstants,
     windowNeedsTimeline,
     windowReadsRecords,
 } from "./filter";
@@ -578,6 +580,14 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
+    /**
+     * Hold one filter condition while a reader edits it (`styles.showBranches` with `hold`): it
+     * still decides what is visible, but what it would remove stays drawn, as ghosts. Records no
+     * step. Null lets it go.
+     * @param id - The condition, or null.
+     * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
+     */
+    hold(id: string | null, all?: boolean): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -637,8 +647,11 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
-    /** Told after the time cursor slid the masks, which no step records. */
-    readonly onSlide?: () => void;
+    /**
+     * Told after the drawn masks moved without a step: the time cursor slid them, or a condition is held.
+     * @param moved - What a slide changed; absent when a held condition moved the masks.
+     */
+    readonly onSlide?: (moved?: SlideCounts) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
@@ -840,6 +853,9 @@ const NOTHING_FILTERED: FilterBytes = Object.freeze({ nodes: null, edges: null }
 
 /** Nothing read besides the graph. */
 const NO_INPUTS: readonly unknown[] = Object.freeze([]);
+
+/** No condition: what a view over the full graph draws by. One array, so the combined rule is kept. */
+const NO_CONDITIONS: readonly FilterCondition[] = Object.freeze([]);
 
 /**
  * Whether two tags name the same masks.
@@ -1044,6 +1060,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let drawnTag: {
         readonly graph: GraphSnapshot;
         readonly filter: RuleTree | null;
+        readonly window: TimeWindow | null;
         readonly inputs: readonly unknown[];
     } | null = null;
 
@@ -1473,10 +1490,56 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * Whether ghosts are drawn now.
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
-    const ghostingNow = (): boolean =>
+    const timeGhosting = (): boolean =>
         sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
+
+    /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
+    let held: string | null = null;
+    /** Whether every condition is lifted while one is held (a view over the full graph). */
+    let heldAll = false;
+    /** The held condition's rule-less stand-in: the rule the rest draws by, by its inputs. */
+    let heldRule: {
+        readonly conditions: readonly FilterCondition[];
+        readonly filter: RuleTree | null;
+        readonly held: string;
+        readonly all: boolean;
+        readonly rule: RuleTree | null;
+    } | null = null;
+
+    /**
+     * What is drawn by: the rule in force, or while a condition that removes anything is held,
+     * the rule without it. The same object until its inputs move.
+     * @returns The rule.
+     */
+    const drawnRuleNow = (): RuleTree | null => {
+        const { filter, conditions } = dispatcher.state.visibility;
+        const holding = conditions.find((each) => each.id === held);
+        const lifts = heldAll ? held !== null : holding !== undefined && holding.on && holding.effect !== "select";
+        if (held === null || !lifts) {
+            return ruleNow();
+        }
+
+        if (
+            heldRule?.conditions !== conditions ||
+            heldRule.filter !== filter ||
+            heldRule.held !== held ||
+            heldRule.all !== heldAll
+        ) {
+            heldRule = {
+                conditions,
+                filter,
+                held,
+                all: heldAll,
+                rule: combinedRule(filter, heldAll ? NO_CONDITIONS : conditions.filter((each) => each.id !== held)),
+            };
+        }
+
+        return heldRule.rule;
+    };
+
+    const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
 
     /**
      * Bring the drawn masks up to date: what the filter keeps with no window.
@@ -1484,9 +1547,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const drawnUpToDate = (): VisibilityFrame => {
         const active = upToDate();
-        const filter = ruleNow();
-        const inputs = inputsFor(filter, null);
-        if (drawnTag?.graph === active.graph && drawnTag.filter === filter && sameInputs(drawnTag.inputs, inputs)) {
+        const filter = drawnRuleNow();
+        // Time ghosts are drawn whatever the window says; a held condition alone keeps the window.
+        const window = timeGhosting() ? null : dispatcher.state.visibility.window;
+        const inputs = inputsFor(filter, window);
+        if (
+            drawnTag?.graph === active.graph &&
+            drawnTag.filter === filter &&
+            drawnTag.window === window &&
+            sameInputs(drawnTag.inputs, inputs)
+        ) {
             return active;
         }
 
@@ -1494,21 +1564,50 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         drawnEdges.grow(active.graph.edgeCount);
         drawnNodes.clear();
         drawnEdges.clear();
-        if (filter === null) {
+        if (filter === null && window === null) {
             drawnNodes.fill();
             drawnEdges.fill();
         } else {
-            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
+            const compiled = compileVisibility(active.graph, filter, window, passSources(active.graph));
             runPass({ compiled, edges: drawnEdges, graph: active.graph, nodes: drawnNodes });
         }
 
-        drawnTag = { graph: active.graph, filter, inputs };
+        drawnTag = { graph: active.graph, filter, window, inputs };
 
         return active;
     };
 
     let ghostCache: { readonly key: readonly unknown[]; readonly node: Uint8Array; readonly edge: Uint8Array } | null =
         null;
+
+    /**
+     * Bring the kept ghosts forward by the rows a slide moved, in place: with the drawn masks
+     * unmoved, those are the only rows that can have become or stopped being ghosts.
+     * @param key - The key of what is asked for.
+     * @returns The ghosts, or null when more than that moved.
+     */
+    const ghostsAfterSlide = (key: readonly unknown[]): typeof ghostCache => {
+        if (ghostCache === null || key.slice(2).some((part, at) => part !== ghostCache?.key[at + 2])) {
+            return null;
+        }
+
+        const { key: kept, node, edge } = ghostCache;
+        const nodeRows = nodeMaskValue.changedSince(kept[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(kept[1] as number);
+        if (nodeRows === null || edgeRows === null) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = nodeMaskValue.has(row) ? 0 : 1;
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = edgeMaskValue.has(row) ? 0 : 1;
+        }
+
+        return { key, node, edge };
+    };
 
     /**
      * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
@@ -1526,10 +1625,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             edgeMaskValue.version,
             state.graph.token,
             ruleNow(),
+            drawnRuleNow(),
+            state.visibility.window,
             state.runs,
             sources.snapshot(),
         ];
         if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
+            return ghostCache;
+        }
+
+        const carried = ghostsAfterSlide(key);
+        if (carried !== null) {
+            ghostCache = carried;
             return ghostCache;
         }
 
@@ -1715,6 +1822,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             }
 
             const rule = sources.admit === undefined ? shaped.rule : sources.admit(shaped.rule);
+            assertNotCircular(rule);
             assertVisibility(rule, null, sources.dependencies);
             return Object.freeze(conditionOf(shaped, rule));
         });
@@ -2071,7 +2179,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True when an index alone cannot say what the window keeps.
      */
     const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
-        const key = [graph, window.attribute, instants?.node, instants?.edge];
+        const key = [graph, window.attribute, window.end, window.spells, instants?.node, instants?.edge];
         if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
             recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
         }
@@ -2130,20 +2238,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return {
             directed: graph.directed,
             move(window) {
-                target ??= slideTarget(
-                    graph,
-                    rule,
-                    nodes,
-                    edges,
-                    sources.instants?.(window.attribute) ?? null,
-                    (moved) => {
-                        slideCounters.full++;
-                        nodes.clear();
-                        edges.clear();
-                        const compiled = compileVisibility(graph, rule, moved, passSources(graph));
-                        runPass({ compiled, edges, graph, nodes });
-                    },
-                );
+                target ??= slideTarget(graph, rule, nodes, edges, windowInstants(window, sources), (moved) => {
+                    slideCounters.full++;
+                    nodes.clear();
+                    edges.clear();
+                    const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                    runPass({ compiled, edges, graph, nodes });
+                });
                 counter = counter === undefined ? WindowCounter.open(target, window) : counter;
                 if (counter !== null) {
                     return counter.move(window, target);
@@ -2510,7 +2611,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             };
 
             const startedAt = performance.now();
-            const instants = sources.instants?.(window.attribute) ?? null;
+            const instants = windowInstants(window, sources);
             let passed = false;
             const counts = slider.move(
                 slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {
@@ -2524,7 +2625,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 unresolvedValue = unresolvedOfSlide(window, instants);
             }
 
-            sources.onSlide?.();
+            sources.onSlide?.(counts);
 
             return { ...counts, graph: active.graph };
         },
@@ -2633,6 +2734,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ghosted(target: "node" | "edge", index: number): boolean {
             const ghosts = ghostsNow();
             return ghosts !== null && ghosts[target][index] === 1;
+        },
+
+        hold(id: string | null, all = false): void {
+            if (held === id && heldAll === (id !== null && all)) {
+                return;
+            }
+
+            held = id;
+            heldAll = id !== null && all;
+            sources.onSlide?.();
         },
     };
 }

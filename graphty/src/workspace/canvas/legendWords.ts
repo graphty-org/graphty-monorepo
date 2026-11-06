@@ -460,19 +460,22 @@ export function coveredLine(
 
 /**
  * The line under a section whose layer selects some elements and not all (`block.scope`): which
- * layer and how many, "Picked: 3 of 24 nodes". The layer's name is left out where the title
- * already ends with it, and for a run's block, which the run's name in the title says.
+ * layer and how many, "Picked: 3 of 24 nodes", out of the elements drawn (`scope.visible`), the
+ * base Which nodes counts over, so a filter leaving 15 reads "3 of 15" and a layer holding all 15
+ * has no line. The layer's name is left out where the title already ends with it, and for a run's
+ * block, which the run's name in the title says.
  * @param block - The block.
  * @param title - Its section title.
  * @param layer - The name of its layer.
  * @returns The line, or null for a block of every element.
  */
 export function scopeLine(block: LegendBlock, title: string, layer: string): string | null {
-    if (block.scope === undefined) {
+    const of = block.scope?.visible ?? block.scope?.of;
+    if (block.scope === undefined || of === undefined || block.scope.count >= of) {
         return null;
     }
     const noun = block.channel.startsWith("edge.") ? "edge" : "node";
-    const reach = `${formatCount(block.scope.count)} of ${count(block.scope.of, noun)}`;
+    const reach = `${formatCount(block.scope.count)} of ${count(of, noun)}`;
     return block.runId !== undefined || title === layer || title.endsWith(`: ${layer}`) ? reach : `${layer}: ${reach}`;
 }
 
@@ -584,7 +587,7 @@ function oneRunBlock(blocks: readonly LegendBlock[], names: KeyNames): LegendBlo
     const together = blocks.every((block) => block.scope !== undefined)
         ? blocks.reduce((sum, block) => sum + (block.scope?.count ?? 0), 0)
         : of;
-    const base: LegendBlock = together < of ? { ...rest, scope: { count: together, of } } : rest;
+    const base: LegendBlock = together < of ? { ...rest, scope: { ...found.scope, count: together, of } } : rest;
     if (shared) {
         // Every group the same shape or pattern: one row naming it, as a layer's fixed value reads.
         return { ...base, kind: "literal", swatches: [{ ...rows[0], name: undefined, count: undefined }] };
@@ -708,7 +711,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
     const ran = run.caveats.window;
     if (ran !== undefined) {
-        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session))}`;
+        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session), undefined, session.time.timeZone)}`;
         return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;
     }
     if (run.status !== "succeeded" || run.stale === null) {

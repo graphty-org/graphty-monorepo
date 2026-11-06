@@ -152,4 +152,51 @@ describe("yEd GraphML label places", () => {
         );
         expect(nodes("labelWrapWidth")).toEqual([46, null]);
     });
+
+    describe("SmartNodeLabelModel", () => {
+        const smart = (ratios: string, label: string, body = ""): string =>
+            `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">` +
+            `<key for="node" id="d0" yfiles.type="nodegraphics"/><graph edgedefault="directed"><node id="n0"><data key="d0">` +
+            `<y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/><y:NodeLabel modelName="custom" ${label}>a` +
+            `<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter>` +
+            `<y:SmartNodeLabelModelParameter ${ratios}/></y:ModelParameter></y:NodeLabel>${body}</y:ShapeNode></data></node></graph></graphml>`;
+
+        it("pins the label's point on the node's, whatever its box's stored place", async () => {
+            const read = await nodesOf(
+                "graphml",
+                smart(
+                    `labelRatioX="-0.5" labelRatioY="-0.5" nodeRatioX="-0.5" nodeRatioY="-0.5" offsetX="1" offsetY="2"`,
+                    `x="10" y="5" width="20" height="10"`,
+                ),
+            );
+            expect(read("labelPosition")).toEqual(["center"]);
+            expect(read("labelOffsetX")).toEqual([-14]);
+            expect(read("labelOffsetY")).toEqual([-8]);
+        });
+
+        it("measures a turned label's ratios on its box on the screen", async () => {
+            const read = await nodesOf(
+                "graphml",
+                smart(
+                    `labelRatioX="0" labelRatioY="-0.5" nodeRatioX="0" nodeRatioY="-0.5" offsetX="0" offsetY="0"`,
+                    `x="10" y="1" width="20" height="10" rotationAngle="270.0"`,
+                ),
+            );
+            expect(read("labelOffsetX")).toEqual([0]);
+            // 20 long on the screen, hung from the node's top
+            expect(read("labelOffsetY")).toEqual([-5]);
+        });
+
+        it("keeps a UML class's stored place, where the stereotype moves the label", async () => {
+            const read = await nodesOf(
+                "graphml",
+                smart(
+                    `labelRatioX="0" labelRatioY="0" nodeRatioX="0" nodeRatioY="0" offsetX="0" offsetY="0"`,
+                    `x="15" y="15" width="20" height="10"`,
+                    `<y:UML stereotype="Feature"/>`,
+                ),
+            );
+            expect(read("labelOffsetY")).toEqual([5]);
+        });
+    });
 });

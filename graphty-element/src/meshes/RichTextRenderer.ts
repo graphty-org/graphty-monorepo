@@ -77,7 +77,17 @@ export class RichTextRenderer {
         }
     }
 
-    private drawLine(
+    /**
+     * Draws one line of runs from a starting point, each run on its own baseline.
+     * @param ctx - Canvas rendering context
+     * @param lineSegments - The line's runs
+     * @param startX - Where the line starts
+     * @param lineTop - The top of the line's box
+     * @param lineBox - The line box's height
+     * @param lineBaseline - The line's baseline
+     * @param offsets - Each run's shift off the baseline
+     */
+    drawLine(
         ctx: CanvasRenderingContext2D,
         lineSegments: TextSegment[],
         startX: number,

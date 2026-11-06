@@ -1,6 +1,6 @@
 /**
  * The Time window's settings, opened in the inspector from the Filters section's Time window
- * card: the time field, its unit, and the step, mode,
+ * card: the time field, its unit, and the step, mode, zone,
  * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
  * which keeps the settings with the field (`time.settings`), so turning the window off leaves
  * them as they are. The window itself moves in the timeline dock under the canvas.
@@ -23,6 +23,7 @@ import {
     stepLabel,
     UNIT_CHOICES,
     UNTIMED_CHOICES,
+    zoneChoices,
 } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 
@@ -62,7 +63,7 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
 }
 
 /**
- * The time card: Time field (and its unit for a number column), Step, Mode, Untimed and Results.
+ * The time card: Time field (and its unit for a number column), Step, Mode, Zone, Untimed and Results.
  * @returns the card.
  */
 export function TimeCard(): React.JSX.Element | null {
@@ -180,6 +181,20 @@ export function TimeCard(): React.JSX.Element | null {
                                     }}
                                 />
                             </FieldRow>
+                            {unit === "ordinal" || unit === "year" ? null : (
+                                <FieldRow>
+                                    <SegmentedControl
+                                        label="Zone"
+                                        fullWidth
+                                        size="xs"
+                                        value={settings.timeZone}
+                                        data={[...zoneChoices(settings.timeZone)]}
+                                        onChange={(picked) => {
+                                            retune(session, store, { timeZone: picked });
+                                        }}
+                                    />
+                                </FieldRow>
+                            )}
                             <FieldRow>
                                 <SegmentedControl
                                     label="Outside"

@@ -1351,7 +1351,7 @@ jobs:
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
-            # No style layer is special (#5905): tools/special-layers-baseline.json may only shrink against
+            # No style layer is special (#5905): graphty/special-layers-baseline.json may only shrink against
             # the merge base, and its lint and API rows may not go stale. The same check runs in
             # tools/check-quick.sh.
             - name: No special style layers

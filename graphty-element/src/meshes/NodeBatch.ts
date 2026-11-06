@@ -367,9 +367,9 @@ export class NodeBatches {
      * @param node - The node.
      */
     sync(node: Node): void {
-        // The paint may have moved the node to another source: ask its mesh, not the batch.
-        node.drawInBatch(null);
-        const source = node.drawnSourceMesh as Mesh;
+        // The paint may have moved the node to another source: ask its paint, not the batch, so a
+        // batched row is not given its mesh back on every sync.
+        const source = node.paintedSourceMesh as Mesh;
         const had = this.groupOf.get(node);
         if (had !== undefined && had.source !== source) {
             this.leave(node);
@@ -394,6 +394,8 @@ export class NodeBatches {
             // A row the table does not hold yet keeps its mesh until the flush settles its group.
             node.drawInBatch(node.index < this.host.places.rows ? group.source : null);
             this.dirty.add(group);
+        } else {
+            node.drawInBatch(null);
         }
     }
 

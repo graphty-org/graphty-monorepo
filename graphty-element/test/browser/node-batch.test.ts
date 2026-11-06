@@ -163,6 +163,29 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 2);
     });
 
+    it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        const scene = graph.getScene();
+        const nodeMeshes = (): number =>
+            scene.meshes.filter((mesh) => (mesh.metadata as { graphNode?: unknown } | null)?.graphNode !== undefined)
+                .length;
+        await frameOn(graph, "objects");
+        assert.equal(nodeMeshes(), NODES.length);
+
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(nodeMeshes(), 0, "a batched row keeps no mesh, so the scene holds the batches, not the nodes");
+        for (const node of graph.getNodes()) {
+            assert.isNull(node.drawnPickMesh);
+        }
+
+        const objects = await frameOn(graph, "objects");
+        assert.equal(nodeMeshes(), NODES.length);
+        assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
+    });
+
     it("free a row and take it back without changing a pixel", async () => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
@@ -343,7 +366,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         for (const node of graph.getNodes()) {
-            node.drawnPickMesh.scaling.set(1.5, 0.6, 1);
+            node.drawnAnchor.scaling.set(1.5, 0.6, 1);
         }
 
         const objects = await readFrame(graph);

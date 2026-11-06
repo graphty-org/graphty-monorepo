@@ -169,6 +169,15 @@ batched row. This is a correction to the row: `lane.changes` alone is not enough
 edge is drawn where the objects path draws it. The node loop itself still visits every node. Batched rows still hold
 their mesh: removing it is the stage's remaining work.
 
+As built (stage 11, third pull request, later commits): `Node.drawInBatch(source)` swaps a batched row's instance for a plain
+`TransformNode` anchor (position, scaling, rotation, parent, metadata, enabled state and children move across) and disposes
+the instance; `drawInBatch(null)` rebuilds the instance from the last mesh key and style and moves everything back. So
+`NodeBatches.sync` no longer calls `drawInBatch(null)` first: it reads `Node.paintedSourceMesh`, the source recorded when
+the mesh was built, and releases the row only when it is not batched. Reading `Node.mesh` gives a batched row its mesh
+back at once. `drawnPickMesh` is null for a batched row; a row pick answers with `drawnAnchor`, which carries the
+metadata, so `pickAsDrawn` and `DrawnHit.mesh` return a `TransformNode`. Bounds of a meshless row come from the source's
+local box at the anchor's world matrix (`drawnBoundingInfo`).
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

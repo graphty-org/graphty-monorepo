@@ -3,6 +3,7 @@ import {
     type ActionManager,
     type BaseTexture,
     type BoundingBox,
+    BoundingInfo,
     Camera,
     Color3,
     Color4,
@@ -220,7 +221,7 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
 let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 
 /** Reads a node's own mesh in this module, where the consumer's {@link Node.mesh} is not read. */
-let ownMesh: (node: Node) => AbstractMesh;
+let ownAnchor: (node: Node) => TransformNode;
 
 /**
  * Whether {@link Node.applySessionPaint} with this paint would dispose the node's mesh and build
@@ -247,9 +248,9 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
 export function releaseNodeMesh(node: Node): void {
     node.label?.dispose();
     node.label = undefined;
-    const mesh = ownMesh(node);
-    if (!mesh.isDisposed()) {
-        mesh.dispose();
+    const anchor = ownAnchor(node);
+    if (!anchor.isDisposed()) {
+        anchor.dispose();
     }
 }
 
@@ -405,7 +406,7 @@ export class Node implements ModelUser {
             node.#record = frozenRecord(record);
             node.shaderDrawing?.dataChanged(node);
         };
-        ownMesh = (node) => node.#mesh;
+        ownAnchor = (node) => node.#anchor;
         rebuildsFor = (node, paint) => {
             if (node.disposed) {
                 return false;
@@ -442,15 +443,21 @@ export class Node implements ModelUser {
     /** The record, as the graph last handed it over. */
     #record: AdHocData<string | number>;
     /** The node's own mesh. Code in this class reads this field, never {@link Node.mesh}, which is the consumer's. */
-    #mesh: AbstractMesh;
+    #mesh: AbstractMesh | null = null;
+    /** The mesh key and style the mesh was last built from, so a row leaving a batch can get it back. */
+    #fit!: { meshKey: string; style: NodeStyleConfig };
+    /** The source mesh the node's mesh is drawn from; a row a batch draws keeps it after its mesh goes. */
+    #source!: AbstractMesh;
     /**
      * Where the node sits in the scene: what its parts hang from, and what its position, scale and
      * enabled state are written to. Today it is always {@link Node.#mesh}; a row a batch draws
      * will keep only this once its mesh goes (design/rendering/row-renderer.md, stage 11).
      */
-    #anchor: TransformNode;
+    #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
+    /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
+    #actions: ActionManager | null = null;
 
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
@@ -467,7 +474,11 @@ export class Node implements ModelUser {
             }
         }
 
-        return this.#mesh;
+        if (this.#mesh === null) {
+            this.drawInBatch(null);
+        }
+
+        return this.#mesh ?? this.build(this.#fit.meshKey, this.#fit.style);
     }
 
     /**
@@ -630,7 +641,7 @@ export class Node implements ModelUser {
     private borderBuilt: { meshKey: string; style: NodeStyleConfig; scale: number | null } | null = null;
 
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
-    private roundRadiusMesh: AbstractMesh | null = null;
+    private roundRadiusMesh: TransformNode | null = null;
 
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
@@ -792,7 +803,7 @@ export class Node implements ModelUser {
         this.shapeType = o.shape?.type;
 
         const fit = this.fitToLabel(paint.meshKey, o);
-        this.#anchor = this.#mesh = this.buildMesh(fit.meshKey, fit.style);
+        const built = this.build(fit.meshKey, fit.style);
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -803,7 +814,7 @@ export class Node implements ModelUser {
 
         // Add metadata for XR controller raycasting
         // IMPORTANT: For InstancedMesh, we must set metadata on the INSTANCE, not spread from source
-        this.#mesh.metadata = {
+        built.metadata = {
             graphNode: this,
             styleId: paint.meshKey,
             nodeId: this.id,
@@ -849,12 +860,12 @@ export class Node implements ModelUser {
 
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
         // camera turns, and its edges must stop at the surface it is drawn with.
-        if (this.roundRadiusMesh === this.#mesh && this.roundRadiusScale === this.#mesh.scaling.x) {
+        if (this.roundRadiusMesh === this.#anchor && this.roundRadiusScale === this.#anchor.scaling.x) {
             return this.roundRadiusValue;
         }
 
-        this.roundRadiusMesh = this.#mesh;
-        this.roundRadiusScale = this.#mesh.scaling.x;
+        this.roundRadiusMesh = this.#anchor;
+        this.roundRadiusScale = this.#anchor.scaling.x;
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
@@ -881,19 +892,19 @@ export class Node implements ModelUser {
      * @internal
      */
     framingBounds(): { min: Vector3; max: Vector3 } {
-        if (this.#mesh.isDisposed()) {
-            const pos = this.#mesh.getAbsolutePosition();
+        if (this.#anchor.isDisposed()) {
+            const pos = this.#anchor.getAbsolutePosition();
             const half = new Vector3(this.size / 2, this.size / 2, this.size / 2);
             return { min: pos.subtract(half), max: pos.add(half) };
         }
 
-        this.#mesh.computeWorldMatrix(true);
-        const box = this.#mesh.getBoundingInfo().boundingBox;
+        this.#anchor.computeWorldMatrix(true);
+        const box = this.bounds().boundingBox;
         // The half-size from the mesh's own extent and scaling, not from the world box Babylon keeps in
         // single precision: the same node measured twice frames the same. A node mesh is not turned,
         // so only the graph root's scale (an XR gesture) stands between the two.
-        const root = this.#mesh.parent instanceof TransformNode ? this.#mesh.parent.absoluteScaling : null;
-        const scale = this.#mesh.scaling;
+        const root = this.#anchor.parent instanceof TransformNode ? this.#anchor.parent.absoluteScaling : null;
+        const scale = this.#anchor.scaling;
         // A group's face is grown for the camera it was drawn under (see `drawAsGroup`): counted
         // grown, the framing depended on where the camera stood before it, and the same file was
         // framed at two zooms (issue #4088). Its box is measured without that growth.
@@ -935,8 +946,9 @@ export class Node implements ModelUser {
         let key = meshKey;
         if (scale !== null && border?.screenWidth !== undefined) {
             // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
-            const box = this.#mesh.getBoundingInfo().boundingBox.extendSize;
-            const across = 2 * Math.min(box.x * Math.abs(this.#mesh.scaling.x), box.y * Math.abs(this.#mesh.scaling.y));
+            const box = this.bounds().boundingBox.extendSize;
+            const across =
+                2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
             border = { ...border, width: Math.min(border.screenWidth / scale, across) / perSize };
             // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
             // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
@@ -957,7 +969,7 @@ export class Node implements ModelUser {
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
             { shape: style.shape, border },
-            this.#mesh,
+            this.#anchor as AbstractMesh,
             this.context.getScene(),
         );
 
@@ -974,7 +986,7 @@ export class Node implements ModelUser {
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
             { shape: style.shape, border, outerBorder: style.outerBorder },
-            this.#mesh,
+            this.#anchor as AbstractMesh,
             this.context.getScene(),
         );
 
@@ -995,7 +1007,7 @@ export class Node implements ModelUser {
                 style.shape,
                 style[kind],
                 kind,
-                this.#mesh,
+                this.#anchor as AbstractMesh,
                 this.context.getScene(),
             );
             if (halo !== null) {
@@ -1026,7 +1038,7 @@ export class Node implements ModelUser {
             `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
             style,
             this.size,
-            this.#mesh,
+            this.#anchor as AbstractMesh,
             this.context.getScene(),
             (ref, failed) => {
                 publishImageFailure(this.context.getSession?.(), ref, failed);
@@ -1088,7 +1100,7 @@ export class Node implements ModelUser {
      */
     refreshScreenBorder(): boolean {
         const built = this.borderBuilt;
-        if (typeof built?.scale !== "number" || this.#mesh.isDisposed()) {
+        if (typeof built?.scale !== "number" || this.#anchor.isDisposed()) {
             return false;
         }
 
@@ -1131,7 +1143,7 @@ export class Node implements ModelUser {
         // sphere around the bounding BOX, so for a node drawn at radius 0.75 it reads 1.299 --
         // the half-diagonal. Trimming a line there stops it well outside its node with a visible
         // gap, which is what the first version of this did.
-        const box = this.#mesh.getBoundingInfo().boundingBox;
+        const box = this.bounds().boundingBox;
         const { extendSize } = box;
         const radius = extendSize.x;
 
@@ -1179,7 +1191,7 @@ export class Node implements ModelUser {
         this.context.getStatsManager().startMeasurement("Node.update");
 
         // Check if mesh was disposed (e.g., from 2D/3D mode switch) and recreate it.
-        if (this.#mesh.isDisposed()) {
+        if (this.#anchor.isDisposed()) {
             this.updateStyle();
         }
 
@@ -1223,7 +1235,7 @@ export class Node implements ModelUser {
      * @param box - The box, from `LayoutManager.groupBox`.
      */
     private drawAsGroup(box: GroupBox): void {
-        const { extendSize } = this.#mesh.getBoundingInfo().boundingBox;
+        const { extendSize } = this.bounds().boundingBox;
         const { half, center } = box;
         const thin = GROUP_DEPTH_RATIO * Math.min(half.x, half.y);
         const back = center.z + half.z + thin;
@@ -1263,7 +1275,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get groupDrawnForAnotherCamera(): boolean {
-        if (!this.drawnAsGroup || this.#mesh.isDisposed()) {
+        if (!this.drawnAsGroup || this.#anchor.isDisposed()) {
             return false;
         }
 
@@ -1389,6 +1401,94 @@ export class Node implements ModelUser {
      */
     drawInBatch(source: AbstractMesh | null): void {
         this.batchSource = source;
+        if (
+            source !== null &&
+            this.#mesh instanceof InstancedMesh &&
+            this.#mesh.sourceMesh === source &&
+            !this.#meshHeld
+        ) {
+            const anchor = new TransformNode(this.#anchor.name, this.#mesh.getScene());
+            Node.moveOnto(this.#mesh, anchor);
+            this.#mesh.dispose();
+            this.#anchor = anchor;
+            this.#mesh = null;
+        } else if (source === null && this.#mesh === null && !this.disposed) {
+            const anchor = this.#anchor;
+            this.build(this.#fit.meshKey, this.#fit.style);
+            Node.moveOnto(anchor, this.#anchor);
+            anchor.dispose();
+            if (this.#actions !== null) {
+                this.makeDrawnPickable(this.#actions);
+            }
+
+            this.applyInstancePaint(this.#fit.style, this.drawnColor);
+            this.applyRenderState();
+        }
+    }
+
+    /**
+     * The source mesh this node's paint draws from, whether or not a batch draws it.
+     * @returns The source mesh.
+     * @internal
+     */
+    get paintedSourceMesh(): AbstractMesh {
+        return this.#source;
+    }
+
+    /** Dispose the node's mesh and its anchor, when they are apart, with what hangs from them. */
+    private disposeMesh(): void {
+        if (this.#mesh !== null && !this.#mesh.isDisposed()) {
+            this.#mesh.dispose();
+        }
+
+        if (!this.#anchor.isDisposed()) {
+            this.#anchor.dispose();
+        }
+    }
+
+    /**
+     * The node's bounds: its mesh's, or for a row a batch draws, its source's shape where the node sits.
+     * @returns The bounds.
+     */
+    private bounds(): BoundingInfo {
+        if (this.#mesh !== null) {
+            return this.#mesh.getBoundingInfo();
+        }
+
+        const { minimum, maximum } = this.#source.getBoundingInfo();
+        return new BoundingInfo(minimum, maximum, this.#anchor.computeWorldMatrix());
+    }
+
+    /**
+     * Build the node's mesh, and make it the anchor.
+     * @param meshKey - The mesh key.
+     * @param style - The style.
+     * @returns The mesh.
+     */
+    private build(meshKey: string, style: NodeStyleConfig): AbstractMesh {
+        this.#fit = { meshKey, style };
+        const mesh = this.buildMesh(meshKey, style);
+        this.#anchor = this.#mesh = mesh;
+        this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+        return mesh;
+    }
+
+    /**
+     * Move a node's place, state and parts from one scene node to another.
+     * @param from - What held them.
+     * @param to - What holds them now.
+     */
+    private static moveOnto(from: TransformNode, to: TransformNode): void {
+        to.position.copyFrom(from.position);
+        to.scaling.copyFrom(from.scaling);
+        to.rotation.copyFrom(from.rotation);
+        to.rotationQuaternion = from.rotationQuaternion?.clone() ?? null;
+        to.parent = from.parent;
+        to.metadata = from.metadata;
+        to.setEnabled(from.isEnabled(false));
+        for (const child of from.getChildren()) {
+            child.parent = to;
+        }
     }
 
     /**
@@ -1402,7 +1502,7 @@ export class Node implements ModelUser {
             return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
         }
 
-        return ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null;
+        return this.#mesh === null ? null : (ray.intersectsMeshes([this.#mesh])[0]?.pickedPoint ?? null);
     }
 
     /**
@@ -1467,8 +1567,7 @@ export class Node implements ModelUser {
             return this.batchSource;
         }
 
-        const mesh = this.#mesh;
-        return "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+        return this.#source;
     }
 
     /**
@@ -1477,7 +1576,26 @@ export class Node implements ModelUser {
      * @returns The mesh.
      * @internal
      */
-    get drawnPickMesh(): AbstractMesh {
+    get drawnBoundingInfo(): BoundingInfo {
+        return this.bounds();
+    }
+
+    /**
+     * Where the node sits in the scene: its mesh, or for a row a batch draws, the transform node
+     * that holds its place, its parts and its metadata.
+     * @returns The anchor.
+     * @internal
+     */
+    get drawnAnchor(): TransformNode {
+        return this.#anchor;
+    }
+
+    /**
+     * The node's own mesh, or null for a row a batch draws, which has none.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnPickMesh(): AbstractMesh | null {
         return this.#mesh;
     }
 
@@ -1497,7 +1615,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnBoundingBox(): BoundingBox {
-        return this.#mesh.getBoundingInfo().boundingBox;
+        return this.bounds().boundingBox;
     }
 
     /**
@@ -1506,7 +1624,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnWorldRadius(): number {
-        return this.#mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        return this.bounds().boundingSphere.radiusWorld;
     }
 
     /**
@@ -1571,11 +1689,11 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnBoundingRadius(): number {
-        if (this.#mesh.isDisposed()) {
+        if (this.#anchor.isDisposed()) {
             return 0;
         }
 
-        const { boundingSphere } = this.#mesh.getBoundingInfo();
+        const { boundingSphere } = this.bounds();
         const { x, y, z } = this.#anchor.scaling;
         const reach = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
         return (boundingSphere.center.length() + boundingSphere.radius) * reach;
@@ -1621,7 +1739,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnGeneration(): number {
-        return this.#mesh.uniqueId;
+        return this.#anchor.uniqueId;
     }
 
     /**
@@ -1640,8 +1758,11 @@ export class Node implements ModelUser {
      * @internal
      */
     makeDrawnPickable(actions: ActionManager): void {
-        this.#mesh.isPickable = true;
-        this.#mesh.actionManager = actions;
+        this.#actions = actions;
+        if (this.#mesh !== null) {
+            this.#mesh.isPickable = true;
+            this.#mesh.actionManager = actions;
+        }
     }
 
     /**
@@ -1651,7 +1772,7 @@ export class Node implements ModelUser {
      * @internal
      */
     isDrawnInFrustum(planes: Plane[]): boolean {
-        return this.#mesh.isInFrustum(planes);
+        return this.#mesh?.isInFrustum(planes) ?? this.bounds().isInFrustum(planes);
     }
 
     /**
@@ -1659,8 +1780,8 @@ export class Node implements ModelUser {
      * @returns The mesh.
      * @internal
      */
-    get teardownMesh(): AbstractMesh {
-        return this.#mesh;
+    get teardownMesh(): TransformNode {
+        return this.#anchor;
     }
 
     /**
@@ -1831,7 +1952,7 @@ export class Node implements ModelUser {
             color !== null && modelTinted(this.drawnStyle?.shape)
                 ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
                 : UNTINTED;
-        for (const part of [this.#mesh, ...this.#mesh.getChildMeshes(true)]) {
+        for (const part of this.#mesh === null ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)]) {
             if (part instanceof InstancedMesh && model.groups.includes(part.sourceMesh)) {
                 part.instancedBuffers.color = tint;
             }
@@ -1865,8 +1986,10 @@ export class Node implements ModelUser {
         // A node drawn by the shader batch draws its outline ring and glow there, from its radius:
         // on its invisible pick proxy they would ring nothing.
         const effect = this.drawnByBatch() ? undefined : style.effect;
-        NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
-        NodeEffects.applyGlowEffect(this.#mesh, effect);
+        if (this.#mesh !== null) {
+            NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
+            NodeEffects.applyGlowEffect(this.#mesh, effect);
+        }
         const hidden = style.visible === false;
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
@@ -1974,7 +2097,7 @@ export class Node implements ModelUser {
         const glow = style.effect?.glow;
         const glowColor = glow?.color;
         return {
-            mesh: this.#mesh,
+            mesh: this.#anchor as AbstractMesh,
             uses,
             path: this.shaderPath,
             color,
@@ -2380,7 +2503,7 @@ export class Node implements ModelUser {
             // The mesh keeps its geometry and takes the key it is now drawn under: what a reader of
             // the scene (test/browser/every-element-leaves-the-bootstrap-paint.test.ts) uses to
             // tell an element the hand-over reached from one it did not.
-            const metadata = this.#mesh.metadata as { styleId?: string } | undefined;
+            const metadata = this.#anchor.metadata as { styleId?: string } | undefined;
 
             if (metadata !== undefined) {
                 metadata.styleId = meshKey;
@@ -2417,9 +2540,7 @@ export class Node implements ModelUser {
         };
 
         // Only dispose if not already disposed
-        if (!this.#mesh.isDisposed()) {
-            this.#mesh.dispose();
-        }
+        this.disposeMesh();
 
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
@@ -2468,7 +2589,7 @@ export class Node implements ModelUser {
             this.geometryChanged();
         }
 
-        this.#anchor = this.#mesh = this.buildMesh(fit.meshKey, fit.style);
+        const built = this.build(fit.meshKey, fit.style);
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
@@ -2483,7 +2604,7 @@ export class Node implements ModelUser {
 
         // Add metadata for XR controller raycasting
         // IMPORTANT: For InstancedMesh, we must set metadata on the INSTANCE, not spread from source
-        this.#mesh.metadata = {
+        built.metadata = {
             graphNode: this,
             styleId: meshKey,
             nodeId: this.id,
@@ -2616,9 +2737,7 @@ export class Node implements ModelUser {
         this.shaderDrawing?.forget(this);
         this.shaderDrawing = null;
 
-        if (!this.#mesh.isDisposed()) {
-            this.#mesh.dispose();
-        }
+        this.disposeMesh();
     }
 
     /**
@@ -2710,7 +2829,9 @@ export class Node implements ModelUser {
             this.#anchor.setEnabled(drawn);
             // A hidden node must not swallow a click meant for whatever is behind it, and a
             // context point is background rather than a target.
-            this.#mesh.isPickable = drawn;
+            if (this.#mesh !== null) {
+                this.#mesh.isPickable = drawn;
+            }
         }
 
         const labelMesh = this.label?.labelMesh;
@@ -2952,7 +3073,7 @@ export class Node implements ModelUser {
         const own = this.#anchor.scaling;
         const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
         if (this.drawnRadiusMesh !== this.#mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
-            const box = this.#mesh.isDisposed() ? null : this.#mesh.getBoundingInfo().boundingBox;
+            const box = this.#anchor.isDisposed() ? null : this.bounds().boundingBox;
             this.drawnRadiusMesh = this.#mesh;
             this.drawnRadiusScale = scale;
             this.drawnRadiusValue =
@@ -3033,7 +3154,7 @@ export class Node implements ModelUser {
             seen.z !== own.z ||
             value.x <= 0
         ) {
-            const extent = this.#mesh.isDisposed() ? null : this.#mesh.getBoundingInfo().boundingBox.extendSize;
+            const extent = this.#anchor.isDisposed() ? null : this.bounds().boundingBox.extendSize;
             const box = this.glyphBoxHalf();
             this.halfExtentsMesh = this.#mesh;
             seen.x = own.x;
@@ -3287,7 +3408,7 @@ export class Node implements ModelUser {
      * @returns The key.
      */
     private haloSourceKey(look: GraphSelectionStyleConfig): string {
-        const key = `${SELECTION_HALO_MESH}:${this.#mesh.name}`;
+        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}`;
         const selection = this.selectionStyle();
         // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
         // ones if a continuous halo colour encoding ever shows up in a profile.
@@ -3751,7 +3872,7 @@ export class Node implements ModelUser {
             ...labelStyle,
             // Override with computed values
             text: labelText,
-            attachTo: this.#mesh,
+            attachTo: this.#mesh ?? undefined,
             attachPosition,
             attachOffset,
             ...(this.shapeType === "polygon" && { centerAtOrigin: true }),

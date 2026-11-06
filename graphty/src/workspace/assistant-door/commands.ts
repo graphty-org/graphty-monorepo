@@ -24,13 +24,10 @@ export function assistantOn(element: GraphtyElement | null): boolean | null {
  * Closes the Assistant: back to the place or page the reader came from, and focus to where it was,
  * or to the rail button when that control is gone.
  * @param store - the workspace store.
- * @param toDoor - focus the rail button whatever held focus before: Mod+I, the key a reader presses
- *     without looking, always lands in one place, the button that shows the key.
  */
-export function closeAssistant(store: WorkspaceStore, toDoor = false): void {
+export function closeAssistant(store: WorkspaceStore): void {
     const { assistantFrom } = store.get();
-    const { page, place } = assistantFrom ?? HOME;
-    const focus = toDoor ? null : (assistantFrom?.focus ?? null);
+    const { page, place, focus } = assistantFrom ?? HOME;
     store.set({ page, place, assistantFrom: null });
     // After the frame the panel left in, and ahead of the focus guard's own rescue.
     requestAnimationFrame(() => {
@@ -80,13 +77,12 @@ export const registration = defineRegistration({
             id: "place.assistant",
             label: "Assistant",
             group: "Go to",
-            keywords: ["AI", "ask"],
             keys: ["Mod+I"],
             shown: ({ element }) => assistantOn(element) === true,
             experiment: true,
             run: ({ workspace }) => {
                 if (assistantShown(workspace) && document.activeElement?.closest(COMPOSER)) {
-                    closeAssistant(workspace, true);
+                    closeAssistant(workspace);
                 } else {
                     goToComposer(workspace);
                 }

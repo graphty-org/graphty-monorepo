@@ -140,7 +140,7 @@ describe("the Assistant with its experiment on", () => {
         await focusOn(screen.getByRole("button", { name: "Assistant" }));
     });
 
-    it("closes on Mod+I to the rail button, from wherever it was opened", async () => {
+    it("hands focus back to the drawing it was opened from", async () => {
         await open();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -148,35 +148,8 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.keyboard(MOD_I);
         await focusOn(await composer());
         await userEvent.keyboard(MOD_I);
-        await panelGone();
-        await focusOn(screen.getByRole("button", { name: "Assistant" }));
-    });
-
-    it("hands focus back to the drawing it was opened from on the x", async () => {
-        await open();
-        const element = document.querySelector("graphty-element");
-        assert.isNotNull(element);
-        element.focus();
-        await userEvent.keyboard(MOD_I);
-        await focusOn(await composer());
-        await userEvent.click(screen.getByRole("button", { name: "Close Assistant" }));
         await panelGone();
         await focusOn(element);
-    });
-
-    it("lists Assistant first in Quick actions for AI and for ask, above names that hold the letters", async () => {
-        await open();
-        for (const word of ["AI", "ask"]) {
-            await userEvent.keyboard("{Control>}k{/Control}");
-            await userEvent.keyboard(word);
-            await waitFor(() => {
-                assert.match(screen.getAllByRole("option")[0]?.textContent ?? "", /^Assistant/);
-            });
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByPlaceholderText("Search commands"));
-            });
-        }
     });
 
     it("sends Mod+I elsewhere in the panel to the composer, not to closing", async () => {
@@ -184,7 +157,7 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.keyboard(MOD_I);
         const region = await composer();
         await focusOn(region);
-        screen.getByRole("button", { name: "Close Assistant" }).focus();
+        screen.getByRole("button", { name: "Close" }).focus();
         await userEvent.keyboard(MOD_I);
         await focusOn(region);
     });
@@ -194,7 +167,7 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.click(screen.getByRole("button", { name: "Notes" }));
         await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
         await composer();
-        const close = screen.getByRole("button", { name: "Close Assistant" });
+        const close = screen.getByRole("button", { name: "Close" });
         await userEvent.hover(close);
         assert.include((await screen.findByRole("tooltip")).textContent, "Close");
         await screen.findByText("Ctrl+I");

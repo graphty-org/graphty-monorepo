@@ -13,6 +13,11 @@ export interface RangedUploads {
  * Times are normalized over the data's extent.
  */
 export interface EdgeAgeState {
+    /**
+     * Whether the timeline is on, so batches record which edge each slot draws. Off by default,
+     * and a batch then takes and hands back slots exactly as it does without the timeline.
+     */
+    track: boolean;
     /** Whether lines fade by age. Off until the timeline's `ageFade` setting asks for it. */
     on: boolean;
     /** Each edge row's start, or null while off. A new array means every slot's age is rewritten. */
@@ -55,7 +60,14 @@ export class FrameRoster {
     edgeAges(scene: Scene): EdgeAgeState {
         let state = this.aged.get(scene);
         if (!state) {
-            state = { on: false, ages: null, window: [0, 1, 1], switched: (): void => undefined, warming: 0 };
+            state = {
+                track: false,
+                on: false,
+                ages: null,
+                window: [0, 1, 1],
+                switched: (): void => undefined,
+                warming: 0,
+            };
             this.aged.set(scene, state);
         }
 

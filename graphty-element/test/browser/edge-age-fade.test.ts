@@ -263,6 +263,20 @@ describe("fade by age", () => {
         assert.closeTo(await alphaAt(graphty, screen(graphty, 0, 5)), 1, ALPHA_TOLERANCE);
     });
 
+    it("leaves a straight dashed line unfaded", async () => {
+        const graphty = await element(["timeline"], { "edge.style": "dash" });
+        await windowed(graphty);
+        await graphty.session.time.setSettings({ ageFade: 0.2 });
+        await drawn(graphty);
+        // The darkest point along the old edge, so a gap between dashes is not what is read.
+        let alpha = 0;
+        for (let x = -3; x <= 3; x += 0.25) {
+            alpha = Math.max(alpha, await alphaAt(graphty, screen(graphty, x, 5)));
+        }
+
+        assert.closeTo(alpha, 1, ALPHA_TOLERANCE);
+    });
+
     it("a step writes the uniform and no edge slot", async () => {
         const graphty = await element(["timeline"]);
         await windowed(graphty);

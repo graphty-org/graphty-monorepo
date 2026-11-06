@@ -431,10 +431,14 @@ export class EdgeLineBatch {
             this.setCount();
         }
 
-        this.owners[index] = owner;
-        if (this.ages !== null) {
-            this.ages[index] = this.ageOf(owner);
-            this.ageRuns.mark(index, this.uploads.on, this.highWater);
+        // ponytail: slots taken while the timeline is off record no edge, so a timeline switched
+        // on later fades them as the newest until they are rebuilt. Record always if that matters.
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = owner;
+            if (this.ages !== null) {
+                this.ages[index] = this.ageOf(owner);
+                this.ageRuns.mark(index, this.uploads.on, this.highWater);
+            }
         }
 
         return index;
@@ -454,7 +458,10 @@ export class EdgeLineBatch {
         }
 
         this.hide(index);
-        this.owners[index] = undefined;
+        if (this.ageable && this.ageState.track) {
+            this.owners[index] = undefined;
+        }
+
         this.free.push(index);
         this.live--;
         this.slotReleased(index);

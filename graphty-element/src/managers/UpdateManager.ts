@@ -781,6 +781,7 @@ export class UpdateManager implements Manager {
      * @param masks - What the renderer reads.
      */
     private followAgeFade(masks: ViewMasks): void {
+        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = masks.timeline?.() === true;
         if (!this.ageFadeOwed(masks)) {
             return;
         }

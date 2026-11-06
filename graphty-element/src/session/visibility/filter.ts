@@ -203,7 +203,9 @@ export interface TimePlayback {
      * Fade by age: the opacity, 0 to 1, that edges starting at the window's first instant draw at,
      * rising to full at its end. Default 1, no fade. It applies to edges timed by an instant or a
      * span, with `outside: "hide"`; elsewhere it does nothing and `session.time.notices()` says why
-     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque.
+     * (`time.age-fade-inactive`). A line drawn with `line.blending` false stays opaque, and so do
+     * straight animated lines (`line.animationSpeed`) and patterned lines other than a dash or dot line that
+     * bends or curves.
      * @experimental timeline
      */
     readonly ageFade?: number;

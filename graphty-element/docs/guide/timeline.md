@@ -222,8 +222,9 @@ with `E_BAD_COMMAND`.
 It applies to edges timed by an instant or by a start and an end, with `outside: "hide"`. Elsewhere it
 draws nothing, and `time.notices()` holds `time.age-fade-inactive` with a `reason`:
 `"no-edge-time"` (the field times only nodes), `"spells"` (the edges carry spells or lists of
-instants) or `"ghost"`. A line drawn with `line.blending` false stays opaque, and arrowheads keep
-their opacity.
+instants) or `"ghost"`. A line drawn with `line.blending` false stays opaque. Straight animated lines
+(`line.animationSpeed`) and patterned lines keep their opacity, except a dash or dot line that bends
+or curves, which fades. Arrowheads keep their opacity too.
 
 ## Every window at once
 

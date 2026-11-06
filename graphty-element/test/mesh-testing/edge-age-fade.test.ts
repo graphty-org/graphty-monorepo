@@ -68,6 +68,7 @@ describe("fade by age in a line batch", () => {
         const switched = new Promise<void>((resolve) => {
             state.switched = resolve;
         });
+        state.track = true;
         state.on = true;
         state.ages = new Float32Array([0, 0.5, 1]);
         state.window.splice(0, 3, 0, 1, 0.2);
@@ -83,6 +84,12 @@ describe("fade by age in a line batch", () => {
         assert.notInclude(material.options.uniforms, "edgeAgeWindow");
         assert.isFalse(material.needAlphaBlending());
         assert.isFalse(batch.mesh.isVerticesDataPresent("edgeAge"));
+    });
+
+    it("records no edge per slot while the timeline is off", () => {
+        assert.isFalse(batchUploadFrames.edgeAges(scene).track);
+        const { batch } = lines();
+        assert.deepEqual((batch as unknown as { owners: unknown[] }).owners, []);
     });
 
     it("the age math is compiled out unless the define is set", () => {
@@ -113,6 +120,7 @@ describe("fade by age in a line batch", () => {
     });
 
     it("switches on after its program compiled, and back to exactly today's program", async () => {
+        batchUploadFrames.edgeAges(scene).track = true;
         const { material } = lines({ widened: true });
         frame();
         const before = {

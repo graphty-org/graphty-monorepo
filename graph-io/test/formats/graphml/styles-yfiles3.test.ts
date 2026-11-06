@@ -243,13 +243,92 @@ describe("yEd Live GraphML: label model parameters", () => {
     });
 });
 
+/**
+ * Imports two nodes joined by an edge labeled by a nine-position model's CenterAbove, and a self-loop with the same label.
+ * @param from - the source's x, with the target at 100
+ * @returns the resolved edge values
+ */
+async function aboveLabels(from: number) {
+    const label =
+        '<data key="l"><x:List><y:Label Text="Lbl"><y:Label.LayoutParameter>' +
+        '<yx:NinePositionsEdgeLabelModelParameter Position="CenterAbove"/>' +
+        "</y:Label.LayoutParameter></y:Label></x:List></data>";
+    const node = (id: string, x: number): string =>
+        `<node id="${id}"><data key="g"><y:RectD X="${String(x)}" Y="0" Width="10" Height="10"/></data></node>`;
+    const file = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"
+    xmlns:yx="http://www.yworks.com/xml/yfiles-common/4.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/3.0">
+<key id="g" for="node" attr.name="NodeGeometry" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeGeometry"/>
+<key id="l" for="edge" attr.name="EdgeLabels" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/EdgeLabels"/>
+<graph id="G" edgedefault="directed">${node("a", from)}${node("b", 100)}
+<edge id="line" source="a" target="b">${label}</edge><edge id="loop" source="a" target="a">${label}</edge>
+</graph></graphml>`;
+    const result = await registry.importGraph(new TextEncoder().encode(file), {
+        format: "graphml",
+        styles: { toolDefaults: true },
+    });
+    if (result.styles === null || result.styles === undefined) {
+        throw new Error("no styles");
+    }
+    const { styles, snapshot } = result;
+    return (property: StyleProperty) => resolveStyles(styles, "edge", property, snapshot);
+}
+
 describe("yEd Live GraphML: edge label model parameters", () => {
-    it("places a label above or below the middle of its edge by the path and nine-position models", async () => {
-        const { edges } = await sheet("specimen-edge-labels.graphml");
-        const positions = edges("labelPosition");
-        // CenterAbove twice and AboveEdge three times; CenterBelow and BelowEdge once each
-        expect(positions.filter((p) => p === "top")).toHaveLength(5);
-        expect(positions.filter((p) => p === "bottom")).toHaveLength(2);
+    /** Half a line of 10 px words. */
+    const HALF_LINE = 5.82;
+
+    it("places a nine-position label its model's distance from the line's end and clear of the line", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelPosition", "model-nine-center-above")).toBe("center");
+        expect(edge("labelOffsetX", "model-nine-center-above")).toBeNull();
+        expect(edge("labelOffsetY", "model-nine-center-above")).toBeCloseTo(-5 - HALF_LINE);
+        expect(edge("labelOffsetX", "model-nine-source-below")).toBeCloseTo(-19.75);
+        expect(edge("labelOffsetY", "model-nine-source-below")).toBeCloseTo(5 + HALF_LINE);
+        expect(edge("labelOffsetX", "model-nine-target-centered")).toBeCloseTo(19.75);
+        expect(edge("labelOffsetY", "model-nine-target-centered")).toBeNull();
+    });
+
+    it("turns a label by its model's or its parameter's angle", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelRotation", "model-nine-angle")).toBeCloseTo(40.107);
+        expect(edge("labelRotation", "model-free-edge-angle")).toBeCloseTo(40.107);
+    });
+
+    it("puts a free label's middle its distance off the line", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelOffsetY", "model-free-edge")).toBeCloseTo(-20);
+    });
+
+    it("draws a label with no parameter, or one yEd Live does not read, below the first segment's middle", async () => {
+        const { edge } = await sheet("specimen-edge-labels.graphml");
+        expect(edge("labelOffsetY", "default")).toBeCloseTo(5 + 1.164 * 6);
+        for (const id of ["model-path-on-edge", "model-path-above-edge", "model-smart-distance-minus-12"]) {
+            expect(edge("labelOffsetY", id)).toBeCloseTo(5 + HALF_LINE);
+        }
+        expect(edge("labelRotation", "model-smart-auto-rotation-false")).toBeCloseTo(360 - 38.29, 1);
+        expect(edge("labelRotation", "model-smart-angle")).toBeNull();
+    });
+
+    it("reads a SmartEdgeLabelModel's distance, segment ratio and end", async () => {
+        const { edge } = await sheet("specimen-edge-labels-p2.graphml");
+        expect(edge("labelOffsetY", "v2-smart-distance-0")).toBeNull();
+        expect(edge("labelOffsetY", "v2-smart-distance-12")).toBeCloseTo(12 + HALF_LINE);
+        expect(edge("labelOffsetY", "v2-smart-distance-minus-12")).toBeCloseTo(-12 - HALF_LINE);
+        expect(edge("labelOffsetX", "v2-smart-segment-ratio")).toBeCloseTo(-14.85);
+        expect(edge("labelOffsetX", "v2-smart-from-target")).toBeCloseTo(14.85);
+    });
+
+    it("keeps above on the page on a line running right to left", async () => {
+        for (const from of [0, 200]) {
+            expect((await aboveLabels(from))("labelOffsetY")[0]).toBeLessThan(0);
+        }
+    });
+
+    it("leaves a self-loop's label at its position", async () => {
+        const values = await aboveLabels(0);
+        expect(values("labelPosition")[1]).toBe("top");
+        expect(values("labelOffsetY")[1]).toBeNull();
     });
 });
 

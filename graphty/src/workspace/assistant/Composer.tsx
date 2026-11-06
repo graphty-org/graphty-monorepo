@@ -22,7 +22,8 @@ interface Scope {
 
 /**
  * What the next message is about, in one line above the composer, live while typing. The x lasts
- * for one message, or until the selection changes.
+ * for one message, or until the selection changes (Workspace watches the selection, so closing the
+ * panel keeps it).
  * @returns The scope and its line
  */
 function useScope(): Scope {
@@ -37,17 +38,6 @@ function useScope(): Scope {
     const selectedEdges = session?.selection.edges.length ?? 0;
     const any = selected + selectedEdges > 0;
     const kind = scopeKind(session, dropped);
-    useEffect(() => {
-        const forget = (): void => {
-            store.set({ assistantScopeDropped: false });
-        };
-        const off = session?.on("selection:changed", forget);
-        return () => {
-            off?.();
-            // Nothing watches the selection without this line, so the x goes with it.
-            forget();
-        };
-    }, [session, store]);
     const { nodes = 0, edges = 0 } = session?.status.counts ?? {};
     const hidden = nodes - (session?.visibility.summary.visibleNodes ?? nodes);
     const chips = (nodeCount: number, edgeCount: number): React.JSX.Element => (

@@ -584,6 +584,35 @@ describe("checking what the Assistant says", () => {
         assert.lengthOf(within(log()).getAllByText("Undone"), 1);
     });
 
+    it("the scope x lasts through closing the panel, until a new selection or a sent message", async () => {
+        const { session } = await openOn(10);
+        await session.selection.apply({ ids: ids(3) });
+        await within(panel()).findByText("Selection");
+        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
+        await within(panel()).findByText("Whole graph");
+
+        await userEvent.click(await screen.findByRole("textbox", COMPOSER));
+        await userEvent.keyboard("{Control>}i{/Control}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
+        });
+        await userEvent.keyboard("{Control>}i{/Control}");
+        await screen.findByRole("region", { name: "Assistant" });
+        await within(panel()).findByText("Whole graph");
+
+        await session.selection.apply({ ids: ids(2) });
+        await within(panel()).findByText("Selection");
+        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
+        await within(panel()).findByText("Whole graph");
+        await say("About the graph");
+        await finished();
+        await within(panel()).findByText("Selection");
+        assert.deepEqual(
+            sent.map((options) => options.scope),
+            ["graph"],
+        );
+    });
+
     it("the scope x, Use selection and Send again by Enter each leave focus in the composer", async () => {
         const { session } = await openOn(50);
         await session.selection.apply({ ids: ids(3) });

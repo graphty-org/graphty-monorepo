@@ -748,7 +748,7 @@ export interface DrawnNode {
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
-    /** An SVG picture drawn over the node: its box and its URL, which say what it draws. */
+    /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
     svgPicture?: { box: ScreenBox; src: string };
     label: DrawnLabel | null;
     /**
@@ -1418,7 +1418,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
         // the image of a node with no body is the node itself
         ...(picture === undefined ? {} : { picture: picture.box }),
-        ...(imagePiece !== undefined && imageSrc.startsWith("data:image/svg+xml")
+        ...(imagePiece !== undefined && imageSrc.includes("data-node-drawing")
             ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
             : {}),
         ...(figure === undefined ? {} : { figure }),

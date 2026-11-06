@@ -480,9 +480,10 @@ function svgOfPicture(src: string): SvgPrimitives {
 }
 
 /**
- * The shapes and words of the SVG pictures graphty draws over nodes, each in its place on the canvas: a program draws
- * them one by one (yEd Live's UML sections), and each is judged against the program's by its box and its words, as
- * any free shape or text is, so a picture of the wrong things or in the wrong place fails.
+ * The shapes and words of the pictures graph-io draws over nodes (`data-node-drawing`), each in its place on the
+ * canvas: a program draws them one by one (yEd Live's UML sections), and each is judged against the program's by its
+ * box and its words, as any free shape or text is, so a picture of the wrong things or in the wrong place fails. A
+ * picture from the file stays one picture.
  * @param scene - the scene
  * @param drawn - `readDrawn` of the same frame
  * @returns the shapes, as strays without their index, the words, and the places of the pictures themselves

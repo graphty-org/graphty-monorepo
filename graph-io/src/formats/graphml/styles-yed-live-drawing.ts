@@ -65,7 +65,7 @@ export function svgPicture(width: number, height: number, border: number, body: 
     const [w, h] = [width - border, height - border];
     const size = `width="${String(w * PICTURE_SCALE)}" height="${String(h * PICTURE_SCALE)}"`;
     const view = `viewBox="${String(border / 2)} ${String(border / 2)} ${String(w)} ${String(h)}"`;
-    return `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" ${size} ${view}${background === "" ? "" : ` style="background:${background}"`}>${body}</svg>`)}`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="yed-live" ${size} ${view}${background === "" ? "" : ` style="background:${background}"`}>${body}</svg>`)}`;
 }
 
 /**
@@ -341,7 +341,7 @@ export function bpmnPicture(
         return drawPieces(pieces, color, bottom(rise));
     };
     const fold = (): string => drawPieces([[16, 0, 10, 10, "M0,0V100H100"]], color, scaled(26, 34));
-    const draws: Record<string, () => string> = {
+    const draws: Partial<Record<string, () => string>> = {
         EventNodeStyle: () => drawPieces(EVENT_SYMBOLS.get(attr("type") ?? "") ?? [], color, scaled(30)),
         GatewayNodeStyle: () => drawPieces(GATEWAY_SYMBOLS.get(attr("type") ?? "") ?? [], color, scaled(34)),
         ActivityNodeStyle: () => drawPieces(TASK_SYMBOLS.get(attr("taskType") ?? "") ?? [], color, asIs) + marks(15),

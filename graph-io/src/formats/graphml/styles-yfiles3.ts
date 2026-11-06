@@ -764,7 +764,7 @@ function readPictureStyle(refs: References, style: StyleObject, put: PutValue, a
         return false;
     }
     const src = treeAttr(style.e, "href") ?? treeText(treeChild(style.e, `${style.tag}.image`));
-    if (src === undefined || src === null) {
+    if (src === null) {
         return true;
     }
     const fill = prop(style, "backgroundFill");

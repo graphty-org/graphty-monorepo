@@ -377,10 +377,4 @@ describe("the pieces of an SVG picture drawn over a node (#5789)", () => {
         assert.strictEqual(rate(r, "stray.present"), 0);
         assert.strictEqual(rate(r, "stray.extra"), 0);
     });
-
-    it("takes a piece inside a picture the program draws whole as drawn, and one outside it as extra", () => {
-        const whole = { x0: 280, y0: 280, x1: 320, y1: 320 };
-        assert.strictEqual(rate(failed(oracleWith({ pictures: [whole] }, []), [piece(290)]), "stray.extra"), 1);
-        assert.strictEqual(rate(failed(oracleWith({ pictures: [whole] }, []), [piece(330)]), "stray.extra"), 0);
-    });
 });

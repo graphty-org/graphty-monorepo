@@ -25,7 +25,6 @@ import {
     type PFill,
     type PGradient,
     type PGroup,
-    PICTURE_PART,
     PICTURE_WHOLE,
     type PNode,
     type PScene,
@@ -3150,8 +3149,6 @@ export function compareOracle(
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];
-    const oPictures = oracle.nodes.flatMap((n) => n.pictures ?? []);
-    const within = (a: PBox, b: PBox): boolean => a.x0 >= b.x0 && a.y0 >= b.y0 && a.x1 <= b.x1 && a.y1 <= b.y1;
     const oTexts = [
         ...oracle.nodes.map((n) => n.label),
         ...oracle.edges.map((e) => e.label),
@@ -3164,8 +3161,6 @@ export function compareOracle(
             s.tag === PICTURE_WHOLE ||
             shapesDrawn.has(s.index) ||
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
-            // a piece of a picture the oracle draws whole: the picture is judged, by its box, not its pieces
-            (s.tag === PICTURE_PART && oPictures.some((b) => within(box, b))) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));
         j.add("stray.extra", "stray", `graphty:${s.tag}#${String(s.index)}`, drawn ? 0 : 1, null, s.text ?? s.tag);
     }

@@ -8,6 +8,7 @@ Words: "the app" is the graphty app; "the element" is graphty-element; "the stud
 `.worktrees/feat-tanstack-ai` (branch `feat/tanstack-ai`). "Frozen build" is a copy of
 `graphty/dist` under `.study-builds/`, named on the first line of `tier6/criteria.md`.
 
+Summarized 2026-11-05 (26 KB), long working facts 0 to 2 shortened: `git show 4c7676a1dd:design/ui/studio/notes/engineer.md`.
 Summarized again 2026-11-05 (29 KB), tier 6 dry run 1 decisions shortened and old open defects moved under Working facts: `git show 48879618c4:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (27 KB); every tier 3 and 4 Top of mind item, decision and tried entry: `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
 Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
@@ -59,10 +60,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 13. (2026-11-05) Under heavy load, browser test shards died with no failed assertion ("error when
     mocking a module", then "rpc is closed"). Suspected mechanism, not proven: `test/setup.ts`'s
     `@babylonjs/core` factory runs on a dead connection and vitest's route handler rejects unhandled.
-14. (2026-10-30) Choices that act before the reader decides cost the most; show the choice before
-    the act. One fact drawn two ways sends readers to a second menu.
-15. (2026-10-30) Every participant is the same model: a failure is strong evidence, a pass weak.
-    A tool line is a claim; check the screenshot. Check a failing bar's evidence before fixing.
+14. (2026-10-30) Show a choice before the act; one fact drawn two ways sends readers to a second
+    menu. Every participant is the same model: a failure is strong evidence, a pass weak. A tool line
+    is a claim; check the screenshot and a failing bar's evidence before fixing.
+15. (2026-11-05) Study tool: tier 6 sets BROWSER_SLOTS=4 itself; the default of 8 stands. Count
+    sessions with '^[^ ]*node [^ ]*real\.mjs --(serve|warm)', never `pgrep -f 'real.mjs --serve'`.
+    See "Tier 6 study tool fixes".
 
 ## Tier 6 dry run 1 fixes (2026-11-05)
 
@@ -166,6 +169,32 @@ Seen on the re-walks, not caused by these fixes, not yet acted on:
 6. After Undo a model-made selection of 82 survives and binds the next message (t93b-sr3/08.png). The
    answer key keeps this.
 
+## Tier 6 study tool fixes (2026-11-05)
+
+None of these was rejected by the re-walk. Decisions and reasons:
+
+- The 4-versus-8 browser disagreement is settled per tier, not by changing the default. The default of
+  8 is a measured decision and the warm pool needs slots above 4, so tier 6 sets BROWSER_SLOTS=4.
+- A tier 6 start closes warm browsers by asking on their socket, not by a signal: a signal during a
+  claim would kill the session the warm browser became. Warming ones are killed by process group.
+- The gate reads the criteria sentence, so rewording that sentence fails closed.
+- The cap check lives in the gate, so a shortfall shows before a session, not as a void mid-round.
+- The setup was renamed, not given an alias: the name also sits in route.jsonl and a rename covers
+  every place. Old route heads had to be updated so replays still find the file.
+
+Traps:
+
+- `pgrep -f 'real.mjs --serve'` also counts the with-browser.sh bash wrappers, doubling the count and
+  adding queued starts (it read 10). Match only the node process:
+  '^[^ ]*node [^ ]*real\.mjs --(serve|warm)'.
+- warmKey includes real.mjs's mtime, so do not reformat real.mjs while --prove runs.
+- graphty's src tests run in the vitest project "browser", not "node".
+- To plant a failure without touching shared source, copy words.ts and the test to *.tmp files beside
+  them, run, delete.
+- A private REAL_GEMINI_COUNT at the cap lets a replay cross pre-model steps with zero paid calls.
+- The tool folder is not under the repo's eslint config (270 pre-existing errors); prettier is its
+  check.
+
 ## Tier 6 walk and test craft (2026-11-05)
 
 Worked:
@@ -233,25 +262,14 @@ Did not work, or traps:
 Summarized again 2026-10-29 (27 KB): full copy `git show b14af76f0e:design/ui/studio/notes/engineer.md`. Earlier summary 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
 audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
-0. (2026-10-29) The weight runs read is `data.loadedWeight()`, which now follows the weight ROLE
-   (`knownFields.edgeWeightPath`) when it names an edge column the load did not read weights from;
-   null when the role is taken away; else the loaded column. `Algorithm.weightReading` asks the
-   session for it and passes the load's own column as `stored` to `resolveRunWeight`, because the
-   store's weights are filled only at load: a designated column that is not the stored one must be
-   read as a column (`input: weight`), and a role taken away must read unweighted (`input: null`).
-   Tests: `test/session/loaded-weight.test.ts`, `test/browser/runs-loaded-weight.test.ts`.
-1. (2026-10-29) A date column is a `date` card field when the element's descriptor says
-   `measurement: "time"` (typed date or the designated time field); its card writes the element's
-   `range` leaf with `as: "time"` (ms bounds, both ends kept). Card bounds: Before X = start(X) - 1,
-   After X = end(X), Between = start(A) .. end(B) - 1, where a 4-digit year spans the year and a
-   day spans the day (`spanOf` in `style/cards.ts`). A bare number under 4 digits is NOT a date: the
-   session parser reads "2" as 2 ms, which wrote a card on the first keystroke.
-2. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
-   with a line is NOT a refused row: GraphML `<data>` and GEXF `<attvalue>` readers drop only the
-   value and keep the node or edge. Those now carry `params: { skipped: "value" }` (graph-io
-   `SKIPPED_VALUE`), and the element's `refused-row` issue skips them (`loadFactsOf` in
-   `session/issues.ts`). Yeast from its address: 331 / 361, no chip. Before trusting any issue
-   count, compare it to `report.counts.skippedNodes/skippedEdges`.
+0. (2026-10-29) Runs read weight from `data.loadedWeight()`, which follows the weight role; a
+   designated column that is not the stored one is read as a column, and a role taken away reads
+   unweighted. Tests: `test/session/loaded-weight.test.ts`, `test/browser/runs-loaded-weight.test.ts`.
+1. (2026-10-29) A date column is a `date` card field when the descriptor says `measurement: "time"`;
+   bounds are in `spanOf` (`style/cards.ts`). A bare number under 4 digits is not a date.
+2. (2026-10-29) An issue must name what happened to the file: a graph-io error with a line is not a
+   refused row (`SKIPPED_VALUE`, `loadFactsOf` in `session/issues.ts`). Before trusting an issue count,
+   compare it to `report.counts.skippedNodes/skippedEdges`.
 3. When a load has no issue the app does not open the table dock (`drawFirst` in `start/open.ts`):
    an old route that opened with the table diverges at that step after an issue fix. Expected.
 4. graphty-element tests resolve graph-io through its `dist`; `npm run build` in graph-io writes

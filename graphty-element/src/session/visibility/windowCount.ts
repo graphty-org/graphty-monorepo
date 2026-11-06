@@ -73,6 +73,72 @@ function crossed(kind: KindState | null, from: number, to: number): Crossed {
 }
 
 /**
+ * How many of a stretch of edges have both ends passing.
+ * @param ends - The noted ends.
+ * @param start - The first sorted position.
+ * @param end - One past the last.
+ * @param passing - Whether each node passes.
+ * @returns The edges.
+ */
+function passingEdges(ends: Uint32Array, start: number, end: number, passing: Uint8Array): number {
+    let edges = 0;
+    for (let at = start; at < end; at++) {
+        const from = ends[2 * at];
+        if (from !== HIDDEN) {
+            edges += passing[from] & passing[ends[2 * at + 1]];
+        }
+    }
+
+    return edges;
+}
+
+/**
+ * Add a stretch of edges to the nodes' counts.
+ * @param ends - The noted ends.
+ * @param start - The first sorted position.
+ * @param end - One past the last.
+ * @param endCount - The counts.
+ * @param passing - Whether each node passes.
+ * @returns The passing nodes that had no edge before.
+ */
+function endsUp(ends: Uint32Array, start: number, end: number, endCount: Int32Array, passing: Uint8Array): number {
+    let nodes = 0;
+    for (let at = start; at < end; at++) {
+        const from = ends[2 * at];
+        if (from !== HIDDEN) {
+            const to = ends[2 * at + 1];
+            nodes += endCount[from]++ === 0 ? passing[from] : 0;
+            nodes += endCount[to]++ === 0 ? passing[to] : 0;
+        }
+    }
+
+    return nodes;
+}
+
+/**
+ * Take a stretch of edges off the nodes' counts.
+ * @param ends - The noted ends.
+ * @param start - The first sorted position.
+ * @param end - One past the last.
+ * @param endCount - The counts.
+ * @param passing - Whether each node passes.
+ * @returns The passing nodes left with no edge.
+ */
+function endsDown(ends: Uint32Array, start: number, end: number, endCount: Int32Array, passing: Uint8Array): number {
+    let nodes = 0;
+    for (let at = start; at < end; at++) {
+        const from = ends[2 * at];
+        if (from !== HIDDEN) {
+            const to = ends[2 * at + 1];
+            nodes += --endCount[from] === 0 ? passing[from] : 0;
+            nodes += --endCount[to] === 0 ? passing[to] : 0;
+        }
+    }
+
+    return nodes;
+}
+
+/**
  * Counts windows from a place in the sorted indexes.
  */
 export class WindowCounter {
@@ -213,35 +279,21 @@ export class WindowCounter {
     }
 
     /**
-     * Take edges into the window. The counts stay in locals: this loop is most of what a walk costs.
+     * Take edges into the window.
      * @param rows - What crossed.
      */
     private edgesEnter(rows: Crossed): void {
-        const { own, passing, ends } = this;
-        const { edge, endCount, node } = this.state;
-        const perm = edge?.index.perm ?? NO_ROWS;
-        const timedNodes = node !== null;
-        this.noteEnds(rows.inFrom, rows.inTo);
-        let edges = 0;
-        let nodes = 0;
-        for (let at = rows.inFrom; at < rows.inTo; at++) {
-            const from = ends[2 * at];
-            if (from !== HIDDEN) {
-                const to = ends[2 * at + 1];
-                if (timedNodes) {
-                    own[perm[at]] = 1;
-                }
-
-                edges += passing[from] & passing[to];
-                if (endCount !== null) {
-                    nodes += endCount[from]++ === 0 ? passing[from] : 0;
-                    nodes += endCount[to]++ === 0 ? passing[to] : 0;
-                }
-            }
+        const { inFrom, inTo } = rows;
+        const { endCount, node } = this.state;
+        this.noteEnds(inFrom, inTo);
+        this.edgesIn += passingEdges(this.ends, inFrom, inTo, this.passing);
+        if (endCount !== null) {
+            this.nodesIn += endsUp(this.ends, inFrom, inTo, endCount, this.passing);
         }
 
-        this.edgesIn += edges;
-        this.nodesIn += nodes;
+        if (node !== null) {
+            this.markOwn(inFrom, inTo, 1);
+        }
     }
 
     /**
@@ -249,30 +301,32 @@ export class WindowCounter {
      * @param rows - What crossed.
      */
     private edgesLeave(rows: Crossed): void {
-        const { own, passing, ends } = this;
-        const { edge, endCount, node } = this.state;
-        const perm = edge?.index.perm ?? NO_ROWS;
-        const timedNodes = node !== null;
-        let edges = 0;
-        let nodes = 0;
-        for (let at = rows.outFrom; at < rows.outTo; at++) {
-            const from = ends[2 * at];
-            if (from !== HIDDEN) {
-                const to = ends[2 * at + 1];
-                if (timedNodes) {
-                    own[perm[at]] = 0;
-                }
-
-                edges += passing[from] & passing[to];
-                if (endCount !== null) {
-                    nodes += --endCount[from] === 0 ? passing[from] : 0;
-                    nodes += --endCount[to] === 0 ? passing[to] : 0;
-                }
-            }
+        const { outFrom, outTo } = rows;
+        const { endCount, node } = this.state;
+        this.edgesOut += passingEdges(this.ends, outFrom, outTo, this.passing);
+        if (endCount !== null) {
+            this.nodesOut += endsDown(this.ends, outFrom, outTo, endCount, this.passing);
         }
 
-        this.edgesOut += edges;
-        this.nodesOut += nodes;
+        if (node !== null) {
+            this.markOwn(outFrom, outTo, 0);
+        }
+    }
+
+    /**
+     * Write whether a stretch of edges passes its own tests.
+     * @param start - The first sorted position.
+     * @param end - One past the last.
+     * @param now - 1 when it passes.
+     */
+    private markOwn(start: number, end: number, now: 0 | 1): void {
+        const { own, ends } = this;
+        const perm = this.state.edge?.index.perm ?? NO_ROWS;
+        for (let at = start; at < end; at++) {
+            if (ends[2 * at] !== HIDDEN) {
+                own[perm[at]] = now;
+            }
+        }
     }
 
     /**

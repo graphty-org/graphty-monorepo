@@ -128,14 +128,20 @@
 /* As tall as what it holds, so the graph stays in view above it. */
 .mantine-Drawer-content.tl-sheet-content {
     flex: 0 0 auto;
+    width: 100%;
     height: auto;
 }
 
-/* The bottom sheet: the dock's parts laid out in a column, and the dock's class for its touch rules. */
+/* The bottom sheet: the dock's parts laid out in a column, and the dock's class for its touch rules.
+   The chart's table for screen readers is as big as its rows, however hidden, so it is clipped here
+   or the sheet would size and scroll to it. The margin is the Drawer body's 8px padding, so the
+   clip stops at the edge of the screen and a thumb at the end of the axis keeps its target. */
 .tl-sheet {
     gap: 8px;
     padding: 0;
     border-top: 0;
+    overflow: clip;
+    overflow-clip-margin: 8px;
 }
 
 .tl-sheet .tl-all {

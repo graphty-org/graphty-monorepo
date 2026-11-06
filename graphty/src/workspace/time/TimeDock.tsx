@@ -18,7 +18,17 @@ import type {
     TimeWindow,
     TimeWindowInput,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Group,
+    NumberInput,
+    Text,
+    TextInput,
+    type TextInputProps,
+    Tooltip,
+    UnstyledButton,
+} from "@mantine/core";
 import { useElementSize, useMediaQuery } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -30,6 +40,8 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     announceWindow,
     jumpToSelection,
+    openTimeSheet,
+    PHONE_WIDTH,
     playAt,
     reportTimeError,
     selectionSpan,
@@ -46,8 +58,6 @@ import { useTimeZoom } from "./useTimeZoom";
 const PX_PER_BIN = 3;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-/** Where the dock gives way to the phone's: the width frame.css folds the workspace's columns at. */
-const PHONE_WIDTH = "(max-width: 720px)";
 
 /**
  * How far a brush thumb moves: a fixed calendar step's length, a day for months and longer, or the
@@ -130,6 +140,8 @@ function RangeForm({
     const [from, setFrom] = useState(() => instantWords(range[0], unit, undefined, zone));
     // The last included instant, as the readout writes it.
     const [to, setTo] = useState(() => instantWords(range[1] - 1, unit, undefined, zone));
+    // A refusal shows in the form, which may cover the notice slot.
+    const [refused, setRefused] = useState(false);
     const ordinal = unit === "ordinal";
     // An inclusive last value back to the half-open end the element takes: the next number, or the
     // end of that day on the element's calendar, which a clock change makes 23 or 25 hours long.
@@ -142,7 +154,7 @@ function RangeForm({
         const last = session.time.parse(to, { timeZone: zone });
         const end = last === null ? undefined : endAfter(last);
         if (start === null || last === null || last < start || end === undefined) {
-            store.set({ notice: { message: "Not a range of dates" } });
+            setRefused(true);
             return;
         }
         session.time.pause();
@@ -151,27 +163,37 @@ function RangeForm({
         }, reportTimeError(store));
         onSet();
     };
-    const field = (label: string, value: string, set: (next: string) => void): React.JSX.Element =>
-        ordinal ? (
+    const field = (label: string, value: string, set: (next: string) => void, error?: string): React.JSX.Element => {
+        // The words go over the input, so the fields and Set stay in line.
+        const shared: Pick<TextInputProps, "size" | "label" | "error" | "inputWrapperOrder"> = {
+            size: "xs",
+            label,
+            error,
+            inputWrapperOrder: ["label", "error", "input"],
+        };
+        const edit = (next: string): void => {
+            set(next);
+            setRefused(false);
+        };
+        return ordinal ? (
             <NumberInput
-                size="xs"
-                label={label}
+                {...shared}
                 value={value}
                 hideControls
                 onChange={(next) => {
-                    set(String(next));
+                    edit(String(next));
                 }}
             />
         ) : (
             <TextInput
-                size="xs"
-                label={label}
+                {...shared}
                 value={value}
                 onChange={(event) => {
-                    set(event.currentTarget.value);
+                    edit(event.currentTarget.value);
                 }}
             />
         );
+    };
     return (
         <form
             className="tl-range-form"
@@ -181,7 +203,7 @@ function RangeForm({
             }}
         >
             {field("From", from, setFrom)}
-            {field("To", to, setTo)}
+            {field("To", to, setTo, refused ? "Not a range of dates" : undefined)}
             <Button size="compact-xs" type="submit">
                 Set
             </Button>
@@ -705,7 +727,7 @@ export function TimeDock(): React.JSX.Element | null {
                     transport={transport}
                     readout={readout}
                     onOpen={() => {
-                        time.pause();
+                        openTimeSheet(session, store);
                     }}
                     line={{ label, minLabel, maxLabel, values: visible.map(countOf) }}
                     tools={

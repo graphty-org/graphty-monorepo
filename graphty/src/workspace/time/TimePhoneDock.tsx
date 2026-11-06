@@ -3,18 +3,22 @@
  * readout over a sparkline of the same bins, so the canvas keeps its height. Tapping the readout
  * opens a bottom sheet with what the row has no room for: the histogram with its brush, the From and
  * To fields, and the dock's other buttons. `TimeDock` builds every part; this only arranges them.
+ * The sheet comes up with focus on the brush, what it is for, and the header's chip opens it too.
  */
 
 import { SparklineRow, type SparklineRowProps } from "@graphty/compact-mantine";
 import { Drawer, Group, UnstyledButton } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect } from "react";
+
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { focusWindowStart } from "./timeActions";
 
 /**
  * The phone's row, sparkline and sheet.
  * @param props - Component props
  * @param props.transport - the transport's buttons.
  * @param props.readout - the readout's words.
- * @param props.onOpen - called as the readout's tap opens the sheet.
+ * @param props.onOpen - opens the sheet, for the readout's tap.
  * @param props.line - the sparkline.
  * @param props.tools - the dock's buttons and counts, at the top of the sheet.
  * @param props.chart - the histogram and its brush.
@@ -38,10 +42,18 @@ export function TimePhoneDock({
     chart: React.ReactNode;
     renderFields: (close: () => void) => React.ReactNode;
 }>): React.JSX.Element {
-    const [opened, setOpened] = useState(false);
+    const { store } = useWorkspace();
+    const opened = useWorkspaceState((state) => state.timeSheetOpen);
     const close = (): void => {
-        setOpened(false);
+        store.set({ timeSheetOpen: false });
     };
+    // A sheet left up as the window widens must not come back on the next phone-sized one.
+    useEffect(
+        () => () => {
+            store.set({ timeSheetOpen: false });
+        },
+        [store],
+    );
     return (
         <>
             <Group gap={0} wrap="nowrap" className="tl-phone-row">
@@ -52,10 +64,7 @@ export function TimePhoneDock({
                     aria-label={`Time window ${readout}`}
                     aria-haspopup="dialog"
                     aria-expanded={opened}
-                    onClick={() => {
-                        onOpen();
-                        setOpened(true);
-                    }}
+                    onClick={onOpen}
                 >
                     {readout}
                 </UnstyledButton>
@@ -64,6 +73,7 @@ export function TimePhoneDock({
             <Drawer
                 opened={opened}
                 onClose={close}
+                onEnterTransitionEnd={focusWindowStart}
                 position="bottom"
                 title="Time window"
                 classNames={{ content: "tl-sheet-content", close: "tl-sheet-close" }}

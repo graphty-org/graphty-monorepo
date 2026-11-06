@@ -403,3 +403,48 @@ describe("the timeline's switch in the app", () => {
         await screen.findByRole("button", { name: "Timeline" });
     });
 });
+
+describe("the timeline's switch on a phone", () => {
+    beforeAll(async () => {
+        await page.viewport(390, 844);
+    });
+
+    /**
+     * Opens the project saved with the timeline, with the dock asked for.
+     * @returns the session.
+     */
+    async function openOnPhone(): Promise<GraphSession> {
+        const store = createWorkspaceStore({ project: { name: "Phone", id: 1 }, place: "graph", timelineOpen: true });
+        const session = await mount("graph", store);
+        await session.project.open(await timedProject(), { discard: true });
+        await waitFor(() => {
+            assert.strictEqual(session.visibility.summary.visibleEdges, 2);
+        });
+        return session;
+    }
+
+    it("leaves the side panels where they are with the experiment off", async () => {
+        await siteFeatures([]);
+        const session = await openOnPhone();
+
+        const refusal: unknown = await session.time
+            .setField({ edges: { start: "sent" } })
+            .catch((error: unknown) => error);
+
+        assert.propertyVal(refusal, "code", "E_FEATURE_OFF");
+        assert.isNull(document.querySelector(".tl-phone"));
+        assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Time window" }));
+        assert.isAbove(screen.getByRole("complementary", { name: "Left panel" }).clientWidth, 0);
+    });
+
+    it("moves them aside for the same project's dock with the experiment on", async () => {
+        await siteFeatures(["timeline"]);
+        await openOnPhone();
+
+        await screen.findByRole("region", { name: "Timeline" });
+
+        assert.isNotNull(document.querySelector(".tl-phone"));
+        assert.isNull(screen.queryByRole("complementary", { name: "Left panel" }));
+    });
+});

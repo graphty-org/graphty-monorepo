@@ -16,6 +16,9 @@ import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
 
+/** Where the dock gives way to the phone's: the width frame.css folds the workspace's columns at. */
+export const PHONE_WIDTH = "(max-width: 720px)";
+
 /**
  * Whether the timeline experiment is on, as graphty-element reports it.
  * @param session - the element's session, or null.
@@ -287,9 +290,51 @@ export function jumpToSelection(session: GraphSession, store: WorkspaceStore): v
     }, reportTimeError(store));
 }
 
-/** Puts focus on the dock's brush, at the window's start. */
-export function focusBrush(): void {
+/**
+ * Whether the window is a phone's, where the brush lives in a sheet and the dock replaces the panels.
+ * @returns true on a phone.
+ */
+export function onPhone(): boolean {
+    return window.matchMedia(PHONE_WIDTH).matches;
+}
+
+/**
+ * What going to a place writes besides the place: a phone's open dock hides the panels the place
+ * shows in, so it closes.
+ * @returns the store's change.
+ */
+export function panelsInView(): { readonly timelineOpen?: boolean } {
+    return onPhone() ? { timelineOpen: false } : {};
+}
+
+/** Puts focus on the brush, at the window's start. */
+export function focusWindowStart(): void {
     document.querySelector<HTMLElement>('.tl-dock [role="slider"][aria-label="Window start"]')?.focus();
+}
+
+/**
+ * Brings up the phone's sheet, paused, since nothing in it could stop a play. The dock comes with
+ * it: the sheet is the dock's.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function openTimeSheet(session: GraphSession, store: WorkspaceStore): void {
+    session.time.pause();
+    store.set({ timelineOpen: true, timeSheetOpen: true });
+}
+
+/**
+ * Takes the reader to the brush: focus on the dock's, or the sheet that holds a phone's, which
+ * focuses it as it comes up.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function focusBrush(session: GraphSession, store: WorkspaceStore): void {
+    if (onPhone()) {
+        openTimeSheet(session, store);
+    } else {
+        focusWindowStart();
+    }
 }
 
 /**

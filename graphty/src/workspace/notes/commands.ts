@@ -1,5 +1,6 @@
 import { defineRegistration } from "../commands/registry";
 import { resolveInspected } from "../inspector/inspected";
+import { panelsInView } from "../time/timeActions";
 import { MAX_TARGETS, targetsOf } from "./words";
 
 /**
@@ -14,7 +15,7 @@ export const registration = defineRegistration({
             label: "Notes",
             group: "Go to",
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "notes" });
+                workspace.set({ page: "panels", place: "notes", ...panelsInView() });
             },
         },
         {

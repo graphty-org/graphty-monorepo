@@ -304,6 +304,53 @@ function brushGesture(
 }
 
 /**
+ * The bar's buttons that come and go: Jump to selection while the selection has a time, and Show
+ * whole timeline while the axis is zoomed, since no gesture may be the only way back.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @param props.store - the chrome store.
+ * @param props.zoomed - whether the axis is zoomed.
+ * @param props.reset - shows the whole timeline.
+ * @returns the buttons.
+ */
+function ViewButtons({
+    session,
+    store,
+    zoomed,
+    reset,
+}: Readonly<{
+    session: GraphSession;
+    store: WorkspaceStore;
+    zoomed: boolean;
+    reset: () => void;
+}>): React.JSX.Element {
+    return (
+        <>
+            {selectionSpan(session) === null ? null : (
+                <Tooltip label="Jump to selection">
+                    <ActionIcon
+                        variant="subtle"
+                        aria-label="Jump to selection"
+                        onClick={() => {
+                            jumpToSelection(session, store);
+                        }}
+                    >
+                        <GLYPHS.jumpToSelection size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            )}
+            {zoomed ? (
+                <Tooltip label="Show whole timeline">
+                    <ActionIcon variant="subtle" aria-label="Show whole timeline" onClick={reset}>
+                        <GLYPHS.wholeTimeline size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            ) : null}
+        </>
+    );
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -341,7 +388,7 @@ export function TimeDock(): React.JSX.Element | null {
     const window: TimeWindow | null = time.current;
     const zone = zoneOf(session);
     const whole = time.bins({ maxCount }) ?? [];
-    const all = view === null ? whole : (time.bins({ ...view, maxCount }) ?? []);
+    const all = time.bins({ ...view, maxCount }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];
     const first = all.at(0);
     const last = all.at(-1);
@@ -449,26 +496,7 @@ export function TimeDock(): React.JSX.Element | null {
                 <Text size="xs" c="dimmed" className="tl-counts">
                     {`${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`}
                 </Text>
-                {selectionSpan(session) === null ? null : (
-                    <Tooltip label="Jump to selection">
-                        <ActionIcon
-                            variant="subtle"
-                            aria-label="Jump to selection"
-                            onClick={() => {
-                                jumpToSelection(session, store);
-                            }}
-                        >
-                            <GLYPHS.jumpToSelection size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
-                {view === null ? null : (
-                    <Tooltip label="Show whole timeline">
-                        <ActionIcon variant="subtle" aria-label="Show whole timeline" onClick={reset}>
-                            <GLYPHS.wholeTimeline size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                )}
+                <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />
             </Group>
             <div className="tl-chart" data-panel-start="" ref={chartRef}>
                 <HistogramRow

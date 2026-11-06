@@ -5,46 +5,35 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-05 (tier 6 report drafted; round 1 closed on walks alone; the studio stops for the request cap).
+Last updated: 2026-11-05 (tier 6 round 2 read; 30 units decided for round 3).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-11-05) TIER 6 ROUND 1 CLOSED WITH NO READER: all 24 sessions were refused at the start, the request cap spent
-  (3,000 of 3,000, 2,892 before the expert walks, 0 by sessions). Everything in `insights.md` is walks and source: what
-  is on screen, never what a reader paid. Bars 1 to 7 and 11 have nothing to count. It is not a result about the Assistant.
-- (2026-11-05) THE STUDIO STOPS for one owner item: the cap. With 0 left, keeping it means NO sessions, not fewer. I
-  recommend 4,500 (about $7.50 of the $150 monthly budget): 680 at best, about 1,100 at worst. Spending, so his alone.
-  The open entry in `owner-decisions.md` is stale (145 left, "drop sessions"). The stop holds sessions and model walks
-  only, not the fixes or `repro/`.
-- (2026-11-05) Budget a tier's dry runs against its sessions BEFORE the first pilot: reserve the sessions' requests so
-  dry runs cannot spend them. Three dry-run passes ate the tier. "The cap is far above need" was never computed.
-- (2026-11-05) Next, needing no request: `repro/` for the 400% Settings page (`frame.css`, not the modal; a short narrow
-  window, every section; not a counted 3 until `repro/` holds it), then the fixes. Fix first, then freeze and walk; the
-  round restarts from clean folders with no re-run spent. Also fix `leaksIn` and "RETURNING" in the first-meeting prompts.
-- (2026-11-05) Sharpest open defect: scope moves with no line saying so. Add a selection effect to the element's
-  `results` `top` action (additive, team's call); the "Selected {N} nodes" row is already in design 6.6.
-- (2026-11-05) Three rulings are mine, none a one-way door: does the kept reselect cover a rollback; does the x entry
-  reach closing the panel; does a painting run get a Colored row. Rule them with a dated line in `decided.md`.
-- (2026-11-05) Skeptics earned their keep: 0 of 4 candidate insights stood whole, 5 of 9 problems weakened, bar 11's fail
-  became nothing to count. Without sessions, severity claims stay at 2 unless a reader could pay; Talk fell for that.
-- (2026-11-05) A build must carry an acceptance check per fix, and never freezes on an empty source diff: `git diff
-<last> <new>` over source first. Writing a fix in a triage is not building it.
-- (2026-11-05) TIER 6 CRITERIA FROZEN, 12 bars: `tier6/criteria.md`. One round, then fixes walked again; the bars
-  gate fixes, not a further round.
-- (2026-11-05) The doubt lives in follow-ups: T92, T93 and T95 prompts stop at the outcome, and `Taken on trust:`,
-  `Checked:` and `Card:` grade the first report. A prompt that asks "how sure" measures obedience.
-- (2026-11-05) The planted wrong count is a selection, not a falsified reply: T92 A starts with the 14 people
-  selected; 6 of 9 against the file's 7 of 12. Prose against a chip stays untested and is the report's first limit.
-- (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`, research in
-  `design/ai/assistant-chat-research.md`. A rail place, not a window. Plain text is the model's, a chip is computed, a
-  change line is what happened. Undo on the newest step only.
+- (2026-11-05) ROUND 3 DECIDED: 30 units in `tier6/rounds/round-2/decisions.md`, 15 from the round and 15 from the
+  backlog (153 rows marked). No breaking change, nothing in compact-mantine, no bar moved.
+- (2026-11-05) The round's faults share a shape: the screen says less than the graph did, or says it where the reader
+  is not looking. No sentence added: facts join existing lines, the placeholder replaces words. Bars 7 and 9 stay as read.
+- (2026-11-05) ONE CHANGE PER PROBLEM, or round 3 credits nothing. T92 A's plant retests the placeholder alone; the
+  scope word and a scope row under You wait for that result. Re-run T92 A and T90 after units 3 and 7.
+- (2026-11-05) Requests: 3,669 of 5,000 spent, 1,331 left. Reserve 480 for the 12 sessions BEFORE any dry run.
+- (2026-11-05) Owed by the study, not a unit: the 193-screen audit (bars 10, 11), the conversation returning with a key,
+  and the 400% walks copied into `repro/`. Bar 9 stays open until they are there.
+- (2026-11-05) Autosave's tooltip fix answers no session: no reader saw it. Finding 1's label stays open at 2. Say so.
+- (2026-11-05) A read mechanism is measured before it is built on. The log's fix starts with one CSS line and a number;
+  the observer exists only if that falls short.
+- (2026-11-05) Open question worth keeping: sets and filters the model makes leave nothing to find, because
+  `VisibilityApi` rules and the Data place's filter cards are two models. Needs a design, not a unit.
+- (2026-11-05) Budget a tier's dry runs against its sessions BEFORE the first pilot. Three dry-run passes ate round 1.
+- (2026-11-05) A build must carry an acceptance check per fix, and never freezes on an empty source diff.
+- (2026-11-05) The doubt lives in follow-ups: T92, T93 and T95 prompts stop at the outcome. A prompt that asks "how sure"
+  measures obedience. Prose against a chip stays untested and is the report's first limit.
+- (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`. A rail place, not a window. Plain text is the
+  model's, a chip is computed, a change line is what happened. Undo on the newest step only.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Two skeptics settle scores.
-- (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those. A docs-only
-  commit never refreezes.
-- Owner items open: the request cap, plus ten older entries (eleven questions), all breaking, defaults or a saved-file
-  format (`owner-decisions.md`). None comes from tier 6. Near the line: two selector fixes, recorded as fixes.
+- (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those.
+- Owner items open: ten older entries, all breaking, defaults or a saved-file format. None comes from tier 6.
 
 ## Priorities and values
 
@@ -85,6 +74,16 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 3 units.** 15 from the round, 15 from the backlog. Reasons: severity first, with the
+  400% page first because bar 9 reads it and a pointer reader has no other way to a key. Took the red team's cuts over
+  the roles' extra forms, because each extra form was a rider on a measured line. Kept its ordering except two calls of
+  mine: the status-less failure keeps a second button against the advocate (a named cause with no door is a notice),
+  and Settings gets the media block, not its floor, which cannot help the one-column case. A painting run joins the
+  Computed line rather than adding a row: `styleEffects` is one effect per channel. Rulings: a rollback is not a reader's
+  Undo, so the kept reselect does not reach it; the x outlives closing, so the build was wrong and not the entry. Open
+  run landing on Values went in despite five roles saying leave it: their reason was one click, but a blank tab is a
+  dead landing, and only an empty Style changes. Refused a task with one bad key: bar 3 reads a real answer, so a
+  scripted walk covers it.
 - **2026-11-05, tier 6 report.** Say first that no reader saw the Assistant, and keep the bars in three classes rather
   than one row of "did not hold". Recommend 4,500, not the entry's 4,000. Reasons: the 200 for 26 gate walks was never
   computed; 2,822 requests over 151 pilot walks is at most 19 a walk (re-walks are not in that denominator), so up to
@@ -143,6 +142,12 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (round 3 units) -- Worked: reading `Checks.tsx`, `derive.ts` and `RunsApi` before ruling; three "lacks" fell.
+  `painting()` is public, every suggestion carries a color channel, `data-disabled` is already styled. Worked: reading
+  the `results` `top` action, which showed round 1's selection line is still open. Worked: a marker script
+  with per-unit counts for 153 backlog rows, run dry first. Did not work: my crude scan for write tools lacking
+  `effects` (helpers hide them), so unit 6 asks the walk to name the tool behind any "Changed the graph" left.
+  Unknown: `expert/a11y.md` is not in round 2's folder; round 1's counts by `from-round-1.md`.
 - 2026-11-05 (tier 6 report) -- Worked: running `--gate` again and reading the count file rather than quoting `scores.md`
   (13 `FAIL` lines, 3,000 bytes). Worked: counting pilot walks to test the 200 estimate. Worked: `git diff` between
   builds for the by-package table. Worked: issue #1727's table to clear stale "for the owner" entries (histogram and
@@ -164,12 +169,8 @@ history.
   the dead Open run. Worked: reading the screenshot behind a mechanism marked not proved (two Algorithm results steps
   last, then 'Changed the graph'). Did not work: nothing failed; the T92 A report is missing from the study's folder, so
   those rows rest on the pilot's list and the screenshots.
-- 2026-11-05 (dry run pass 1) -- Worked: reading the element before classing; a five-line tsx script against
-  `compileExpressionPredicate` turned four tasks' chip complaints into two causes. Worked: the rows file plus
-  generator with per-task counts asserted (232 rows). Worked: reading `design/ai/assistant-coverage-design.md` before
-  touching rollback: the rule is right and the failing call is the fault. Did not work: pilot severity as a class
-  (a 3 is harm, not a block). Note: the pilot's `session.log` holds no tool arguments, so a failed call cannot be named
-  from the records; a line per failed call would have settled `run-scope`.
+- 2026-11-05 (dry run pass 1, summarized) -- Worked: reading the element before classing; a rows file with per-task
+  counts. Did not work: pilot severity as a class (a 3 is harm, not a block).
 - 2026-11-05 (tier 6 freeze) -- Worked: walking each proposed setup before ruling. `--expect API key` first in every
   setup stopped a race. Did not work: `--expect selected=N` reads table rows, not canvas selection.
 - 2026-11-04 (Assistant) -- Worked: checking each review claim in source before ruling, and measuring the caption fit.
@@ -187,6 +188,10 @@ history.
 
 ## Thinking
 
+- **2026-11-05, round 3:** nine critics converge on the same screens, so the risk moved from missing a defect to each
+  role adding one more line to the same turn. A red team that counts lines is worth more than a tenth critic. The
+  critics' best find was not in any grade: neighboring text contradicting itself (placeholder under the scope line).
+  The screen audit should compare neighbors, not read rows alone.
 - **2026-11-05, tier 6 report:** a stale decision entry is worse than none, because its options change as the numbers
   move: "drop sessions" stopped being an option at 0 left. Restate an owner item's options whenever its figures change.
   The last five fixes have no written acceptance record beyond the engineer's notes; next tier, each fix's acceptance
@@ -223,7 +228,7 @@ history.
 
 ## Sources
 
-- Tier 6: `tier6/report.md`; round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
+- Tier 6: `tier6/report.md`; round 2 `tier6/rounds/round-2/{insights,scores,plan,decisions}.md`; round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
   `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/`, `-2/` and `-3/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs

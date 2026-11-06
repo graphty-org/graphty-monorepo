@@ -3761,3 +3761,24 @@ today's second request contradicts its own promise, as the rule-language fixes d
 `@experimental assistant`, which may change in a minor release (owner, 2026-10-25/26), and
 `tier6/decided.md`, "The scope line always states what a message is about", already says what the reply
 must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.
+
+## 2026-11-05 -- Decided by the team: five facts the Assistant's results gain for round 3
+
+All five are additive and sit behind the `assistant` experiment, so none is breaking, and the names are
+chosen here so the builders need not choose them.
+
+- `AI_EFFECT_RUN` and a run's tool result gain `painted`: how many of the run's suggestions were added,
+  omitted at 0. `session.runs.painting(id)` already holds this; the assistant's results did not carry it.
+  `apply_suggestion` returns the run's effects as `run_algorithm` does.
+- A new effect code, `AI_EFFECT_RUN_REMOVED`, with `algorithm` and `removedLayers`, for `results` `remove`.
+- `AI_CANCELLED` gains `steps`: how many steps were taken back, omitted at 0.
+- `AI_TOOL_FAILED` carries `cause` on every path, as `runConversation` already does.
+- The element's answer call gains an optional `typed: true`: an answer outside the choices goes to the model
+  as written. Without it, today's `AI_ANSWER_INVALID` stands.
+
+**Why settled here.** A new parameter whose default keeps today's behavior is the team's call (owner,
+2026-10-08), and the assistant is `@experimental assistant` (owner, 2026-10-25/26). Each is a neutral fact
+or option: the app writes the words. `params` stay numbers and strings, the type `AiResultParams` already
+is. Also decided, and not a public change: a message taken back drops its steps from the redo side and
+restores the selection it found, because a failed message did not happen (`tier6/decided.md`). Evidence
+and reasons: `tier6/rounds/round-2/decisions.md`.

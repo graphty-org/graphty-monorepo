@@ -258,3 +258,39 @@ None of these reverses an entry above. Evidence: `dry-run-r1-2.md`.
   (2026-11-05.) Reason: the scope line always states what a message is about, and the x is its remedy,
   so the remedy must work. Taking earlier turns out of what is sent was rejected: 'those' needs them.
   The x itself is unchanged. Evidence: T92 A success, touched-16 and keyboard, 3 of 3 walks on six.
+
+## Settled by the study's second round (2026-11-05, build 3b2a7f0649)
+
+None of these reverses an entry above; the third and sixth close what "Kept for the first round" left
+to fix after it. Evidence: `rounds/round-2/insights.md`, `rounds/round-2/decisions.md`.
+
+- **A painting run says so on its own change line, "Computed Closeness for 24 nodes, colored by it". It gets
+  no second row, and the model's result carries the same fact.** (2026-11-05.) Reason: a line must be true
+  without the prose, and a repaint under "Computed" does not exist for a reader who cannot see the
+  drawing. A Colored row was rejected: one effect per channel stacks rows on turns that hold three lines,
+  and `source` prints a result path raw. Evidence: `sessions/r2-s02/29.png`, `sessions/r2-s10/05.png`;
+  `prompt.ts` asks the model to report painted counts that `summarizeRun` never gave it.
+- **The composer's placeholder follows the scope: "Ask about this selection" while a selection binds the
+  message.** (2026-11-05.) Reason: the scope line always states what a message is about, so the field
+  under it may not say otherwise. This amends design 6.1. Evidence: `sessions/r2-s05/05.png`.
+- **A failure with no status, on a provider that needs a key, names both causes and offers Send again and
+  AI provider... together.** (2026-11-05.) Reason: a browser hides the 401, so the app cannot know which
+  it was, and a named cause with no door is a notice. Send again stays for a dropped network. Evidence:
+  both skeptics' probes of `api.openai.com`; `sessions/r2-s01/18.png`.
+- **The Assistant's lines use the key's name for a measure, by id.** (2026-11-05.) Reason: glossary section 2,
+  rule 1, and the `plainName` rule in `CLAUDE.md`, which lets an application replace a name by id. The
+  catalog does not change. Evidence: `sessions/r2-s01/18.png`, `sessions/r2-s10/05.png`.
+- **Show in table selects the rows and opens the dock narrowed to them, with a removable chip.** (2026-11-05.)
+  Reason: on a large file a selection alone leaves the rows out of view. This amends design 5.3's row
+  and keeps its selection. Evidence: `repro/r2-s06/walk/04.png`.
+- **The kept "selection surviving Undo" does not reach a rollback. A message taken back leaves the selection
+  it found and no lit Redo; a reader's own Undo does not change.** (2026-11-05.) Reason: a rollback means
+  the message did not happen, while an Undo is the reader's act, and selection is not undoable. Evidence:
+  `rounds/round-1/insights.md`, finding 7.
+- **The x outlives closing the panel: it lasts one message or until the selection changes, and closing is
+  neither.** (2026-11-05.) Reason: the entry above and design 5.2 say so, and the build forgot the x only
+  because nothing watched the selection once the panel unmounted. Evidence: `rounds/round-1/expert/a11y.md`,
+  finding 8.
+- **Esc on the panel, outside the composer, leaves the selection, as does an Esc that closes a dialog.**
+  (2026-11-05.) Reason: "Esc closes the innermost thing first", and selection is the next message's scope
+  with no undo. Evidence: `rounds/round-1/expert/a11y.md`, finding 7; `rejected-fixes.md`.

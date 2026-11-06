@@ -10,17 +10,18 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Frozen build 48879618c4 has 3549e11129's app code (diff empty over graphty,
-  graphty-element, compact-mantine), so the second dry run's fixes are NOT in it. The key describes
-  those defects as they stand; match it again if a fixed build is frozen.
-- (2026-11-05) Key matches 48879618c4 for T91 A, T92 A, T92 B, T95 A; no bar or prompt changed. Expect
-  bar 1 to lean on `Build decided`: T92 A after the x, T92 B's "at least 6", T91 A's chip of 15.
-- (2026-11-05) T92 A's x after fact 1 stayed on six on 3 of 3 walks, so `Trap fired` there measures the
-  model's memory, not the scope line. Answer question 1 with those sessions apart.
+- (2026-11-05) Round 1 planned on 3b2a7f0649 (`tier6/rounds/round-1/plan.md`, 12 sessions, roster's
+  table as written). `real.mjs --gate` FAILS: no walk of any half on this build, no bars run, and
+  `--start` refuses every session until it passes. The workflow never runs `--gate`.
+- (2026-11-05) The key was last matched to 48879618c4; 3b2a7f0649 holds the dry run's fixes. Match the
+  key again before grading, or `Build decided` will mark defects that may be gone (T92 A after the x,
+  T92 B's "at least 6", T91 A's chip of 15). T92 A's plant is unconfirmed on this build.
+- (2026-11-05) On 48879618c4, T92 A's x after fact 1 stayed on six on 3 of 3 walks, so `Trap fired`
+  there measured the model's memory, not the scope line. Check again on the fixed build.
 - (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
-  bar 11, but no backing: a right fact with only that row is F, `Build decided: yes`.
+  bar 11, but no backing: a right fact with only that row is F.
 - (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4
-  walks, and T92's replies were often right. T92 A's scope plant holds and is the surest qualifier.
+  walks, and T92's replies were often right. T92 A's scope plant is the surest qualifier.
 - (2026-11-05) The tool's key swap makes Google with the OpenAI key work, which real Google would
   refuse. That session shows no failure: graded as seen, reported as a tool artifact.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
@@ -72,6 +73,14 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 round 1 plan):** Took the roster's table as written, in its order, T90 first:
+  12 sessions fill the cap with one per half, so there was nothing to trade. Left the frozen pieces
+  alone and put what still blocks the round in the plan's "Open before the first session". Did not write
+  the gate's evidence by hand or walk the halves: the section exists so a round cannot start unwalked,
+  and walking is the pilot's job. Checked: 12 briefings on 3b2a7f0649 with the right start, none holding
+  a follow-up; every follow-up word for word and every row against `tasks.md` and `roster.md`; gate
+  run, exit 1; `git log 48879618c4..3b2a7f0649` shows 125 commits over the app code.
 
 - **2026-11-05 (key matched to build 48879618c4):** Ruled T91 A's chip of 15 no basis, as T92 A's 5 or 9;
   the reply's 9 still is, so only a report of 15 fails. Marked a reader who pressed the x and reports 6
@@ -161,15 +170,9 @@ logged). Their reasons, in short:
   Reason: each claim must stand on a screen or a script, and the frozen rules stay frozen.
   Evidence: `rounds/round-1/scores.md`, `steps.json`, each session's `endstate.json`.
 
-- **2026-10-30 (round 1 plan and recheck, folded):** 28 sessions exactly as roster.md (core tasks
-  first, A and B alternating, Sam last with `--keys`); follow-ups from tasks.md through the tool.
-  Changed T65 B's key facts to `5 gauges`/`3 gauges` so `--brief` stops refusing; kept plan.md on
-  recheck (the plan script now keeps "## Gate evidence" on a rerun).
-
-- **2026-10-29 (tier 4 criteria review):** Proposed eight changes, applied none (the Director
-  freezes): grade from end-state records plus a script, confirm expert findings by repro, reword
-  echoing prompts, map every decided fix to a route, count Sam apart, move T65 B to a second domain,
-  give T63 a place not preset and T68 a filtered start. Most were adopted into the criteria.
+- **2026-10-29 to 10-30 (tier 4 plan and criteria review, folded):** 28 sessions exactly as roster.md;
+  T65 B's key facts reworded so `--brief` stops refusing. Proposed eight criteria changes, applied none
+  (the Director freezes); most were adopted.
 
 - **2026-10-21 (tier 3, folded):** Two skeptics per insight (two drops = dropped, one = weakened);
   disputed claims settled at their source; scored by hand where `score.mjs` was wrong and said so;
@@ -179,6 +182,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (round 1 plan) -- Worked: running `--gate` as well as `--brief`: `--brief` alone passes
+  while every `--start` would be refused; one script checking sessions against plan, tasks and roster.
+  Did not work: a grep for follow-up words alone proves little; the script's exact match does.
 
 - 2026-11-05 (key match, 48879618c4) -- Worked: the `\s+`-joined asserted script, and viewing the screen
   rather than the pilot's line: touched-16/05 shows Selection 14 after the x's message, so the key's

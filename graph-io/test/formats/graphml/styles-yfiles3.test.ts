@@ -358,8 +358,8 @@ describe("yEd Live GraphML: edge label model parameters", () => {
     });
 });
 
-describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
-    it("is drawn in its first stop and noted", async () => {
+describe("yEd Live GraphML: a LinearGradient fill", () => {
+    it("reads a FlowchartNodeStyle's shared gradient from corner to corner", async () => {
         const result = await registry.importGraph(
             new Uint8Array(
                 readFileSync(
@@ -371,8 +371,33 @@ describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
             ),
             { format: "graphml", styles: { toolDefaults: true }, errorLimit: Infinity },
         );
-        const { styles } = result;
-        expect(styles?.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+        const { styles, snapshot } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const n0 = snapshot.ids.requireIndex("n0");
+        expect(resolveStyles(styles, "node", "fill", snapshot)[n0]).toBe("#e8eef7");
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[n0]).toBe("#b7c9e3");
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[n0]).toBe(45);
+        expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
+    it("runs at the angle from its start to its end across the node's box, with every stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradientAngle", "linear-gradient-diagonal")).toBe(45);
+        expect(node("fillGradientAngle", "linear-gradient-horizontal")).toBe(0);
+        expect(node("fillGradientAngle", "linear-gradient-vertical")).toBe(90);
+        expect(node("fillGradient", "linear-gradient-vertical")).toBe("#0000ff");
+        expect(node("fillGradientColors", "linear-gradient-three-stops")).toBe("#ff0000 #ffcc00 #0000ff");
+        expect(node("fillGradientStops", "linear-gradient-three-stops")).toBe("0 0.5 1");
+        expect(node("fillGradientColors", "linear-gradient-diagonal")).toBeNull();
+    });
+
+    it("keeps a ramp inside the box, and a radial gradient, in their first stop", async () => {
+        const { node } = await sheet("specimen-node-fills-borders.graphml");
+        expect(node("fillGradient", "linear-gradient-reflect")).toBeNull();
+        expect(node("fill", "linear-gradient-reflect")).toBe("#ffffff");
+        expect(node("fillGradient", "radial-gradient")).toBeNull();
     });
 });
 

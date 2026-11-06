@@ -425,15 +425,14 @@ function crossRows(kind: KindState | null, from: number, to: number): Uint32Arra
 
     const out = new Uint32Array(ended[1] - ended[0] + started[1] - started[0]);
     let crossed = 0;
-    // Counted first, so a row a move passes from one side to the other is no row at all. An instant
-    // needs no count: it is inside while its one position is.
+    // Counted first, so a row a move passes from one side to the other is no row at all.
     for (const [order, [start, end]] of [
         [endPerm, ended],
         [perm, started],
     ] as const) {
         for (let at = start; at < end; at++) {
             const row = order[at];
-            const now = (overlaps === null ? at >= lo && at < hi : overlaps[row] > 0) ? 1 : 0;
+            const now = insideAfter(overlaps, row, at, lo, hi);
             if (inside[row] !== now) {
                 inside[row] = now;
                 out[crossed++] = row;
@@ -444,6 +443,21 @@ function crossRows(kind: KindState | null, from: number, to: number): Uint32Arra
     kind.lo = lo;
     kind.hi = hi;
     return out.subarray(0, crossed);
+}
+
+/**
+ * Whether a row is inside after a move. An instant needs no count: it is inside while its one
+ * position is.
+ * @param overlaps - The counts of overlapping spans; null for a kind of instants.
+ * @param row - The row.
+ * @param at - Its sorted position.
+ * @param lo - The window's first sorted position.
+ * @param hi - One past its last.
+ * @returns 1 for inside.
+ */
+function insideAfter(overlaps: Int32Array | null, row: number, at: number, lo: number, hi: number): 0 | 1 {
+    const holds = overlaps === null ? at >= lo && at < hi : overlaps[row] > 0;
+    return holds ? 1 : 0;
 }
 
 /**

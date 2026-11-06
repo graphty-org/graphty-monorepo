@@ -409,6 +409,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelOutlineOpacity": "content",
     "edge.labelBorderOpacity": "content",
     "edge.labelPadding": "content",
+    "edge.labelTable": "content",
     "edge.labelCornerRadius": "content",
     "edge.labelLineHeight": "content",
     "edge.labelOffsetX": "content",

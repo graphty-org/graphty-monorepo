@@ -13633,8 +13633,8 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "edge.label": 0.966,
-            "stray.present": 0,
+            "edge.label": 1,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -13642,11 +13642,12 @@
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
             "raster.edge": 0.9,
-            "raster.label": 0.87,
+            "raster.label": 0.88,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
-            "label.backgroundBox": 1
+            "label.backgroundBox": 1,
+            "stray.extra": 1
         },
         "dot-specimen-edge-labels@matched": {
             "node.present": 1,
@@ -13696,14 +13697,15 @@
             "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
-            "edge.label": 0.966,
-            "stray.present": 0,
+            "edge.label": 1,
+            "stray.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "edge.wiggle": 1,
-            "label.backgroundBox": 1
+            "label.backgroundBox": 1,
+            "stray.extra": 1
         },
         "dot-specimen-edges-lines": {
             "node.present": 1,

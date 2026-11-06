@@ -97,7 +97,8 @@ export function straightPathVertices(d: string): Pt[] | null {
     const num = (): number => Number(tokens[i++]);
     while (i < tokens.length) {
         const t = tokens[i];
-        if (/[A-Za-z]/.test(t)) {
+        // a command is one letter: a number's exponent (`3.55e-15`, yEd Live's arrow tip) is no command
+        if (/^[A-Za-z]$/.test(t)) {
             cmd = t;
             i++;
             if (cmd === "Z" || cmd === "z") {

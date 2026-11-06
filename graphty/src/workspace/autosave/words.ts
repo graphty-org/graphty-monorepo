@@ -65,7 +65,9 @@ export function formatAutosaveChip(status: AutosaveStatus): AutosaveChipText | n
             }
             return {
                 label: `${AUTOSAVE_CHIP_PREFIX}: saved`,
-                title: "Your work is kept in this browser and comes back when you reopen graphty.",
+                // The start screen offers only work holding changes never saved to a file (findKept), so
+                // the promise is about those changes, not the whole graph.
+                title: "Changes not yet in a file are kept in this browser and come back when you reopen graphty.",
                 tone: "ok",
             };
         case "pending":

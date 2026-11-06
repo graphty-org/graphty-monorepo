@@ -44,6 +44,11 @@ describe("formatAutosave", () => {
             ),
             ["Autosave: saved", "Autosave: saving...", "Autosave: not saved"],
         );
+        assert.strictEqual(
+            formatAutosaveChip(written)?.title,
+            "Changes not yet in a file are kept in this browser and come back when you reopen graphty.",
+            "the saved tooltip promises only what the start screen offers: changes never saved to a file",
+        );
         assert.isNull(formatAutosaveChip({ ...STATUS, state: "off" }));
         const off = formatAutosaveChip({
             ...STATUS,

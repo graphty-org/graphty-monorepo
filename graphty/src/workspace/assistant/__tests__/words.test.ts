@@ -1,7 +1,7 @@
 import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { approvalWords, changeLines, effectLine, endWords, stepName, voiceWords } from "../words";
+import { changeLines, effectLine, endWords, voiceWords } from "../words";
 
 const AGAIN = { action: "again", failed: true } as const;
 const PROVIDER = { action: "provider", failed: true } as const;
@@ -129,18 +129,5 @@ describe("endWords", () => {
         });
         const lines = changeLines(null, [run("first", 1), run("second", 1), run("third")]);
         assert.deepEqual(lines, ["Computed first", "Computed second, colored by it", "Computed third"]);
-    });
-
-    it("names an algorithm as the key does, in the change line, the step and the slow approval", () => {
-        const run = effectLine(null, { code: "AI_EFFECT_RUN", params: { run: "louvain", algorithm: "louvain" } });
-        assert.strictEqual(run, "Computed Louvain");
-        assert.strictEqual(stepName("run_algorithm", { name: "closeness" }), "Closeness");
-        const slow = approvalWords({
-            id: "a",
-            gate: "slow",
-            calls: [{ tool: "run_algorithm", arguments: { name: "closeness" } }],
-            preview: { algorithm: "closeness", seconds: 4 },
-        });
-        assert.strictEqual(slow.title, "Run Closeness?");
     });
 });

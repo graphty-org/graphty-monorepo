@@ -142,11 +142,11 @@ export function providerName(id: unknown): string {
  * @returns the name.
  */
 export function stepName(tool: string, args?: Readonly<Record<string, unknown>>): string {
-    const algorithm = calledAlgorithm(tool, args);
-    if (algorithm !== undefined) {
-        return wordsFor(algorithm).name;
-    }
-    return ASSISTANT_TOOLS.find((entry) => entry.name === tool)?.plainName ?? WORDS["assistant.step.unnamed"];
+    return (
+        calledAlgorithm(tool, args)?.plainName ??
+        ASSISTANT_TOOLS.find((entry) => entry.name === tool)?.plainName ??
+        WORDS["assistant.step.unnamed"]
+    );
 }
 
 /**
@@ -461,7 +461,7 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
         }
         case "slow":
             return {
-                title: `Run ${algorithm === undefined ? toolNames(request) : wordsFor(algorithm).name}?`,
+                title: `Run ${algorithm?.plainName ?? toolNames(request)}?`,
                 line:
                     typeof preview.seconds === "number"
                         ? `About ${counted(preview.seconds, "second")}.`
@@ -574,8 +574,7 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
         case "AI_EFFECT_FILTER":
             return `Filtered to ${formatNumber(Number(params.kept))} of ${counted(Number(params.total), "node")}`;
         case "AI_EFFECT_RUN": {
-            const algorithm = algorithmByKey(String(params.algorithm));
-            const name = algorithm === undefined ? String(params.algorithm) : wordsFor(algorithm).name;
+            const name = algorithmByKey(String(params.algorithm))?.plainName ?? String(params.algorithm);
             const computed =
                 params.nodes === undefined
                     ? `Computed ${name}`

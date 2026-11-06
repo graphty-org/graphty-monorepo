@@ -1785,7 +1785,7 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
-    // One-value bins drawn as bars belong to the full-screen workspace (the `selection-workspace` experiment).
+    // The last bar lit with both thumbs on it belongs to the full-screen workspace (the `selection-workspace` experiment).
     const wide = selectionWorkspaceOn(session);
     const heights = barHeights(
         spread.bins.map((bin) => bin.count),
@@ -1801,10 +1801,9 @@ function ValueBrush({
                     // Skewed counts are drawn at log heights and a bin holding anything is never flat,
                     // so a long tail of small bins still shows; the label keeps the count.
                     count: heights[at] ?? 0,
-                    // A bin of one value (an integer's) spans half a step either side, so it is drawn
-                    // as a bar, never a hairline.
-                    from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
-                    to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
+                    // A bin of one value (from = to) is drawn a step wide and whole, ends included.
+                    from: bin.from,
+                    to: bin.to,
                     // No bound set is the whole range, every bar lit: what the step passes.
                     // A one-value bin at the low bound (from = to = min) is in range too, and so is
                     // the last bin, which holds its upper end, when both thumbs sit on it.

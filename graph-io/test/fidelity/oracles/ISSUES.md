@@ -5037,3 +5037,28 @@ Open:
   `graphml-synthetic-nodes` shape-parallelogram, -parallelogram2, -hexagon, -hexagon2, -fatarrow2. Needs an additive
   label option, and with it the top and bottom inset GML leaves out today (`gml-synthetic-coverage` 33, 34, 58): an
   offset from the center carries a label too tall for its node past the middle.
+
+## A label's box apart from its words: yEd's bands and labels larger than their nodes (#4247, #5809, 2026-11-05)
+
+graphty-element's label takes a new `box` (channel `labelBox`), and graph-io sets it for yEd and yEd Live files.
+
+- yEd's group header is a band as wide as its group (`autoSizePolicy` `node_width`, yEd Live's stretch models):
+  `target-width`, its words lined up in it by the label's `alignment`.
+- A label inside its node that is wider or taller than the node keeps the side it names, its far end past the node;
+  graphty-element centered it: `words-at-side`. That lets a yEd GML label inside against the top or bottom take its
+  model's inset of 4 as well.
+- yEd's box is its line, the font's ascent plus descent, with 2 px round it (a 10 px label's box is 15.64 tall): the
+  tool defaults `labelPadding` 2 and `labelLineHeight` 1, node labels only. Edge labels keep graphty's own box: their
+  places along and off the line are not read from the file, and three that passed on the wider box fail on yEd's.
+- With the box the right size, GML labels beside their nodes need the distance the wider box stood in for: 4 out from
+  a side, and at a corner 4 out to the side alone, as `gml-synthetic-coverage` measures it.
+- A label sized to its node has no inset along the side it fills, and keeps the one down it: a header band stored at
+  `y="4"` is drawn 4 down (`yed-graphml-specimen-groups`, `configuration-er-labels`).
+
+Two labels are newly listed, both on the line between two label.anchor places, not moved from where yEd drew them:
+
+- `gml-synthetic-coverage` node 9 (v7): its left edge is yEd's to 0.1 px, but its words are Courier New where yEd drew
+  Dialog, 1.3 px narrower, so its middle falls past a quarter of the font size from the node's.
+- `yed-graphml-specimen-labels` `two-labels`: yEd draws a line's words about 0.7 px below the middle of its box
+  (`rect@510` to `525.6` round `text@513` to `524` on `specimen-groups`); graphty centers them, so the label's middle
+  is 3.3 px above the node's where yEd's is 2.2 and the quarter is 2.5.

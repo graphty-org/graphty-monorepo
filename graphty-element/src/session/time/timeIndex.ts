@@ -55,7 +55,7 @@ const RADIX = 65_536;
 const HIGH_WORD = new Uint32Array(Float64Array.of(1).buffer)[1] === 0 ? 0 : 1;
 
 /** How many values builds have parsed, for a test that counts work rather than time. */
-export const timeIndexCounters = { parsed: 0 };
+export const timeIndexCounters = { parsed: 0, binned: 0 };
 
 /** A build or a part of one: yields where it can be paused. */
 export type IndexWork<T> = Generator<undefined, T, undefined>;
@@ -716,6 +716,63 @@ function fieldOf(plan: FieldPlan, node: KindIndex | null, edge: KindIndex | null
         edge,
         whole: (node?.whole ?? true) && (edge?.whole ?? true),
     };
+}
+
+/**
+ * The first sorted position at or after a value.
+ * @param sorted - Ascending values.
+ * @param at - The value.
+ * @returns The position, `sorted.length` when every value is below.
+ */
+export function lowerBound(sorted: ArrayLike<number>, at: number): number {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (sorted[mid] < at) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+
+    return lo;
+}
+
+/**
+ * How many rows of a kind fall in each bin.
+ * @param index - The kind's index.
+ * @param index.sorted - The instants, ascending.
+ * @param index.perm - The row of each.
+ * @param bounds - The bins' edges, ascending.
+ * @param keep - One byte per row, `1` for a row that counts; null to count them all.
+ * @returns The counts, one per bin.
+ */
+export function countBins(
+    { sorted, perm }: { readonly sorted: Float64Array; readonly perm: Uint32Array },
+    bounds: readonly number[],
+    keep: Uint8Array | null,
+): number[] {
+    const counts = new Array<number>(bounds.length - 1).fill(0);
+    let start = lowerBound(sorted, bounds[0]);
+    for (let bin = 0; bin < counts.length; bin++) {
+        const end = lowerBound(sorted, bounds[bin + 1]);
+        if (keep === null) {
+            counts[bin] = end - start;
+        } else {
+            let count = 0;
+            for (let at = start; at < end; at++) {
+                count += keep[perm[at]];
+            }
+
+            counts[bin] = count;
+            timeIndexCounters.binned += end - start;
+        }
+
+        start = end;
+    }
+
+    return counts;
 }
 
 /**

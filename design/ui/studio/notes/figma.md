@@ -5,38 +5,35 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-11-05 (tier 6 round 1 insights, build 3b2a7f0649).
+Last updated: 2026-11-05 (tier 6 round 2 critique, build 3b2a7f0649).
 
 ## Top of mind
 
-1. (2026-11-05) No reader has met the Assistant: all 24 tier 6 round 1 sessions were refused at the
-   Gemini cap, so my walk is reading evidence only. Every claim about what a reader pays waits.
-2. (2026-11-05) Studio stopped until the owner raises the 3,000 cap or shrinks the round. Paid walks
-   of the fixed build wait too. Count first; paid states in odd window sizes go first.
-3. (2026-11-05) The real gap in the change line: a model selection has no "Selected {N} nodes" line
-   (design 6.6, 4.6). An additive effect in graphty-element, in `results` `top`.
-4. (2026-11-05) My repaint finding is no breach: "Computed ..." is a change line and 6.6 does not ask
-   for a Colored row. Open ruling, not a bar 11 failure; bar 11 has no sessions to count.
-5. (2026-11-05) The chip in the change line is a question for the sessions: the 4.6 drawing has one,
-   table 6.6 does not, a change turn with no chip row is settled, and only two walks saw prose.
-6. (2026-11-05) One result, two names stands: the app replaces the name by id (non-breaking).
-   Influence is retired by glossary line 481; Connections stands only on the two names.
-7. (2026-11-05) Done dropping a typed key stands at 2; my "two primaries" reading feeds it. T90 shows
-   whether a reader presses Done. The smallest-text claim is a hypothesis until T90 and T92.
-8. (2026-11-05) The question on a card is the smallest, palest text: fix in `Waiting.tsx`, never the
-   locked theme. Name the fix's package before calling a shared component wrong.
-9. (2026-11-05) Same look, same behavior: scope counts are drawn as chips and do nothing; Send on
-   empty is the full primary and does nothing. A door belongs to its line.
-10. (2026-11-05) Design 5.3 "the camera never moves" contradicts tier 4's "a pick glides" on a chip
-    click. A chip click is a check, so I side with 5.3; the record needs one answer.
-11. (2026-11-05) Before citing a design line, read what it covers: 4.4 puts only the You and
-    Assistant headings on one edge, not the whole panel. My "design asks for one" overstated it.
-12. (2026-10-30) Tier 4 left bars 5, 6 and 7 failing: the join preview, the clipped "17/19" ratio,
-    and choices that come after the act with a default applied.
-13. (2026-10-30) Check every decided entry against the build before a walk; rate by the cost a
+1. (2026-11-05) Round 2 ran: 11 of 12 succeeded, no confirmed 3. My critique's list is eight small
+   changes, all app words or wiring but one (the Colored row, in graphty-element).
+2. (2026-11-05) A cut-off reply is a follow defect, not reader behavior: `Conversation.tsx` follows on
+   five deps, and the chip row mounts later (`useLiveCount`), so nothing re-follows. Read, not measured.
+3. (2026-11-05) The second scrollbar is real overflow (`.ws-panel-body`), not a Linux bar: it costs 15 px
+   in every platform's layout. `position: relative` on the log is the likely fix (engineer's reading).
+4. (2026-11-05) One helper names measures: `wordsFor` gives "Closeness" and `readableName` uses it;
+   `effectLine` alone uses `plainName`. Change that one line before any catalog talk.
+5. (2026-11-05) `DataTableHandle.scrollToRow` exists: Show in table needs no compact-mantine change, so
+   no Figma lock question. It reveals one row of several; selected-first waits for evidence.
+6. (2026-11-05) A run's paint is fire and forget, so the Colored row needs the element to report it
+   after the paint lands; adding effects in `runEffects` alone would race it.
+7. (2026-11-05) Autosave: fix the tooltip and tell the states apart; do not remember a file with no
+   handle (`remember` is right: nothing could reopen it) and do not add a leave warning.
+8. (2026-11-05) The failure row may only say "may be" and keeps Send again; a provider with no key must
+   not read about a key.
+9. (2026-11-05) Scope line: one word ("Only selection"), tested again by the plant, never a sentence.
+10. (2026-11-05) Same look, same behavior: scope counts are drawn as chips and do nothing; Send on
+    empty is the full primary and does nothing. A door belongs to its line.
+11. (2026-11-05) Before citing a design line, read what it covers. Name a fix's owner from the code that
+    sets the value, not the file that looks right.
+12. (2026-10-30) Check every decided entry against the build before a walk; rate by the cost a
     reader paid, and state a broken rule apart. Look at the shot before any "nothing appeared".
-14. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
-15. (2026-10-20, owner; 2026-10-06, owner) No UI sentences, tooltips that instruct included. Figma's
+13. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
+14. (2026-10-20, owner; 2026-10-06, owner) No UI sentences, tooltips that instruct included. Figma's
     authority covers controls and gestures only; structure comes from graphty's ontology.
 
 ## Priorities and values
@@ -102,6 +99,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   its forcing fact, or it goes back to Figma's way.
 
 ## Decisions and reasons
+
+- **2026-11-05, after tier 6 round 2.** Ruled for myself: a painting run gets a Colored row (3 replies
+  claimed color over "Computed ..." alone). Challenged the insights on finding 7 (not partly reader
+  behavior, and the bars are not cosmetic), on ordering (it is the cheapest high-reach fix) and on
+  finding 9 (hold: one step each, and no plain words exist yet). Held the wheel, Group 1 to N, Open run
+  and the approval gap as no change now. Reason for all: smallest change, cost a reader paid.
 
 - **2026-11-05, after tier 6 round 1 insights.** Withdrew the repaint as a bar 11 matter and hold it
   as a design question: should a run that paints also get a Colored row? I lean yes, one line per
@@ -175,6 +178,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-11-05 Tier 6 round 2 outcome versus my walk. Held with readers: two names, Show in table, the
+  doubled period, failure reading as a reply, the repaint. Did not get a reader: "assistant node style".
+  Worked: comparing the inner scrollbar's thumb with its track in `r2-s01/18` and `r2-s12/10` showed the
+  log was not at its foot with no jump button up, which turned "never scrolled" into a defect.
+  Grepping for an existing handle (`scrollToRow`) removed a Figma lock question I had assumed.
+
 - 2026-11-05 Tier 6 round 1 outcome versus my walk. Held: two names on one result, Done dropping a
   key, the absent line for a selection (found through the repaint turn), left edges at 1. Weakened:
   repaint, chip, "reads as prose". Did not: I blamed `assistant.css` for centered starters; the cause
@@ -201,20 +210,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   `--start` with `setup:` must run from the setups folder or name it. Lesson: grep decided.md's
   team entries before walking, so a missing build reads as "decided, not built", not a new idea.
 
-- 2026-10-21 Round 1 outcome versus my walk. Worked: my walk's sev 3 (Shift-click anchor) and
-  the four-ways list held as real; my Figma comparisons mapped onto 4 of the top 6 insights.
-  Did not: my severity 3 did not survive into bar 5 (no session reached it) -- a walk finding
-  without a session reaching it is a watch item, not a blocker. My "jargon" verdict on the
-  <<Layer>> token was weakened as opinion; bring behavior evidence, not reading verdicts.
-
-- 2026-10-21 Round 1 walk, three `real.mjs` sessions (82 shots). Worked: one long session per
-  dataset walking every screen; `--hover-at` on each icon for tooltip and role; PIL crops at 4x of
-  the tree and inspector made 9 px text and glyph meaning checkable; a PIL difference box proved a
-  hover changed only the row, not the canvas. Did not: `--shift-click-at` does not exist (use
-  `--shift-click "<name>"`); `"X#2"` is refused when only one control has that exact name; every
-  `--hover-at` writes a screenshot, so numbering jumps. Lesson: when a modifier click gives an
-  odd result, write down what the previous command selected: the anchor bug showed only because
-  Duplicate, not a click, had made the selection.
+- 2026-10-21 Round 1 walks and outcome, summarized. Worked: one long session per dataset; `--hover-at`
+  on each icon; PIL crops at 4x; a PIL difference box; writing down what the previous command selected.
+  Did not: a sev 3 no session reached survives only as a watch item; bring behavior, not reading
+  verdicts; `--shift-click-at` does not exist (`--shift-click "<name>"`).
 - 2026-10-12 to 10-13, summarized. Tier 3 iterations 1 to 3. Worked: one driver per walk with a
   try per section; measuring in the page (scrollWidth vs clientWidth, left edges, aria names)
   turned "looks cut" into numbers; the Figma capture (`design/ui/figma/`) answered Figma
@@ -243,6 +242,10 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   ratio); findings resting on the tool's hover line did not.
 
 ## Thinking
+
+- 2026-11-05 Round 2 says my "transcript" worry was smaller than I thought: readers told the model's
+  words from computed ones by asking, and nobody held a wrong belief. What cost them is the line the app
+  computed not naming the same thing as the key card. Names first, drawing second.
 
 - 2026-11-05 A walk with no sessions behind it should say "seen", never "reader cannot tell". Words
   like that were what the skeptics cut. The transcript problem (computed words and model words in
@@ -291,6 +294,7 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Sources
 
+- Tier 6 round 2 (2026-11-05): `design/ui/studio/tier6/rounds/round-2/insights.md`, `scores.md`, `sessions/`, `repro/`.
 - Tier 6 insights (2026-11-05): `design/ui/studio/tier6/rounds/round-1/insights.md`.
 - Tier 6 (2026-11-05): `design/ui/studio/tier6/criteria.md`, `design.md`, `decided.md`, `backlog.md`,
   `rounds/round-1/expert/figma.md` (this walk; shots ignored by git, in `expert/figma/`).

@@ -2039,6 +2039,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             if (property === "label") {
                 readLabelAlign(raw, cx.names, cx.html, false, put);
                 readHtmlRuns(raw, cx.html, scheme, fontSizeOf(get("fontsize")), put, at);
+                readEdgeLabelTable(htmlTableFrame(raw, cx.html, scheme, at("label")), get, put, at);
             }
         }
     }
@@ -2048,6 +2049,37 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
+}
+
+/**
+ * Reads the box of an edge label that is an HTML-like table: its fill (the table's, else a lone cell's), its outline
+ * (in the table's color, else the edge's) and the room between the outline and the words.
+ * ponytail: the box is the table's outside; the rules between and round its cells need `labelTable` on edge labels
+ * @param table - the frame of the table the label is, or null
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeLabelTable(table: HtmlTableFrame | null, get: Attr, put: Put, at: At): void {
+    if (table === null || table.style.includes("invis")) {
+        return;
+    }
+    const { border, cellBorder, cellSpacing, cellPadding, fill, rows } = table.cells;
+    const cell = rows.length === 1 && rows[0].cells.length === 1 ? rows[0].cells[0] : null;
+    put("labelBackground", fill ?? cell?.fill ?? null);
+    put("labelPadding", border + cellSpacing + (cell?.border ?? cellBorder) + (cell?.padding ?? cellPadding));
+    if (border > 0) {
+        readColor(
+            table.color ?? nonEmpty(get("color")) ?? "black",
+            get("colorscheme"),
+            "line",
+            "labelBorderColor",
+            null,
+            put,
+            at,
+        );
+        put("labelBorderWidth", border);
+    }
 }
 
 /**
@@ -2728,9 +2760,17 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         if (noEdges) {
             edge.put(e, "visible", false);
         }
-        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE)) ?? loops.bendsOf(e, get);
+        const route = splineBends(snapshot, e, get(POS_ATTRIBUTE));
+        const loop = route === null ? loops.bendsOf(e, get) : null;
+        const bends = route ?? loop;
         if (bends !== null) {
             edge.put(e, "bends", bends);
+        }
+        if (loop !== null && get(LABEL_ATTRIBUTE) !== null) {
+            // `selfRight` hangs a loop's label outside it, the box's left side on the loop's far point, level with the
+            // node. ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+            edge.put(e, "labelPosition", "center");
+            edge.put(e, "labelShiftX", 0.5);
         }
         readLabelPlaces(snapshot, places, e, get, (p, v) => {
             edge.put(e, p, v);

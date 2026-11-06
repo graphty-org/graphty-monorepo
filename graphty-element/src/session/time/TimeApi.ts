@@ -40,14 +40,15 @@ import {
     alignTo,
     calendarStepAtLeast,
     calendarStepNear,
+    candidateReading,
     isCalendarStep,
-    isNumericText,
+    newCandidateTally,
     niceAtLeast,
     niceNear,
     numericBound,
-    readInstant,
     readTimeValue,
     stepLength,
+    tallyCandidate,
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
@@ -687,10 +688,6 @@ const DEFAULT_INTERVAL = 1000;
 const ATTRIBUTE_PREFIX = "data.";
 /** How many windows an automatic step aims to cut the data's span into. */
 const AUTO_STEPS = 20;
-/** The range a whole number reads as a year in, for the `"ordinal"` suggestion. */
-const YEAR_LIKE = { min: -5000, max: 3000 } as const;
-/** A loose reading counts toward a candidate only with a four-digit year in it. */
-const HAS_YEAR = /\d{4}/;
 
 /**
  * A column name without the `data.` prefix a path carries.
@@ -966,66 +963,6 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
     return bounds;
 }
 
-/** What one column's values look like, counted. */
-interface TimeTally {
-    total: number;
-    parsed: number;
-    numbers: number;
-    epochMs: number;
-    epochS: number;
-    years: number;
-}
-
-/**
- * Count one number into a column's tally: is it an epoch in milliseconds or seconds, or a year.
- * @param tally - The tally so far.
- * @param value - The number.
- */
-function tallyNumber(tally: TimeTally, value: number): void {
-    tally.numbers++;
-    tally.epochMs += value >= 1e11 && value < 1e13 ? 1 : 0;
-    tally.epochS += value >= 1e8 && value < 1e10 ? 1 : 0;
-    tally.years += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
-}
-
-/**
- * Count one value into a column's tally.
- * @param tally - The tally so far.
- * @param value - The value.
- */
-function tallyValue(tally: TimeTally, value: unknown): void {
-    if (value === undefined || value === null || value === "") {
-        return;
-    }
-
-    tally.total++;
-    if (typeof value === "number") {
-        tallyNumber(tally, value);
-    } else if (typeof value === "string" && !isNumericText(value)) {
-        const reading = readInstant(value, "ms");
-        tally.parsed += reading.how === "strict" || (reading.how === "loose" && HAS_YEAR.test(value)) ? 1 : 0;
-    }
-}
-
-/**
- * The unit a column of numbers reads in. Numbers read as time only when every one of them looks
- * like an epoch or a year and the column is named for time: a weight of 1 to 10 is no timeline.
- * @param tally - The column's tally.
- * @param name - The column's name.
- * @returns The unit, or undefined when the numbers are not time.
- */
-function numberUnit(tally: TimeTally, name: string): TimeUnit | undefined {
-    if (tally.epochMs === tally.numbers) {
-        return "ms";
-    }
-
-    if (tally.epochS === tally.numbers) {
-        return "s";
-    }
-
-    return tally.years === tally.numbers && /year|date|time|when|period/i.test(name) ? "year" : undefined;
-}
-
 /**
  * One column as a time candidate: walks every value of it.
  * @param sources - What `session.time` reads.
@@ -1043,22 +980,15 @@ function timeCandidate(
     const attribute = `${ATTRIBUTE_PREFIX}${name}`;
     const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
     const { values } = sources;
-    const tally: TimeTally = { total: 0, parsed: 0, numbers: 0, epochMs: 0, epochS: 0, years: 0 };
+    const tally = newCandidateTally();
     for (let row = 0; row < count; row++) {
-        tallyValue(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
+        tallyCandidate(tally, kind === "node" ? values.nodeValue(row, attribute) : values.edgeValue(row, attribute));
     }
 
-    const { total, numbers } = tally;
-    const allNumbers = numbers > 0 && numbers === total;
-    const unit = allNumbers ? numberUnit(tally, name) : undefined;
-    // A column of numbers counts only when they read in a unit.
-    let { parsed } = tally;
-    if (allNumbers) {
-        parsed = unit === undefined ? 0 : numbers;
-    }
+    const { parsed, unit } = candidateReading(tally, name);
 
     return parsed > 0
-        ? Object.freeze({ kind, column: name, parsed, total, ...(unit === undefined ? {} : { unit }) })
+        ? Object.freeze({ kind, column: name, parsed, total: tally.total, ...(unit === undefined ? {} : { unit }) })
         : undefined;
 }
 

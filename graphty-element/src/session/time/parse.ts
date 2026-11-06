@@ -302,7 +302,19 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
  * A column name that speaks of time, as whole words: `sent_at` and `startDate` do, `friend` and
  * `candidate` do not. Run on the name with its camel case split and lowered.
  */
-const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent)s?(?:$|[^a-z])/; // NOSONAR(S5843): one flat list of words between two word edges
+const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent|when|period)s?(?:$|[^a-z])/; // NOSONAR(S5843): one flat list of words between two word edges
+
+/** A loose reading counts toward a candidate only with a four-digit year in it. */
+const HAS_YEAR = /\d{4}/;
+
+/**
+ * Whether a column's name speaks of time.
+ * @param name - The column's name.
+ * @returns True when it does.
+ */
+function isTimeName(name: string): boolean {
+    return TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+}
 
 /**
  * Whether a value is a date on its face, with no help from its column's name: a number written as
@@ -328,7 +340,7 @@ function isStrictDate(value: unknown): boolean {
 export function looksLikeTime(name: string, samples: readonly unknown[]): boolean {
     const unit = inferUnit(samples);
     if (unit !== undefined) {
-        return unit !== "ordinal" && TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+        return unit !== "ordinal" && isTimeName(name);
     }
 
     return samples.length > 0 && samples.every(isStrictDate);
@@ -389,6 +401,65 @@ export function unitOfTally(tally: UnitTally): TimeUnit | undefined {
     }
 
     return millis === count ? "ms" : "ordinal";
+}
+
+/** What a column's values have looked like so far as a time candidate. */
+export interface CandidateTally extends UnitTally {
+    /** How many values are present. */
+    total: number;
+    /** How many of the values that are not numbers read as time. */
+    parsed: number;
+}
+
+/**
+ * A candidate tally of no values.
+ * @returns It.
+ */
+export function newCandidateTally(): CandidateTally {
+    return { ...newUnitTally(), total: 0, parsed: 0 };
+}
+
+/**
+ * Count one value of a column, numeric text as its number.
+ * @param tally - The tally so far.
+ * @param value - The value.
+ */
+export function tallyCandidate(tally: CandidateTally, value: unknown): void {
+    if (value === undefined || value === null || value === "") {
+        return;
+    }
+
+    tally.total++;
+    if (typeof value === "string" && !isDateShaped(value) && isNumericText(value)) {
+        tallyUnit(tally, Number(value));
+        return;
+    }
+
+    tallyUnit(tally, value);
+    if (typeof value !== "number") {
+        const { how } = readInstant(value, "ms");
+        tally.parsed +=
+            how === "strict" || (how === "loose" && typeof value === "string" && HAS_YEAR.test(value)) ? 1 : 0;
+    }
+}
+
+/**
+ * How a tallied column reads as time. A column of numbers counts whole or not at all: epochs under
+ * any name, years only under a time name, and plain steps never.
+ * @param tally - The column's tally.
+ * @param name - The column's name.
+ * @returns How many of its values read as time, and the unit of a column of numbers.
+ */
+export function candidateReading(
+    tally: CandidateTally,
+    name: string,
+): { readonly parsed: number; readonly unit?: TimeUnit } {
+    const unit = unitOfTally(tally);
+    if (unit === undefined) {
+        return { parsed: tally.parsed };
+    }
+
+    return unit !== "ordinal" && (unit !== "year" || isTimeName(name)) ? { parsed: tally.count, unit } : { parsed: 0 };
 }
 
 /**

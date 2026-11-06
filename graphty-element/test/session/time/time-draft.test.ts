@@ -204,6 +204,60 @@ describe("a draft's time suggestion", () => {
         await assertSpanMatchesDesignation(session, draft);
     });
 
+    it("reads numbers in the configured unit, as a designation does", async () => {
+        for (const [unit, values] of [
+            ["s", [1_700_000_000_000, 1_700_000_100_000]],
+            ["ms", [1_700_000_000, 1_700_000_100]],
+        ] as const) {
+            const session = createGraphSession({ features: [...ON] });
+            await session.config.set({ data: { knownFields: { edgeTimeUnit: unit } } });
+            const data = edges("created", values);
+            const draft = await session.data.prepare({ type: "csv", config: { data } });
+            await assertSpanMatchesDesignation(session, draft);
+        }
+    });
+
+    it("says nothing of numbers the configured unit reads as plain steps", async () => {
+        const session = createGraphSession({ features: [...ON] });
+        await session.config.set({ data: { knownFields: { edgeTimeUnit: "ordinal" } } });
+        const data = edges("created", [1_700_000_000_000, 1_700_000_100_000]);
+        const draft = await session.data.prepare({ type: "csv", config: { data } });
+        assert.isEmpty(draft.findings);
+    });
+
+    it("suggests a time column over guessing it as the weight", async () => {
+        const data = edges("created", [1_700_000_100_000, 1_700_000_000_000]);
+        const session = createGraphSession({ features: [...ON] });
+        const draft = await session.data.prepare({ type: "csv", config: { data } }, { guess: "values" });
+        assert.isUndefined(column(draft, "created").suggested);
+        assert.equal(column(draft, "created").looksLike, "time");
+        assert.equal(draft.findings[0].params.from, 1_700_000_000_000);
+    });
+
+    it("still guesses the weight from values with the timeline off", async () => {
+        const data = edges("created", [1_700_000_100_000, 1_700_000_000_000]);
+        const session = createGraphSession({ features: [] });
+        const draft = await session.data.prepare({ type: "csv", config: { data } }, { guess: "values" });
+        assert.equal(column(draft, "created").suggested, "weight");
+    });
+
+    it("lists what it reports among the candidates after the load", async () => {
+        for (const [name, values] of [
+            ["created", [1995, 2001]],
+            ["start", ["1995", "2001"]],
+            ["sent", ["2026-01-02", "2026-01-03"]],
+        ] as const) {
+            const session = createGraphSession({ features: [...ON] });
+            const draft = await session.data.prepare({ type: "csv", config: { data: edges(name, values) } });
+            assert.equal(draft.findings[0].params.column, name);
+            await draft.load();
+            assert.include(
+                session.time.candidates().map((each) => each.column),
+                name,
+            );
+        }
+    });
+
     it("drops numbers the whole column reads as plain steps, though the sample reads as years", async () => {
         const draft = await prepare(edges("start", [1200, 1450, 2000, 2100, 2500, 3000, 50_000]));
         assert.isUndefined(column(draft, "start").looksLike);
@@ -235,7 +289,7 @@ describe("a draft's time suggestion", () => {
     });
 
     it("refuses a time choice on a table the format sets with the timeline off", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ features: [] });
         const draft = await session.data.prepare({ type: "json", config: { data: JSON_FILE } });
         const refused = await draft.load({ mapping: { tables: { edges: { time: "sent" } } } }).catch((e: unknown) => e);
         assert.equal((refused as { code?: string }).code, "E_BAD_COMMAND");

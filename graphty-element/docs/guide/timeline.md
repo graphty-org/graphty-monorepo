@@ -55,8 +55,8 @@ plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that re
 
 Before a load, a draft says which columns look like time, and applies nothing. A column looks like
 time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,
-`timestamp`, `year`, `start`, `end`, `created`, `sent`) and every sampled number fits an epoch or a
-calendar year.
+`timestamp`, `year`, `start`, `end`, `created`, `sent`, `when`, `period`) and every sampled number
+fits an epoch or a calendar year.
 
 ```js
 const draft = await g.session.data.prepare(source);

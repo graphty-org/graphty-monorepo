@@ -441,21 +441,23 @@ function isBareNumber(value: unknown): boolean {
 }
 
 /**
- * The earliest and latest instant a designation with no unit reads from a column.
+ * The earliest and latest instant a designation reads from a column.
  * @param raw - Every value of the column.
  * @param zone - The zone text with no offset reads in.
+ * @param given - The unit it reads in; left out, the values say.
  * @returns The span, or undefined when the column reads as plain steps or holds no instant.
  */
 export function columnSpan(
     raw: readonly unknown[],
     zone: string,
+    given?: TimeUnit,
 ): { readonly from: number; readonly to: number } | undefined {
     const tally = newTally();
     for (const value of raw) {
         tallyValue(tally, value);
     }
 
-    const { unit, datesOnly } = readingOf(tally, undefined);
+    const { unit, datesOnly } = readingOf(tally, given);
     if (unit === "ordinal") {
         return undefined;
     }

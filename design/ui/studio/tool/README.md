@@ -647,14 +647,14 @@ network route, and the warm pool as before. The code is in `tier6.mjs`.
 
 - **The model.** Whatever the app's setup shows; its default is `gemini-3.8-flash`, from the
   element's catalog. `session.log` holds one line per call, with its count and path and no key.
-- **The cap.** 3,000 requests per tier, counted in
+- **The cap.** 5,000 requests per tier, counted in
   `tmp/design-studio/tier6/gemini-requests.count` under the main checkout, one byte per request, so
   every worktree and every session shares it. CORS preflights are not counted, and neither is a refused
   request; each of the app's own retries is. A live voice session's WebSocket is neither routed nor
   counted, only the one token that opens it. At the cap a call is answered 429, the app shows its
   own failure after its retries, and every later step and `--end` print a line saying the cap is
   reached. `REAL_GEMINI_COUNT=<file>` counts in another file, for trying the refusal with no paid
-  call: fill it with 3,000 bytes.
+  call: fill it with 5,000 bytes.
 - **The key check.** `--end` scans every file of the session's folder, bytes included, and then of
   the copy returned to the round. A hit prints `FAIL` with the file's name, never the key, exits 1,
   and keeps a session's folder from being copied to the round. It sees the key as written, not an

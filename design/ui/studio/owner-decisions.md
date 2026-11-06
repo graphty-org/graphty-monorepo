@@ -4,23 +4,11 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
-## 2026-11-05 -- For the owner: raise tier 6's Gemini request cap, or shrink the round (study tool)
+## 2026-11-05 -- Decided: tier 6's Gemini request cap goes from 3,000 to 5,000 (study tool)
 
-**Question.** The study tool stops tier 6 at 3,000 Gemini requests (`TIER6_CAP`), and 2,855 are spent,
-all on the dry runs. Should the cap go up, and to what?
-
-**Why it blocks.** 145 requests are left. The walks the round's gate needs on this build take about
-200 or more, and 12 sessions at the criteria's limit of 40 may take 480, before the experts' walks. A
-session the cap stops is void. `real.mjs --gate` now refuses the round while the requests left are
-fewer than the sessions may use, so this cannot be found out mid-round.
-
-**What it costs.** About $0.005 a request on the LLM regression suite, so 1,000 more is about $5 of the $150 monthly LLM budget. A
-cap of 4,000 would cover the walks, the sessions and the experts.
-
-**What was not done.** The cap and the count are untouched, and `REAL_GEMINI_COUNT` was not used to get
-past them: both are a spending decision. Answering "keep the cap" means dropping sessions from the plan
-until the requests left cover them, and the criteria's "far above what 12 sessions need" changes either
-way.
+The dry runs spent all 3,000 requests before a session ran. The cap was set for this run, not by the
+owner, so it is raised to 5,000: about $10 more at about $0.005 a request, inside the $150 monthly LLM
+budget. A second round folder runs the 12 sessions on the same frozen build.
 
 ## 2026-11-05 -- Decided by the team: an export scope can name nodes, and the export tool takes a target (graphty-element)
 

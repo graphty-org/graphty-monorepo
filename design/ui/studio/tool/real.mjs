@@ -4119,13 +4119,13 @@ async function proveTier6(base, check, step, warmEnv) {
     const x = step(T, "--key", "Escape");
     check(
         "at the cap a call is refused, it adds nothing to the count, and the step says so",
-        refused === 429 && statSync(count).size === TIER6_CAP && /the tier's cap of 3000 Gemini requests/.test(x.out),
+        refused === 429 && statSync(count).size === TIER6_CAP && /the tier's cap of 5000 Gemini requests/.test(x.out),
         `${refused} ${x.out}`,
     );
     r = run(["--end", T]);
     check(
         "--end repeats the cap's line and passes the key check",
-        r.status === 0 && /the tier's cap of 3000/.test(r.stdout) && /key check: no key/.test(r.stdout),
+        r.status === 0 && /the tier's cap of 5000/.test(r.stdout) && /key check: no key/.test(r.stdout),
         `exit ${r.status} ${r.stdout}${r.stderr}`,
     );
     await writeFile(join(T, "planted.bin"), Buffer.concat([Buffer.from([0, 255]), Buffer.from(fake)]));

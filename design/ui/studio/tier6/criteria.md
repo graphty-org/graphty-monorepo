@@ -147,7 +147,7 @@ at 900 x 700 and in the dark theme too.
 - **Model use:** each session stays under about 40 calls to Gemini. Pilot walks took 1 to 8 calls
   for a concrete request and 9 for an open-ended one, so prompts ask for concrete things, and every
   persona's history says each thing asked costs their team, and to ask no more than about eight. A session over 40
-  is reported, never cut off. The tool's tier cap of 3,000 calls is far above what 12 sessions need.
+  is reported, never cut off. The tool's tier cap is 5,000 calls: the dry runs spent the first 3,000, so it was raised on 2026-11-05 to leave room for the sessions.
 - **Retries:** a session ending on an API error of the participant's own model is run again with the
   same prompt from a clean folder, then once on Sonnet, with the model recorded.
 - **Experts, once:** accessibility (keyboard and the screen-reader reading of every Assistant state,

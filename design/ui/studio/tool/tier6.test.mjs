@@ -55,7 +55,7 @@ test("the calls left must carry every session of the round at its limit", () => 
     writeFileSync(file, "x".repeat(TIER6_CAP - 480));
     assert.equal(callsShort(file, 12), null);
     writeFileSync(file, "x".repeat(TIER6_CAP - 479));
-    assert.match(callsShort(file, 12), /^479 of the tier's 3000 Gemini requests are left and 12 sessions may use 480/);
+    assert.match(callsShort(file, 12), /^479 of the tier's 5000 Gemini requests are left and 12 sessions may use 480/);
 });
 
 test("the gate of a tier whose criteria score no bar by a script asks for no bars run, and holds it to the cap", async () => {
@@ -85,7 +85,7 @@ test("the gate of a tier whose criteria score no bar by a script asks for no bar
         writeFileSync(count, "x".repeat(TIER6_CAP - 39));
         let r = gate();
         assert.equal(r.status, 1, r.stdout);
-        assert.match(r.stdout, /^FAIL: 39 of the tier's 3000 Gemini requests are left/m);
+        assert.match(r.stdout, /^FAIL: 39 of the tier's 5000 Gemini requests are left/m);
         writeFileSync(count, "x".repeat(TIER6_CAP - 40));
         r = gate();
         assert.equal(r.status, 0, r.stdout);

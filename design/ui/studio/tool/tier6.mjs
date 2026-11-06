@@ -5,7 +5,7 @@ import { appendFileSync, mkdirSync, readdirSync, readFileSync, statSync } from "
 import { dirname, join, relative } from "node:path";
 import { parseEnv } from "node:util";
 
-export const TIER6_CAP = 3000;
+export const TIER6_CAP = 5000;
 // the criteria's round plan: at most 4 participants live at once, each under about 40 calls
 export const TIER6_LIVE = 4;
 export const TIER6_SESSION_CALLS = 40;

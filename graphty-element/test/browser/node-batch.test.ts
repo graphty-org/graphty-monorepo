@@ -206,9 +206,10 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
-        await frameOn(graph, "batched");
-        await layer(element, [5], { "node.color": "#f59e0b" });
+        const before = await frameOn(graph, "batched");
+        await layer(element, [6], { "node.color": "#f59e0b" });
         const batched = await readFrame(graph);
+        assert.notEqual(overBar(before, batched), 0, "the repaint reached the picture");
         assert.equal(graph.rowCounts.objectNodes, 0);
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
@@ -250,12 +251,13 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const element = await mounted(renderer);
         await loaded(element, "3d");
         const { graph } = element;
-        await frameOn(graph, "batched");
-        const node = graph.getNode(5);
+        const before = await frameOn(graph, "batched");
+        const node = graph.getNode(0);
         assert.isDefined(node);
         node.drawShrunk(0.5, 1);
         graph.setRenderPath("objects");
         const objects = await readFrame(graph);
+        assert.notEqual(overBar(before, objects), 0, "the shrink reached the picture");
         assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
     });
 

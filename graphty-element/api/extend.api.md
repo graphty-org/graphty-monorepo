@@ -2213,8 +2213,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;

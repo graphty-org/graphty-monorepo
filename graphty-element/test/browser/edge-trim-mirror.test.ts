@@ -10,7 +10,7 @@
 
 import "../../src/graphty-element";
 
-import { Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -491,28 +491,34 @@ function batch(node: Node, batched: boolean): void {
 }
 
 /**
- * Run something, counting the reads of two nodes' meshes.
+ * Run something, counting every use of some nodes' meshes. Each node is handed a counting stand-in
+ * for its mesh, so a use is counted however it reaches the node's private field: through `mesh`,
+ * `drawnPickMesh` or any other `drawn*` accessor inside Node.
  * @param nodes - The nodes.
  * @param run - What to run; it must not wait.
- * @returns How many reads there were.
+ * @returns How many uses there were.
  */
 function meshReads(nodes: readonly Node[], run: () => void): number {
     let reads = 0;
+    const count = {
+        get: (target: AbstractMesh, key: PropertyKey): unknown => {
+            reads++;
+            return Reflect.get(target, key);
+        },
+        has: (target: AbstractMesh, key: PropertyKey): boolean => {
+            reads++;
+            return Reflect.has(target, key);
+        },
+    };
     const held = nodes.map((node) => node.mesh);
     nodes.forEach((node, i) => {
-        Object.defineProperty(node, "mesh", {
-            configurable: true,
-            get: () => {
-                reads++;
-                return held[i];
-            },
-        });
+        node.mesh = new Proxy(held[i], count);
     });
     try {
         run();
     } finally {
         nodes.forEach((node, i) => {
-            Object.defineProperty(node, "mesh", { configurable: true, writable: true, value: held[i] });
+            node.mesh = held[i];
         });
     }
 

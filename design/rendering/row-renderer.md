@@ -139,6 +139,15 @@ keeps its whole source on the object path until the freeze brings it in; a group
 node the freeze removed has lost its row but stays a member until it disposes. `batchableOf` is an allow list of style keys, so a new style option
 stays an object row until a batch is proven to draw it.
 
+As built (stage 11, first pull request): `Node.mesh` is an accessor over the private field `#mesh`, which is what `Node.ts` reads,
+and `releaseNodeMesh` reads it through a module-private reader set in the class's static block. `Edge.ts` reads a node's mesh only on
+the object path, through `drawnPickMesh`. `local/node-mesh-funnel` now covers `Node.ts` and `Edge.ts` too, so the only read of the
+accessor left in `src` is `Graph.getNodeMesh`. Nothing changes yet for a consumer's read: the accessor answering by making the row an
+object row, and batched rows losing their mesh, are the stage's later pull requests. One consequence for tests: internal code no
+longer reads the accessor, so `edge-trim-mirror.test.ts` cannot count reads of it (the lint rule does not help either: it matches
+only `.mesh`, not `drawnPickMesh`). The test instead sets each batched row's mesh to a counting proxy for the call and counts every
+use of it, however it reaches `#mesh`; with the batched branch of `getInterceptPoints` removed it counts 436 uses on one edge.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

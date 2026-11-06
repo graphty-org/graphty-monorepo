@@ -88,11 +88,10 @@ export default tseslint.config(
     // NOTHING REACHES THROUGH A NODE TO ITS MESH
     // ============================================
     // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
-    // accessors. Edge.ts keeps its reads until getInterceptPoints works with no mesh (#3247). The
-    // rule and its reasons: eslint-rules/node-mesh-funnel.mjs.
+    // accessors, and Node itself its private field. The rule and its reasons:
+    // eslint-rules/node-mesh-funnel.mjs.
     {
         files: ["src/**/*.ts"],
-        ignores: ["src/Node.ts", "src/Edge.ts"],
         plugins: { local },
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },

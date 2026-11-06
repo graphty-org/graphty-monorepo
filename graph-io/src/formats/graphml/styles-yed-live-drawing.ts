@@ -65,7 +65,9 @@ export function svgPicture(width: number, height: number, border: number, body: 
     const [w, h] = [width - border, height - border];
     const size = `width="${String(w * PICTURE_SCALE)}" height="${String(h * PICTURE_SCALE)}"`;
     const view = `viewBox="${String(border / 2)} ${String(border / 2)} ${String(w)} ${String(h)}"`;
-    return `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="yed-live" ${size} ${view}${background === "" ? "" : ` style="background:${background}"`}>${body}</svg>`)}`;
+    const paint = background === "" ? "" : ` style="background:${background}"`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" data-node-drawing="yed-live" ${size} ${view}${paint}>${body}</svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 /**

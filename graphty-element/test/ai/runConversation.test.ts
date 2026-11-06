@@ -190,6 +190,42 @@ describe("runConversation", () => {
         ]);
     });
 
+    it("reports a hand-written command's cause on the message's failure, as a generated tool does", async () => {
+        const registry = new CommandRegistry();
+        registry.register({
+            name: "broken",
+            description: "broken",
+            parameters: z.object({}),
+            examples: [],
+            execute: () => Promise.resolve({ success: false, message: "", code: "AI_EMPTY_MATCH" }),
+        });
+        const engine = new FakeEngine([
+            [
+                { type: "tool-call", id: "t1", name: "broken", arguments: {} },
+                { type: "finish", reason: "tool-calls" },
+            ],
+            [
+                { type: "text", delta: "It failed." },
+                { type: "finish", reason: "stop" },
+            ],
+        ]);
+        const graph = createMessageGraph();
+        const result = await runConversation({
+            conversation: conversation("go"),
+            engine,
+            tools: registry,
+            toolset: "commands",
+            graph,
+            session: graph.getSession(),
+            label: "go",
+            message: "1",
+            abort: new AbortController(),
+            sink: { emit: () => undefined, status: new AiStatusManager() },
+        });
+        assert.strictEqual(result.code, "AI_TOOL_FAILED");
+        assert.deepStrictEqual(result.params, { tool: "broken", cause: "AI_EMPTY_MATCH" });
+    });
+
     it("refuses a call whose arguments did not parse, without running it, and tells the model why", async () => {
         const registry = new CommandRegistry();
         let ran = 0;

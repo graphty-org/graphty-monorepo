@@ -165,6 +165,27 @@ function causeWords(status: ResultParam): string {
     return code >= 500 ? "the service is unavailable" : `error ${code}`;
 }
 
+/** Why a tool's step failed, by the cause it reported. */
+const STEP_CAUSES: Readonly<Record<string, string>> = {
+    AI_EMPTY_MATCH: "nothing matched",
+    AI_UNKNOWN_ENTRY: "the assistant named something that does not exist",
+    AI_PAINTED_NOTHING: "other layers cover it",
+    AI_BAD_SELECTOR: "its rule could not be read",
+    AI_UNKNOWN_COLUMN: "that column is not in this graph",
+    AI_NOT_AVAILABLE: "it is not available here",
+};
+
+/**
+ * A failed step's line: its reason when the cause has words, and no reason for any other cause.
+ * @param tool - the step's tool.
+ * @param cause - the cause it reported.
+ * @returns the line.
+ */
+function failedStepWords(tool: ResultParam, cause: ResultParam): string {
+    const reason = STEP_CAUSES[String(cause)];
+    return `${stepName(String(tool))} failed${reason === undefined ? "" : `: ${reason}`}.`;
+}
+
 /**
  * Why a held change was not run.
  * @param reason - the result's reason.
@@ -242,7 +263,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_TOOL_INVALID_ARGUMENTS":
             return retry("The assistant could not finish this step.");
         case "AI_TOOL_FAILED":
-            return retry(`${stepName(String(params.tool))} failed.`);
+            return retry(failedStepWords(params.tool, params.cause));
         case "AI_CANCELLED":
             return note("Stopped. Changes taken back.");
         case "AI_UNDONE":

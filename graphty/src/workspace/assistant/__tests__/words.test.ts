@@ -70,6 +70,20 @@ describe("endWords", () => {
         assert.notInclude(line, "{");
     });
 
+    it("gives a failed step its reason, in words with no code", () => {
+        const line = endWords("AI_TOOL_FAILED", { tool: "style", cause: "AI_EMPTY_MATCH" }, "google", false)?.line;
+        assert.strictEqual(line, "Style failed: nothing matched.");
+        const named = endWords("AI_TOOL_FAILED", { tool: "style", cause: "AI_UNKNOWN_ENTRY" }, "google", false)?.line;
+        assert.strictEqual(named, "Style failed: the assistant named something that does not exist.");
+    });
+
+    it("keeps the plain line for a cause it has no words for", () => {
+        const plain = endWords("AI_TOOL_FAILED", { tool: "style" }, "google", false);
+        const unknown = endWords("AI_TOOL_FAILED", { tool: "style", cause: "E_FROM_THE_FUTURE" }, "google", false);
+        assert.strictEqual(unknown?.line, "Style failed.");
+        assert.deepStrictEqual(unknown, plain);
+    });
+
     it("gives every result code the element lists its own words, not the unknown code's", () => {
         for (const code of AI_RESULT_CODES) {
             // speech's reason is worded on its own line under the composer

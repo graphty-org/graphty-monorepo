@@ -747,7 +747,10 @@ async function runCommandBatch(batch: ToolBatch): Promise<BatchOutcome> {
                 if (!result.success) {
                     const { code } = result;
                     const never = code === "AI_TOOL_UNKNOWN" || code === "AI_TOOL_INVALID_ARGUMENTS";
-                    const failure: Outcome = { code: never ? code : "AI_TOOL_FAILED", params: { tool } };
+                    const failure: Outcome = {
+                        code: never ? code : "AI_TOOL_FAILED",
+                        params: { tool, cause: code },
+                    };
                     return { results, failure, writes: false, committed: true };
                 }
             }

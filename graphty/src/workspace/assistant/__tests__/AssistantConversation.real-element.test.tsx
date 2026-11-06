@@ -203,7 +203,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
-        await screen.findByRole("button", { name: "Gemini 3.8 Flash" });
+        await screen.findByRole("button", { name: "Gemini 3.8 Flash, Change provider or model" });
         await screen.findByRole("button", { name: "Sends to Google" });
         assert.deepEqual(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
     });
@@ -527,7 +527,7 @@ describe("talking to the Assistant", () => {
         await setUpGoogle();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
-        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash" }));
+        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash, Change provider or model" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
         await waitFor(() => {
@@ -551,7 +551,7 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isNotNull(document.querySelector("graphty-element")?.getAiConversation());
         });
-        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash" }));
+        await userEvent.click(screen.getByRole("button", { name: "Gemini 3.8 Flash, Change provider or model" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         await userEvent.click(await within(dialog).findByRole("button", { name: "Forget key" }));
         await waitFor(() => {

@@ -301,6 +301,7 @@ export const STYLE_PROPERTIES: {
         ["labelOutlineOpacity", "opacity"],
         ["labelBorderOpacity", "opacity"],
         ["labelPadding", "number"],
+        ["labelTable", "text"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
         ["sourceLabel", "text"],

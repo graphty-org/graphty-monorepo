@@ -437,6 +437,22 @@ describe("a label's lines drawn as separate texts", () => {
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 100, 112)])?.content, "a\nb");
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 160, 100)])?.lines?.length, 2);
     });
+
+    it("reads texts side by side on one row left to right, one a little lower, and rows top to bottom", () => {
+        // dot-specimen-edge-labels label-and-head-tail: Graphviz draws T, lbl and H on one baseline; graphty draws its
+        // edge label 2 px below its end labels
+        const at = (lbl: number): string | undefined =>
+            mergeTexts([text("T", 100, 100, {}, 6), text("H", 160, 100, {}, 6), text("lbl", 125, lbl, {}, 12)])
+                ?.content;
+        assert.strictEqual(at(100), "T\nlbl\nH");
+        assert.strictEqual(at(102), "T\nlbl\nH");
+        // a word on a row of its own is read as its own line still, and words left out or changed still differ
+        assert.strictEqual(at(112), "T\nH\nlbl");
+        assert.notStrictEqual(
+            mergeTexts([text("T", 100, 100, {}, 6), text("lbl", 125, 102, {}, 12)])?.content,
+            at(102),
+        );
+    });
 });
 
 describe("edge label checks", () => {

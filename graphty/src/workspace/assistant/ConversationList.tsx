@@ -7,12 +7,17 @@ import { WORDS } from "./words";
 
 /**
  * This graph's saved conversations in place of the log: newest first, the reader's first words and
- * a date, with Open and Delete. Esc returns to the log.
+ * a date, with Open and Delete. Open returns to the log; Esc returns to the log with focus on the
+ * title that opened the list.
  * @param props - Component props
- * @param props.onClose - returns to the log
+ * @param props.onClose - returns to the log, after Open
+ * @param props.onEscape - returns to the log, after Esc
  * @returns The list
  */
-export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
+export function ConversationList({
+    onClose,
+    onEscape,
+}: Readonly<{ onClose: () => void; onEscape: () => void }>): React.JSX.Element {
     const { element, store } = useWorkspace();
     const [rows, setRows] = useState<readonly AiConversationSummary[]>([]);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -31,7 +36,7 @@ export function ConversationList({ onClose }: Readonly<{ onClose: () => void }>)
             onKeyDown={(event) => {
                 if (event.key === "Escape") {
                     event.preventDefault();
-                    onClose();
+                    onEscape();
                 }
             }}
         >

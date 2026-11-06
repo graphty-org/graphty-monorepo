@@ -96,6 +96,7 @@ interface ReadyProps {
     readonly view: AssistantView;
     readonly listing: boolean;
     readonly onCloseList: () => void;
+    readonly onEscapeList: () => void;
 }
 
 /**
@@ -105,9 +106,10 @@ interface ReadyProps {
  * @param props.view - what the element reports
  * @param props.listing - whether the list shows in place of the log
  * @param props.onCloseList - returns to the log
+ * @param props.onEscapeList - returns to the log on Esc, focus on the title
  * @returns The panel's body
  */
-function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): React.JSX.Element {
+function Ready({ choice, view, listing, onCloseList, onEscapeList }: Readonly<ReadyProps>): React.JSX.Element {
     const ended = useWorkspaceState((state) => state.assistantEnded);
     const { models } = providerDescriptor(choice.provider);
     const model = models.find((entry) => entry.id === choice.model)?.plainName ?? choice.model;
@@ -115,7 +117,7 @@ function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): Re
     if (listing) {
         return (
             <>
-                <ConversationList onClose={onCloseList} />
+                <ConversationList onClose={onCloseList} onEscape={onEscapeList} />
                 <Waiting view={view} choice={choice} />
                 <Composer choice={choice} view={view} model={model} />
             </>
@@ -160,12 +162,19 @@ export default function AssistantPanel(): React.JSX.Element {
         setListing(false);
         store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
     };
+    // Esc goes back the way the reader came: to the title that opened the list.
+    const titleButton = useRef<HTMLButtonElement>(null);
+    const escapeList = (): void => {
+        setListing(false);
+        titleButton.current?.focus();
+    };
     return (
         <section className="ws-assistant" aria-label={WORDS["assistant.name"]}>
             <header className="ws-assistant-head">
                 {setUp ? (
                     <Tooltip label={WORDS["assistant.title.tooltip"]}>
                         <Button
+                            ref={titleButton}
                             variant="subtle"
                             color="gray"
                             size="compact-xs"
@@ -219,7 +228,17 @@ export default function AssistantPanel(): React.JSX.Element {
                     </Tooltip>
                 </span>
             </header>
-            {setUp ? <Ready choice={choice} view={view} listing={listing} onCloseList={backToLog} /> : <NoProvider />}
+            {setUp ? (
+                <Ready
+                    choice={choice}
+                    view={view}
+                    listing={listing}
+                    onCloseList={backToLog}
+                    onEscapeList={escapeList}
+                />
+            ) : (
+                <NoProvider />
+            )}
         </section>
     );
 }

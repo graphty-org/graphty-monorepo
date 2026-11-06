@@ -12,6 +12,10 @@
  * no row counted that only passed through: nodes going out, edges coming in, edges going out, nodes
  * coming in. Edges coming in before edges going out keep a node's count above zero when one edge
  * replaces another, and nodes moving outermost keep an edge from showing for one half of a move.
+ *
+ * Sliding windows sit end to end, so when every edge that can show lies in the index, what showed
+ * has all gone and what shows is all new. Such a move counts the window's edges once and never reads
+ * a crossing node's edges, which on a hub-heavy graph is most of the walk.
  */
 
 import { lowerBound } from "../time/timeIndex";
@@ -24,6 +28,7 @@ import {
     type SlideState,
     slideState,
     type SlideTarget,
+    windowRows,
 } from "./slide";
 
 /** What one move counts. */
@@ -48,7 +53,7 @@ const NONE: Crossed = { outFrom: 0, outTo: 0, inFrom: 0, inTo: 0 };
 const NO_ROWS = new Uint32Array(0);
 
 /** In place of an end of an edge the filter hides. */
-const HIDDEN = 0xffff_ffff;
+const HIDDEN = 0xffffffff;
 
 /**
  * Move a kind to a later window.
@@ -161,15 +166,19 @@ export class WindowCounter {
     private nodesOut = 0;
     private edgesIn = 0;
     private edgesOut = 0;
+    /** Whether windows sit end to end and hold every edge that can show. */
+    private readonly sweeps: boolean;
     /** Whether the slide already sits at the first window. */
     private placed = true;
 
     /**
      * Start at the first window.
      * @param state - The slide, at that window.
+     * @param cumulative - Whether each window holds the last.
      */
-    private constructor(state: SlideState) {
+    private constructor(state: SlideState, cumulative: boolean) {
         this.state = state;
+        this.sweeps = !cumulative && windowRows(state, state.graph) !== Number.POSITIVE_INFINITY;
         const { graph, filterNodes, node, endCount, edge, missingInside } = state;
         const { src, dst } = graph.edgeList();
         this.src = src;
@@ -202,7 +211,7 @@ export class WindowCounter {
     }
 
     /**
-     * A counter at a window.
+     * A counter at a window. Later sliding windows start where the last one ended.
      * @param target - What the window is read from.
      * @param window - The first window.
      * @returns The counter, or null when an index alone cannot say what a window keeps.
@@ -210,7 +219,7 @@ export class WindowCounter {
     static open(target: SlideTarget, window: TimeWindow): WindowCounter | null {
         const state = slideState(target, window);
 
-        return state === null ? null : new WindowCounter(state);
+        return state === null ? null : new WindowCounter(state, window.mode === "cumulative");
     }
 
     /**
@@ -257,6 +266,11 @@ export class WindowCounter {
             this.nodeIn(nodePerm[at]);
         }
 
+        if (this.sweeps) {
+            this.edgesOut = this.edges;
+            this.edgesIn = passingEdges(this.ends, edgeRows.inFrom, edgeRows.inTo, this.passing);
+        }
+
         this.nodes += this.nodesIn - this.nodesOut;
         this.edges += this.edgesIn - this.edgesOut;
     }
@@ -286,8 +300,11 @@ export class WindowCounter {
         const { inFrom, inTo } = rows;
         const { endCount, node } = this.state;
         this.noteEnds(inFrom, inTo);
-        this.edgesIn +=
-            node === null ? passingEdges(this.ends, inFrom, inTo, this.passing) : this.markOwn(inFrom, inTo, 1);
+        if (!this.sweeps) {
+            this.edgesIn +=
+                node === null ? passingEdges(this.ends, inFrom, inTo, this.passing) : this.markOwn(inFrom, inTo, 1);
+        }
+
         if (endCount !== null) {
             this.nodesIn += endsUp(this.ends, inFrom, inTo, endCount, this.passing);
         }
@@ -300,8 +317,11 @@ export class WindowCounter {
     private edgesLeave(rows: Crossed): void {
         const { outFrom, outTo } = rows;
         const { endCount, node } = this.state;
-        this.edgesOut +=
-            node === null ? passingEdges(this.ends, outFrom, outTo, this.passing) : this.markOwn(outFrom, outTo, 0);
+        if (!this.sweeps) {
+            this.edgesOut +=
+                node === null ? passingEdges(this.ends, outFrom, outTo, this.passing) : this.markOwn(outFrom, outTo, 0);
+        }
+
         if (endCount !== null) {
             this.nodesOut += endsDown(this.ends, outFrom, outTo, endCount, this.passing);
         }
@@ -347,7 +367,7 @@ export class WindowCounter {
     private nodeOut(row: number): void {
         if (this.passing[row] === 1) {
             this.nodesOut += this.endsShow(row);
-            this.edgesOut += this.showingEdges(row);
+            this.edgesOut += this.sweeps ? 0 : this.showingEdges(row);
             this.passing[row] = 0;
         }
     }
@@ -361,7 +381,7 @@ export class WindowCounter {
         if (filterNodes === null || filterNodes[row] === 1) {
             this.passing[row] = 1;
             this.nodesIn += this.endsShow(row);
-            this.edgesIn += this.showingEdges(row);
+            this.edgesIn += this.sweeps ? 0 : this.showingEdges(row);
         }
     }
 

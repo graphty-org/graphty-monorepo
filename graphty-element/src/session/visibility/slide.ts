@@ -495,7 +495,7 @@ function walkArcs(
  * @param graph - The snapshot.
  * @returns The rows; infinite when other edges can show too (those with no instant, or no index).
  */
-function windowRows(state: SlideState, graph: GraphSnapshot): number {
+export function windowRows(state: SlideState, graph: GraphSnapshot): number {
     const { edge, missingInside } = state;
     return edge !== null && (!missingInside || edge.index.timed === graph.edgeCount)
         ? edge.hi - edge.lo

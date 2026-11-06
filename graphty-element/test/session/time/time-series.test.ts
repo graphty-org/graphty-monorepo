@@ -310,8 +310,15 @@ describe("time.series", () => {
 
     for (const directed of [true, false]) {
         for (const missing of ["inside", "outside"] as const) {
-            for (const field of ["edges", "nodes", "both"] as const) {
-                it(`counts as a full pass does (${directed ? "directed" : "undirected"}, ${field}, missing ${missing}, self-loops)`, async () => {
+            for (const [field, mode] of [
+                ["edges", "sliding"],
+                ["nodes", "sliding"],
+                ["both", "sliding"],
+                ["edges", "cumulative"],
+                ["nodes", "cumulative"],
+                ["both", "cumulative"],
+            ] as const) {
+                it(`counts as a full pass does (${directed ? "directed" : "undirected"}, ${field}, ${mode}, missing ${missing}, self-loops)`, async () => {
                     const next = random(29);
                     const span = 600;
                     const timed = (): { w?: number } => (next() < 0.15 ? {} : { w: Math.floor(next() * span) });
@@ -345,14 +352,14 @@ describe("time.series", () => {
                         },
                     ]);
                     // A window sets what a series reads of `missing`; the step is narrower than a burst of rows.
-                    await session.time.window({ from: 0, to: 70, step: 70, missing });
+                    await session.time.window({ from: 0, to: 70, step: 70, missing, mode });
                     const { rows } = await session.time.series({ step: 70, measures: ["nodes"] });
 
                     let was = { nodes: new Array<number>(40).fill(0), edges: new Array<number>(160).fill(0) };
                     const gone = (now: readonly number[], then: readonly number[]): number =>
                         then.filter((shown, at) => shown === 1 && now[at] === 0).length;
                     for (const row of rows) {
-                        await session.time.window({ from: row.from, to: row.to, step: 70, missing });
+                        await session.time.window({ from: row.from, to: row.to, step: 70, missing, mode });
                         const now = {
                             nodes: [...session.visibility.nodeMask()],
                             edges: [...session.visibility.edgeMask()],

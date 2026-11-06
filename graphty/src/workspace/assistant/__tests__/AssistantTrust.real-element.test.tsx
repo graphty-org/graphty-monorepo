@@ -536,15 +536,14 @@ describe("checking what the Assistant says", () => {
         await openOn(12);
         model.turns = [
             calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
-            { text: "Kept.", toolCalls: [] },
-            calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
-            { text: "Gone.", toolCalls: [] },
+            { text: "Done.", toolCalls: [] },
         ];
         await say("Remove them");
         const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
         await pressByKey(within(await waiting()).getByRole("button", { name: "Keep them" }));
         await inComposer(field);
         await finished();
+        model.asked = 0;
         await userEvent.keyboard("{Backspace}Remove them{Enter}");
         await pressByKey(within(await waiting()).getByRole("button", { name: "Remove" }));
         await inComposer(field);
@@ -573,6 +572,7 @@ describe("checking what the Assistant says", () => {
         const layers = session.styles.list().length;
         model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
         await say("Color them");
+        await screen.findByRole("region", { name: "Conversation" });
         await within(log()).findByText("Colored 3 nodes");
         await finished();
         await pressByKey(screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog)[0]);

@@ -112,6 +112,15 @@ const SCENARIOS: readonly { readonly name: string; readonly build: () => Promise
         },
     },
     {
+        name: "a saved project opened again",
+        build: async () => {
+            const { text } = await (await startingRowsOn()).project.save();
+            const session = createGraphSession({ runs: { execute: communities }, features: ["timeline"] });
+            await session.project.open(text);
+            return session;
+        },
+    },
+    {
         name: "an algorithm's suggested styles",
         build: async () => {
             const session = await startingRowsOn();

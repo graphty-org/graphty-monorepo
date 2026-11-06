@@ -485,10 +485,9 @@ export class Node implements ModelUser {
      * Hands the node a mesh of the consumer's own.
      * @param value - The mesh.
      */
-    // The property is the private field #mesh, which Sonar's S4275 does not match.
     set mesh(value: AbstractMesh) {
-        // NOSONAR(typescript:S4275): writes #mesh
-        this.#anchor = this.#mesh = value;
+        this.#mesh = value;
+        this.#anchor = value;
     }
 
     /** The shared mesh a batch draws this node from, or null while it has its own. */

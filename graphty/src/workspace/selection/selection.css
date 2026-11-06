@@ -1,0 +1,572 @@
+/* The selection editor (design/ui/selection-groups/spec.md, section 3): an outline of 32 px rows
+   in fixed columns, and one property pane under it for the selected row. 11/16 type, 24 px
+   controls. Nothing inline opens, so rows never move, wrap or leave gaps. */
+
+.sel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding-inline: 8px;
+    border-radius: var(--mantine-radius-sm);
+    white-space: nowrap;
+    cursor: default;
+}
+
+.sel-row:hover {
+    background: var(--cm-bg-hover, var(--mantine-color-default-hover));
+}
+
+.sel-row:focus-visible {
+    /* Figma's one focus ring (figma-spec 2.7), as the style layer tree draws it. */
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+
+.sel-row[aria-selected="true"],
+.sel-row[data-selected] {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+/* Steps sit 16 px in under a group row once there are two groups. */
+.sel-group[data-multi] > .sel-step-row,
+.sel-group[data-multi] > .sel-all-row,
+.sel-group[data-multi] > .sel-add-row {
+    padding-inline-start: 24px;
+}
+
+/* The verb word's column: every value name starts at the same x in a group. */
+.sel-verb {
+    flex: 0 0 40px;
+    width: 40px;
+}
+
+/* The test (its listed names first) gives way long before the value does, so the value keeps its
+   first word; the tags and the state word fit; the row's tooltip names everything in full. */
+.sel-value {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Cut, the test keeps a visible ellipsis ("3 t..."), never a bare first number that reads like a
+   count (ws-polish 3). */
+.sel-test {
+    flex: 0 1000 auto;
+    min-width: 3ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A relative condition ("Within 2 hops of", "While ... has nodes") is never cut: its reference
+   gives way with an ellipsis, and its state word is never cut (the owner's review, ws-polish 2). */
+.sel-value[data-whole] {
+    flex: none;
+}
+
+/* A tag is a bare dimmed word ("Links", "So far"), its whole setting in the row's tooltip and on
+   Advanced's right; it gives way before the test, so the condition keeps its row (spec 3.1). */
+.sel-tag {
+    flex: 0 100000 auto;
+    /* As wide as "Edges", which changes the result: a tag is never cut out of sight (ws-polish 3). */
+    min-width: 5ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--mantine-color-dimmed);
+}
+
+.sel-state,
+.sel-more,
+.sel-count {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.sel-step-row .sel-state {
+    margin-inline-start: auto;
+}
+
+.sel-title {
+    flex: 0 1 auto;
+    /* The title keeps its first word or so ("Which edges", a card's value) before anything else. */
+    min-width: min(8ch, 100%);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A value keeps normal ink in every state: the state word says Off, No test or Run. */
+
+/* The chit: hollow at rest, filled while the preview draws group colors. */
+.sel-chit {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 2px solid;
+    border-radius: 3px;
+}
+
+/* What no group holds, the outline's last row while the preview draws group colors: the faint
+   rest, as the canvas draws it (ws-polish 3). */
+.sel-chit-faint {
+    border-color: var(--mantine-color-dimmed);
+    background: var(--mantine-color-dimmed);
+    opacity: 0.35;
+}
+
+/* The sidebar's read-only outline is narrow: its verb column is only as wide as its words ("or"),
+   a lone group's rows start under the title's text, and steps take no extra indent (ws-polish 3). */
+.sel-rest .sel-verb {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.sel-rest .sel-group:not([data-multi]) .sel-verb:empty {
+    display: none;
+}
+
+.sel-rest .sel-group[data-multi] .sel-verb {
+    min-width: 1.4em;
+}
+
+.sel-rest .sel-group[data-multi] > .sel-step-row,
+.sel-rest .sel-group[data-multi] > .sel-all-row,
+.sel-rest .sel-group[data-multi] > .sel-add-row {
+    padding-inline-start: 8px;
+}
+
+/* A group's eye is drawn on hover or focus only, and takes no space at rest. */
+.sel-row:not(:hover, :focus-within) .sel-eye {
+    display: none;
+}
+
+.sel-spacer {
+    flex: 1 1 0;
+}
+
+/* An empty selection's "And..." sits in the value column, after an empty verb column. */
+.sel-add-row {
+    cursor: pointer;
+}
+
+/* A pane's first row: the add actions at the left, icons, "..." and Done at the right. */
+.sel-pane-head {
+    min-height: 24px;
+}
+
+/* A field's text (the value, the reference) is cut with an ellipsis, never mid-word. */
+.sel-field-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The property pane, under the outline. */
+.sel-pane-box {
+    padding: 8px;
+    border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.sel-advanced {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+}
+
+.sel-more {
+    flex: none;
+}
+
+/* The workspace: a modal over the whole app, a margin all round, a scrim behind it (the owner,
+   2026-11-04). Left, the colored group cards; right, the drawing over the matches table. The
+   drawing is graphty-element's own canvas, laid fixed over the preview cell. */
+.sel-ws-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 190;
+    background: rgb(0 0 0 / 45%);
+}
+
+.sel-ws.sel-modal {
+    position: fixed;
+    inset: 28px;
+    z-index: 200;
+    display: grid;
+    /* One column the modal's width: a long title truncates instead of widening the modal. */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 40px minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--cm-bg);
+    border: 1px solid var(--cm-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 30%);
+}
+
+.sel-ws.sel-modal:focus {
+    outline: none;
+}
+
+.sel-ws-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding-inline: 12px;
+    background: var(--cm-bg);
+    border-bottom: 1px solid var(--cm-border);
+    white-space: nowrap;
+}
+
+.sel-ws-title {
+    min-width: 0;
+}
+
+/* Only the title gives way: the count, the preview switch, Cancel and Done keep their room. */
+.sel-ws-head > * {
+    flex-shrink: 0;
+}
+
+.sel-ws-head > .sel-ws-title {
+    flex: 0 1 auto;
+    overflow: hidden;
+}
+
+.sel-ws-head > .sel-spacer {
+    flex: 1 1 0;
+}
+
+.sel-modal .sel-ws-body {
+    display: grid;
+    grid-template-columns: minmax(360px, 34%) minmax(0, 1fr);
+    min-height: 0;
+}
+
+.sel-ws-cards {
+    min-height: 0;
+    overflow: hidden auto;
+    padding: 12px;
+    background: var(--cm-bg-subtle, var(--mantine-color-default-hover));
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.sel-ws-center {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+}
+
+/* The table takes 40% of the workspace's height under the drawing. */
+.sel-modal .sel-ws-center[data-strip] {
+    grid-template-rows: minmax(0, 1fr) 40%;
+}
+
+.sel-ws-preview {
+    position: relative;
+    min-height: 0;
+}
+
+/* The drawing, fixed over the preview cell and above the modal, so it takes the pointer there. */
+.ws-canvas[data-sel-preview] .ws-canvas-surface {
+    position: fixed;
+    top: var(--sel-preview-top);
+    left: var(--sel-preview-left);
+    width: var(--sel-preview-width);
+    height: var(--sel-preview-height);
+    z-index: 201;
+}
+
+/* The header's Table toggle, pressed: the selected row's fill, as a subtle toggle draws it. */
+.sel-ws-toggle[data-pressed] {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+/* The group cards: compact-mantine's CardList draws each card in its group's color (its tint,
+   header, grip, fold and title); its steps and its actions take the same color. */
+.sel-card {
+    --sel-card-color: var(--cm-card-color, var(--cm-border));
+}
+
+/* A card's controls take its color: the brush, the in-range bars and the focused boxes. */
+.sel-card .cm-slider-bar {
+    background-color: var(--sel-card-color);
+}
+
+.sel-card [data-testid="histogram-chart"] [data-highlighted="true"] {
+    background: var(--sel-card-color) !important;
+}
+
+.sel-card .mantine-Input-input:focus,
+.sel-card .mantine-Input-input:focus-within {
+    border-color: var(--sel-card-color);
+}
+
+.sel-card-color {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 3px;
+}
+
+/* The workspace title's rename button. */
+.sel-card-name {
+    min-width: 0;
+    overflow: hidden;
+    padding-inline: 2px;
+    border-radius: 3px;
+}
+
+/* Mantine's truncate needs a block box: inline, its ellipsis never applies and the text paints on. */
+.sel-card-name > .mantine-Text-root {
+    display: block;
+}
+
+.sel-card-name:hover {
+    background: var(--cm-bg-hover, var(--mantine-color-default-hover));
+}
+
+.sel-card-new .mantine-Button-root {
+    color: var(--mantine-color-dimmed);
+}
+
+/* A card's value row: the value picker, an algorithm's output and its settings, inline. */
+.sel-card-value > :first-child:not(.sel-card-verb),
+.sel-card-value > .sel-card-verb + * {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A narrowing condition's verb, in the verb's color. */
+.sel-card-verb {
+    flex: 0 0 auto;
+}
+
+.sel-card-verb[data-op="keep"] {
+    color: var(--mantine-color-blue-7);
+}
+
+.sel-card-verb[data-op="except"] {
+    color: var(--mantine-color-red-7);
+}
+
+.sel-ws-gap {
+    flex: 0 0 12px;
+}
+
+/* A card's start, All or No nodes: a named line at the head of the open card. */
+.sel-card-start-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 0;
+}
+
+.sel-card-start {
+    flex: 0 0 auto;
+}
+
+/* A key shown on its button ("Cancel Esc"): its word, close to the button's. */
+.sel-key {
+    font-size: inherit;
+}
+
+.sel-ws-head .mantine-Button-section[data-position="right"] {
+    margin-inline-start: 4px;
+}
+
+/* An icon sits close to its own word, and a button's end stays clear of the next one's icon. */
+.sel-card-actions .mantine-Button-section[data-position="left"],
+.sel-card-new .mantine-Button-section[data-position="left"] {
+    margin-inline-end: 4px;
+}
+
+/* A card's output shares the row with its value, each as wide as the other. */
+.sel-card-value > .sel-card-output {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A card's named rows: their labels in one column, so the boxes start at one x. */
+.sel-card-ref {
+    min-width: 0;
+}
+
+.sel-card-ref-name {
+    flex: 0 0 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sel-card-ref > .sel-test-box {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A step's edge condition, on the card: the settings hold only its choice. */
+.sel-card-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* A card's count selects what it counts: it reads as something to press. */
+.sel-card .cm-card-head .sel-count {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+
+.sel-card-new {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: -4px;
+}
+
+.sel-card-new [data-full] {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.sel-card-step {
+    padding: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--sel-card-color) 30%, var(--cm-bg));
+}
+
+/* A step's change in its head: what it added or took out of its group. */
+.sel-step-change {
+    color: var(--mantine-color-dimmed);
+}
+
+.sel-card-step:first-of-type {
+    border-top: 0;
+}
+
+.sel-card-step[data-state="off"] {
+    opacity: 0.6;
+}
+
+.sel-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Its buttons are plain subtle buttons; only the verb's glyph carries the verb's color, and the
+   focus ring is drawn for the keyboard only. */
+.sel-card-actions .mantine-Button-root {
+    color: var(--mantine-color-text);
+}
+
+.sel-card-actions .mantine-Button-root:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.sel-verb-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sel-verb-badge[data-op="add"],
+.sel-card-actions [data-verb="add"] svg {
+    color: var(--mantine-color-green-8);
+}
+
+.sel-verb-badge[data-op="keep"],
+.sel-card-actions [data-verb="keep"] svg {
+    color: var(--mantine-color-blue-7);
+}
+
+.sel-verb-badge[data-op="except"],
+.sel-card-actions [data-verb="except"] svg {
+    color: var(--mantine-color-red-7);
+}
+
+/* Picking a reference: the preview takes a crosshair and an accent outline, and says so. */
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface {
+    outline: 2px solid var(--cm-border-selected);
+    outline-offset: -2px;
+}
+
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface,
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface * {
+    cursor: crosshair !important;
+}
+
+body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
+    content: "Pick a node (Esc)";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--mantine-color-dark-6, #333);
+    color: #fff;
+    font-size: 11px;
+    line-height: 16px;
+    pointer-events: none;
+}
+
+.sel-summary-row .sel-value {
+    flex: 1 1 auto;
+}
+
+/* At rest the heading and its value sit close, the value and Edit on one line, flush with the
+   panel's other rows (the approved prototype). */
+.sel-rest:not(.sel-rest-inline) .sel-row {
+    height: 24px;
+    padding-inline: 0;
+}
+
+/* The sidebar title row's Edit is always drawn: it is how a reader finds a layer's selection, as the
+   approved design has it. The title takes the row's width, so Edit and any count sit at its end. */
+.sel-rest:not(.sel-rest-inline) .sel-title-row .sel-title {
+    flex: 1 1 0;
+}
+
+.sel-ws-strip {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+    background: var(--cm-bg);
+    border-top: 1px solid var(--cm-border);
+}
+
+/* Nothing matches: no search and no table, one quiet line. */
+.sel-ws-strip[data-empty] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sel-ws-strip-search {
+    width: min(240px, 100% - 16px);
+    margin: 4px 8px;
+}
+
+.sel-ws-strip-table {
+    min-height: 0;
+}
+
+/* No canvas key over the preview from the workspace's first frame on, before the store names it:
+   its outline says what the key would (ws-polish 3, finding 1). */
+.ws-body:has(> .sel-modal) .ws-canvas-overlays {
+    display: none;
+}
+
+/* A step's from and to boxes share the card's width, "to" between them. */
+.sel-card .ws-range-boxes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+}
+
+.sel-card .mantine-Input-input {
+    --input-bd-focus: var(--sel-card-color);
+}

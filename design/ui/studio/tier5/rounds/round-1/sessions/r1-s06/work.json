@@ -1,0 +1,43 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "gauges.csv",
+   "flows.csv"
+  ]
+ },
+ "end": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0nw3fj1\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0nw9ra2\",\"op\":\"keep\",\"rule\":{\"kind\":\"categories\",\"attribute\":\"data.telemetry\",\"values\":[\"no\"]}}],\"color\":\"#009E73\",\"name\":\"A\"},{\"id\":\"bmw0nwme83\",\"start\":\"none\",\"steps\":[{\"id\":\"smw0nwswm4\",\"op\":\"add\",\"rule\":{\"kind\":\"range\",\"attribute\":\"data.installed\",\"min\":631152000000,\"max\":946684799999,\"as\":\"time\"},\"mode\":\"between\"}],\"name\":\"B\",\"color\":\"#D55E00\"}]}"
+  ],
+  "sources": [
+   "gauges.csv",
+   "flows.csv"
+  ]
+ },
+ "gone": {}
+}

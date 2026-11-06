@@ -544,37 +544,19 @@ describe("the location map", () => {
         assert.notExists(flat.session.layout.options.map, "no map was chosen for the reader");
     });
 
-    it("closes only the Advanced pop-out on Escape, and names its button", async () => {
+    it("draws the map's advanced settings in the Map form, with no button to reach them", async () => {
         await openAirports();
         const popover = await openMapForm();
-        // The app opens the map with nodes kept one size on screen, an advanced setting, so the
-        // button's name also says a setting behind it is changed.
-        const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
-        await userEvent.hover(advanced);
-        const tip = await screen.findByRole("tooltip", {});
-        assert.strictEqual(tip.textContent, "Advanced");
-        await userEvent.click(advanced);
-        await within(popover).findByRole("combobox", { name: "Format" });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(within(popover).queryByRole("combobox", { name: "Format" }), "the pop-out closed");
-        });
-        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Fit" }), "still in the Map form");
+        assert.isNotNull(await within(popover).findByRole("combobox", { name: "Format" }));
+        assert.isNotNull(within(popover).queryByRole("combobox", { name: "Fit" }));
+        assert.isNull(within(popover).queryByRole("button", { name: /^Advanced/ }));
     });
 
-    it("has one 3D | 2D control, no Map type and no Projection, with Advanced at the top of the form", async () => {
+    it("has one 3D | 2D control, with no Map type and no Projection", async () => {
         await openAirports();
         const popover = await openMapForm();
+        assert.isNotNull(await within(popover).findByRole("radiogroup", { name: "Shape" }));
         assert.isNull(within(popover).queryByRole("combobox", { name: "Map type" }));
-        const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
-        const back = within(popover).getByRole("button", { name: "Back to layouts" });
-        const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
-        const [cog, title, top] = [advanced, back, shape].map((each) => each.getBoundingClientRect());
-        assert.isBelow(cog.top, top.top, "above the form's fields");
-        assert.isAbove(cog.left, title.right, "at the far end of the title's row");
-        assert.isAtLeast(cog.bottom, title.top, "on the title's row");
-        await userEvent.click(advanced);
-        await within(popover).findByRole("combobox", { name: "Format" });
         assert.isNull(within(popover).queryByRole("combobox", { name: "Projection" }));
     });
 });

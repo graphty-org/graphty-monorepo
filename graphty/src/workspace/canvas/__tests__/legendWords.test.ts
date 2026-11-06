@@ -426,4 +426,13 @@ describe("the words for a block of some elements", () => {
         );
         assert.isNull(scopeLine(of({ scope: undefined }), "Size: donations", "Picked"));
     });
+
+    it("counts out of the nodes the filter leaves drawn, the base Which nodes reads", () => {
+        const filtered = of({ scope: { count: 4, of: 24, visible: 15 } });
+        assert.equal(scopeLine(filtered, "Color: Staff", "Staff"), "4 of 15 nodes");
+        assert.isNull(
+            scopeLine(of({ scope: { count: 7, of: 24, visible: 7 } }), "Color: Staff", "Staff"),
+            "a layer holding every node drawn has no line",
+        );
+    });
 });

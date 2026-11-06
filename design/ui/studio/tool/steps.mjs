@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Bar 7 of ../tier4/criteria.md (cost on core tasks): counts each session's steps and holds each
-// core task's median against the answer key's path step count plus 3.
+// The cost-on-core-tasks bar (bar 7 of ../tier4/criteria.md, bar 8 of ../tier5/criteria.md): counts
+// each session's steps and holds each core task's median against the answer key's path step count
+// plus 3. The core tasks are the tier's (CORE_BY_TIER), read from the round folder's tier.
 //
 // A step is one input a person makes: a click of any kind (by name or at a point), a key or chord, a
 // text typed, a file chosen, a file dropped, a drag, a wheel turn, a reopened tab. Looking is not a
@@ -12,7 +13,7 @@
 // keyboard-only session (start with --keys) counts its steps in another unit, so it is reported
 // apart. A core task with no path count, or with no session to count, does not hold.
 //
-//   node steps.mjs <round dir> [--answers <answers.md>]   writes <round dir>/steps.json; exit 1 when
+//   node steps.mjs <round dir> [--answers <answers.md>] [--tier 4|5]   writes <round dir>/steps.json; exit 1 when
 //                                                          a core task's median is over its limit or
 //                                                          cannot be measured
 //   node steps.mjs --self-test                            plants a failing and a passing round
@@ -24,7 +25,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const CORE = ["T61", "T62", "T65", "T67"];
+export const CORE_BY_TIER = {
+    tier4: ["T61", "T62", "T65", "T67"],
+    tier5: ["T70", "T71", "T73", "T74", "T78"],
+};
+export const CORE = CORE_BY_TIER.tier4;
 export const OVER = 3;
 const ACTS = new Set([
     "--click",
@@ -59,7 +64,7 @@ export function pathSteps(text) {
     for (const sec of sections) {
         const task = sec.match(/^(T\d+)\./)?.[1];
         if (!task) continue;
-        for (const m of sec.matchAll(/(?:\b([AB]) )?[Pp]ath steps: (\d+)(?: \((?:([AB])\)|B: (\d+)))?/g)) {
+        for (const m of sec.matchAll(/(?:\b([AB]) )?[Pp]ath\s+steps:\s+(\d+)(?: \((?:([AB])\)|B: (\d+)))?/g)) {
             const [, pre, n, post, b] = m;
             const half = pre || post;
             if (half) out[task + half] = Number(n);
@@ -103,12 +108,12 @@ const gradeOf = (dir) =>
         ? (readFileSync(join(dir, "grade.md"), "utf8").match(/^Grade: (S|SD|P|F|G|VOID)\b/m)?.[1] ?? "unreadable")
         : null;
 
-export function measure(rd, answers) {
+export function measure(rd, answers, core = CORE) {
     const paths = pathSteps(readFileSync(answers, "utf8"));
     const problems = [];
     const sessions = [];
     for (const row of planRows(rd)) {
-        if (!CORE.includes(row.task)) continue;
+        if (!core.includes(row.task)) continue;
         const tries = [row.id, `${row.id}b`, `${row.id}bb`].filter((id) => existsSync(join(rd, "sessions", id)));
         const used = tries.filter((id) => gradeOf(join(rd, "sessions", id)) !== "VOID").pop();
         if (!used) continue;
@@ -120,7 +125,7 @@ export function measure(rd, answers) {
         else if (steps === null) problems.push(`${used}: no route.jsonl`);
         else sessions.push({ id: used, task: row.task, half: row.half, keys: row.keys, grade, steps });
     }
-    const tasks = CORE.map((task) => {
+    const tasks = core.map((task) => {
         const of = sessions.filter((s) => s.task === task && !s.keys);
         const path = { A: paths[`${task}A`] ?? null, B: paths[`${task}B`] ?? null };
         // each session against its own half's path; the median of the steps over the path
@@ -158,6 +163,8 @@ async function selfTest() {
                 "## T64. Name\n  B path steps: 9.",
                 "## T65. Some\n  Path steps: 12 (A). x\n  Path steps: 12 (B). y",
                 "## T67. Wrong\n  Path steps: 3 (B: 4 with Read as yes/no).",
+                // a line break inside "Path steps" (a wrapped paragraph) is still the count
+                "## T68. Wrapped\n  hex; Enter. Path\n  steps: 12 (A).",
             ].join("\n\n"),
         );
         assert.deepEqual(pathSteps(readFileSync(answers, "utf8")), {
@@ -170,6 +177,7 @@ async function selfTest() {
             T65B: 12,
             T67A: 3,
             T67B: 4,
+            T68A: 12,
         });
         const rows = [];
         const session = async (id, task, half, n, { grade = "S", keys = false, looks = 2 } = {}) => {
@@ -212,6 +220,31 @@ async function selfTest() {
         r = measure(rd, answers);
         assert.ok(!r.holds && r.tasks.every((t) => !t.holds), "a round with no sessions held");
         console.log("a round with no session to count fails");
+        // tier 5's core tasks: every one of T70, T71, T73, T74 and T78 is counted, none of tier 4's
+        const t5 = CORE_BY_TIER.tier5;
+        await writeFile(answers, t5.map((t) => `## ${t}. Task\n  Path steps: 10.`).join("\n\n"));
+        rows.length = 0;
+        for (const [i, t] of t5.entries()) {
+            await session(`r1-s${20 + 2 * i}`, t, "A", 11);
+            await session(`r1-s${21 + 2 * i}`, t, "B", 12);
+        }
+        await plan();
+        r = measure(rd, answers, t5);
+        assert.ok(r.holds, `a passing tier 5 round failed: ${JSON.stringify(r.tasks)}`);
+        assert.deepEqual(
+            r.tasks.map((t) => t.task),
+            t5,
+            "tier 5's core tasks were not the ones counted",
+        );
+        r = measure(rd, answers, CORE_BY_TIER.tier4);
+        assert.ok(!r.holds, "tier 4's core tasks held on a tier 5 round");
+        await session("r1-s40", "T78", "B", 30);
+        await session("r1-s41", "T78", "A", 30);
+        await session("r1-s42", "T78", "A", 30);
+        await plan();
+        r = measure(rd, answers, t5);
+        assert.ok(!r.holds && !r.tasks[4].holds, "a T78 median far over its path held");
+        console.log(`tier 5: counts ${t5.join(", ")}; caught T78 over its limit: ${r.tasks[4].why}`);
         console.log("self-test: every planted case caught");
     } finally {
         await rm(rd, { recursive: true, force: true });
@@ -219,16 +252,26 @@ async function selfTest() {
 }
 
 const args = process.argv.slice(2);
-if (args[0] === "--self-test") await selfTest();
+// imported (real.mjs --gate reads pathSteps and CORE_BY_TIER), it runs nothing
+const main = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (!main);
+else if (args[0] === "--self-test") await selfTest();
 else if (!args[0]) {
     console.error("usage: steps.mjs <round dir> [--answers <answers.md>] | --self-test");
     process.exit(2);
 } else {
     const rd = resolve(args[0]);
     const ai = args.indexOf("--answers");
-    const tier = rd.match(/\/(tier\d+)\//)?.[1] ?? "tier4";
+    const ti = args.indexOf("--tier");
+    const tier = ti > 0 ? `tier${args[ti + 1]}` : (rd.match(/\/(tier\d+)\//)?.[1] ?? "tier4");
+    const core = CORE_BY_TIER[tier];
+    if (!core) {
+        console.error(`steps.mjs knows the core tasks of ${Object.keys(CORE_BY_TIER).join(" and ")}, not ${tier}`);
+        process.exit(2);
+    }
     const answers = ai > 0 ? resolve(args[ai + 1]) : join(here, "..", tier, "answers.md");
-    const r = measure(rd, answers);
+    const r = measure(rd, answers, core);
+    console.log(`${tier}: core tasks ${core.join(", ")}`);
     await writeFile(join(rd, "steps.json"), JSON.stringify(r, null, 1) + "\n");
     for (const t of r.tasks) {
         console.log(`${t.holds ? "holds" : "FAILS"} ${t.task} (path A ${t.path.A}, B ${t.path.B}): ${t.why}`);

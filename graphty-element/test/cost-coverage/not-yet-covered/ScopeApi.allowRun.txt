@@ -1,0 +1,1 @@
+No counted-work test yet (issue #1643): ScopeApi.allowRun is constant-time bookkeeping (a run limit, a consent, a cancel, an unsubscribe); the re-read it causes is the watch re-reading its rule, which the union reader does once per input change.

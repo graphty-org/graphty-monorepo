@@ -39,6 +39,74 @@ async function sheet(sheet: string) {
     return { node, edges, edge };
 }
 
+/**
+ * The ids of the nodes of a sheet that hold a group label model's label.
+ * @param name - the sheet's file name
+ * @returns the ids
+ */
+function groupIds(name: string): string[] {
+    const text = readFileSync(join(SHEETS, name), "utf8");
+    return [...text.matchAll(/<node id="([^"]+)"(?:(?!<\/data>)[\s\S])*?GroupNodeLabelModelParameter/g)].map(
+        (m) => m[1],
+    );
+}
+
+describe("yEd Live GraphML: where a node label's model puts it", () => {
+    it("places a composite model's label by the parameter it holds", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        expect(node("labelPosition", "model-composite")).toBe("top");
+    });
+
+    it("hangs a free label's top left corner from the node's by its LayoutOffset", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        // a 40 x 26 node: 30,-18 from its corner is 10.8,-31 from its middle, with the 0.8 yEd Live's words stand in
+        expect(node("labelPosition", "model-free-offset")).toBe("center");
+        expect(node("labelOffsetX", "model-free-offset")).toBeCloseTo(10.8);
+        expect(node("labelOffsetY", "model-free-offset")).toBeCloseTo(-31);
+        expect(node("labelShiftX", "model-free-offset")).toBe(0.5);
+        expect(node("labelShiftY", "model-free-offset")).toBe(0.5);
+    });
+
+    it("keeps the distance a shared model states", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        expect(node("labelOffsetY", "model-exterior-margins")).toBe(-15);
+        expect(node("labelOffsetY", "model-stretch-padding")).toBe(6);
+        // the words themselves stand 8 in from the node's top left corner
+        expect(node("labelPosition", "model-interior-padding")).toBe("center");
+        expect(node("labelOffsetX", "model-interior-padding")).toBe(-12);
+        expect(node("labelOffsetY", "model-interior-padding")).toBe(-5);
+        expect(node("labelShiftX", "model-interior-padding")).toBe(0.5);
+    });
+
+    it("draws a group's label on the middle of its tab", async () => {
+        const { node } = await sheet("specimen-groups-p4.graphml");
+        const group = groupIds("specimen-groups-p4.graphml")[0];
+        expect(node("labelPosition", group)).toBe("inside-top");
+        expect(node("labelOffsetY", group)).toBe(11);
+        expect(node("labelShiftY", group)).toBe(-0.5);
+    });
+
+    it("holds the words against the sides of a box larger than them", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("labelOffsetY", "v-align-top")).toBe(-13);
+        expect(node("labelShiftY", "v-align-top")).toBe(0.5);
+        expect(node("labelOffsetY", "v-align-bottom")).toBe(13);
+        expect(node("labelShiftY", "v-align-bottom")).toBe(-0.5);
+    });
+
+    it("draws a BPMN label's box in the style's own colors", async () => {
+        const { node } = await sheet("specimen-labels-p5.graphml");
+        expect(node("labelBackground", "bpmn-annotation-label-background")).toBe("#ff0000");
+        expect(node("labelBorderWidth", "bpmn-annotation-label-background")).toBeNull();
+        expect(node("labelBorderColor", "bpmn-message-label-outline")).toBe("#ff0000");
+        expect(node("labelPadding", "bpmn-annotation-label-background")).toBe(5);
+        expect(node("labelPadding", "bpmn-annotation-label-insets")).toBe(8);
+        expect(node("labelBackground", "bpmn-message-label-outline")).toBe("#ffffff");
+        expect(node("labelBackground", "bpmn-message-label-is-initiating")).toBe("#808080");
+        expect(node("labelBackground", "bpmn-message-label-initiating-color")).toBe("#ff0000");
+    });
+});
+
 describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
     it("draws BevelNodeStyle and ShinyPlateNodeStyle as rounded boxes in their color, PanelNodeStyle as a box", async () => {
         const { node } = await sheet("specimen-node-shapes-p2.graphml");

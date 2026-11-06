@@ -46,6 +46,28 @@ test("bar 9 leaves out the source, file, table, column and node names the sessio
     });
 });
 
+test("words at rest: the workspace counted apart, headings read, and the planted sixty words counted", async () => {
+    await browse(async (page) => {
+        await page.setContent(`<!doctype html><body><nav>Graph Data Notes</nav>
+<div class="sel-ws"><h2>Which nodes to style here</h2><p>Keep nodes where</p></div></body>`);
+        const all = await page.evaluate(wordsOnScreen);
+        const ws = await page.evaluate(wordsOnScreen, ".sel-ws");
+        assert.equal(all.words.length, 11);
+        assert.deepEqual(ws.words, ["Which", "nodes", "to", "style", "here", "Keep", "nodes", "where"]);
+        assert.deepEqual(ws.headings, ["Which nodes to style here"]);
+        // no workspace open: null, not the whole screen
+        assert.equal(await page.evaluate(wordsOnScreen, ".sel-nothing"), null);
+        // any other planted case is left out; the words-at-rest one is counted
+        await page.evaluate(plant, "twins");
+        assert.equal((await page.evaluate(wordsOnScreen)).words.length, 11);
+        await page.evaluate(() => document.getElementById("studio-planted").remove());
+        await page.evaluate(plant, "wordy");
+        const planted = await page.evaluate(wordsOnScreen);
+        assert.equal(planted.words.length, 11 + 5 + 60);
+        assert.ok(planted.headings.includes("Planted heading of many words"));
+    });
+});
+
 test("the scroll check reads the active option in or out of view, and catches it scrolled away", async () => {
     await browse(async (page) => {
         const rows = Array.from(

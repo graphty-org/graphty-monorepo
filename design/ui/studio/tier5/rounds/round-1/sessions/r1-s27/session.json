@@ -1,0 +1,25 @@
+{
+ "commit": "1e123d7d33eb66f190fb4a197f90102ede2478a5",
+ "toolCommit": "662fb4023034269578aa68f88bec80a45ed206a5",
+ "uncommittedChanges": false,
+ "buildStamp": "1e123d7d33eb graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-03T12:38:39.881Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tool/files/staff-50k.graphml",
+  "--click Layout",
+  "--click Random",
+  "--click Apply"
+ ],
+ "task": "T79A",
+ "followUp": "given 2026-11-03T12:41:19.468Z",
+ "setupOk": true
+}

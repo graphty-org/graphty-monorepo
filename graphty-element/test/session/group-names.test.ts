@@ -291,4 +291,39 @@ describe("the names of a partition's groups", () => {
         assert.strictEqual(seven?.color?.toLowerCase(), "#888888", "with the colour it comes back in");
         harness.session.dispose();
     });
+
+    it("name a member each once a run has answered, so a tick can follow its group into another run", async () => {
+        const published = async (context: RunExecutionContext): Promise<RunOutcome> => {
+            const outcome = await partition(context);
+            // A real executor says which fields it filled; its descriptors know nothing of the catalog's facts.
+            return { ...outcome, fields: outcome.result?.fields ?? [] };
+        };
+        const harness = makeSession({ runs: { execute: published } });
+        harness.add(MEMBERSHIP.map(([id]) => ({ id })));
+
+        const run = harness.session.runs.start("louvain", {}, { style: false });
+        await run;
+
+        const group = run.fields.find((field) => field.name === "group");
+        assert.strictEqual(group?.unstable, true, "the run's field keeps what the catalog declares of it");
+        const read = harness.session.scope.histogram(`results.${run.id}.group`, { as: "categorical" });
+        assert.strictEqual(read.kind, "categorical");
+        if (read.kind === "categorical") {
+            assert.isTrue(
+                read.values.every((each) => each.member !== undefined),
+                "each group names a member",
+            );
+        }
+    });
+});
+
+describe("a node's structure value", () => {
+    it("reads the same degree the table sorts by, and nothing for what is no structure value", () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }, { id: "b" }, { id: "c" }]);
+
+        assert.strictEqual(harness.session.data.structureValue("a", "graphty.degree"), 0);
+        assert.isUndefined(harness.session.data.structureValue("nobody", "graphty.degree"));
+        assert.isUndefined(harness.session.data.structureValue("a", "name"));
+    });
 });

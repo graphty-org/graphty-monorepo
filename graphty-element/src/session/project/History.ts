@@ -602,6 +602,26 @@ export class History<P> {
     }
 
     /**
+     * Discard the redo tail, as recording a new step does: the undone steps can no longer be redone.
+     */
+    dropRedo(): void {
+        if (this.cursor === this.entries.length) {
+            return;
+        }
+
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
+
+        this.mergeable = false;
+        this.changed("restore");
+    }
+
+    /**
      * Drop every step: the current state becomes the baseline.
      * @param baseline - The arrangement now, the new A(0).
      */

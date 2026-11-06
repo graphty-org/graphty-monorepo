@@ -36,6 +36,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
+import { bpmnPicture, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -342,7 +343,11 @@ function strokeOf(refs: References, v: unknown): Stroke | typeof NULL | null {
         }
     }
     const w = prop(x, "thickness");
-    return { color: paintOf(refs, prop(x, "fill"), null), width: typeof w === "string" ? w : 1, line };
+    return {
+        color: paintOf(refs, prop(x, "fill"), null),
+        width: typeof w === "string" ? w : (treeText(treeChild(w, "Double")) ?? 1),
+        line,
+    };
 }
 
 /**
@@ -621,15 +626,16 @@ const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?:
 ]);
 
 /**
- * Reads a `bpmn:` node style: `background` and `outline` paint the shape its kind draws. The markers, icons and
- * second rings inside it are not read. yFiles' own GroupNodeStyle has the same local name, and neither color.
+ * Reads a `bpmn:` node style: `background` and `outline` paint the shape its kind draws, and its symbols are drawn as
+ * a picture over it (`bpmnPicture`). yFiles' own GroupNodeStyle has the same local name, and neither color.
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
  * @returns true when the style is one of these
  */
-function readBpmnStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
     const look = BPMN_STYLES.get(style.tag);
     const background = prop(style, "background");
     const outline = prop(style, "outline");
@@ -660,32 +666,120 @@ function readBpmnStyle(refs: References, style: StyleObject, put: PutValue, at: 
     if (look.cornerRadius !== undefined) {
         put("cornerRadius", look.cornerRadius);
     }
+    if (size !== null) {
+        putBpmnPicture(refs, style, size, put, at);
+    }
     return true;
 }
 
 /**
- * Reads a UMLNodeStyle as yEd Live 8.5.16 draws it (`yed-live-graphml-specimen-node-shapes-p7`): a box with corners of
- * 10, outlined in its `fill` 2 wide, its model's `className` in white at the top. yEd Live sizes the box from its rows
- * as it loads the file, so the stored size is what is read; the sections and their rows are not drawn.
+ * Writes the picture of a BPMN node's symbols, in its `iconColor` (black unset), where it has any.
  * @param refs - the references
  * @param style - the style
+ * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
  */
-function readUmlStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): void {
+function putBpmnPicture(refs: References, style: StyleObject, size: Size, put: PutValue, at: SiteOf): void {
+    const paint = paintOf(refs, prop(style, "iconColor") ?? BLACK, null);
+    const color = paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("image"));
+    const picture = bpmnPicture(style.tag, (name) => treeAttr(style.e, name), size, color?.color ?? "#000000");
+    if (picture !== null) {
+        put("image", picture);
+        put("imageFit", "fill");
+        put("imageClip", "none");
+    }
+}
+
+/** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */
+const UML_NAME_DROP = 13;
+
+/**
+ * The words of a UMLClassModel: its name's neighbours and its two sections.
+ * @param model - the model's element
+ * @returns the words
+ */
+function umlClass(model: unknown): UmlClass {
+    const rows = (name: string): string[] =>
+        treeChildren(treeChild(treeChild(model, `UMLClassModel.${name}`), "Array"), "String").map(
+            (row) => treeText(row) ?? "",
+        );
+    return {
+        stereotype: treeAttr(model, "stereotype") ?? "",
+        constraint: treeAttr(model, "constraint") ?? "",
+        sections: [
+            { name: "Attributes", rows: rows("attributes"), open: treeAttr(model, "attributesOpen") !== "false" },
+            { name: "Operations", rows: rows("operations"), open: treeAttr(model, "operationsOpen") !== "false" },
+        ],
+    };
+}
+
+/**
+ * Reads a UMLNodeStyle as yEd Live 8.5.16 draws it (`yed-live-graphml-specimen-node-shapes-p7`): a box with corners of
+ * 10, outlined in its `fill` 2 wide, its model's `className` in white at the top, and its sections drawn as a picture
+ * over it (`umlDrawing`) at the size they need.
+ * @param refs - the references
+ * @param style - the style
+ * @param size - the node's stored size
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readUmlStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
     const fill = paintOf(refs, prop(style, "fill"), null);
     putPaint(fill, "fill", "fillOpacity", put, at);
     putStroke({ color: fill, width: 2, line: "solid" }, put, at);
     put("shape", "round-rectangle");
     put("cornerRadius", 10);
     const model = refs.deref(prop(style, "model"));
-    const name =
-        model === null || model === NULL || typeof model !== "object" ? undefined : treeAttr(model.e, "className");
+    if (model === null || model === NULL || typeof model !== "object") {
+        return;
+    }
+    const name = treeAttr(model.e, "className");
     if (name !== undefined) {
         put("label", canonText(name, at("label")));
         put("labelColor", "#ffffff");
         put("labelPosition", "inside-top");
+        put("labelOffsetY", UML_NAME_DROP);
     }
+    const color = fill === null || fill === NULL ? null : canonColor(fill.raw, fill.dialect, at("fill"));
+    const drawing = umlDrawing(umlClass(model.e), size ?? { width: 0, height: 0 }, color?.color ?? "none");
+    put("width", drawing.width);
+    put("height", drawing.height);
+    put("image", drawing.picture);
+    put("imageFit", "fill");
+}
+
+/**
+ * Reads a style that draws a picture: an ImageNodeStyle's `href` and a ColoredIconNodeStyle's `image`, stretched to the
+ * node, with no body but an ImageNodeStyle's background. yEd Live 8.5.16 draws the icon in its own colors whatever its
+ * `color` (`yed-live-graphml-specimen-node-shapes-p7`).
+ * @param refs - the references
+ * @param style - the style
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns true when the style is one of these
+ */
+function readPictureStyle(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
+    if (style.tag !== "ImageNodeStyle" && style.tag !== "ColoredIconNodeStyle") {
+        return false;
+    }
+    const src = treeAttr(style.e, "href") ?? treeText(treeChild(style.e, `${style.tag}.image`));
+    if (src === null) {
+        return true;
+    }
+    const fill = prop(style, "backgroundFill");
+    const stroke = prop(style, "backgroundStroke");
+    if (fill === undefined && stroke === undefined) {
+        put("shape", "none");
+    } else {
+        putPaint(paintOf(refs, fill, null), "fill", "fillOpacity", put, at);
+        putStroke(strokeOf(refs, stroke), put, at);
+        put("shape", treeAttr(style.e, "backgroundShape") === "ELLIPSE" ? "ellipse" : "rectangle");
+    }
+    put("image", src.trim());
+    put("imageFit", "fill");
+    put("imageClip", "none");
+    return true;
 }
 
 /** How far yEd Live 8.5.16's GroupNodeStyle frames its panel on a side with no tab (`yed-live-graphml-specimen-groups`). */
@@ -793,11 +887,14 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, put, at)) {
+    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {
-        readUmlStyle(refs, style, put, at);
+        readUmlStyle(refs, style, size, put, at);
+        return;
+    }
+    if (readPictureStyle(refs, style, put, at)) {
         return;
     }
     putPaint(
@@ -1215,7 +1312,26 @@ const NODE_LABEL_MODELS: ReadonlyMap<string, "outside" | "inside"> = new Map([
     ["InteriorNodeLabelModelParameter", "inside"],
     ["InteriorStretchLabelModelParameter", "inside"],
     ["StretchNodeLabelModelParameter", "inside"],
+    ["GroupNodeLabelModelParameter", "inside"],
 ]);
+
+/** The models that hang a label's top left corner from the node's by a `LayoutOffset`. */
+const FREE_NODE_LABEL_MODELS: ReadonlySet<string> = new Set([
+    "FreeNodeLabelModelParameter",
+    "RatioAnchoredLabelModelParameter",
+]);
+
+/**
+ * How far right of a free label's corner yEd Live draws its words: it centers them in a box it measures a little wider
+ * than it draws them (0.2 to 1.1 px, most 0.8, on `graphml-yfiles-html-stag-flowchart`'s 35 labels; none down).
+ */
+const FREE_LABEL_WORDS_INSET = 0.8;
+
+/** The attributes a node label model states its label's distance from the node's side in. */
+const MODEL_GAP_ATTRIBUTES = ["Padding", "Insets", "Margins", "YOffset"];
+
+/** How far down a group's top a yFiles group label's middle is: the middle of the tab and the frame round it. */
+const GROUP_LABEL_MIDDLE = (18 + GROUP_FRAME) / 2;
 
 /** A `{x:Static y:SomeLabelModel.Position}` markup extension: the model's local name and the member. */
 const STATIC_PARAMETER = /^\{\s*[\w.-]*:?Static\s+(?:[\w.-]+:)?(\w+)\.(\w+)\s*\}$/;
@@ -1237,13 +1353,21 @@ function layoutParameter(refs: References, label: unknown): StyleObject | null {
         }
     }
     const p = refs.deref(attr ?? treeChild(label, "Label.LayoutParameter"));
-    return p === null || p === NULL || typeof p !== "object" ? null : p;
+    if (p === null || p === NULL || typeof p !== "object") {
+        return null;
+    }
+    if (p.tag !== "CompositeLabelModelParameter") {
+        return p;
+    }
+    // a composite model places its label by the parameter of the model it holds
+    const inner = refs.deref(treeChild(p.e, "CompositeLabelModelParameter.Parameter"));
+    return inner === null || inner === NULL || typeof inner !== "object" ? null : inner;
 }
 
 /**
  * Where yFiles draws a node label, from its layout parameter's model and `Position`: outside the node for the
- * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models, and the center for a
- * centered position or any other model (the free and ratio-anchored models' offsets have no neutral property). A
+ * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models and on a group's top, and
+ * the center for a centered position or any other model (`readLabelPlace` moves a free model's label from there). A
  * label with no layout parameter at all sits below the node, as yEd Live 8.5.16 draws every such label on its sheets;
  * no file saved by yEd Live in the corpus leaves one out.
  * @param refs - the references
@@ -1258,6 +1382,9 @@ function labelPositionOf(refs: References, label: unknown): string {
     const model = parameter === null ? undefined : NODE_LABEL_MODELS.get(parameter.tag);
     if (parameter === null || model === undefined) {
         return "center";
+    }
+    if (parameter.tag === "GroupNodeLabelModelParameter") {
+        return "inside-top";
     }
     const raw = treeAttr(parameter.e, "Position") ?? "";
     const side = SIDES.get(raw.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", ""));
@@ -1282,6 +1409,95 @@ function labelBoxOf(refs: References, label: unknown, position: string): string 
         return null;
     }
     return tag.includes("Stretch") && !/left|right/.test(position) ? "target-width" : "words-at-side";
+}
+
+/**
+ * The distance from the node's side its label model states, for a shared model that says one.
+ * @param refs - the references
+ * @param parameter - the label's layout parameter
+ * @returns the distance, or 0
+ */
+function modelGap(refs: References, parameter: StyleObject): number {
+    const model = refs.deref(treeAttr(parameter.e, "Model"));
+    if (model === null || model === NULL || typeof model !== "object") {
+        return 0;
+    }
+    const name = MODEL_GAP_ATTRIBUTES.find((a) => treeAttr(model.e, a) !== undefined);
+    const gap = name === undefined ? Number.NaN : Number(treeAttr(model.e, name));
+    return Number.isFinite(gap) ? gap : 0;
+}
+
+/**
+ * Reads how far from where its position puts it a node label is drawn: a free model's label by its top left corner, a
+ * group's label on the middle of its tab, and any other model's by the distance the model states, in from the side of
+ * a label inside the node and out from it otherwise.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param position - where the label is placed
+ * @param size - the node's size
+ * @param put - receives the values
+ * @returns whether the label's place is set, so the words' alignment in its box must leave it
+ */
+function readLabelPlace(refs: References, label: unknown, position: string, size: Size | null, put: PutValue): boolean {
+    const parameter = layoutParameter(refs, label);
+    if (parameter === null) {
+        return false;
+    }
+    if (parameter.tag === "GroupNodeLabelModelParameter") {
+        put("labelOffsetY", GROUP_LABEL_MIDDLE);
+        put("labelShiftY", -0.5);
+        return true;
+    }
+    const offset = treeAttr(parameter.e, "LayoutOffset")?.split(",").map(Number) ?? [];
+    if (
+        FREE_NODE_LABEL_MODELS.has(parameter.tag) &&
+        size !== null &&
+        offset.length === 2 &&
+        offset.every(Number.isFinite)
+    ) {
+        put("labelOffsetX", offset[0] - size.width / 2 + FREE_LABEL_WORDS_INSET);
+        put("labelOffsetY", offset[1] - size.height / 2);
+        put("labelShiftX", 0.5);
+        put("labelShiftY", 0.5);
+        return true;
+    }
+    const inside = position.startsWith("inside-");
+    const gap = modelGap(refs, parameter) * (inside ? 1 : -1);
+    const toward = (low: string, high: string): number =>
+        Number(position.includes(low)) - Number(position.includes(high));
+    const [x, y] = [toward("left", "right"), toward("top", "bottom")];
+    if (gap !== 0 && inside && size !== null && !parameter.tag.includes("Stretch")) {
+        // the model's distance is the words', and a box here stands off them: pin the words themselves
+        put("labelPosition", "center");
+        put("labelOffsetX", x * (gap - size.width / 2) || null);
+        put("labelOffsetY", y * (gap - size.height / 2) || null);
+        put("labelShiftX", x / 2 || null);
+        put("labelShiftY", y / 2 || null);
+        return true;
+    }
+    put("labelOffsetX", x * gap || null);
+    put("labelOffsetY", y * gap || null);
+    return false;
+}
+
+/**
+ * Reads where a label's words stand in a box larger than them: a style's `minimumSize` makes the label's box, and
+ * its text alignments hold the words against that box's sides. Read for a label in its node's middle, the box's.
+ * @param ls - the label style
+ * @param put - receives the values
+ */
+function readWordsInBox(ls: StyleObject, put: PutValue): void {
+    const box = (treeAttr(ls.e, "minimumSize") ?? "").split(",").map(Number);
+    if (box.length !== 2 || !box.every(Number.isFinite)) {
+        return;
+    }
+    const side = (name: string, low: string, high: string): number =>
+        Number(treeAttr(ls.e, name) === high) - Number(treeAttr(ls.e, name) === low);
+    const [x, y] = [side("horizontalTextAlignment", "LEFT", "RIGHT"), side("verticalTextAlignment", "TOP", "BOTTOM")];
+    put("labelOffsetX", (x * box[0]) / 2 || null);
+    put("labelShiftX", -x / 2 || null);
+    put("labelOffsetY", (y * box[1]) / 2 || null);
+    put("labelShiftY", -y / 2 || null);
 }
 
 /** yFiles' edge label sides (`SideOfEdge`, and the nine-position model's middle row), as neutral positions. */
@@ -1328,8 +1544,9 @@ function edgeLabelPositionOf(refs: References, label: unknown): string | null {
  * @param data - the `<data>` content of the NodeLabels or EdgeLabels key
  * @param put - receives the values
  * @param at - the sites
+ * @param size - a node's size
  */
-function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf): void {
+function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf, size: Size | null): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
@@ -1352,10 +1569,12 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
+    let inBox = false;
     if (at("label").target === "node") {
         const position = labelPositionOf(refs, label);
         put("labelPosition", position);
         put("labelBox", labelBoxOf(refs, label, position));
+        inBox = !readLabelPlace(refs, label, position, size, put) && position === "center";
     } else {
         put("labelPosition", edgeLabelPositionOf(refs, label));
     }
@@ -1364,8 +1583,26 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         return;
     }
     putPaint(paintOf(refs, prop(ls, "textFill"), null), "labelColor", null, put, at);
+    if (inBox) {
+        readWordsInBox(ls, put);
+    }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+}
+
+/**
+ * What a BPMN label style fills its box with: an annotation's `background`, and a message's `initiatingColor`, or its
+ * `responseColor` when `isInitiating` is false, as yEd Live 8.5.16 draws `yed-live-graphml-specimen-labels-p5`.
+ * @param ls - the label style
+ * @returns the fill
+ */
+function bpmnLabelFill(ls: StyleObject): unknown {
+    if (ls.tag === "AnnotationLabelStyle") {
+        return prop(ls, "background") ?? "#FFFFFFFF";
+    }
+    return treeAttr(ls.e, "isInitiating") === "false"
+        ? (prop(ls, "responseColor") ?? "#FF808080")
+        : (prop(ls, "initiatingColor") ?? "#FFFFFFFF");
 }
 
 /**
@@ -1377,8 +1614,10 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
  * @param at - the sites
  */
 function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: SiteOf): void {
-    const fill = prop(ls, "backgroundFill");
-    const stroke = strokeOf(refs, prop(ls, "backgroundStroke"));
+    const bpmn = ls.tag === "AnnotationLabelStyle" || ls.tag === "MessageLabelStyle";
+    const fill = bpmn ? bpmnLabelFill(ls) : prop(ls, "backgroundFill");
+    // an annotation's `outline` is its bracket, no box round the words
+    const stroke = strokeOf(refs, prop(ls, ls.tag === "MessageLabelStyle" ? "outline" : "backgroundStroke"));
     if (fill === undefined && (stroke === null || stroke === NULL)) {
         return;
     }
@@ -1387,7 +1626,10 @@ function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: Site
         putPaint(stroke.color, "labelBorderColor", "labelBorderOpacity", put, at);
         put("labelBorderWidth", canonNumber(stroke.width, at("labelBorderWidth")));
     }
-    put("labelPadding", canonNumber(prop(ls, "padding") ?? prop(ls, "insets") ?? "0", at("labelPadding")));
+    const padding = prop(ls, "padding") ?? prop(ls, "insets") ?? (ls.tag === "AnnotationLabelStyle" ? "5" : "0");
+    put("labelPadding", canonNumber(padding, at("labelPadding")));
+    // the 3.0 styles' box is the words' own line, 12 tall at 10 px; the 2.6 style's is 14
+    put("labelLineHeight", ls.tag === "DefaultLabelStyle" ? null : 1);
 }
 
 /**
@@ -1468,7 +1710,7 @@ function readYfiles3Target(
             readEdgeStyle(refs, cell(style, i), put, at);
         }
         if (labels !== undefined) {
-            readLabels(refs, cell(labels, i), put, at);
+            readLabels(refs, cell(labels, i), put, at, size);
         }
     }
     return out.values;

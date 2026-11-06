@@ -2,6 +2,7 @@ import type { StyleRow } from "@graphty/graphty-element/session";
 import { Menu } from "@mantine/core";
 import React, { Fragment } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -35,6 +36,9 @@ export function RowMenuItems({
     onMoveTo: (folderId: string | null) => void;
 }>): React.JSX.Element {
     const workspace = useWorkspace();
+    // The `selection-workspace` experiment's menus draw no sentences: the row stays disabled, and says
+    // why on hover.
+    const calm = selectionWorkspaceOn(workspace.session);
     // A reason several rows share is drawn once, under the first of them.
     const said = new Set<string>();
     const groups = GROUPS.map((group) => {
@@ -54,7 +58,7 @@ export function RowMenuItems({
                         icon={<Glyph size={14} aria-hidden />}
                         shortcut={command.rowKeys[0]}
                         reason={reason}
-                        reasonDrawn={drawn}
+                        reasonDrawn={drawn && !calm}
                         onRun={() => {
                             void command.run(workspace, row); // NOSONAR(S3735): a deliberately unawaited promise, marked as no-floating-promises asks
                         }}

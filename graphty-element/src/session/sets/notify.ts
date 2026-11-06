@@ -39,6 +39,7 @@ import type { RunId, SetId } from "../../catalog/types";
 export type MovedInput =
     | { readonly kind: "sets"; readonly ids: readonly SetId[] }
     | { readonly kind: "selection" }
+    | { readonly kind: "hover" }
     | { readonly kind: "visibility" }
     | { readonly kind: "run"; readonly run: RunId }
     | { readonly kind: "attributes"; readonly element: "node" | "edge"; readonly fields: readonly string[] }

@@ -12,3 +12,5 @@ export function modeGlobals(
     forced: Record<string, unknown>,
     mode: Record<string, unknown> | null | undefined,
 ): Record<string, unknown>;
+
+export function shotsDisagreed(result: { status?: string; flaky?: boolean }): boolean;

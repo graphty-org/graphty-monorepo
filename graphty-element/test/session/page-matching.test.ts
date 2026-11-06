@@ -51,6 +51,25 @@ describe("a page narrowed by matching text", () => {
         session.dispose();
     });
 
+    it("names: true looks only at the id and the label column, never the other columns", async () => {
+        const session = await cast();
+        await session.config.set({ data: { knownFields: { nodeLabelPath: "role" } } });
+        // "52" is two ages: by name it matches nothing.
+        assert.strictEqual(session.data.nodePage({ matching: { text: "52", names: true } }).total, 0);
+        assert.strictEqual(session.data.nodePage({ matching: { text: "52" } }).total, 2);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "may", names: true } })), ["Valjean"]);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "jav", names: true } })), ["Javert"]);
+        session.dispose();
+    });
+
+    it("names: true on a graph with no label column reads every value, so a name column is found", async () => {
+        const session = await cast();
+        // No label column: the cast's names are in "role", as a file's "name" column would be.
+        assert.strictEqual(session.data.nodePage({ matching: { text: "mayor", names: true } }).total, 1);
+        assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "may", names: true } })), ["Valjean"]);
+        session.dispose();
+    });
+
     it("takes the text modes selection.apply({ text }) takes, as a mode or a prefix", async () => {
         const session = await cast();
         assert.deepStrictEqual(ids(session.data.nodePage({ matching: { text: "52", mode: "exact" } })), [
@@ -86,6 +105,21 @@ describe("a page narrowed by matching text", () => {
         assert.deepStrictEqual(
             byValue.records.map((edge) => [edge.source, edge.target]),
             [["Jondrette", "Fantine"]],
+        );
+        session.dispose();
+    });
+    it("sorts nodes by a structure path: the most connected first", async () => {
+        const session = await cast();
+        const page = session.data.nodePage({
+            matching: { text: "j", mode: "starts-with" },
+            sort: { key: "graphty.degree", descending: true },
+            limit: 8,
+        });
+        // Javert and Jondrette have one edge each; graph order keeps Javert first among equals.
+        assert.deepStrictEqual(ids(page), ["Javert", "Jondrette"]);
+        assert.deepStrictEqual(
+            ids(session.data.nodePage({ sort: { key: "graphty.degree", descending: true }, limit: 2 })),
+            ["Valjean", "Cosette"],
         );
         session.dispose();
     });

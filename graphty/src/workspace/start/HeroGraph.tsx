@@ -1,6 +1,6 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { definePalette } from "@graphty/graphty-element/extend";
-import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
+import type { LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from "rea
 import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
 import { GLYPHS } from "../glyphs";
+import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "./heroLook";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
@@ -44,9 +45,6 @@ const HERO_STILL_LAYOUT_BEHAVIOR = { ...HERO_LAYOUT_BEHAVIOR, layout: { preSteps
  */
 const HERO_SELECTION_STYLE = { opacity: 0 };
 
-/** How solid the highlight around the focused node is. */
-const HIGHLIGHT_OPACITY = 0.5;
-
 /** Every node's diameter, in scene units, while nothing sizes the nodes by a result. */
 const NODE_SIZE = 2.56;
 
@@ -55,30 +53,6 @@ const HERO_SEED = 9;
 
 /** How fast the graph turns, in radians per second: a slow, steady drift. */
 const TURN_SPEED = 0.15;
-
-/** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
-const LOOK = {
-    light: {
-        ring: "#97c800",
-        path: "#588300",
-        edge: "#2a3045",
-        edgeOpacity: 0.45,
-        hot: "#14161f",
-        node: "#6b7286",
-        surface: "#ffffff",
-        text: "#14161f",
-    },
-    dark: {
-        ring: "#c4f23a",
-        path: "#c4f23a",
-        edge: "#9aa3b8",
-        edgeOpacity: 0.65,
-        hot: "#f2f3f7",
-        node: "#9aa3b8",
-        surface: "#1a1c24",
-        text: "#f2f3f7",
-    },
-} as const;
 
 /** The start page's community colors: muted, so the groups read without shouting. */
 const GROUP_PALETTE = {
@@ -100,9 +74,6 @@ const GROUP_PALETTE = {
         "#ffbe7d",
     ],
 } as const;
-
-/** The edge width graphty-element draws when no layer sets one. */
-const EDGE_WIDTH = defaultEdgeStyle.line?.width ?? 1;
 
 /**
  * How the page names a node on the graph: a small card in the page's font and colors.

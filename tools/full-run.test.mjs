@@ -23,6 +23,7 @@ import {
     laneRedTitle,
     runsOnTitleCommit,
     flakyLanes,
+    t4Refusal,
     FLAKY_GROUP,
     flakyFilings,
     flakyStories,
@@ -234,6 +235,23 @@ describe("verdictOf", () => {
         assert.equal(verdictOf(lanes, 0, "Google refused the account").state, "owner-item");
         assert.equal(verdictOf(lanes, 0, "").state, "red");
         assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "refused").state, "red");
+    });
+
+    it("is an owner item when only the T4 lane failed on a refused runner, alone or with a refused LLM lane", () => {
+        const lanes = { ...ALL_GREEN, t4: "failure" };
+        assert.deepEqual(verdictOf(lanes, 0, "", "", "out of credit"), { state: "owner-item", red: ["t4"] });
+        assert.equal(verdictOf(lanes, 0).state, "red", "a T4 job that ran and failed stays red");
+        assert.equal(verdictOf({ ...lanes, llm: "failure" }, 0, "refused", "", "out of credit").state, "owner-item");
+        assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "", "", "out of credit").state, "red");
+    });
+
+    it("reads a refusal from the step Machine adds to the job, and from nothing else", () => {
+        // the step of run 41938085373 attempts 1 and 2, the only trace of the refusal: no log and no annotation
+        const step =
+            "Machine: This Machine account is out of credit. Add credit at https://app.machine.dev/settings/credits, then re-run this job.";
+        assert.match(t4Refusal(["", step]), /^machine\.dev refused the T4 job: This Machine account is out of credit/);
+        assert.equal(t4Refusal(["Run the GPU tests"]), "");
+        assert.equal(t4Refusal([""]), "");
     });
 
     it("is red, never green-images, when an expected capture is missing (#3698)", () => {
@@ -510,7 +528,8 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+            `#!/bin/bash\necho "$*" >> "${log}"\nif [[ "$2" == */attempts/* ]]; then echo "$T4_STEPS"; exit 0; fi\n` +
+                `if [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
                 `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/77; fi\n`,
             { mode: 0o755 },
         );
@@ -563,6 +582,8 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         );
         assert.match(opened.stdout, /^issue=77$/m);
         assert.equal(runLaneRed([], { LANE: "llm", OWNER_ITEM: "the key was refused" }).calls, "");
+        const refused = runLaneRed([], { T4_STEPS: "Machine: This Machine account is out of credit." });
+        assert.doesNotMatch(refused.calls, /issue/, "a refused T4 runner is the verdict's owner item too");
     });
 
     it("files on attempt 1 of a restart dispatched with GITHUB_TOKEN, which is never re-run (#4359)", () => {
@@ -673,17 +694,21 @@ describe("same-commit re-run", () => {
     it("calls a lane flaky when it was red before and passed on the re-run", () => {
         assert.deepEqual(flakyLanes(["ci", "t4"], ["ci"]), ["t4"]);
         assert.deepEqual(flakyLanes([], []), []);
+        assert.deepEqual(flakyLanes(["t4"], [], ["t4"]), [], "a refused lane ran nothing, so it proves nothing");
     });
 
     // the verdict as release.yml runs it, with a fake gh that logs every call and lists no open issue
     // openIssues: what the gh listing of priority:critical issues returns
-    const runVerdict = (env, { flaky = null, before = null, openIssues = [] } = {}) => {
+    // t4Steps: the failed steps of the T4 job that gh reports
+    const runVerdict = (env, { flaky = null, before = null, openIssues = [], t4Steps = "" } = {}) => {
         const dir = mkdtempSync(join(tmpdir(), "verdict-"));
         const log = join(dir, "calls.log");
         writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+            `#!/bin/bash\necho "$*" >> "${log}"\n` +
+                `if [[ "$2" == */attempts/* ]]; then echo "${t4Steps}"; exit 0; fi\n` +
+                `if [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
                 `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/88; fi\n`,
             {
                 mode: 0o755,
@@ -747,9 +772,24 @@ describe("same-commit re-run", () => {
 
     it("files nothing on attempt 1 red on a lane, records it for the re-run, and holds nothing yet", () => {
         const v = runVerdict({ RUN_ATTEMPT: "1", LANES: lanesJson({ t4: "failure" }) });
-        assert.equal(v.calls, "", "no red issue, no bisect");
+        assert.doesNotMatch(v.calls, /issue|workflow run/, "no red issue, no bisect");
         assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.hold], ["red", "true", "none"]);
         assert.deepEqual([v.record.deferred, v.record.red], [true, ["t4"]]);
+    });
+    it("calls a T4 job refused by its runner an owner item at once: no re-run, no red issue, no bisect", () => {
+        const v = runVerdict(
+            { RUN_ATTEMPT: "1", LANES: lanesJson({ t4: "failure" }) },
+            { t4Steps: "Machine: This Machine account is out of credit." },
+        );
+        assert.doesNotMatch(v.calls, /issue|workflow run/);
+        assert.deepEqual([v.outputs.state, v.outputs.deferred], ["owner-item", "false"]);
+        assert.match(v.outputs.what, /^machine\.dev refused the T4 job: This Machine account is out of credit/);
+        assert.deepEqual([v.record.deferred, v.record.refused], [false, ["t4"]]);
+    });
+    it("files no flaky lane when a re-run passes a lane the attempt before had refused", () => {
+        const v = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson() }, { before: { red: ["t4"], refused: ["t4"] } });
+        assert.equal(v.outputs.state, "green-clean");
+        assert.doesNotMatch(v.calls, /issue create/);
     });
     it("files a lane green on the re-run, and a story the re-capture found flaky, as flaky, and blocks on neither", () => {
         const v = runVerdict(

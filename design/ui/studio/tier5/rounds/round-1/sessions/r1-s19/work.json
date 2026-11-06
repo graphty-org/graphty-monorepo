@@ -1,0 +1,43 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "volunteers-shifts.graphml"
+  ]
+ },
+ "end": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "layer-1_1 Layer 1",
+   "layer-1_2 Layer 1",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"union\",\"side\":\"edges\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0o7v4d2\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0o83lq3\",\"op\":\"keep\",\"rule\":{\"kind\":\"range\",\"attribute\":\"data.shifts\",\"min\":2},\"mode\":\"range\"}],\"color\":\"#009E73\"}]}"
+  ],
+  "sources": [
+   "volunteers-shifts.graphml"
+  ]
+ },
+ "gone": {}
+}

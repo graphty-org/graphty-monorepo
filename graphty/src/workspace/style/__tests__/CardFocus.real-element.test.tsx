@@ -14,15 +14,17 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /**
  * Les Miserables in the workspace, with a layer "Picked" holding a name condition and a color,
  * opened in the inspector's Style tab.
+ * @param cards - Select a twin beside it, for its condition cards.
  * @returns The session.
  */
-async function openPicked(): Promise<GraphSession> {
+async function openPicked(cards = false): Promise<GraphSession> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
     const session = await waitFor(() => {
@@ -42,6 +44,11 @@ async function openPicked(): Promise<GraphSession> {
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
+    if (cards) {
+        // The cards of two selected layers: one alone opens the selection editor.
+        await selectWithTwin(session, "Picked");
+        return session;
+    }
     const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Picked, / }));
     return session;
@@ -57,7 +64,7 @@ async function whichRow(): Promise<HTMLElement> {
 
 describe("focus in the condition cards and property lines, on the real element", () => {
     it("Shift+Tab reaches a card's remove button before its value, and Escape there closes the cards", async () => {
-        await openPicked();
+        await openPicked(true);
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: /^name/ });
@@ -77,7 +84,7 @@ describe("focus in the condition cards and property lines, on the real element",
     });
 
     it("Done hands focus back to the Which row", async () => {
-        await openPicked();
+        await openPicked(true);
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Done" }));

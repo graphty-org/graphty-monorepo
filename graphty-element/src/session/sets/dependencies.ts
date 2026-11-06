@@ -201,7 +201,42 @@ class Collector {
                 this.itemRule(node.item);
                 return;
             case "threshold":
+            case "by-size":
                 this.path(node.path);
+                return;
+            case "union":
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+
+                if (Array.isArray(node.branches)) {
+                    for (const branch of node.branches as readonly Loose[]) {
+                        for (const step of Array.isArray(branch.steps) ? (branch.steps as readonly Loose[]) : []) {
+                            this.tree(step.rule);
+                        }
+                    }
+                }
+
+                return;
+            case "hops":
+            case "touching":
+            case "nonempty":
+                this.add({ kind: "topology" });
+                this.reference(node.of);
+                return;
+            case "same-value":
+                this.path(node.path);
+                this.reference(node.as);
+                return;
+            case "measure":
+                // The run a measure reads is found by definition, so the topology stands for it.
+                this.add({ kind: "topology" });
+                if (isObject(node.bind)) {
+                    for (const reference of Object.values(node.bind)) {
+                        this.reference(reference);
+                    }
+                }
+
                 return;
             case "all":
             case "any":
@@ -216,6 +251,19 @@ class Collector {
                 this.tree(node.of);
                 return;
             default:
+        }
+    }
+
+    /**
+     * A step's reference: a scope as any other, the live focus as the selection it falls back to,
+     * and `"so-far"` as nothing beyond the branch it sits in.
+     * @param reference - The reference.
+     */
+    private reference(reference: unknown): void {
+        if (reference === "hovered-or-selected") {
+            this.add({ kind: "selection" });
+        } else if (reference !== "so-far" && reference !== undefined) {
+            this.scope(reference);
         }
     }
 

@@ -10,7 +10,8 @@
  *   unstable and settled on its retry is `[FLAKY]`: loud, but it passes, as a test that fails and
  *   then passes on its retry does;
  * - a `flaky` item (its first shot differed from the baseline and its second matched, so it counts
- *   as unchanged) gets a `[FLAKY]` warning naming it; it never fails the run;
+ *   as unchanged) gets a `[FLAKY]` warning naming it; it never fails the run here, though in a story
+ *   test its test fails, so the retry and the test ledger judge it;
  * - any picture that is not `unchanged` or `excluded` (changed, new, unseeded, moved, removed,
  *   unstable, failed) sets `promotion.blocked`: promotion waits for the owner.
  *

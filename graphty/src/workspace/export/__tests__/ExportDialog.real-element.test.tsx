@@ -239,6 +239,21 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         }
     });
 
+    it("closes only the format's settings on Escape, leaving the dialog open", async () => {
+        await openScoredGraph();
+        const dialog = await openExport();
+        await pick(dialog, "Data");
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
+        await userEvent.click((await screen.findAllByRole("option", { name: /CSV/ }))[0]);
+        await userEvent.click(await within(dialog).findByRole("button", { name: /^Format settings/ }));
+        await screen.findByRole("dialog", { name: "Format settings" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Format settings" }));
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Export" }), "the dialog stays open");
+    });
+
     it("offers no edge table without edges, and names a tour's views by their plain names", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;

@@ -719,6 +719,11 @@ button.cm-entity-chip:hover { background: color-mix(in srgb, var(--cm-entity-ink
 .cm-dt.cm-dt-compact .cm-dt-cell:first-child,
 .cm-dt.cm-dt-compact .cm-dt-cell.cm-dt-header { padding: 0 4px; }
 .cm-dt .cm-dt-header { ${cmFont("body")} font-weight: 600; letter-spacing: normal; color: var(--cm-text); }
+/* rowColor: a row tinted in its group's color, marked by a bar at its start; selected wins the fill. */
+.cm-dt .cm-dt-row[data-row-color] > .cm-dt-cell {
+    background: color-mix(in srgb, var(--cm-dt-row-color) 16%, var(--cm-bg));
+}
+.cm-dt .cm-dt-row[data-row-color] > .cm-dt-cell:first-child { box-shadow: inset 3px 0 0 var(--cm-dt-row-color); }
 .cm-dt .cm-dt-row[aria-selected="true"] > .cm-dt-cell { background: var(--cm-bg-selected); }
 .cm-dt .cm-dt-cell[data-tone="warning"] { color: var(--cm-text-warning); }
 /* The active (keyboard) cell: a 1px box drawn inside the cell; the grid line stays. */

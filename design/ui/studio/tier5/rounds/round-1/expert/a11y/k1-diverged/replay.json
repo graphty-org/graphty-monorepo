@@ -1,0 +1,16 @@
+{
+ "route": "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1-void/expert/a11y/k1/route.jsonl",
+ "steps": 90,
+ "matched": 22,
+ "diverged": {
+  "step": 23,
+  "steps": [
+   "--key",
+   "Escape"
+  ],
+  "why": "the step printed other things: recorded [\"focus: treeitem \\\"role staff, 5 of 24 nodes so far\\\" selected\"], now [\"focus: button \\\"Edit Which nodes\\\"\",\"live: status (polite): \\\"Done, 5 of 24\\\"\"]",
+  "shot": "24.png",
+  "recordedShot": "24.png"
+ },
+ "seconds": 33
+}

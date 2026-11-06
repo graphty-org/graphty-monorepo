@@ -52,6 +52,22 @@ test("an exact control name wins over a dialog, heading or card whose words incl
         // two real controls of one name are still refused, each offered by kind
         f = await find(page, "Samples");
         assert.match(f.miss ?? "", /^ambiguous: "Samples" matches 2 controls/);
+        // a second control of a name the page holds only for a moment (a list still closing) is not
+        // a shared name: the matcher looks again and takes the one that stays
+        await page.evaluate(() => {
+            for (const t of ["Condition...", "Condition..."]) {
+                const b = document.createElement("button");
+                b.textContent = t;
+                document.body.append(b);
+            }
+            setTimeout(
+                () => document.querySelectorAll("button")[document.querySelectorAll("button").length - 1].remove(),
+                300,
+            );
+        });
+        f = await find(page, "Condition...");
+        assert.equal(f.miss, undefined, f.miss);
+        assert.equal(f.desc, 'button "Condition..."');
         // a container alone still answers to its name: nothing better bears it
         f = await find(page, "Node id contains P13, Hide");
         assert.equal(f.miss, undefined, f.miss);
@@ -76,6 +92,8 @@ test("a replay compares a refusal by what was refused and the candidates, not it
         'ambiguous: "Graph" matches 2 controls, so the step did nothing; name one: "Graph#1" button "Graph", "Graph#2" heading "Graph, pantries: 13 nodes, 18 edges"';
     assert.equal(refusalFacts(rival), refusalFacts(resolvedLine("Graph", 'button "Graph"')));
     assert.notEqual(refusalFacts(rival), refusalFacts(resolvedLine("Graph", 'link "Graph"')));
+    // a route an earlier replay recorded holds the replay's own note: the next replay knows it too
+    assert.equal(refusedName(resolvedLine("Graph", 'button "Graph"')), "Graph");
     // the position form, with candidates whose names hold commas
     const pos =
         'ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: "role=option:weight", "role=row:weight" (option "weight" in the open list, row "weight, number, 3 of 4")';

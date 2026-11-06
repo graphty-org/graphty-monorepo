@@ -1028,9 +1028,7 @@ failures in graphty-element's `test/fidelity/oracle-floors.json` and `oracle-kno
 
 Still open after fix round 1:
 
-- The free and ratio-anchored models' `LayoutOffset` (`model-free-offset`, `v2-model-...`): the neutral style
-  vocabulary has no label offset (shared with the other formats' label anchor and offset work). A label at an
-  edge's end, a segment's middle, or left or right of the edge's direction is not placed either.
+- A label at an edge's end, a segment's middle, or left or right of the edge's direction is not placed.
 - GroupNodeStyle stroke (`groups`, `groups-p2`, `groups-p3`: 39 groups): not an import defect. Every sheet writes the
   stroke (`#FF505050` 1, `stroke-group` `#FFFF0000` 2) and graphty draws it; draw.io, the stand-in, ignores
   `GroupNodeStyle.stroke` and draws every group outline black and 1 wide, the red 2-wide one too. yFiles documents the
@@ -5075,3 +5073,8 @@ Open: every other property still takes the rounded box. Moving `box` itself to t
 ids hold their boxes) and fails `yed-live-graphml-specimen-labels-p4` v2-model-exterior-north-east and -north-west
 label.offset and `gml-synthetic-coverage` edge 4->15 label.alongLine, three labels truly off that passed by under
 0.2 px.
+
+- yEd Live's UML sections and BPMN symbols (#5789, `yed-live-graphml-specimen-node-shapes-p4` to `-p7`) are one SVG
+  picture over the node; the comparison reads its pieces like the program's own SVG. Left: a BPMN event on a port and a
+  choreography's messages lie outside their node's box and are not drawn (`-p6`); the oracle's open lines (the loop and
+  script symbols) are no strays, so neither side's are judged.

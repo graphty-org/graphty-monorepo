@@ -1,0 +1,2 @@
+# The Graph researchers sample open (549 co-authors, 2,084 co-authorship edges), as Alex left it
+--click Graph researchers

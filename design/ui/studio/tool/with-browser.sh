@@ -23,6 +23,10 @@
 # BROWSER_SLOT_TRY=1 takes a free slot at once or gives up (exit 75), never waits, and never takes a
 # slot while anyone waits in the queue or one of the four shared slots: the warm pool (real.mjs --warm)
 # fills only spare slots above 4, so a waiting start or a test shard never waits behind it.
+# BROWSER_SLOT_ALSO=<pool folder>: a planted pool (BROWSER_SLOT_DIR) whose commands start real browsers
+# takes a slot of that pool too, after its own, so a self-test's planted pool never runs a browser
+# beside the machine's slots: real.mjs --prove's warm-pool and bounded-start checks each started GPU
+# browsers in a pool of their own, and next to 8 sessions the machine ran 9 (tier 5's tool dry run).
 set -u
 if [[ "${BROWSER_GPU:-}" == 1 ]]; then SLOTS=${BROWSER_SLOTS:-8}; else SLOTS=${BROWSER_SLOTS:-4}; fi
 if ! [[ "$SLOTS" =~ ^([1-9]|1[0-6])$ ]]; then
@@ -50,6 +54,18 @@ main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-d
 # BROWSER_SLOT_DIR: another pool, for the self-test that fills every slot
 DIR="${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}"
 mkdir -p "$DIR/queue"
+# Runs the command holding the slot on fd 9; with BROWSER_SLOT_ALSO, the lock moves to fd 7 and this
+# process becomes the gate of that pool (exec keeps its pid, which real.mjs names its tickets by)
+run_held() {
+    if [[ -n "${BROWSER_SLOT_ALSO:-}" ]]; then
+        exec 7>&9 9>&-
+        exec env -u BROWSER_SLOTS -u BROWSER_SLOT_ALSO BROWSER_SLOT_DIR="$BROWSER_SLOT_ALSO" "$here/with-browser.sh" "$@"
+    fi
+    "$@"
+    code=$?
+    flock -u 9
+    exit $code
+}
 # First come, first served: each waiter holds a ticket named by when it asked (nanoseconds, then its
 # pid), and only the oldest live ticket may take a free slot. Until 2026-10-21 every waiter retried
 # every 2 seconds in no order, so one start waited 14 minutes while later ones got slots (round 1's
@@ -62,10 +78,7 @@ if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
         exec 9>"$DIR/slot$i"
         if flock -n 9; then
             export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
-            "$@"
-            code=$?
-            flock -u 9
-            exit $code
+            run_held "$@"
         fi
         exec 9>&-
     done
@@ -99,10 +112,7 @@ while true; do
                 rm -f "$ticket"
                 trap - EXIT TERM INT HUP
                 export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
-                "$@"
-                code=$?
-                flock -u 9
-                exit $code
+                run_held "$@"
             fi
             exec 9>&-
         done

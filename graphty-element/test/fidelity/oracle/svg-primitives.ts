@@ -652,6 +652,50 @@ function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | n
 }
 
 /**
+ * The box a filled shape's own clip keeps of it, where the clip is a box on the screen that cuts the shape: yEd paints
+ * an entity relationship node twice, each time whole, and clips one to its header and the other to the rest. Any other
+ * clip, a box the shape lies inside or one it lies outside, is null: the shape is read whole.
+ * @param el - the shape
+ * @param root - the SVG
+ * @param m - the shape's matrix, which the clip's user space shares
+ * @param shape - the shape's box
+ * @returns the box kept, or null
+ */
+function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): PBox | null {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.getAttribute("clip-path") ?? "");
+    const clip = ref === null ? null : root.querySelector(`clipPath[id="${ref[1]}"] > path:only-child`);
+    const corners = straightPathVertices(clip?.getAttribute("d") ?? "")?.map(([x, y]) => at(m, x, y));
+    const box = corners === undefined || corners.length < 4 ? null : boxOfPoints(corners);
+    if (box === null || !corners?.every(([x, y]) => (x === box.x0 || x === box.x1) && (y === box.y0 || y === box.y1))) {
+        return null;
+    }
+    const kept = {
+        x0: Math.max(box.x0, shape.x0),
+        y0: Math.max(box.y0, shape.y0),
+        x1: Math.min(box.x1, shape.x1),
+        y1: Math.min(box.y1, shape.y1),
+    };
+    const cuts = kept.x0 > shape.x0 || kept.y0 > shape.y0 || kept.x1 < shape.x1 || kept.y1 < shape.y1;
+    return cuts && kept.x0 < kept.x1 && kept.y0 < kept.y1 ? kept : null;
+}
+
+/**
+ * The shapes without a cut fill painted over by a solid fill of the same box: nothing of it shows (yEd's panel group
+ * clips a flat fill to its label's band and draws the band over it).
+ * @param prims - the shapes, in drawing order
+ * @returns the shapes a reader sees
+ */
+function withoutHiddenCuts(prims: readonly Prim[]): Prim[] {
+    const same = (a: PBox, b: PBox): boolean =>
+        Math.max(Math.abs(a.x0 - b.x0), Math.abs(a.y0 - b.y0), Math.abs(a.x1 - b.x1), Math.abs(a.y1 - b.y1)) <= 0.5;
+    return prims.filter(
+        (p, i) =>
+            p.uncut === undefined ||
+            !prims.slice(i + 1).some((q) => q.fill !== null && q.fill.opacity === 1 && same(q.box, p.box)),
+    );
+}
+
+/**
  * An outline's points moved out (or in, for a negative distance) by a distance from its box's center on each axis:
  * the middle of the half of its stroke a clip keeps.
  * @param points - the outline
@@ -1289,6 +1333,14 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
                 stroke = { ...stroke, width: r3(stroke.width / 2) };
             }
+            const uncut = boxOfPoints(points);
+            const cut = fill !== null && stroke === null ? clipCut(el, root, m, uncut) : null;
+            if (cut !== null) {
+                points = points.map(([x, y]) => [
+                    Math.min(cut.x1, Math.max(cut.x0, x)),
+                    Math.min(cut.y1, Math.max(cut.y0, y)),
+                ]);
+            }
             // yEd fills a bar arrowhead's line there and back before stroking it: a fill with nothing inside paints
             // nothing, and the stroke after it stays next to its line (`index` is what says what follows a line)
             if (stroke === null && d !== "" && encloses(d) === false) {
@@ -1374,9 +1426,10 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(twoStrokes !== null && crossedStrokes(twoStrokes) ? { subpaths: twoStrokes } : {}),
                 ...(lettering ? { lettering: true as const } : {}),
                 ...(panel === null ? {} : { panel }),
+                ...(cut === null ? {} : { uncut }),
             });
         }
-        return { width: r3(rect.width), height: r3(rect.height), prims };
+        return { width: r3(rect.width), height: r3(rect.height), prims: withoutHiddenCuts(prims) };
     } finally {
         host.remove();
     }

@@ -15,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -79,6 +80,10 @@ describe("keys that close what they leave and land focus in the right place", ()
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
+        // The cards of two selected layers: one alone opens the selection editor.
+        await userEvent.keyboard("{Control>}");
+        await openRow("Picked");
+        await userEvent.keyboard("{/Control}");
         let region = screen.queryByRole("group", { name: "Which nodes" });
         if (region === null) {
             await userEvent.click(await whichRow());
@@ -104,7 +109,7 @@ describe("keys that close what they leave and land focus in the right place", ()
 
     it("Tab past Done closes the Which picker and keeps its cards", async () => {
         const { session } = await openGraph();
-        await openRow("Picked");
+        await selectWithTwin(session, "Picked");
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         within(region).getByRole("button", { name: "Done" }).focus();
@@ -118,8 +123,8 @@ describe("keys that close what they leave and land focus in the right place", ()
     });
 
     it("Shift+Tab from a card's value reaches the card's remove button, drawn at the card's top", async () => {
-        await openGraph();
-        await openRow("Picked");
+        const { session } = await openGraph();
+        await selectWithTwin(session, "Picked");
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const card = within(region).getByRole("group", { name: /^name/ });

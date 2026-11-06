@@ -101,6 +101,40 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
     ];
 }
 
+/**
+ * The attributes the join shader reads for one look. A pulled line reads none: `gl_VertexID`
+ * names its piece and corner.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The attribute names.
+ */
+function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
+    if (options.pulled === true) {
+        return [];
+    }
+
+    return [
+        "position",
+        "pPrev2",
+        "pPrev",
+        "pA",
+        "pB",
+        "pNext",
+        "pNext2",
+        "run",
+        ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
+    ];
+}
+
+/**
+ * The textures the join shader itself reads for one look: a pulled line's row and edge tables.
+ * @param options - The look.
+ * @returns The sampler names.
+ */
+function joinedLineSamplers(options: JoinedLineOptions): string[] {
+    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
+}
+
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
     directions: number[]; // Tangent directions
@@ -446,21 +480,7 @@ void main(void) {
                 ? { vertex: "edgeJoin", fragment: "edgeJoin" }
                 : { vertex: "edgeJoin", fragmentSource: program.fragment, spectorName: program.name },
             {
-                // A pulled line reads no attribute: gl_VertexID names its piece and corner.
-                attributes:
-                    options.pulled === true
-                        ? []
-                        : [
-                              "position",
-                              "pPrev2",
-                              "pPrev",
-                              "pA",
-                              "pB",
-                              "pNext",
-                              "pNext2",
-                              "run",
-                              ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
-                          ],
+                attributes: joinedLineAttributes(options, widened),
                 uniforms: [
                     "world",
                     "viewProjection",
@@ -477,10 +497,7 @@ void main(void) {
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),
                 ],
-                samplers: [
-                    ...(options.pulled === true ? ["rowPosition", "edgeRows"] : []),
-                    ...(program?.samplers ?? []),
-                ],
+                samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would

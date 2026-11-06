@@ -295,7 +295,7 @@ export function jumpToSelection(session: GraphSession, store: WorkspaceStore): v
  * @returns true on a phone.
  */
 export function onPhone(): boolean {
-    return window.matchMedia(PHONE_WIDTH).matches;
+    return globalThis.matchMedia(PHONE_WIDTH).matches;
 }
 
 /**

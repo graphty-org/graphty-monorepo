@@ -56,8 +56,8 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_TOOL_DENIED_BY_POLICY", {}, "Not allowed here. Nothing changed.", NONE],
     ["AI_TOOL_NOT_RUN", {}, "Not run.", NONE],
     ["AI_ANSWER_INVALID", {}, "That is not one of the choices.", NONE],
-    ["AI_HISTORY_UNAVAILABLE", {}, "This conversation is not being saved.", NONE],
-    ["AI_STORAGE_FAILED", {}, "This conversation is not being saved.", NONE],
+    ["AI_HISTORY_UNAVAILABLE", {}, "This chat is not being saved.", NONE],
+    ["AI_STORAGE_FAILED", {}, "This chat is not being saved.", NONE],
     ["AI_HISTORY_NEWER_FORMAT", {}, "Saved by a newer version of graphty, so it was left as it is.", NONE],
 ];
 

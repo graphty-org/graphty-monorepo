@@ -25,6 +25,7 @@
 
 .ws-assistant-actions {
     display: flex;
+    flex: none;
     gap: 2px;
 }
 
@@ -134,10 +135,48 @@
 
 .ws-assistant-list li {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 6px 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
     border-bottom: 1px solid var(--cm-border);
+}
+
+/* The header's chat switch, and each row's open button: the title gives way with an ellipsis. */
+.ws-assistant-switch,
+.ws-chat-open,
+.ws-chat-rename {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-assistant-switch {
+    flex: 0 1 auto;
+}
+
+.ws-assistant-switch .mantine-Button-label,
+.ws-chat-open .mantine-Button-label {
+    min-width: 0;
+}
+
+.ws-assistant-switch[aria-expanded="true"] .mantine-Button-section svg {
+    transform: rotate(180deg);
+}
+
+.ws-chat-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Keeps the titles of rows without the check in line with the checked one. */
+.ws-chat-nocheck {
+    display: inline-block;
+    width: 12px;
+}
+
+.ws-chat-date {
+    flex: none;
 }
 
 .ws-assistant-foot {

@@ -1,17 +1,23 @@
 import { EntityChip } from "@graphty/compact-mantine";
-import { ActionIcon, Button, Group, Text, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Select, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { type AssistantChoice, providerDescriptor } from "../assistant-door/provider";
+import {
+    type AssistantChoice,
+    effortLevels,
+    effortOf,
+    providerDescriptor,
+    writeAssistantChoice,
+} from "../assistant-door/provider";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { answerQuestion, type ScopeKind, scopeKind, send } from "./connection";
+import { answerQuestion, link, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
-import { hiddenWords, WORDS } from "./words";
+import { effortRows, hiddenWords, WORDS } from "./words";
 
 /** The scope a message goes with. */
 interface Scope {
@@ -119,6 +125,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
         }
     }, [composerCalls]);
     const running = isRunning(view.status);
+    const levels = effortLevels(choice);
     const empty = draft.trim() === "";
     const [question] = view.questions;
     const asking = view.approvals.length === 0 && question !== undefined;
@@ -180,18 +187,43 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                 />
             </div>
             <Group justify="space-between" gap={4} wrap="nowrap">
-                <Tooltip label={WORDS["assistant.model.tooltip"]}>
-                    <Button
-                        variant="subtle"
-                        color="gray"
-                        size="compact-xs"
-                        onClick={() => {
-                            run("settings.assistant");
-                        }}
-                    >
-                        {model}
-                    </Button>
-                </Tooltip>
+                <Group gap={4} wrap="nowrap">
+                    <Tooltip label={WORDS["assistant.model.tooltip"]}>
+                        <Button
+                            variant="subtle"
+                            color="gray"
+                            size="compact-xs"
+                            onClick={() => {
+                                run("settings.assistant");
+                            }}
+                        >
+                            {model}
+                        </Button>
+                    </Tooltip>
+                    {levels.length > 0 ? (
+                        <Tooltip label={WORDS["assistant.effort.tooltip"]}>
+                            <Select
+                                aria-label={WORDS["assistant.provider.effort"]}
+                                size="xs"
+                                w={88}
+                                allowDeselect={false}
+                                disabled={running}
+                                value={effortOf(choice) ?? null}
+                                data={effortRows(levels)}
+                                onChange={(picked) => {
+                                    const effort = levels.find((level) => level === picked);
+                                    if (effort === undefined || element === null) {
+                                        return;
+                                    }
+                                    const next = { ...choice, effort };
+                                    writeAssistantChoice(next);
+                                    // The assistant takes a new level by being set up again, as Settings' Save does.
+                                    void link(element, store, next).catch(() => undefined);
+                                }}
+                            />
+                        </Tooltip>
+                    ) : null}
+                </Group>
                 <Group gap={4} wrap="nowrap">
                     <Talk
                         provider={providerDescriptor(choice.provider).plainName}

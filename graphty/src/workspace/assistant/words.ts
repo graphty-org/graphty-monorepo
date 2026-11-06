@@ -20,15 +20,15 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
-import { providerDisclosure } from "../assistant-door/provider";
+import { type EffortLevel, providerDisclosure } from "../assistant-door/provider";
 import { formatNumber } from "../settings/numberFormat";
 import { attributeName, channelWord } from "../style/words";
 
 export const WORDS = {
     "assistant.name": "Assistant",
-    "assistant.title.new": "New conversation",
-    "assistant.title.tooltip": "Conversations",
-    "assistant.new": "New conversation",
+    "assistant.title.new": "New chat",
+    "assistant.title.tooltip": "Chats",
+    "assistant.new": "New chat",
     "assistant.close": "Close",
     "assistant.intro": "Ask about this graph or change it. It can be wrong.",
     "assistant.setup.line": "Needs a key from an AI provider. Nothing is sent until you add one.",
@@ -45,6 +45,7 @@ export const WORDS = {
     "assistant.stop": "Stop Esc",
     "assistant.talk": "Talk",
     "assistant.talk.stop": "Stop talking",
+    "assistant.talk.nothing": "Heard nothing.",
     "assistant.scope.graph": "Whole graph",
     "assistant.scope.selection": "Selection",
     "assistant.scope.use": "Use selection",
@@ -62,7 +63,7 @@ export const WORDS = {
     "assistant.waiting.invalid": "That is not one of the choices.",
     "assistant.answered": "The assistant answered",
     "assistant.model.tooltip": "Change provider or model",
-    "assistant.log.name": "Conversation",
+    "assistant.log.name": "Chat",
     "assistant.jump": "Jump to newest",
     "assistant.turn.you": "You",
     "assistant.turn.you-spoken": "You (spoken)",
@@ -70,12 +71,15 @@ export const WORDS = {
     "assistant.step.unnamed": "A step",
     "assistant.again": "Send again",
     "assistant.nothing-changed": "Nothing changed.",
-    "assistant.list.name": "Conversations",
-    "assistant.list.open": "Open",
+    "assistant.list.name": "Chats",
     "assistant.list.delete": "Delete",
-    "assistant.list.confirm": "Delete this conversation?",
+    "assistant.list.confirm": "Delete this chat?",
     "assistant.list.keep": "Keep it",
-    "assistant.list.untitled": "New conversation",
+    "assistant.list.untitled": "New chat",
+    "assistant.list.rename": "Rename",
+    "assistant.list.name-field": "Chat name",
+    "assistant.list.not-renamed": "Not renamed",
+    "assistant.notice.open": "Open",
     "assistant.working.writing": "Writing",
     "assistant.status.working": "Working",
     "assistant.status.ready": "Answer ready",
@@ -84,20 +88,53 @@ export const WORDS = {
     "assistant.status.transcript": "Transcript in the message box",
     "assistant.provider.provider": "Provider",
     "assistant.provider.model": "Model",
+    "assistant.provider.effort": "Effort",
+    "assistant.effort.tooltip": "How hard the model thinks before it answers. Lower answers sooner.",
+    "assistant.effort.off": "Off",
+    "assistant.effort.minimal": "Minimal",
+    "assistant.effort.low": "Low",
+    "assistant.effort.medium": "Medium",
+    "assistant.effort.high": "High",
     "assistant.provider.key": "API key",
     "assistant.provider.key-saved": "********************",
     "assistant.provider.remember": "Remember on this device",
     "assistant.provider.remember-note": "Stored in this browser, not encrypted.",
-    "assistant.provider.history-note": "Conversations stay in this browser, not encrypted.",
+    "assistant.provider.history-note": "Chats stay in this browser, not encrypted.",
     "assistant.provider.save": "Save",
     "assistant.provider.forget": "Forget key",
-    "assistant.provider.delete-all": "Delete all conversations",
-    "assistant.provider.delete-all-confirm": "Delete all conversations?",
+    "assistant.provider.delete-all": "Delete all chats",
+    "assistant.provider.delete-all-confirm": "Delete all chats?",
     "assistant.provider.delete-all-yes": "Delete all",
     "assistant.provider.delete-all-no": "Keep them",
 } as const;
 
+/**
+ * The chat list's label while it is open: "Chats 3".
+ * @param count - the rows it shows
+ * @returns the label
+ */
+export function chatsOpenLabel(count: number): string {
+    return `${WORDS["assistant.list.name"]} ${formatNumber(count)}`;
+}
+
+/**
+ * A chat row's menu button name: "{title} menu".
+ * @param title - the chat's title
+ * @returns the name
+ */
+export function chatMenuName(title: string): string {
+    return `${title} menu`;
+}
+
 /** The pages a reader makes a key on, by provider id; the app's, not catalog data. */
+/**
+ * An effort Select's rows.
+ * @param levels - the levels the model takes.
+ * @returns the rows.
+ */
+export const effortRows = (levels: readonly EffortLevel[]): { value: EffortLevel; label: string }[] =>
+    levels.map((level) => ({ value: level, label: WORDS[`assistant.effort.${level}`] }));
+
 export const KEY_PAGES: Readonly<Record<string, string>> = {
     google: "https://aistudio.google.com/apikey",
     openai: "https://platform.openai.com/api-keys",
@@ -298,7 +335,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return note("That is not one of the choices.");
         case "AI_HISTORY_UNAVAILABLE":
         case "AI_STORAGE_FAILED":
-            return note("This conversation is not being saved.");
+            return note("This chat is not being saved.");
         case "AI_HISTORY_NEWER_FORMAT":
             return note("Saved by a newer version of graphty, so it was left as it is.");
         default:

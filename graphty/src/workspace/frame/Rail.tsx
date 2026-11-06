@@ -26,7 +26,7 @@ function AssistantGlyph({ waiting }: Readonly<{ waiting: boolean }>): React.JSX.
 
 /**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
- * as the classic shell's activity rail pins it, and Assistant after Graph while the element has the
+ * as the classic shell's activity rail pins it, and Assistant after Data while the element has the
  * assistant experiment on, with a neutral dot while a request waits for the reader. Views is not drawn until it is built. Icon buttons with the shared
  * tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
  * @returns The rail
@@ -66,6 +66,15 @@ export function Rail(): React.JSX.Element {
                     run("place.graph");
                 }}
             />
+            <RailButton
+                icon={<GLYPHS.data size={20} aria-hidden />}
+                label="Data"
+                active={place === "data"}
+                aria-current={place === "data" ? "page" : undefined}
+                onClick={() => {
+                    run("place.data");
+                }}
+            />
             {assistant === null ? null : (
                 <RailButton
                     icon={<AssistantGlyph waiting={waiting} />}
@@ -84,15 +93,6 @@ export function Rail(): React.JSX.Element {
                     }}
                 />
             )}
-            <RailButton
-                icon={<GLYPHS.data size={20} aria-hidden />}
-                label="Data"
-                active={place === "data"}
-                aria-current={place === "data" ? "page" : undefined}
-                onClick={() => {
-                    run("place.data");
-                }}
-            />
             <RailButton
                 icon={<GLYPHS.notes size={20} aria-hidden />}
                 label="Notes"

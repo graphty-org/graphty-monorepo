@@ -72,13 +72,13 @@ describe("the Assistant with its experiment on", () => {
         writeAssistantChoice(null);
     });
 
-    it("sits after Graph on the rail, and in Quick actions and Keyboard shortcuts", async () => {
+    it("sits after Data on the rail, and in Quick actions and Keyboard shortcuts", async () => {
         await open();
         const rail = screen.getByRole("toolbar", { name: "Places" });
         const names = within(rail)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Graph", "Assistant", "Data", "Notes", "Settings"]);
+        assert.deepEqual(names, ["Graph", "Data", "Assistant", "Notes", "Settings"]);
 
         await userEvent.keyboard("{Control>}k{/Control}");
         await screen.findByRole("option", { name: /^Assistant/ });

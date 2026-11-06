@@ -147,8 +147,14 @@ const FIND = { action: "count", where: "data.group == 'even'" };
 const COLOR = { action: "add", where: "all", values: { "node.color": "#ff0000" } };
 const ids = (count: number): string[] => Array.from({ length: count }, (_, index) => `n${String(index)}`);
 
-/** A recognizer that hears one sentence, and a microphone the test browser does not have. */
-function fakeSpeech(): void {
+/**
+ * A recognizer that hears one sentence, and a microphone the test browser does not have.
+ * @param slow - true: a stopped recognizer ends only when the test calls the returned function,
+ * as a real one waits on its speech service.
+ * @returns ends every recognizer stopped so far.
+ */
+function fakeSpeech(slow = false): () => void {
+    const stopped: (() => void)[] = [];
     const recognizers: { onresult: ((event: unknown) => void) | null }[] = [];
     class Heard {
         continuous = false;
@@ -169,7 +175,12 @@ function fakeSpeech(): void {
             });
         }
         stop(): void {
-            queueMicrotask(() => this.onend?.());
+            const end = (): void => this.onend?.();
+            if (slow) {
+                stopped.push(end);
+            } else {
+                queueMicrotask(end);
+            }
         }
         abort(): void {
             this.stop();
@@ -182,6 +193,11 @@ function fakeSpeech(): void {
     vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(
         new AudioContext().createMediaStreamDestination().stream,
     );
+    return () => {
+        for (const end of stopped.splice(0)) {
+            end();
+        }
+    };
 }
 
 describe("checking what the Assistant says", () => {
@@ -246,7 +262,7 @@ describe("checking what the Assistant says", () => {
             assert.isTrue(store.get().dockOpen);
         });
         assert.strictEqual(session.selection.size, 2);
-        await screen.findByRole("region", { name: "Conversation" });
+        await screen.findByRole("region", { name: "Chat" });
     });
 
     it("words an empty result as a row naming what was searched", async () => {
@@ -327,7 +343,7 @@ describe("checking what the Assistant says", () => {
         const layers = session.styles.list().length;
         model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
         await say("Color them");
-        await screen.findByRole("region", { name: "Conversation" });
+        await screen.findByRole("region", { name: "Chat" });
         await within(log()).findByText("Colored 3 nodes");
         assert.lengthOf(screen.getAllByRole("button", { name: "Undo" }).filter(inLog), 1);
 
@@ -361,7 +377,7 @@ describe("checking what the Assistant says", () => {
         const layers = session.styles.list().length;
         model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
         await say("Color them");
-        await screen.findByRole("region", { name: "Conversation" });
+        await screen.findByRole("region", { name: "Chat" });
         await within(log()).findByText("Colored 3 nodes");
         await finished();
         await userEvent.keyboard("{Control>}z{/Control}");
@@ -746,7 +762,7 @@ describe("checking what the Assistant says", () => {
         const slot = await waitFor(notice);
         await within(slot).findByText("The assistant answered");
         await userEvent.click(within(slot).getByRole("button", { name: "Open" }));
-        await screen.findByRole("region", { name: "Conversation" });
+        await screen.findByRole("region", { name: "Chat" });
     });
 
     it("Shift+Mod+Space opens the panel from anywhere and starts listening", async () => {
@@ -789,6 +805,74 @@ describe("checking what the Assistant says", () => {
         await within(section).findByText("Remove 12 nodes?");
     });
 
+    it("a click on Talk latches, and a click on Stop talking stops with the words in the composer", async () => {
+        fakeSpeech();
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await screen.findByRole("button", { name: "Talk" });
+        const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
+        await waitFor(() => {
+            assert.strictEqual(field.value, "color these red");
+        });
+        assert.strictEqual(model.asked, 0, "nothing was sent");
+    });
+
+    it("Stop talking goes back to Talk at once, while what was heard is still being written down", async () => {
+        const finish = fakeSpeech(true);
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await screen.findByRole("button", { name: "Talk" });
+        finish();
+        const field = screen.getByRole<HTMLTextAreaElement>("textbox", COMPOSER);
+        await waitFor(() => {
+            assert.strictEqual(field.value, "color these red");
+        });
+    });
+
+    it("a press ending while a later one listens leaves Stop talking working", async () => {
+        const finish = fakeSpeech(true);
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await screen.findByRole("button", { name: "Stop talking" });
+        let ends = 0;
+        document.querySelector("graphty-element")?.addEventListener("ai-voice-end", () => {
+            ends++;
+        });
+        // The first press ends now, under the second.
+        finish();
+        await waitFor(() => {
+            assert.strictEqual(ends, 1);
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Stop talking" }));
+        await screen.findByRole("button", { name: "Talk" });
+        finish();
+        assert.isTrue(screen.getByRole("button", { name: "Talk" }).isConnected);
+    });
+
+    it("a press that heard nothing says so", async () => {
+        const finish = fakeSpeech(true);
+        vi.stubGlobal(
+            "webkitSpeechRecognition",
+            class
+                extends (globalThis as unknown as { webkitSpeechRecognition: new () => object }).webkitSpeechRecognition
+            {
+                start(): void {
+                    // A recognizer that never hears anything, as headless Chromium's.
+                }
+            },
+        );
+        await openOn(3);
+        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
+        finish();
+        await screen.findByText("Heard nothing.");
+        await screen.findByRole("button", { name: "Talk" });
+    });
+
     it("Talk lands the words in the composer without sending, and the sent message reads You (spoken)", async () => {
         fakeSpeech();
         await openOn(3);
@@ -816,7 +900,7 @@ describe("checking what the Assistant says", () => {
  * The conversation.
  * @returns the log.
  */
-const log = (): HTMLElement => screen.getByRole("region", { name: "Conversation" });
+const log = (): HTMLElement => screen.getByRole("region", { name: "Chat" });
 
 /**
  * The panel.

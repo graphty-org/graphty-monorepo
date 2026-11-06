@@ -24,7 +24,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-export type Place = "graph" | "assistant" | "data" | "notes";
+export type Place = "graph" | "data" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 export type Page = "panels" | "data-page";

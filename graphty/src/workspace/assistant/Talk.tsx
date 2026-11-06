@@ -59,8 +59,10 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
     const { element, store } = useWorkspace();
     const asked = useWorkspaceState((state) => state.assistantTalkPress);
     const [support, setSupport] = useState<AiVoiceSupport | null>(null);
+    /** The element's word on whether talk is on, read again after every press and voice event. */
     const [listening, setListening] = useState(false);
-    const on = useRef(false);
+    /** The press heard something, so its end need not say it heard nothing. */
+    const heardAny = useRef(false);
     const pressedAt = useRef<number | null>(null);
     /** The key is down: its repeats are no new press. */
     const keyDown = useRef(false);
@@ -81,15 +83,22 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
             setSupport(detail.support);
         };
         const start = (): void => {
-            setListening(true);
+            setListening(element.isAiTalking());
             store.set({ announcement: WORDS["assistant.status.listening"] });
         };
         const end = ({ detail }: CustomEvent<AiVoiceEndEvent>): void => {
-            on.current = false;
-            setListening(false);
-            onLine(detail.reason === "error" ? voiceWords(detail.params?.reason) : null);
+            // An earlier press still being transcribed may end while a later one listens.
+            setListening(element.isAiTalking());
+            if (detail.reason === "error") {
+                onLine(voiceWords(detail.params?.reason));
+            } else {
+                onLine(detail.code === "AI_COMPLETED" && !heardAny.current ? WORDS["assistant.talk.nothing"] : null);
+            }
         };
         const heard = ({ detail }: CustomEvent<AiVoiceTranscriptEvent>): void => {
+            if (detail.transcript !== "") {
+                heardAny.current = true;
+            }
             const text = [before.current, detail.transcript].filter((part) => part !== "").join(" ");
             store.set({ assistantDraft: text });
             if (detail.isFinal) {
@@ -114,7 +123,7 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
             for (const [type, listener] of listeners) {
                 element.removeEventListener(type, listener as EventListener);
             }
-            if (on.current) {
+            if (element.isAiTalking()) {
                 element.aiTalk(false);
             }
         };
@@ -124,25 +133,28 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
         if (element === null) {
             return;
         }
-        if (on.current) {
-            on.current = false;
+        // The element says whether talk is on: a press it ended itself, or one still loading, is
+        // never mistaken for the other.
+        if (element.isAiTalking()) {
             pressedAt.current = null;
             element.aiTalk(false);
+            setListening(element.isAiTalking());
             return;
         }
-        on.current = true;
         pressedAt.current = performance.now();
         before.current = store.get().assistantDraft;
+        heardAny.current = false;
         onLine(firstUse(audioWords(support?.input.destination ?? "none", provider)));
         element.aiTalk(true);
+        setListening(element.isAiTalking());
     }, [element, store, support, provider, onLine]);
 
     const release = useCallback((): void => {
         const held = pressedAt.current === null ? 0 : performance.now() - pressedAt.current;
         pressedAt.current = null;
-        if (on.current && held > HOLD_MS) {
-            on.current = false;
-            element?.aiTalk(false);
+        if (element !== null && held > HOLD_MS && element.isAiTalking()) {
+            element.aiTalk(false);
+            setListening(element.isAiTalking());
         }
     }, [element]);
 

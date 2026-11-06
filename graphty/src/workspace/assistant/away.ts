@@ -58,7 +58,7 @@ export function watchWaiting(element: GraphtyElement, store: WorkspaceStore): vo
                     message: awayWords(title),
                     lasting: true,
                     action: {
-                        label: WORDS["assistant.list.open"],
+                        label: WORDS["assistant.notice.open"],
                         run: () => {
                             goToComposer(store);
                         },

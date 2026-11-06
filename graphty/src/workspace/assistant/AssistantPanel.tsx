@@ -2,19 +2,20 @@ import "./assistant.css";
 
 import { TooltipShortcut } from "@graphty/compact-mantine";
 import { ActionIcon, Button, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { closeAssistant } from "../assistant-door/commands";
 import { type AssistantChoice, providerDescriptor, useAssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { type ChatRow, chatTitle, useChatRows } from "./chats";
 import { Composer } from "./Composer";
 import { Conversation } from "./Conversation";
 import { ConversationList } from "./ConversationList";
 import { type AssistantView, useAssistantView } from "./useAssistantView";
 import { Waiting } from "./Waiting";
-import { starterColumn, WORDS } from "./words";
+import { chatsOpenLabel, starterColumn, WORDS } from "./words";
 
 /**
  * The first screen: what the assistant does, then the one door to set it up. No composer, because
@@ -95,6 +96,9 @@ interface ReadyProps {
     readonly choice: AssistantChoice;
     readonly view: AssistantView;
     readonly listing: boolean;
+    readonly listId: string;
+    readonly rows: readonly ChatRow[];
+    readonly reload: () => void;
     readonly onCloseList: () => void;
 }
 
@@ -104,10 +108,13 @@ interface ReadyProps {
  * @param props.choice - the provider and model
  * @param props.view - what the element reports
  * @param props.listing - whether the list shows in place of the log
+ * @param props.listId - the list's id
+ * @param props.rows - the chats the list shows
+ * @param props.reload - lists the chats again
  * @param props.onCloseList - returns to the log
  * @returns The panel's body
  */
-function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): React.JSX.Element {
+function Ready({ choice, view, listing, listId, rows, reload, onCloseList }: Readonly<ReadyProps>): React.JSX.Element {
     const ended = useWorkspaceState((state) => state.assistantEnded);
     const { models } = providerDescriptor(choice.provider);
     const model = models.find((entry) => entry.id === choice.model)?.plainName ?? choice.model;
@@ -115,7 +122,13 @@ function Ready({ choice, view, listing, onCloseList }: Readonly<ReadyProps>): Re
     if (listing) {
         return (
             <>
-                <ConversationList onClose={onCloseList} />
+                <ConversationList
+                    id={listId}
+                    rows={rows}
+                    openId={view.conversation?.id ?? null}
+                    reload={reload}
+                    onClose={onCloseList}
+                />
                 <Waiting view={view} choice={choice} />
                 <Composer choice={choice} view={view} model={model} />
             </>
@@ -154,8 +167,10 @@ export default function AssistantPanel(): React.JSX.Element {
             store.set({ assistantTalkPress: false });
         }
     }, [asked, view.linked, setUp, store]);
-    const empty = (view.conversation?.messages ?? []).length === 0;
-    const title = empty ? WORDS["assistant.title.new"] : WORDS["assistant.name"];
+    const listId = useId();
+    const { rows, reload } = useChatRows(setUp && listing, view.conversation);
+    const title = chatTitle(view.conversation);
+    const switchName = listing ? chatsOpenLabel(rows.length) : `${WORDS["assistant.title.tooltip"]}, ${title}`;
     const backToLog = (): void => {
         setListing(false);
         store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
@@ -164,13 +179,15 @@ export default function AssistantPanel(): React.JSX.Element {
         <section className="ws-assistant" aria-label={WORDS["assistant.name"]}>
             <header className="ws-assistant-head">
                 {setUp ? (
-                    <Tooltip label={WORDS["assistant.title.tooltip"]}>
+                    <Tooltip label={listing ? WORDS["assistant.title.tooltip"] : switchName}>
                         <Button
                             variant="subtle"
                             color="gray"
                             size="compact-xs"
-                            aria-label={`${title}, ${WORDS["assistant.title.tooltip"]}`}
+                            className="ws-assistant-switch"
+                            aria-label={switchName}
                             aria-expanded={listing}
+                            aria-controls={listing ? listId : undefined}
                             rightSection={<GLYPHS.expand size={12} aria-hidden />}
                             onClick={() => {
                                 if (listing) {
@@ -180,7 +197,7 @@ export default function AssistantPanel(): React.JSX.Element {
                                 }
                             }}
                         >
-                            {title}
+                            <span className="ws-chat-title">{listing ? chatsOpenLabel(rows.length) : title}</span>
                         </Button>
                     </Tooltip>
                 ) : (
@@ -219,7 +236,19 @@ export default function AssistantPanel(): React.JSX.Element {
                     </Tooltip>
                 </span>
             </header>
-            {setUp ? <Ready choice={choice} view={view} listing={listing} onCloseList={backToLog} /> : <NoProvider />}
+            {setUp ? (
+                <Ready
+                    choice={choice}
+                    view={view}
+                    listing={listing}
+                    listId={listId}
+                    rows={rows}
+                    reload={reload}
+                    onCloseList={backToLog}
+                />
+            ) : (
+                <NoProvider />
+            )}
         </section>
     );
 }

@@ -4,7 +4,7 @@ import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-el
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { goToComposer } from "../assistant-door/commands";
-import type { AssistantChoice } from "../assistant-door/provider";
+import { type AssistantChoice, effortConfig } from "../assistant-door/provider";
 import { fileName, saveBlob } from "../export/choices";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
@@ -75,6 +75,7 @@ export function link(
         .enableAiControl({
             provider: choice.provider,
             model: choice.model,
+            ...effortConfig(choice),
             ...(apiKey === undefined ? {} : { apiKey }),
             toolset: "generated",
             keyPersistence: { enabled: true, storage: choice.remember ? "localStorage" : "sessionStorage" },
@@ -165,7 +166,7 @@ function noticeAway(
                       },
                   }
                 : {
-                      label: WORDS["assistant.list.open"],
+                      label: WORDS["assistant.notice.open"],
                       run: () => {
                           goToComposer(store);
                       },

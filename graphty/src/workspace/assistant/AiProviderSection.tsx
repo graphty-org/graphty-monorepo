@@ -11,13 +11,16 @@ import type { PageCommit } from "../assistant-door/AssistantPlace";
 import { goToComposer } from "../assistant-door/commands";
 import {
     type AssistantChoice,
+    type EffortLevel,
+    effortLevels,
+    effortOf,
     providerDescriptor,
     useAssistantChoice,
     writeAssistantChoice,
 } from "../assistant-door/provider";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { link, linked, unlink } from "./connection";
-import { endWords, KEY_PAGES, keyShapeWords, providerWords, WORDS } from "./words";
+import { effortRows, endWords, KEY_PAGES, keyShapeWords, providerWords, WORDS } from "./words";
 
 /** What a reader can pick: the test stand-in and the in-browser model, not drawn until it works, stay out. */
 const PROVIDERS = AI_PROVIDER_DESCRIPTORS.filter((entry) => !entry.testOnly && entry.id !== "webllm");
@@ -56,6 +59,11 @@ export default function AiProviderSection({
     const [model, setModel] = useState(
         saved?.provider === provider ? saved.model : providerDescriptor(FIRST_PROVIDER).defaultModel,
     );
+    const [effort, setEffort] = useState<EffortLevel | undefined>(
+        saved?.provider === provider && saved.model === model ? saved.effort : undefined,
+    );
+    const levels = effortLevels({ provider, model });
+    const shownEffort = effortOf({ provider, model, effort });
     const [key, setKey] = useState("");
     const [remember, setRemember] = useState(saved?.remember ?? false);
     const [problem, setProblem] = useState<string | null>(null);
@@ -88,7 +96,12 @@ export default function AiProviderSection({
             keyField.current?.focus();
             return;
         }
-        const choice: AssistantChoice = { provider, model, remember };
+        const choice: AssistantChoice = {
+            provider,
+            model,
+            remember,
+            ...(shownEffort === undefined ? {} : { effort: shownEffort }),
+        };
         try {
             await link(element, store, choice, typed === "" ? undefined : typed);
             writeAssistantChoice(choice);
@@ -104,7 +117,11 @@ export default function AiProviderSection({
 
     const unsaved =
         key.trim() !== "" ||
-        (saved !== null && (saved.provider !== provider || saved.model !== model || saved.remember !== remember));
+        (saved !== null &&
+            (saved.provider !== provider ||
+                saved.model !== model ||
+                saved.remember !== remember ||
+                effortOf(saved) !== shownEffort));
     useEffect(() => {
         if (commit === undefined) {
             return undefined;
@@ -154,6 +171,7 @@ export default function AiProviderSection({
                     if (next !== undefined) {
                         setProvider(next.id);
                         setModel(next.defaultModel);
+                        setEffort(undefined);
                         setKey("");
                         setProblem(null);
                     }
@@ -168,9 +186,26 @@ export default function AiProviderSection({
                 onChange={(picked) => {
                     if (picked !== null) {
                         setModel(picked);
+                        setEffort(undefined);
                     }
                 }}
             />
+            {levels.length > 0 ? (
+                <Select
+                    label={WORDS["assistant.provider.effort"]}
+                    description={WORDS["assistant.effort.tooltip"]}
+                    size="xs"
+                    allowDeselect={false}
+                    value={shownEffort ?? null}
+                    data={effortRows(levels)}
+                    onChange={(picked) => {
+                        const next = levels.find((level) => level === picked);
+                        if (next !== undefined) {
+                            setEffort(next);
+                        }
+                    }}
+                />
+            ) : null}
             <Stack gap={4}>
                 <PasswordInput
                     ref={keyField}

@@ -132,6 +132,80 @@ async function setUpGoogle(): Promise<void> {
     await composer();
 }
 
+/**
+ * The open chat's log; the header also shows the chat's first words, so a reader's words are
+ * looked for here.
+ * @returns the log.
+ */
+async function chatLog(): Promise<HTMLElement> {
+    return screen.findByRole("region", { name: "Chat" });
+}
+
+/**
+ * Sends a message and waits for its reply to settle.
+ * @param text - the message.
+ */
+async function chat(text: string): Promise<void> {
+    await say(text);
+    await within(await chatLog()).findByText(text);
+    await screen.findByRole("button", { name: "Send" });
+    await waitFor(() => {
+        assert.isNotNull(screen.queryAllByText("The reply.").at(0));
+    });
+}
+
+/** Starts a new chat by the header's "+". */
+async function newChat(): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await screen.findByRole("button", { name: "Which nodes matter most?" });
+}
+
+/**
+ * The header's chat switch.
+ * @returns the button.
+ */
+function chatsButton(): HTMLElement {
+    return screen.getByRole("button", { name: /^Chats/ });
+}
+
+/**
+ * Opens the chat list and waits for its rows.
+ * @param count - the rows it should show.
+ * @returns the list.
+ */
+async function openList(count: number): Promise<HTMLElement> {
+    await userEvent.click(chatsButton());
+    const list = await screen.findByRole("list", { name: "Chats" });
+    await waitFor(() => {
+        assert.strictEqual(within(list).getAllByRole("listitem").length, count);
+        assert.strictEqual(chatsButton().getAttribute("aria-label"), `Chats ${String(count)}`);
+    });
+    return list;
+}
+
+/**
+ * Starts renaming a row by its "..." menu.
+ * @param title - the row's title.
+ */
+async function renameByMenu(title: string): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: `${title} menu` }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
+}
+
+/**
+ * Types into the rename field once it has focus with its text selected.
+ * @param keys - what to type.
+ */
+async function typeName(keys: string): Promise<void> {
+    const field = await screen.findByRole<HTMLInputElement>("textbox", { name: "Chat name" });
+    await waitFor(() => {
+        assert.strictEqual(document.activeElement, field);
+        assert.strictEqual(field.selectionEnd, field.value.length);
+        assert.strictEqual(field.selectionStart, 0);
+    });
+    await userEvent.keyboard(keys);
+}
+
 describe("talking to the Assistant", () => {
     beforeEach(async () => {
         resetSiteConfig();
@@ -283,7 +357,7 @@ describe("talking to the Assistant", () => {
         await userEvent.click(steps);
         await screen.findByText("Query data");
         await screen.findByText(/^\d+ ms$/);
-        const log = screen.getByRole("region", { name: "Conversation" });
+        const log = screen.getByRole("region", { name: "Chat" });
         assert.notInclude(log.textContent, "overview");
         assert.notInclude(log.textContent, "{");
         assert.isNull(log.closest("[aria-live]"));
@@ -331,7 +405,7 @@ describe("talking to the Assistant", () => {
         model.turns = [{ text: "<b>bold</b> words", toolCalls: [] }];
         await say("Hello");
         await screen.findByText("<b>bold</b> words");
-        assert.isNull(screen.getByRole("region", { name: "Conversation" }).querySelector("b"));
+        assert.isNull(screen.getByRole("region", { name: "Chat" }).querySelector("b"));
     });
 
     it("sends on Enter, makes a line on Shift+Enter, and keeps an empty message from going", async () => {
@@ -363,7 +437,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.click(await screen.findByRole("button", { name: "Stop Esc" }));
-        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped.");
+        await within(screen.getByRole("region", { name: "Chat" })).findByText("Stopped.");
         const field = await composer();
         assert.strictEqual(field.value, "Slow question");
         assert.strictEqual(document.activeElement, field);
@@ -390,7 +464,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.keyboard("{Escape}");
-        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped.");
+        await within(screen.getByRole("region", { name: "Chat" })).findByText("Stopped.");
         assert.strictEqual(field.value, "kept");
     });
 
@@ -404,7 +478,7 @@ describe("talking to the Assistant", () => {
         const row = await screen.findByRole("alert");
         assert.include(row.textContent, "Could not reach Google: the service is unavailable.");
         assert.include(row.textContent, "Nothing changed.");
-        const log = screen.getByRole("region", { name: "Conversation" });
+        const log = screen.getByRole("region", { name: "Chat" });
         assert.notInclude(log.textContent, "exploded");
         assert.strictEqual((await composer()).value, "Please answer");
 
@@ -413,7 +487,7 @@ describe("talking to the Assistant", () => {
         await screen.findByText("The reply.");
     });
 
-    it("leaves a failure behind on New conversation, with the starters back", async () => {
+    it("leaves a failure behind on New chat, with the starters back", async () => {
         await open();
         await setUpGoogle();
         Object.defineProperty(model, "name", { value: "google" });
@@ -422,7 +496,7 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+        await userEvent.click(screen.getByRole("button", { name: "New chat" }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         assert.isNull(screen.queryByRole("alert"));
     });
@@ -480,45 +554,166 @@ describe("talking to the Assistant", () => {
 
         await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
         await openPanel();
-        await screen.findByText("Remember this");
+        await within(await chatLog()).findByText("Remember this");
         await screen.findByText("The reply.");
     });
 
-    it("lists conversations newest first, opens one, deletes one on a confirm, and Esc returns", async () => {
+    it("lists chats newest first, opens one, deletes one on a confirm, and Esc returns", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await open();
         await openPanel();
-        await say("First talk");
-        await screen.findByText("The reply.");
-        await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
-        await screen.findByRole("button", { name: "Which nodes matter most?" });
-        await say("Second talk");
-        await waitFor(() => {
-            assert.isNotNull(screen.queryByText("Second talk"));
-        });
-        await screen.findByRole("button", { name: "Send" });
+        await chat("First talk");
+        await newChat();
+        await chat("Second talk");
 
-        await userEvent.click(screen.getByRole("button", { name: "Assistant, Conversations" }));
-        const list = await screen.findByRole("region", { name: "Conversations" });
-        await within(list).findByText("First talk");
+        const list = await openList(2);
         const rows = within(list).getAllByRole("listitem");
         assert.include(rows[0].textContent, "Second talk");
         assert.include(rows[1].textContent, "First talk");
 
         await userEvent.keyboard("{Escape}");
-        await screen.findByRole("region", { name: "Conversation" });
+        await screen.findByRole("region", { name: "Chat" });
 
-        await userEvent.click(screen.getByRole("button", { name: "Assistant, Conversations" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Open: First talk" }));
-        await screen.findByText("First talk");
-        assert.isNull(screen.queryByText("Second talk"));
+        await openList(2);
+        await userEvent.click(await screen.findByRole("button", { name: "First talk" }));
+        await within(await chatLog()).findByText("First talk");
+        assert.isNull(within(await chatLog()).queryByText("Second talk"));
 
-        await userEvent.click(screen.getByRole("button", { name: "Assistant, Conversations" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Delete: Second talk" }));
-        await screen.findByText("Delete this conversation?");
+        await openList(2);
+        await userEvent.click(await screen.findByRole("button", { name: "Second talk menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await screen.findByText("Delete this chat?");
         await userEvent.click(screen.getByRole("button", { name: "Delete" }));
         await waitFor(() => {
             assert.isNull(screen.queryByText("Second talk"));
+        });
+    });
+
+    it("titles the header by the open chat, counts the list's rows and marks the open one", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("Color by department");
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Color by department");
+        });
+        await newChat();
+        assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, New chat");
+        await chat("Hubs please");
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Hubs please");
+        });
+        assert.notStrictEqual(chatsButton().textContent, "Assistant");
+
+        const list = await openList(2);
+        const hubs = within(list).getByRole("button", { name: "Hubs please" });
+        assert.strictEqual(hubs.getAttribute("aria-current"), "true");
+        assert.isNull(within(list).getByRole("button", { name: "Color by department" }).getAttribute("aria-current"));
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, hubs, "opening the list focuses the open chat");
+        });
+
+        await userEvent.keyboard("{Escape}");
+        const field = await composer();
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
+    });
+
+    it("lists a new chat before its first message as a checked New chat row, and counts it", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("Color by department");
+        await newChat();
+
+        const list = await openList(2);
+        const rows = within(list).getAllByRole("listitem");
+        const fresh = within(rows[0]).getByRole("button", { name: "New chat" });
+        assert.strictEqual(fresh.getAttribute("aria-current"), "true");
+        assert.include(rows[1].textContent, "Color by department");
+    });
+
+    it("renames a chat by F2 and Enter, and the name survives a reload", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("First talk");
+
+        const list = await openList(1);
+        const row = within(list).getByRole("button", { name: "First talk" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, row);
+        });
+        await userEvent.keyboard("{F2}");
+        await typeName("Departments{Enter}");
+        const renamed = await within(list).findByRole("button", { name: "Departments" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, renamed, "focus returns to the row");
+        });
+        within(list).getByRole("button", { name: "Departments menu" });
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Departments");
+        });
+        cleanup();
+
+        await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
+        await openPanel();
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Departments");
+        });
+        const again = await openList(1);
+        within(again).getByRole("button", { name: "Departments" });
+    });
+
+    it("renames by the menu and a click elsewhere; Esc cancels; an empty name brings the first words back", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("First talk");
+        const list = await openList(1);
+
+        await renameByMenu("First talk");
+        await typeName("Named");
+        await userEvent.click(await composer());
+        await within(list).findByRole("button", { name: "Named" });
+
+        await renameByMenu("Named");
+        await typeName("Not this");
+        await userEvent.keyboard("{Escape}");
+        await within(list).findByRole("button", { name: "Named" });
+        screen.getByRole("region", { name: "Chats" });
+        assert.isNull(screen.queryByRole("textbox", { name: "Chat name" }));
+
+        await renameByMenu("Named");
+        await typeName("{Backspace}{Enter}");
+        await within(list).findByRole("button", { name: "First talk" });
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1");
+        });
+    });
+
+    it("confirms a delete with focus on Keep it, then moves focus to the next row", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("First talk");
+        await newChat();
+        await chat("Second talk");
+        const list = await openList(2);
+
+        await userEvent.click(within(list).getByRole("button", { name: "Second talk menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        const keep = await within(list).findByRole("button", { name: "Keep it" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, keep);
+        });
+        await userEvent.click(within(list).getByRole("button", { name: "Delete" }));
+        const next = await within(list).findByRole("button", { name: "First talk" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, next);
         });
     });
 
@@ -543,7 +738,7 @@ describe("talking to the Assistant", () => {
         assert.isFalse(stored.some((value) => value.includes(KEY)));
     });
 
-    it("Delete all reaches saved conversations with no assistant up", async () => {
+    it("Delete all reaches saved chats with no assistant up", async () => {
         await open();
         await setUpGoogle();
         await say("Keep this in mind");
@@ -557,9 +752,9 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isNull(readAssistantChoice());
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Delete all conversations" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Delete all chats" }));
         await userEvent.click(await within(dialog).findByRole("button", { name: "Delete all" }));
-        await within(dialog).findByRole("button", { name: "Delete all conversations" });
+        await within(dialog).findByRole("button", { name: "Delete all chats" });
 
         await userEvent.click(within(dialog).getByLabelText("API key"));
         await userEvent.keyboard(KEY);
@@ -589,7 +784,7 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("button", { name: "Send" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("Please answer");
-        const log = screen.getByRole("region", { name: "Conversation" });
+        const log = screen.getByRole("region", { name: "Chat" });
         const atFoot = async (): Promise<void> => {
             await waitFor(() => {
                 const alerts = screen.getAllByRole("alert");
@@ -615,7 +810,7 @@ describe("talking to the Assistant", () => {
         model.turns = [{ text: "A long answer line.\n".repeat(60), toolCalls: [] }];
         await say("Tell me a lot");
         await screen.findByRole("button", { name: "Send" });
-        const log = screen.getByRole("region", { name: "Conversation" });
+        const log = screen.getByRole("region", { name: "Chat" });
         const before = log.clientHeight;
         await userEvent.click(await composer());
         await userEvent.keyboard("one{Shift>}{Enter}{/Shift}two{Shift>}{Enter}{/Shift}three");
@@ -645,7 +840,7 @@ describe("talking to the Assistant", () => {
             });
             await screen.findByRole("button", { name: "Send" });
             await waitFor(() => {
-                const log = screen.getByRole("region", { name: "Conversation" });
+                const log = screen.getByRole("region", { name: "Chat" });
                 const alert = screen.getAllByRole("alert").at(-1);
                 assert.isAtMost(
                     alert?.getBoundingClientRect().bottom ?? Infinity,
@@ -666,7 +861,7 @@ describe("talking to the Assistant", () => {
         await say("Tell me a lot");
         await screen.findByText(/A long answer line/);
         await screen.findByRole("button", { name: "Send" });
-        const log = screen.getByRole("region", { name: "Conversation" });
+        const log = screen.getByRole("region", { name: "Chat" });
         await waitFor(() => {
             assert.isAbove(log.scrollTop, 0);
         });

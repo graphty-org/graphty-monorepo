@@ -833,6 +833,9 @@ interface ResultColumns {
  * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
+    // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
+    // an undirected one, so it is left out there, as the readable fields leave it out.
+    const { directed } = session.data.snapshot();
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -843,7 +846,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
         // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
         // file holds the algorithm's own group ids, as the live result does.
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
-        writeResultFields(session, out, notes, { runId: root.runId, result, ranks });
+        writeResultFields(session, out, notes, { runId: root.runId, result, ranks, directed });
     }
 }
 
@@ -856,6 +859,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
  * @param run.runId - The result's run id.
  * @param run.result - The result.
  * @param run.ranks - A partition's group ranks, when groups are written as ranks.
+ * @param run.directed - Whether the graph is directed; on an undirected one a `directedOnly` field is left out.
  */
 function writeResultFields(
     session: GraphSession,
@@ -865,12 +869,13 @@ function writeResultFields(
         readonly runId: Parameters<GraphSession["results"]["path"]>[0];
         readonly result: PublishedResult;
         readonly ranks: ReturnType<typeof partitionGroupRanks> | undefined;
+        readonly directed: boolean;
     },
 ): void {
-    const { runId, result, ranks } = run;
+    const { runId, result, ranks, directed } = run;
     for (const field of result.fields) {
         const path = session.results.path(runId, field.name);
-        if (!out.kept(path)) {
+        if (!out.kept(path) || (!directed && field.directedOnly === true)) {
             continue;
         }
 

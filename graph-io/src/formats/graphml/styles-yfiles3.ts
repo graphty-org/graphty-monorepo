@@ -2000,9 +2000,7 @@ function readYfiles3Target(
         } else if (style !== undefined) {
             readEdgeStyle(refs, cell(style, i), put, at);
         }
-        if (labels !== undefined) {
-            readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
-        }
+        readLabels(refs, cell(labels, i), put, at, size, isNode ? null : edgePath(ctx, i, cell(geometry, i)));
     }
     return out.values;
 }

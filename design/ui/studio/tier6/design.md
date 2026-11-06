@@ -321,7 +321,10 @@ one line.
 - Inline at the turn, worded from codes only. `status.error.message` and `ExecutionResult.message`
   are English from the element and are never shown.
 - Each failure says what failed and whether the graph changed, with one button: Send again, or
-  AI provider... for setup codes. The sent text returns to an empty composer. The row is
+  AI provider... for setup codes. One failure offers both: `AI_PROVIDER_ERROR` with no `status`
+  from a provider whose catalog entry has `requiresKey`, because a browser can hide a refused key
+  behind a failed connection; the row reads "the connection failed or the key was refused" with
+  Send again and AI provider... side by side. The sent text returns to an empty composer. The row is
   `role="alert"`, as the app's other inline failures are.
 - An unknown code falls back on `success`, since the union is open.
 
@@ -517,7 +520,9 @@ Finished or Failed by `success`.
 | `AI_HISTORY_NEWER_FORMAT`                                                    | Saved by a newer version of graphty, so it was left as it is.        | --             |
 
 `{cause}` is worded from `params.status`: 401 or 403 "the key was refused", 429 "too many requests
-or the spend limit was reached", 5xx "the service is unavailable", otherwise "error {status}". A
+or the spend limit was reached", 5xx "the service is unavailable", otherwise "error {status}". With
+no status it is "the connection failed", or for a provider that `requiresKey` "the connection failed
+or the key was refused", which also adds AI provider... beside Send again (section 4.9). A
 provider's refusal can arrive mid-stream, so the partial answer stays above the row.
 
 Voice, on one line under the composer, by `reason`: `permission-denied` "Allow the microphone to

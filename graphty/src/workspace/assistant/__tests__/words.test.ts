@@ -27,6 +27,13 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_PROVIDER_ERROR", { status: 401 }, "Could not reach Google: the key was refused.", AGAIN],
     [
         "AI_PROVIDER_ERROR",
+        {},
+        "Could not reach Google: the connection failed or the key was refused.",
+        { action: "again-or-provider", failed: true },
+    ],
+    ["AI_PROVIDER_ERROR", { provider: "webllm" }, "Could not reach WebLLM: the connection failed.", AGAIN],
+    [
+        "AI_PROVIDER_ERROR",
         { status: 429 },
         "Could not reach Google: too many requests or the spend limit was reached.",
         AGAIN,

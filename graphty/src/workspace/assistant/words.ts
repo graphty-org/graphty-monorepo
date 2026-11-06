@@ -117,8 +117,8 @@ type ResultParam = AiResultParams[string] | undefined;
 export interface EndWords {
     /** The turn's line. */
     readonly line: string;
-    /** The one button it offers. */
-    readonly action: "again" | "provider" | null;
+    /** The button it offers: Send again, AI provider..., or both when either cause could be it. */
+    readonly action: "again" | "provider" | "again-or-provider" | null;
     /** Whether the row is a failure, spoken at once. */
     readonly failed: boolean;
 }
@@ -147,14 +147,24 @@ export function stepName(tool: string, args?: Readonly<Record<string, unknown>>)
 }
 
 /**
- * Why a provider could not be reached.
+ * Whether a provider needs a key, from its catalog entry.
+ * @param id - its id.
+ * @returns true when it does.
+ */
+const needsKey = (id: unknown): boolean =>
+    AI_PROVIDER_DESCRIPTORS.find((entry) => entry.id === id)?.requiresKey ?? false;
+
+/**
+ * Why a provider could not be reached. With no status a browser may have hidden a refused key,
+ * so a provider that needs one names both causes.
  * @param status - the HTTP status, when it answered with one.
+ * @param keyed - whether the provider needs a key.
  * @returns the cause.
  */
-function causeWords(status: ResultParam): string {
+function causeWords(status: ResultParam, keyed: boolean): string {
     const code = Number(status);
     if (status === undefined || Number.isNaN(code)) {
-        return "the connection failed";
+        return keyed ? "the connection failed or the key was refused" : "the connection failed";
     }
     if (code === 401 || code === 403) {
         return "the key was refused";
@@ -234,7 +244,8 @@ const note = (line: string): EndWords => ({ line, action: null, failed: false })
  * @returns the row, or null for a message that ended in the reply itself.
  */
 export function endWords(code: string, params: AiResultParams, provider: string, success: boolean): EndWords | null {
-    const name = providerName(params.provider ?? provider);
+    const id = params.provider ?? provider;
+    const name = providerName(id);
     switch (code) {
         case "AI_COMPLETED":
         case "AI_CONFIRMATION_NEEDED":
@@ -253,8 +264,12 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return setup("The AI provider settings cannot be used.");
         case "AI_HOSTED_TOOL_UNSUPPORTED":
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
-        case "AI_PROVIDER_ERROR":
-            return retry(`Could not reach ${name}: ${causeWords(params.status)}.`);
+        case "AI_PROVIDER_ERROR": {
+            const keyed = needsKey(id);
+            const words = retry(`Could not reach ${name}: ${causeWords(params.status, keyed)}.`);
+            const unknown = params.status === undefined || Number.isNaN(Number(params.status));
+            return keyed && unknown ? { ...words, action: "again-or-provider" } : words;
+        }
         case "AI_PROVIDER_PAUSED":
             return retry(`${name} paused and did not finish.`);
         case "AI_FAILED":

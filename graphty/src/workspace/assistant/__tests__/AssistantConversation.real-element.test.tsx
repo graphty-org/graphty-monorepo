@@ -438,6 +438,19 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("dialog", { name: "Settings" });
     });
 
+    it("offers Send again and setup together when a failure has no status, since either cause could be it", async () => {
+        await open();
+        await setUpGoogle();
+        Object.defineProperty(model, "name", { value: "google" });
+        model.setError(new Error("Failed to fetch"));
+        await say("Please answer");
+        const row = await screen.findByRole("alert");
+        assert.include(row.textContent, "Could not reach Google: the connection failed or the key was refused.");
+        within(row).getByRole("button", { name: "Send again" });
+        await userEvent.click(within(row).getByRole("button", { name: "AI provider..." }));
+        await screen.findByRole("dialog", { name: "Settings" });
+    });
+
     it("reconnects on a new project's fresh element, with the key from storage and no retyping", async () => {
         const store = await open();
         await setUpGoogle();

@@ -196,7 +196,7 @@ interface EndRowProps {
 }
 
 /**
- * How a turn ended, in words from its code, with its one button.
+ * How a turn ended, in words from its code, with its buttons.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
@@ -214,22 +214,24 @@ function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX
                 ) : (
                     <span />
                 )}
-                {words.action === "again" && onAgain !== null ? (
-                    <Button variant="default" size="compact-xs" onClick={onAgain}>
-                        {WORDS["assistant.again"]}
-                    </Button>
-                ) : null}
-                {words.action === "provider" ? (
-                    <Button
-                        variant="default"
-                        size="compact-xs"
-                        onClick={() => {
-                            run("settings.assistant");
-                        }}
-                    >
-                        {WORDS["assistant.setup.button"]}
-                    </Button>
-                ) : null}
+                <Group gap={4}>
+                    {(words.action === "again" || words.action === "again-or-provider") && onAgain !== null ? (
+                        <Button variant="default" size="compact-xs" onClick={onAgain}>
+                            {WORDS["assistant.again"]}
+                        </Button>
+                    ) : null}
+                    {words.action === "provider" || words.action === "again-or-provider" ? (
+                        <Button
+                            variant="default"
+                            size="compact-xs"
+                            onClick={() => {
+                                run("settings.assistant");
+                            }}
+                        >
+                            {WORDS["assistant.setup.button"]}
+                        </Button>
+                    ) : null}
+                </Group>
             </Group>
         </div>
     );

@@ -37,6 +37,7 @@ import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useBoxSize } from "../useBoxSize";
 import {
     announceWindow,
     jumpToSelection,
@@ -582,31 +583,6 @@ function AllTimeButton({
 }
 
 /**
- * An element's border-box width, measured from the moment it mounts. Mantine's `useElementSize`
- * observes only an element its ref already held when the component rendered, so the dock, which
- * mounts after its first render, stayed unmeasured until something else drew it again: a wheel
- * that came first zoomed with the unmeasured width's coarser bars, a different view (#6048).
- * @returns the callback ref for the element, and its width (0 until measured).
- */
-function useWidth(): { ref: (element: HTMLElement | null) => void; width: number } {
-    const [element, ref] = useState<HTMLElement | null>(null);
-    const [width, setWidth] = useState(0);
-    useEffect(() => {
-        if (element === null) {
-            return undefined;
-        }
-        const observer = new ResizeObserver(([entry]) => {
-            setWidth(entry.borderBoxSize[0]?.inlineSize ?? entry.contentRect.width);
-        });
-        observer.observe(element);
-        return () => {
-            observer.disconnect();
-        };
-    }, [element]);
-    return { ref, width };
-}
-
-/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -619,7 +595,7 @@ export function TimeDock(): React.JSX.Element | null {
     const [drag, setDrag] = useState<[number, number] | null>(null);
     // A brush gesture under way; a whole-window drag's release commits it as its own step.
     const hold = useRef<BrushHold | null>(null);
-    const { ref, width } = useWidth();
+    const { ref, width } = useBoxSize();
     const phone = useMediaQuery(PHONE_WIDTH, false, { getInitialValueInEffect: false });
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
     const { view, reset, chartRef, pinched } = useTimeZoom(session, maxCount);

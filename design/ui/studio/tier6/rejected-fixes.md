@@ -41,3 +41,11 @@ Units, reverted: show-in-table-lists-its-rows (42d5c60f1d), no-raw-text-on-app-r
 - Unwalked: T91 B detour-2, T92 B detour-2, T95 B detour-2 and T95 B detour-3 as separate routes. The same show-in-table and raw-text acceptance was checked on one yeast-genes walk instead (sit-r2s06).
 - Unwalked: T90 B detour-2, T92 B detour-3. Mod+I closing the panel was checked only for a panel opened from the Graph place.
 - Revert note: reverting 208e142062 also removed the keyboard-focus tests it carried in graphty/src/workspace/assistant/**tests**/AssistantTrust.real-element.test.tsx (Remove/Keep, Answer, Undo, scope x by Enter) and their helpers, including the later "scope x lasts through closing the panel" test; restore them with the refix.
+
+## Reverted after the study: settings-at-400
+
+The round 2 re-walk rejected this fix, but its revert reached only part of it, so build a80da6d62e still
+carried a910cad63e: under 481 px tall the two-column dialogs paint past their edge onto the status bar.
+It is now reverted whole. The defect it aimed at stays open and is not the Assistant's: at 400% zoom
+Settings gives its page no height (repro in rounds/round-2/repro/settings-400/). Refix it so the modal
+body scrolls without the page painting outside the dialog.

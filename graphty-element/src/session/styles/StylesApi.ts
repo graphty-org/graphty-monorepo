@@ -2641,14 +2641,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack as it paints: a hidden row's layers read as disabled, and so do the element's own
-     * base layers while the Everything row holds the base look.
+     * base layers while the Everything row holds the base look. A branches view suspends the
+     * Everything row with every other layer, so under one the base layers paint the base look
+     * again: without it every node would be drawn unstyled, a new mesh for each of them, and again
+     * for each when the view ends.
      * @param stack - The stack.
      * @returns The stack the repaint and every reading of it use.
      */
-    const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
-        const painted = basePainting(stack);
-        return branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
-    };
+    const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] =>
+        branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
 
     /** The branches view drawn now, and the layers it draws. */
     let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;

@@ -337,28 +337,38 @@ const LAYOUT_FRAME_BUDGET_MS = 40;
 const STYLE_FRAME_BUDGET_MS = 16;
 
 /**
- * The share of a slow frame a repaint may take on top of it.
+ * The share of a frame a repaint may take on top of it, while frames are short.
  *
  * A fixed 16 ms is right while frames are short, and starves the repaint when they are long for
  * another reason -- a software GPU, a scene of 50,000 nodes: at a frame every 1.5 s, 16 ms of paint
  * per frame was 1% of the time, and a 50,000 node preview took minutes to reach the screen. A
  * quarter of the last frame settles at a third of the frame's own drawing (the frame grows by a
- * third, never doubles), however long the frame is.
- *
- * It has no upper limit on purpose. Spreading a repaint keeps frames short only while painting is
- * what makes them long; when the drawing does, every extra frame costs a whole drawing. A cap of
- * 250 ms held a repaint of 50,000 nodes at its 32 frames on software rendering, 4.5 s each, 150 s
- * and more for what a few seconds of paint could have done, three times over per edit (#5816).
+ * third, never doubles).
  */
 const STYLE_FRAME_SHARE = 0.25;
 
 /**
+ * How long a frame has to take before a repaint takes as long as the frame drew.
+ *
+ * Spreading a repaint keeps frames short only while painting is what makes them long; when the
+ * drawing does, every extra frame costs a whole drawing. A frame of 100 ms is already under ten a
+ * second, and a quarter share there spends four fifths of the repaint's time drawing pictures
+ * nobody waits for: the selection workspace on 50,000 nodes drew 28 frames of 170 ms to apply
+ * 1.2 s of paint, 4.7 s in all, on the development machine's GPU (#5753). Past this, a repaint
+ * takes the frame's own length, so a frame at most doubles and the repaint ends in a few of them.
+ * No upper limit: a cap of 250 ms held a repaint of 50,000 nodes at its 32 frames on software
+ * rendering, 4.5 s each, 150 s and more for what a few seconds of paint could have done (#5816).
+ */
+const SLOW_FRAME_MS = 100;
+
+/**
  * How long one frame spends applying a repaint, from how long the last frame took.
  * @param frameMs - The last frame's length.
- * @returns The budget: {@link STYLE_FRAME_BUDGET_MS} for a short frame, a share of a long one.
+ * @returns The budget: {@link STYLE_FRAME_BUDGET_MS} for a short frame, a share of a longer one,
+ *     and a slow frame's own length.
  */
 export function styleBudgetFor(frameMs: number): number {
-    return Math.max(STYLE_FRAME_BUDGET_MS, frameMs * STYLE_FRAME_SHARE);
+    return frameMs >= SLOW_FRAME_MS ? frameMs : Math.max(STYLE_FRAME_BUDGET_MS, frameMs * STYLE_FRAME_SHARE);
 }
 
 /** How many nodes are painted between two looks at the clock. */

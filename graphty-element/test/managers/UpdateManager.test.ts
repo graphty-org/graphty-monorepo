@@ -391,10 +391,11 @@ describe("UpdateManager", () => {
 });
 
 describe("styleBudgetFor", () => {
-    it("keeps a short frame's repaint to 16 ms and gives a slow frame a share of its length", () => {
+    it("keeps a short frame's repaint to 16 ms, a longer one's to a quarter, and gives a slow frame its own length", () => {
         assert.strictEqual(styleBudgetFor(16), 16);
         assert.strictEqual(styleBudgetFor(33), 16);
-        assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
-        assert.strictEqual(styleBudgetFor(4000), 1000, "a frame of seconds is no reason to draw more of them");
+        assert.strictEqual(styleBudgetFor(80), 20, "a frame under 100 ms grows by a quarter at most");
+        assert.strictEqual(styleBudgetFor(400), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(4000), 4000, "a frame of seconds is no reason to draw more of them");
     });
 });

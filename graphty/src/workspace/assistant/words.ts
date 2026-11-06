@@ -39,6 +39,7 @@ export const WORDS = {
     "assistant.starter.groups": "What groups does this graph have?",
     "assistant.starter.stands-out": "What stands out in this graph?",
     "assistant.composer.placeholder": "Ask about this graph",
+    "assistant.composer.placeholder.selection": "Ask about this selection",
     "assistant.composer.answer": "Or type an answer",
     "assistant.composer.name": "Message the assistant",
     "assistant.send": "Send",

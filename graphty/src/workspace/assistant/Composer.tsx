@@ -136,6 +136,12 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
     const [question] = view.questions;
     const asking = view.approvals.length === 0 && question !== undefined;
     const waiting = view.approvals.length > 0 || question !== undefined;
+    // Keyed on the scope's kind, not on a selection: the x makes a selection read Whole graph.
+    const about =
+        scope.kind === "selection"
+            ? WORDS["assistant.composer.placeholder.selection"]
+            : WORDS["assistant.composer.placeholder"];
+    const placeholder = asking ? WORDS["assistant.composer.answer"] : about;
     const submit = (): void => {
         if (element === null || running || empty) {
             return;
@@ -156,7 +162,9 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                 <Textarea
                     ref={field}
                     aria-label={WORDS["assistant.composer.name"]}
-                    placeholder={asking ? WORDS["assistant.composer.answer"] : WORDS["assistant.composer.placeholder"]}
+                    placeholder={placeholder}
+                    // The browser does not read a named field's placeholder, so its words describe it too.
+                    aria-description={placeholder}
                     data-assistant-composer=""
                     // An emptied composer holds no edit of its own, so Mod+Z is the app's Undo.
                     data-committed={draft === "" ? "" : undefined}

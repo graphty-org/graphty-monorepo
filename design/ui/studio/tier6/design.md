@@ -448,6 +448,7 @@ else is a row, a chip or a verb.
 | No-provider button, command                         | AI provider...                                                                                                                         |
 | Starters                                            | Which nodes matter most? / What groups does this graph have? / Does {column} line up with the groups? / What stands out in this graph? |
 | Composer placeholder                                | Ask about this graph                                                                                                                   |
+| Placeholder, a selection binds the message          | Ask about this selection                                                                                                               |
 | Placeholder, question waiting                       | Or type an answer                                                                                                                      |
 | Composer name                                       | Message the assistant                                                                                                                  |
 | Send, its tooltip                                   | Send; Enter sends, Shift+Enter makes a new line                                                                                        |

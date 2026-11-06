@@ -244,8 +244,8 @@ pattern to avoid (research, "Patterns to avoid").
 - Text streams as text, never HTML, into the turn's foot. The log follows only a reader who is at
   the bottom; anyone else gets a Jump to newest button.
 - The reader can keep typing the next message during a run.
-- Stop ends the turn with "Stopped. Changes taken back." and puts the sent text back in an empty
-  composer. A partial take-back says what stayed.
+- Stop ends the turn with "Stopped. Changes taken back." ("Stopped." when it had changed nothing)
+  and puts the sent text back in an empty composer. A partial take-back says what stayed.
 
 ### 4.6 A change
 
@@ -503,7 +503,7 @@ Finished or Failed by `success`.
 | `AI_PROVIDER_PAUSED`                                                         | {provider} paused and did not finish.                                | Send again     |
 | `AI_FAILED`, `AI_TOOL_THREW`, `AI_TOOL_UNKNOWN`, `AI_TOOL_INVALID_ARGUMENTS` | The assistant could not finish this step.                            | Send again     |
 | `AI_TOOL_FAILED`                                                             | {tool plain name} failed.                                            | Send again     |
-| `AI_CANCELLED`                                                               | Stopped. Changes taken back.                                         | --             |
+| `AI_CANCELLED`                                                               | Stopped. Changes taken back. ("Stopped." with no `steps`)            | --             |
 | `AI_UNDONE`                                                                  | Undone while running. Changes taken back.                            | --             |
 | `AI_ROLLBACK_PARTIAL`                                                        | Stopped. {steps} changes could not be taken back.                    | --             |
 | `AI_APPROVAL_DENIED`                                                         | Declined. Nothing changed.                                           | --             |

@@ -265,7 +265,7 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_TOOL_FAILED":
             return retry(failedStepWords(params.tool, params.cause));
         case "AI_CANCELLED":
-            return note("Stopped. Changes taken back.");
+            return note(params.steps === undefined ? "Stopped." : "Stopped. Changes taken back.");
         case "AI_UNDONE":
             return note("Undone while running. Changes taken back.");
         case "AI_ROLLBACK_PARTIAL":

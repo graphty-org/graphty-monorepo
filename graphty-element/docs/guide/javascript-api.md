@@ -563,26 +563,26 @@ const result = await graph.aiCommand(text);
 show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Something went wrong."));
 ```
 
-| Code                        | `success` | `params`              | When                                                     |
-| --------------------------- | --------- | --------------------- | -------------------------------------------------------- |
-| `AI_COMPLETED`              | true      | `toolCalls`           | The model answered, running every tool it called         |
-| `AI_NO_RESPONSE`            | true      |                       | The model wrote nothing and called no tool               |
-| `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                       |
-| `AI_DISPOSED`               | false     |                       | The assistant was shut down                              |
-| `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none               |
-| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400) |
-| `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                       |
-| `AI_CANCELLED`              | false     |                       | `cancelAiCommand()` ended it; its changes are taken back |
-| `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back   |
-| `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist              |
-| `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused        |
-| `AI_TOOL_FAILED`            | false     | `tool`                | A tool ran and reported failure                          |
-| `AI_TOOL_THREW`             | false     | `tool`                | A tool threw; the command's changes are taken back       |
-| `AI_FAILED`                 | false     |                       | Anything else went wrong                                 |
-| `AI_CONFIRMATION_NEEDED`    | true      | `gate`, `request`     | A change waits for the reader's approval (see below)     |
-| `AI_ROLLBACK_PARTIAL`       | false     | `steps`               | Taking a failed message back stopped at your own edit    |
-| `AI_APPROVAL_STALE`         | false     | `request`             | An approval came after the graph changed, or expired     |
-| `AI_APPROVAL_DENIED`        | true      | `request`             | The reader declined a held change                        |
+| Code                        | `success` | `params`              | When                                                                                            |
+| --------------------------- | --------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| `AI_COMPLETED`              | true      | `toolCalls`           | The model answered, running every tool it called                                                |
+| `AI_NO_RESPONSE`            | true      |                       | The model wrote nothing and called no tool                                                      |
+| `AI_NOT_ENABLED`            | false     |                       | `enableAiControl()` was not called                                                              |
+| `AI_DISPOSED`               | false     |                       | The assistant was shut down                                                                     |
+| `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none                                                      |
+| `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400)                                        |
+| `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                                                              |
+| `AI_CANCELLED`              | false     | `steps`?              | `cancelAiCommand()` ended it; `steps` undo steps taken back, absent when it had changed nothing |
+| `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back                                          |
+| `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist                                                     |
+| `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused                                               |
+| `AI_TOOL_FAILED`            | false     | `tool`                | A tool ran and reported failure                                                                 |
+| `AI_TOOL_THREW`             | false     | `tool`                | A tool threw; the command's changes are taken back                                              |
+| `AI_FAILED`                 | false     |                       | Anything else went wrong                                                                        |
+| `AI_CONFIRMATION_NEEDED`    | true      | `gate`, `request`     | A change waits for the reader's approval (see below)                                            |
+| `AI_ROLLBACK_PARTIAL`       | false     | `steps`               | Taking a failed message back stopped at your own edit                                           |
+| `AI_APPROVAL_STALE`         | false     | `request`             | An approval came after the graph changed, or expired                                            |
+| `AI_APPROVAL_DENIED`        | true      | `request`             | The reader declined a held change                                                               |
 
 `resolveAiApproval` answers with the approved batch's own result: `AI_COMPLETED`, a failure code
 (with `request`), or `AI_CONFIRMATION_NEEDED` when the batch is held again for another reason.

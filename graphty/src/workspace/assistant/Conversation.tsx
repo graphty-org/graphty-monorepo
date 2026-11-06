@@ -263,10 +263,10 @@ function stepsOf(turn: Turn, status: AiStatus | null): readonly Step[] {
  * @returns the code and its facts, if it has ended that way.
  */
 function endingOf(turn: Turn, status: AiStatus | null, lastEnded: Ending | null): Ending | undefined {
-    // A request that ended unanswered says why on the calls it held.
+    // A request that ended unanswered, or declined, says so on the calls it held.
     const unanswered = turn.replies
         .flatMap((reply) => reply.calls)
-        .findLast((call) => call.code === "AI_APPROVAL_STALE");
+        .findLast((call) => call.code === "AI_APPROVAL_STALE" || call.code === "AI_APPROVAL_DENIED");
     const saved = turn.replies.findLast((reply) => reply.outcome !== undefined)?.outcome ?? unanswered;
     return saved ?? (status === null ? undefined : (lastEnded ?? undefined));
 }

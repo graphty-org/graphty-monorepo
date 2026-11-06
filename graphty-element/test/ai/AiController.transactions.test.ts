@@ -291,9 +291,25 @@ describe("an assistant message's transactions", () => {
         const result = await message;
 
         assert.isFalse(result.success);
+        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.deepEqual(result.params, { steps: 1 }, "the two batches were one undo step");
         assert.notExists(session.data.node("x"));
         assert.notExists(session.data.node("y"));
         assert.lengthOf(newSteps(), 0);
+    });
+
+    it("says nothing was taken back when a message is cancelled before it changed anything", async () => {
+        const thinking = gate();
+        const model = scriptedModel([{ response: { text: "never", toolCalls: [] }, gate: thinking.promise }]);
+        const controller = assistant(model);
+        const message = controller.execute("add x");
+        await model.asked(1);
+
+        controller.cancel();
+        const result = await message;
+
+        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.deepEqual(result.params, {});
     });
 
     it("ends the message, running no further tool, when the person undoes it while the model thinks", async () => {
@@ -325,6 +341,7 @@ describe("an assistant message's transactions", () => {
         const result = await message;
 
         assert.isFalse(result.success);
+        assert.deepEqual(result.params, {}, "nothing could be taken back");
         assert.strictEqual(session.data.node("a")?.team, "blue", "the person's edit stays");
         assert.exists(session.data.node("x"), "the message's step under it is not reverted out of order");
         assert.lengthOf(newSteps(), 2);

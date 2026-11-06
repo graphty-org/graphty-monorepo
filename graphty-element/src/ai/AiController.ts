@@ -1432,7 +1432,7 @@ export class AiController {
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
         if (this.cancelled.has(run.abortController)) {
-            result = { ...result, code: this.cancelCode, params: {} };
+            result = { ...result, ...this.cancelOutcome(run) };
         }
 
         return result;
@@ -1516,7 +1516,7 @@ export class AiController {
             canRetry: true,
         });
 
-        const { code, params } = this.failureOutcome(error, run.abortController);
+        const { code, params } = this.failureOutcome(error, run);
         const failed: ExecutionResult = {
             success: false,
             message: `Error: ${errorMessage}`,
@@ -1653,23 +1653,36 @@ export class AiController {
     }
 
     /**
+     * A cancel's outcome: `steps` says how many of the message's steps were taken back, and is
+     * absent when none were.
+     * @param run - The message.
+     * @returns The code and its facts.
+     */
+    private cancelOutcome(run: MessageRun): Outcome {
+        const steps = run.takenBack ?? 0;
+        return { code: this.cancelCode, params: steps === 0 ? {} : { steps } };
+    }
+
+    /**
      * Why a message that was aborted ended.
-     * @param abortController - The message's abort controller.
+     * @param run - The message.
      * @returns Cancelled when `cancel()` ended it, undone otherwise.
      */
-    private abortOutcome(abortController: AbortController): Outcome {
-        return { code: this.cancelled.has(abortController) ? this.cancelCode : "AI_UNDONE", params: {} };
+    private abortOutcome(run: MessageRun): Outcome {
+        return this.cancelled.has(run.abortController)
+            ? this.cancelOutcome(run)
+            : { code: "AI_UNDONE", params: {} };
     }
 
     /**
      * Why a message that threw failed.
      * @param error - What the loop threw.
-     * @param abortController - The message's abort controller.
+     * @param run - The message.
      * @returns The code and its facts.
      */
-    private failureOutcome(error: unknown, abortController: AbortController): Outcome {
-        if (abortController.signal.aborted) {
-            return this.abortOutcome(abortController);
+    private failureOutcome(error: unknown, run: MessageRun): Outcome {
+        if (run.abortController.signal.aborted) {
+            return this.abortOutcome(run);
         }
 
         if (error instanceof TurnFailed) {

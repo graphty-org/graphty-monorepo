@@ -363,14 +363,14 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.click(await screen.findByRole("button", { name: "Stop Esc" }));
-        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped. Changes taken back.");
+        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped.");
         const field = await composer();
         assert.strictEqual(field.value, "Slow question");
         assert.strictEqual(document.activeElement, field);
         await screen.findByRole("button", { name: "Send" });
         await waitFor(() => {
             const said = [...document.querySelectorAll('[role="status"]')].map((region) => region.textContent);
-            assert.include(said, "Stopped. Changes taken back.");
+            assert.include(said, "Stopped.");
         });
     });
 
@@ -390,7 +390,7 @@ describe("talking to the Assistant", () => {
             assert.isTrue(model.held);
         });
         await userEvent.keyboard("{Escape}");
-        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped. Changes taken back.");
+        await within(screen.getByRole("region", { name: "Conversation" })).findByText("Stopped.");
         assert.strictEqual(field.value, "kept");
     });
 

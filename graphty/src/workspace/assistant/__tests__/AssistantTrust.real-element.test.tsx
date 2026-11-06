@@ -464,6 +464,12 @@ describe("checking what the Assistant says", () => {
         });
         await screen.findByText(/Kept\./);
         assert.strictEqual(session.data.statistics().nodeCount, 12);
+
+        await within(log()).findByText("Declined. Nothing changed.");
+        await finished();
+        await say("Something else");
+        await finished();
+        await within(log()).findByText("Declined. Nothing changed.");
     });
 
     it("Remove applies a held removal; Shift+Tab from the composer reaches the section", async () => {

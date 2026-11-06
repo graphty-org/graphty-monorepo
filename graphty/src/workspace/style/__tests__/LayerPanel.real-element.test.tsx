@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
@@ -92,6 +93,22 @@ async function openLayer(
     return layer;
 }
 
+/**
+ * A layer opened beside a twin, for its condition cards: one layer alone edits its rule in the
+ * selection editor.
+ * @param session - the element's session.
+ * @param spec - its name and selector.
+ * @returns the layer.
+ */
+async function openCards(
+    session: GraphSession,
+    spec: Pick<Layer, "name" | "selector"> & Partial<Pick<Layer, "userData">>,
+): Promise<Layer> {
+    const layer = await session.styles.add({ ...spec, target: "node", set: { "node.color": "#0072b2" } });
+    await selectWithTwin(session, spec.name);
+    return layer;
+}
+
 describe("the layer panel", () => {
     it("a node's '+' makes no layer until a value is picked; the pick makes it and says so", async () => {
         const { session, store, idOf } = await openScene();
@@ -119,9 +136,10 @@ describe("the layer panel", () => {
     });
 
     it("says so, with Undo, when a layer's last condition goes, and keeps Done", async () => {
-        const { session } = await openScene();
-        const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
-        const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
+        const { session, idOf } = await openScene();
+        // Nodes picked by hand: one layer of them still edits its cards (a rule opens the selection editor).
+        const selector = { match: "ids" as const, nodes: [idOf("Cosette")], edges: [] };
+        const layer = await openLayer(session, { name: "Group one", selector });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
@@ -140,14 +158,15 @@ describe("the layer panel", () => {
     it("keeps a text condition that matches no node on Enter, and flags it with a 0 badge", async () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
-        const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
+        // The cards of a layer and its twin: one rule layer alone opens the selection editor.
+        const layer = await openCards(session, { name: "Group one", selector: { match: "rule", where } });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const box = await within(region).findByRole("combobox", { name: "name: text to match" });
         await userEvent.clear(box);
         await userEvent.type(box, "missing{Enter}");
         // Kept as the reader wrote it, and flagged on the condition's chip: a 0 badge, no sentence.
-        const row = await screen.findByRole("button", { name: /^Which nodes, .*no node matches/ });
+        const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const badge = await within(row).findByLabelText("No node matches");
         assert.equal(badge.textContent, "0");
         assert.isNotNull(badge.closest("[data-chip]"), "the badge sits on the condition");
@@ -157,7 +176,7 @@ describe("the layer panel", () => {
 
     it("an unfinished card shows no count and, dropped by Done, is said", async () => {
         const { session } = await openScene();
-        await openLayer(session, { name: "Plain", selector: { match: "everything" } });
+        await openCards(session, { name: "Plain", selector: { match: "everything" } });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         // A row with no card opens on Add a condition, whose list one more click opens.
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));

@@ -1,9 +1,9 @@
 /**
- * A line "+" just added, on the REAL graphty-element and driven by real keys and clicks, takes the
- * value it shows: Enter on a new Color line writes the color it shows in italics, and so does
- * typing exactly that color; on a node's own Style tab, "red" and Enter on its italic red line
- * writes it. Its box says it is not set and what the drawing shows. The Shape list checks nothing
- * while no shape is set.
+ * A line "+" just added, on the REAL graphty-element and driven by real keys and clicks, shows no
+ * color until one is picked: a new Color line draws an empty swatch and an empty box named "not
+ * set", over one color beneath or over colors that vary, and Enter or Tab on it writes nothing and
+ * leaves it waiting; typing a color and Enter writes it; on a node's own Style tab, "red" and
+ * Enter writes it. The Shape list checks nothing while no shape is set.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -101,44 +101,83 @@ function colorOf(session: GraphSession, name: string): string | undefined {
 /**
  * Adds a layer of the reader's own on every node and opens its Fill line.
  * @param session - the session.
- * @returns the line's hex box and the color it shows.
+ * @returns the line and its hex box.
  */
-async function newFill(session: GraphSession): Promise<{ box: HTMLInputElement; shown: string }> {
+async function newFill(session: GraphSession): Promise<{ line: HTMLElement; box: HTMLInputElement }> {
     await session.styles.addRow({ name: "Paint", target: "both", selector: { match: "everything" } });
     await session.styles.settled();
     await openStyle("Paint");
     await showKind("node");
     const line = await addLine("fill", "node.color", "Color");
     const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
-    assert.equal(box.dataset.isDefault, "true", "the line shows a color it does not set");
-    return { box, shown: box.value.toUpperCase() };
+    return { line, box };
 }
 
-describe("an unset line takes the value it shows", () => {
-    it("Enter on a new Fill line writes the color it shows, and its box said it was not set", async () => {
+/**
+ * Asserts a just-added Fill line shows no color: an empty swatch and an empty box, named "not set"
+ * with the box's cue.
+ * @param line - the line.
+ * @param box - its hex box.
+ */
+function assertBlank(line: HTMLElement, box: HTMLInputElement): void {
+    assert.equal(box.value, "", "no hex in the box");
+    assert.equal(
+        box.getAttribute("aria-label"),
+        "Node color, not set, Pick or type",
+        "named not set, with no color drawn",
+    );
+    const swatch = within(line).getByTestId("compact-color-input-swatch");
+    assert.equal(swatch.dataset.empty, "true", "an empty swatch");
+}
+
+describe("an unset color line shows no color until one is picked", () => {
+    it("Enter and Tab on a new Fill line write nothing, and the line keeps waiting", async () => {
         const session = await openScene();
-        const { box, shown } = await newFill(session);
-        assert.match(
-            box.getAttribute("aria-label") ?? "",
-            new RegExp(`^Node color, not set, drawn #${shown} \\w`),
-            "not set, and what the drawing shows",
-        );
+        const { line, box } = await newFill(session);
+        assertBlank(line, box);
+        const before = JSON.stringify(session.styles.list());
         await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.equal(colorOf(session, "Paint"), `#${shown}`, "the layer holds the color shown");
-        });
+        await userEvent.click(box);
+        await userEvent.keyboard("{Tab}");
+        await session.styles.settled();
+        assert.equal(JSON.stringify(session.styles.list()), before, "nothing written");
+        assert.isUndefined(colorOf(session, "Paint"));
+        assert.isTrue(line.isConnected, "the line is still there, waiting");
+        assertBlank(line, box);
     });
 
-    it("typing exactly the color shown, and Enter, writes it", async () => {
+    it("over colors that vary beneath, no color is drawn", async () => {
         const session = await openScene();
-        const { shown } = await newFill(session);
-        await userEvent.keyboard(`${shown.toLowerCase()}{Enter}`);
+        await session.styles.add({
+            name: "Blue",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0000FF" },
+        });
+        await session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "ids", nodes: ["0", "1"] },
+            set: { "node.color": "#FF0000" },
+        });
+        await session.styles.settled();
+        const { line, box } = await newFill(session);
+        assertBlank(line, box);
+        await userEvent.keyboard("{Enter}");
+        await session.styles.settled();
+        assert.isUndefined(colorOf(session, "Paint"), "Enter wrote no color");
+    });
+
+    it("typing a color and Enter writes it", async () => {
+        const session = await openScene();
+        await newFill(session);
+        await userEvent.keyboard("e4572e{Enter}");
         await waitFor(() => {
-            assert.equal(colorOf(session, "Paint"), `#${shown}`);
+            assert.equal(colorOf(session, "Paint"), "#E4572E");
         });
     });
 
-    it("a node's own Style tab: 'red' and Enter on a line showing red writes it", async () => {
+    it("a node's own Style tab over a red node: 'red' and Enter on the new line writes it", async () => {
         const session = await openScene();
         const [node, other] = session.data.nodes().map((n) => String(n.id));
         await session.styles.add({
@@ -157,8 +196,7 @@ describe("an unset line takes the value it shows", () => {
         await screen.findByTestId("style-tab", {});
         const line = await addLine("fill", "node.color");
         const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
-        assert.equal(box.value, "FF0000", "the line shows the red the node draws");
-        assert.equal(box.dataset.isDefault, "true", "in italics: not set here");
+        assertBlank(line, box);
         await userEvent.keyboard("red{Enter}");
         await waitFor(() => {
             assert.notEqual(JSON.stringify(session.styles.list()), before, "red is written for the node");

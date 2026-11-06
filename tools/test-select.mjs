@@ -1381,6 +1381,8 @@ export const FILE_OVERHEAD_MS = 5_000;
  *   recorded sum, plus about 1.5 s per file.
  * - graphty-element-default and githerd run their files in parallel workers: about 0.3 s per file, so 5 s split
  *   one 1-minute run into ten bins.
+ * - graphty-large-graph's files are each planned at about half the file guard (tools/ci-test-matrix.mjs), with
+ *   no room for a second in a job: a whole bin of overhead gives each its own bin, recorded or not.
  * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
  */
 export const FAMILY_BIN_COST = {
@@ -1389,6 +1391,7 @@ export const FAMILY_BIN_COST = {
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
     githerd: { overheadMs: 500, scale: 1 },
+    "graphty-large-graph": { overheadMs: BIN_LIMIT_MS, scale: 1 },
 };
 
 /**

@@ -465,8 +465,9 @@ export class ElementMask<TId> {
         this.grow(bytes.length);
         this.array.set(bytes);
         this.members = this.countMembers();
-        this.revision += 1;
-        this.moves = null;
+        // Through `bump`: a history move loads a step's kept masks here, and a session's input
+        // tick must move with them, or every cache keyed on it serves the masks before the move.
+        this.bump();
     }
 
     /**

@@ -283,8 +283,8 @@ export interface ImporterSourceOptions<Opts> {
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
     /**
      * The time field the file declares, which a load with the timeline experiment on designates
-     * (see {@link DataSource.declareTime}). Return null when the file declares none. Left out, no
-     * file declares one.
+     * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
+     * when the file declares none. Left out, no file declares one.
      * @param snapshot - the imported graph
      * @param report - the importer's report
      * @returns the field, or null

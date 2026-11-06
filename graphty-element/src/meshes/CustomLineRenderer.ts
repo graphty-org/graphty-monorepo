@@ -20,7 +20,6 @@ import {
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
 } from "./edgeJoinShader";
-import { batchUploadFrames } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
 /** A line's fade by its length on screen, in CSS pixels; see `line.fade`. */
@@ -474,9 +473,6 @@ void main(void) {
         const opaque = options.opaque === true;
         const widened = options.widened === true || program !== undefined || fade !== undefined;
         const defines = joinedLineDefines(options, widened);
-        if (batchUploadFrames.skipHiddenEdges(scene).on) {
-            defines.push("#define EDGE_SKIP_HIDDEN");
-        }
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,

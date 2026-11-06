@@ -26,8 +26,6 @@ export class FrameRoster {
     private readonly restored = new WeakSet<Scene>();
     /** Each scene's switch; see {@link FrameRoster.rangedUploads}. */
     private readonly ranged = new WeakMap<Scene, RangedUploads>();
-    /** Each scene's switch; see {@link FrameRoster.skipHiddenEdges}. */
-    private readonly skips = new WeakMap<Scene, RangedUploads>();
 
     /**
      * Whether a scene's batches upload only the slots written rather than whole buffers. Off by
@@ -44,23 +42,6 @@ export class FrameRoster {
         }
 
         return uploads;
-    }
-
-    /**
-     * Whether the joined lines built in a scene from now on compile `EDGE_SKIP_HIDDEN`, so a hidden
-     * piece returns at the top of the join shader rather than running its math. Off by default;
-     * read only when a line's material is built, so a line built earlier keeps its program.
-     * @param scene - The scene.
-     * @returns Its switch.
-     */
-    skipHiddenEdges(scene: Scene): RangedUploads {
-        let skip = this.skips.get(scene);
-        if (!skip) {
-            skip = { on: false };
-            this.skips.set(scene, skip);
-        }
-
-        return skip;
     }
 
     /**

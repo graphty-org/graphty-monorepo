@@ -30,6 +30,7 @@ import {
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
 import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
+import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } from "./labelTable";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
@@ -259,6 +260,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "_progressBar"
     | "enabled"
     | "textPath"
+    | "table"
     | "location"
     | "borders"
     | "sizeMode"
@@ -482,6 +484,14 @@ export class RichTextLabel {
     private originalPosition: Vector3 | null = null;
     /** A ring drawn around the target, as a multiple of its largest half-extent; null for none. */
     private ring: number | null = null;
+    /** The table the label is laid out as (`table`), or null. */
+    private readonly table: LabelTable | null;
+    /** The table laid out, in canvas units from its top left corner, once measured; null without one. */
+    private tableDrawing: TableDrawing | null = null;
+    /** How much of the table's outline the panel's border covers, on every side. */
+    private tableInset = 0;
+    /** The color of the table's cell outlines and rules: the border's, else the words'. */
+    private readonly tableLineColor: string;
 
     private readonly parser: RichTextParser;
     private readonly renderer: RichTextRenderer;
@@ -744,6 +754,16 @@ export class RichTextLabel {
             finalOptions.backgroundPadding = 0;
         }
 
+        // A table label is the table: no margin or padding round it, as Graphviz lays out an HTML-like table label.
+        this.table = readLabelTable(finalOptions.table);
+        if (this.table !== null) {
+            finalOptions.marginTop = 0;
+            finalOptions.marginBottom = 0;
+            finalOptions.marginLeft = 0;
+            finalOptions.marginRight = 0;
+            finalOptions.backgroundPadding = 0;
+        }
+
         // An opacity of the border or of the outline is drawn as their colour's alpha.
         finalOptions.borderColor = withOpacity(finalOptions.borderColor, finalOptions.borderOpacity);
         finalOptions.textOutlineColor = withOpacity(finalOptions.textOutlineColor, finalOptions.textOutlineOpacity);
@@ -768,6 +788,9 @@ export class RichTextLabel {
         }
 
         this.options = finalOptions;
+        this.tableLineColor =
+            finalOptions.borders[0]?.color ??
+            (userOptions.borderColor === undefined ? finalOptions.textColor : finalOptions.borderColor);
         this.id = `richLabel_${Math.random().toString(36).substring(2, 11)}`;
 
         if (userOptions.progress !== undefined) {
@@ -920,13 +943,14 @@ export class RichTextLabel {
 
         this.actualDimensions.width = contentWidth + this.totalBorderWidth * 2;
         this.actualDimensions.height = contentHeight + this.totalBorderWidth * 2;
+        const table = this.layOutTable(tempCtx);
 
         // LETTERS KEEP THEIR SIZE; THE LABEL GROWS. The plane is one line's height in the scene tall for
         // the canvas a single line at the default line height would need, and taller in proportion
         // to anything more. Without this a three-line label squeezed its canvas into one line's
         // height and drew its letters at a third of the size, and a line height of 2.5 shrank the
-        // letters instead of spreading the lines.
-        this.heightInLines = this.measureHeightInLines(tempCtx, totalHeight);
+        // letters instead of spreading the lines. A table's canvas units are its words' as well.
+        this.heightInLines = this.measureHeightInLines(tempCtx, table ? this.actualDimensions.height : totalHeight);
 
         if (this.options.pointer) {
             this._calculatePointerDimensions();
@@ -943,6 +967,121 @@ export class RichTextLabel {
         }
 
         this._addShadowRoom();
+    }
+
+    /**
+     * Lays the label's table out (`table`), its words measured as they are drawn, and makes the panel its size: the
+     * table's outline under the panel's border, as far as the border reaches.
+     * @param ctx - A canvas to measure on.
+     * @returns Whether the label is a table.
+     */
+    private layOutTable(ctx: CanvasRenderingContext2D): boolean {
+        if (this.table === null) {
+            return false;
+        }
+
+        const measure = (markup: string): { width: number; height: number; ascent?: number; descent?: number } => {
+            const line = this.parser.parse(markup).find((l) => l.length > 0);
+            if (line === undefined) {
+                return { width: 0, height: 0 };
+            }
+
+            const m = measureLine(ctx, line, this.lineOptions());
+            return { width: m.width, height: this.options.fontSize, ascent: m.ascent, descent: m.descent };
+        };
+        // ponytail: no pictures in a label's cells; a cell's picture keeps its room only where it gives a size
+        const drawn = layoutLabelTable(this.table, measure);
+        const inset = Math.min(Math.max(0, this.table.border ?? 0), this.totalBorderWidth);
+        this.tableDrawing = drawn;
+        this.tableInset = inset;
+        this.contentArea = {
+            x: this.totalBorderWidth,
+            y: this.totalBorderWidth,
+            width: Math.max(0, drawn.width - inset * 2),
+            height: Math.max(0, drawn.height - inset * 2),
+        };
+        this.actualDimensions.width = this.contentArea.width + this.totalBorderWidth * 2;
+        this.actualDimensions.height = this.contentArea.height + this.totalBorderWidth * 2;
+        return true;
+    }
+
+    /**
+     * How a line of this label's words is measured and drawn.
+     * @returns The line options.
+     */
+    private lineOptions(): Parameters<typeof measureLine>[2] {
+        return {
+            lineHeight: this.options.lineHeight,
+            textOutline: this.options.textOutline,
+            textOutlineWidth: this.options.textOutlineWidth,
+            runAlign: this.options.runAlign,
+        };
+    }
+
+    /**
+     * Draws the label's table: its fills, its cells' outlines, its rules and its lines, each line's words centered on
+     * their point.
+     * @param ctx - The label's canvas, already scaled to label units.
+     * @param drawn - The table, laid out.
+     */
+    private drawTable(ctx: CanvasRenderingContext2D, drawn: TableDrawing): void {
+        const x0 = this.contentArea.x - this.tableInset;
+        const y0 = this.contentArea.y - this.tableInset;
+        ctx.save();
+        for (const f of drawn.fills) {
+            ctx.fillStyle = f.color;
+            ctx.fillRect(x0 + f.x, y0 + f.y, f.width, f.height);
+        }
+
+        ctx.strokeStyle = this.tableLineColor;
+        // each cell's outline drawn inside its box, as Graphviz strokes it
+        for (const f of drawn.frames.filter((frame) => frame.border > 0)) {
+            ctx.lineWidth = f.border;
+            ctx.strokeRect(x0 + f.x + f.border / 2, y0 + f.y + f.border / 2, f.width - f.border, f.height - f.border);
+        }
+
+        ctx.lineWidth = drawn.frames[0]?.border ?? 1;
+        for (const [ax, ay, bx, by] of drawn.rules) {
+            ctx.beginPath();
+            ctx.moveTo(x0 + ax, y0 + ay);
+            ctx.lineTo(x0 + bx, y0 + by);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+        for (const t of drawn.texts) {
+            const line = this.parser.parse(t.text).find((l) => l.length > 0);
+            if (line !== undefined) {
+                const m = measureLine(ctx, line, this.lineOptions());
+                const baseline = y0 + t.y + (m.ascent - m.descent) / 2;
+                this.renderer.drawLine(
+                    ctx,
+                    line,
+                    x0 + t.x - m.width / 2,
+                    baseline - m.baseline,
+                    m.lineBox,
+                    baseline,
+                    m.offsets,
+                );
+            }
+        }
+    }
+
+    /**
+     * The outlines of the label's table's cells, in canvas units from the label's top left corner (`table`); empty
+     * for a label that is no table.
+     * @returns Each outline's box and width.
+     * @internal
+     */
+    public get tableFrames(): readonly { x: number; y: number; width: number; height: number; border: number }[] {
+        const drawn = this.tableDrawing;
+        if (drawn === null) {
+            return [];
+        }
+
+        const x0 = this.contentArea.x - this.tableInset;
+        const y0 = this.contentArea.y - this.tableInset;
+        return drawn.frames.map((f) => ({ ...f, x: x0 + f.x, y: y0 + f.y }));
     }
 
     /**
@@ -1301,7 +1440,11 @@ export class RichTextLabel {
             };
         }
 
-        this.renderer.drawText(ctx, this.parsedContent, textArea);
+        if (this.tableDrawing === null) {
+            this.renderer.drawText(ctx, this.parsedContent, textArea);
+        } else {
+            this.drawTable(ctx, this.tableDrawing);
+        }
 
         if (this.options.closeButton) {
             drawCloseGlyph(ctx, this.closeGlyph(), this.options.textColor);

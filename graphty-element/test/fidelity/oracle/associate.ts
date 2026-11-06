@@ -555,6 +555,32 @@ function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => bo
 }
 
 /**
+ * Texts in reading order: the level ones row by row, top to bottom (a text joins the row of the first one in it when
+ * the two share a line, `sameLine`), each row left to right; the turned ones after them (`byText`). Words drawn side by
+ * side on one row read left to right even where one sits a little lower than the others (graphty's edge label and its
+ * head and tail labels, each placed by a rule of its own, where Graphviz draws all three on one baseline:
+ * dot-specimen-edge-labels label-and-head-tail), as a reader reads them.
+ * @param texts - the texts
+ * @returns them, in reading order
+ */
+function readingOrder(texts: readonly PText[]): PText[] {
+    const sorted = [...texts].sort(byText);
+    const rows: PText[][] = [];
+    for (const t of sorted.filter((x) => x.rotation === 0)) {
+        const row = rows.at(-1);
+        if (row !== undefined && sameLine(row[0].box, t.box)) {
+            row.push(t);
+        } else {
+            rows.push([t]);
+        }
+    }
+    return [
+        ...rows.flatMap((row) => row.sort((a, b) => a.x - b.x || a.y - b.y)),
+        ...sorted.filter((x) => x.rotation !== 0),
+    ];
+}
+
+/**
  * Lines of one label, drawn as separate text elements, as one text.
  * @param texts - the lines
  * @param apart - two texts never joined into one line, whatever their places (see {@link apartAsGraphty})
@@ -564,7 +590,7 @@ export function mergeTexts(texts: readonly PText[], apart?: (a: PText, b: PText)
     if (texts.length === 0) {
         return null;
     }
-    const lines = joinRuns(texts, apart).sort(byText);
+    const lines = readingOrder(joinRuns(texts, apart));
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
     return {
@@ -3760,7 +3786,11 @@ export function associate(
             )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
-        const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        // the outline is the outermost: a table's cell outlines are drawn inside its own (Graphviz's HTML-like table
+        // label, BORDER round CELLBORDER), and stay shapes of their own, which graphty draws as its cells
+        const bordered = [...backs]
+            .reverse()
+            .find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
         if (parts.length === 0) {
             continue;

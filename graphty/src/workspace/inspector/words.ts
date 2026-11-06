@@ -408,6 +408,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label",
     "edge.labelBorderOpacity": "Label",
     "edge.labelPadding": "Label",
+    "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
     "edge.labelOffsetX": "Label",

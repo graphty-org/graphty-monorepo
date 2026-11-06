@@ -209,6 +209,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             if (descriptor.channel === "node.labelTable") {
                 return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
             }
+            // an edge label's table, in the label's own units (its font size's)
+            if (descriptor.channel === "edge.labelTable") {
+                return '{"cellBorder":4,"cellPadding":8,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
             // The other state from the default: a switch that is on by default (`node.visible`)

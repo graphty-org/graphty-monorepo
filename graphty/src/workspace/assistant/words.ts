@@ -531,9 +531,11 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
             return `Filtered to ${formatNumber(Number(params.kept))} of ${counted(Number(params.total), "node")}`;
         case "AI_EFFECT_RUN": {
             const name = algorithmByKey(String(params.algorithm))?.plainName ?? String(params.algorithm);
-            return params.nodes === undefined
-                ? `Computed ${name}`
-                : `Computed ${name} for ${counted(Number(params.nodes), "node")}`;
+            const computed =
+                params.nodes === undefined
+                    ? `Computed ${name}`
+                    : `Computed ${name} for ${counted(Number(params.nodes), "node")}`;
+            return params.painted === undefined ? computed : `${computed}, colored by it`;
         }
         case "AI_EFFECT_DATA":
             return dataLine(params);
@@ -544,6 +546,23 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
         default:
             return "Changed the graph";
     }
+}
+
+/**
+ * A turn's change lines. Runs paint over each other, so only the turn's last painting run says it
+ * colored the graph: the runs under it show no color of theirs.
+ * ponytail: a run painting edges beside one painting nodes loses its words, which understates;
+ * name the channel on the effect if that matters.
+ * @param session - the session, to name a source.
+ * @param changes - the turn's changes, in order.
+ * @returns one line per change.
+ */
+export function changeLines(session: GraphSession | null, changes: readonly AiEffect[]): string[] {
+    const last = changes.findLastIndex((effect) => effect.params.painted !== undefined);
+    return changes.map((effect, index) => {
+        const { painted: _covered, ...params } = effect.params;
+        return effectLine(session, index < last ? { ...effect, params } : effect);
+    });
 }
 
 /**

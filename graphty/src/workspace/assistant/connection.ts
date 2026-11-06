@@ -8,7 +8,7 @@ import type { AssistantChoice } from "../assistant-door/provider";
 import { fileName, saveBlob } from "../export/choices";
 import type { WorkspaceStore } from "../state/store";
 import { isAway, watchWaiting } from "./away";
-import { effectLine, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
+import { changeLines, endWords, isChange, MODEL_INSTRUCTIONS, WORDS } from "./words";
 
 /** How long a run goes before the reader is told it is working (design 4.5). */
 const WORKING_AFTER_MS = 1000;
@@ -217,7 +217,7 @@ async function follow(
     const replaced = ended.code === "AI_DISPOSED" && element.isAiEnabled();
     const words = replaced ? null : endWords(ended.code, ended.params, choice.provider, ended.success);
     const { changes, provenance } = newestTurn(element);
-    const lines = changes.map((effect) => effectLine(element.session, effect));
+    const lines = changeLines(element.session, changes);
     const said = [...lines, words?.line ?? WORDS["assistant.status.ready"]].join(". ");
     store.set((state) => ({
         assistantEnded: words === null ? null : { code: ended.code, params: ended.params },

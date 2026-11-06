@@ -38,7 +38,7 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "../types";
-import { awaitRun } from "./algorithms";
+import { awaitRun, runEffects } from "./algorithms";
 import { coded, codedNow, ok, requireEntry } from "./common";
 
 /** The plugin name the assistant records as the source of every layer it adds. */
@@ -823,9 +823,14 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 );
                 message.runs.add(again.id);
                 return Promise.resolve({
-                    settle: async ({ signal }) => {
+                    settle: async ({ session, signal }) => {
                         await awaitRun(again, signal);
-                        return ok({ suggestions: toJson(suggestions) }, { run: again.id });
+                        // The run's first decision may have been to paint nothing; this call painted.
+                        const painted = { painted: suggestions.length };
+                        return {
+                            ...ok({ suggestions: toJson(suggestions), ...painted }, { run: again.id }),
+                            effects: () => runEffects(session, again, painted),
+                        };
                     },
                 });
             },

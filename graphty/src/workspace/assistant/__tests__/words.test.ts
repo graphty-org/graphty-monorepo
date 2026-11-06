@@ -1,14 +1,14 @@
-import { AI_RESULT_CODES } from "@graphty/graphty-element/catalog";
+import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { endWords, voiceWords } from "../words";
+import { changeLines, effectLine, endWords, voiceWords } from "../words";
 
-const AGAIN = { action: "again", failed: true };
-const PROVIDER = { action: "provider", failed: true };
-const NONE = { action: null, failed: false };
+const AGAIN = { action: "again", failed: true } as const;
+const PROVIDER = { action: "provider", failed: true } as const;
+const NONE = { action: null, failed: false } as const;
 
 // Design 6.4, row by row. The params are what the element sends with each code.
-const ROWS: readonly (readonly [string, Record<string, unknown>, string | null, object?])[] = [
+const ROWS: readonly (readonly [string, Record<string, string | number>, string | null, object?])[] = [
     ["AI_COMPLETED", {}, null],
     ["AI_CONFIRMATION_NEEDED", {}, null],
     ["AI_QUESTION_ASKED", {}, null],
@@ -90,5 +90,22 @@ describe("endWords", () => {
     it("words speech by its reason", () => {
         assert.strictEqual(voiceWords("no-microphone"), "No microphone found.");
         assert.strictEqual(voiceWords("something-new"), "Speech is not available.");
+    });
+
+    it("a run that painted says so on its own line, and one that did not stays as it was", () => {
+        const run = { run: "closeness", algorithm: "closeness", nodes: 24 };
+        const line = (params: object): string =>
+            effectLine(null, { code: "AI_EFFECT_RUN", params: { ...run, ...params } });
+        assert.match(line({ painted: 1 }), /^Computed .+ for 24 nodes, colored by it$/);
+        assert.match(line({}), /^Computed .+ for 24 nodes$/);
+    });
+
+    it("of a turn's painting runs, only the last says it colored the graph", () => {
+        const run = (algorithm: string, painted?: number): AiEffect => ({
+            code: "AI_EFFECT_RUN",
+            params: { run: algorithm, algorithm, ...(painted === undefined ? {} : { painted }) },
+        });
+        const lines = changeLines(null, [run("first", 1), run("second", 1), run("third")]);
+        assert.deepEqual(lines, ["Computed first", "Computed second, colored by it", "Computed third"]);
     });
 });

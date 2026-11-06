@@ -3769,7 +3769,11 @@ chosen here so the builders need not choose them.
 
 - `AI_EFFECT_RUN` and a run's tool result gain `painted`: how many of the run's suggestions were added,
   omitted at 0. `session.runs.painting(id)` already holds this; the assistant's results did not carry it.
-  `apply_suggestion` returns the run's effects as `run_algorithm` does.
+  `apply_suggestion` returns the run's effects as `run_algorithm` does. Two readings of "added" are settled
+  here, because `painting(id)` is a snapshot of the run's first completion: `painted` leaves out a suggestion
+  the reader has since removed (`runs.layers(id).missing`), since asking the same run again must not claim a
+  color that is gone; and `apply_suggestion` reports the suggestions it applied, since a run started with
+  `style: false` first decided to paint nothing.
 - A new effect code, `AI_EFFECT_RUN_REMOVED`, with `algorithm` and `removedLayers`, for `results` `remove`.
 - `AI_CANCELLED` gains `steps`: how many steps were taken back, omitted at 0.
 - `AI_TOOL_FAILED` carries `cause` on every path, as `runConversation` already does.

@@ -15,7 +15,7 @@ import { foundEffects, selectionEffects } from "../effects";
 import { requireTarget, resolveRun, scopeOf, text, WHERE_HELP, whereField } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
-import { limitOf, offsetOf, pageOf, summarizeRun, toJson } from "../shape";
+import { limitOf, offsetOf, pageOf, paintedFact, summarizeRun, toJson } from "../shape";
 import {
     type ActionContext,
     type ActionResult,
@@ -85,10 +85,16 @@ export async function awaitRun(run: Run, signal: AbortSignal): Promise<void> {
  * A finished run as an effect. A run with no number to range over (a path) names no elements.
  * @param session - The session.
  * @param run - The run.
+ * @param painted - What it painted, when the call knows better than the run's first decision.
+ * @param painted.painted - How many suggestions; absent for none.
  * @returns The effect.
  */
-async function runEffects(session: GraphSession, run: Run): Promise<AiEffect[]> {
-    const params = { run: run.id, algorithm: run.algorithm };
+export async function runEffects(
+    session: GraphSession,
+    run: Run,
+    painted: { painted?: number } = paintedFact(session, run),
+): Promise<AiEffect[]> {
+    const params = { run: run.id, algorithm: run.algorithm, ...painted };
     const target: AiTarget = { range: { run: run.id } };
     try {
         const { nodes } = await session.selection.count(target);

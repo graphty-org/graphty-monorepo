@@ -7,7 +7,7 @@ import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { chipName, effectLine, emptyWords, excludedLine, moreWords, WORDS } from "./words";
+import { changeLines, chipName, emptyWords, excludedLine, moreWords, WORDS } from "./words";
 
 type Kind = "node" | "edge";
 
@@ -256,7 +256,7 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
     useVisibilityVersion(session);
     const next = session?.history.nextUndo;
     const newest = next?.kind === "undo" && provenance !== undefined && next.step.provenance.message === provenance;
-    const lines = changes.map((effect) => effectLine(session, effect));
+    const lines = changeLines(session, changes);
     const excluded = excludedLine(changes);
     const layer = changes.find((effect) => effect.params.layer !== undefined)?.params.layer;
     const ran = changes.find((effect) => effect.params.run !== undefined)?.params.run;

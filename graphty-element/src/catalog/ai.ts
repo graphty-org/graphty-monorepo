@@ -659,8 +659,8 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  *   and `source` the path a bound channel reads (`data.group`); a fixed value has no `source`.
  * - `AI_EFFECT_LAYOUT` -- the layout changed. `{ layout }`.
  * - `AI_EFFECT_FILTER` -- the filter changed. `{ kept, total, keptEdges, totalEdges }`.
- * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes? }`, `nodes` being the elements it
- *   measured.
+ * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes?, painted? }`, `nodes` being the
+ *   elements it measured and `painted` how many of its suggestions were added, omitted at 0.
  * - `AI_EFFECT_DATA` -- the data changed. Any of `{ addedNodes, addedEdges, removedNodes, removedEdges,
  *   changedValues }`.
  * - `AI_EFFECT_SELECTION` -- the selection changed. `{ nodes, edges }`.

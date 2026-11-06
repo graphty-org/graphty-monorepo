@@ -169,12 +169,26 @@ export function limitOf(limit: unknown, max = MAX_LIMIT): number {
 }
 
 /**
+ * How many of a run's suggestions show now, as a fact: those its first completion added, less any
+ * the reader has since taken away. Empty when none does, as for `style: false` or a suggestion a
+ * hand-written layer suppressed.
+ * @param session - The session.
+ * @param run - The run.
+ * @returns `{ painted }`, or nothing.
+ */
+export function paintedFact(session: Pick<GraphSession, "runs">, run: Run): { painted?: number } {
+    const added = session.runs.painting(run.id)?.suggestions.filter((each) => each.outcome === "added").length ?? 0;
+    const painted = added - (session.runs.layers(run.id)?.missing.length ?? 0);
+    return painted > 0 ? { painted } : {};
+}
+
+/**
  * What a run produced, summarized per field, with no per-node lists.
- * @param session - The session, for node names.
+ * @param session - The session, for node names and what the run painted.
  * @param run - The run.
  * @returns The summary.
  */
-export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): JsonObject {
+export function summarizeRun(session: Pick<GraphSession, "data" | "runs">, run: Run): JsonObject {
     const out: JsonObject = {
         run: run.id,
         algorithm: run.algorithm,
@@ -186,6 +200,7 @@ export function summarizeRun(session: Pick<GraphSession, "data">, run: Run): Jso
         ...(run.durationMs === null ? {} : { durationMs: run.durationMs }),
         ...(run.partial ? { partial: true } : {}),
         ...(run.stale === null ? {} : { stale: toJson(run.stale) }),
+        ...paintedFact(session, run),
         ...(run.status === "running" || run.status === "queued"
             ? {
                   progress: toJson(run.progress),

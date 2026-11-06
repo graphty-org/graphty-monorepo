@@ -1054,6 +1054,23 @@ function labelPositionOf(refs: References, label: unknown): string {
     return model === "inside" ? `inside-${side}` : side;
 }
 
+/**
+ * What a node label's box is sized to: a stretch model's box reaches across its node (up it against the left or right
+ * side, which no box here does), and any model inside the node holds its label against the side it names however large
+ * it is.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param position - where the label is placed
+ * @returns the `labelBox`, or null for one that takes the default
+ */
+function labelBoxOf(refs: References, label: unknown, position: string): string | null {
+    const tag = layoutParameter(refs, label)?.tag;
+    if (tag === undefined || NODE_LABEL_MODELS.get(tag) !== "inside") {
+        return null;
+    }
+    return tag.includes("Stretch") && !/left|right/.test(position) ? "target-width" : "words-at-side";
+}
+
 /** yFiles' edge label sides (`SideOfEdge`, and the nine-position model's middle row), as neutral positions. */
 const EDGE_SIDES: ReadonlyMap<string, string> = new Map([
     ["aboveedge", "top"],
@@ -1122,16 +1139,42 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
-    put(
-        "labelPosition",
-        at("label").target === "node" ? labelPositionOf(refs, label) : edgeLabelPositionOf(refs, label),
-    );
+    if (at("label").target === "node") {
+        const position = labelPositionOf(refs, label);
+        put("labelPosition", position);
+        put("labelBox", labelBoxOf(refs, label, position));
+    } else {
+        put("labelPosition", edgeLabelPositionOf(refs, label));
+    }
     const ls = refs.deref(treeAttr(label, "Style") ?? treeChild(label, "Label.Style"));
     if (ls === null || ls === NULL || typeof ls !== "object" || !ls.tag.endsWith("LabelStyle")) {
         return;
     }
     putPaint(paintOf(refs, prop(ls, "textFill"), null), "labelColor", null, put, at);
+    readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+}
+
+/**
+ * Reads the box a label style draws behind its words: its `backgroundFill`, its `backgroundStroke` and how far it
+ * stands off the words (`padding`, `insets` in the 2.6 style; none where neither is set).
+ * @param refs - the references
+ * @param ls - the label style
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: SiteOf): void {
+    const fill = prop(ls, "backgroundFill");
+    const stroke = strokeOf(refs, prop(ls, "backgroundStroke"));
+    if (fill === undefined && (stroke === null || stroke === NULL)) {
+        return;
+    }
+    putPaint(paintOf(refs, fill, null), "labelBackground", "labelBackgroundOpacity", put, at);
+    if (stroke !== null && stroke !== NULL) {
+        putPaint(stroke.color, "labelBorderColor", "labelBorderOpacity", put, at);
+        put("labelBorderWidth", canonNumber(stroke.width, at("labelBorderWidth")));
+    }
+    put("labelPadding", canonNumber(prop(ls, "padding") ?? prop(ls, "insets") ?? "0", at("labelPadding")));
 }
 
 /**

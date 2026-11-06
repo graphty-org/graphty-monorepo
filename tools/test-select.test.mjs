@@ -2120,7 +2120,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         }
         const include = matrixPlan(["graphty"], ["graphty-1", "graphty-2"], out);
         assert.ok(
-            include.every((e) => e.files),
+            include.every((e) => /\.test\.tsx?/u.test(e["test-command"])),
             "every graphty entry is a bin, no whole slice beside them",
         );
         assert.deepEqual(
@@ -2182,7 +2182,7 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         );
     });
 
-    it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {
+    it("gives each bin a matrix entry running its files, in place of its shard, and leaves out the empty shards", () => {
         const light = {
             bins: [
                 {
@@ -2202,7 +2202,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             "the binned shard does not run whole",
         );
         const bin = include.find((e) => e.shard === "graph-io-1");
-        assert.deepEqual(bin.files, ["graph-io/test/a.test.ts"]);
+        assert.match(bin["test-command"], /vitest run '\\''test\/a\.test\.ts'\\'''$/u, "its command names its files");
+        assert.equal(bin.files, undefined, "and they are not listed twice in the job's outputs");
         assert.equal(bin.coverage, undefined, "a bin uploads no coverage");
         assert.equal(bin["needs-browser"], false);
         assert.match(bin["test-command"], /^node tools\/results\/run-group\.mjs graph-io-1 'cd graph-io && /u);

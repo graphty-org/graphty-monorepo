@@ -33,6 +33,9 @@ import {
     GROUPS,
     MATRIX_CAP,
     matrixLine,
+    OUTPUTS_BUDGET,
+    OUTPUTS_LIMIT,
+    outputLines,
     parseOnly,
     plan,
     SHARDS,
@@ -7505,7 +7508,7 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         };
         const include = plan(["graphty-element"], undefined, light);
         const bin = include.find((e) => e.shard === "graphty-element-browser-1");
-        assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
+        assert.match(bin["test-command"], /test\/browser\/a\.test\.ts'$/u, "its command names its files");
         assert.equal(bin.coverage, undefined, "a bin writes no coverage");
         assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
         assert.ok(!include.some((e) => /^graphty-element-browser-[2-9]$/.test(e.shard)), "the bin replaces its shards");
@@ -7555,6 +7558,87 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
         assert.equal(verdict("3", "failure").status, 1);
         assert.equal(verdict("3", "cancelled").status, 1);
+    });
+
+    // GitHub fails the Build job with no failed step when its outputs pass 1 MiB (run 42116998023, #5949): a change
+    // to a run-everything file packs every test file into bins, and each bin's command lists its files.
+    describe("a plan too large for the job's outputs", () => {
+        const { shard, package: pkg } = SHARDS.find((s) => s.package === "graph-io" && !s["full-run-only"]);
+        const name = (i) => `${pkg}/test/a-directory-with-a-long-name/a-test-file-with-a-long-name-${i}.test.ts`;
+        const bin = (i, fields = {}) => ({
+            name: `${shard}-${i}`,
+            shard,
+            covers: [shard],
+            files: [name(i)],
+            command: `cd ${pkg} && pnpm exec vitest run ${Array.from({ length: 40 }, (_, f) => `'${name(f)}'`).join(" ")}`,
+            ...fields,
+        });
+        const huge = (fields) => ({
+            bins: Array.from({ length: 400 }, (_, i) => bin(i + 1, fields)),
+            whole: [],
+            none: [],
+        });
+        const legs = (lines, key) => JSON.parse(lines.find((l) => l.startsWith(`${key}=`)).split(/=(.*)/su)[1]).include;
+        const size = (lines) => lines.join("").length;
+
+        it("stays under the limit, with every output inside it, and runs the selected shard whole", () => {
+            assert.ok(JSON.stringify(plan([pkg], undefined, huge())).length > OUTPUTS_LIMIT, "the bins alone overflow");
+            // a selected bin of a package nx does not call affected is still tested
+            const lines = outputLines([], undefined, huge());
+            assert.ok(size(lines) <= OUTPUTS_BUDGET, `${size(lines)} characters`);
+            assert.ok(OUTPUTS_BUDGET < OUTPUTS_LIMIT);
+            const run = legs(lines, "test-matrix");
+            assert.ok(
+                run.some((e) => [e.shard, ...(e.members ?? [])].includes(shard)),
+                "the whole shard stands in for its bins",
+            );
+            assert.ok(!run.some((e) => e.shard === `${shard}-1`), "no bin is left");
+            assert.equal(Number(lines.find((l) => l.startsWith("test-count=")).split("=")[1]), run.length);
+        });
+
+        it("leaves out what the bins left out: a shard with nothing selected, a whole family nx did not call affected", () => {
+            const other = SHARDS.find((s) => s.package === pkg && s.shard !== shard && !s["full-run-only"]).shard;
+            const family = SHARDS.find((s) => s.package === "algorithms" && !s["full-run-only"]).shard;
+            const unaffected = { ...bin(0), shard: family, covers: [family], whole: "algorithms" };
+            const bins = [...huge().bins, unaffected];
+            const lines = outputLines([pkg], undefined, { bins, whole: [], none: [other] });
+            const names = legs(lines, "test-matrix").flatMap((e) => [e.shard, ...(e.members ?? [])]);
+            assert.ok(names.includes(shard));
+            assert.ok(!names.includes(other), other);
+            assert.ok(!names.includes(family), family);
+        });
+
+        it("takes the same way past the two Test jobs' 512 legs, and keeps the story bins", () => {
+            const storyBins = [
+                { name: "s-1", project: "layout", storybook: "layout/storybook-static", files: ["a"], ids: [] },
+            ];
+            const bins = Array.from({ length: 2 * MATRIX_CAP + 1 }, (_, i) => ({ ...bin(i + 1), command: "x" }));
+            const lines = outputLines([pkg], undefined, { bins, whole: [], none: [], storyBins });
+            assert.ok(legs(lines, "test-matrix").length < MATRIX_CAP);
+            assert.deepEqual(
+                legs(lines, "stories-matrix").map((e) => e.name),
+                ["s-1"],
+            );
+        });
+
+        it("leaves a plan that fits as its bins, and says so in words when even whole shards do not fit", () => {
+            const small = { bins: [{ ...bin(1), command: "x" }], whole: [], none: [] };
+            const names = legs(outputLines([pkg], undefined, small), "test-matrix").map((e) => e.shard);
+            assert.ok(names.includes(`${shard}-1`) && !names.includes(shard), names.join(" "));
+            const storyBins = [
+                {
+                    name: "s-1",
+                    project: "layout",
+                    storybook: "layout/storybook-static",
+                    files: ["a".repeat(OUTPUTS_LIMIT)],
+                    ids: [],
+                },
+            ];
+            assert.throws(
+                () => outputLines([pkg], undefined, { bins: [], whole: [], none: [], storyBins }),
+                /job's outputs hold more than \d+ characters even as whole shards: .*stories-matrix \d+/u,
+            );
+        });
     });
 
     // GitHub fails a matrix above 256 jobs without running a leg: PR #5525's plan made 302 and All Checks Pass

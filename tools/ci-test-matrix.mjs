@@ -28,6 +28,8 @@
  * two, one per Test job of ci.yml (test and test-2), since GitHub refuses a matrix above 256 jobs (#5537).
  * test-matrix is then a slim index of the legs (no commands or file lists): later jobs only test it for a
  * shard's name, and a second full copy pushed a 261-bin plan past GitHub's 1 MB cap on a job's outputs (#5605).
+ * A plan past OUTPUTS_BUDGET runs its shards whole instead of its bins, whose commands list every file
+ * (outputLines()).
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
  * no affected name and its shards would silently never run on a pull request again.
@@ -687,11 +689,12 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
 }
 
 /**
- * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
- * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
+ * The matrix entry of one light-check bin: its shard's fields, with its own name and the command that runs only
+ * its files (tools/test-select.mjs lightPlan()), without coverage. Its files are only in that command:
+ * no step reads a leg's file list, and a second copy is a quarter of the job's outputs (OUTPUTS_BUDGET).
  * @param bin a lightPlan() bin
  * @param [shards] the shards to look its shard up in (plan()'s)
- * @returns a matrix entry with `files` and `members` fields
+ * @returns a matrix entry with a `members` field
  */
 export function binEntry(bin, shards = SHARDS) {
     const shard = shards.find((s) => s.shard === bin.shard);
@@ -703,7 +706,6 @@ export function binEntry(bin, shards = SHARDS) {
         ...shard,
         shard: bin.name,
         members: bin.covers ?? [bin.shard],
-        files: bin.files,
         "test-command": bin.command,
     };
     delete e["coverage-file"];
@@ -755,7 +757,7 @@ export function splitLines(include) {
 }
 
 /** The fields a leg of the slim test-matrix leaves out: only the Test jobs run a leg, from test-matrix-1/2. */
-const SLIM_DROPS = new Set(["test-command", "files", "ids", "local-paths"]);
+const SLIM_DROPS = new Set(["test-command", "ids", "local-paths"]);
 
 /**
  * The test-matrix line: the whole plan, or, when splitLines cut it in two, a slim index of its legs that still
@@ -769,6 +771,54 @@ export function matrixLine(include) {
             ? include
             : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.has(k))));
     return `test-matrix=${JSON.stringify({ include: listed })}`;
+}
+
+/**
+ * What GitHub's "Job outputs exceed 1,048,576 bytes" allows, in characters: it counts two bytes a character. Plans
+ * of 515,537 characters passed (run 42083308906) and one of 527,912 failed (run 42116998023), either side of this.
+ */
+export const OUTPUTS_LIMIT = 1_048_576 / 2;
+/** The characters a plan's outputs may hold; the rest of the limit is for the job's other outputs and for margin. */
+export const OUTPUTS_BUDGET = (OUTPUTS_LIMIT * 7) / 8;
+
+/**
+ * Every test and stories GITHUB_OUTPUT line of a plan. A light plan too large for the job's outputs, or for the two
+ * Test jobs, runs whole shards in place of its bins: their commands name no files, so their size does not depend
+ * on the change, and each runs every file its bins would have. The shards that selected nothing stay out, and the
+ * story bins stay as planned.
+ * @param affected package directory names
+ * @param [only] shard names: when given, every other shard is left out
+ * @param [light] tools/test-select.mjs --plan output
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins
+ * @param [shards] the shards to plan from (for tests)
+ * @returns the lines, in order
+ * @throws when even whole shards do not fit, so the reason is not left to GitHub's annotation
+ */
+export function outputLines(affected, only, light, pullRequest = false, shards = SHARDS) {
+    const stories = storiesPlan(light);
+    const storyLines = [`stories-matrix=${JSON.stringify({ include: stories })}`, `stories-count=${stories.length}`];
+    const lines = (include) => [
+        matrixLine(include),
+        `test-count=${include.length}`,
+        ...splitLines(include),
+        ...storyLines,
+    ];
+    const size = (out) => out.join("").length;
+    const include = plan(affected, only, light, pullRequest, shards);
+    const planned = include.length <= 2 * MATRIX_CAP ? lines(include) : null;
+    if (planned && size(planned) <= OUTPUTS_BUDGET) return planned;
+    // a selected bin runs whether or not nx calls its package affected (plan()), so its whole shard must too
+    const selected = (light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]);
+    const packages = shards.filter((s) => selected.includes(s.shard)).map((s) => s.package);
+    const whole = lines(plan([...affected, ...packages], only, { none: light?.none }, pullRequest, shards));
+    const sizes = whole.map((l) => `${l.slice(0, l.indexOf("="))} ${l.length}`).join(", ");
+    if (size(whole) > OUTPUTS_BUDGET) {
+        throw new Error(`the job's outputs hold more than ${OUTPUTS_BUDGET} characters even as whole shards: ${sizes}`);
+    }
+    console.error(
+        `::warning::the plan's ${include.length} test bins do not fit a job's outputs; shards run whole: ${sizes}`,
+    );
+    return whole;
 }
 
 /**
@@ -834,14 +884,13 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
-    const include = plan(affected, only, light, values["pull-request"] === true);
     console.log(`affected=${JSON.stringify(affected)}`);
-    console.log(matrixLine(include));
-    console.log(`test-count=${include.length}`);
-    for (const line of splitLines(include)) console.log(line);
-    const stories = storiesPlan(light);
-    console.log(`stories-matrix=${JSON.stringify({ include: stories })}`);
-    console.log(`stories-count=${stories.length}`);
+    try {
+        for (const line of outputLines(affected, only, light, values["pull-request"] === true)) console.log(line);
+    } catch (e) {
+        console.error(`::error::${e.message}`);
+        process.exit(1);
+    }
 }
 
 // Run only as the entry point, not when imported.

@@ -864,6 +864,7 @@ function channelPlans(
             ["labelPadding", [labelLength("node.labelPadding", false)]],
             ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
             ["labelLineHeight", [label("labelLineHeight")]],
+            ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
             ["labelOffsetY", [length("node.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
@@ -1341,14 +1342,15 @@ function arrowStackOf(
         .trim()
         .split(/\s+/)
         .flatMap((word) => {
-            const [shape, side] = word.split(":");
+            // a shape may hold a colon of its own (`other:open-square`)
+            const [, shape, side] = /^(.+?)(?::(left|right))?$/.exec(word) ?? [];
             const type = ARROW_SHAPES.get(shape);
             if (type === undefined || type === "none") {
                 return [];
             }
 
             const sizes = sized?.(shape);
-            const kept = side === "left" || side === "right" ? `:${side}` : "";
+            const kept = side === undefined ? "" : `:${side}`;
             const size = typeof sizes?.size === "number" ? `*${String(sizes.size)}` : "";
             const width = typeof sizes?.width === "number" ? `x${String(sizes.width)}` : "";
             return [`${type}${kept}${size}${width}`];

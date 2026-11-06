@@ -2300,7 +2300,7 @@ export class AiController {
                             {
                                 type: "text",
                                 origin: "graph-data",
-                                text: factsBlock(session, this.profile, pointing, scope),
+                                text: factsBlock(session, this.profile, pointing, scope, this.followsSelection()),
                             },
                             said,
                         ],
@@ -2417,6 +2417,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      */
     private earlierMessages(): SavedMessage[] {
         return [...(this.current?.messages ?? [])];
+    }
+
+    /**
+     * Whether an earlier message of the open conversation was about a selection.
+     * @returns True when one was.
+     */
+    private followsSelection(): boolean {
+        return this.earlierMessages().some((message) =>
+            message.parts.some((part) => part.type === "text" && part.scope?.kind === "selection"),
+        );
     }
 
     /**

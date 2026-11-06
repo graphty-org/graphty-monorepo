@@ -92,6 +92,7 @@ export interface AiPointing {
  * @param profile - The tool profile: the small one gets a shorter block.
  * @param pointing - What the reader pointed at while talking; absent for a typed message.
  * @param scope - What the message is about, when it was sent with a scope.
+ * @param afterSelection - Whether an earlier message of the conversation was about a selection.
  * @returns The facts, as text.
  */
 export function factsBlock(
@@ -99,6 +100,7 @@ export function factsBlock(
     profile: ToolProfile,
     pointing?: AiPointing,
     scope?: AiMessageScope,
+    afterSelection = false,
 ): string {
     const { counts, directed } = session.status;
     const attributes = session.data.attributes().filter((attribute) => attribute.origin !== "result");
@@ -134,7 +136,7 @@ export function factsBlock(
     }
 
     if (scope !== undefined) {
-        lines.push(scopeLine(scope));
+        lines.push(scopeLine(scope, afterSelection));
     }
 
     return lines.join("\n");
@@ -143,14 +145,21 @@ export function factsBlock(
 /**
  * The facts line for what a message is about.
  * @param scope - The scope.
+ * @param afterSelection - Whether an earlier message of the conversation was about a selection.
  * @returns The line.
  */
-function scopeLine(scope: AiMessageScope): string {
+function scopeLine(scope: AiMessageScope, afterSelection: boolean): string {
     const { nodes, edges, hiddenNodes, hiddenEdges } = scope;
     const held = `${String(nodes)} nodes and ${String(edges)} edges (${String(hiddenNodes + hiddenEdges)} hidden)`;
-    return scope.kind === "selection"
-        ? `This message is about the reader's selection, ${held}: every target is limited to it, and where "selection" names all of it.`
-        : `This message is about the whole graph, ${held}, whatever is selected.`;
+    if (scope.kind === "selection") {
+        return `This message is about the reader's selection, ${held}: every target is limited to it, and where "selection" names all of it.`;
+    }
+
+    const whole = `This message is about the whole graph, ${held}, whatever is selected.`;
+    // Only the newest facts are sent, so nothing else tells the model its earlier answers were narrowed.
+    return afterSelection
+        ? `${whole} Earlier answers and conditions in this conversation were limited to a selection: read again, and add no condition the reader did not ask for in this message.`
+        : whole;
 }
 
 /**

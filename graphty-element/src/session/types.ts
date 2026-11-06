@@ -1813,6 +1813,25 @@ export interface DatasetLoadOptions extends ImportOptions {
 }
 
 /**
+ * A column of a {@link LoadDraft} that looks like time.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFound extends CodedFact<"time.found"> {
+    /**
+     * `table` is the table's id and `column` the column's name, ready for a load's mapping. `from`
+     * and `to` are the earliest and latest instant a designation reads from it, as epoch
+     * milliseconds.
+     */
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
+}
+
+/**
  * A source read by `data.prepare`, held until `load()` or `dispose()`. After either, every method
  * rejects with `E_DISPOSED`.
  */
@@ -1830,6 +1849,13 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
+    /**
+     * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
+     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
+     * @experimental timeline
+     * @beta
+     */
+    readonly findings: readonly TimeFound[];
     /**
      * Every table's roles as a load with these choices reads them: the reader's mapping over the
      * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
@@ -1932,7 +1958,10 @@ export interface DraftTable {
     readonly name: string;
     /** How many rows it holds. */
     readonly rowCount: number;
-    /** True when the format sets the roles (every format but CSV). A mapping for it is refused with `E_BAD_COMMAND`. */
+    /**
+     * True when the format sets the roles (every format but CSV). A mapping for it is refused with
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
@@ -1958,6 +1987,15 @@ export interface DraftColumn extends Pick<
 > {
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
+    /**
+     * Set when the column has no role and its values look like time, with the timeline experiment
+     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * epoch or a calendar year. It applies nothing: a load designates the column only when the
+     * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
+     * @experimental timeline
+     * @beta
+     */
+    readonly looksLike?: "time";
 }
 
 /**

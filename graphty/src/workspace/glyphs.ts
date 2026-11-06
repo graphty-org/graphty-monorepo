@@ -63,6 +63,7 @@ import {
     ListOrdered,
     ListPlus,
     LoaderCircle,
+    LocateFixed,
     Lock,
     LockKeyhole,
     LockKeyholeOpen,
@@ -122,6 +123,7 @@ import {
     Workflow,
     X,
     Zap,
+    ZoomOut,
 } from "lucide-react";
 
 import type { SourceKind } from "./data-place/words";
@@ -281,6 +283,10 @@ export const GLYPHS = {
     stepForward: StepForward,
     // The whole span of the data: the window opened wide.
     allTime: MoveHorizontal,
+    // The histogram zoomed back out to the whole span.
+    wholeTimeline: ZoomOut,
+    // The window moved to where the selection is.
+    jumpToSelection: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

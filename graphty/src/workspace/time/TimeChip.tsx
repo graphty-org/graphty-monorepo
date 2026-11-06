@@ -9,8 +9,8 @@ import { useTimeVersion } from "./useTimeVersion";
 
 /**
  * The header's time chip, beside the filter chip, while a time window is on: what the canvas is
- * limited to ("Mar 10, 2025 - Mar 16, 2025"). A click puts focus on the dock's brush; its x shows
- * all time again. Its width is fixed and its figures tabular, so the chips after it stay put while
+ * limited to ("Mar 10, 2025 - Mar 16, 2025"). A click takes the reader to the brush: focus on the
+ * dock's, or a phone's sheet; its x shows all time again. Its width is fixed and its figures tabular, so the chips after it stay put while
  * time plays.
  * @returns the chip, or nothing.
  */
@@ -21,7 +21,7 @@ export function TimeChip(): React.JSX.Element | null {
         return null;
     }
     const window = session.time.current;
-    const words = windowWords(window, unitOf(session));
+    const words = windowWords(window, unitOf(session), session.time.timeZone);
     return (
         <Group gap={0} wrap="nowrap" className="tl-chip">
             <Tooltip label={`Time: ${words}`}>
@@ -31,7 +31,9 @@ export function TimeChip(): React.JSX.Element | null {
                     className="tl-chip-words"
                     aria-label={`Time: ${words}`}
                     leftSection={<GLYPHS.time size={12} aria-hidden />}
-                    onClick={focusBrush}
+                    onClick={() => {
+                        focusBrush(session, store);
+                    }}
                 >
                     {words}
                 </Button>

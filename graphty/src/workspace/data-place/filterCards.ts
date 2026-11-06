@@ -18,7 +18,7 @@ import type {
 import { valueWord } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
-import { timelineOn } from "../time/timeActions";
+import { panelsInView, timelineOn } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -62,7 +62,7 @@ export const TIME_ROW = "time-window";
  * @param store - the chrome store.
  */
 export function openTimeCard(store: WorkspaceStore): void {
-    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW } });
+    store.set({ page: "panels", place: "data", inspected: { kind: "filter-step", id: TIME_ROW }, ...panelsInView() });
 }
 
 /** `openFilterDraft`'s target that opens the Filters section's "+" list. */
@@ -75,7 +75,7 @@ export const PLUS = "+";
  * @param target - `<node|edge>:<path>`, or `PLUS`.
  */
 export function openFilterDraft(store: WorkspaceStore, target: string): void {
-    store.set({ page: "panels", place: "data", filterDraft: target });
+    store.set({ page: "panels", place: "data", filterDraft: target, ...panelsInView() });
 }
 
 /**

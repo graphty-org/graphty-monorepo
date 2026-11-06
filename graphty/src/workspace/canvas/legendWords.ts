@@ -708,7 +708,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
     const ran = run.caveats.window;
     if (ran !== undefined) {
-        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session))}`;
+        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session), undefined, session.time.timeZone)}`;
         return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;
     }
     if (run.status !== "succeeded" || run.stale === null) {

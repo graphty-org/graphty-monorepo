@@ -116,6 +116,11 @@ export interface AiAgentStartEvent {
 }
 
 // @public
+export interface AiAnswerOptions {
+    readonly typed?: boolean;
+}
+
+// @public
 export interface AiApprovalAnswer {
     readonly approve: boolean;
     readonly calls?: readonly {
@@ -217,7 +222,7 @@ export class AiConfigError extends Error {
 // @public
 export class AiController {
     constructor(options: AiControllerOptions);
-    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
+    answerQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     cancel(): void;
     clearHistory(): Promise<void>;
     clearLastError(): void;
@@ -354,7 +359,7 @@ export interface AiHostedToolResultEvent {
 // @public
 export class AiManager {
     constructor();
-    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult>;
+    answerQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     cancel(): void;
     clearHistory(): Promise<void>;
     deleteConversation(id: string): Promise<void>;

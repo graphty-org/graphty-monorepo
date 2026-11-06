@@ -9,6 +9,7 @@ export { AiStatusManager } from "./AiStatus";
 
 // Controller
 export type {
+    AiAnswerOptions,
     AiApprovalAnswer,
     AiApprovalsSetting,
     AiApprovalVerdict,

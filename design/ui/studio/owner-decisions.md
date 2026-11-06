@@ -10,6 +10,18 @@ The dry runs spent all 3,000 requests before a session ran. The cap was set for 
 owner, so it is raised to 5,000: about $10 more at about $0.005 a request, inside the $150 monthly LLM
 budget. A second round folder runs the 12 sessions on the same frozen build.
 
+## 2026-11-06 -- Decided by the team: a typed answer to a question (graphty-element)
+
+- `answerAiQuestion(id, answer, options?)`, with `AiAnswerOptions { typed?: boolean }`, on the
+  element, `Graph`, `AiManager` and `AiController`. With `typed: true`, a non-blank text outside the
+  choices goes to the model as written; a text naming a choice still picks that choice. Additive: the
+  default keeps `AI_ANSWER_INVALID`, which a host offering only its choices still wants.
+- The name says how the answer was given, not what to do with it, so a host decides per answer and
+  buttons never need it. A list stays invalid: only a text is the reader's own words.
+- A question's answer is no longer capped at 1,500 characters in its tool result, since the cap
+  dropped a long typed answer whole and left the model an empty answer. A reader's message has no
+  such cap. Choices fit the old cap, so no existing answer changes.
+
 ## 2026-11-06 -- Decided by the team: an effect for a removed run (graphty-element)
 
 - `AI_EFFECT_RUN_REMOVED`, a new code in `AI_EFFECT_CODES` on `./catalog`, `{ run, algorithm,

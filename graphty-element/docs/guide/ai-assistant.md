@@ -306,6 +306,8 @@ if (first.code === "AI_QUESTION_ASKED") {
   result of the model's question, the model goes on, and the promise resolves with the message's
   final result. An answer that is not among the choices (or several for a question that takes one)
   resolves `AI_ANSWER_INVALID` with `{ request }`; nothing continues and the question stays open.
+  To let a reader answer in their own words, pass `answerAiQuestion(id, text, { typed: true })`: a
+  non-blank text outside the choices then goes to the model as written, and the model goes on.
   An id no open question has resolves `AI_APPROVAL_STALE` with `reason: "expired"`.
 - **A question ends on an event, never on a timer**, as an approval does: on the answer; on a new
   message or `retryLastAiCommand()` (`AI_APPROVAL_STALE`, `reason: "superseded"`); on

@@ -8580,6 +8580,8 @@ export class Graph implements GraphContext {
      * (`ai-pending-resolved`).
      * @param id - The question's id, from the event.
      * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @param options - How it was given: `typed` lets a text the reader wrote, outside the choices,
+     *     go to the model as written.
      * @returns The message's final result, which `ai-command-complete` also carries;
      *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
      *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
@@ -8588,12 +8590,13 @@ export class Graph implements GraphContext {
     async answerAiQuestion(
         id: string,
         answer: string | readonly string[],
+        options?: import("./ai/AiController").AiAnswerOptions,
     ): Promise<import("./ai/AiController").ExecutionResult> {
         if (!this.aiManager) {
             return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
         }
 
-        return this.aiManager.answerQuestion(id, answer);
+        return this.aiManager.answerQuestion(id, answer, options);
     }
 
     /**

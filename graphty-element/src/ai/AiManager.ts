@@ -27,6 +27,7 @@ import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../ev
 import type { Graph } from "../Graph";
 import { type AiAgentsSetting, AiConfigError, type AiToolOptions } from "./agents";
 import {
+    type AiAnswerOptions,
     type AiApprovalAnswer,
     type AiApprovalsSetting,
     type AiCommandOptions,
@@ -995,16 +996,21 @@ export class AiManager {
      * the message ends the question instead.
      * @param id - The question's id.
      * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @param options - How it was given: `typed` lets a text outside the choices through.
      * @returns The message's final result (`ai-command-complete` fires again with it);
      *     `AI_ANSWER_INVALID` when the answer is not among the choices, and the question stays open;
      *     `AI_APPROVAL_STALE` when the question is no longer open.
      */
-    async answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
+    async answerQuestion(
+        id: string,
+        answer: string | readonly string[],
+        options?: AiAnswerOptions,
+    ): Promise<ExecutionResult> {
         if (!this.controller) {
             return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
         }
 
-        return this.controller.answerQuestion(id, answer);
+        return this.controller.answerQuestion(id, answer, options);
     }
 
     /**

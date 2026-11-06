@@ -339,6 +339,15 @@ export type AiApprovalsSetting =
     | { readonly ask: readonly string[] }
     | { readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict };
 
+/** How an answer to a question was given. */
+export interface AiAnswerOptions {
+    /**
+     * True when the answer is text the reader wrote or said: a non-blank text outside the choices
+     * then goes to the model as written, instead of resolving `AI_ANSWER_INVALID`. Default false.
+     */
+    readonly typed?: boolean;
+}
+
 /** The reader's answer to an approval request. */
 export interface AiApprovalAnswer {
     /** True to run the held calls. */
@@ -1669,9 +1678,7 @@ export class AiController {
      * @returns Cancelled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
-        return this.cancelled.has(run.abortController)
-            ? this.cancelOutcome(run)
-            : { code: "AI_UNDONE", params: {} };
+        return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
     }
 
     /**
@@ -2238,22 +2245,32 @@ export class AiController {
      * the answer is the result of its question, and the model goes on as in any message.
      * @param id - The question's id.
      * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @param options - How it was given: `typed` lets a text outside the choices through.
      * @returns The message's final result; `AI_ANSWER_INVALID` when the answer is not among the
      *     choices (nothing continues, and the question stays open); `AI_APPROVAL_STALE` with
      *     `reason: "expired"` when no such question is open, or `"resolved-elsewhere"` when another
      *     instance answered it first.
      */
-    answerQuestion(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
-        return this.enqueue(() => this.answerNow(id, answer));
+    answerQuestion(
+        id: string,
+        answer: string | readonly string[],
+        options: AiAnswerOptions = {},
+    ): Promise<ExecutionResult> {
+        return this.enqueue(() => this.answerNow(id, answer, options));
     }
 
     /**
      * Answer a question, its turn come.
      * @param id - The question's id.
      * @param answer - The answer.
+     * @param options - How it was given.
      * @returns The message's final result.
      */
-    private async answerNow(id: string, answer: string | readonly string[]): Promise<ExecutionResult> {
+    private async answerNow(
+        id: string,
+        answer: string | readonly string[],
+        options: AiAnswerOptions,
+    ): Promise<ExecutionResult> {
         const expired: ExecutionResult = {
             success: false,
             message: "",
@@ -2265,7 +2282,7 @@ export class AiController {
             return expired;
         }
 
-        const values = (await import("./questions")).pickedChoices(pending.request, answer);
+        const values = (await import("./questions")).pickedChoices(pending.request, answer, options.typed);
         if (values === undefined) {
             return { success: false, message: "", code: "AI_ANSWER_INVALID", params: { request: id } };
         }

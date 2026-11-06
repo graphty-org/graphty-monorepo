@@ -515,11 +515,13 @@ describe("checking what the Assistant says", () => {
         });
     });
 
-    it("a question answered by typing resolves it; a wrong answer keeps it open with one line", async () => {
+    it("a question answered by typing resolves it, in the choices' words or the reader's own", async () => {
         await openOn(3);
         model.turns = [
             calling("ask_reader", { question: "Which group?", choices: ["even", "odd"] }),
             { text: "Even it is.", toolCalls: [] },
+            calling("ask_reader", { question: "Which color?", choices: ["red", "blue"] }),
+            { text: "Purple it is.", toolCalls: [] },
         ];
         await say("Pick one");
         const section = await screen.findByRole("region", { name: "Waiting for you" });
@@ -527,11 +529,14 @@ describe("checking what the Assistant says", () => {
         const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
         assert.strictEqual(field.placeholder, "Or type an answer");
 
-        await say("purple");
-        await within(section).findByText("That is not one of the choices.");
-        await userEvent.clear(field);
         await say("Even");
         await screen.findByText(/Even it is\./);
+        assert.isNull(screen.queryByRole("region", { name: "Waiting for you" }));
+
+        await say("And a color");
+        await screen.findByRole("radio", { name: "red" });
+        await say("purple");
+        await within(log()).findByText(/Purple it is\./);
         assert.isNull(screen.queryByRole("region", { name: "Waiting for you" }));
     });
 

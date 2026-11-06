@@ -275,13 +275,13 @@ export async function decide(
 }
 
 /**
- * Answers a question; an answer that is not among its choices keeps it open.
+ * Answers a question; what the composer held goes to the model even when it is not a choice.
  * @param element - the element.
  * @param store - the workspace store.
  * @param choice - the provider and model.
  * @param id - the question.
  * @param answer - the choice or choices.
- * @param typed - what the composer held, handed back if refused.
+ * @param typed - what the composer held, if that is the answer.
  */
 export async function answerQuestion(
     element: GraphtyElement,
@@ -292,5 +292,5 @@ export async function answerQuestion(
     typed = "",
 ): Promise<void> {
     store.set({ assistantDraft: "", assistantEnded: null, assistantRefused: false });
-    await follow(element, store, choice, typed, () => element.answerAiQuestion(id, answer));
+    await follow(element, store, choice, typed, () => element.answerAiQuestion(id, answer, { typed: typed !== "" }));
 }

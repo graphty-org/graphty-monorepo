@@ -280,6 +280,45 @@ describe.each([
         assert.lengthOf(harness.controller.getPendingQuestions(), 1);
     });
 
+    it("with typed, text outside the choices goes to the model as written, however long", async () => {
+        for (const answer of [" Green, please ", "green ".repeat(500)]) {
+            const session = await assistantSession();
+            const harness = new Harness(session, driver(), { questions: true });
+            const request = await askQuestion(harness);
+            harness.driver.push({ text: "Green it is." });
+
+            const result = await harness.controller.answerQuestion(request.id, answer, { typed: true });
+
+            assert.strictEqual(result.code, "AI_COMPLETED", JSON.stringify(result));
+            const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
+            assert.strictEqual(part.type, "tool-result");
+            if (part.type === "tool-result") {
+                assert.deepStrictEqual(JSON.parse(part.content).data, { answer: [answer] });
+            }
+
+            assert.deepStrictEqual(harness.controller.getPendingQuestions(), []);
+        }
+    });
+
+    it("with typed, text naming a choice still picks it, and blank text or a list stays invalid", async () => {
+        const session = await assistantSession();
+        const harness = new Harness(session, driver(), { questions: true });
+        const request = await askQuestion(harness);
+
+        for (const answer of ["", "   ", ["green"]]) {
+            const result = await harness.controller.answerQuestion(request.id, answer, { typed: true });
+            assert.strictEqual(result.code, "AI_ANSWER_INVALID", JSON.stringify(answer));
+        }
+
+        harness.driver.push({ text: "Red it is." });
+        await harness.controller.answerQuestion(request.id, "RED", { typed: true });
+        const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
+        assert.strictEqual(part.type, "tool-result");
+        if (part.type === "tool-result") {
+            assert.deepStrictEqual(JSON.parse(part.content).data, { answer: ["red"] });
+        }
+    });
+
     it("runs the calls before the question first, and none after it", async () => {
         const session = await assistantSession();
         const harness = new Harness(session, driver(), { questions: true });

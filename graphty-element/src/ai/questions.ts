@@ -123,9 +123,14 @@ function namedChoices(
  * one text of its choices with commas between them.
  * @param request - The question.
  * @param answer - The answer: one choice, or several for a question that takes several.
+ * @param typed - Whether a text outside the choices counts as the answer, as written.
  * @returns The choices as the question gave them, or undefined when the answer is not among them.
  */
-export function pickedChoices(request: AiQuestionRequest, answer: string | readonly string[]): string[] | undefined {
+export function pickedChoices(
+    request: AiQuestionRequest,
+    answer: string | readonly string[],
+    typed = false,
+): string[] | undefined {
     const named = namedChoices(request, answer);
     const values = named?.filter((value) => value !== undefined);
     const valid =
@@ -134,5 +139,9 @@ export function pickedChoices(request: AiQuestionRequest, answer: string | reado
         values.length === named?.length &&
         (request.multiple || values.length === 1) &&
         new Set(values).size === values.length;
-    return valid ? values : undefined;
+    if (valid) {
+        return values;
+    }
+
+    return typed && typeof answer === "string" && answer.trim() !== "" ? [answer] : undefined;
 }

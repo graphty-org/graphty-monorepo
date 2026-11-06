@@ -987,7 +987,11 @@ function answerResult(answer: ReaderAnswer, id: string): SavedMessage {
                 callId: answer.callId,
                 code: "AI_COMPLETED",
                 params: {},
-                content: resultText({ code: "AI_COMPLETED", data: { answer: [...answer.values] } }, RESULT_CAP.small),
+                // The reader's own words, uncapped as a message is: a cap would drop a long typed answer.
+                content: resultText(
+                    { code: "AI_COMPLETED", data: { answer: [...answer.values] } },
+                    Number.POSITIVE_INFINITY,
+                ),
             },
         ],
     };

@@ -38,6 +38,7 @@ export { AiStatusManager } from "./src/ai/index";
 
 // AI Controller
 export type {
+    AiAnswerOptions,
     AiApprovalAnswer,
     AiApprovalsSetting,
     AiApprovalVerdict,

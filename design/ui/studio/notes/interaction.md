@@ -15,80 +15,49 @@ save and reopen.
 
 ## Top of mind
 
-1. (2026-11-05) **Tier 6 round 2: readers met the Assistant.** 11 of 12 succeeded, 0 false "done", no
-   confirmed severity 3, Undo restored all in 2 of 2. One model plays every persona. No fix has
-   started, so everything below is still open on build 3b2a7f0649.
-2. (2026-11-05) **After Undo, Remove or Answer, focus returns to the composer.** Still the fix bar 8
-   fails on. `Waiting.tsx` raises `composerCalls` only for Change this; Settings stays out.
-3. (2026-11-05) **The field contradicts the scope line.** Under "Selection 14" the placeholder says
-   "Ask about this graph". Word the placeholder from the scope, and draw the stored
-   `AiConversationMessage.scope` on the You turn, so a reply can be read against what it was about.
-4. (2026-11-05) **Scope must not move unasked.** Esc closing Settings and Esc on a focused chip clear
-   the selection, with no undo: a direct break of the Esc ladder. Selection is a hidden argument.
-5. (2026-11-05) **The log's foot has two causes, neither the reader.** `Conversation.tsx`'s follow
-   effect does not depend on the conversation, and the panel's second scrollbar narrows the text after
-   the log reached its foot. Fix both before calling "never scrolled" reader behavior.
-6. (2026-11-05) **I reversed my view: a painting run says it painted.** One line, "Computed X for N
-   nodes, colored by it", from an additive fact on `AI_EFFECT_RUN`. Painting stays the tool's default.
-7. (2026-11-05) **A failure with two possible causes gets two doors.** Refused key: "may be" wording,
-   Send again and AI provider... My one-action rule assumed one known cause.
-8. (2026-11-05) **A claim must be true of the whole state:** Autosave's tooltip (false for a clean
-   project from a file), "Nothing changed." beside a lit Redo, "Listening" before the microphone.
-   Change the words; Recent projects for opened files is a different, larger question.
-9. (2026-11-05) **Every effect gets its line; every ending leaves one:** no Declined line after Keep
-   them. A closing verb must not drop input: Done loses a typed key (0 of 2 pressed it, stays 2).
-10. (2026-11-05) **Open rulings, my view:** a rollback is not an Undo the reader asked for; closing the
-    panel should keep the x (design 5.2). The 400% Settings page (`frame.css`) needs a `repro/`.
-11. (2026-11-05) **Study gates:** the study tool's hover is a deliberate command, so hover counts
-    measure the tool; a live-region log is not what a screen reader says; a bar's wording can fail
-    right behavior.
-12. (2026-10-30) **Show what an act will do, and decide before it.** Join's preview tags must equal
-    its result; a new style line starts where the reader can see it act.
-13. (2026-10-30) **One fact, one drawing; column work starts at the table header.** A count should be
-    a link that selects what it counts. Keyboard debts: header "..." not a Tab stop; issue mark not
-    spoken; Export's format warning drops focus; a repeat's menu marks no current choice.
-14. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center
-    reopen of a saved project, a real-notch wheel repro. Name the mechanism before any fix.
-15. Standing: a failure is strong evidence, a pass weak; trust repros and code causes over tool text;
-    graph facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
-1. (2026-11-03) **Tier 5 round 1 closed at its cap, bars 1, 3, 4, 8 and 9 failing.** 30 valid
-   sessions on build 1e123d7d33 (the earlier void launch taught: run the start gate first). Two
-   severity 3 stand: a covered panel speaking (fixed after the freeze) and a results picker
-   binding a different run. My own walk never ran, so bar 7 is unmeasured: run it next round.
-2. (2026-11-03) **One live region, one speaker -- the visible surface.** The covered inspector
-   row announced a count over a base nothing on screen named. `WhichPicker.tsx` goes quiet while
-   the workspace is open; re-walk it by keys on the next build.
-3. (2026-11-03) **An entry must bind what it names.** A value-picker entry described the visible
-   run and bound a whole-graph run (Group 1, 549 under 112 of 549). Every run entry carries its
-   scope from graphty-element's facts; the app words it.
-4. (2026-11-03) **Never lose a card the reader saved.** Clear then Escape (and probably Clear then
-   Done) on a reopened card deletes it, and Undo cannot restore it. Escape on an emptied card
-   reverts to the saved card, never discards; gate `onEmptyCancel` on `openedNew`.
-5. (2026-11-03) **A just-added thing starts empty and says what it joins.** The new Or group
-   opened at "B 0" with a full-width untouched range; "Condition..." and "Or..." never say "and"
-   or "or else" (3 sessions, 3 halves). Draw untouched steps as untouched; name the join.
-6. (2026-11-03) **A box states its direction and unit.** By position's lone box ("of all nodes",
-   9 px) got "top 5" from 3 of 3; its error claimed a limit of 10 it did not apply. Top or bottom,
-   number or percent, visible; errors only from live state.
-7. (2026-11-03) **A choice takes on the first try, empty or not.** "Is exactly" on an empty text
-   step stayed "Contains"; the empty color box gave no cue and its picker closed on the first click
-   (7 sessions, largest share of T70's overage).
-8. (2026-11-03) **The workspace header is far back in Tab order** (Done 11 to 34 keys away, no F6
-   stop). Make the header an F6 stop; counted in bar 9.
-9. (2026-11-03) **Decided rules can collide into loss;** write precedence into decided.md:
-   "Escape never discards work" wins once a card holds steps.
-10. (2026-11-03) **Names keep saying what a thing is:** Clear keeps the card's name; a chosen
-    reference shows the matched value; the card's name follows Or groups and second steps.
-11. (2026-11-03) **Below 1280 px the workspace needs a width rule** (preview a 44 px sliver at
-    900 x 700). Columns yield to the preview.
-12. (2026-10-30) **Show what an act will do before it happens; decide before the act;** a new
-    filter card starts non-destructive and every choice names its consequence.
-13. (2026-10-30) One fact, one drawing; one number format within one surface.
-14. Standing: never trust tool text over the screenshot; one model plays every persona -- a
-    failure is strong evidence, a pass weak; check task wording against the key (T73 measured the
-    key, not the build).
-15. Standing: graph facts in graphty-element, flows/focus/words in the app, shared control
-    defects in compact-mantine.
+1. (2026-11-06) **Tier 6 round 2 closed: 11 of 12 succeeded, 0 false "done", 0 confirmed severity 3,
+   Undo restored all in 2 of 2.** What is left has one shape: the screen says less than the graph did,
+   or says it where the reader is not looking. Round 3 runs on build a80da6d62e with 15 units, one fix
+   per problem so each can be credited.
+2. (2026-11-06) **Focus after a press that removes its own button goes to the composer** (unit
+   `focus-after-a-press`, fails bar 8). All approval buttons, Answer, a turn's Undo, the scope x, Use
+   selection, Send again. Settings still returns to its opener. Round 3 check: a typed letter after each
+   lands in the composer; a second Enter changes nothing.
+3. (2026-11-06) **The reply's foot: measure before building.** Step (a) is `position: relative` on
+   `.ws-assistant-log` (the hidden chip span escapes and adds the outer scrollbar). Step (b), a
+   ResizeObserver calling `toFoot` while following, only if (a) falls short. Watch: one scrollbar, chips
+   and Undo in view, and the three deferred routes (T93 B, T95 A, T90 B).
+4. (2026-11-06) **The placeholder follows `scope.kind`** ("Ask about this selection"); scope on the You
+   turn and "only" wording are refused until T92 A's plant is retested on this alone. If the plant still
+   lands, the You-turn scope is the next step.
+5. (2026-11-06) **A painting run says so on its existing line**, "Computed X for N nodes, colored by it",
+   from `painted` on `AI_EFFECT_RUN`; no separate Colored row (rows at rest do not rise). Default stays
+   painting. Watch: `painting()` must not read `pending` in `settleRun`; any leftover "Changed the graph"
+   gets its tool named.
+6. (2026-11-06) **A failure with two causes says both:** "the connection failed or the key was refused",
+   Send again plus AI provider..., keyed on `requiresKey`. A browser truly hides a 401 with no CORS header.
+7. (2026-11-06) **Rulings, now settled:** a rollback leaves no selection and no lit Redo (it is not a
+   reader's Undo); closing the panel does not end the scope x (design 5.2). Both are in `decided.md`.
+8. (2026-11-06) **Esc and scope still owed:** Esc closing Settings or on a focused chip clears the
+   selection with no undo. Not a round 3 unit; re-walk it, since selection is a hidden argument.
+9. (2026-11-06) **A claim must be true of the whole state.** Autosave's tooltip promises a return that
+   never happens for an opened file (no way of opening a file gets a handle). Round 3 fixes the string
+   only; Recent projects for opened files is backlog.
+10. (2026-11-06) **Small but mine:** Enter in the key box runs Save; the Undo notice loses its doubled
+    period and stays off an open panel; a waiting question reads at body size; Show in table opens on
+    the rows it names.
+11. (2026-11-06) **Study instrument limits:** hover in the tool is a deliberate command, so hover counts
+    measure the tool; first-meeting prompts no longer say "returning"; bar 7 fails as worded (a closed
+    tab), not on Undo. Owed: 400% Settings repro, the 193-screen audit, the key-after-reopen test.
+12. (2026-11-05) **Every effect gets its line; every ending leaves one.** No Declined line after Keep
+    them; Done must not drop a typed key.
+13. (2026-10-30) **Show what an act will do, and decide before it.** One fact, one drawing; a count is
+    a link that selects what it counts. Keyboard debts: header "..." not a Tab stop, the workspace
+    header has no F6 stop.
+14. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center reopen,
+    a real-notch wheel repro. Name the mechanism before any fix.
+15. Standing: a failure is strong evidence, a pass weak; trust repros and code over tool text; graph
+    facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
 
 ## Priorities and values
 
@@ -152,6 +121,13 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
+- 2026-11-06 **Round 3 plan, from the round 2 decisions.** One change per problem; words at rest do not
+  rise; a mechanism only read is measured before it is built on. Mine in it: the focus rule, the reply
+  foot in two measured steps, the scope placeholder, the painted fact on the run line, the two-cause
+  failure words, Enter saves the key, the notice period. Refused, with reason: a Colored row (stacks
+  rows), "only selected" wording and You-turn scope (one planted reader; credit the placeholder first),
+  selected-first sort for Show in table (reuse the members chip), `beforeunload` (nags clean projects),
+  "Autosave: no changes" (flips on every Save), confirming Forget key (retyping recovers).
 - 2026-11-03 **A picker entry binds exactly the run it names, scope included.** Evidence: r1-s23
   plus repro, Group 1 549 under 112 of 549; both skeptics kept severity 3.
 - 2026-11-03 **Escape or Done on an emptied saved card reverts to the saved card.** Reason: Undo
@@ -232,6 +208,10 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Tried: worked / did not work
 
+- 2026-11-06 Round 2 settled by two skeptics. Worked: my proposals mostly became units. Did not: my
+  "the follow effect lacks the conversation dependency" was half the story -- `ChipRow` draws after an
+  async count, so a dependency alone cannot fix it; and a failure's one-action rule broke on a failure
+  with two unknowable causes. Taught: check a claimed reader behavior against code before accepting it.
 - 2026-11-05 Tier 6 round 2 (12 sessions). Worked: the approval card, Undo in the reply as first
   choice, the disclosure once read, focus staying in the composer through send and failure, Sam's two
   keyboard sessions. Did not: the scope line alone (Dev read it and asked anyway); Show in table with
@@ -245,81 +225,24 @@ Each with its reason. A screen that breaks one is a defect.
   found). Six scope routes fell to about three mechanisms once checked: a chip click is the
   reader's own act, not a defect. Taught: a study that never reaches a reader still pays through
   walks, but only for what is on screen.
-- 2026-11-03 Tier 5 round 1 (30 valid, build 1e123d7d33). Worked: 0 of 30 false "done"; both
-  keyboard sessions finished with no block and 0 serious axe findings; colleagues' two-step cards
-  still let T77 succeed. Did not: the empty Fill color box (no cue, first-click commit); By
-  position's lone box; the Or group's first state and its unworded join; the results picker
-  binding a different run; "Is exactly" on an empty step; Clear then Escape on a reopened card;
-  the workspace header's Tab position. Not run: my walk and the content designer's, so bars 6
-  and 7 had no feed -- schedule both walks before launch, not after.
-
-- 2026-11-03 Did not work: launching a round without the start gate's evidence in plan.md --
-  every session refused, a whole round of participants lost. Expert and scripted walks still
-  found the severity 3; keep them, they are the round's floor.
-- 2026-11-03 Did not work: the scripted word count as a calm-first verdict -- it counts chrome,
-  graph statistics and the user's own names. Only a hand count decides.
-
-- 2026-10-30 Tier 4 round 1 (returning users managing data). Worked: the header Role menu for
-  places (T63), the header "..." on hover (every T62 session found it), Hide for T66. Did not
-  work: the join preview tags; deciding unknown ends after Join; Hide as a new card's default when
-  marking first; "Set in Data" when the kind matters; the joined-source row layout (name and
-  approved ratio clipped). Tool defect: popover-on-hover reported as "tooltip: null".
-- 2026-10-21 Tier 3 round 1 (summarized): style "+" on the drawn default changed nothing (9
-  sessions); node color looked for in the Graph inspector first; F6 stop with no focus ring; find
-  pick became a fixed id list read as a rule; 6 of 10 went around the purple Layer token.
-
-- 2026-09-13..29 (summarized) Did not work: v1 panel locks and autohide (one rule needed); a
-  palette and search box that did not focus (initial focus goes to what opened); silent undo (5 of
-  5 lost a step; Ctrl+Y must be Redo off macOS); a filter-step undo that DELETED the step
-  (severity 4: undo unticks and keeps it -- applies to tier 2 Filters); Find focusing without
-  selecting; a notice lasting "until the next action". Worked: Ctrl+Z restoring a cleared
-  selection (0 of 8 wrong vs 5 of 8).
-- 2026-09-30 My groups-list proposal (measures do not auto-paint; a run's group cannot be dragged
-  out of its run; Space toggles paint; Alt+Up/Down moves a row): the owner overruled "measures do
-  not paint"; the keyboard map for tree rows mostly survived into refined structure B.
-- 2026-10-01 First clickable skeleton (round 7): ease fell to 3.54 because 18 of 61 tasks could
-  not reach their end state and the tool could not type or modifier-click. Taught: a prototype
-  that cannot reach the end state measures the prototype; and the end state is where interaction
-  design lives.
-- 2026-10-02..07 (summarized) Round 8 and the build comparison: a dead or silent second step
-  decided every tier 1 failure; drift lands in the state lines a first-time user reads. Worked
-  throughout: the load report, the broken-file refusal with line numbers, in-place reasons, "Note
-  on: <thing>". Rounds 1-2 on the real app: two doors to one act must share one function; menu
-  focus, row chevron, stale key, 2D Fit, the sizing chain, layouts failed and were fixed; a pointer
-  pilot cannot certify focus and announcement fixes.
-- 2026-10-09 (summarized) Tier 2 rounds 1-2 (55 valid each, both leaked): worked -- 0 false
-  "done", the path run, Replace page, load-time "Higher means", Enter/Escape in step edits. Did
-  not -- doors behind right-click, a find box answering only "No match", the stale key, the "start
-  with =" hint, backticks, style "+" on the drawn default, layers named by count, a second Escape
-  blurring the find box, Follow arrows landing on Hops. Taught: a dry run that walks only the
-  answer key certifies only it; a keyboard finding handed to a bar is not fixed.
-
-- 2026-10-10..11 (summarized) Tier 2 rounds 2-4. Worked: 0 false "done"; the find box's example
-  line and kept "=" (copied, never discovered: 0 of 8 unprompted); focus fixes by keys; Shift-click
-  adds (T24 7 of 7, median 4 steps against 7.5); the toolbar Filters icon first door 7 of 7. Did
-  not: backticks, "start with =", a bare "10" offering only "is equal to", Shortest path ranked
-  under Betweenness for "path", the table ignoring a filter step, an off step's editor turning it
-  on, New project then Discard crashing. Taught: my focus walk covered what I fixed, not every
-  route into a form; a fix matching a habit is used at once, but the briefing primed it.
-- 2026-10-09..11 (summarized 2026-11-03) Tier 2 rounds 1-4. Worked: 0 false "done", the path
-  run, Replace page, the find box's example line with "=" kept on the suggestion, Shift-click adds
-  (7 of 7), the toolbar Filters icon as first door, two-Escape and Tab-commit focus fixes. Did not:
-  doors behind right-click, "No match" with no help, the "start with =" hint and backticks, style
-  "+" on the drawn default, Follow arrows, a bare number offering only "is equal to", an off
-  step's editor turning it on. Taught: a dry run or focus walk certifies only the routes it walks;
-  a fix matching a habit is used at once, but check the briefing did not prime it.
-
-- 2026-10-21 Tier 3 round 1 (55 of 56, frozen build 758b8e8081). Worked: every keyboard session
-  finished (cost in key presses, not failure); the Which-nodes door after a run (T48 6 of 6, median
-  0 wrong turns); color words typed into the hex box. Did not: new style lines at the current
-  value; the empty-selection Style tab as a door to node color; focus after "Samples" and on the
-  inspector's F6 stop; the picker's hue-bar click closing it; a "+" lost to a re-layout between
-  press and release. Taught: a fix I have now made three times (start a line where it shows) needs
-  a rule in the criteria, not another local patch; and avoidance passes a bar that should measure
-  understanding.
+- 2026-09-13..11-03 (summarized 2026-11-06) Tiers 1 to 5. Worked: 0 false "done" every tier; the
+  load report and broken-file refusal with line numbers; Ctrl+Z restoring a cleared selection (0 of 8
+  wrong vs 5 of 8 with a notice alone); Shift-click adds; the Which-nodes door after a run; header Role
+  menu and hover "..."; keyboard sessions finishing (cost in presses, not failure). Did not: silent
+  undo; a filter undo that deleted its step (severity 4); focus not following an opener; doors behind
+  right-click; "No match" with no help; style "+" on the drawn default; new lines starting at the
+  current value; join preview tags not matching the result; an empty color box committing on first
+  click; an Or group's untouched state and unworded join; a picker binding a different run; Clear then
+  Escape deleting a saved card; a round launched without its start gate (every session refused).
+  Taught: a dry run or focus walk certifies only the routes it walks; a prototype that cannot reach
+  the end state measures the prototype; a fix made three times needs a criterion; avoidance can pass
+  a bar meant to measure understanding; schedule my own walk before launch.
 
 ## Thinking
 
+- 2026-11-06 **Watch in round 3:** whether the placeholder alone stops T92 A's plant; whether the
+  run line's "colored by it" is read by a reader who cannot see the drawing; whether focus in the
+  composer after Answer causes a stray Enter to send. Each unit stands alone so each can be credited.
 - 2026-11-05 **Check the mechanism before accepting "reader behavior".** The insights called "never
   scrolled" partly the participant; the code shows the log can stop short with no Jump to newest. And
   "the repaint is the model's" is half true: `run_algorithm` colors unless told `style: false`.
@@ -380,4 +303,4 @@ Each with its reason. A screen that breaks one is a defect.
   s56), `r2/pilot/T6-T16/pilot.md`, read 2026-10-07.
 - `design/ui/studio/tier2/rounds/round-1/insights.md` and `decisions.md`, read 2026-10-09.
 - `design/ui/studio/tier3/rounds/round-1/insights.md`, read 2026-10-21.
-- `design/ui/studio/tier6/rounds/round-1/insights.md`, `round-2/insights.md`, `scores.md`, read 2026-11-05.
+- `design/ui/studio/tier6/rounds/round-1/insights.md`, `round-2/insights.md`, `scores.md`, read 2026-11-05; round 2 `decisions.md`, read 2026-11-06.

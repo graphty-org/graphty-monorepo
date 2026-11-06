@@ -1511,6 +1511,7 @@ class Runs implements SessionRunsApi {
                 this.announce(run, phase);
             },
             entry: () => this.dispatcher.state.runs.get(id),
+            numberedAfter: () => this.sameQuestion(id)?.result,
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
@@ -1529,6 +1530,32 @@ class Runs implements SessionRunsApi {
         run.start();
 
         return run;
+    }
+
+    /**
+     * The newest other listed run that asked a run's question (the same algorithm over the same
+     * scope as spelled) and answered it, whose group numbers the run's first answer keeps.
+     * @param id - The run.
+     * @returns The other run, or undefined.
+     */
+    private sameQuestion(id: RunId): Run | undefined {
+        const spelled = this.spellings.get(id);
+        if (spelled === undefined) {
+            return undefined;
+        }
+        const others = [...this.runs.values()];
+        for (let at = others.length - 1; at >= 0; at--) {
+            const other = others[at];
+            if (
+                other.id !== id &&
+                this.spellings.get(other.id) === spelled &&
+                other.status === "succeeded" &&
+                this.listed(other)
+            ) {
+                return other;
+            }
+        }
+        return undefined;
     }
 
     /**

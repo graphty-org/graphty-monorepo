@@ -221,7 +221,7 @@ describe("a card's setting its run name does not carry (the owner, 2026-11-04)",
             firstParams,
             "the first run was never re-run in place",
         );
-        // The tick stands on the group that holds the old group's best-connected node.
+        // The tick stands on the same group: graphty-element numbers the new run's groups after the old run's.
         const ticked = await waitFor(() => {
             const boxes = within(modal)
                 .getAllByRole<HTMLInputElement>("checkbox")

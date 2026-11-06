@@ -22,6 +22,7 @@
 import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { englishNotes } from "../english";
 import { retainedChanged } from "../project/retained";
 import type { Caveats } from "../runs/types";
 import type { CodedFact } from "../shared";
@@ -975,6 +976,7 @@ class Result implements RunResult {
     readonly measured: { readonly nodes: number; readonly edges: number };
     readonly graph: Readonly<Record<string, unknown>>;
 
+    readonly #init: RunResultInit;
     readonly #nodes: ElementTable;
     readonly #edges: ElementTable;
     readonly #caveats: Caveats;
@@ -999,6 +1001,7 @@ class Result implements RunResult {
         edges: ElementTable,
         graph: Readonly<Record<string, unknown>>,
     ) {
+        this.#init = init;
         this.runId = init.runId;
         this.shape = init.shape;
         // An algorithm declares its fields before any run exists, as "results.$.value"; the
@@ -1373,6 +1376,47 @@ class Result implements RunResult {
     }
 
     /**
+     * This result with some node fields' values renamed and other caveats: the same ids, the same
+     * other columns, and group size rows that follow the new names.
+     * @param renames - For each node field, each old value's new one; a value not listed stays.
+     * @param more - Facts the copy's caveats carry past this one's, and their deprecated sentences.
+     * @returns The copy.
+     */
+    renumbered(renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>, more: AddedFacts): Result {
+        const from = this.#nodes;
+        const nodes: ElementTable = { ...from, columns: new Map(from.columns), orders: new Map() };
+        const rename = (map: ReadonlyMap<unknown, unknown>, value: unknown): unknown =>
+            map.has(value) ? map.get(value) : value;
+        for (const [field, map] of renames) {
+            const column = from.columns.get(field);
+            if (column !== undefined) {
+                nodes.columns.set(
+                    field,
+                    Array.from(column as ArrayLike<unknown>, (value) =>
+                        value === MISSING ? value : rename(map, value),
+                    ),
+                );
+                sealColumn(nodes, field);
+            }
+        }
+        const graph: Record<string, unknown> = { ...this.graph };
+        const groups = renames.get("group");
+        if (groups !== undefined && Array.isArray(graph.sizes)) {
+            const rows = (graph.sizes as readonly ResultSizeRow[]).map((row) =>
+                Object.freeze({ ...row, group: rename(groups, row.group) as ResultSizeRow["group"] }),
+            );
+            rows.sort((left, right) => right.size - left.size || compareGroupKeys(left.group, right.group));
+            graph.sizes = Object.freeze(rows);
+        }
+        const caveats: Caveats = Object.freeze({
+            ...this.#caveats,
+            facts: Object.freeze([...this.#caveats.facts, ...more.facts]),
+            notes: Object.freeze([...englishNotes(this.#caveats), ...more.sentences]),
+        });
+        return new Result({ ...this.#init, caveats }, nodes, this.#edges, Object.freeze(graph));
+    }
+
+    /**
      * The ids of the elements one half publishes values for, in the result's own order.
      * @param half - Nodes or edges.
      * @returns The ids.
@@ -1570,6 +1614,36 @@ export function retentionOf(result: RunResult): { readonly bytes: number; readon
  */
 export function elementIdsOf(result: RunResult, half: "node" | "edge"): readonly NodeId[] {
     return result instanceof Result ? result.elementIds(half) : [];
+}
+
+/** Caveat facts added to a result, and the English sentences the deprecated notes carry for them. */
+export interface AddedFacts {
+    readonly facts: Caveats["facts"];
+    readonly sentences: readonly string[];
+}
+
+/**
+ * Whether a value is a result this module built, so it can be renumbered and listed.
+ * @param value - Anything.
+ * @returns True for a built result.
+ */
+export function isBuiltResult(value: unknown): value is RunResult {
+    return value instanceof Result;
+}
+
+/**
+ * A result with some node fields' values renamed (a partition's group numbers) and other caveats.
+ * @param result - The result; one this module did not build is handed back unchanged.
+ * @param renames - For each node field, each old value's new one; a value not listed stays.
+ * @param more - Facts the copy's caveats carry past the result's, and their deprecated sentences.
+ * @returns The copy.
+ */
+export function renumberResult(
+    result: RunResult,
+    renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>,
+    more: AddedFacts,
+): RunResult {
+    return result instanceof Result ? result.renumbered(renames, more) : result;
 }
 
 /**

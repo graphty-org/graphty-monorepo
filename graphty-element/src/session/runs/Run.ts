@@ -34,6 +34,7 @@ import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import { type PartialCode, partialSentence } from "./caveatFacts";
+import { keepGroupNumbers } from "./groupNumbers";
 import {
     type Caveats,
     type EngineVersions,
@@ -333,6 +334,13 @@ export interface RunSurroundings {
      * @returns The captures the run keeps from now on.
      */
     captureHeld?(prior: HeldCaptures): HeldCaptures;
+    /**
+     * The result of another run of this algorithm over the same scope (other settings, or a run
+     * removed and started again), whose group numbers a first execution keeps for the same groups.
+     * Optional: absent, a first execution numbers its groups as its algorithm did.
+     * @returns The result, or undefined when there is none.
+     */
+    numberedAfter?(): unknown;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1241,7 +1249,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             outcome.caveats?.partialCause !== undefined;
         const partial = (outcome.partial ?? (timedOut || canceled)) || statesReason;
 
-        this.resultValue = outcome.result;
+        // What readers hold now, which a re-run's group numbers follow.
+        const before = this.result ?? this.surroundings.numberedAfter?.();
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
         // What the run published, with the facts the catalogue declares of each field (that a
@@ -1253,7 +1262,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                   this.id,
               )
             : this.fieldsValue;
-        this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
+        const unstable = new Set(
+            [...declared.values(), ...this.fieldsValue]
+                .filter((field) => field.kind === "node" && field.unstable === true)
+                .map((field) => field.name),
+        );
+        const kept = keepGroupNumbers(before, outcome.result, unstable, this.mergeCaveats(outcome, partial, timedOut));
+        this.resultValue = kept.result;
+        this.caveatsValue = kept.caveats;
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);
         this.statusValue = canceled ? "canceled" : "succeeded";

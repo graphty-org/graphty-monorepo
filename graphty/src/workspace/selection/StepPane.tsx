@@ -9,7 +9,6 @@
 import { FieldCaret, SegmentedControl, TargetTooltip } from "@graphty/compact-mantine";
 import type {
     GraphSession,
-    NodeId,
     RuleTree,
     StepReading,
     UnionBranch,
@@ -705,50 +704,9 @@ export function StepPane({
     const canSoFar = step.op !== "add" && algorithm?.scopeInput === "subgraph";
     // The algorithm's own settings, as Analyze draws them (spec 3.2), past the ones a step binds.
     const settings = algorithm?.options.filter((o) => o.internal !== true && o.type !== "node-id") ?? [];
-    // A tick on a value that is only a name (a community's number) follows the group it stood for:
-    // graphty-element names each group's best-connected member, and once the new run answers, the
-    // ticks go to whichever groups now hold those members. So settings that give the same groups
-    // keep the same ticks.
-    const following = useRef<{ from: string | null; nodes: readonly NodeId[] } | null>(null);
-    const tickedMembers = (values: readonly unknown[]): readonly NodeId[] => {
-        if (card === null || !("field" in card)) {
-            return [];
-        }
-        const ticked = new Set(values.map(String));
-        const read = session.scope.histogram(card.field.path, {
-            ...(rule.within === undefined ? {} : { within: rule.within }),
-            as: "categorical",
-        });
-        return read.kind === "categorical"
-            ? read.values.flatMap((each) =>
-                  ticked.has(String(each.value)) && each.member !== undefined ? [each.member] : [],
-              )
-            : [];
-    };
-    useEffect(() => {
-        const held = following.current;
-        const run = reading?.run ?? null;
-        if (held === null || run === null || run === held.from || step.rule.kind !== "measure") {
-            return;
-        }
-        const { rule: measureNow } = step;
-        const result = session.runs.get(run)?.result;
-        if (result === undefined) {
-            return;
-        }
-        following.current = null;
-        const groups = held.nodes.flatMap((node) => {
-            const value = result.node(node)?.[measureNow.field];
-            return typeof value === "string" || typeof value === "number" ? [String(value)] : [];
-        });
-        if (groups.length > 0) {
-            onStep({ rule: { ...measureNow, test: { kind: "categories", values: [...new Set(groups)] } } });
-        }
-    });
     /**
-     * The measure under new settings. A field whose values are names a re-run may spell differently
-     * (a community's number) has its picked values cleared until the new run says which groups
-     * hold the old ticks' members: "Group 1" of the old run is not the new run's Group 1.
+     * The measure under new settings. Its ticks stay as they are: graphty-element numbers a re-run's
+     * groups after the run it replaces, so a ticked community number holds the same group.
      * @param measure - the step's measure.
      * @param params - its new settings.
      * @returns the measure.
@@ -756,14 +714,7 @@ export function StepPane({
     const retuned = (
         measure: Extract<RuleTree, { kind: "measure" }>,
         params: Readonly<Record<string, unknown>>,
-    ): RuleTree => {
-        const renames = algorithm?.fields.some((field) => field.name === measure.field && field.unstable === true);
-        if (renames !== true || measure.test?.kind !== "categories") {
-            return { ...measure, params, ...(measure.test === undefined ? {} : { test: measure.test }) };
-        }
-        following.current = { from: reading?.run ?? null, nodes: tickedMembers(measure.test.values) };
-        return { ...measure, params, test: { ...measure.test, values: [] } };
-    };
+    ): RuleTree => ({ ...measure, params, ...(measure.test === undefined ? {} : { test: measure.test }) });
     const pending = reading?.state === "pending";
     // A state the Run button does not already say (Paused, Waits for step 1, No reference) is said
     // in the pane, as on the step's row (spec 3.1).

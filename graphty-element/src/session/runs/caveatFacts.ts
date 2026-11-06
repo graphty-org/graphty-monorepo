@@ -28,6 +28,12 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `partition.unscored` -- the algorithm does not score its own partition, so it reports no
  *   modularity: `{ algorithm }`, its catalog key.
  * - `community.resolution` -- the resolution the partition was found at: `{ resolution }`.
+ * - `groups.split` -- on a re-run, which keeps each group's number on the group sharing most of
+ *   its members, an old group's members now mostly fill new groups as well:
+ *   `{ field, group, into }`, the field, the number the group kept, and the new groups' numbers.
+ * - `groups.merged` -- on a re-run, old groups' members now mostly sit in one group, which kept
+ *   another number: `{ field, group, from }`, the field, the number it kept, and the numbers of
+ *   the groups that merged into it.
  * - `paths.counted-exactly` -- every shortest path was counted exactly, over the graph read as
  *   undirected.
  * - `paths.hop-lengths` -- path lengths count edges, and edge weights were not read.
@@ -131,6 +137,8 @@ export type CaveatCode =
     | "iteration.cap-reached"
     | "partition.unscored"
     | "community.resolution"
+    | "groups.split"
+    | "groups.merged"
     | "paths.counted-exactly"
     | "paths.hop-lengths"
     | "tree.edge-count"
@@ -263,6 +271,8 @@ const CAVEAT_SENTENCES: Readonly<Record<CaveatCode, (text: Text, params: CodedFa
     "partition.unscored": (text) =>
         `${UNSCORED_NAMES[text("algorithm")] ?? text("algorithm")} does not score its own partition, so it reports no modularity.`,
     "community.resolution": (text) => `Resolution ${text("resolution")}.`,
+    "groups.split": (text) => `Group ${text("group")} split; part of it is now ${text("into")}.`,
+    "groups.merged": (text) => `${text("from")} merged into group ${text("group")}.`,
     "paths.counted-exactly": () => "Every shortest path is counted exactly, over the graph read as undirected.",
     "paths.hop-lengths": () => "Path lengths count edges; edge weights are not read.",
     "tree.edge-count": (text) => `The tree joins the graph with ${text("edges")} edges.`,

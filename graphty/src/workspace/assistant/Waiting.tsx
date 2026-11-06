@@ -31,8 +31,8 @@ function ApprovalCard({
         if (element !== null) {
             void decide(element, store, choice, request.id, approve);
         }
-    };
         goToComposer(store);
+    };
     return (
         <Stack gap={4}>
             <Group justify="space-between" gap={4} wrap="nowrap">
@@ -102,15 +102,22 @@ function QuestionCard({
             <Radio key={value} value={value} label={value} />
         ),
     );
+    // The question is the card's title, so it reads as the approval title does, not as a field caption.
+    // Sized on the label alone: a size on the group would grow its radios too.
+    const label = (
+        <Text span size="sm" fw={600} c="var(--cm-text)">
+            {request.question}
+        </Text>
+    );
     return (
         <Stack gap={4}>
             {request.multiple ? (
-                <Checkbox.Group label={request.question} value={[...picked]} onChange={setPicked}>
+                <Checkbox.Group label={label} value={[...picked]} onChange={setPicked}>
                     <Stack gap={4}>{options}</Stack>
                 </Checkbox.Group>
             ) : (
                 <Radio.Group
-                    label={request.question}
+                    label={label}
                     value={picked[0] ?? null}
                     onChange={(value) => {
                         setPicked([value]);
@@ -134,12 +141,12 @@ function QuestionCard({
                                 request.id,
                                 request.multiple ? picked : picked[0],
                             );
+                            // The card goes with its button.
+                            goToComposer(store);
                         }
                     }}
                 >
                     {WORDS["assistant.waiting.answer"]}
-                            // The card goes with its button.
-                            goToComposer(store);
                 </Button>
             </Group>
         </Stack>

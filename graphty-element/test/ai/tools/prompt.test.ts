@@ -5,8 +5,19 @@
 
 import { assert, describe, it } from "vitest";
 
-import { FACT_IDS_CAP, factsBlock } from "../../../src/ai/tools/prompt";
+import { assistantInstructions, FACT_IDS_CAP, factsBlock } from "../../../src/ai/tools/prompt";
 import { assistantSession } from "../../helpers/assistant";
+
+describe("the instructions", () => {
+    it("tell every profile that the read a reply counts comes last", () => {
+        for (const profile of ["standard", "small"] as const) {
+            assert.include(
+                assistantInstructions(profile, []).split("\n"),
+                "The reader sees your last read that found something beside your reply: when your reply states a count, the read that found that count comes last, run again if need be.",
+            );
+        }
+    });
+});
 
 describe("the facts block", () => {
     it("is unchanged for a typed message", async () => {

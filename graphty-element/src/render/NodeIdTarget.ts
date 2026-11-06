@@ -8,6 +8,7 @@ import {
     RenderTargetTexture,
     type Scene,
     ShaderMaterial,
+    Vector2,
 } from "@babylonjs/core";
 
 import { isRowBatch } from "../meshes/RowPullPlugin";
@@ -29,6 +30,13 @@ export const ID_NONE = -1;
 /** A read that landed on a mesh that is not a batched row: the mesh pick answers. */
 export const ID_OBJECT = -2;
 
+/**
+ * The least radius, in device pixels, a row is drawn with in the target. A row smaller than a pixel
+ * may cover no pixel center at all; drawn this large, a pointer within it finds it in the pixel it is
+ * in. Larger rows are drawn as they are.
+ */
+const MIN_RADIUS_PX = 1.5;
+
 /** The texel a non-batch mesh writes; rows go up to one less. */
 const OBJECT_TEXEL = 0xffffff;
 
@@ -40,6 +48,10 @@ uniform highp sampler2D rowPosition;
 #endif
 #include<instancesDeclaration>
 uniform mat4 viewProjection;
+#ifdef ROW_PULL
+uniform vec2 idPixels;
+uniform float shapeRadius;
+#endif
 varying float vId;
 void main(void) {
 #include<instancesVertex>
@@ -50,10 +62,25 @@ void main(void) {
     vec3 grOrigin = world[3].xyz;
     worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
     vId = graphtyRow + 1.0;
+    // A row under MIN_RADIUS_PX in radius is drawn that large around its center, so a pointer on it
+    // finds it in the pixel it is in. shapeRadius is the batch's largest half-extent.
+    vec3 grCenter = (finalWorld[3].xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz;
+    vec4 grC = viewProjection * vec4(grCenter, 1.0);
+    vec4 grX = viewProjection * vec4(grCenter + mat3(finalWorld)[0] * grPlace.w, 1.0);
+    vec4 grY = viewProjection * vec4(grCenter + mat3(finalWorld)[1] * grPlace.w, 1.0);
+    vec4 grV = viewProjection * worldPos;
+    if (grC.w > 0.0 && grV.w > 0.0) {
+        vec2 grNdc = grC.xy / grC.w;
+        float grRadius = 0.5 * shapeRadius * max(length((grX.xy / grX.w - grNdc) * idPixels), length((grY.xy / grY.w - grNdc) * idPixels));
+        if (grRadius > 0.0 && grRadius < MIN_RADIUS_PX) {
+            grV.xy = (grNdc + (grV.xy / grV.w - grNdc) * (MIN_RADIUS_PX / grRadius)) * grV.w;
+        }
+    }
+    gl_Position = grV;
 #else
     vId = 0.0;
-#endif
     gl_Position = viewProjection * worldPos;
+#endif
 }
 `;
 
@@ -103,6 +130,7 @@ export class NodeIdTarget {
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
     private readonly texel = new Uint8Array(4);
+    private readonly pixels = new Vector2();
     private readonly stops: (() => void)[] = [];
     /** The frame the target was last drawn in. */
     private drawnIn = -1;
@@ -136,7 +164,10 @@ export class NodeIdTarget {
         );
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
-        this.rowMaterial = this.material("graphty-node-id-rows", ["#define ROW_PULL"]);
+        this.rowMaterial = this.material("graphty-node-id-rows", [
+            "#define ROW_PULL",
+            `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`,
+        ]);
         this.objectMaterial = this.material("graphty-node-id-objects", []);
         // What the scene chose to draw at its last evaluation: the batches and every visible mesh.
         // A hidden proxy is not among them, so the list is as long as what is on screen. Kept
@@ -149,6 +180,8 @@ export class NodeIdTarget {
             }),
             observe(this.target.onBeforeRenderObservable, () => {
                 this.rowMaterial.setTexture("rowPosition", this.host.positionTexture());
+                const { width, height } = this.target.getSize();
+                this.rowMaterial.setVector2("idPixels", this.pixels.set(width, height));
             }),
             observe(scene.onBeforeRenderObservable, () => {
                 this.fit();
@@ -160,6 +193,11 @@ export class NodeIdTarget {
                 this.settle();
             }),
         );
+        // Each batch's own size, which its source mesh was built at.
+        this.rowMaterial.onBindObservable.add((mesh) => {
+            const { extendSize } = mesh.getRawBoundingInfo().boundingBox;
+            mesh.subMeshes[0]?.effect?.setFloat("shapeRadius", Math.max(extendSize.x, extendSize.y, extendSize.z));
+        });
         this.target.onDrawn = () => {
             // Babylon skips a mesh whose material has not compiled and draws the rest: such a
             // drawing does not count, and the next read draws again.
@@ -243,7 +281,10 @@ export class NodeIdTarget {
             { vertexSource: VERTEX, fragmentSource: FRAGMENT, spectorName: name },
             {
                 attributes: defines.length > 0 ? ["position", "graphtyRow"] : ["position"],
-                uniforms: ["world", "viewProjection"],
+                uniforms:
+                    defines.length > 0
+                        ? ["world", "viewProjection", "idPixels", "shapeRadius"]
+                        : ["world", "viewProjection"],
                 samplers: defines.length > 0 ? ["rowPosition"] : [],
                 defines,
             },

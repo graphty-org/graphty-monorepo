@@ -238,6 +238,40 @@ describe("the node ID target", () => {
         assert.isAtMost(target.counts.draws - draws, ids.length, "at most one drawing a move");
     });
 
+    it("names a row smaller than a pixel wherever the scan does", async () => {
+        const element = await batchedGraph("2d", "box");
+        const target = await readyTarget(element);
+        const { graph } = element;
+        const node = graph.getNode("n0");
+        assert.isDefined(node);
+        const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+        // A pixel corner, empty in this layout: a row centered there covers no pixel center
+        // unless it is more than 0.7 px across.
+        const corner = { x: 20 * scaling, y: 20 * scaling };
+        const ray = graph.scene.createPickingRay(corner.x, corner.y, null, null);
+        const there = ray.origin.add(ray.direction.scale(-ray.origin.z / ray.direction.z));
+        await element.session.styles.add({
+            name: "tiny",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 0.02 },
+        });
+        await graph.getSession().positions.set([{ id: "n0", x: there.x, y: there.y, z: 0 }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const radius = graph.nodeScreenPosition("n0")?.radius ?? 0;
+        assert.isBelow(radius, 0.5, "the row is smaller than a pixel");
+        assert.isAbove(radius, 0.1, "and large enough for the point below");
+
+        const point = { x: corner.x + 0.05 * scaling, y: corner.y + 0.05 * scaling };
+        assert.strictEqual(
+            rowScanOf(graph.scene)?.shapeRayHit(point.x, point.y)?.row,
+            node?.index,
+            "the scan names it",
+        );
+        assert.strictEqual(target.read(point.x, point.y), node?.index, "the target names it");
+    });
+
     it("redraws a target older than the picture before it answers", async () => {
         const element = await batchedGraph("2d", "box");
         const target = await readyTarget(element);

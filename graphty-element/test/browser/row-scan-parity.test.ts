@@ -314,7 +314,8 @@ describe("the row scan on each kind", () => {
         const x = screen.x * scaling;
         const y = screen.y * scaling;
         assert.strictEqual(rowScanOf(graph.scene)?.shapeRayHit(x, y)?.row, NODES - 2);
-        assert.strictEqual(pickNodeId(graph.scene, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
+        assert.strictEqual(babylonNodeId(element, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
+        assert.strictEqual(pickNodeId(graph.scene, x, y), lower, "a press follows the scan");
     });
 
     it("skips a hidden row and finds what is behind it", async () => {

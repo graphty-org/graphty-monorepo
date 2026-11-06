@@ -120,17 +120,6 @@ describe("a grouping run from Analyze", () => {
         assert.lengthOf(new Set(names), names.length, `a re-run names its new groups apart: ${names.join(", ")}`);
     });
 
-    it("draws every Leiden setting in the Analyze popover, with nothing further to open", async () => {
-        await openScene();
-        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
-        await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
-        await screen.findByRole("spinbutton", { name: /^Random seed/ });
-        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Threshold/ }));
-        assert.isNull(screen.queryByRole("button", { name: /^Advanced/ }));
-    });
-
     it("runs on Enter in a setting, says what it made, and drops no tooltip on Analyze", async () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
         const session = await openScene(store);

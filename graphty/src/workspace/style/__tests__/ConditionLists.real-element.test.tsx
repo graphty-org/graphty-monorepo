@@ -17,7 +17,6 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { FIND_ATTRIBUTE } from "../words";
@@ -59,7 +58,8 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
-    await selectWithTwin(session, "Mine");
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
     if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
     }

@@ -10,7 +10,6 @@ import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
-import { RunsSection } from "./Runs";
 import { Sources } from "./Sources";
 import type { SourceKind } from "./words";
 
@@ -58,7 +57,6 @@ export function DataPlace(): React.JSX.Element {
             <Sources sources={sources} selected={selected?.key} onSelect={select} />
             <ServerPlace />
             <Fields sources={sources} selected={selected} />
-            <RunsSection />
             <FiltersSection />
         </section>
     );

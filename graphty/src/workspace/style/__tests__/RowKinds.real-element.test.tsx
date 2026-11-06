@@ -15,13 +15,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
-withFeatures([]);
 
 /** The three layers every test starts from, by name. */
 interface Rows {
@@ -210,8 +206,8 @@ describe("folders, several rows and the draft on the real element", () => {
                 "not styled",
             );
         }
-        // A new layer draws its selection outline, Which nodes, with its Edit button.
-        await within(tab).findByRole("button", { name: /^Edit Which nodes/ });
+        // A new layer opens its picker on arrival.
+        await within(tab).findByRole("group", { name: "Which nodes" });
         assert.equal(session.styles.list().length, before + 2, "one row, a node part and an edge part");
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

@@ -16,7 +16,6 @@ import { page, userEvent } from "vitest/browser";
 
 import { openSampleFromStart } from "../../../test/open";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
-import { selectWithTwin } from "../../../test/twin-layer";
 import { type WorkspaceStore } from "../../state/store";
 
 /**
@@ -238,9 +237,7 @@ describe("the binding popover's rows and readings", () => {
         });
         await userEvent.keyboard("{Escape}");
 
-        // The Which picker's add menu: the cards of two selected layers (one alone opens the
-        // selection editor).
-        await selectWithTwin(session, "Mine");
+        // The Which picker's add menu.
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const listbox = await screen.findByRole("listbox");

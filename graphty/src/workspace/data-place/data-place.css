@@ -182,28 +182,8 @@
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 6px;
-    align-self: stretch;
     font: inherit;
     text-align: start;
-}
-
-/* A collapsed card's name is cut only when its count would otherwise leave the row. */
-.dp-filter-title {
-    flex: 0 1 auto;
-    min-width: 0;
-}
-
-/* Focus on a resting card's name rings the whole row, as a tree row is ringed: a ring round the
-   name alone reads as a rename box. */
-.dp-filter-row .dp-filter-name:focus-visible {
-    outline: none;
-}
-
-.dp-filter-row:has(.dp-filter-name:focus-visible) {
-    outline: 1px solid var(--cm-border-selected);
-    outline-offset: -1px;
 }
 
 /* A resting card's summary line, under its switches. */
@@ -222,42 +202,4 @@
 /* The row's issues chip stays drawn on hover and focus: it is a door, not a count the actions replace. */
 .dp-source-issues {
     flex: none;
-}
-
-/* The Runs section (the selection-workspace experiment): one row per run, its name and remove
-   button, then chips for the selections that read it and its style layers, or Show. */
-/* One line a run, and a list that scrolls: the Filters under it stay in reach. */
-.dp-run {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-}
-
-.dp-run > .dp-run-head {
-    flex: 1 1 0;
-    min-width: 0;
-}
-
-.dp-run > .dp-run-facts {
-    flex: none;
-    padding-inline-start: 0;
-}
-
-.dp-runs {
-    max-height: 168px;
-    overflow-y: auto;
-
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.dp-run-name {
-    flex: 1;
-    min-width: 0;
-}
-
-.dp-run-facts {
-    padding-inline-start: 20px;
 }

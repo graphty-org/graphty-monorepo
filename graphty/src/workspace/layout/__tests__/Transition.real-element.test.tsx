@@ -93,10 +93,9 @@ describe("the layout form's Transition", () => {
             assert.deepEqual(session.config.layoutTransition, { transition: "glide" });
         });
 
-        // Its settings are drawn under the row, in the Layout popover: the easing, written with it.
-        assert.isNull(within(popover).queryByRole("button", { name: "Glide settings" }));
-        assert.isNotNull(within(popover).getByRole("textbox", { name: /^Seconds/ }));
-        const easing = await within(popover).findByRole("combobox", { name: "Easing" });
+        // Its settings: the easing, written with it.
+        await userEvent.click(within(popover).getByRole("button", { name: "Glide settings" }));
+        const easing = await screen.findByRole("combobox", { name: "Easing" });
         await userEvent.click(easing);
         await userEvent.click(await screen.findByRole("option", { name: "Linear" }));
         await waitFor(() => {

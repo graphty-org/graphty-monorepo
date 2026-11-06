@@ -18,7 +18,6 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
@@ -59,7 +58,8 @@ async function openLayer(
     }
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
-    await selectWithTwin(session, name);
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     return { session, store, id: layer.id };
 }
 
@@ -152,8 +152,8 @@ describe("keys in the condition cards, on the real element", () => {
         const box = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
         // A suggestion taken from the list (not typing, which the box's own undo would take back).
         await userEvent.keyboard("{ArrowDown}");
-        const list = await screen.findByRole("listbox");
-        await userEvent.click(within(list).getAllByRole("option", { name: /^Mlle ./ })[0]);
+        await screen.findByRole("listbox");
+        await userEvent.keyboard("{ArrowDown}{Enter}");
         await waitFor(() => {
             assert.match(textOf(session, id) ?? "", /^Mlle ./);
         });

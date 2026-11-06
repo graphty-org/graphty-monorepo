@@ -20,7 +20,6 @@ import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { wholeNumbers } from "./cards";
 import { GroupList, LayerGroupList } from "./Groups";
 import { type DataBinding, type DataChoice, type LayerBinding, startingValue, topmostRow } from "./row";
 import { focusLineNext } from "./useFocusLine";
@@ -946,6 +945,21 @@ function Ramp({
             )}
         </Stack>
     );
+}
+
+/**
+ * Whether what a binding reads holds whole numbers only (a count, a rank), so its ramp steps by 1.
+ * @param session - the element's session
+ * @param path - what the binding reads
+ * @returns true for an integer column or run result
+ */
+function wholeNumbers(session: GraphSession, path: string): boolean {
+    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
+        return true;
+    }
+    return session.runs
+        .list()
+        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
 }
 
 /**

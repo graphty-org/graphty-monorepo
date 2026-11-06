@@ -102,10 +102,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }
 
         const place = (): void => {
-            // A hidden toolbar (under the selection workspace) leaves the attribution at the edge.
-            element.attributionOffset = dock.hidden
-                ? 0
-                : Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
+            element.attributionOffset = Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
         };
         place();
         const observer = new ResizeObserver(place);

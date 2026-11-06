@@ -81,23 +81,6 @@ async function clickRow(name: string, modifier?: "Control"): Promise<void> {
 }
 
 /**
- * Select a layer for its condition cards. One layer alone edits its rule with the selection
- * editor; the cards edit what several selected layers share, so a twin ("<name> too") with the
- * same rule and values is selected beside it, and every card writes both.
- * @param session - The session.
- * @param name - The layer's name.
- */
-async function cardsFor(session: GraphSession, name: string): Promise<void> {
-    const layer = session.styles.list().find((each) => each.name === name);
-    if (layer === undefined) {
-        throw new Error(`no layer ${name}`);
-    }
-    await layerOf(session, `${name} too`, layer.selector, layer.set);
-    await clickRow(name);
-    await clickRow(`${name} too`, "Control");
-}
-
-/**
  * The open tab's collapsed Which row.
  * @param kind - nodes or edges.
  * @returns The row button.
@@ -264,7 +247,7 @@ describe("the combined Style panel", () => {
         const degree = cardFields(session, "node").find((field) => field.path.endsWith(".value"));
         assert.isDefined(degree);
         const layer = await layerOf(session, "Busy");
-        await cardsFor(session, "Busy");
+        await clickRow("Busy");
         const card = await addCard(degree?.name ?? "");
         const from = within(card).getByRole("textbox", { name: `${degree?.name ?? ""} from, number` });
         await userEvent.clear(from);
@@ -303,7 +286,7 @@ describe("the combined Style panel", () => {
         const group = cardFields(session, "node").find((field) => field.path === `results.${run.runId}.group`);
         assert.isDefined(group);
         const layer = await layerOf(session, "Groups");
-        await cardsFor(session, "Groups");
+        await clickRow("Groups");
         const card = await addCard(group?.name ?? "");
         const values = within(card).getByRole("group", { name: `${group?.name ?? ""} values` });
         const boxes = within(values).getAllByRole("checkbox");
@@ -322,7 +305,7 @@ describe("the combined Style panel", () => {
     it("a text card writes 'contains'; Escape keeps the edit and one Undo takes the whole open back", async () => {
         const session = await openSample();
         const layer = await layerOf(session, "Names");
-        await cardsFor(session, "Names");
+        await clickRow("Names");
         const steps = session.history.position;
         const card = await addCard("name");
         await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
@@ -357,7 +340,7 @@ describe("the combined Style panel", () => {
         const ids = session.data.nodes().map((node) => node.id);
         await session.data.updateNodes(ids.map((id, at) => ({ id, values: { main: at < 10 } })));
         const layer = await layerOf(session, "Main");
-        await cardsFor(session, "Main");
+        await clickRow("Main");
         await addCard("main");
         await waitFor(() => {
             assert.deepEqual(leafOfLayer(session, layer.id), {
@@ -369,7 +352,7 @@ describe("the combined Style panel", () => {
             });
         });
         await done();
-        assert.strictEqual(await chipCount("main: Yes"), 10);
+        assert.strictEqual(await chipCount("main: yes"), 10);
     });
 
     it("Style edges on a layer that picks nodes paints the edges between them, and a node card moves them", async () => {
@@ -378,7 +361,7 @@ describe("the combined Style panel", () => {
             match: "rule",
             where: { kind: "text", reads: "data.name", mode: "substring", text: "Thenardier" },
         });
-        await cardsFor(session, "Thenardiers");
+        await clickRow("Thenardiers");
         await userEvent.click(
             within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
         );
@@ -542,7 +525,7 @@ describe("the combined Style panel", () => {
     it("Escape in the add menu closes the menu only; the next Escape closes the picker", async () => {
         const session = await openSample();
         await layerOf(session, "Menu");
-        await cardsFor(session, "Menu");
+        await clickRow("Menu");
         // A row with no card opens on Add a condition; Enter there opens its list.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
@@ -576,7 +559,7 @@ describe("the combined Style panel", () => {
                 ],
             },
         });
-        await cardsFor(session, "Focus");
+        await clickRow("Focus");
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const cards = within(region)

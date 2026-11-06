@@ -358,7 +358,7 @@ describe("the Path popover, on the real element", () => {
         });
     });
 
-    it("draws a path's settings in the form and the run's behind the Analysis row's one button", async () => {
+    it("names the popover's Advanced button and the right panel's apart, and keeps it in the popover", async () => {
         const { store, session } = await openFriends("distance");
         const run = session.runs.start("shortest-path", { source: "Ava", target: "Lee" });
         await run;
@@ -368,9 +368,13 @@ describe("the Path popover, on the real element", () => {
         await screen.findByRole("group", { name: "Made with" });
         await userEvent.keyboard("p");
         const form = await pathForm();
-        assert.isNull(within(form).queryByRole("button", { name: /^Advanced/ }), "nothing opens from the form");
         // A button names its settings, plus "has configured values" once one is set.
-        assert.isNotNull(screen.getByRole("button", { name: /^Advanced run settings( has configured values)?$/ }));
+        const own = within(form).getByRole("button", { name: /^Advanced( has configured values)?$/ });
+        const panel = screen.getByRole("button", { name: /^Advanced run settings( has configured values)?$/ });
+        assert.notEqual(own, panel);
+        assert.lengthOf(screen.getAllByRole("button", { name: /^Advanced( has configured values)?$/ }), 1);
+        // The Advanced button sits inside the popover's padding, not on its border.
+        assert.isAtLeast(own.getBoundingClientRect().left, form.getBoundingClientRect().left);
     });
 
     it("the Weight box reads a loaded distance as used", async () => {

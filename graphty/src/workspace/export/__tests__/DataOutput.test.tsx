@@ -10,7 +10,7 @@ import React from "react";
 import { assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -128,7 +128,6 @@ function Stateful({ first }: Readonly<{ first: DataChoices }>): React.JSX.Elemen
  */
 function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAULT_DATA): void {
     const session = {
-        features: { enabled: [] },
         catalog: { formats: () => FORMATS },
         data: {
             attributes: () => [],
@@ -144,6 +143,7 @@ function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAU
         session,
         element as unknown as GraphtyElement,
     );
+    // Inside the page's floating layer, which the Advanced button's pop-out needs.
     render(
         <PopoutManager>
             <WorkspaceContext.Provider value={value}>
@@ -207,14 +207,8 @@ describe("the Data output", () => {
         );
 
         assert.isNull(screen.queryByLabelText("Column separator"));
-        const settings = screen.getByRole("button", { name: /^Format settings/ });
-        const format = screen.getByRole("combobox", { name: "Format" }).getBoundingClientRect();
-        const gear = settings.getBoundingClientRect();
-        assert.isAtLeast(gear.left, format.right, "at the end of the Format row");
-        assert.isAtMost(gear.top, format.bottom, "on the Format row");
-        await userEvent.click(settings);
-        const panel = await screen.findByRole("dialog", { name: "Format settings" });
-        const separator = within(panel).getByLabelText("Column separator");
+        await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+        const separator = screen.getByLabelText("Column separator");
         assert.equal((separator as HTMLInputElement).placeholder, ",");
         await userEvent.type(separator, ";");
         await waitFor(() => {
@@ -225,9 +219,9 @@ describe("the Data output", () => {
         });
     });
 
-    it("draws no settings button for a row with no options", () => {
+    it("draws no Advanced fold for a row with no options", () => {
         const exportGraph = vi.fn(() => new Promise(() => undefined));
         renderData({ exportGraph } as unknown as Partial<GraphtyElement>);
-        assert.isNull(screen.queryByRole("button", { name: /^Format settings/ }));
+        assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
     });
 });

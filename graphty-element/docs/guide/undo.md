@@ -113,8 +113,6 @@ for (const step of session.history.steps) {
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
-// Take back an abandoned edit (a draft the reader cancelled): jump back and leave nothing to redo.
-await session.history.restoreTo(before, { redo: "drop" });
 ```
 
 Every step's `fact.code` is one of the `HistoryCode` values, each documenting its `params`:

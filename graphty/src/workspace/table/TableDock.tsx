@@ -104,11 +104,7 @@ interface Arrangement {
     readonly all: boolean;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = {
-    views: { node: EMPTY_VIEW, edge: EMPTY_VIEW },
-    members: null,
-    all: false,
-};
+const FIRST_ARRANGEMENT: Arrangement = { views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null, all: false };
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
@@ -706,8 +702,6 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    // The table never reads a selection an editor holds: the workspace's matches strip lists its
-    // matches, and the table stays as the reader arranged it (it is hidden while the workspace is open).
     const { views, all } = arrangement;
 
     // Show in table: bring the asked-for column into view, checking it first if the reader

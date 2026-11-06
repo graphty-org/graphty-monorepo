@@ -1,3 +1,0 @@
-# The lab's yeast gene network open (331 genes, 361 interactions, 26 separate pieces), as Maren left it
---click Open a file
---upload yeast-galactose.graphml

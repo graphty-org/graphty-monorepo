@@ -12,7 +12,6 @@ import { userEvent } from "vitest/browser";
 import { render, screen } from "../../../test/test-utils";
 import { optionWords } from "../../analyze/words";
 import { OptionsForm } from "../OptionsForm";
-import { splitOptions } from "../splitOptions";
 
 let session: GraphSession | null = null;
 
@@ -54,14 +53,20 @@ async function renderFor(key: string): Promise<readonly OptionDescriptor[]> {
 const labels = (): string[] => [...document.querySelectorAll("label")].map((label) => label.textContent.trim());
 
 describe("the options form", () => {
-    it("draws PageRank's key options and then its advanced ones, in place", async () => {
+    it("draws PageRank's key options, and its advanced ones only once Advanced opens", async () => {
         const options = await renderFor("pagerank");
 
         assert.isNotNull(screen.getByRole("spinbutton", { name: /^Damping factor(,|$)/ }));
         assert.isNotEmpty(screen.getAllByLabelText("Weight"));
+        const fold = screen.getByRole("button", { name: /Advanced/ });
+        assert.equal(fold.getAttribute("aria-expanded"), "false");
+        assert.isNull(screen.queryByRole("spinbutton", { name: "Max iterations", hidden: true }));
+        assert.isNull(screen.queryByText("Max iterations"));
+
+        await userEvent.click(fold);
         assert.isNotNull(screen.getByRole("spinbutton", { name: /^Max iterations(,|$)/ }));
         assert.isNotNull(screen.getByRole("spinbutton", { name: /^Tolerance(,|$)/ }));
-        // useDelta is internal: never drawn.
+        // useDelta is internal: never drawn, open or closed.
         assert.isNull(screen.queryByText(/Delta/));
 
         const keys = new Set(options.map((o) => o.name));
@@ -113,43 +118,16 @@ describe("the options form", () => {
         assert.isNull(screen.queryByRole("button", { name: /reset/i }));
     });
 
-    it("draws Leiden's advanced settings beside its key one, with nothing to open", async () => {
-        await renderFor("leiden");
-
-        for (const name of [/^Resolution(,|$)/, /^Random seed(,|$)/, /^Max iterations(,|$)/, /^Threshold(,|$)/]) {
-            assert.isNotNull(screen.getByRole("spinbutton", { name }));
-        }
-        assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
-        assert.isNull(screen.queryByRole("dialog"));
-    });
-
-    it("says which of an algorithm's drawn options are key and which advanced", () => {
-        const descriptor = BUILT_IN_ALGORITHMS.find((d) => d.key === "pagerank");
-        assert.isDefined(descriptor);
-        const { key, advanced } = splitOptions(descriptor.options);
-        assert.include(
-            key.map((o) => o.name),
-            "dampingFactor",
-        );
-        assert.include(
-            advanced.map((o) => o.name),
-            "maxIterations",
-        );
-        assert.notInclude(
-            [...key, ...advanced].map((o) => o.name),
-            "useDelta",
-            "an internal option is neither",
-        );
-    });
-
-    it("draws Betweenness's sample size in place", async () => {
+    it("puts Betweenness's sample size behind the Advanced fold", async () => {
         await renderFor("betweenness");
 
+        assert.isNull(screen.queryByText("Sample size"));
+        await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
         // No default: the empty box is a text box until it holds a number (a spinbutton reads 0).
         assert.isNotNull(screen.getByRole("textbox", { name: /^Sample size(,|$)/ }));
     });
 
-    it("draws no button for an algorithm with no advanced options", async () => {
+    it("draws no fold for an algorithm with no advanced options", async () => {
         await renderFor("components");
 
         assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));

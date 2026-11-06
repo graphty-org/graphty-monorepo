@@ -13,10 +13,8 @@ import { useWorkspace } from "./WorkspaceContext";
  * @param quietFirst - whether the first words after a null start are the control's first words
  *   (a count still loading when the control opened). Pass false where null at the start means the
  *   thing counted was not there yet, so its first count is news (a line just added).
- * @param hidden - the control is out of sight (under an open selection workspace): its words are
- *   taken as said and never spoken, so they are not news when it shows again either.
  */
-export function useAnnounceChange(words: string | null, quietFirst = true, hidden = false): void {
+export function useAnnounceChange(words: string | null, quietFirst = true): void {
     const { store } = useWorkspace();
     const first = useRef(quietFirst && words === null);
     const said = useRef(words);
@@ -25,10 +23,10 @@ export function useAnnounceChange(words: string | null, quietFirst = true, hidde
             return;
         }
         said.current = words;
-        if (first.current || hidden) {
+        if (first.current) {
             first.current = false;
             return;
         }
         store.set({ announcement: words });
-    }, [words, store, hidden]);
+    }, [words, store]);
 }

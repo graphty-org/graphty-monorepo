@@ -241,14 +241,9 @@ export const STRUCTURE_PATHS = Object.freeze(["graphty.degree", "graphty.inDegre
 
 /** Each of {@link STRUCTURE_PATHS} with its catalog names, in the same order. */
 export const STRUCTURE_VALUES = Object.freeze([
-    Object.freeze({ path: "graphty.degree", plainName: "Degree", technicalName: "degree", valueKind: "number" }),
-    Object.freeze({ path: "graphty.inDegree", plainName: "In-degree", technicalName: "inDegree", valueKind: "number" }),
-    Object.freeze({
-        path: "graphty.outDegree",
-        plainName: "Out-degree",
-        technicalName: "outDegree",
-        valueKind: "number",
-    }),
+    Object.freeze({ path: "graphty.degree", plainName: "Degree", technicalName: "degree" }),
+    Object.freeze({ path: "graphty.inDegree", plainName: "In-degree", technicalName: "inDegree" }),
+    Object.freeze({ path: "graphty.outDegree", plainName: "Out-degree", technicalName: "outDegree" }),
 ] as const);
 
 /**

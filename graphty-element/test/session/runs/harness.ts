@@ -268,7 +268,6 @@ export function stubResult(runId: RunId): RunResult {
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
-        groupRanks: () => undefined,
         reading: () => "A stub result.",
         readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,

@@ -63,16 +63,8 @@ describe("names and words", () => {
 
     it("lists attributes with their facts, speaks one case in a match menu, and names the rule", async () => {
         await openScene();
-        // The cards of two selected layers: one alone opens the selection editor.
         await newLayer();
-        await newLayer();
-        const tree = screen.getByRole("tree", { name: "Style layers" });
-        await userEvent.keyboard("{Control>}");
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Layer 1, / }));
-        await userEvent.keyboard("{/Control}");
-        if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-            await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        }
+        // A new layer opens its Which picker on arrival.
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await screen.findByLabelText("Find an attribute");

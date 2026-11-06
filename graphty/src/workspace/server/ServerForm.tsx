@@ -1,9 +1,21 @@
 import "./server.css";
 
-import { Popout, PopoutManager, SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, Popout, PopoutManager, SegmentedControl } from "@graphty/compact-mantine";
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Loader, NumberInput, PasswordInput, Select, Text, Textarea, TextInput } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Checkbox,
+    Loader,
+    NumberInput,
+    PasswordInput,
+    Select,
+    Text,
+    Textarea,
+    TextInput,
+    Tooltip,
+} from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -32,7 +44,7 @@ const IN_PLACE = { withinPortal: false } as const;
 /** The params the form draws as its own rows, not as the source's generic rows. */
 const OWN_ROWS = new Set(["mode"]);
 
-/** Params few readers change, drawn after the main rows with the source's own advanced ones. */
+/** Params few readers change, drawn in the Advanced section with the source's own advanced ones. */
 const RARE_PARAMS = new Set(["transport", "database"]);
 
 /**
@@ -107,7 +119,7 @@ export function ExpandFields({
                     }}
                 />
             </Row>
-            <Row label="Expand limit">
+            <Row label="Limit">
                 <NumberInput
                     size="xs"
                     aria-label="Expand limit"
@@ -545,8 +557,8 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                 />
             </Row>
             {entry.features.expand ? (
-                <>
-                    <Row label="Expand">
+                <Row label="Expand">
+                    <div className="sv-pair">
                         <Checkbox
                             size="xs"
                             label="on double-click"
@@ -555,25 +567,48 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                                 change({ expand: event.currentTarget.checked });
                             }}
                         />
-                    </Row>
-                    <ExpandFields
-                        value={form.expandWith}
-                        onChange={(expandWith) => {
-                            change({ expandWith });
-                        }}
-                    />
-                </>
+                        <Popout>
+                            <Popout.Trigger>
+                                <Tooltip label="Expand settings">
+                                    <ActionIcon variant="subtle" size="sm" aria-label="Expand settings">
+                                        <GLYPHS.serverOptions size={14} aria-hidden />
+                                    </ActionIcon>
+                                </Tooltip>
+                            </Popout.Trigger>
+                            <Popout.Panel
+                                width={240}
+                                header={{ variant: "title", title: "Expand settings" }}
+                                closeLabel="Close Expand settings"
+                                placement="right"
+                                alignment="start"
+                            >
+                                <Popout.Content>
+                                    <ExpandFields
+                                        value={form.expandWith}
+                                        onChange={(expandWith) => {
+                                            change({ expandWith });
+                                        }}
+                                    />
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </div>
+                </Row>
             ) : null}
-            {advanced.map((param) => (
-                <ParamRow
-                    key={param.name}
-                    param={param}
-                    value={form.params[param.name]}
-                    onChange={(value) => {
-                        setParam(param.name, value);
-                    }}
-                />
-            ))}
+            {advanced.length === 0 ? null : (
+                <ControlSection label="Advanced" defaultOpened={false}>
+                    {advanced.map((param) => (
+                        <ParamRow
+                            key={param.name}
+                            param={param}
+                            value={form.params[param.name]}
+                            onChange={(value) => {
+                                setParam(param.name, value);
+                            }}
+                        />
+                    ))}
+                </ControlSection>
+            )}
             <div className="sv-actions">
                 {failure === null ? null : <CodeChip fact={failure} />}
                 {/* aria-disabled while busy, not disabled, so the pressed button keeps focus. */}

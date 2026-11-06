@@ -124,8 +124,56 @@
     "panelControls": [
         {
             "row": "Everything",
-            "control": "disabled menu: Delete",
-            "reason": "isBaseRow refuses to delete the base row",
+            "control": "missing node which: Which nodes",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing node which open: Done",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing node which open: Add a condition",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing edge which: Which edges",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing edge which open: Done",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing edge which open: Add a condition",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "extra node which: no control",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "extra edge which: no control",
+            "reason": "isBaseRow gives Everything a sentence instead of a Which row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Everything",
+            "control": "missing menu: Move to folder",
+            "reason": "RowMenu leaves Move to folder off the base row",
             "issue": "#5905"
         },
         {
@@ -142,25 +190,19 @@
         },
         {
             "row": "Everything",
-            "control": "missing menu: Move to folder",
-            "reason": "RowMenu leaves Move to folder off the base row",
+            "control": "disabled menu: Delete",
+            "reason": "isBaseRow refuses to delete the base row",
+            "issue": "#5905"
+        },
+        {
+            "row": "Ghost",
+            "control": "missing node which open: Add a condition",
+            "reason": "its selection reads a state, and the Which cards offer no way to change it",
             "issue": "#5905"
         },
         {
             "row": "Ghost",
             "control": "missing edge which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Ghost",
-            "control": "missing node which open: Add a condition",
-            "reason": "its selection reads a state, and the Which cards offer no way to change it",
-            "issue": "#5905"
-        },
-        {
-            "row": "Hovered",
-            "control": "missing node which open: Add a condition",
             "reason": "its selection reads a state, and the Which cards offer no way to change it",
             "issue": "#5905"
         },
@@ -172,12 +214,18 @@
         },
         {
             "row": "Selected",
-            "control": "missing edge which open: Add a condition",
+            "control": "missing node which open: Add a condition",
             "reason": "its selection reads a state, and the Which cards offer no way to change it",
             "issue": "#5905"
         },
         {
             "row": "Selected",
+            "control": "missing edge which open: Add a condition",
+            "reason": "its selection reads a state, and the Which cards offer no way to change it",
+            "issue": "#5905"
+        },
+        {
+            "row": "Hovered",
             "control": "missing node which open: Add a condition",
             "reason": "its selection reads a state, and the Which cards offer no way to change it",
             "issue": "#5905"
@@ -212,7 +260,7 @@
             "file": "graphty/src/workspace/graph-place/StyleTree.tsx",
             "rule": "named",
             "detail": "isBaseRow",
-            "count": 2,
+            "count": 3,
             "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
@@ -268,7 +316,7 @@
             "file": "graphty/src/workspace/graph-place/commands.ts",
             "rule": "named",
             "detail": "isBaseRow",
-            "count": 1,
+            "count": 2,
             "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
@@ -334,6 +382,38 @@
             "detail": "startingEverything",
             "count": 2,
             "reason": "the starting rows are remembered after they are created",
+            "issue": "#5905"
+        },
+        {
+            "file": "graphty/src/workspace/style/StylePanel.tsx",
+            "rule": "named",
+            "detail": "base",
+            "count": 1,
+            "reason": "gives the base row its own behavior",
+            "issue": "#5905"
+        },
+        {
+            "file": "graphty/src/workspace/style/StylePanel.tsx",
+            "rule": "named",
+            "detail": "isBaseRow",
+            "count": 1,
+            "reason": "gives the base row its own behavior",
+            "issue": "#5905"
+        },
+        {
+            "file": "graphty/src/workspace/style/WhichPicker.tsx",
+            "rule": "named",
+            "detail": "BaseRow",
+            "count": 2,
+            "reason": "gives the base row its own behavior",
+            "issue": "#5905"
+        },
+        {
+            "file": "graphty/src/workspace/style/WhichPicker.tsx",
+            "rule": "named",
+            "detail": "base",
+            "count": 1,
+            "reason": "gives the base row its own behavior",
             "issue": "#5905"
         },
         {
@@ -444,7 +524,7 @@
             "file": "graphty-element/src/session/styles/StylesApi.ts",
             "rule": "kind-base",
             "detail": "kind",
-            "count": 1,
+            "count": 2,
             "reason": "treats a layer of kind \"base\" differently",
             "issue": "#5905"
         },

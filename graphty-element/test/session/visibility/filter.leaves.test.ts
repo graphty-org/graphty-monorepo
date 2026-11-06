@@ -480,6 +480,7 @@ describe("refusals at the doors", () => {
     });
 
     const RESERVED: readonly (readonly [string, unknown, string])[] = [
+        ["a percentile", threshold({ percentile: 0.9 }), "threshold.percentile"],
         ["a z score", threshold({ z: 2 }), "threshold.z"],
         ["a population", threshold({ top: 3, population: "group" }), "threshold.population"],
         [

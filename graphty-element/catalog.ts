@@ -183,22 +183,15 @@ export { toColorValue } from "./src/session/styles/channels";
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     AttributeLeafNodes,
-    BySizeLeaf,
     EdgeMember,
     EdgeReading,
     EdgeRef,
-    HopsLeaf,
     ItemKey,
-    MeasureLeaf,
-    MeasureTest,
-    MissingValues,
-    NonemptyLeaf,
     PathKind,
     ResultId,
     ResultItem,
     RuleSide,
     RuleTree,
-    SameValueLeaf,
     Scope,
     ScopeId,
     ScopeInput,
@@ -210,14 +203,8 @@ export type {
     SetId,
     SetOperand,
     SourceKey,
-    StepReference,
     TextMatchMode,
     TopTies,
-    TouchingLeaf,
-    UnionBranch,
-    UnionLeaf,
-    UnionStep,
-    ValueKind,
 } from "./src/catalog/types";
 
 /**

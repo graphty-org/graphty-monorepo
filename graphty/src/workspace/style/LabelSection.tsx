@@ -1,4 +1,4 @@
-import { ControlSection, PanelField, Popout, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     channelsFor,
@@ -12,7 +12,6 @@ import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } 
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { SettingsPopout } from "../options/SettingsPopout";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { cardLines, cardSummary } from "./cardLines";
@@ -785,32 +784,51 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
                 {sourceControl}
-                <SettingsPopout
-                    label={`${where} settings`}
-                    title={`${kind.name} settings`}
-                    opened={settingsOpen}
-                    onOpenChange={setSettingsOpen}
-                    width={SETTINGS_WIDTH}
-                    boundaryTop={settingsOpen ? headerBottom() : 0}
-                >
-                    {card && words !== undefined ? (
-                        <CardContents
-                            session={session}
-                            target={target}
-                            channel={kind.words}
-                            lines={cardLines(words)}
-                            onLines={(lines) => {
-                                writeLine(session, ctx.row, target, kind.words, { template: lines }, ctx.fresh).catch(
-                                    onFail,
-                                );
-                            }}
-                            onFail={(message) => {
-                                onFail(new Error(message));
-                            }}
-                        />
-                    ) : null}
-                    <LabelSettings style={style} onChange={writeStyle} vary={vary} />
-                </SettingsPopout>
+                <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
+                    <Popout.Trigger>
+                        <Tooltip label={`${where} settings`}>
+                            <PopoutButton
+                                icon={<GLYPHS.settings size={14} aria-hidden />}
+                                aria-label={`${where} settings`}
+                                aria-haspopup="dialog"
+                                aria-expanded={settingsOpen}
+                            />
+                        </Tooltip>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={SETTINGS_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        boundaryTop={settingsOpen ? headerBottom() : 0}
+                        header={{ variant: "title", title: `${kind.name} settings` }}
+                        closeLabel={`Close ${kind.name} settings`}
+                    >
+                        <Popout.Content>
+                            {card && words !== undefined ? (
+                                <CardContents
+                                    session={session}
+                                    target={target}
+                                    channel={kind.words}
+                                    lines={cardLines(words)}
+                                    onLines={(lines) => {
+                                        writeLine(
+                                            session,
+                                            ctx.row,
+                                            target,
+                                            kind.words,
+                                            { template: lines },
+                                            ctx.fresh,
+                                        ).catch(onFail);
+                                    }}
+                                    onFail={(message) => {
+                                        onFail(new Error(message));
+                                    }}
+                                />
+                            ) : null}
+                            <LabelSettings style={style} onChange={writeStyle} vary={vary} />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
                 <ToggleIconButton
                     variant="swap"
                     label={`Hide ${noun}`}

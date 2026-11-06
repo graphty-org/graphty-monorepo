@@ -1154,9 +1154,6 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
 };
 
 const STYLES_API: Readonly<Record<string, Door>> = {
-    showBranches: exempt("a picking view: it suspends the stack's picture while a reader picks, never the stack"),
-    showingBranches: READ,
-    shownBranches: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -1509,9 +1506,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setLayout: calls(["circular"], [SET_CIRCULAR]),
             zoomToFit: CAMERA,
             waitForSettled: READ,
-            framing: READ,
             waitForStableFrame: READ,
-            waitForPainted: READ,
             isFrameStable: READ,
             cameraPlaced: READ,
             batchOperations: BATCH,
@@ -1775,10 +1770,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getCameraController: READ,
             getNodeMesh: READ,
             waitForSettled: READ,
-            framing: READ,
             isFrameStable: READ,
             waitForStableFrame: READ,
-            waitForPainted: READ,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
@@ -2761,7 +2754,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             attributes: READ,
             readableValues: READ,
             structureValues: READ,
-            structureValue: READ,
             histogram: READ,
             valueCounts: READ,
             // The column commands, each one batch.
@@ -2999,7 +2991,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
             bindings: READ,
-            readers: READ,
             painting: READ,
             layers: READ,
             queue: READ,
@@ -3036,45 +3027,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             // The doors test saves "door seed" before calling it.
             remove: calls(["set_door-seed"], [{ op: "set.remove", id: "set_door-seed" }]),
-            watchSteps: READ,
-            histogram: READ,
-            asUnion: READ,
-            checkStep: READ,
-            options: READ,
-            setOptions: exempt("run limits and the branch palette are the reader's session preferences, saved nowhere"),
-            allowRun: exempt(
-                "consent for one step's run, held in the session; the run it lets start dispatches algo.run as any run",
-            ),
-            cancelRun: exempt("cancels a computing step's run, which a run's own cancel does without a step"),
-            edit: exempt("opens a visit that only records which runs its steps start; nothing a project saves"),
         },
-    },
-    {
-        name: "ScopeEdit",
-        file: "src/session/scope/ScopeApi.ts",
-        half: "session",
-        doors: {
-            // The doors test opens a visit whose one step started the degree run over the graph;
-            // nothing reads it, so Done and Cancel both remove it.
-            commit: calls([], [{ op: "algo.remove", runId: "degree" }]),
-            discard: calls([], [{ op: "algo.remove", runId: "degree" }]),
-            started: READ,
-        },
-    },
-    {
-        name: "StepsWatch",
-        file: "src/session/scope/steps.ts",
-        half: "session",
-        doors: {
-            current: READ,
-            end: exempt("stops a live reading, which nothing saves"),
-        },
-    },
-    {
-        name: "StepsReading",
-        file: "src/session/scope/steps.ts",
-        half: "session",
-        whole: READ,
     },
     {
         // Every write dispatches one set op. The doors test creates "door seed", a fixed set of
@@ -3476,9 +3429,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             previewSteps: READ,
             filterBytes: READ,
             passingBytes: READ,
-            hold: exempt(
-                "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
-            ),
             commitWindow: calls(
                 [{ attribute: "data.t", from: 0, to: 1 }],
                 [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 }, ownStep: true }],

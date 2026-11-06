@@ -46,7 +46,6 @@ function standIn(facts: StandInFacts = {}): {
     const highlight = vi.fn();
     const mark = vi.fn();
     const session = {
-        features: { enabled: [] },
         on: (event: string, listener: (payload: unknown) => void) => {
             const set = listeners.get(event) ?? new Set();
             set.add(listener);

@@ -1,16 +1,14 @@
-import { EntityChip, MenuCheckItem, ModalFooter, PopoutManager } from "@graphty/compact-mantine";
+import { EntityChip, MenuCheckItem, ModalFooter } from "@graphty/compact-mantine";
 import type { ExportLoss } from "@graphty/graphty-element";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { type GraphSession, projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { sourceName } from "../data-place/words";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
-import { SettingsPopout } from "../options/SettingsPopout";
-import { splitOptions } from "../options/splitOptions";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
@@ -146,8 +144,6 @@ interface DataOutputProps {
     choices: DataChoices;
     onChange: (choices: DataChoices) => void;
     onCancel: () => void;
-    /** Called when the format's settings popover opens or closes: the dialog leaves Escape to it. */
-    onSettingsOpen?: (opened: boolean) => void;
     /** Closes the dialog with a notice, and lists the file under Recent. */
     onDone: (message: string, file?: string) => void;
 }
@@ -389,20 +385,6 @@ function FailureAlert({ failure }: Readonly<{ failure: Failure }>): React.JSX.El
 }
 
 /**
- * A field's row with a control at its end, as a Select's `inputContainer`.
- * @param trailing - the control, if any.
- * @returns what draws the row around the field.
- */
-function withTrailing(trailing: React.ReactNode): (input: React.ReactNode) => React.JSX.Element {
-    return (input) => (
-        <Group gap={4} wrap="nowrap">
-            <div style={{ flex: 1, minWidth: 0 }}>{input}</div>
-            {trailing}
-        </Group>
-    );
-}
-
-/**
  * The Data output: one Format row per file type graphty-element writes (each format's export
  * variants, such as CSV's tables), the row's key options and the rest behind an Advanced fold, the
  * scope and the columns written, what the format cannot hold (the export's losses, as compact
@@ -412,17 +394,10 @@ function withTrailing(trailing: React.ReactNode): (input: React.ReactNode) => Re
  * @param props.choices - The data choices
  * @param props.onChange - Called with new choices
  * @param props.onCancel - Closes the dialog
- * @param props.onSettingsOpen - Called when the format's settings popover opens or closes
  * @param props.onDone - Closes the dialog with a notice
  * @returns The output's body and footer
  */
-export function DataOutput({
-    choices,
-    onChange,
-    onCancel,
-    onSettingsOpen,
-    onDone,
-}: Readonly<DataOutputProps>): React.JSX.Element {
+export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const [preview, setPreview] = useState<{ lines: string; notes: readonly LossRow[] } | null>(null);
@@ -521,20 +496,6 @@ export function DataOutput({
         }
     };
 
-    const { key, advanced } = splitOptions(row === undefined || session === null ? [] : writableOptions(session, row));
-    const optionsOf = (shown: readonly OptionDescriptor[]): React.JSX.Element | null =>
-        session === null ? null : (
-            <OptionsForm
-                session={session}
-                options={shown}
-                values={keyed}
-                words={optionWords}
-                onChange={(option, value) => {
-                    onChange({ ...choices, values: { ...choices.values, [option]: value } });
-                }}
-            />
-        );
-
     return (
         <>
             <div className="ws-export-main">
@@ -554,21 +515,6 @@ export function DataOutput({
                         ]}
                         value={rowId}
                         allowDeselect={false}
-                        // The format's rarer settings: the settings button at the end of its row.
-                        inputContainer={withTrailing(
-                            advanced.length === 0 ? null : (
-                                // Its own floating layer: the page's is under this modal.
-                                <PopoutManager key={row?.id}>
-                                    <SettingsPopout
-                                        label="Format settings"
-                                        changed={advanced.some((o) => keyed[o.name] !== undefined)}
-                                        onOpenChange={onSettingsOpen}
-                                    >
-                                        <Stack gap={8}>{optionsOf(advanced)}</Stack>
-                                    </SettingsPopout>
-                                </PopoutManager>
-                            ),
-                        )}
                         onChange={(id) => {
                             const picked = rows.find((entry) => entry.id === id);
                             if (picked !== undefined) {
@@ -576,7 +522,19 @@ export function DataOutput({
                             }
                         }}
                     />
-                    {optionsOf(key)}
+                    {row === undefined || session === null ? null : (
+                        <OptionsForm
+                            // A new row starts with its Advanced fold closed.
+                            key={row.id}
+                            session={session}
+                            options={writableOptions(session, row)}
+                            values={keyed}
+                            words={optionWords}
+                            onChange={(option, value) => {
+                                onChange({ ...choices, values: { ...choices.values, [option]: value } });
+                            }}
+                        />
+                    )}
                     <Select
                         label="Scope"
                         data={(scopes ?? []).map((option) => ({

@@ -4,7 +4,6 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
@@ -90,9 +89,7 @@ function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDe
         return blocked;
     }
     if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
-        return selectionWorkspaceOn(ctx.session)
-            ? "Width: Graph settings"
-            : "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
+        return "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
     }
     return null;
 }

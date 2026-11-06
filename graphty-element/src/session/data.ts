@@ -161,7 +161,7 @@ import type {
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
-import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
+import { STRUCTURE_VALUES } from "./styles/sources";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -284,12 +284,7 @@ interface PageSources {
      * @param target - Nodes or edges
      * @returns The test
      */
-    textTest(
-        text: string,
-        mode: SelectionTextMode,
-        target: "node" | "edge",
-        only?: readonly Path[],
-    ): (index: number) => boolean;
+    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -747,8 +742,6 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
-    /** Whether an edge column of a name exists, for the current data revision. */
-    private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
         readonly described: readonly AttributeDescriptor[];
@@ -836,7 +829,6 @@ export class SessionData implements SessionDataApi {
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
-        this.edgeColumns = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -2214,19 +2206,6 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
-        // By name only: the id, and for a node the label column data.name reads.
-        const labelPath = this.readConfig().knownFields.nodeLabelPath;
-        let names: readonly Path[] | undefined;
-        if (options.matching?.names === true) {
-            // A node's name is its label column; a graph with none names its nodes in its other
-            // columns (a "name" column the table shows), so every searchable value is read, as
-            // without `names`. An edge is named by its id and its ends' ids.
-            if (target === "edge") {
-                names = [];
-            } else if (labelPath !== null) {
-                names = [labelPath];
-            }
-        }
         const { issue } = options;
         if (
             scope === undefined &&
@@ -2246,7 +2225,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey, names]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2262,8 +2241,7 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text =
-                matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target, names);
+            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
             const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
             const matches =
                 flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
@@ -2333,11 +2311,7 @@ export class SessionData implements SessionDataApi {
     ): unknown {
         if (target === "node") {
             const id = snapshot.ids.idOf(index);
-            if (key === "id") {
-                return id;
-            }
-            // A structure path (`graphty.degree`) sorts by the snapshot's own value.
-            return structureValuesOf(snapshot, key)?.[index] ?? this.records?.nodeAttributes(index, id)?.[key];
+            return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];
         }
 
         switch (key) {
@@ -3669,19 +3643,8 @@ export class SessionData implements SessionDataApi {
      */
     loadedWeight(): LoadedWeight | null {
         const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
-        // Whether the designated column is an edge column: the first edge holding it answers, with
-        // no description of every record (a run asks on every start).
         const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
-            this.edgeColumns.get(name, () => {
-                const { edgeCount } = this.current();
-                for (let index = 0; index < edgeCount; index++) {
-                    const record = this.records?.edgeAttributes(index);
-                    if (record !== undefined && Object.hasOwn(record, name)) {
-                        return true;
-                    }
-                }
-                return false;
-            }),
+            this.attributes().some((c) => c.kind === "edge" && c.name === name),
         );
         return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
     }
@@ -3788,18 +3751,6 @@ export class SessionData implements SessionDataApi {
         return this.statistics().directedness === "directed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
-    }
-
-    /**
-     * One node's structure value, as a column of a table reads it.
-     * @param id - The node.
-     * @param path - A path {@link structureValues} lists (`graphty.degree`).
-     * @returns The value, or undefined for an unknown node or a path that is no structure value.
-     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
-     */
-    structureValue(id: NodeId, path: Path): number | undefined {
-        const snapshot = this.current();
-        return snapshot.ids.has(id) ? structureValuesOf(snapshot, path)?.[snapshot.ids.indexOf(id)] : undefined;
     }
 
     /**
@@ -4471,16 +4422,9 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
-        // Degree, in-degree and out-degree are read from the snapshot, not a column.
-        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
         for (let index = 0; index < total; index++) {
-            let value: unknown;
-            if (structure !== undefined) {
-                value = structure[index];
-            } else {
-                value =
-                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
-            }
+            const value =
+                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {

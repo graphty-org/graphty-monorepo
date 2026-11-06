@@ -13,11 +13,9 @@ import type {
     HistoryCode,
     NodeId,
     RuleTree,
-    UnionLeaf,
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
-import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
 import { timelineOn } from "../time/timeActions";
@@ -35,9 +33,7 @@ function namerOf(session: GraphSession): Namer {
         attribute: (path) =>
             path === "id"
                 ? "Node id"
-                : (attributes.find((a) => a.path === path)?.plainName ??
-                  session.data.structureValues().find((value) => value.path === path)?.plainName ??
-                  path.replace(/^data\./, "")),
+                : (attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, "")),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
@@ -55,8 +51,7 @@ function namerOf(session: GraphSession): Namer {
  * @returns the words.
  */
 export function conditionWords(session: GraphSession, rule: RuleTree): string {
-    // A selection is said as its rows say it, so the card's name, remove and undo never differ.
-    return rule.kind === "union" ? selectionWords(session, rule) : ruleWords(rule, namerOf(session));
+    return ruleWords(rule, namerOf(session));
 }
 
 /** The Filters row, and the inspected id, of the time window. */
@@ -80,21 +75,7 @@ export const PLUS = "+";
  * @param target - `<node|edge>:<path>`, or `PLUS`.
  */
 export function openFilterDraft(store: WorkspaceStore, target: string): void {
-    draftOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     store.set({ page: "panels", place: "data", filterDraft: target });
-}
-
-/** What held focus when `openFilterDraft` was asked: the card opens a render later, on the Data place. */
-let draftOpener: HTMLElement | null = null;
-
-/**
- * Takes what held focus when the last new card was asked for (once).
- * @returns that element, or null.
- */
-export function takeDraftOpener(): HTMLElement | null {
-    const from = draftOpener;
-    draftOpener = null;
-    return from;
 }
 
 /**
@@ -295,18 +276,4 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
  */
 export function offersTime(session: GraphSession): boolean {
     return timelineOn(session) && (session.time.field !== null || session.time.candidates().length > 0);
-}
-
-/**
- * The change that writes a card's selection: its rule, and for a tier 4 card the conversion to
- * what stays (effect keep, no picture scope; a Select card turned off).
- * @param rule - the selection.
- * @param effect - the card's effect as the element holds it.
- * @returns the change.
- */
-export function keepChange(rule: UnionLeaf, effect: FilterCondition["effect"]): Partial<Omit<FilterCondition, "id">> {
-    if (effect === "keep") {
-        return { rule };
-    }
-    return { rule, effect: "keep", within: undefined, ...(effect === "select" ? { on: false } : {}) };
 }

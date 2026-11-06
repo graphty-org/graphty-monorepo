@@ -288,7 +288,6 @@ function DataTableInner<TRow extends object>(
         columns,
         getRowId,
         rowLabel,
-        rowColor,
         label,
         labelledBy,
         labels: labelOverrides,
@@ -1445,7 +1444,6 @@ function DataTableInner<TRow extends object>(
                             }
 
                             const isSelected = selection.includes(row.id);
-                            const tint = rowColor?.(row.original);
 
                             return (
                                 <Table.Tr
@@ -1464,9 +1462,7 @@ function DataTableInner<TRow extends object>(
                                         onRowContextMenu?.(row.original, event);
                                     }}
                                     className="cm-dt-row"
-                                    data-row-color={tint === undefined ? undefined : ""}
                                     style={{
-                                        ...(tint === undefined ? {} : { "--cm-dt-row-color": tint }),
                                         position: "absolute",
                                         insetBlockStart: 0,
                                         insetInlineStart: 0,

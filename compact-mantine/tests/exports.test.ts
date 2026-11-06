@@ -16,8 +16,6 @@ import type {
     AdvancedButtonProps,
     AlignmentMatrixProps,
     AlignmentMatrixValue,
-    CardListItem,
-    CardListProps,
     ChangeHandler,
     ColorPickerFormat,
     ColorPickerPaintType,
@@ -178,8 +176,6 @@ interface SampleRow {
  */
 type PublicTypeSurface = {
     actionRow: ActionRowProps;
-    cardList: CardListProps;
-    cardListItem: CardListItem;
     activationEvent: ActivationEvent;
     activationHandler: ActivationHandler;
     activationHandlerWithMeta: ActivationHandlerWithMeta;
@@ -349,7 +345,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ensureCompactStyles",
 
     // Components
-    "CardList",
     "CompactColorInput",
     "ControlGroup",
     "ControlSection",
@@ -445,9 +440,6 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "defaultLabels",
     "LabelsProvider",
     "ListboxCheck",
-    "LISTBOX_CLASS_NAMES",
-    // The select trigger's caret, for a field built on InputBase as a button
-    "FieldCaret",
     "parseLocaleNumber",
     "useCollator",
     "useLabels",
@@ -781,8 +773,6 @@ describe("Package exports", () => {
                 // error, so the list cannot drift from the published types.
                 const listed = {
                     actionRow: true,
-                    cardList: true,
-                    cardListItem: true,
                     activationEvent: true,
                     activationHandler: true,
                     activationHandlerWithMeta: true,
@@ -930,7 +920,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(145);
+                expect(names).toHaveLength(143);
             });
         });
 

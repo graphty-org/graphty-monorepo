@@ -355,7 +355,6 @@ export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<
     if (next === null) {
         return null;
     }
-    // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
-    const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
+    const words = filterStep ?? filterChange(session, next.fact) ?? before ?? "the last change";
     return `${undo ? "Undid" : "Redid"} ${words}.`;
 }

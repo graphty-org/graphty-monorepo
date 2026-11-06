@@ -343,7 +343,7 @@ interface OptionWords {
 const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
 
 /**
- * The app's words for the key options (the ones not marked advanced), by
+ * The app's words for the key options (the ones drawn outside the Advanced fold), by
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */

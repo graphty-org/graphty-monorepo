@@ -51,7 +51,7 @@ void main(void) {
     worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
     vId = graphtyRow + 1.0;
 #else
-    vId = ${OBJECT_TEXEL.toFixed(1)};
+    vId = 0.0;
 #endif
     gl_Position = viewProjection * worldPos;
 }
@@ -60,10 +60,30 @@ void main(void) {
 const FRAGMENT = `precision highp float;
 varying float vId;
 void main(void) {
+#ifdef ROW_PULL
     float id = floor(vId + 0.5);
     gl_FragColor = vec4(mod(id, 256.0), mod(floor(id / 256.0), 256.0), floor(id / 65536.0), 255.0) / 255.0;
+#else
+    // A constant: interpolated, 16777215 can round to 16777216 and read as a row.
+    gl_FragColor = vec4(1.0);
+#endif
 }
 `;
+
+/**
+ * A render target that says when it really drew. Its readiness check notifies the same observers
+ * a drawing does (before bind, before and after render, after unbind) while drawing nothing, so
+ * no observer can tell the two apart.
+ */
+class IdTexture extends RenderTargetTexture {
+    /** Called after each drawing, in a frame or not. */
+    onDrawn: (() => void) | null = null;
+
+    override render(useCameraPostProcess?: boolean, dumpForDebug?: boolean): void {
+        super.render(useCameraPostProcess, dumpForDebug);
+        this.onDrawn?.();
+    }
+}
 
 /** What the target asks of its graph. */
 export interface NodeIdHost {
@@ -78,7 +98,7 @@ export class NodeIdTarget {
     /** How many times the target was drawn, and how many pixels were read from it. */
     readonly counts = { draws: 0, reads: 0 };
 
-    private readonly target: RenderTargetTexture;
+    private readonly target: IdTexture;
     private readonly rowMaterial: ShaderMaterial;
     private readonly objectMaterial: ShaderMaterial;
     private readonly list: AbstractMesh[] = [];
@@ -102,7 +122,7 @@ export class NodeIdTarget {
         private readonly host: NodeIdHost,
     ) {
         const engine = scene.getEngine();
-        this.target = new RenderTargetTexture(
+        this.target = new IdTexture(
             "graphty-node-ids",
             { width: engine.getRenderWidth(), height: engine.getRenderHeight() },
             scene,
@@ -130,18 +150,6 @@ export class NodeIdTarget {
             observe(this.target.onBeforeRenderObservable, () => {
                 this.rowMaterial.setTexture("rowPosition", this.host.positionTexture());
             }),
-            // After the drawing itself: the readiness check also notifies onAfterRenderObservable.
-            observe(this.target.onAfterUnbindObservable, () => {
-                // Babylon skips a mesh whose material has not compiled and draws the rest: such
-                // a drawing does not count, and the next read draws again.
-                if (!this.materialsReady()) {
-                    return;
-                }
-
-                this.drawnIn = scene.getFrameId();
-                this.inUse = false;
-                this.counts.draws++;
-            }),
             observe(scene.onBeforeRenderObservable, () => {
                 this.fit();
                 if (this.inUse || this.waiting.length > 0) {
@@ -152,6 +160,15 @@ export class NodeIdTarget {
                 this.settle();
             }),
         );
+        this.target.onDrawn = () => {
+            // Babylon skips a mesh whose material has not compiled and draws the rest: such a
+            // drawing does not count, and the next read draws again.
+            if (this.materialsReady()) {
+                this.drawnIn = scene.getFrameId();
+                this.inUse = false;
+                this.counts.draws++;
+            }
+        };
         scene.customRenderTargets.push(this.target);
     }
 
@@ -165,12 +182,17 @@ export class NodeIdTarget {
      * target cannot answer yet, so the caller picks.
      */
     read(x: number, y: number): number | Promise<number> | null {
-        if (this.disposed || !this.ready()) {
+        if (this.disposed) {
+            return null;
+        }
+
+        // A fresh target was drawn ready; only a stale one needs the walk over its meshes.
+        const fresh = this.drawnIn === this.scene.getFrameId() && this.fits();
+        if (!fresh && !this.ready()) {
             return null;
         }
 
         this.inUse = true;
-        const fresh = this.drawnIn === this.scene.getFrameId() && this.fits();
         if (!this.scene.getEngine().isWebGPU) {
             if (!fresh) {
                 this.fit();
@@ -238,10 +260,11 @@ export class NodeIdTarget {
      */
     private collect(drawn: readonly AbstractMesh[], length: number): void {
         const { list, target } = this;
-        list.length = 0;
-        // A freeze evaluates outside a frame, so a new list makes the target stale by itself.
-        this.drawnIn = -1;
-
+        // The frame's drawing of the target came before this evaluation, from the last list: it
+        // holds while the list is the same. A changed list, or a freeze evaluating outside a
+        // frame, makes it stale.
+        let kept = 0;
+        let same = true;
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
@@ -253,7 +276,13 @@ export class NodeIdTarget {
                 continue;
             }
 
-            list.push(mesh);
+            same &&= list[kept] === mesh;
+            list[kept++] = mesh;
+        }
+
+        if (!same || kept !== list.length) {
+            list.length = kept;
+            this.drawnIn = -1;
         }
     }
 
@@ -351,7 +380,9 @@ export class NodeIdTarget {
             return this.decode();
         }
 
-        return engine._readTexturePixels(texture, 1, 1, -1, 0, this.texel, true, false, px, py).then(() => this.decode());
+        return engine
+            ._readTexturePixels(texture, 1, 1, -1, 0, this.texel, true, false, px, py)
+            .then(() => this.decode());
     }
 
     /**

@@ -56,7 +56,7 @@ const EDGE_PICK_TOLERANCE_PX = 6;
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
     // While a layout transition moves the nodes, a click reads the layout's answer, not the
     // moving picture: what is selected is where the node is going.
-    return pickAtLayout(scene, (moving) => {
+    return pickAtLayout(scene, () => {
         const scan = rowScans.get(scene);
         return scan === undefined ? pickMeshes(scene, x, y, drawnPickable).info.pickedMesh : scan.pickPoint(x, y);
     });

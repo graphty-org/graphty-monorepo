@@ -2,8 +2,9 @@
  * @file The node ID target hover reads on the `"batched"` path (design/rendering/row-renderer.md 4.4).
  *
  * The target names the row the row scan names at every pixel, except where two rows of the same
- * depth overlap: there the scan keeps the lower row and the target the one drawn last, and each
- * such pixel is listed. A pointer move over a still graph walks no node, and a target older than
+ * depth overlap (the scan keeps the lower row, the target the one drawn last) and where a pixel
+ * center lies within an eighth of a pixel of a triangle's edge (the rasterizer's rule and the ray
+ * test may each keep the other side). Each such pixel is listed. A pointer move over a still graph walks no node, and a target older than
  * the picture is redrawn by the read that finds it.
  */
 
@@ -22,6 +23,13 @@ const NODES = 30;
 const POINTS = 400;
 const WIDTH = 500;
 const HEIGHT = 400;
+/** Steps of an eighth of a pixel: a pixel center that close to an edge may be settled either way. */
+const EDGE_STEPS = [
+    [-0.125, 0],
+    [0.125, 0],
+    [0, -0.125],
+    [0, 0.125],
+] as const;
 
 const cleanups: (() => void)[] = [];
 
@@ -98,13 +106,16 @@ async function batchedGraph(viewMode: "2d" | "3d", shape: string): Promise<Graph
  */
 async function readyTarget(element: Graphty): Promise<NodeIdTarget> {
     const target = element.graph.getNodeIdTarget();
-    assert.isNotNull(target, "the batched path keeps a target");
+    if (target === null) {
+        assert.fail("the batched path keeps a target");
+    }
+
     // The materials compile on their own; until then a read answers null.
-    while (target?.read(0, 0) === null) {
+    while (target.read(0, 0) === null) {
         await nextFrame();
     }
 
-    return target as NodeIdTarget;
+    return target;
 }
 
 /**
@@ -147,10 +158,18 @@ describe("the node ID target", () => {
                 assert.isDefined(scan);
                 let hits = 0;
                 const sameDepth: string[] = [];
+                const edges: string[] = [];
                 const differ: string[] = [];
+                // A pixel center within an eighth of a pixel of a triangle's edge: the rasterizer's
+                // rule and the ray test may each keep the other side.
+                const onEdge = (x: number, y: number, read: number): boolean =>
+                    EDGE_STEPS.some(([dx, dy]) => (scan?.shapeRayHit(x + dx, y + dy)?.row ?? ID_NONE) === read);
                 for (const { x, y } of pixelCenters(element, 17)) {
                     const read = target.read(x, y);
-                    assert.isNumber(read, "WebGL answers at once");
+                    if (typeof read !== "number") {
+                        assert.fail("WebGL answers at once");
+                    }
+
                     const hit = scan?.shapeRayHit(x, y) ?? null;
                     const expected = hit?.row ?? ID_NONE;
                     hits += hit === null ? 0 : 1;
@@ -159,11 +178,13 @@ describe("the node ID target", () => {
                     }
 
                     const ray = scene.createPickingRay(x, y, null, null);
-                    const other = typeof read === "number" && read >= 0 ? scan?.rowRayHitOn(read, ray) : null;
+                    const other = read >= 0 ? scan?.rowRayHitOn(read, ray) : null;
                     const otherDistance = other ? Vector3.Distance(ray.origin, other) : Number.NaN;
                     const where = `${String(x)},${String(y)}: target ${String(read)}, scan ${String(expected)}`;
                     if (hit !== null && Math.abs(otherDistance - hit.distance) <= 1e-4 * hit.distance) {
                         sameDepth.push(where);
+                    } else if (onEdge(x, y, read)) {
+                        edges.push(where);
                     } else {
                         differ.push(where);
                     }
@@ -173,7 +194,16 @@ describe("the node ID target", () => {
                     console.info(`same-depth overlaps, ${shape} in ${viewMode}:`, sameDepth);
                 }
 
-                assert.deepEqual(differ.slice(0, 5), [], `${String(differ.length)} differ: ${differ.slice(0, 5).join("; ")}`);
+                if (edges.length > 0) {
+                    console.info(`pixel centers on a triangle edge, ${shape} in ${viewMode}:`, edges);
+                }
+
+                assert.isAtMost(edges.length, POINTS / 50, "few pixel centers lie on an edge");
+                assert.deepEqual(
+                    differ.slice(0, 5),
+                    [],
+                    `${String(differ.length)} differ: ${differ.slice(0, 5).join("; ")}`,
+                );
                 assert.isAbove(hits, POINTS / 2, "enough points hit a node");
             });
         }
@@ -194,8 +224,8 @@ describe("the node ID target", () => {
         await hover(element, at("n0"));
         await element.waitForStableFrame();
         const before = { ...pickWork };
-        const draws = target.counts.draws;
-        const reads = target.counts.reads;
+        const { draws } = target.counts;
+        const { reads } = target.counts;
         const ids = ["n1", "n2", "n3", "n4", "n5"];
         for (const id of ids) {
             await hover(element, at(id));
@@ -215,15 +245,25 @@ describe("the node ID target", () => {
         const node = graph.getNode("n0");
         assert.isDefined(node);
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
-        const where = graph.worldToScreen(new Vector3(30, 30, 0));
-        const point = { x: where.x * scaling, y: where.y * scaling };
+        // A corner of the canvas, empty in this layout, and the place on the z = 0 plane under it.
+        const point = { x: 20.5 * scaling, y: 20.5 * scaling };
+        const ray = graph.scene.createPickingRay(point.x, point.y, null, null);
+        const there = ray.origin.add(ray.direction.scale(-ray.origin.z / ray.direction.z));
         assert.strictEqual(target.read(point.x, point.y), ID_NONE, "nothing is there yet");
 
-        await graph.getSession().positions.set([{ id: "n0", x: 30, y: 30, z: 0 }]);
+        await graph.getSession().positions.set([{ id: "n0", x: there.x, y: there.y, z: 0 }]);
         await operationQueueOf(graph).waitForCompletion();
         await element.waitForStableFrame();
-        const draws = target.counts.draws;
         assert.strictEqual(target.read(point.x, point.y), node?.index, "the moved row is read where it went");
+
+        // The frame after a read redraws the target; the one after that does not, so a read then
+        // finds it older than the picture and draws it itself, once.
+        graph.scene.render();
+        graph.scene.render();
+        const { draws } = target.counts;
+        assert.strictEqual(target.read(point.x, point.y), node?.index, "the redrawn target still names it");
         assert.strictEqual(target.counts.draws - draws, 1, "the stale target was drawn once");
+        assert.strictEqual(target.read(point.x, point.y), node?.index, "a second read reads the same drawing");
+        assert.strictEqual(target.counts.draws - draws, 1, "and draws nothing");
     });
 });

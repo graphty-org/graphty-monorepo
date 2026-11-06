@@ -870,11 +870,11 @@ export class StylePainter {
     /** The edges whose paint the renderer has not applied yet. */
     private readonly pendingEdges = new PendingRows();
 
-    /** Whether the frame that draws the last pending node has to visit every edge. */
-    private nodeWalkOwed = false;
+    /** Whether every pending node came from a pass marked `rowsOnly`. False unless one says so. */
+    private nodesRowsOnly = false;
 
-    /** Whether the frame that draws the last pending edge has to visit every edge. */
-    private edgeWalkOwed = false;
+    /** Whether every pending edge came from a pass marked `rowsOnly`. False unless one says so. */
+    private edgesRowsOnly = false;
 
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
@@ -899,6 +899,8 @@ export class StylePainter {
         this.paint = paint;
         this.pendingNodes.clear();
         this.pendingEdges.clear();
+        this.nodesRowsOnly = false;
+        this.edgesRowsOnly = false;
 
         if (paint !== null) {
             this.stopListening = paint.onPainted(() => {
@@ -937,10 +939,15 @@ export class StylePainter {
 
         const nodes = paint.lastPainted("node");
         const edges = paint.lastPainted("edge");
-        const walk = !paint.lastPaintRowsOnly();
+        const rowsOnly = paint.lastPaintRowsOnly();
 
-        this.nodeWalkOwed ||= walk && nodes.length > 0;
-        this.edgeWalkOwed ||= walk && edges.length > 0;
+        if (nodes.length > 0) {
+            this.nodesRowsOnly = rowsOnly && (this.nodesRowsOnly || this.pendingNodes.size === 0);
+        }
+
+        if (edges.length > 0) {
+            this.edgesRowsOnly = rowsOnly && (this.edgesRowsOnly || this.pendingEdges.size === 0);
+        }
 
         for (let at = 0; at < nodes.length; at++) {
             this.pendingNodes.add(nodes[at]);
@@ -952,26 +959,27 @@ export class StylePainter {
     }
 
     /**
-     * Whether the nodes just drawn owe a visit to every edge, which only a time window's slide does
-     * not. Asked by the frame that drew the last of them.
-     * @returns True when they do, once.
+     * Whether the nodes just drawn came only from a time window's slide, and so can skip the visit
+     * to every edge that ends a repaint. Asked by the frame that drew the last of them.
+     * @returns True when they did, once.
      */
-    takeNodeWalk(): boolean {
-        const owed = this.nodeWalkOwed;
-        this.nodeWalkOwed = false;
+    takeNodesRowsOnly(): boolean {
+        const rowsOnly = this.nodesRowsOnly;
+        this.nodesRowsOnly = false;
 
-        return owed;
+        return rowsOnly;
     }
 
     /**
-     * Whether the edges just drawn owe a visit to every edge; see {@link StylePainter.takeNodeWalk}.
-     * @returns True when they do, once.
+     * Whether the edges just drawn came only from a time window's slide; see
+     * {@link StylePainter.takeNodesRowsOnly}.
+     * @returns True when they did, once.
      */
-    takeEdgeWalk(): boolean {
-        const owed = this.edgeWalkOwed;
-        this.edgeWalkOwed = false;
+    takeEdgesRowsOnly(): boolean {
+        const rowsOnly = this.edgesRowsOnly;
+        this.edgesRowsOnly = false;
 
-        return owed;
+        return rowsOnly;
     }
 
     /**
@@ -984,8 +992,8 @@ export class StylePainter {
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
-            this.nodeWalkOwed ||= target === "node";
-            this.edgeWalkOwed ||= target === "edge";
+            this.nodesRowsOnly &&= target !== "node";
+            this.edgesRowsOnly &&= target !== "edge";
         }
     }
 
@@ -1061,8 +1069,8 @@ export class StylePainter {
      * @param edges - How many edges it holds.
      */
     invalidate(nodes: number, edges: number): void {
-        this.nodeWalkOwed ||= nodes > 0;
-        this.edgeWalkOwed ||= edges > 0;
+        this.nodesRowsOnly = false;
+        this.edgesRowsOnly = false;
 
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);

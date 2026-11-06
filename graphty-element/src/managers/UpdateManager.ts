@@ -1204,7 +1204,7 @@ export class UpdateManager implements Manager {
         // made a repaint cost its frames times the edges: a million edges take about a thousand
         // frames, and those walks were most of a 100,000-node load. A time window's slide changes
         // nothing but the rows it painted, so what this frame places is all of it.
-        if (!painter.hasPendingEdges && painter.takeEdgeWalk()) {
+        if (!painter.hasPendingEdges && !painter.takeEdgesRowsOnly()) {
             this.forceEdgeWalk();
         }
     }
@@ -1260,7 +1260,7 @@ export class UpdateManager implements Manager {
         // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
         // repaint was spread over. A time window's slide changes nothing but the rows it painted, and
         // the lines above placed the edges of any node of those that changed size or was rebuilt.
-        if (!painter.hasPendingNodes && painter.takeNodeWalk()) {
+        if (!painter.hasPendingNodes && !painter.takeNodesRowsOnly()) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };
         }

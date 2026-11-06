@@ -99,6 +99,10 @@ and the project file hold. `await time.commit()` records where a `seek` left it.
 (`motion: "steps"`, reduced motion, or `results: "rerun"`) records each window in the play's one
 history step, so `time.committed` follows every step.
 
+A move of the window redraws only what entered and left it. The exception is an edge drawn through a
+support point (`edge.supportModel`): support points settle together, so a move that reveals one
+visits every edge.
+
 ## Every window at once
 
 `time.series` counts every window of a step without moving what is on screen, for a chart over time:

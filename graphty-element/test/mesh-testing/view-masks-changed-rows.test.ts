@@ -3,7 +3,7 @@
  * masks, a real UpdateManager follows them, and stand-ins for `Node` and `Edge` count what the pass
  * asks of them. The real objects are drawn in test/browser/time-changed-rows.test.ts.
  */
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
 import { setDefaultFeatures } from "../../src/features/resolve";
@@ -13,6 +13,7 @@ import type { LayoutManager } from "../../src/managers/LayoutManager";
 import type { StatsManager } from "../../src/managers/StatsManager";
 import { UpdateManager, type ViewMasks } from "../../src/managers/UpdateManager";
 import type { NodeRenderState } from "../../src/Node";
+import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { ElementSession } from "../../src/session/types";
 
 const NODES = 2_000;
@@ -53,6 +54,8 @@ class CountingEdge {
     updates = 0;
     /** What a revealed edge's first update draws from: it was not placed while it was hidden. */
     placed = true;
+    /** Whether it is drawn through a support point. */
+    bowed = false;
 
     constructor(readonly index: number) {}
 
@@ -70,8 +73,8 @@ class CountingEdge {
         return changed;
     }
 
-    supportEdge(): null {
-        return null;
+    supportEdge(): object | null {
+        return this.bowed ? {} : null;
     }
 
     update(): void {
@@ -307,13 +310,45 @@ describe("changed rows reach the renderer", () => {
         scene.assertDrawnAsMasks("a step under the filter");
     });
 
-    it("shows a selection made during a step in that pass", async () => {
+    for (const nodes of ["all", "ends"] as const) {
+        it(`shows a selection made during a step in that pass, with nodes: ${nodes}`, async () => {
+            const scene = await sliding(nodes);
+            const step = await scene.session.time.seek(nodes === "all" ? 30 : 50, { commit: false });
+            const graph = scene.session.data.snapshot();
+            await scene.session.selection.apply({ nodes: ["n5"], edges: [edgeSpaceOf(graph).idOf(100)] });
+            const work = scene.frame();
+
+            assert.strictEqual(work.edgeWrites, step.entered.edges + step.left.edges);
+            assert.strictEqual(work.nodeWrites, step.entered.nodes + step.left.nodes);
+            assert.strictEqual(nodes === "ends", work.nodeWrites > 0, "whether node rows moved too");
+            assert.isTrue(scene.nodes[graph.ids.requireIndex("n5")].selected);
+            assert.isTrue(scene.edges[100].selected);
+        });
+    }
+
+    it("walks every edge for a revealed edge with a support point", async () => {
         const scene = await sliding();
+        const walk = vi.spyOn(scene.manager, "forceEdgeWalk");
+        // The window is at 10 to 2,010, so a move of 20 brings in the edges 2,010 to 2,029.
+        scene.edges[2_015].bowed = true;
         await scene.session.time.seek(30, { commit: false });
-        await scene.session.selection.apply({ nodes: ["n5"] });
         const work = scene.frame();
-        assert.isBelow(work.edgeWrites, EDGES);
-        assert.isTrue(scene.nodes[scene.session.data.snapshot().ids.requireIndex("n5")].selected);
+
+        assert.strictEqual(walk.mock.calls.length, 1);
+        assert.strictEqual(work.edgeWrites, 40, "the writes still follow the rows");
+        assert.strictEqual(work.updates, EDGES);
+        scene.assertDrawnAsMasks("after a bowed reveal");
+    });
+
+    it("does not walk for a support point on an edge the step only hid", async () => {
+        const scene = await sliding();
+        const walk = vi.spyOn(scene.manager, "forceEdgeWalk");
+        scene.edges[15].bowed = true;
+        const step = await scene.session.time.seek(30, { commit: false });
+        const work = scene.frame();
+
+        assert.strictEqual(walk.mock.calls.length, 0);
+        assert.strictEqual(work.updates, step.entered.edges);
     });
 
     it("shows a switch of showContext during a step in that pass", async () => {

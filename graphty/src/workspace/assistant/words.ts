@@ -19,6 +19,7 @@ import {
 import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
+import { wordsFor } from "../analyze/words";
 import { providerDisclosure } from "../assistant-door/provider";
 import { formatNumber } from "../settings/numberFormat";
 import { attributeName, channelWord } from "../style/words";
@@ -537,6 +538,10 @@ export function effectLine(session: GraphSession | null, effect: AiEffect): stri
                     : `Computed ${name} for ${counted(Number(params.nodes), "node")}`;
             return params.painted === undefined ? computed : `${computed}, colored by it`;
         }
+        case "AI_EFFECT_RUN_REMOVED": {
+            const algorithm = algorithmByKey(String(params.algorithm));
+            return `Removed ${algorithm === undefined ? String(params.algorithm) : wordsFor(algorithm).name}`;
+        }
         case "AI_EFFECT_DATA":
             return dataLine(params);
         case "AI_EFFECT_SELECTION":
@@ -564,6 +569,13 @@ export function changeLines(session: GraphSession | null, changes: readonly AiEf
         return effectLine(session, index < last ? { ...effect, params } : effect);
     });
 }
+
+/**
+ * What the status line says as Open run or Open layer opens its thing.
+ * @param name - the run's or the layer's name.
+ * @returns the words.
+ */
+export const openedWords = (name: string): string => `Opened ${name}`;
 
 /**
  * The line for what a style left out because a filter hides it.

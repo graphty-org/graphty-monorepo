@@ -661,6 +661,8 @@ export type AiResultParams = Readonly<Record<string, string | number>>;
  * - `AI_EFFECT_FILTER` -- the filter changed. `{ kept, total, keptEdges, totalEdges }`.
  * - `AI_EFFECT_RUN` -- an algorithm ran. `{ run, algorithm, nodes?, painted? }`, `nodes` being the
  *   elements it measured and `painted` how many of its suggestions were added, omitted at 0.
+ * - `AI_EFFECT_RUN_REMOVED` -- a run and the layers reading it left the graph. `{ run, algorithm,
+ *   removedLayers }`, `removedLayers` being how many layers went with it.
  * - `AI_EFFECT_DATA` -- the data changed. Any of `{ addedNodes, addedEdges, removedNodes, removedEdges,
  *   changedValues }`.
  * - `AI_EFFECT_SELECTION` -- the selection changed. `{ nodes, edges }`.
@@ -678,6 +680,7 @@ export const AI_EFFECT_CODES = Object.freeze([
     "AI_EFFECT_LAYOUT",
     "AI_EFFECT_FILTER",
     "AI_EFFECT_RUN",
+    "AI_EFFECT_RUN_REMOVED",
     "AI_EFFECT_DATA",
     "AI_EFFECT_SELECTION",
     "AI_EFFECT_VIEW",

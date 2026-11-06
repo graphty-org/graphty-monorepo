@@ -518,8 +518,17 @@ export const resultsTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 const run = runOf(tx, args);
                 const removal = await coded(() => tx.runs.remove(run.id));
-                const params: JsonObject = { run: run.id, removedLayers: removal.removedLayers };
-                return ok(undefined, params);
+                const { removedLayers } = removal;
+                const params: JsonObject = { run: run.id, removedLayers };
+                return {
+                    ...ok(undefined, params),
+                    effects: () => [
+                        {
+                            code: "AI_EFFECT_RUN_REMOVED",
+                            params: { run: run.id, algorithm: run.algorithm, removedLayers },
+                        },
+                    ],
+                };
             },
         },
         {

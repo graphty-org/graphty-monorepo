@@ -10,6 +10,14 @@ The dry runs spent all 3,000 requests before a session ran. The cap was set for 
 owner, so it is raised to 5,000: about $10 more at about $0.005 a request, inside the $150 monthly LLM
 budget. A second round folder runs the 12 sessions on the same frozen build.
 
+## 2026-11-06 -- Decided by the team: an effect for a removed run (graphty-element)
+
+- `AI_EFFECT_RUN_REMOVED`, a new code in `AI_EFFECT_CODES` on `./catalog`, `{ run, algorithm,
+removedLayers }`. The `results` tool's `remove` action returns it, where it used to fall to
+  `AI_EFFECT_OTHER`, so an application can word what left the graph. Additive: the union is open,
+  as its documentation says. `run` is there because a later run of the same algorithm and options
+  takes the same id, so a consumer needs it to tell which of a turn's runs is gone.
+
 ## 2026-11-05 -- Decided by the team: an export scope can name nodes, and the export tool takes a target (graphty-element)
 
 `ExportScope` gains `{ nodes }`: these nodes and the edges between them. It is additive; every form an

@@ -380,6 +380,64 @@ describe("checking what the Assistant says", () => {
         assert.strictEqual(store.get().place, "assistant");
     });
 
+    it("a run the turn took away reads Removed and leaves no Open run", async () => {
+        await openOn(3);
+        model.turns = [
+            calling("run_algorithm", { name: "degree", style: false }),
+            calling("results", { action: "remove", run: "degree" }),
+            { text: "Done.", toolCalls: [] },
+        ];
+        await say("How connected are they?");
+        await screen.findByText("Removed Degree");
+        await finished();
+        assert.isNull(within(log()).queryByRole("button", { name: "Open run" }));
+        assert.isNull(within(log()).queryByText("Changed the graph"));
+        // The same run again takes the same id; the first turn's line still links to nothing.
+        model.asked = 0;
+        model.turns = [calling("run_algorithm", { name: "degree", style: false }), { text: "Ran.", toolCalls: [] }];
+        await say("Again");
+        await finished();
+        await waitFor(() => {
+            assert.lengthOf(within(log()).getAllByRole("button", { name: "Open run" }), 1);
+        });
+    });
+
+    it("Open run lands on Values when the run painted nothing, and says what opened", async () => {
+        const { store } = await openOn(3);
+        model.turns = [calling("run_algorithm", { name: "degree", style: false }), { text: "Ran.", toolCalls: [] }];
+        await say("How connected are they?");
+        await userEvent.click(await screen.findByRole("button", { name: "Open run" }));
+        const values = await screen.findByRole("tab", { name: "Values" });
+        assert.strictEqual(values.getAttribute("aria-selected"), "true");
+        assert.strictEqual(store.get().announcement, "Opened Degree");
+    });
+
+    it("Open run keeps Style when the run painted", async () => {
+        await openOn(3);
+        model.turns = [calling("run_algorithm", { name: "degree" }), { text: "Ran.", toolCalls: [] }];
+        await say("How connected are they?");
+        await userEvent.click(await screen.findByRole("button", { name: "Open run" }));
+        const style = await screen.findByRole("tab", { name: "Style" });
+        assert.strictEqual(style.getAttribute("aria-selected"), "true");
+    });
+
+    it("Open layer says what opened, and goes once a later turn takes the layer away", async () => {
+        const { store } = await openOn(3);
+        model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
+        await say("Color them");
+        await userEvent.click(await screen.findByRole("button", { name: "Open layer" }));
+        await waitFor(() => {
+            assert.match(store.get().announcement, /^Opened ./);
+        });
+        model.asked = 0;
+        model.turns = [calling("style", { action: "clear_mine" }), { text: "Cleared.", toolCalls: [] }];
+        await say("Take that color off");
+        await finished();
+        await waitFor(() => {
+            assert.isNull(within(log()).queryByRole("button", { name: "Open layer" }));
+        });
+    });
+
     it("holds a large removal in the waiting section: Keep them declines", async () => {
         const { session } = await openOn(12);
         model.turns = [

@@ -202,6 +202,22 @@ describe("effects", () => {
         });
     });
 
+    it("a removed run says so, with the layers that went with it", async () => {
+        const session = await assistantSession(undefined, ON);
+        const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
+        await assistant.say(
+            "run it, then take it away",
+            [{ tool: "run_algorithm", args: { action: "run", name: "degree" } }],
+            [{ tool: "results", args: { action: "remove", run: "degree" } }],
+        );
+
+        const removed = effectsOf(assistant).at(-1);
+        assert.strictEqual(removed?.code, "AI_EFFECT_RUN_REMOVED");
+        assert.strictEqual(removed.params.algorithm, "degree");
+        assert.isString(removed.params.run);
+        assert.isAbove(Number(removed.params.removedLayers), 0);
+    });
+
     it("a ranking that selects says so beside what it found; one that only reads does not", async () => {
         const session = await assistantSession(undefined, ON);
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });

@@ -1,13 +1,16 @@
 import { EntityChip } from "@graphty/compact-mantine";
 import type { AiEffect, AiTarget } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
+import { findTreeRow, rowName } from "../graph-place/rows";
+import { runName } from "../runWords";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { changeLines, chipName, emptyWords, excludedLine, moreWords, WORDS } from "./words";
+import { changeLines, chipName, emptyWords, excludedLine, moreWords, openedWords, WORDS } from "./words";
 
 type Kind = "node" | "edge";
 
@@ -241,9 +244,59 @@ interface ChangeRowsProps {
     readonly onMore: () => void;
 }
 
+/** A link from a turn to the real editor of what it made. */
+interface OpenLink {
+    readonly label: string;
+    readonly inspected: { readonly kind: "layer-row" | "run-row"; readonly id: string };
+    /** What it opens, for the status line. */
+    readonly name: string;
+}
+
 /**
- * What a turn did to the graph: one line per effect, up to three, then the links to the real editor
- * and Undo on the newest step only. Once no step of the message stands, it reads Undone.
+ * The links a turn draws: its first layer and its first run that still stand, and that it did not
+ * itself remove.
+ * @param session - the session.
+ * @param changes - the turn's changes.
+ * @returns the links.
+ */
+function openLinks(session: GraphSession, changes: readonly AiEffect[]): readonly OpenLink[] {
+    const tree = session.styles.tree();
+    const layer = changes
+        .map((effect) => String(effect.params.layer))
+        .find((id) => findTreeRow(tree, id) !== undefined);
+    // A later run of the same algorithm and options takes the same id, so a run this turn removed
+    // must not link to it: each run's last effect decides.
+    const lastOfEach = new Map(changes.map((effect) => [String(effect.params.run), effect]));
+    const run = [...lastOfEach.values()]
+        .filter((effect) => effect.code !== "AI_EFFECT_RUN_REMOVED")
+        .map((effect) => session.runs.get(String(effect.params.run)))
+        .find((each) => each !== undefined);
+    return [
+        ...(layer === undefined
+            ? []
+            : [
+                  {
+                      label: WORDS["assistant.open-layer"],
+                      inspected: { kind: "layer-row", id: layer } as const,
+                      name: rowName(session, layer),
+                  },
+              ]),
+        ...(run === undefined
+            ? []
+            : [
+                  {
+                      label: WORDS["assistant.open-run"],
+                      inspected: { kind: "run-row", id: run.id } as const,
+                      name: runName(session, run),
+                  },
+              ]),
+    ];
+}
+
+/**
+ * What a turn did to the graph: one line per effect, up to three, then the links to the real editor,
+ * each only while its layer or run stands, and Undo on the newest step only. Once no step of the
+ * message stands, it reads Undone.
  * @param props - Component props
  * @param props.changes - the turn's changes
  * @param props.provenance - the id its steps carry
@@ -258,8 +311,7 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
     const newest = next?.kind === "undo" && provenance !== undefined && next.step.provenance.message === provenance;
     const lines = changeLines(session, changes);
     const excluded = excludedLine(changes);
-    const layer = changes.find((effect) => effect.params.layer !== undefined)?.params.layer;
-    const ran = changes.find((effect) => effect.params.run !== undefined)?.params.run;
+    const links = session === null || undone ? [] : openLinks(session, changes);
     return (
         <div className="ws-assistant-change">
             {lines.slice(0, MAX_LINES).map((line, index) => (
@@ -279,30 +331,19 @@ export function ChangeRows({ changes, provenance, undone, onMore }: Readonly<Cha
             {excluded === null ? null : <Text size="sm">{excluded}</Text>}
             <Group gap={4} justify="space-between">
                 <Group gap={4}>
-                    {layer === undefined || undone ? null : (
+                    {links.map((link) => (
                         <Button
+                            key={link.label}
                             variant="subtle"
                             color="gray"
                             size="compact-xs"
                             onClick={() => {
-                                store.set({ inspected: { kind: "layer-row", id: String(layer) } });
+                                store.set({ inspected: link.inspected, announcement: openedWords(link.name) });
                             }}
                         >
-                            {WORDS["assistant.open-layer"]}
+                            {link.label}
                         </Button>
-                    )}
-                    {ran === undefined || undone ? null : (
-                        <Button
-                            variant="subtle"
-                            color="gray"
-                            size="compact-xs"
-                            onClick={() => {
-                                store.set({ inspected: { kind: "run-row", id: String(ran) } });
-                            }}
-                        >
-                            {WORDS["assistant.open-run"]}
-                        </Button>
-                    )}
+                    ))}
                 </Group>
                 {newest ? (
                     <Button

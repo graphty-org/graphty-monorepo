@@ -13,7 +13,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
 import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
-import { assertGraphLoaded, assertNodesInFromEdges, drawn, holds } from "../assertions";
+import { assertGraphLoaded, assertNodesInFromEdges, drawn, eventually } from "../assertions";
 import { eventWaitingDecorator, isUnderRunner, waitForGraphSettled } from "../helpers";
 
 type LayerInput = Parameters<Graphty["session"]["styles"]["add"]>[0];
@@ -107,6 +107,7 @@ type Story = StoryObj;
  * @param counts.edges - The edge count.
  * @param marginPx - How far in from the canvas's edges every node's center is drawn, room for its
  *   surface's rim or glow.
+ * @param smallProgram - Whether the nodes are small enough for the shader's small-size program.
  * @returns The play function.
  */
 function played(
@@ -114,6 +115,7 @@ function played(
     shader: string,
     counts = { nodes: NODES.length, edges: EDGES.length },
     marginPx = 100,
+    smallProgram = false,
 ): Story["play"] {
     return async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
@@ -121,8 +123,18 @@ function played(
         await assertGraphLoaded(scene, counts);
         await assertNodesInFromEdges(scene, marginPx);
         const element = canvasElement.querySelector("graphty-element") as Graphty;
-        const held = NodeShaderDrawing.peek(element.graph.getScene())?.drawnById().get(shader)?.drawn ?? 0;
-        await holds(held > 0, `Shaders/Heavy Surfaces ${name} draws its nodes with ${shader}`);
+        const scene3d = element.graph.getScene();
+        await eventually(
+            () => (NodeShaderDrawing.peek(scene3d)?.drawnById().get(shader)?.drawn ?? 0) > 0,
+            `Shaders/Heavy Surfaces ${name} draws its nodes with ${shader}`,
+        );
+        if (smallProgram) {
+            // The element swaps programs after the camera rests: a capture takes the picture that stays.
+            await eventually(
+                () => scene3d.meshes.some((mesh) => mesh.material?.name.endsWith("low") === true),
+                `Shaders/Heavy Surfaces ${name} draws the small-size program`,
+            );
+        }
     };
 }
 
@@ -179,5 +191,5 @@ const SMALL_NODES = Array.from({ length: 400 }, (_, i) => ({
 export const SmallMarbles: Story = {
     name: "Small marbles",
     render: () => surfaceScene("glass-marble", { params: { spin: 0 }, nodes: SMALL_NODES, size: 0.5 }),
-    play: played("SmallMarbles", "glass-marble", { nodes: SMALL_NODES.length, edges: 0 }, 60),
+    play: played("SmallMarbles", "glass-marble", { nodes: SMALL_NODES.length, edges: 0 }, 60, true),
 };

@@ -40,7 +40,7 @@ const graphtyNode = (id: string, cx: number, cy: number, w: number, h: number): 
     cy,
     w,
     h,
-    shape: "rectangle",
+    shape: "rect",
     fill: FILL("#ffffff"),
     stroke: LINE,
     label: null,

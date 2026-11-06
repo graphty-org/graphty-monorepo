@@ -1467,6 +1467,27 @@ function readYedLabelPlace(
 }
 
 /**
+ * An edge label's place, for the writers that draw it somewhere of their own.
+ * @param snapshot - the graph
+ * @param writer - the file's writer
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readDrawnLabelPlace(
+    snapshot: GraphSnapshot,
+    writer: GmlWriter,
+    e: number,
+    put: (property: string, value: StyleValue | null) => void,
+): void {
+    const graphics = cellOf(snapshot.edges, "graphics", e);
+    if (writer.vocabulary === "ogdf") {
+        readOgdfLabelPlace(snapshot, graphics, e, put);
+    } else if (writer.tool === "yed") {
+        readYedLabelPlace(snapshot, graphics, cellOf(snapshot.edges, "LabelGraphics", e), e, put);
+    }
+}
+
+/**
  * Hides the edges Gephi's own GML importer leaves out: an edge whose `directed` key disagrees with the graph's
  * `directed` header (Gephi 0.11 loads 4 of `specimen-arrows-p6`'s 5 edges). A file with no header is read as mixed and
  * every edge is loaded. The edge and its data stay; Gephi draws nothing there, so graphty draws nothing.
@@ -1542,21 +1563,10 @@ function readValues(
                 readGv2gmlLabelPlace(snapshot, i, bent, (property, value) => {
                     out.put(i, property, value);
                 });
-            } else if (target === "edge" && writer.vocabulary === "ogdf") {
-                readOgdfLabelPlace(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
+            } else if (target === "edge") {
+                readDrawnLabelPlace(snapshot, writer, i, (property, value) => {
                     out.put(i, property, value);
                 });
-            }
-            if (target === "edge" && writer.tool === "yed") {
-                readYedLabelPlace(
-                    snapshot,
-                    cellOf(table, "graphics", i),
-                    cellOf(table, "LabelGraphics", i),
-                    i,
-                    (property, value) => {
-                        out.put(i, property, value);
-                    },
-                );
             }
             if (target === "edge" && writer.vocabulary !== "graphviz") {
                 readLineRoute(

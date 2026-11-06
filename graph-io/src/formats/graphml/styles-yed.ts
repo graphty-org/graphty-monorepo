@@ -1876,7 +1876,7 @@ function pointAlong(line: readonly BendPoint[], distance: number): { at: BendPoi
 }
 
 /** What a yEd edge label's place is worked out from. */
-export interface YedEdgeLabel {
+interface YedEdgeLabel {
     /** Its model's name and position, as `YED_EDGE_SPOTS` keys them. */
     spot: string;
     /** The file's `x`, `y`, `width` and `height`, where the file's box is the label's place; null where its model is. */
@@ -1938,7 +1938,7 @@ export function putYedEdgeLabel(
         boxExit(boxes[1], route[last], route[last - 1]),
     ];
     const center = edgeLabelCenter(label, line);
-    if (center === null || !center.every(Number.isFinite)) {
+    if (center?.every(Number.isFinite) !== true) {
         return;
     }
     const hang = routeMiddle(route);

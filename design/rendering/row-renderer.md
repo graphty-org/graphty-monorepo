@@ -178,9 +178,21 @@ back at once. `drawnPickMesh` is null for a batched row; a row pick answers with
 metadata, so `pickAsDrawn` and `DrawnHit.mesh` return a `TransformNode`. Bounds of a meshless row come from the source's
 local box at the anchor's world matrix (`drawnBoundingInfo`). A meshless row is still batchable (`batchableIn` accepts a
 null mesh), and `RowTable.hide` leaves a shrinking row's W alone when it was and stays drawn, so rebuilding a row's
-instance mid-shrink does not draw it whole. Open: Babylon's XR laser (`WebXRControllerPointerSelection`) finds its hit
-with `scene.pickWithRay`, which sees no meshless row, so the laser passes through batched rows; XRInputHandler's own
-tap and drag already pick rows through `pickRayAsDrawn`.
+instance mid-shrink does not draw it whole.
+
+As built (stage 11, third pull request, XR laser): `src/xr/laserOnRows.ts`, started and stopped with each XR session.
+Babylon's laser (`WebXRControllerPointerSelection`) picks with `scene.pickWithRay`, which sees no meshless row. At the
+head of `onXRFrameObservable` each controller's ray goes through `pickRayAsDrawn`'s scan; when it lands on a meshless
+row, an instance of the row's source, named and labeled as the row's mesh was, is parented to the row's anchor with an
+identity local transform (an instance starts at its source's place, which a batched source keeps far below the scene).
+An observer at the tail of the same observable takes it off again, so it exists only while Babylon's laser picks:
+it is never drawn (its visibility is the batched source's 0, and it is disabled before the frame renders) and no
+other pick sees it. Three corrections to section 4.4's text: there is one stand-in per controller, not one, since
+each controller casts its own ray in the same frame; it is admitted by Babylon's default predicates
+(`enablePointerMoveEvents` set), not through `raySelectionPredicate`; and `XRInputHandler` needed no change, as it
+already picks through `pickRayAsDrawn`. A trigger tap selects a meshless row (Babylon's tap names it from the
+stand-in's metadata) and a trigger drag moves it with no mesh built; `node-batch-xr.test.ts` drives both through
+IWER.
 
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror

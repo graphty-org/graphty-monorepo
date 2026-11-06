@@ -1,6 +1,7 @@
 import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
+import { laserOnRows } from "./laserOnRows";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
 
@@ -322,8 +323,10 @@ export class XRSessionManager {
         const optionalFeatures = candidates.slice(1).filter((type) => type !== "local");
         await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
         logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
+        const stopLaserOnRows = laserOnRows(this.scene, helper);
 
         sessionManager.onXRSessionEnded.addOnce(() => {
+            stopLaserOnRows();
             const cause: XRSessionEndCause = this.exiting ? "exit" : "device";
             this.activeMode = null;
             this.referenceSpaceType = null;

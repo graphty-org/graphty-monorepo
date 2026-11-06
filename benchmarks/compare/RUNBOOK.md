@@ -52,7 +52,7 @@ It answers with a URL. Then, in every Bash call below:
 
 To measure a render path, also export `BENCH_RENDER_PATH=batched` (or `objects`), and give each path its own
 `LABEL`: `summarize.mjs` pools the rows of a file, whatever their path. Under `batched` a graphty run records
-`rowCounts` after the load and fails if any node is not on a batch.
+`rowCounts` after the load (and `rowCounts-drag` after the drag) and fails if any node is not on a batch.
 
 ## 3. Measure
 

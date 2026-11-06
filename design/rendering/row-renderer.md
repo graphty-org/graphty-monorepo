@@ -148,6 +148,16 @@ longer reads the accessor, so `edge-trim-mirror.test.ts` cannot count reads of i
 only `.mesh`, not `drawnPickMesh`). The test instead sets each batched row's mesh to a counting proxy for the call and counts every
 use of it, however it reaches `#mesh`; with the batched branch of `getInterceptPoints` removed it counts 436 uses on one edge.
 
+As built (stage 11, second pull request): the first read of `Node.mesh` (or `getNodeMesh`, which reads it) sets a private flag
+and syncs the node with `NodeBatches`; `batchableIn` answers false while the flag is set, so the row is an object row from
+the next flush and stays one, through repaints and render-path changes. Setting `mesh` does not set the flag. Its source
+group then leaves the batch, since hiding is still all or nothing per source until the proxies go. Tests that look at
+internals read `drawnPickMesh`, which does not set it.
+The `local/node-mesh-funnel` lint rule covers `stories/**` and `test/helpers/*.ts` too, so no play function or shared
+helper sets the flag and turns a batched render-parity or forced-batched run into an objects one. Individual files under
+`test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
+runs those nodes on the objects path even in the forced-batched project.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

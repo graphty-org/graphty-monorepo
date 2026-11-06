@@ -119,9 +119,10 @@ describe("pointer on rows", () => {
                 if (path === "batched") {
                     // A batched row answers without its mesh's actions, which go with the mesh in
                     // stage 11: take them off the hidden proxy now, so only the roster can answer.
+                    // Through `drawnPickMesh`: a read of `mesh` would make the seed an object row.
                     const seed = element.graph.getNode(PEOPLE_SEED.id);
                     assert.isDefined(seed);
-                    seed.mesh.actionManager = null;
+                    seed.drawnPickMesh.actionManager = null;
                 }
 
                 element.layoutBehavior = { expand: { trigger: "click" } };
@@ -163,6 +164,7 @@ describe("pointer on rows", () => {
                 await click(element, at(element, "a"));
 
                 assert.deepEqual(picked, ["a"]);
+                assert.equal(element.graph.rowCounts.objectNodes, 1, "a read of the mesh keeps the node on it");
             });
         });
     }

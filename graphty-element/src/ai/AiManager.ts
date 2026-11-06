@@ -442,6 +442,8 @@ export class AiManager {
     private voiceSession: Promise<VoiceSession> | undefined;
     /** The session, once loaded. */
     private voiceSessionNow: VoiceSession | undefined;
+    /** Talk as last pressed or released, while the voice session is still loading. */
+    private talkAsked = false;
     /** `apiKeys`, for a transcription provider other than the chat's. */
     private voiceKeys: AiManagerConfig["apiKeys"];
     /** The priming, loaded with `voice` so the Enter VR / AR click can prime at once. */
@@ -1054,6 +1056,7 @@ export class AiManager {
             return;
         }
 
+        this.talkAsked = voice.push === "toggle" ? this.talkAsked !== down : down;
         // In order: a release right after a press reaches the session after the press.
         const { graph } = this;
         this.voice(voice).then(
@@ -1061,12 +1064,23 @@ export class AiManager {
                 session.talk(down);
             },
             () => {
+                this.talkAsked = false;
                 // The voice chunk would not load: the press ends, as a typed message would fail.
                 if (down) {
                     graph?.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_FAILED", params: {} });
                 }
             },
         );
+    }
+
+    /**
+     * Whether talk is on: pressed (or toggled on) and still listening. It turns false as soon as
+     * talk is released, while what was heard is still being transcribed, and when a press ends on
+     * its own.
+     * @returns True while talk is on.
+     */
+    isTalking(): boolean {
+        return this.voiceSessionNow?.talking ?? this.talkAsked;
     }
 
     /**
@@ -1202,6 +1216,15 @@ export class AiManager {
      */
     async deleteConversation(id: string): Promise<void> {
         await this.controller?.deleteConversation(id);
+    }
+
+    /**
+     * Name a saved conversation, or clear its name with null or "".
+     * @param id - Its id.
+     * @param name - The name; trimmed, and empty clears it.
+     */
+    async renameConversation(id: string, name: string | null): Promise<void> {
+        await this.controller?.renameConversation(id, name);
     }
 
     /** Delete every saved conversation, of every scope: for a shared device's "end session". */
@@ -1351,6 +1374,7 @@ export class AiManager {
         });
         this.voiceSession = undefined;
         this.voiceSessionNow = undefined;
+        this.talkAsked = false;
         this.voiceOptions = undefined;
 
         // Cancel any pending debounced updates

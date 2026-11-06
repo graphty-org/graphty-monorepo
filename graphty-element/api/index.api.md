@@ -2842,6 +2842,7 @@ export class Graph implements GraphContext {
     // @deprecated
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     isCameraPlaced(): boolean;
@@ -2906,6 +2907,7 @@ export class Graph implements GraphContext {
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
@@ -3367,6 +3369,7 @@ export class Graphty extends LitElement {
     importCameraPresets(presets: Record<string, CameraState>): void;
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     get isFrameStable(): boolean;
@@ -3470,6 +3473,7 @@ export class Graphty extends LitElement {
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);

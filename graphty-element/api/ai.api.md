@@ -245,6 +245,7 @@ export class AiController {
     onStatusChange(callback: StatusChangeCallback): () => void;
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
     ready(): Promise<void>;
+    renameConversation(id: string, name: string | null): Promise<void>;
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
 }
 
@@ -303,10 +304,12 @@ export type AiConversationMessage = {
 
 // @public
 export interface AiConversationSnapshot {
+    readonly firstWords: string | null;
     readonly formatVersion: number;
     readonly id: string;
     readonly key: string;
     readonly messages: readonly AiConversationMessage[];
+    readonly name: string | null;
     readonly pending: readonly AiApprovalRequest[];
 }
 
@@ -318,6 +321,7 @@ export interface AiConversationSummary {
     readonly id: string;
     readonly key: string;
     readonly messageCount: number;
+    readonly name: string | null;
     readonly pendingCount: number;
     readonly updatedAt: string;
 }
@@ -381,6 +385,7 @@ export class AiManager {
     getStatus(): AiStatus;
     getVoiceSupport(): Promise<AiVoiceSupport>;
     init(graph: Graph, config: AiManagerConfig): void;
+    isTalking(): boolean;
     listConversations(options?: {
         readonly allKeys?: boolean;
     }): Promise<readonly AiConversationSummary[]>;
@@ -389,6 +394,7 @@ export class AiManager {
     openConversation(id: string): Promise<AiConversationSnapshot | null>;
     ready(): Promise<void>;
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void;
+    renameConversation(id: string, name: string | null): Promise<void>;
     resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     retry(): Promise<ExecutionResult>;
     setApiKey(provider: ProviderType, key: string): void;

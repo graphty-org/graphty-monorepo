@@ -2116,9 +2116,11 @@ export class AiController {
      * Save a closed request's conversation, with history: claimed first, so a request another tab
      * is running is not also closed here (its calls would have two results).
      * @param pending - The request, or undefined for none.
+     * @param touch - Whether the save counts as activity (`updatedAt`); not when something newer
+     *     superseded the request, so switching away does not move a conversation up the list.
      * @returns When saved.
      */
-    private async saveClosed(pending: OpenPending | undefined): Promise<void> {
+    private async saveClosed(pending: OpenPending | undefined, touch = true): Promise<void> {
         if (pending === undefined) {
             return;
         }
@@ -2129,8 +2131,11 @@ export class AiController {
         }
 
         const ending = new Set([id, ...this.planStepOf(pending)]);
-        await this.saveInto(pending.conversationId, pending.conversation.messages, (entries) =>
-            entries.filter((entry) => !ending.has(entry.id)),
+        await this.saveInto(
+            pending.conversationId,
+            pending.conversation.messages,
+            (entries) => entries.filter((entry) => !ending.has(entry.id)),
+            touch,
         );
     }
 
@@ -2763,11 +2768,13 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @param id - The conversation's id.
      * @param messages - Its messages, as this run has them.
      * @param pending - What the record's waiting entries become; unchanged when absent.
+     * @param touch - Whether to set `updatedAt`, which orders the list.
      */
     private async saveInto(
         id: string | undefined,
         messages: readonly SavedMessage[],
         pending?: (entries: readonly SavedPending[]) => readonly SavedPending[],
+        touch = true,
     ): Promise<void> {
         const { store } = this;
         if (store === undefined || id === undefined) {
@@ -2786,7 +2793,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             ...base,
             messages: [...base.messages, ...messages.filter((message) => !known.has(message.id))],
             pending: pending === undefined ? base.pending : pending(base.pending),
-            updatedAt: new Date().toISOString(),
+            updatedAt: touch ? new Date().toISOString() : base.updatedAt,
             graph: open ? this.graphFacts() : base.graph,
         };
         let saved = record;
@@ -2901,7 +2908,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 params: { request: id, reason: "superseded" },
             });
             if (save) {
-                await this.saveClosed(pending);
+                await this.saveClosed(pending, false);
             }
         }
     }
@@ -2922,6 +2929,46 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 this.emitChanged();
             }
         });
+    }
+
+    /**
+     * Name a conversation, or clear its name. Not queued behind a running message: the open
+     * conversation's copy takes the name at once, so the message's own saves keep it. It does not
+     * move the conversation in the list (`updatedAt` stays).
+     * @param id - Its id.
+     * @param name - The name, trimmed; empty or null clears it.
+     * @returns When it is saved. An open conversation not saved yet (no message) keeps the name
+     * until its first message saves it.
+     */
+    async renameConversation(id: string, name: string | null): Promise<void> {
+        await this.opened;
+        const trimmed = name?.trim() ?? "";
+        const named = (record: ConversationRecord): ConversationRecord => {
+            const { name: _old, ...rest } = record;
+            return trimmed === "" ? rest : { ...rest, name: trimmed };
+        };
+        const { store, current } = this;
+        if (current?.id === id) {
+            this.current = named(current);
+            this.emitChanged();
+            if (current.messages.length === 0 || store === undefined) {
+                return;
+            }
+        }
+
+        if (store === undefined) {
+            return;
+        }
+
+        const stored = current?.id === id ? this.current : await store.load(id);
+        if (stored === undefined) {
+            return;
+        }
+
+        const saved = await store.save(named(stored));
+        if (this.current?.id === id && saved.revision > this.current.revision) {
+            this.current = saved;
+        }
     }
 
     /**

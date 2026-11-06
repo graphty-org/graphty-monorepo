@@ -144,6 +144,15 @@ export class VoiceSession {
     }
 
     /**
+     * Whether talk is on: pressed (or toggled on) and not yet released or ended. False while a
+     * released press is still being transcribed.
+     * @returns True while it listens.
+     */
+    get talking(): boolean {
+        return this.listening;
+    }
+
+    /**
      * Press or release talk. With `push: "toggle"` each press starts or ends listening.
      * @param down - True to press, false to release.
      */

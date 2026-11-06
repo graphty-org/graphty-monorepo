@@ -300,6 +300,11 @@ export const conversationSchema = z.strictObject({
     key: z.string(),
     createdAt: timestamp,
     updatedAt: timestamp,
+    /**
+     * The reader's own name for it, trimmed and never empty; absent until the reader names it.
+     * Added before version 1 was released: once it is, a new field needs a new version.
+     */
+    name: z.string().min(1).optional(),
     /** The graph it was about. */
     graph: z.strictObject({ dataKey: z.string().nullable(), fingerprint: z.string().nullable() }),
     messages: z.array(messageSchema),

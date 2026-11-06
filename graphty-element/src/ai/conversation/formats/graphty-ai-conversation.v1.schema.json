@@ -1192,6 +1192,10 @@
             },
             "type": "array"
         },
+        "name": {
+            "minLength": 1,
+            "type": "string"
+        },
         "pending": {
             "items": {
                 "oneOf": [

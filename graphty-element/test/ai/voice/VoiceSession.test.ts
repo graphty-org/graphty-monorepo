@@ -171,6 +171,29 @@ describe("a press sends what was heard as a spoken command", () => {
         assert.strictEqual(h.engine.requests.length, 0);
     });
 
+    it("talking is on from the press until the release, even while the release is still being written down", async () => {
+        const h = await harness();
+        assert.isFalse(h.voice.talking);
+        h.voice.talk(true);
+        assert.isTrue(h.voice.talking, "on at once, before the recognizer starts");
+        await vi.waitFor(() => {
+            assert.strictEqual(h.fake.recognizers.length, 1);
+        });
+        h.voice.talk(false);
+        assert.isFalse(h.voice.talking, "off at the release, before the press ends");
+        h.voice.talk(true);
+        assert.isTrue(h.voice.talking, "a second press is on while the first still ends");
+        await vi.waitFor(() => {
+            assert.strictEqual(of(h, "ai-voice-end").length, 1);
+        });
+        assert.isTrue(h.voice.talking, "the first press's end leaves the second on");
+        h.voice.talk(false);
+        await vi.waitFor(() => {
+            assert.strictEqual(of(h, "ai-voice-end").length, 2);
+        });
+        assert.isFalse(h.voice.talking);
+    });
+
     it('push "toggle": the first press starts listening and the second ends it', async () => {
         const h = await harness({ push: "toggle" });
         h.engine.push(textTurn("Done."));

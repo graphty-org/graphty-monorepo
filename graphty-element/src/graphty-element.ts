@@ -5897,6 +5897,22 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether talk is on: pressed with `aiTalk(true)` (or toggled on) and still listening. It turns
+     * false the moment talk is released, while what was heard is still being transcribed, and when
+     * a press ends on its own (`ai-voice-end`). A talk button reads it to choose between starting
+     * and stopping, and to label itself.
+     * @returns True while talk is on.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * talkButton.onclick = () => element.aiTalk(!element.isAiTalking());
+     * ```
+     */
+    isAiTalking(): boolean {
+        return this.#graph.isAiTalking();
+    }
+
+    /**
      * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
      * @since 4.0.0
      */
@@ -5965,6 +5981,24 @@ export class Graphty extends LitElement {
      */
     async deleteAiConversation(id: string): Promise<void> {
         return this.#graph.deleteAiConversation(id);
+    }
+
+    /**
+     * Name a saved conversation, or clear its name so `firstWords` titles it again. The name is the
+     * reader's data: it is saved with the conversation, read back as `name` on
+     * `getAiConversation()` and `listAiConversations()`, and renaming the open conversation fires
+     * `ai-conversation-changed`. Renaming does not reorder the list.
+     * @param id - Its id.
+     * @param name - The name, trimmed; null or "" clears it.
+     * @returns When it is saved; rejects when the store cannot save it.
+     * @experimental assistant
+     * @example
+     * ```ts
+     * await element.renameAiConversation(id, "Color by department");
+     * ```
+     */
+    async renameAiConversation(id: string, name: string | null): Promise<void> {
+        return this.#graph.renameAiConversation(id, name);
     }
 
     /**

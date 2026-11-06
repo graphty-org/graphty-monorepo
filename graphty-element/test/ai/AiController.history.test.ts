@@ -233,6 +233,94 @@ describe("AiController history", () => {
         assert.notExists(assistant.session.data.node("f"));
     });
 
+    it("does not move a conversation up the list when switching away ends its waiting request", async () => {
+        const store = new MemoryStore();
+        const assistant = new ScriptedAssistant(await assistantSession(), {
+            history: "memory",
+            approvals: "writes",
+            store,
+        });
+        await assistant.say("hello");
+        const first = assistant.controller.getConversation()?.id ?? "";
+        await assistant.controller.newConversation();
+        await assistant.say("add f", [ADD_NODE]);
+        const held = assistant.controller.getConversation()?.id ?? "";
+        const before = (await store.load(held))?.updatedAt;
+
+        vi.useFakeTimers({ toFake: ["Date"] });
+        try {
+            vi.setSystemTime(Date.now() + 60_000);
+            await assistant.controller.openConversation(first);
+        } finally {
+            vi.useRealTimers();
+        }
+
+        const after = await store.load(held);
+        assert.deepStrictEqual(after?.pending, [], "the request ended");
+        assert.strictEqual(after?.updatedAt, before);
+    });
+
+    it("names a conversation, keeps the name across a reload, and clears it with null or an empty name", async () => {
+        const store = new MemoryStore();
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory", store });
+        await assistant.say("color by department");
+        const first = assistant.controller.getConversation()?.id ?? "";
+        const firstSaved = (await store.load(first))?.updatedAt;
+        await assistant.controller.newConversation();
+        await assistant.say("which nodes matter most");
+        const open = assistant.controller.getConversation()?.id ?? "";
+        const start = assistant.events.length;
+
+        await assistant.controller.renameConversation(open, "  Hubs  ");
+        await assistant.controller.renameConversation(first, "Departments");
+        assert.deepStrictEqual(
+            assistant.events
+                .slice(start)
+                .flatMap((event) => (event.type === "ai-conversation-changed" ? [event.conversationId] : [])),
+            [open],
+            "only renaming the open conversation fires the event",
+        );
+        const snapshot = assistant.controller.getConversation();
+        assert.strictEqual(snapshot?.name, "Hubs");
+        assert.strictEqual(snapshot?.firstWords, "which nodes matter most");
+        assert.deepStrictEqual(
+            (await assistant.controller.listConversations()).map((summary) => [summary.name, summary.firstWords]),
+            [
+                ["Hubs", "which nodes matter most"],
+                ["Departments", "color by department"],
+            ],
+        );
+        assert.strictEqual((await store.load(first))?.updatedAt, firstSaved, "a rename does not reorder the list");
+        assistant.controller.dispose();
+
+        const reloaded = new ScriptedAssistant(await assistantSession(), { history: "memory", store });
+        await reloaded.controller.ready();
+        assert.deepStrictEqual(
+            (await reloaded.controller.listConversations()).map((summary) => summary.name),
+            ["Hubs", "Departments"],
+        );
+        await reloaded.controller.renameConversation(open, null);
+        await reloaded.controller.renameConversation(first, "   ");
+        assert.deepStrictEqual(
+            (await reloaded.controller.listConversations()).map((summary) => summary.name),
+            [null, null],
+        );
+        assert.strictEqual((await reloaded.controller.openConversation(open))?.name, null);
+    });
+
+    it("keeps a name given to a new conversation before its first message", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        const fresh = await assistant.controller.newConversation();
+        await assistant.controller.renameConversation(fresh?.id ?? "", "Later");
+        assert.deepStrictEqual(await assistant.controller.listConversations(), [], "nothing saved without a message");
+        assert.strictEqual(assistant.controller.getConversation()?.name, "Later");
+        await assistant.say("hello");
+        assert.deepStrictEqual(
+            (await assistant.controller.listConversations()).map((summary) => summary.name),
+            ["Later"],
+        );
+    });
+
     it("asks again about a saved request of the conversation it opens, and runs it on approval", async () => {
         const store = new MemoryStore();
         const other = new ScriptedAssistant(await assistantSession(), {

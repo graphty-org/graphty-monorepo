@@ -131,6 +131,18 @@ export interface AiConversationSnapshot {
     readonly messages: readonly AiConversationMessage[];
     /** What waits on the reader. */
     readonly pending: readonly AiApprovalRequest[];
+    /**
+     * The reader's own name for it (`renameAiConversation`), or null when they have not named it:
+     * the reader's data.
+     * @experimental assistant
+     */
+    readonly name: string | null;
+    /**
+     * The reader's own first message, or null before there is one: the reader's data, as
+     * `AiConversationSummary.firstWords`.
+     * @experimental assistant
+     */
+    readonly firstWords: string | null;
 }
 
 /** One saved conversation, for a list. */
@@ -155,6 +167,12 @@ export interface AiConversationSummary {
      * @experimental assistant
      */
     readonly firstWords: string | null;
+    /**
+     * The reader's own name for it (`renameAiConversation`), or null when they have not named it:
+     * the reader's data.
+     * @experimental assistant
+     */
+    readonly name: string | null;
 }
 
 /**
@@ -495,6 +513,8 @@ export function conversationSnapshot(record: ConversationRecord): AiConversation
         formatVersion: record.version,
         messages: snapshotMessages(record.messages, record.pending),
         pending: waitingApprovals(record).map((entry) => approvalRequest(entry, record.id)),
+        name: record.name ?? null,
+        firstWords: firstWordsOf(record),
     };
 }
 
@@ -513,6 +533,7 @@ export function conversationSummary(record: ConversationRecord): AiConversationS
         messageCount: snapshotMessages(record.messages).length,
         pendingCount: record.pending.length,
         firstWords: firstWordsOf(record),
+        name: record.name ?? null,
     };
 }
 

@@ -8553,6 +8553,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether talk is on: pressed with `aiTalk(true)` (or toggled on) and still listening.
+     * @returns False once talk is released, even while what was heard is still being transcribed.
+     * @since 4.0.0
+     */
+    isAiTalking(): boolean {
+        return this.aiManager?.isTalking() ?? false;
+    }
+
+    /**
      * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
      * @since 4.0.0
      */
@@ -8630,6 +8639,16 @@ export class Graph implements GraphContext {
      */
     async deleteAiConversation(id: string): Promise<void> {
         await this.aiManager?.deleteConversation(id);
+    }
+
+    /**
+     * Name a saved conversation, or clear its name so it is known by its first words again.
+     * @param id - Its id.
+     * @param name - The name, trimmed; null or "" clears it.
+     * @experimental assistant
+     */
+    async renameAiConversation(id: string, name: string | null): Promise<void> {
+        await this.aiManager?.renameConversation(id, name);
     }
 
     /**

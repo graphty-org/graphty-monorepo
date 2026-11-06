@@ -61,6 +61,9 @@ export async function openGenerated(nodes = NODES): Promise<GraphSession> {
     return session;
 }
 
+/** What a layer paints unless a test says otherwise. */
+const OUTLINED: Layer["set"] = { "node.color": "#d55e00" };
+
 /**
  * A layer on a selection, selected in the style tree: its outline is drawn.
  * @param session - The session.
@@ -73,7 +76,7 @@ export async function openLayer(
     session: GraphSession,
     name: string,
     rule: UnionLeaf,
-    set: Layer["set"] = { "node.color": "#d55e00" },
+    set: Layer["set"] = OUTLINED,
 ): Promise<Layer> {
     const layer = await session.styles.add({
         name,
@@ -160,8 +163,8 @@ export async function firstFrameAfter(session: GraphSession, input: () => Promis
             at = performance.now();
         }
     };
-    window.addEventListener("pointerdown", arm, { capture: true });
-    window.addEventListener("keydown", arm, { capture: true });
+    globalThis.addEventListener("pointerdown", arm, { capture: true });
+    globalThis.addEventListener("keydown", arm, { capture: true });
     const seen = new Promise<FirstFrame>((resolve) => {
         const look = (now: number): void => {
             if (at < 0) {
@@ -180,8 +183,8 @@ export async function firstFrameAfter(session: GraphSession, input: () => Promis
     });
     await input();
     const frame = await seen;
-    window.removeEventListener("pointerdown", arm, { capture: true });
-    window.removeEventListener("keydown", arm, { capture: true });
+    globalThis.removeEventListener("pointerdown", arm, { capture: true });
+    globalThis.removeEventListener("keydown", arm, { capture: true });
     return frame;
 }
 
@@ -215,8 +218,8 @@ export async function framesUntilClosed(input: () => Promise<void>): Promise<Clo
     const arm = (): void => {
         armed = true;
     };
-    window.addEventListener("click", arm, { capture: true });
-    window.addEventListener("keydown", arm, { capture: true });
+    globalThis.addEventListener("click", arm, { capture: true });
+    globalThis.addEventListener("keydown", arm, { capture: true });
     const closed = new Promise<boolean>((resolve) => {
         const look = (): void => {
             if (!armed) {
@@ -243,7 +246,7 @@ export async function framesUntilClosed(input: () => Promise<void>): Promise<Clo
     });
     await input();
     const paintedAtClose = await closed;
-    window.removeEventListener("click", arm, { capture: true });
-    window.removeEventListener("keydown", arm, { capture: true });
+    globalThis.removeEventListener("click", arm, { capture: true });
+    globalThis.removeEventListener("keydown", arm, { capture: true });
     return { quiet, open, paintedAtClose };
 }

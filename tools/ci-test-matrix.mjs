@@ -813,8 +813,8 @@ export function outputLines(affected, only, light, pullRequest = false, shards =
     const planned = include.length <= 2 * MATRIX_CAP ? lines(include) : null;
     if (planned && size(planned) <= OUTPUTS_BUDGET) return planned;
     // a selected bin runs whether or not nx calls its package affected (plan()), so its whole shard must too
-    const selected = (light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]);
-    const packages = shards.filter((s) => selected.includes(s.shard)).map((s) => s.package);
+    const selected = new Set((light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]));
+    const packages = shards.filter((s) => selected.has(s.shard)).map((s) => s.package);
     const whole = lines(plan([...affected, ...packages], only, { none: light?.none }, pullRequest, shards));
     const sizes = whole.map((l) => `${l.slice(0, l.indexOf("="))} ${l.length}`).join(", ");
     if (size(whole) > OUTPUTS_BUDGET) {

@@ -8,9 +8,10 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { GRAPH_FILE_GML } from "../../data-place/fixtures";
 import { REGISTRATIONS } from "../../registrations";
@@ -57,14 +58,64 @@ describe("Undo, Redo and Clear selection words", () => {
 
         await userEvent.click(undo);
         await waitFor(() => {
-            assert.equal(store.get().notice?.message, "Undid changing node size on Hubs.");
+            assert.equal(store.get().notice?.message, "Undid changing node size on Hubs");
         });
         await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
         await waitFor(() => {
-            assert.equal(store.get().notice?.message, "Redid changing node size on Hubs.");
+            assert.equal(store.get().notice?.message, "Redid changing node size on Hubs");
         });
         // The accessible name says what Undo takes back, as the tooltip does.
         assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
+    });
+
+    it("reads a step whose name ends in a question mark once, and adds no period of its own", async () => {
+        const { session, store } = await openWithGraph();
+        await session.transaction("Can the hubs be red?", (tx) =>
+            tx.styles.add({ name: "Hubs", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } }),
+        );
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Undid Can the hubs be red?");
+        });
+    });
+
+    it("keeps an Assistant message's Undo off the canvas while the panel is open, and still says it", async () => {
+        // A site with the Assistant, so its rail button shows.
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        onTestFinished(resetSiteConfig);
+        const { session, store } = await openWithGraph();
+        const add = (name: string): Promise<unknown> =>
+            session.transaction(
+                `Add ${name}.`,
+                (tx) =>
+                    tx.styles.add({ name, target: "node", selector: { match: "everything" }, set: { "node.size": 2 } }),
+                { provenance: { message: name } },
+            );
+        await add("Hubs");
+        await add("Rims");
+        const undo = (): Promise<void> => userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+
+        // Panel closed: the notice says it, with the step's own period read once.
+        await undo();
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Undid Add Rims.");
+        });
+        store.set({ notice: null });
+
+        // Panel open: the turn reads Undone there, so only the status line speaks.
+        await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));
+        await waitFor(() => {
+            assert.equal(store.get().place, "assistant");
+        });
+        await undo();
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "Undid Add Hubs.");
+        });
+        assert.isNull(store.get().notice, "no notice crosses the canvas");
+        assert.isNull(screen.queryByText("Undid Add Hubs.", { selector: ".cm-toast-message" }));
     });
 
     it("says what Escape cleared, and nothing when the selection was empty", async () => {

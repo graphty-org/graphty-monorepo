@@ -240,12 +240,12 @@ describe("Filter cards on the real element", () => {
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.isTrue(session.visibility.conditions[0]?.on);
-            assert.equal(store.get().notice?.message, `Undid turning off the filter "${VALUE}".`);
+            assert.equal(store.get().notice?.message, `Undid turning off the filter "${VALUE}"`);
         });
         await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
         await waitFor(() => {
             assert.isFalse(session.visibility.conditions[0]?.on);
-            assert.equal(store.get().notice?.message, `Redid turning off the filter "${VALUE}".`);
+            assert.equal(store.get().notice?.message, `Redid turning off the filter "${VALUE}"`);
         });
     });
 

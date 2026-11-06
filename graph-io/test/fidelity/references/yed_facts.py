@@ -111,6 +111,9 @@ def border_of(r):
     if b is None or b.get("hasColor") == "false":
         return None, 0, "solid"
     c = hex_color(b.get("color"))
+    # a color with no alpha at all is no line: yEd's own drawing of graphml-stm32-func strokes none of them
+    if c and c[1] == 0:
+        return None, 0, "solid"
     return (c[0] if c else None), float(b.get("width", 1)), b.get("type", "line")
 
 

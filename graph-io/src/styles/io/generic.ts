@@ -82,6 +82,7 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
     "weight",
     "position",
     "labelFit",
+    "labelBox",
     "borderPosition",
 ]);
 

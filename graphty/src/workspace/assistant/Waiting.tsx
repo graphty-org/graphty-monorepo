@@ -131,6 +131,7 @@ function QuestionCard({
                     variant="filled"
                     size="compact-xs"
                     aria-disabled={picked.length === 0}
+                    data-disabled={picked.length === 0 ? true : undefined}
                     onClick={() => {
                         if (element !== null && picked.length > 0) {
                             void answerQuestion(

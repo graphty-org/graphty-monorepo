@@ -343,6 +343,8 @@ describe("talking to the Assistant", () => {
         await userEvent.keyboard("{Enter}");
         const send = screen.getByRole("button", { name: "Send" });
         assert.strictEqual(send.getAttribute("aria-disabled"), "true");
+        // data-disabled gives it the shared disabled look, not the filled primary.
+        assert.isTrue(send.hasAttribute("data-disabled"));
         // A pointer can still press it: aria-disabled keeps it focusable and draws it dimmed.
         await userEvent.click(send, { force: true });
         assert.strictEqual(model.asked, 0);

@@ -70,6 +70,7 @@ export interface LabelPlaceContext {
  * @param e - the edge
  * @param get - the edge's attributes
  * @param put - receives the values
+ * @param directed - whether the edge is directed, so its default arrow is at its head
  */
 export function readLabelPlaces(
     snapshot: GraphSnapshot,
@@ -127,7 +128,7 @@ interface EdgeEnds {
  */
 function readExternalLabelMiddle(cx: LabelPlaceContext, ends: EdgeEnds, get: Attr, put: Put, directed: boolean): void {
     const { s, t, source, target } = ends;
-    const dir = (get("dir")?.trim().toLowerCase() || (directed ? "forward" : "none")) as string;
+    const dir = get("dir")?.trim().toLowerCase() || (directed ? "forward" : "none");
     const size = finite(get("arrowsize"), 1, 0);
     const head = dir === "forward" || dir === "both" ? arrowLength(get("arrowhead"), size) : 0;
     const tail = dir === "back" || dir === "both" ? arrowLength(get("arrowtail"), size) : 0;

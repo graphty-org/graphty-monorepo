@@ -554,12 +554,18 @@ function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => bo
     return out;
 }
 
+/** How much of a fill's box an outline drawn round it covers (the same box, give or take a stroke). */
+const ROUND_THE_FILL = 0.9;
+
+/** How far apart, as a share of the shorter one's height, two texts' middles may sit and still be one row. */
+const ONE_ROW = 0.25;
+
 /**
  * Texts in reading order: the level ones row by row, top to bottom (a text joins the row of the first one in it when
- * the two share a line, `sameLine`), each row left to right; the turned ones after them (`byText`). Words drawn side by
- * side on one row read left to right even where one sits a little lower than the others (graphty's edge label and its
- * head and tail labels, each placed by a rule of its own, where Graphviz draws all three on one baseline:
- * dot-specimen-edge-labels label-and-head-tail), as a reader reads them.
+ * their middles are under a quarter of a line apart, `ONE_ROW`), each row left to right; the turned ones after them
+ * (`byText`). Words drawn side by side on one row read left to right even where one sits a little lower than the
+ * others, as a reader reads them (graphty's edge label and its head and tail labels, each placed by a rule of its own,
+ * where Graphviz draws all three on one baseline: dot-specimen-edge-labels label-and-head-tail).
  * @param texts - the texts
  * @returns them, in reading order
  */
@@ -568,7 +574,10 @@ function readingOrder(texts: readonly PText[]): PText[] {
     const rows: PText[][] = [];
     for (const t of sorted.filter((x) => x.rotation === 0)) {
         const row = rows.at(-1);
-        if (row !== undefined && sameLine(row[0].box, t.box)) {
+        if (
+            row !== undefined &&
+            Math.abs(cy(row[0].box) - cy(t.box)) <= ONE_ROW * Math.min(bh(row[0].box), bh(t.box))
+        ) {
             row.push(t);
         } else {
             rows.push([t]);
@@ -3786,11 +3795,12 @@ export function associate(
             )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
-        // the outline is the outermost: a table's cell outlines are drawn inside its own (Graphviz's HTML-like table
-        // label, BORDER round CELLBORDER), and stay shapes of their own, which graphty draws as its cells
-        const bordered = [...backs]
-            .reverse()
-            .find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        // the outline is the one drawn round the fill, else the smallest: a table's cell outlines are drawn inside its
+        // own (Graphviz's HTML-like table label, BORDER round CELLBORDER, the table's fill and outline one box), and
+        // stay shapes of their own, which graphty draws as its cells
+        const strokes = backs.filter((p) => p.stroke !== null && (filled === undefined || p.fill === null));
+        const bordered =
+            strokes.find((p) => filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL) ?? strokes[0];
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
         if (parts.length === 0) {
             continue;

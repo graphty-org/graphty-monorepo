@@ -127,7 +127,9 @@ describe("DOT styles: an edge label that is an HTML-like table", () => {
     });
 
     it("hands the table itself over as labelTable, its lines set as Graphviz sets them", async () => {
-        const tables = (await edges(doc, "labelTable")).map((t) => (typeof t === "string" ? JSON.parse(t) : t));
+        const tables = (await edges(doc, "labelTable")).map((t) =>
+            typeof t === "string" ? (JSON.parse(t) as unknown) : t,
+        );
         expect(tables.slice(2)).toEqual([expect.objectContaining({ border: 0, cellBorder: 0 }), null, null, null]);
         expect(tables[0]).toMatchObject({
             border: 1,

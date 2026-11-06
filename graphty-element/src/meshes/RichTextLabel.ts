@@ -30,8 +30,8 @@ import {
 import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
 import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
-import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } from "./labelTable";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
+import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } from "./labelTable";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";

@@ -503,5 +503,5 @@ async function main() {
 
 // Run the script, unless a test imported generateHTML
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    main().catch(console.error);
+    await main();
 }

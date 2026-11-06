@@ -1,4 +1,4 @@
-The study runs on build 48879618c4 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d1-48879618c4
+The study runs on build 3b2a7f0649 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier6-r1d2-3b2a7f0649
 
 Frozen on 2026-11-05 for the tier 6 rounds.
 
@@ -275,3 +275,6 @@ dry run twice. The owner is told why, once.
       Assistant's whole-network file as a short list is F, `Build decided: yes`.
     - "Seen while writing this key" gains the file, the x, the model's cleared selection, the chip of
       15 and the two changes that leave nothing to find, each rated.
+- 2026-11-05: the study moves from build 48879618c4 (`.study-builds/tier6-r1d1-48879618c4`) to build
+  3b2a7f0649 (`.study-builds/tier6-r1d2-3b2a7f0649`), which holds the dry run's fixes and the latest
+  master. No bar changed.

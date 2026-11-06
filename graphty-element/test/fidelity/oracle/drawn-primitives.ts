@@ -3,7 +3,7 @@
  * scene `extractScene` built from the renderer (with its precedence rules: a hidden node, a
  * covered fill, an occluded label are not drawn) plus what only the raw drawn read
  * (`drawn-scene.ts`) carries -- a label's weight, style, family and rotation, a gradient fill,
- * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM.
+ * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM, but for an SVG picture's own reading.
  */
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
@@ -19,12 +19,18 @@ import {
     type PBox,
     type PEdge,
     type PGradient,
+    PICTURE_PART,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PShape,
     type Pt,
     type PText,
 } from "./primitives";
+import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
+
+/** The SVG pictures read so far, by URL: a sheet's nodes share them. */
+const svgPictures = new Map<string, SvgPrimitives>();
 
 const SHAPES: Partial<Record<ShapeClass, PShape>> = {
     ellipse: "ellipse",
@@ -448,6 +454,86 @@ function glyphTexts(n: SceneNode, glyph: { text: string; color: string | null } 
 }
 
 /**
+ * A box's name among the pictures drawn over nodes.
+ * @param x - its left
+ * @param y - its top
+ * @returns the name
+ */
+const boxKey = (x: number, y: number): string => `${x.toFixed(3)},${y.toFixed(3)}`;
+
+/**
+ * What an SVG picture URL draws, read by the same reader as the oracle's own SVG.
+ * @param src - the `data:image/svg+xml` URL
+ * @returns its primitives
+ */
+function svgOfPicture(src: string): SvgPrimitives {
+    const known = svgPictures.get(src);
+    if (known !== undefined) {
+        return known;
+    }
+    const comma = src.indexOf(",");
+    const payload = src.slice(comma + 1);
+    const svg = src.slice(0, comma).endsWith(";base64") ? atob(payload) : decodeURIComponent(payload);
+    const read = readSvgPrimitives(svg);
+    svgPictures.set(src, read);
+    return read;
+}
+
+/**
+ * The shapes and words of the pictures graph-io draws over nodes (`data-node-drawing`), each in its place on the
+ * canvas: a program draws them one by one (yEd Live's UML sections), and each is judged against the program's by its
+ * box and its words, as any free shape or text is, so a picture of the wrong things or in the wrong place fails. A
+ * picture from the file stays one picture.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the shapes, as strays without their index, the words, and the places of the pictures themselves
+ */
+function pictureParts(
+    scene: Scene,
+    drawn: DrawnGraph,
+): {
+    shapes: { tag: string; kind: "shape"; box: PBox; fill: string | null; stroke: null; text: null }[];
+    texts: PText[];
+    wholes: Set<string>;
+} {
+    const shapes = [];
+    const texts = [];
+    const wholes = new Set<string>();
+    for (const n of scene.nodes) {
+        const picture = n.visible ? drawn.nodes.get(n.id)?.svgPicture : undefined;
+        if (picture === undefined) {
+            continue;
+        }
+        const { box, src } = picture;
+        wholes.add(boxKey(box.x0, box.y0));
+        const read = svgOfPicture(src);
+        const [sx, sy] = [(box.x1 - box.x0) / read.width, (box.y1 - box.y0) / read.height];
+        const placed = (b: PBox): PBox => ({
+            x0: box.x0 + b.x0 * sx,
+            y0: box.y0 + b.y0 * sy,
+            x1: box.x0 + b.x1 * sx,
+            y1: box.y0 + b.y1 * sy,
+        });
+        for (const p of read.prims) {
+            if (p.text === null) {
+                shapes.push({
+                    // a program's open line is no stray on its side, so nothing there can answer for one of graphty's
+                    tag: p.kind === "path" && !p.closed && p.fill === null ? PICTURE_WHOLE : PICTURE_PART,
+                    kind: "shape" as const,
+                    box: placed(p.box),
+                    fill: p.fill?.color ?? null,
+                    stroke: null,
+                    text: null,
+                });
+            } else {
+                texts.push({ ...p.text, box: placed(p.box), sizePx: p.text.sizePx * sy, owner: n.id });
+            }
+        }
+    }
+    return { shapes, texts, wholes };
+}
+
+/**
  * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
  * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
  * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
@@ -549,6 +635,7 @@ export function drawnPrimitives(
 ): PScene {
     const sceneGroups = options.groups ? scene.groups : [];
     const groupIds = new Set(sceneGroups.map((g) => g.id));
+    const parts = pictureParts(scene, drawn);
     const nodes: PNode[] = [];
     for (const n of scene.nodes) {
         if (!n.visible || groupIds.has(n.id)) {
@@ -763,11 +850,12 @@ export function drawnPrimitives(
                     : [];
             }),
             ...drawnGroups.flatMap((g) => (!boxed(g) && g.label !== null ? [g.label] : [])),
+            ...parts.texts,
         ],
         strays: [
             ...(scene.annotations ?? []).flatMap((a) => [
                 {
-                    tag: `annotation-${a.kind}`,
+                    tag: parts.wholes.has(boxKey(a.bbox.x, a.bbox.y)) ? PICTURE_WHOLE : `annotation-${a.kind}`,
                     kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
                     box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
                     fill: a.fill ?? null,
@@ -786,6 +874,7 @@ export function drawnPrimitives(
                 })),
             ]),
             ...linelessCaps(scene, drawn),
+            ...parts.shapes,
         ].map((s, index) => ({ index, ...s })),
     };
 }

@@ -25,6 +25,7 @@ import {
     type PFill,
     type PGradient,
     type PGroup,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PStray,
@@ -3169,6 +3170,7 @@ export function compareOracle(
     for (const s of oracle.nodesOnly === true ? [] : [...graphty.strays].sort((a, b) => a.index - b.index)) {
         const box = toO(s.box);
         const drawn =
+            s.tag === PICTURE_WHOLE ||
             shapesDrawn.has(s.index) ||
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));

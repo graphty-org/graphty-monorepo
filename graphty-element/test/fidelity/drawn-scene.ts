@@ -748,6 +748,8 @@ export interface DrawnNode {
     pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
+    /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
+    svgPicture?: { box: ScreenBox; src: string };
     label: DrawnLabel | null;
     /**
      * The label of a node that draws it as a table (`shape.labelTable`), read off the table's cells, or null for
@@ -1357,6 +1359,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
     // image nodes)
     const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
+    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    const imageSrc = drawnStyle?.image?.src ?? "";
     // the further pieces of its body (`shape.parts`) are the node, as a program draws a glyph of several pieces
     const body = pieces.filter((piece) => piece.kind === "body").map((piece) => piece.box);
     const drawnOwn: ScreenBox = picture?.box ?? {
@@ -1414,6 +1418,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
         // the image of a node with no body is the node itself
         ...(picture === undefined ? {} : { picture: picture.box }),
+        ...(imagePiece !== undefined && imageSrc.includes("data-node-drawing")
+            ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
+            : {}),
         ...(figure === undefined ? {} : { figure }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")

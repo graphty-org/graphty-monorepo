@@ -182,6 +182,12 @@ try {
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
+    if (lib === "graphty" && RENDER_PATH === "batched") {
+        // A row that quietly left the fast path would be measured as if it were on it.
+        const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
+        log("rowCounts", rows);
+        if (!rows || rows.objectNodes > 0) throw new Error(`rows left the batched path: ${JSON.stringify(rows)}`);
+    }
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");

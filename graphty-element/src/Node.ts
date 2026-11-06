@@ -34,7 +34,7 @@ import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
@@ -1366,8 +1366,36 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The mesh that draws this node: the source of its instance, or its own when it is not one.
-     * @returns The mesh.
+     * The color this node's instance was last painted.
+     * @returns The color, or null when no layer painted one.
+     * @internal
+     */
+    get drawnInstanceColor(): Rgba | null {
+        return this.drawnColor;
+    }
+
+    /**
+     * Whether a node batch can draw this node as it is painted now.
+     * @param view - The scene state it is drawn in.
+     * @returns True when it can.
+     * @internal
+     */
+    batchableIn(view: BatchView): boolean {
+        const style = this.drawnStyle ?? null;
+        return (
+            style !== null &&
+            this.mesh instanceof InstancedMesh &&
+            !this.drawnAsGroup &&
+            this.drawnModel === null &&
+            this.drawnImage === null &&
+            this.shaderPath === null &&
+            batchableOf({ style }, view)
+        );
+    }
+
+    /**
+     * The source mesh this node's instance draws from.
+     * @returns The source, or the mesh itself when it is not an instance.
      * @internal
      */
     get drawnSourceMesh(): AbstractMesh {
@@ -2244,6 +2272,8 @@ export class Node implements ModelUser {
         } else {
             this.drawPaint(meshKey, style, color);
         }
+
+        this.context.getNodeBatches?.()?.sync(this);
     }
 
     /**
@@ -2470,6 +2500,7 @@ export class Node implements ModelUser {
 
         this.disposed = true;
         this.rowTable?.drop(this.row);
+        this.context.getNodeBatches?.()?.leave(this);
 
         if (this.dragHandler) {
             this.dragHandler.dispose();

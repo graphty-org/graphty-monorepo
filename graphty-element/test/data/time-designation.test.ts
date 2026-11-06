@@ -292,4 +292,17 @@ describe("records", () => {
             session.dispose();
         }
     });
+
+    it("with the timeline off, a prepared draft carries no timestamps and designates nothing", async () => {
+        const session = createGraphSession({ features: [] });
+        const draft = await session.data.prepare({ type: "gexf", config: { data: TIMESTAMPS } });
+        await draft.load();
+        const { knownFields } = session.config.data;
+        assert.isNull(knownFields.nodeTimePath);
+        assert.isNull(knownFields.edgeTimePath);
+        assert.isAbove(session.data.edges().length, 0);
+        assert.isFalse(session.data.nodes().some((node) => "timestamps" in node));
+        assert.isFalse(session.data.edges().some((edge) => "timestamps" in edge));
+        session.dispose();
+    });
 });

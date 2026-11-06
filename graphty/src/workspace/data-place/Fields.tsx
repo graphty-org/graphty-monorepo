@@ -369,7 +369,7 @@ function designateTime(
     const keep = other !== undefined && (start === null || other.start === start);
     const own = now[side]?.start === start ? now[side] : undefined;
     const end = change.end === undefined ? own?.end : change.end;
-    const { unit } = change;
+    const unit = change.unit ?? own?.unit;
     const field = {
         ...(keep ? { [otherSide]: other } : {}),
         ...(start === null
@@ -380,6 +380,7 @@ function designateTime(
                       ...(unit === undefined ? {} : { unit }),
                       ...(end === undefined || end === null ? {} : { end }),
                       ...(own?.spells === undefined ? {} : { spells: own.spells }),
+                      ...(own?.parseZone === undefined ? {} : { parseZone: own.parseZone }),
                   },
               }),
     };

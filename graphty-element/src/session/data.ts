@@ -1650,7 +1650,7 @@ export class SessionData implements SessionDataApi {
             source,
             options.signal,
             (change) => this.writes.progress?.(change),
-            this.timelineOn,
+            this.pages.timeline?.() === true,
         );
         const styles = await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -3151,7 +3151,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined, this.timelineOn);
+        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }

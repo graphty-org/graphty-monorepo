@@ -10,9 +10,9 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 round 1 ran NO session: 24 of 24 VOID at `--start`, no gate evidence. Scored in
-  `tier6/rounds/round-1/scores.md`. None of 12 bars holds: 1 to 7 nothing to count, 8, 10, 11 fail on
-  expert evidence, 9 and 12 open. Never let anyone read that as a verdict on the Assistant.
+- (2026-11-05) Tier 6 round 1 ran NO session: 24 of 24 VOID at `--start`. `tier6/rounds/round-1/insights.md`
+  is the settled record: 12 findings, all expert. Bars 1 to 7 and 11 have nothing to count, 8 fails, 10
+  fails on the state list only, 9 and 12 open. Never let anyone read that as a verdict on the Assistant.
 - (2026-11-05) To run anything: cap answered (0 of 3,000 left; `owner-decisions.md` top, its "145 left"
   is stale), 26 walks, key matched, T92 A's plant checked, `leaksIn` fixed, a launch that checks
   `--gate`. I proposed fix first, then freeze: no walk exists on this build, so nothing is lost.
@@ -21,14 +21,15 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
 - (2026-11-05) Expert clean results cover only the screens that expert read: the audit's 0 of 88 missed
   "assistant node style", which sits on a screen of Figma's. Bar 10 reads 88 of 486.
-- (2026-11-05) Open 3s: Talk says "Listening" with no microphone, and 400% zoom blocks the key by pointer.
-  Neither needs a Gemini request, so `repro/` can be filled now. Done dropping a key is held at 2.
-- (2026-11-05) Scope can change with no act of the reader's, on six routes: the best candidate insight,
-  and it is T92 A's mechanism with no plant.
+- (2026-11-05) One open 3 left: 400% zoom, where `frame.css` gives the Settings page 0 height on every
+  section. `repro/` needs no Gemini request. Talk came down to 2, Done stays 2.
+- (2026-11-05) Scope moves on about three mechanisms, not six: undo reselect, Esc clearing, the x lost on
+  close. A chip click is the reader's act. T92 A's mechanism, but only with a walker's sequence so far.
+- (2026-11-05) Three rulings open: does the kept "selection surviving Undo" cover a rollback; does the x
+  entry reach closing the panel; does a painting run get a Colored row.
 - (2026-11-05) A chip that counts something else (T92 A's 5 or 9, T91 A's 15) is a true count, so not
   bar 11, but no backing: a right fact with only that row is F.
-- (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4
-  walks. T92 A's scope plant is the surest qualifier, and it is unconfirmed on 3b2a7f0649.
+- (2026-11-05) Bar 5 may come up "not tested": T95 A's first reply was a plain refusal on 2 of 4 walks.
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
 - (2026-11-05) Ask the doubt question after the first answer, never in the prompt. A live model is a
@@ -38,8 +39,6 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
   lines against images: simulated participants believe a tool line over the screenshot.
 - (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert counts
   are not user evidence; an expert-only 3 needs a repro under `repro/`.
-- (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts the
-  screen and names the contradiction; never rewrite the key toward decided.md.
 
 ## Priorities and values
 
@@ -73,6 +72,17 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 round 1 insights, skeptics applied):** Two drops = dropped, one = weakened, as
+  before. 0 of 9 problems dropped; 3 kept, 5 weakened, the 8-finding keyboard row split. Talk to 2, 400%
+  stays 3 with the owner corrected to `frame.css`. Moved bar 11 to nothing to count: its words say "in
+  every session", and `decided.md` says a selection is no graph change. Bar 10 now rests on the state
+  list, not "assistant node style". Settled two disputes at source: `k1` route shows the x from step 50,
+  so the model made the selection (skeptic 2 right, skeptic 1's step 84 was a later press); `07.png` is
+  the Delete step. Found one thing neither saw: `k1/74.png` is a second walk with a selection and no
+  line, so "one turn in one walk" was wrong. Left `decided.md` and `scores.md` alone: rulings are the
+  Director's. Reason: a claim stands only on a screen or a trace. Viewed 29, 26, 37, 38, 07, 08, 17,
+  `k1/74`, `k1/99`, `k1/100`, `k5/05`.
 
 - **2026-11-05 (tier 6 round 1 scoring, no session ran):** Scored all 12 bars as frozen, in three kinds
   (nothing to count, fails on expert evidence, open) so "none holds" cannot read as a design failure.
@@ -145,18 +155,9 @@ logged). Their reasons, in short:
   `rounds/round-1/insights.md`; viewed repro/r1-s03/02.png, sessions/r1-s08/05.png,
   r1-s09/16.png, r1-s03/20.png, r1-s13/03.png myself.
 
-- **2026-10-30 (tier 4 round 1 scoring):** Scored by hand from grade.md lines plus the two scripts
-  (`steps.mjs`, `endstate.mjs`), and wrote r1-s08 as P (grade.md and the criteria) where the
-  collected form said F. Proposed four severity 3s, each a confirmed defect with a 3 from a grader
-  or expert: the join preview mismarks rows (4 sessions both halves + repros), "Set in Data" leaves
-  the column text (5 sessions both halves + repro, one false done), "With issues 11" counts
-  suggestions and hides G12 (session + repro, a misread count), Export's warning drops focus
-  (accessibility walk; held as candidate until replayed). Held Figma's "Hide keeps matches" at 2
-  (the one session recovered) and left the raw-millisecond date card unconfirmed (no session
-  collapsed one). Called bar 6's ratio removal a violation after comparing the reference image with
-  r1-s01/14.png myself. Reported bar 7 as frozen and, beside it, the graders' to-success counts.
-  Reason: each claim must stand on a screen or a script, and the frozen rules stay frozen.
-  Evidence: `rounds/round-1/scores.md`, `steps.json`, each session's `endstate.json`.
+- **2026-10-30 (tier 4 round 1 scoring, folded):** Scored by hand from grade.md lines plus `steps.mjs`
+  and `endstate.mjs`; four severity 3s proposed, each a confirmed defect with a 3 from a grader or expert.
+  The frozen rules stay frozen.
 
 - **2026-10-29 to 10-30 (tier 4 plan and criteria review, folded):** 28 sessions exactly as roster.md;
   T65 B's key facts reworded so `--brief` stops refusing. Proposed eight criteria changes, applied none
@@ -170,6 +171,10 @@ logged). Their reasons, in short:
   prompt, not the key, when a prompt leads.
 
 ## Tried: worked / did not work
+
+- 2026-11-05 (round 1 insights) -- Worked: a scan of one control's presence across every route step, which
+  settled where a selection came from in one script; viewing a screenshot cited for another reason, which
+  turned up a second sighting. Did not work: taking either skeptic's origin story from a single step.
 
 - 2026-11-05 (round 1 scoring) -- Worked: running `--gate` myself instead of trusting the grades; one
   script over all 42 participant logs, which turned one grader's note into 24 of 24; reading routes and
@@ -218,6 +223,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-11-05 -- A bar worded "in every session" cannot fail on an audit with no sessions: expert evidence
+  can break the design and leave the bar uncounted. Say which of the two a finding is.
+- 2026-11-05 -- A bundled row ("eight findings") passes as one confirmed problem while its evidence is
+  uneven. Split before scoring.
 - 2026-11-05 -- A check placed at the last moment protects the data, not the budget: `--start` kept the
   round honest and still let 24 sessions and 24 graders spend themselves. Check at launch as well.
 - 2026-11-05 -- A round that ran nothing tempts two false readings: "none holds, so it is broken" and
@@ -246,13 +255,8 @@ logged). Their reasons, in short:
 - 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
   showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
   tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
-- 2026-10-30 (round 1 scoring) -- Worked: running `steps.mjs` and `endstate.mjs` on the round
-  first, then one script (`tmp/researcher/score-t4r1/doors.py`) for grade, wrong turns, first door
-  and build per session with an assert on the build; parsing grade.md problem tables for kind and
-  severity (`kinds.py`, assert > 100 rows) and checking the two that did not parse (r1-s16, r1-s19:
-  another table form) against the collected grades; viewing the reference image beside a session
-  screenshot before calling a bar 6 violation. Did not work: a multi-line `old` string in an
-  asserted Python replace (match a fragment on one line).
+- 2026-10-30 (round 1 scoring, folded) -- Worked: running the scripts first; parsing grade tables with an
+  assert on the row count. Did not work: a multi-line `old` string in an asserted replace.
 - 2026-10-30 (plan) -- Worked: diffing roster.md and tasks.md since the plan commit before
   regenerating; briefing all 28 and tallying `REAL_DIST` and `setup:` lines.
 - 2026-10-21 (tier 3) -- Worked: two skeptics per insight; re-tallying every grade from plan.md and

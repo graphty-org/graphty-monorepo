@@ -1274,12 +1274,21 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return (this.#options.nodeGap ?? null) !== null;
+    }
+
+    /**
      * Start the layout again because a node's drawn size changed, when `nodeGap` keeps nodes apart by that size. A
      * running layout reads the new sizes at its next publish.
      * @returns True when the frame loop has to start stepping this layout again.
      */
     override wakeForResize(): boolean {
-        if ((this.#options.nodeGap ?? null) === null) {
+        if (!this.spacesBySize) {
             return false;
         }
 

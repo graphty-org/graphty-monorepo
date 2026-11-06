@@ -489,6 +489,10 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
         case "large":
             return largeWords(request);
         case "replaces":
+            // A clear reports what it removes; nothing replaces the graph, so it reads as a removal.
+            if (preview.removeNodes !== undefined) {
+                return largeWords(request);
+            }
             return {
                 title: `Replace this graph's ${nodesAndEdges(preview.nodes ?? 0, preview.edges ?? 0)}?`,
                 line: null,

@@ -506,6 +506,21 @@ describe("checking what the Assistant says", () => {
         assert.strictEqual(session.data.statistics().nodeCount, 0);
     });
 
+    it("a held delete of the whole graph reads as a removal, not a replace", async () => {
+        const { session } = await openOn(12);
+        model.turns = [calling("edit_data", { action: "delete_all" }), { text: "Gone.", toolCalls: [] }];
+        await say("Delete the whole graph");
+        const section = await screen.findByRole("region", { name: "Waiting for you" });
+        await within(section).findByText("Remove 12 nodes?");
+        assert.isNull(within(section).queryByRole("button", { name: "Replace" }));
+        within(section).getByRole("button", { name: "Keep them" });
+
+        await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.statistics().nodeCount, 0);
+        });
+    });
+
     it("Change this declines and focuses the composer; a sent message supersedes and the turn says so", async () => {
         await openOn(12);
         model.turns = [
@@ -632,10 +647,10 @@ describe("checking what the Assistant says", () => {
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
-        const row = await screen.findByRole("alert");
+        await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await waitFor(() => {
             assert.deepEqual(
@@ -651,12 +666,12 @@ describe("checking what the Assistant says", () => {
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
-        const row = await screen.findByRole("alert");
+        await screen.findByRole("alert");
         model.clearError();
 
         await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
         await within(panel()).findByText("Whole graph");
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(
@@ -672,12 +687,12 @@ describe("checking what the Assistant says", () => {
         Object.defineProperty(model, "name", { value: "google" });
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
         await say("About these");
-        const row = await screen.findByRole("alert");
+        await screen.findByRole("alert");
         model.clearError();
 
         await session.selection.apply({ ids: [] });
         await within(panel()).findByText("Whole graph");
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(log()).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(

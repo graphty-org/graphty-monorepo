@@ -107,3 +107,27 @@ describe("an assistant without voice", () => {
         assert.deepStrictEqual(await element.getAiVoiceSupport(), { input: NONE, output: NONE });
     });
 });
+
+describe("speech support across enabling", () => {
+    it("says how speech is carried once the assistant is up, and again once it is gone", async () => {
+        const { element } = await mount();
+        const said: unknown[] = [];
+        element.addEventListener("ai-voice-support-change", (event) => {
+            said.push((event as CustomEvent<{ support: unknown }>).detail.support);
+        });
+        assert.deepStrictEqual(await element.getAiVoiceSupport(), { input: NONE, output: NONE });
+
+        await element.enableAiControl({ toolset: "generated", provider: "mock" });
+        assert.lengthOf(said, 1, "enabling says what speech support is now");
+        assert.deepStrictEqual(said[0], await element.getAiVoiceSupport());
+
+        const gone = new Promise<void>((resolve) => {
+            element.addEventListener("ai-voice-support-change", () => {
+                resolve();
+            });
+        });
+        element.disableAiControl();
+        await gone;
+        assert.deepStrictEqual(said[1], { input: NONE, output: NONE });
+    });
+});

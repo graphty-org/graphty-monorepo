@@ -8438,6 +8438,14 @@ export class Graph implements GraphContext {
         if (xrCameraController && this.aiManager === manager) {
             await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
         }
+
+        // Speech support read before this assistant existed said "not enabled": say what it is now.
+        if (this.aiManager === manager) {
+            const support = await manager.getVoiceSupport();
+            if (this.aiManager === manager) {
+                this.eventManager.emit("ai-voice-support-change", { support });
+            }
+        }
     }
 
     /**
@@ -8454,6 +8462,11 @@ export class Graph implements GraphContext {
             this.aiManager.dispose();
             this.aiManager = null;
             this.aiXr = null;
+            void this.getAiVoiceSupport().then((support) => {
+                if (this.aiManager === null) {
+                    this.eventManager.emit("ai-voice-support-change", { support });
+                }
+            });
         }
     }
 

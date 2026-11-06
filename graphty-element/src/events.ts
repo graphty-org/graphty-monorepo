@@ -1156,9 +1156,10 @@ export interface AiVoiceLevelEvent {
 }
 
 /**
- * How speech would be carried changed since `getAiVoiceSupport()` last said: a press asked for
- * the microphone or learned whether the browser recognizes speech, a key was set, an immersive
- * session began or ended. Redraw what depends on it from `support`.
+ * How speech would be carried changed since `getAiVoiceSupport()` last said: the assistant was
+ * enabled, enabled again or disabled, a press asked for the microphone or learned whether the
+ * browser recognizes speech, a key was set, an immersive session began or ended. Redraw what
+ * depends on it from `support`.
  */
 export interface AiVoiceSupportChangeEvent {
     /** The event's name. */

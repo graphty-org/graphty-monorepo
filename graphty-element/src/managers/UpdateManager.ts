@@ -1205,16 +1205,7 @@ export class UpdateManager implements Manager {
         this.sceneChanged = true;
 
         do {
-            for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
-                const edge = this.dataManager.edgesByIndex[index];
-                const paint = edge === undefined ? null : painter.edgePaint(index);
-
-                if (edge !== undefined && paint !== null) {
-                    edge.applySessionPaint(paint);
-                    this.edgesToPlace.push(edge);
-                    this.paintedSupportPoint ||= this.hasSupportPoint(edge);
-                }
-            }
+            this.paintEdgeBatch(painter);
         } while (painter.hasPendingEdges && performance.now() < deadline);
 
         // A repainted edge's own appearance changed, so this frame places the edges it painted, and
@@ -1229,6 +1220,23 @@ export class UpdateManager implements Manager {
             }
 
             this.paintedSupportPoint = false;
+        }
+    }
+
+    /**
+     * Paint one batch of pending edges.
+     * @param painter - Where the paint is read from.
+     */
+    private paintEdgeBatch(painter: StylePainter): void {
+        for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
+            const edge = this.dataManager.edgesByIndex[index];
+            const paint = edge === undefined ? null : painter.edgePaint(index);
+
+            if (edge !== undefined && paint !== null) {
+                edge.applySessionPaint(paint);
+                this.edgesToPlace.push(edge);
+                this.paintedSupportPoint ||= this.hasSupportPoint(edge);
+            }
         }
     }
 

@@ -3,7 +3,6 @@ import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-el
 import { Button, Collapse, Group, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -528,8 +527,6 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
             const scope = scopeKind(session, store.get().assistantScopeDropped);
             void send(element, store, choice, text, { via, scope });
         }
-        // Send again goes with its failure row.
-        goToComposer(store);
     };
     return (
         <div className="ws-assistant-logwrap">
@@ -573,16 +570,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                 </div>
             </section>
             {behind ? (
-                <Button
-                    className="ws-assistant-jump"
-                    variant="default"
-                    size="compact-xs"
-                    onClick={() => {
-                        toFoot();
-                        // The pill goes at the foot.
-                        goToComposer(store);
-                    }}
-                >
+                <Button className="ws-assistant-jump" variant="default" size="compact-xs" onClick={toFoot}>
                     {WORDS["assistant.jump"]}
                 </Button>
             ) : null}

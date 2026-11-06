@@ -2,7 +2,6 @@ import { EntityChip } from "@graphty/compact-mantine";
 import { ActionIcon, Button, Group, Text, Textarea, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { goToComposer } from "../assistant-door/commands";
 import { type AssistantChoice, providerDescriptor } from "../assistant-door/provider";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
@@ -31,10 +30,8 @@ function useScope(): Scope {
     useVisibilityVersion(session);
     useSessionVersion(session);
     const dropped = useWorkspaceState((state) => state.assistantScopeDropped);
-    // The pressed x or Use selection goes as the line turns over, so focus goes to the composer.
     const setDropped = (assistantScopeDropped: boolean): void => {
         store.set({ assistantScopeDropped });
-        goToComposer(store);
     };
     const selected = session?.selection.nodes.length ?? 0;
     const selectedEdges = session?.selection.edges.length ?? 0;

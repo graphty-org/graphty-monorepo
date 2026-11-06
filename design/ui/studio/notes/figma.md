@@ -5,41 +5,31 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-30 (tier 4 closed after round 1 on build 79ed770292).
+Last updated: 2026-11-05 (tier 6 round 1 walk on build 3b2a7f0649).
 
 ## Top of mind
 
-1. (2026-10-30) Tier 4 stopped after round 1 at the round cap with bars 5, 6 and 7 failing
-   (`tier4/rounds/round-1/insights.md`). Bar 6 is mine to carry: the joined source row clips the
-   approved "17/19" ratio and the second file's name. One layout fix covers both; also "17 of 19
-   joined" beside 18 edges contradicts itself.
-2. (2026-10-30) Most severe open problem: the join preview does not show what Join will do (the
-   unknown-end row is untagged, the repeated key tagged). Figma previews the result of an action
-   before commit; the preview must tag every row by what Join does to it.
-3. (2026-10-30) Choices come after the act with a default already applied: the unknown end is
-   decided after Join with "Add nodes" in effect; "Leave out" does not say it deletes; a new filter
-   card starts on Hide. The planned Select | Filter to | Filter out rename keeps that default --
-   question the default, not just the words.
-4. (2026-10-30) One fact drawn two ways sends people to a second menu: Time role with text kind
-   glyph; card counts on two bases (whole graph vs picture); place roles unmarked on headers. The
-   kind glyph follows the kind alone, and a role gets a header mark.
-5. (2026-10-30) Weakened by the check, do not re-raise at 3: "With issues 11" (1), the bare
-   "Hide" label (1; tooltip and behavior agree), kind-glyph mismatch nobody tripped on (1),
-   A-to-Z ISO sort (1, keep an eye on it only).
-6. (2026-10-30) The study tool printed `tooltip: null` when a hover opened a popover; header issue
-   marks DO open their fix list. Before trusting any "nothing appeared on hover" finding, look at
-   the screenshot.
-7. (2026-10-30) Keyboard still blocks (bar 5): the table's Nodes tab names a panel never rendered;
-   the header "..." is not a Tab stop; the issue mark is an image with no spoken issue.
-8. (2026-10-30) Check every decided entry against the build before a walk: four of my eighteen
-   round 1 findings were decisions already made but unbuilt.
-9. (2026-10-30) The table header is where people go for column work (3 of 4); the inspector's
-   "Set in Data" misleads only when the task is about the column's kind.
-10. (2026-10-30) Works now: toolbar Filters is a door; Filters "+" is the Style picker; filters
-    never move the camera; Sources "+" and row menus show glyph and key; Time sets only the time.
-11. (2026-10-30) The filter card and the Style card still rest differently; "the filters ARE the
-    Style cards" needs one resting drawing.
-12. (2026-10-21) An empty selection's Style tab should still point at what styles the content.
+1. (2026-11-05) Tier 6 walk: 15 findings at 2, 8 at 1, none at 3
+   (`tier6/rounds/round-1/expert/figma.md`). Bar 12 needs each 2 fixed or kept with a reason.
+2. (2026-11-05) The change line carries the Assistant's promise and is drawn as prose: no glyph, no
+   chip, and a change turn has no chip row. Design 4.6 draws `Colored (o)77`. Watch question 3.
+3. (2026-11-05) A run that paints has no line saying so ("Computed Influence" over a repainted
+   canvas): the run's painted layer needs its own effect, in graphty-element. Bar 11.
+4. (2026-11-05) Same look, same behavior: scope counts are drawn as chips and do nothing; Send on
+   empty is the full primary and does nothing.
+5. (2026-11-05) Glossary line 481 retires influence: the app must name algorithms as the inspector
+   does, by id. The catalog's plain names still leak through change lines and layers.
+6. (2026-11-05) A door belongs to its line: one Open run under two Computed lines opens one run.
+7. (2026-11-05) Design 5.3 "the camera never moves" contradicts tier 4's "a pick glides" on a chip
+   click. A chip click is a check, so I side with 5.3; the record needs one answer.
+8. (2026-11-05) Check the shared Gemini count before each paid step, and walk failures at no cost
+   with a full `REAL_GEMINI_COUNT` file. The 3,000 cap went during this walk.
+9. (2026-10-30) Tier 4 left bars 5, 6 and 7 failing: the join preview, the clipped "17/19" ratio,
+   and choices that come after the act with a default applied.
+10. (2026-10-30) Before trusting any "nothing appeared on hover" finding, look at the screenshot.
+11. (2026-10-30) Check every decided entry against the build before a walk; rate by the cost a
+    reader paid, and state a broken rule apart.
+12. (2026-10-30) The filter card and the Style card still rest differently: one resting drawing.
 13. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
 14. (2026-10-20, owner) No UI sentences; tooltips that instruct are sentences too.
 15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
@@ -109,6 +99,13 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 1 severities.** Held everything at 2 or below: no finding blocks a
+  reader on its own, and my 3s have never survived a skeptic without behavior. Stated bars and rules
+  apart: the repaint with no line is 2 with bar 11 named; retired names are 2 with glossary line 481
+  named. Did not re-raise anything `decided.md` settles (panel width jump, the x, no red, the name
+  starter, a question repainting); those are listed as no change. Rated the bar 12 word count (63 on
+  the provider section) as keep with a reason, since bar 3 measures that disclosure.
+
 - **2026-10-30, tier 4 round 1 severities.** Rated "Hide keeps" 3, not 2: a reader reading the
   visible word gets the opposite of the canvas, and the app itself calls the cards "Showing only".
   Rated the epoch-millisecond date summary 3: it is the only reading of a closed card, so the
@@ -169,6 +166,15 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
+- 2026-11-05 Tier 6 walk, five `real.mjs` sessions (about 85 shots, 21 paid calls). Worked: one paid
+  message per state; a full `REAL_GEMINI_COUNT` file for 429, Send again and Stop at no cost (retries
+  leave time for Esc); PIL side-by-side crops of the panel; grepping an odd string to name the owner
+  (`style.ts` line 397, `historyWords.ts`). Did not: `--wait` does not outlast a slow turn, so
+  `Open layer` missed while still running (check the Stop button first); a message cost 7 to 15
+  calls, more than planned; dark 900 x 700 for 4.4 and 4.7 went unreached when the shared count hit
+  the cap; after `--reopen`, `--click "volunteers"` left the start screen up. Lesson: paid states in
+  the odd window sizes go first, not last.
+
 - 2026-10-30 Tier 4 round 1 walk, four `real.mjs` sessions (w1 to w4, about 90 shots). Worked:
   one session per start state (empty, pantries, volunteers, pantries-joined); `--hover-at` on
   every icon, which found three controls with no tooltip; reading `route.jsonl` for the hover
@@ -222,6 +228,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Thinking
 
+- 2026-11-05 The Assistant is Figma's grammar at its best where it is a list of real things (peek,
+  request, Open layer) and weakest where it is a transcript: words the app computed and words the
+  model wrote share a drawing. Most of my list is that one problem. Cheapest fix: draw the count in
+  the change line as the chip it already is.
+
 - 2026-10-30 Tier 4's data screens are close to Figma's paved path now; what remains is words and
   drawing drift between two homes of one thing (filter card vs Style card, picker glyph vs table
   glyph, Fields "+" vs Sources "+"). The cheapest fix list is "one component, one resting drawing"
@@ -258,6 +269,9 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   a pass weak; grade from the last screenshot.
 
 ## Sources
+
+- Tier 6 (2026-11-05): `design/ui/studio/tier6/criteria.md`, `design.md`, `decided.md`, `backlog.md`,
+  `rounds/round-1/expert/figma.md` (this walk; shots ignored by git, in `expert/figma/`).
 
 - Tier 4 (2026-10-30): `design/ui/studio/tier4/criteria.md` (bars, severity), `decided.md`
   (owner rules, approved surfaces, R1 to R15, team entries, dry run passes), `review/figma.md`

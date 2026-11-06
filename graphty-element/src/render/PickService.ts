@@ -305,12 +305,34 @@ export class RowScan {
      * @returns The nearest row hit, or null.
      */
     rowRayHit(ray: Ray): RowHit | null {
-        const { inverse, rowRay } = this;
-        return this.walk(ray, (world) => {
-            world.invertToRef(inverse);
-            Ray.TransformToRef(ray, inverse, rowRay);
-            return rowRay;
-        });
+        return this.walk(ray, (world) => this.rayInRow(ray, world));
+    }
+
+    /**
+     * Where a world ray meets one row and nothing else, as `Ray.intersectsMeshes` answers for the
+     * row's mesh: {@link RowScan.rowRayHit}'s nearest row is the wrong answer for an edge's end,
+     * whose ray starts inside one node and may cross others on its way.
+     * @param row - The row.
+     * @param ray - The ray.
+     * @returns The point, or null for a miss.
+     */
+    rowRayHitOn(row: number, ray: Ray): Vector3 | null {
+        const root = this.root?.computeWorldMatrix() ?? this.identity;
+        return this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null;
+    }
+
+    /**
+     * A row's center in the world.
+     * @param row - The row.
+     * @returns The point.
+     */
+    worldCenter(row: number): Vector3 {
+        const { rowBounds: bounds } = this.table;
+        const at = row * 4;
+        return Vector3.TransformCoordinates(
+            new Vector3(bounds[at], bounds[at + 1], bounds[at + 2]),
+            this.root?.computeWorldMatrix() ?? this.identity,
+        );
     }
 
     /**
@@ -369,6 +391,18 @@ export class RowScan {
         }
 
         return { mesh: info?.pickedMesh ?? null, point: info?.pickedPoint ?? null };
+    }
+
+    /**
+     * A world ray in the space of a mesh with this world matrix.
+     * @param ray - The ray.
+     * @param world - The matrix.
+     * @returns The ray, valid until the next call.
+     */
+    private rayInRow(ray: Ray, world: Matrix): Ray {
+        world.invertToRef(this.inverse);
+        Ray.TransformToRef(ray, this.inverse, this.rowRay);
+        return this.rowRay;
     }
 
     /**

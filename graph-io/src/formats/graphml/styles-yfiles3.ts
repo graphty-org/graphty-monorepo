@@ -23,6 +23,9 @@ import {
     configurationOutline,
     isTree,
     localOf,
+    putBevelLine,
+    putBevelPaint,
+    putPanelPaint,
     type PutValue,
     type SiteOf,
     treeAttr,
@@ -365,11 +368,41 @@ function putPaint(pt: Paint, property: string, opacity: string | null, put: PutV
     }
 }
 
+/** BevelNodeStyle's corner `radius` and the `inset` of its line with neither written. */
+const BEVEL_RADIUS = 10;
+const BEVEL_INSET = 3;
+
 /** yFiles' black, the documented default color of the 2.6 Bevel, ShinyPlate and Panel styles. */
 const BLACK = "#FF000000";
 
 /** The demos' FlowchartNodeStyle defaults (yfiles-for-html-demos v2.6, FlowchartStyle.ts): fill rgb(183, 201, 227). */
 const FLOWCHART_FILL = "#FFB7C9E3";
+
+/**
+ * A SQUIRCLE as yEd Live draws it: four cubic curves from side to side, each with control points 0.2 of a half side from
+ * the corner (`yed-live-graphml-specimen-node-shapes`).
+ * @returns its points, `x,y` fractions of the half sizes
+ */
+function squirclePoints(): string {
+    const steps = 8;
+    const quarter = Array.from({ length: steps }, (_, i): [number, number] => {
+        const t = i / steps;
+        const [a, b] = [3 * (1 - t) ** 2 * t, 3 * (1 - t) * t ** 2];
+        return [-((1 - t) ** 3) - a - 0.8 * b, 0.8 * a + b + t ** 3];
+    });
+    const turns = [...quarter, ...quarter.map(([x, y]) => [y, -x]), ...quarter.map(([x, y]) => [-x, -y])];
+    return [...turns, ...quarter.map(([x, y]) => [-y, x])].map(([x, y]) => polygonPoint(x, y)).join(" ");
+}
+
+/**
+ * A polygon's corner as `shapePoints` writes it.
+ * @param x - across, a fraction of the half width
+ * @param y - up, a fraction of the half height
+ * @returns the `x,y` text
+ */
+function polygonPoint(x: number, y: number): string {
+    return `${String(Math.round(x * 1e4) / 1e4)},${String(Math.round(y * 1e4) / 1e4)}`;
+}
 
 /**
  * yFiles for HTML 2.6 ShapeNodeShape names the neutral shapes do not spell, as the shape yFiles documents them as:
@@ -388,10 +421,29 @@ const SHAPES_26: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["fat-arrow", { shape: "polygon", points: "-1,-1 0.6,-1 1,0 0.6,1 -1,1 -0.6,0" }],
     ["fat-arrow2", { shape: "polygon", points: "-0.6,-1 1,-1 0.6,0 1,1 -0.6,1 -1,0" }],
     ["pill", { shape: "round-rectangle" }],
+    ["hexagon-standing", { shape: "polygon", points: "0,1 1,0.5 1,-0.5 0,-1 -1,-0.5 -1,0.5" }],
+    [
+        "octagon-standing",
+        {
+            shape: "polygon",
+            points: "0,1 0.7071,0.7071 1,0 0.7071,-0.7071 0,-1 -0.7071,-0.7071 -1,0 -0.7071,0.7071",
+        },
+    ],
+    ["triangle-pointing-down", { shape: "polygon", points: "-1,1 0,-1 1,1" }],
+    ["triangle-pointing-left", { shape: "polygon", points: "-1,0 1,1 1,-1" }],
+    ["triangle-pointing-right", { shape: "polygon", points: "1,0 -1,1 -1,-1" }],
+    ["squircle", { shape: "polygon", points: squirclePoints() }],
 ]);
 
 /** ShapeNodeStyle's ROUND_RECTANGLE corner size (ShapeNodeShape API docs: "The corner size is 10"). */
 const ROUND_RECTANGLE_CORNER = 10;
+
+/** RectangleNodeStyle's corner size with no `cornerSize` (`rectangle-style`, which yEd Live rounds by 10). */
+const RECTANGLE_STYLE_CORNER = "10";
+
+/** ArrowNodeStyle's `angle` and `shaftRatio` with none written, as yEd Live draws `arrow-node-arrow`. */
+const ARROW_ANGLE = Math.PI / 4;
+const ARROW_SHAFT_RATIO = 1 / 3;
 
 /** A node's size from its NodeGeometry, where it has one. */
 interface Size {
@@ -417,8 +469,41 @@ function putRounded(radius: string | undefined, fallback: number, put: PutValue,
 }
 
 /**
+ * Reads a BevelNodeStyle: its paint, its corners and the line inside its edge.
+ * @param style - the style
+ * @param color - its `#rrggbb` color, or null
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBevelStyle(style: StyleObject, color: string | null, put: PutValue, at: SiteOf): void {
+    put("borderWidth", 0);
+    putRounded(treeAttr(style.e, "radius"), BEVEL_RADIUS, put, at);
+    if (color === null) {
+        return;
+    }
+    putBevelPaint(color, put);
+    put("borderColor", color);
+    const size = (name: string, fallback: number): number =>
+        canonNumber(treeAttr(style.e, name) ?? fallback, at("shapeLines")) ?? fallback;
+    putBevelLine(size("radius", BEVEL_RADIUS), size("inset", BEVEL_INSET), put);
+}
+
+/**
+ * Reads a PanelNodeStyle: a box in its paint.
+ * @param color - its `#rrggbb` color, or null
+ * @param put - receives the values
+ */
+function readPanelStyle(color: string | null, put: PutValue): void {
+    put("borderWidth", 0);
+    if (color !== null) {
+        putPanelPaint(color, put);
+    }
+    put("shape", "rectangle");
+}
+
+/**
  * Reads the yFiles for HTML 2.6 node styles yEd Live wrote before yFiles 3, and the demos' FlowchartNodeStyle:
- * BevelNodeStyle and PanelNodeStyle (a `color` fill, no outline), ShinyPlateNodeStyle (an outline only where `stroke`
+ * BevelNodeStyle and PanelNodeStyle (painted from their `color`), ShinyPlateNodeStyle (an outline only where `stroke`
  * is set) and FlowchartNodeStyle (its `type`'s outline, drawn as yEd's flowchart palette draws the same type).
  * @param refs - the references
  * @param style - the style
@@ -427,22 +512,22 @@ function putRounded(radius: string | undefined, fallback: number, put: PutValue,
  * @returns true when the style is one of these
  */
 function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
-    const fill = (v: unknown): void => {
+    const fill = (v: unknown): string | null => {
         const gradient = (): void => {
             noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
         };
-        putPaint(paintOf(refs, v, gradient), "fill", "fillOpacity", put, at);
+        const paint = paintOf(refs, v, gradient);
+        putPaint(paint, "fill", "fillOpacity", put, at);
+        return paint === null || paint === NULL
+            ? null
+            : (canonColor(paint.raw, paint.dialect, at("fill"))?.color ?? null);
     };
     switch (style.tag) {
         case "BevelNodeStyle":
-            fill(prop(style, "color") ?? BLACK);
-            put("borderWidth", 0);
-            putRounded(treeAttr(style.e, "radius"), 10, put, at);
+            readBevelStyle(style, fill(prop(style, "color") ?? BLACK), put, at);
             return true;
         case "PanelNodeStyle":
-            fill(prop(style, "color") ?? BLACK);
-            put("borderWidth", 0);
-            put("shape", "rectangle");
+            readPanelStyle(fill(prop(style, "color") ?? BLACK), put);
             return true;
         case "ShinyPlateNodeStyle": {
             fill(prop(style, "fill") ?? BLACK);
@@ -665,6 +750,25 @@ function putStroke(stroke: Stroke | typeof NULL | null, put: PutValue, at: SiteO
 }
 
 /**
+ * Writes a node style's outline: its shape, its corners, and a RectangleNodeStyle's corner size.
+ * @param style - the style
+ * @param size - the node's size
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putStyleOutline(style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): void {
+    const sized = sizedOutline(style, size, at);
+    put("shape", sized === null ? nodeShapeOf(style, at) : "polygon");
+    const points = sized ?? SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
+    if (points !== undefined) {
+        put("shapePoints", points);
+    }
+    if (style.tag === "RectangleNodeStyle" && sized === null) {
+        put("cornerRadius", rectangleCorner(style, size, at));
+    }
+}
+
+/**
  * Reads a node style.
  * @param refs - the references
  * @param data - the `<data>` content of the NodeStyle key
@@ -706,15 +810,7 @@ function readNodeStyle(
         at,
     );
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
-    put("shape", nodeShapeOf(style, at));
-    const points = SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
-    if (points !== undefined) {
-        put("shapePoints", points);
-    }
-    const cornerSize = style.tag === "RectangleNodeStyle" ? treeAttr(style.e, "cornerSize") : undefined;
-    if (cornerSize !== undefined) {
-        put("cornerRadius", canonNumber(cornerSize, at("cornerRadius")));
-    }
+    putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
@@ -764,17 +860,134 @@ const ONE_SIDE_ROUND: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * What a RectangleNodeStyle draws: a box, rounded when it has a `cornerSize`, on the corners it names. Its other
- * `corners` values (one corner, the left or right side) and its other `cornerStyle`s are read as rounded all round.
+ * What a RectangleNodeStyle draws: a box rounded on the corners it names (`sizedOutline` draws a CUT one). Its other
+ * `corners` values (one corner, the left or right side) and a SQUIRCLE `cornerStyle` are read as rounded all round.
  * @param style - the style
  * @returns the shape
  */
 function rectangleStyleShape(style: StyleObject): string {
-    if (treeAttr(style.e, "cornerSize") === undefined) {
-        return "rectangle";
-    }
     const round = (treeAttr(style.e, "cornerStyle") ?? "ROUND") === "ROUND";
     return (round ? ONE_SIDE_ROUND.get(treeAttr(style.e, "corners") ?? "") : undefined) ?? "round-rectangle";
+}
+
+/**
+ * A RectangleNodeStyle's corner size: `cornerSize`, a share of the node's shorter side under `scaleCornerSize`
+ * (`scaleCornerSize=true cornerSize=0.3` on a 48 x 36 node draws corners of 10.8).
+ * @param style - the style
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns the size, or null when it does not parse
+ */
+function rectangleCorner(style: StyleObject, size: Size | null, at: SiteOf): number | null {
+    const corner = canonNumber(treeAttr(style.e, "cornerSize") ?? RECTANGLE_STYLE_CORNER, at("cornerRadius"));
+    const scaled = treeAttr(style.e, "scaleCornerSize") === "true" && corner !== null && size !== null;
+    return scaled ? corner * Math.min(size.width, size.height) : corner;
+}
+
+/**
+ * A RectangleNodeStyle with `cornerStyle="CUT"`: a box with the corners its `corners` names (all of them unset) cut
+ * off by `cornerSize`, at most half of a side.
+ * @param style - the style
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns its points
+ */
+function cutCorners(style: StyleObject, size: Size, at: SiteOf): string {
+    const cut = rectangleCorner(style, size, at) ?? 0;
+    const [dx, dy] = [Math.min(1, (2 * cut) / size.width), Math.min(1, (2 * cut) / size.height)];
+    const corners = treeAttr(style.e, "corners") ?? "ALL";
+    const corner = (name: string, x: number, y: number): [number, number][] => {
+        if (corners !== "ALL" && !name.includes(corners)) {
+            return [[x, y]];
+        }
+        const ends: [number, number][] = [
+            [x, y * (1 - dy)],
+            [x * (1 - dx), y],
+        ];
+        return x * y < 0 ? ends : ends.reverse();
+    };
+    return [
+        ...corner("TOP_LEFT", -1, 1),
+        ...corner("TOP_RIGHT", 1, 1),
+        ...corner("BOTTOM_RIGHT", 1, -1),
+        ...corner("BOTTOM_LEFT", -1, -1),
+    ]
+        .map(([x, y]) => polygonPoint(x, y))
+        .join(" ");
+}
+
+/** An outline's corners along and across the way an arrow points. */
+type ArrowPoints = [number, number][];
+
+/**
+ * An ArrowNodeStyle's outline as yEd Live 8.5.16 draws them (`yed-live-graphml-specimen-node-shapes`). Along the way
+ * `direction` points, a head reaches back the half width across it times the tangent of `angle`, and the shaft is that
+ * half width times `shaftRatio`; a PARALLELOGRAM leans and a TRAPEZOID narrows by twice as much, narrowing to a point
+ * at most. Only the arrows are measured turned; the other two turn the same way.
+ * @param style - the style
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns its points
+ */
+function arrowOutline(style: StyleObject, size: Size, at: SiteOf): string {
+    const number = (name: string, fallback: number): number => {
+        const text = treeAttr(style.e, name);
+        return text === undefined ? fallback : (canonNumber(text, at("shapePoints")) ?? fallback);
+    };
+    const direction = treeAttr(style.e, "direction") ?? "RIGHT";
+    const upright = direction === "UP" || direction === "DOWN";
+    const [a, b] = upright ? [size.height / 2, size.width / 2] : [size.width / 2, size.height / 2];
+    const lean = 2 * b * Math.tan(number("angle", ARROW_ANGLE));
+    const shaft = b * number("shaftRatio", ARROW_SHAFT_RATIO);
+    const head = Math.min(lean / 2, treeAttr(style.e, "shape") === "DOUBLE_ARROW" ? a : 2 * a);
+    const nose: ArrowPoints = [
+        [a - head, shaft],
+        [a - head, b],
+        [a, 0],
+        [a - head, -b],
+        [a - head, -shaft],
+    ];
+    const inset = Math.min(lean, a);
+    const skew = Math.min(lean, 2 * a);
+    const outlines: Record<string, ArrowPoints> = {
+        ARROW: [...nose, [-a, -shaft], [-a, shaft]],
+        DOUBLE_ARROW: [...nose, [head - a, -shaft], [head - a, -b], [-a, 0], [head - a, b], [head - a, shaft]],
+        NOTCHED_ARROW: [...nose, [-a, -shaft], [-a + (shaft * lean) / (2 * b), 0], [-a, shaft]],
+        PARALLELOGRAM: [
+            [a, b],
+            [a - skew, -b],
+            [-a, -b],
+            [skew - a, b],
+        ],
+        // narrowed to a point, its top has one corner
+        TRAPEZOID: [[a - inset, b], [a, -b], [-a, -b], ...(inset < a ? ([[inset - a, b]] as ArrowPoints) : [])],
+    };
+    const local = outlines[treeAttr(style.e, "shape") ?? "ARROW"] ?? outlines.ARROW;
+    const turn = { RIGHT: [1, 0], UP: [0, 1], LEFT: [-1, 0], DOWN: [0, -1] }[direction] ?? [1, 0];
+    return local
+        .map(([u, v]) =>
+            polygonPoint(
+                (u * turn[0] - v * turn[1]) / (size.width / 2),
+                (u * turn[1] + v * turn[0]) / (size.height / 2),
+            ),
+        )
+        .join(" ");
+}
+
+/**
+ * The outline of a node style whose proportions depend on the node's size.
+ * @param style - the style
+ * @param size - the node's size, or null for a square
+ * @param at - the sites
+ * @returns its points, or null for a style that has none of its own
+ */
+function sizedOutline(style: StyleObject, size: Size | null, at: SiteOf): string | null {
+    const box = size ?? { width: 1, height: 1 };
+    if (style.tag === "ArrowNodeStyle") {
+        return arrowOutline(style, box, at);
+    }
+    const cut = style.tag === "RectangleNodeStyle" && treeAttr(style.e, "cornerStyle") === "CUT";
+    return cut ? cutCorners(style, box, at) : null;
 }
 
 /**

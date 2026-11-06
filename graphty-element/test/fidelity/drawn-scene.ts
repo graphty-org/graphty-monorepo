@@ -32,6 +32,7 @@ import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { readLabelTable } from "../../src/meshes/labelTable";
+import { pointLists } from "../../src/meshes/nodeDecoration";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
@@ -813,6 +814,45 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
 }
 
 /**
+ * The closed line a node with no border draws over its face (`shape.lines`, a bevel's), which is the outline a program's
+ * drawing of it shows, in the border's color. One that boxes under half of the node, as an outline of the node's own
+ * must not (`PART_OF_BODY`), is a mark on its face: the oracle's reading leaves such a line a stray.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the line, or null when the node draws no such line
+ */
+function readInnerLine(node: Node, p: Projector): DrawnBorder | null {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const shape = drawnStyle?.shape;
+    const lists = pointLists(shape?.lines);
+    const [first, last] = [lists[0]?.[0], lists[0]?.at(-1)];
+    const closed = lists.length === 1 && first !== undefined && first.join() === last?.join();
+    const width = shape?.lineWidth ?? 0;
+    const color = drawnStyle?.border?.color;
+    if (!closed || !(width > 0) || typeof color !== "string") {
+        return null;
+    }
+    const unitPx = NodeMesh.extentPerSize(shape) * p.pxPerWorld(node.mesh.getAbsolutePosition());
+    const box = p.box(node.mesh);
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    const span = (at: number[]): number => Math.max(...at) - Math.min(...at);
+    const lineW = span(lists[0].map((q) => (q[0] * w) / 2 + q[1] * unitPx));
+    const lineH = span(lists[0].map((q) => (q[2] * h) / 2 + q[3] * unitPx));
+    if (lineW * lineH < 0.5 * w * h) {
+        return null;
+    }
+    const css = cssColor(color);
+    return {
+        color: css.hex,
+        widthPx: width * unitPx,
+        lineWidthPx: null,
+        style: "solid",
+        screen: false,
+        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+    };
+}
+
+/**
  * A node's border ring: its material's color, and its width as drawn on screen, not the width its style asked for, so
  * a ring drawn wider than asked reads wider (issue #5364): its band against the fill's sides (`ringBandPx`), or a
  * solid ring's thickness where that is more (`bandThicknessPx`).
@@ -1302,7 +1342,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
     // its inner edge, past the border and the gap, and the ring is its stroke
     const own = readBorder(node, p);
-    const border = outer?.border ?? own;
+    const border = outer?.border ?? own ?? readInnerLine(node, p);
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
     const ownFace = (mesh.isVisible && source.visibility > 0) || border !== null;

@@ -2,7 +2,8 @@
  * The time window moved through the visibility masks without a full pass: what every `session.time`
  * move does (design/data/timeline-attribute.md section 5.3). A move finds the rows that crossed
  * either edge of the window from the designated field's sorted index (two binary searches per
- * kind). A small move re-tests only those rows, the nodes whose counts they moved, and those nodes'
+ * kind; for spans, one over the starts and one over the ends, and a row is inside while its count of
+ * overlapping spans is above zero). A small move re-tests only those rows, the nodes whose counts they moved, and those nodes'
  * edges; a move over budget (changed edges plus the summed degree of changed nodes, past a share of
  * the graph) rewrites both masks in flat loops over typed arrays. The filter's own tests are read
  * once, as bytes, so a frame never compiles or walks a closure.
@@ -14,14 +15,20 @@
  * pass is left for starting a slide, for a kind whose records the window reads (timed by a column
  * the index does not hold, or holding the column though the field does not time it), and for masks
  * someone else rewrote since the last move.
+ *
+ * An instant is a span ending at the next float above it, and a kind of instants holds one array for
+ * both orders, so a small move reads the same for both. A jump differs: a kind of instants holds
+ * what shows in one stretch of its index, which a jump rewrites; a kind of spans does not, so a jump
+ * reads the spans overlapping the old window and the new from buckets by power-of-two duration, one
+ * binary search per bucket.
  */
 
 import type { GraphSnapshot, U8 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import type { ElementMask } from "../scope/ElementMask";
-import { lowerBound } from "../time/timeIndex";
-import type { TimeInstants, TimeWindow } from "./filter";
+import { drain, endedBy, lowerBound, radixArgsort } from "../time/timeIndex";
+import type { TimeInstants, TimeSpans, TimeWindow } from "./filter";
 
 /**
  * The share of the graph a move walks row by row before flat loops cost less: a row walked costs
@@ -43,18 +50,28 @@ export const slideCounters = {
     jumps: 0,
     /** Rows a small move visited, one by one as it visits them. */
     rows: 0,
+    /** Edges a rewrite re-tested in a flat loop or from a jump's crossed rows. */
+    rewritten: 0,
     /** Small moves that scanned the window's edges rather than a moved node's. */
     scans: 0,
     /** Times a filter's tests were kept or read for a slide, which only `session.time` reaches. */
     filterReads: 0,
+    /** Spans a jump over a kind of spans read from its duration buckets. */
+    spans: 0,
 };
 
 /** What one kind's index holds for a slide: the instants per row, and their sorted order. */
 export interface SlideInstants extends TimeInstants {
-    /** The finite instants, ascending. */
+    /** Where each span starts, ascending: for a kind of instants, the instants. */
     readonly sorted: Float64Array;
-    /** The row of each sorted instant. */
+    /** The row of each. */
     readonly perm: Uint32Array;
+    /** Where each span ends, ascending: for a kind of instants, `sorted` itself. */
+    readonly sortedEnd: Float64Array;
+    /** The row of each: for a kind of instants, `perm` itself. */
+    readonly endPerm: Uint32Array;
+    /** The spans row by row; null for a kind of instants. */
+    readonly spans: TimeSpans | null;
 }
 
 /** Each kind's filter tests as one byte per row, or null when the filter says nothing of the kind. */
@@ -101,17 +118,24 @@ export interface SlideCounts {
 }
 
 /** One kind's place in its sorted index. */
-interface KindState {
+export interface KindState {
     readonly index: SlideInstants;
     /** Whether each row is inside the window (an untimed row by the `missing` rule). */
     readonly inside: Uint8Array;
-    /** The window's first and one-past-last sorted positions. */
+    /** How many of each timed row's spans overlap the window; null for a kind of instants. */
+    readonly overlaps: Int32Array | null;
+    /** Room for the rows a scan of a kind of spans finds crossing, kept between jumps. */
+    scanned: Uint32Array | null;
+    /** The window the counts of overlapping spans were taken at. */
+    from: number;
+    to: number;
+    /** How many spans have ended by the window's start, and how many start before its end. */
     lo: number;
     hi: number;
 }
 
 /** One direction of the graph's adjacency. */
-type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
+export type Arcs = Pick<GraphSnapshot, "rowPtr" | "colIdx" | "arcToEdge">;
 
 /** The rows of one kind a small move took in and out of view. */
 interface MovedRows {
@@ -120,7 +144,7 @@ interface MovedRows {
 }
 
 /** Everything a slide keeps between moves. */
-interface SlideState {
+export interface SlideState {
     readonly graph: GraphSnapshot;
     readonly filter: readonly unknown[];
     readonly attribute: string;
@@ -146,6 +170,247 @@ interface SlideState {
  */
 function isSlidable(instants: TimeInstants): instants is SlideInstants {
     return "sorted" in instants && "perm" in instants;
+}
+
+/**
+ * Re-test every timed row of a kind of spans against a window: one read of its columns in order.
+ * @param kind - The kind.
+ * @param spans - Its spans.
+ * @param from - The window's start.
+ * @param to - The window's end.
+ * @returns The rows that crossed in or out, ascending; good until the next scan.
+ */
+function scanSpans(kind: KindState, spans: TimeSpans, from: number, to: number): Uint32Array {
+    const { inside, index } = kind;
+    const overlaps = kind.overlaps as Int32Array;
+    const { starts, ends, first } = spans;
+    kind.scanned ??= new Uint32Array(inside.length);
+    const out = kind.scanned;
+    let crossed = 0;
+    // No branch on the values: which rows overlap is random, which no predictor follows.
+    for (let row = 0; row < inside.length; row++) {
+        const start = first[row];
+        const end = first[row + 1];
+        if (start !== end) {
+            let overlapping = 0;
+            for (let at = start; at < end; at++) {
+                overlapping += Number(starts[at] < to) & Number(ends[at] > from);
+            }
+
+            overlaps[row] = overlapping;
+            const now = Math.min(overlapping, 1);
+            const was = inside[row];
+            inside[row] = now;
+            out[crossed] = row;
+            crossed += was ^ now;
+        }
+    }
+
+    kind.lo = endedBy(index, from);
+    kind.hi = lowerBound(index.sorted, to);
+    kind.from = from;
+    kind.to = to;
+
+    return out.subarray(0, crossed);
+}
+
+/**
+ * A kind's spans grouped by duration: each bucket holds the spans no longer than its width, a power
+ * of two, sorted by start, so the spans overlapping `[from, to)` start in `[from - width, to)`. Spans
+ * with an open bound share the last bucket, of infinite width.
+ */
+interface SpanBuckets {
+    /** Span ids, bucket by bucket, each bucket by start. */
+    readonly order: Uint32Array;
+    /** The starts of `order`. */
+    readonly starts: Float64Array;
+    /** Where each bucket begins in `order`, with one more entry than buckets. */
+    readonly first: Uint32Array;
+    /** Each bucket's widest span, with room for rounding. */
+    readonly width: Float64Array;
+    /** The row of each span. */
+    readonly rowOf: Uint32Array;
+}
+
+/** How much more a span read through the buckets costs than one read in a flat scan. */
+const SCAN_SHARE = 4;
+
+/** Room past a bucket's width for rounding in `end - start`; every span found is tested exactly. */
+const WIDTH_SLACK = 1 + 2 ** -40;
+
+/** Buckets by spans, built on a kind's first jump and kept while its index lives. */
+const bucketsBySpans = new WeakMap<TimeSpans, SpanBuckets>();
+
+/**
+ * Group a kind's spans by power-of-two duration, each group by start.
+ * @param spans - The spans.
+ * @returns The buckets.
+ */
+function bucketsOf(spans: TimeSpans): SpanBuckets {
+    const known = bucketsBySpans.get(spans);
+    if (known !== undefined) {
+        return known;
+    }
+
+    const { starts, ends, first } = spans;
+    const size = starts.length;
+    const rowOf = new Uint32Array(size);
+    for (let row = 0; row + 1 < first.length; row++) {
+        rowOf.fill(row, first[row], first[row + 1]);
+    }
+
+    // An exponent per span: a duration of at most 2^k sits in bucket k; an open one in the last.
+    const exponent = new Int32Array(size);
+    const OPEN = 2048;
+    for (let at = 0; at < size; at++) {
+        const duration = ends[at] - starts[at];
+        exponent[at] = Number.isFinite(duration) ? Math.ceil(Math.log2(Math.max(duration, Number.MIN_VALUE))) : OPEN;
+    }
+
+    const keys = [...new Set(exponent)].sort((a, b) => a - b);
+    const slot = new Map(keys.map((key, at) => [key, at]));
+    const bucketFirst = new Uint32Array(keys.length + 1);
+    for (let at = 0; at < size; at++) {
+        bucketFirst[(slot.get(exponent[at]) as number) + 1]++;
+    }
+
+    for (let at = 0; at < keys.length; at++) {
+        bucketFirst[at + 1] += bucketFirst[at];
+    }
+
+    // Stable over the start order, so each bucket stays sorted by start.
+    const byStart = drain(
+        radixArgsort(
+            starts,
+            Uint32Array.from({ length: size }, (_, at) => at),
+        ),
+    );
+    const order = new Uint32Array(size);
+    const cursor = bucketFirst.slice(0, keys.length);
+    for (const id of byStart) {
+        order[cursor[slot.get(exponent[id]) as number]++] = id;
+    }
+
+    const buckets: SpanBuckets = {
+        order,
+        starts: Float64Array.from(order, (id) => starts[id]),
+        first: bucketFirst,
+        // A hair past the width, so rounding in `end - start` never leaves a span out.
+        width: Float64Array.from(keys, (key) => (key === OPEN ? Number.POSITIVE_INFINITY : 2 ** key * WIDTH_SLACK)),
+        rowOf,
+    };
+    bucketsBySpans.set(spans, buckets);
+    return buckets;
+}
+
+/**
+ * Where the spans that can overlap `[from, to)` lie in each bucket: those starting in
+ * `[from - width, to)`.
+ * @param buckets - The kind's buckets.
+ * @param from - The window's start.
+ * @param to - The window's end.
+ * @returns Each bucket's first and one-past-last position in `order`, side by side.
+ */
+function reachOf(buckets: SpanBuckets, from: number, to: number): Uint32Array {
+    const { starts, first, width } = buckets;
+    const reach = new Uint32Array(2 * width.length);
+    for (let bucket = 0; bucket < width.length; bucket++) {
+        const stretch = starts.subarray(first[bucket], first[bucket + 1]);
+        reach[2 * bucket] = first[bucket] + lowerBound(stretch, from - width[bucket]);
+        reach[2 * bucket + 1] = Math.max(reach[2 * bucket], first[bucket] + lowerBound(stretch, to));
+    }
+
+    return reach;
+}
+
+/**
+ * Add `delta` to the count of each row with a span overlapping one window and not the other, and
+ * list the rows whose count left or reached zero.
+ * @param kind - The kind.
+ * @param spans - Its spans.
+ * @param buckets - Its buckets.
+ * @param reach - Where to look in them, from `reachOf`.
+ * @param window - The start of the window the spans overlap (`reach` holds its end), then the
+ *     window they must not overlap.
+ * @param delta - 1 or -1.
+ * @param touched - Takes the rows.
+ */
+function countReach(
+    kind: KindState,
+    spans: TimeSpans,
+    buckets: SpanBuckets,
+    reach: Uint32Array,
+    window: readonly [number, number, number],
+    delta: 1 | -1,
+    touched: number[],
+): void {
+    const overlaps = kind.overlaps as Int32Array;
+    const { starts, ends } = spans;
+    const { order, rowOf } = buckets;
+    const [from, notFrom, notTo] = window;
+    const zero = delta === 1 ? 0 : 1;
+    for (let at = 0; at < reach.length; at += 2) {
+        slideCounters.spans += reach[at + 1] - reach[at];
+        for (let place = reach[at]; place < reach[at + 1]; place++) {
+            const id = order[place];
+            if (ends[id] > from && !(starts[id] < notTo && ends[id] > notFrom)) {
+                const row = rowOf[id];
+                if (overlaps[row] === zero) {
+                    touched.push(row);
+                }
+
+                overlaps[row] += delta;
+            }
+        }
+    }
+}
+
+/**
+ * Move a kind of spans to a far window. When the two windows reach few spans, only those are read,
+ * from the kind's duration buckets, and a span overlapping both changes nothing; when they reach
+ * many, one flat read of every span costs less than following the buckets.
+ * @param kind - The kind.
+ * @param spans - Its spans.
+ * @param from - The window's start.
+ * @param to - The window's end.
+ * @returns The rows that crossed in or out, ascending.
+ */
+function jumpSpans(kind: KindState, spans: TimeSpans, from: number, to: number): Uint32Array {
+    const buckets = bucketsOf(spans);
+    const old = reachOf(buckets, kind.from, kind.to);
+    const now = reachOf(buckets, from, to);
+    let reached = 0;
+    for (let at = 0; at < old.length; at += 2) {
+        reached += old[at + 1] - old[at] + now[at + 1] - now[at];
+    }
+
+    if (reached * SCAN_SHARE > spans.starts.length) {
+        return scanSpans(kind, spans, from, to);
+    }
+
+    const { inside, index } = kind;
+    const overlaps = kind.overlaps as Int32Array;
+    const touched: number[] = [];
+    countReach(kind, spans, buckets, old, [kind.from, from, to], -1, touched);
+    countReach(kind, spans, buckets, now, [from, kind.from, kind.to], 1, touched);
+
+    // A row that went to zero and back is no row at all; one listed twice is changed once.
+    let crossed = 0;
+    const out = new Uint32Array(touched.length);
+    for (const row of touched) {
+        const holds = overlaps[row] > 0 ? 1 : 0;
+        if (inside[row] !== holds) {
+            inside[row] = holds;
+            out[crossed++] = row;
+        }
+    }
+
+    kind.lo = endedBy(index, from);
+    kind.hi = lowerBound(index.sorted, to);
+    kind.from = from;
+    kind.to = to;
+
+    return out.subarray(0, crossed).sort();
 }
 
 /**
@@ -176,8 +441,14 @@ export function bytesOf(test: ((index: number) => boolean) | null, count: number
  */
 function placeWindow(kind: KindState, from: number, to: number, missingInside: boolean): void {
     const { inside, index } = kind;
-    const { rows, sorted } = index;
+    const { rows, sorted, spans } = index;
     const missing = missingInside ? 1 : 0;
+    if (spans !== null) {
+        inside.fill(missing);
+        scanSpans(kind, spans, from, to);
+        return;
+    }
+
     for (let row = 0; row < inside.length; row++) {
         const at = rows[row];
         if (Number.isNaN(at)) {
@@ -283,7 +554,7 @@ function nodeShows(state: SlideState, row: number): boolean {
  * @param row - The edge.
  * @returns True when it passes.
  */
-function edgePasses(state: SlideState, row: number): boolean {
+export function edgePasses(state: SlideState, row: number): boolean {
     return (
         (state.edge === null || state.edge.inside[row] === 1) &&
         (state.filterEdges === null || state.filterEdges[row] === 1)
@@ -291,9 +562,9 @@ function edgePasses(state: SlideState, row: number): boolean {
 }
 
 /**
- * Where a kind's window sits in its index.
+ * Where a kind's window sits in its index: the spans overlapping it are as many as the difference.
  * @param kind - The kind, or null.
- * @returns The first sorted position and one past the last.
+ * @returns The spans ended by its start, and those starting before its end.
  */
 function stretchOf(kind: KindState | null): readonly [number, number] {
     return [kind?.lo ?? 0, kind?.hi ?? 0];
@@ -309,8 +580,30 @@ function stretchOf(kind: KindState | null): readonly [number, number] {
 function distanceTo(kind: KindState | null, from: number, to: number): number {
     return kind === null
         ? 0
-        : Math.abs(lowerBound(kind.index.sorted, from) - kind.lo) +
-              Math.abs(lowerBound(kind.index.sorted, to) - kind.hi);
+        : Math.abs(endedBy(kind.index, from) - kind.lo) + Math.abs(lowerBound(kind.index.sorted, to) - kind.hi);
+}
+
+/**
+ * Whether a kind holds spans, so nothing but its columns says what a jump leaves inside.
+ * @param kind - The kind, or null.
+ * @returns True for spans.
+ */
+function holdsSpans(kind: KindState | null): boolean {
+    return (kind?.overlaps ?? null) !== null;
+}
+
+/**
+ * Add a stretch of a sorted order to its rows' counts of overlapping spans.
+ * @param overlaps - The counts.
+ * @param perm - The order's rows.
+ * @param stretch - The stretch's first position, and one past its last.
+ * @param delta - 1 or -1.
+ */
+function shiftOverlaps(overlaps: Int32Array, perm: Uint32Array, stretch: readonly number[], delta: 1 | -1): void {
+    const [start, end] = stretch;
+    for (let at = start; at < end; at++) {
+        overlaps[perm[at]] += delta;
+    }
 }
 
 /**
@@ -325,21 +618,28 @@ function crossRows(kind: KindState | null, from: number, to: number): Uint32Arra
         return NO_ROWS.left;
     }
 
-    const { inside, index } = kind;
-    const { perm, sorted } = index;
-    const lo = lowerBound(sorted, from);
+    const { inside, overlaps, index } = kind;
+    const { perm, endPerm, sorted } = index;
+    const lo = endedBy(index, from);
     const hi = lowerBound(sorted, to);
-    const stretches = [
-        [Math.min(lo, kind.lo), Math.max(lo, kind.lo)],
-        [Math.min(hi, kind.hi), Math.max(hi, kind.hi)],
-    ];
-    const out = new Uint32Array(stretches[0][1] - stretches[0][0] + stretches[1][1] - stretches[1][0]);
+    const ended = [Math.min(lo, kind.lo), Math.max(lo, kind.lo)];
+    const started = [Math.min(hi, kind.hi), Math.max(hi, kind.hi)];
+    slideCounters.rows += ended[1] - ended[0] + started[1] - started[0];
+    if (overlaps !== null) {
+        shiftOverlaps(overlaps, endPerm, ended, lo > kind.lo ? -1 : 1);
+        shiftOverlaps(overlaps, perm, started, hi > kind.hi ? 1 : -1);
+    }
+
+    const out = new Uint32Array(ended[1] - ended[0] + started[1] - started[0]);
     let crossed = 0;
-    for (const [start, end] of stretches) {
-        slideCounters.rows += end - start;
+    // Counted first, so a row a move passes from one side to the other is no row at all.
+    for (const [order, [start, end]] of [
+        [endPerm, ended],
+        [perm, started],
+    ] as const) {
         for (let at = start; at < end; at++) {
-            const row = perm[at];
-            const now = at >= lo && at < hi ? 1 : 0;
+            const row = order[at];
+            const now = insideAfter(overlaps, row, at, lo, hi);
             if (inside[row] !== now) {
                 inside[row] = now;
                 out[crossed++] = row;
@@ -349,7 +649,24 @@ function crossRows(kind: KindState | null, from: number, to: number): Uint32Arra
 
     kind.lo = lo;
     kind.hi = hi;
+    kind.from = from;
+    kind.to = to;
     return out.subarray(0, crossed);
+}
+
+/**
+ * Whether a row is inside after a move. An instant needs no count: it is inside while its one
+ * position is.
+ * @param overlaps - The counts of overlapping spans; null for a kind of instants.
+ * @param row - The row.
+ * @param at - Its sorted position.
+ * @param lo - The window's first sorted position.
+ * @param hi - One past its last.
+ * @returns 1 for inside.
+ */
+function insideAfter(overlaps: Int32Array | null, row: number, at: number, lo: number, hi: number): 0 | 1 {
+    const holds = overlaps === null ? at >= lo && at < hi : overlaps[row] > 0;
+    return holds ? 1 : 0;
 }
 
 /**
@@ -495,9 +812,9 @@ function walkArcs(
  * @param graph - The snapshot.
  * @returns The rows; infinite when other edges can show too (those with no instant, or no index).
  */
-function windowRows(state: SlideState, graph: GraphSnapshot): number {
+export function windowRows(state: SlideState, graph: GraphSnapshot): number {
     const { edge, missingInside } = state;
-    return edge !== null && (!missingInside || edge.index.timed === graph.edgeCount)
+    return edge !== null && !holdsSpans(edge) && (!missingInside || edge.index.timed === graph.edgeCount)
         ? edge.hi - edge.lo
         : Number.POSITIVE_INFINITY;
 }
@@ -603,22 +920,67 @@ function rewriteEdges(
     diff: RowDiff,
 ): void {
     const [start, end] = stretch;
+    slideCounters.rewritten += end - start;
     const { src, dst } = graph.edgeList();
     const { filterEdges } = state;
     const inside = state.edge?.inside ?? null;
     for (let at = start; at < end; at++) {
         const row = perm === null ? at : perm[at];
-        const passes =
-            (inside === null || inside[row] === 1) &&
-            (filterEdges === null || filterEdges[row] === 1) &&
-            nodeBytes[src[row]] === 1 &&
-            nodeBytes[dst[row]] === 1;
-        const shows = passes ? 1 : 0;
+        // All four read, with no branch between them: which rows pass is random.
+        const shows =
+            (inside === null ? 1 : inside[row]) &
+            (filterEdges === null ? 1 : filterEdges[row]) &
+            nodeBytes[src[row]] &
+            nodeBytes[dst[row]];
         if (shows !== bytes[row]) {
             bytes[row] = shows;
             diff.note(row, shows);
         }
     }
+}
+
+/**
+ * Write only what a jump can have changed, when that is little enough: the edges that crossed, read
+ * in row order so no dearer than a flat pass over them, and the edges of nodes that came or went.
+ * @param state - The slide.
+ * @param graph - The snapshot.
+ * @param nodeBytes - The node mask's bytes, already written.
+ * @param bytes - The edge mask's bytes.
+ * @param crossed - The edges that crossed, ascending.
+ * @param moved - The nodes that came and went.
+ * @returns The edges that came and went, or null when the moved nodes hold too many edges to walk.
+ */
+function rewriteCrossed(
+    state: SlideState,
+    graph: GraphSnapshot,
+    nodeBytes: U8,
+    bytes: U8,
+    crossed: Uint32Array,
+    moved: ChangedRows,
+): ChangedRows | null {
+    const directions: readonly Arcs[] = graph.directed ? [graph, graph.reverse()] : [graph];
+    const nodes = [...moved.entered, ...moved.left];
+    const degrees = degreesOf(directions, nodes);
+    if (degrees > Math.max(MIN_BUDGET, (graph.nodeCount + graph.edgeCount) / BUDGET_SHARE)) {
+        return null;
+    }
+
+    const diff = new RowDiff(crossed.length + degrees);
+    rewriteEdges(state, graph, nodeBytes, bytes, crossed, [0, crossed.length], diff);
+    const walked: MovedRows = { entered: [], left: [] };
+    for (const arcs of directions) {
+        walkArcs(state, nodeBytes, bytes, arcs, nodes, walked);
+    }
+
+    for (const row of walked.entered) {
+        diff.note(row, 1);
+    }
+
+    for (const row of walked.left) {
+        diff.note(row, 0);
+    }
+
+    return diff.rows();
 }
 
 /**
@@ -658,6 +1020,65 @@ function holdsFor(state: SlideState, target: SlideTarget, window: TimeWindow): b
 }
 
 /**
+ * What the next moves step from, with the window in place.
+ * @param target - The masks and what they are read from.
+ * @param window - The window.
+ * @returns The state, or null when an index alone cannot say what the window keeps.
+ */
+export function slideState(target: SlideTarget, window: TimeWindow): SlideState | null {
+    const { graph, nodes, edges } = target;
+    const [from, to] = target.bounds(window);
+    const missingInside = window.missing !== "outside";
+    const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
+        if (instants === null || instants.timed === 0) {
+            return null;
+        }
+
+        if (!isSlidable(instants)) {
+            return undefined;
+        }
+
+        const kind = {
+            index: instants,
+            inside: new Uint8Array(count),
+            overlaps: instants.spans === null ? null : new Int32Array(count),
+            scanned: null,
+            lo: 0,
+            hi: 0,
+            from,
+            to,
+        };
+        placeWindow(kind, from, to, missingInside);
+        return kind;
+    };
+    const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
+    const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
+    if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
+        return null;
+    }
+
+    const filter = target.filterBytes();
+    const ends = window.nodes === "ends";
+
+    return {
+        graph,
+        filter: target.filter,
+        attribute: window.attribute,
+        missingInside,
+        ends,
+        filterNodes: filter.nodes,
+        filterEdges: filter.edges,
+        node,
+        edge,
+        nodeIndex: target.instants.node,
+        edgeIndex: target.instants.edge,
+        endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
+        nodeVersion: nodes.version,
+        edgeVersion: edges.version,
+    };
+}
+
+/**
  * Moves a time window through the visibility masks a frame at a time.
  */
 export class WindowSlider {
@@ -688,54 +1109,13 @@ export class WindowSlider {
      * @returns The counts against the masks before the pass.
      */
     private rebuild(target: SlideTarget, window: TimeWindow): SlideCounts {
-        const { graph, nodes, edges } = target;
+        const { nodes, edges } = target;
         const wasNodes = nodes.bytes();
         const wasEdges = edges.bytes();
         target.evaluate(window);
-        this.state = null;
-
-        const [from, to] = target.bounds(window);
-        const missingInside = window.missing !== "outside";
-        const kindOf = (instants: TimeInstants | null, count: number): KindState | null | undefined => {
-            if (instants === null || instants.timed === 0) {
-                return null;
-            }
-
-            if (!isSlidable(instants)) {
-                return undefined;
-            }
-
-            const kind = { index: instants, inside: new Uint8Array(count), lo: 0, hi: 0 };
-            placeWindow(kind, from, to, missingInside);
-            return kind;
-        };
-        const node = kindOf(target.instants?.node ?? null, graph.nodeCount);
-        const edge = kindOf(target.instants?.edge ?? null, graph.edgeCount);
         const counts = diffCounts(wasNodes, nodes.bytes(), wasEdges, edges.bytes());
-        if (node === undefined || edge === undefined || target.instants === null || target.readsRecords(window)) {
-            // A kind whose records the window reads: every move is a full pass.
-            return counts;
-        }
-
-        const filter = target.filterBytes();
-        const ends = window.nodes === "ends";
-
-        this.state = {
-            graph,
-            filter: target.filter,
-            attribute: window.attribute,
-            missingInside,
-            ends,
-            filterNodes: filter.nodes,
-            filterEdges: filter.edges,
-            node,
-            edge,
-            nodeIndex: target.instants.node,
-            edgeIndex: target.instants.edge,
-            endCount: ends ? countEnds(graph, edge, missingInside, filter.edges) : null,
-            nodeVersion: nodes.version,
-            edgeVersion: edges.version,
-        };
+        // Null for a kind whose records the window reads: every move is a full pass.
+        this.state = slideState(target, window);
 
         return counts;
     }
@@ -752,14 +1132,22 @@ export class WindowSlider {
         const { graph } = target;
         const { node, edge } = state;
         const edgeWas = stretchOf(edge);
-        if (node !== null) {
+        const nodeSpans = node?.index.spans ?? null;
+        const edgeSpans = edge?.index.spans ?? null;
+        let crossed: Uint32Array | null = null;
+        if (node !== null && nodeSpans !== null) {
+            jumpSpans(node, nodeSpans, from, to);
+        } else if (node !== null) {
             markRows(node, node.lo, node.hi, 0);
             node.lo = lowerBound(node.index.sorted, from);
             node.hi = lowerBound(node.index.sorted, to);
             markRows(node, node.lo, node.hi, 1);
         }
 
-        if (edge !== null) {
+        if (edge !== null && edgeSpans !== null) {
+            crossed = jumpSpans(edge, edgeSpans, from, to);
+            countCrossed(graph, state, crossed, []);
+        } else if (edge !== null) {
             markRows(edge, edge.lo, edge.hi, 0);
             shiftEnds(graph, state, edge, -1);
             edge.lo = lowerBound(edge.index.sorted, from);
@@ -768,7 +1156,7 @@ export class WindowSlider {
             shiftEnds(graph, state, edge, 1);
         }
 
-        return this.rewrite(target, state, edgeWas);
+        return this.rewrite(target, state, edgeWas, crossed);
     }
 
     /**
@@ -779,9 +1167,15 @@ export class WindowSlider {
      * @param target - The masks.
      * @param state - What the move left.
      * @param edgeWas - The old window's stretch of the edges.
+     * @param crossed - The edges a scan found crossing, when one ran.
      * @returns The counts.
      */
-    private rewrite(target: SlideTarget, state: SlideState, edgeWas: readonly [number, number]): SlideCounts {
+    private rewrite(
+        target: SlideTarget,
+        state: SlideState,
+        edgeWas: readonly [number, number],
+        crossed: Uint32Array | null = null,
+    ): SlideCounts {
         const { graph, nodes, edges } = target;
         const { edge } = state;
         slideCounters.jumps++;
@@ -794,6 +1188,12 @@ export class WindowSlider {
         const n = nodes.rewrite((nodeBytes) => {
             const moved = rewriteNodes(state, nodeBytes, graph.nodeCount);
             e = edges.rewrite((edgeBytes) => {
+                const walked =
+                    crossed === null ? null : rewriteCrossed(state, graph, nodeBytes, edgeBytes, crossed, moved);
+                if (walked !== null) {
+                    return walked;
+                }
+
                 const diff = new RowDiff(perm === null ? graph.edgeCount : room);
                 for (const stretch of perm === null ? [[0, graph.edgeCount]] : [was, now]) {
                     rewriteEdges(state, graph, nodeBytes, edgeBytes, perm, stretch, diff);
@@ -823,9 +1223,11 @@ export class WindowSlider {
         const budget = Math.max(MIN_BUDGET, (graph.nodeCount + graph.edgeCount) / BUDGET_SHARE);
         const edgeWas = stretchOf(state.edge);
         const nodeWas = stretchOf(state.node);
-        const stretches = edgeWas[1] - edgeWas[0] + nodeWas[1] - nodeWas[0];
+        const stretches =
+            holdsSpans(state.edge) || holdsSpans(state.node) ? 0 : edgeWas[1] - edgeWas[0] + nodeWas[1] - nodeWas[0];
         const distance = distanceTo(state.edge, from, to) + distanceTo(state.node, from, to);
         // A move inside the window's own length costs less walked than the window does redone.
+        // Spans have no such stretch: a jump reads the spans near either window from their buckets.
         if (distance > Math.max(budget, 2 * stretches)) {
             return this.jump(target, state, from, to);
         }

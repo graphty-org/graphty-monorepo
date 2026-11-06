@@ -10,6 +10,7 @@ reaches a published package. Install it once with `pnpm install --frozen-lockfil
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `BENCH_URL`, `BENCH_RESULTS` | The page, and the file a run appends its row to                                                                                                                          | Required                                                     |
 | `BENCH_RENDER_PATH`          | graphty-element's `renderPath` option, recorded in the row as `renderPath`. A build without the option ends the run with a failure instead of measuring its default path | Unset: the element's default                                 |
+| `BENCH_RENDERER`             | graphty-element's `renderer` option, recorded in the row as `rendererRequest`                                                                                            | Unset: WebGL                                                 |
 | `BENCH_TOOLS`                | The checkout whose Playwright and `tools/with-browser.sh` run the browser                                                                                                | This checkout                                                |
 | `BENCH_EGL`                  | The directory of the extracted libEGL                                                                                                                                    | `tmp/egl/root/usr/lib/x86_64-linux-gnu` in the main checkout |
 | `BENCH_DEADLINE_S`           | Seconds before a run ends as `did not finish`                                                                                                                            | 570                                                          |
@@ -50,7 +51,8 @@ It answers with a URL. Then, in every Bash call below:
     mkdir -p ../results/$LABEL
 
 To measure a render path, also export `BENCH_RENDER_PATH=batched` (or `objects`), and give each path its own
-`LABEL`: `summarize.mjs` pools the rows of a file, whatever their path.
+`LABEL`: `summarize.mjs` pools the rows of a file, whatever their path. Under `batched` a graphty run records
+`rowCounts` after the load and fails if any node is not on a batch.
 
 ## 3. Measure
 

@@ -15,6 +15,11 @@
  * a filter change, with no window; `binsWindowed` the same under a window, which reads the filter's
  * tests again where the masks cannot answer.
  *
+ * `series` is a whole `time.series` of 100 windows spanning the data, counted with no mask written.
+ *
+ * `long-lived` is a fourth graph, of spans: half its edges are tenures of one to three years, so much
+ * of the graph overlaps any window, and half are one-day events.
+ *
  * Two more cases time only the build, the one budget that depends on where the values live: edge
  * records loaded through `session.data`, as an application's are, and date text with no offset read
  * in a named zone. The three graphs above read through the test harness's own record maps.
@@ -59,7 +64,7 @@ const BURST_SPAN = 3 * DAY;
 const JUMP_ORDER = [3, 0, 5, 1, 6, 2, 4];
 
 /** Design 5.2's budgets, in milliseconds. */
-const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5, binsWindowed: 5 };
+const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5, binsWindowed: 5, series: 100 };
 type Measure = keyof typeof BUDGET_MS;
 
 /** Design 5.2's memory: 24 bytes per timed element, and 1 per element for the cached filter mask. */
@@ -146,6 +151,20 @@ const CASES: Record<string, () => Graph> = {
             (next) => zipf(next, NODES),
             (next) => bursts[zipf(next, BURSTS)] + Math.floor(next() * BURST_SPAN),
         );
+    },
+    "long-lived": () => {
+        const graph = graphOf(
+            5,
+            { edges: { start: "t", end: "u" } },
+            (next) => Math.floor(next() * NODES),
+            (next) => START + Math.floor(next() * SPAN),
+        );
+        const length = mulberry32(6);
+        graph.edges.forEach((edge, at) => {
+            edge.u = (edge.t as number) + (at % 2 === 0 ? DAY : (1 + 2 * length()) * 365 * DAY);
+        });
+
+        return graph;
     },
 };
 
@@ -365,6 +384,9 @@ describe("the timeline at 1,000,000 edges", () => {
                 },
             );
 
+            const span = time.extent();
+            const seriesStep = ((span?.to ?? 0) - (span?.from ?? 0)) / 100;
+            let seriesRows = 0;
             const timings: Record<Measure, Timing> = {
                 jump: await timed(seek),
                 stepBy: await timed(
@@ -384,6 +406,9 @@ describe("the timeline at 1,000,000 edges", () => {
                 bins: await timed(() => time.bins({ count: BINS })),
                 binsVisible,
                 binsWindowed,
+                series: await timed(async () => {
+                    seriesRows = (await time.series({ step: seriesStep, measures: ["density"] })).rows.length;
+                }),
                 // A new data token drops the index; the snapshot is rebuilt before the clock starts. The
                 // `extent()` asks for the build, and `ready` holds until it is done.
                 build: await timed(
@@ -405,6 +430,7 @@ describe("the timeline at 1,000,000 edges", () => {
             assert.isAbove(visibleEdges, 0);
             // Nor can a histogram that reached only a few of the rows.
             assert.isAbove(binnedRows, timedRows / 2);
+            assert.isAtLeast(seriesRows, 100);
 
             for (const measure of Object.keys(BUDGET_MS) as Measure[]) {
                 const timing = timings[measure];

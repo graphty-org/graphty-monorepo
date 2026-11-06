@@ -203,7 +203,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 7 | 5 | 0 | - | - | 0 | 17919 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 1392 | 0 |  |
-| gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 3 | 31 | 100% | 0% | 0 | 966 | 0 |  |
+| gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 4 | 31 | 100% | 0% | 0 | 966 | 0 |  |
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 875 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 520 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 272 | 0 |  |
@@ -212,16 +212,16 @@ Tool values are elements drawn with the writing program's default.
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 87 | 0% | 0% | 0 | 1170 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 7 | 74 | 14% | 0% | 0 | 130 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 4 | 74 | 14% | 0% | 0 | 160 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | gml/generated/networkx-graphics.gml | ok | 24 | 30 | 3 | 2 | 45 | 33% | 0% | 0 | 0 | 0 |  |
 | gml/generated/ogdf-escaped-labels.gml | ok | 25 | 35 | 10 | 6 | 67 | 18% | 4% | 0 | 240 | 0 |  |
 | gml/generated/tamper-block-truncated.gml | ok | 30 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 7 | 74 | 15% | 1% | 0 | 130 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 4 | 74 | 15% | 1% | 0 | 160 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 7 | 34 | 0% | 0% | 0 | 432 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
+| gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 4 | 34 | 0% | 0% | 0 | 432 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 7980 | 0 |  |
-| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 7 | 4 | 483 | 83% | 8% | 0 | 1017 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_UNKNOWN_VALUE |
+| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 6 | 4 | 483 | 84% | 9% | 0 | 1024 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 9 | 7 | 98 | 76% | 4% | 0 | 503 | 0 |  |
 | graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 4 | 3 | 49 | 100% | 8% | 0 | 82 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 237 | 0 |  |
@@ -232,9 +232,9 @@ Tool values are elements drawn with the writing program's default.
 | graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 2274 | 0 |  |
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
-| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 143 | 59% | 10% | 0 | 385 | 0 | W_STYLE_NO_FILL |
+| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 144 | 59% | 10% | 0 | 385 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 108 | 74% | 12% | 0 | 381 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 6 | 143 | 59% | 2% | 0 | 293 | 0 |  |
+| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 143 | 59% | 2% | 0 | 293 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 452 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 5 | 6 | 59 | 54% | 0% | 0 | 311 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 526 | 0 | W_STYLE_UNKNOWN_VALUE |
@@ -264,31 +264,31 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 17 | 0 |  |
 | graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 41 | 0 |  |
 | graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 154 | 56% | 3% | 0 | 224 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 39 | 51% | 0% | 0 | 52 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 7 | 5 | 444 | 76% | 3% | 0 | 942 | 0 |  |
+| graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 45 | 58% | 0% | 0 | 52 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 942 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 4 | 1 | 80 | 63% | 0% | 0 | 181 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2338 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 7 | 3 | 736 | 93% | 5% | 0 | 1472 | 0 |  |
+| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 1472 | 0 |  |
 | graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 89 | 0 |  |
-| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 7 | 3 | 19 | 74% | 37% | 0 | 60 | 0 |  |
-| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 8 | 4 | 35 | 29% | 3% | 0 | 76 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 6 | 33 | 73% | 0% | 0 | 47 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 19 | 74% | 37% | 0 | 60 | 0 |  |
+| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 4 | 35 | 29% | 3% | 0 | 76 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 3 | 33 | 100% | 0% | 0 | 47 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | 6 | 3 | 23 | 35% | 26% | 0 | 50 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 7 | 4 | 120 | 46% | 2% | 0 | 195 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 7 | 4 | 122 | 45% | 2% | 0 | 195 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-shapenode/voc__voctomix__schema.graphml | ok | 43 | 48 | 4 | 4 | 244 | 47% | 0% | 0 | 354 | 0 |  |
 | graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml | ok | 2 | 0 | 3 | 1 | 2 | 100% | 0% | 0 | 16 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 5 | 3 | 143 | 56% | 1% | 0 | 452 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 5 | 3 | 147 | 54% | 1% | 0 | 452 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml | ok | 17 | 0 | 3 | 1 | 39 | 49% | 0% | 0 | 75 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 4 | 21 | 43% | 38% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 21 | 43% | 38% | 0 | 50 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 23 | 100% | 26% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 117 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 61 | 100% | 0% | 0 | 141 | 0 |  |
-| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 5 | 3 | 71 | 32% | 4% | 0 | 222 | 0 | W_STYLE_GRADIENT |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 8 | 6 | 264 | 93% | 26% | 0 | 1598 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 3 | 2 | 27 | 44% | 0% | 0 | 90 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 85 | 100% | 0% | 0 | 141 | 0 |  |
+| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 71 | 32% | 4% | 27 | 222 | 0 | W_STYLE_GRADIENT, W_STYLE_RAMP_ROUNDED |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 7 | 6 | 264 | 96% | 26% | 0 | 1598 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 29 | 48% | 0% | 0 | 90 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 44 | 48% | 11% | 0 | 45 | 0 |  |
-| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 184 | 0 |  |
-| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 13 | 100% | 0% | 0 | 69 | 0 |  |
+| graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 7 | 3 | 17 | 6% | 6% | 0 | 184 | 0 |  |
+| graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 3 | 13 | 100% | 0% | 0 | 69 | 0 |  |
 | json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 4 | 965 | 0% | 0% | 0 | 13382 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 15901 | 0 |  |
 | json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 3 | 5 | 0 | - | - | 0 | 1533 | 0 | W_STYLE_SELECTOR_AS_COLUMN |

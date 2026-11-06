@@ -3,11 +3,14 @@
  * on every node shape, across from itself and across from a sphere, with and without borders, gaps
  * and arrow heads, `trimEnds` lands within 1e-4 of `Edge.getInterceptPoints`, and the shader's
  * include, read back through transform feedback, lands within 1e-4 of `trimEnds`.
+ *
+ * Then stage 7: with a batch drawing either end or both, `getInterceptPoints` lands within 1e-4 of
+ * what the meshes say, and neither it nor the arrow cap's placing reads a batched row's mesh.
  */
 
 import "../../src/graphty-element";
 
-import { Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -25,6 +28,7 @@ import {
     trimEnds,
     type TrimmedEnds,
 } from "../../src/meshes/edgeTrim";
+import type { Node } from "../../src/Node";
 
 const TOLERANCE = 1e-4;
 
@@ -415,55 +419,229 @@ describe.each(["3d", "2d"] as const)("the edge trim in %s", (viewMode) => {
     });
 });
 
+/**
+ * Three groups of different shapes and one free node, joined every way.
+ * @returns The element.
+ */
+async function grouped(): Promise<Graphty> {
+    const element = await drawn("2d", [], [], []);
+    const groups = ["box", "oval", "star"];
+    const saved = JSON.stringify({
+        elements: {
+            nodes: [
+                ...groups.flatMap((id, i) => [
+                    { data: { id } },
+                    { data: { id: `${id}-1`, parent: id }, position: { x: 0, y: i * 300 } },
+                    { data: { id: `${id}-2`, parent: id }, position: { x: 100, y: i * 300 + 40 } },
+                ]),
+                { data: { id: "free" }, position: { x: 400, y: 20 } },
+            ],
+            edges: [
+                ...groups.flatMap((id) => [
+                    { data: { id: `${id}-out`, source: id, target: "free" } },
+                    { data: { id: `${id}-in`, source: "free", target: id } },
+                ]),
+                { data: { id: "across", source: "box", target: "oval" } },
+            ],
+        },
+        style: [{ selector: "edge", style: { "target-arrow-shape": "triangle", "curve-style": "straight" } }],
+    });
+    await element.graph.addDataFromSource("json", { data: saved });
+    await operationQueueOf(element.graph).waitForCompletion();
+    for (const [id, shape] of [
+        ["box", "rectangle"],
+        ["oval", "ellipse"],
+        ["star", "star"],
+    ]) {
+        await element.session.styles.add({
+            name: id ?? "",
+            target: "node",
+            selector: { match: "ids", nodes: [id ?? ""] },
+            set: { "node.shape": shape },
+        });
+    }
+
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    const { nodes } = element.graph.getDataManager();
+    for (const id of groups) {
+        assert.isTrue(nodes.get(id)?.isDrawnAsGroup, `${id} is drawn as a region`);
+    }
+
+    return element;
+}
+
 describe("the edge trim at a group", () => {
     it("leaves the region through its outline, whatever its shape", async () => {
-        const element = await drawn("2d", [], [], []);
-        const groups = ["box", "oval", "star"];
-        const saved = JSON.stringify({
-            elements: {
-                nodes: [
-                    ...groups.flatMap((id, i) => [
-                        { data: { id } },
-                        { data: { id: `${id}-1`, parent: id }, position: { x: 0, y: i * 300 } },
-                        { data: { id: `${id}-2`, parent: id }, position: { x: 100, y: i * 300 + 40 } },
-                    ]),
-                    { data: { id: "free" }, position: { x: 400, y: 20 } },
-                ],
-                edges: [
-                    ...groups.flatMap((id) => [
-                        { data: { id: `${id}-out`, source: id, target: "free" } },
-                        { data: { id: `${id}-in`, source: "free", target: id } },
-                    ]),
-                    { data: { id: "across", source: "box", target: "oval" } },
-                ],
-            },
-            style: [{ selector: "edge", style: { "target-arrow-shape": "triangle", "curve-style": "straight" } }],
-        });
-        await element.graph.addDataFromSource("json", { data: saved });
-        await operationQueueOf(element.graph).waitForCompletion();
-        for (const [id, shape] of [
-            ["box", "rectangle"],
-            ["oval", "ellipse"],
-            ["star", "star"],
-        ]) {
-            await element.session.styles.add({
-                name: id ?? "",
-                target: "node",
-                selector: { match: "ids", nodes: [id ?? ""] },
-                set: { "node.shape": shape },
-            });
-        }
-
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
-        const { nodes } = element.graph.getDataManager();
-        for (const id of groups) {
-            assert.isTrue(nodes.get(id)?.isDrawnAsGroup, `${id} is drawn as a region`);
-        }
+        const element = await grouped();
 
         assert.deepEqual(mirrorMisses(element), [], "the mirror lands where the mesh path does");
         assert.lengthOf(shaderInputs(element), 5, "all but a star's edges reach the shader");
         assert.deepEqual(shaderMisses(shaderInputs(element)), [], "the shader lands where the mirror does");
+    });
+});
+
+/**
+ * Say a batch draws a node, or that it has its own mesh again.
+ * @param node - The node.
+ * @param batched - Which.
+ */
+function batch(node: Node, batched: boolean): void {
+    node.drawInBatch(batched ? node.drawnSourceMesh : null);
+}
+
+/**
+ * Run something, counting every use of some nodes' meshes. Each node is handed a counting stand-in
+ * for its mesh, so a use is counted however it reaches the node's private field: through `mesh`,
+ * `drawnPickMesh` or any other `drawn*` accessor inside Node.
+ * @param nodes - The nodes.
+ * @param run - What to run; it must not wait.
+ * @returns How many uses there were.
+ */
+function meshReads(nodes: readonly Node[], run: () => void): number {
+    let reads = 0;
+    const count = {
+        get: (target: AbstractMesh, key: PropertyKey): unknown => {
+            reads++;
+            return Reflect.get(target, key);
+        },
+        has: (target: AbstractMesh, key: PropertyKey): boolean => {
+            reads++;
+            return Reflect.has(target, key);
+        },
+    };
+    const held = nodes.map((node) => node.mesh);
+    nodes.forEach((node, i) => {
+        node.mesh = new Proxy(held[i], count);
+    });
+    try {
+        run();
+    } finally {
+        nodes.forEach((node, i) => {
+            node.mesh = held[i];
+        });
+    }
+
+    return reads;
+}
+
+/**
+ * Every edge's ends with a mesh against its ends with a batch drawing some of its nodes.
+ * @param element - The element.
+ * @param batched - Which of an edge's nodes the batch draws.
+ * @returns The edges past tolerance, or reading a mesh a batch stands in for, each with how far.
+ */
+function meshFreeMisses(element: Graphty, batched: (edge: Edge) => readonly Node[]): string[] {
+    element.graph.openRowTable();
+    return [...element.graph.getDataManager().edges.values()].flatMap((edge) => {
+        const name = `${String(edge.srcNode.id)}->${String(edge.dstNode.id)}`;
+        const { srcPoint: src, dstPoint: dst, newEndPoint: lineEnd } = edge.getInterceptPoints();
+        const rows = batched(edge);
+        rows.forEach((node) => {
+            batch(node, true);
+        });
+        let free: ReturnType<Edge["getInterceptPoints"]> | null = null;
+        const reads = meshReads(rows, () => {
+            free = edge.getInterceptPoints();
+            edge.transformArrowCap();
+        });
+        rows.forEach((node) => {
+            batch(node, false);
+        });
+        assert.isNotNull(free);
+        const { srcPoint, dstPoint, newEndPoint } = free as unknown as ReturnType<Edge["getInterceptPoints"]>;
+        const miss = worst({ src, dst, lineEnd }, { src: srcPoint, dst: dstPoint, lineEnd: newEndPoint });
+        return [
+            ...(miss <= TOLERANCE ? [] : [`${name}: ${String(miss)}`]),
+            ...(reads === 0 ? [] : [`${name}: ${String(reads)} mesh reads`]),
+        ];
+    });
+}
+
+describe.each(["3d", "2d"] as const)("mesh-free ends in %s", (viewMode) => {
+    it("land where the mesh's ends land on every shape, and read no batched row's mesh", async () => {
+        const { nodes, edges, layers } = everyShape();
+        const element = await drawn(viewMode, nodes, edges, layers);
+
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.srcNode, e.dstNode]),
+            [],
+            "both ends batched",
+        );
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.srcNode]),
+            [],
+            "only the source batched",
+        );
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.dstNode]),
+            [],
+            "only the target batched",
+        );
+    });
+
+    it("land where the mesh's ends land under a turned, scaled graph root", async () => {
+        const { nodes, edges, layers } = everyShape();
+        const element = await drawn(viewMode, nodes, edges, layers);
+        const root = element.graph.getScene().getTransformNodeByName("graph-root");
+        assert.isNotNull(root);
+        root.position.set(3, -2, 1);
+        root.scaling.setAll(1.5);
+        root.rotation.y = 0.4;
+        root.computeWorldMatrix(true);
+
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.srcNode, e.dstNode]),
+            [],
+            "both ends batched",
+        );
+    });
+});
+
+describe("mesh-free ends of a row in motion", () => {
+    it("follow a moved node, and a node a transition has shrunk", async () => {
+        const element = await drawn(
+            "3d",
+            [
+                { id: "a", tag: "solid", position: { x: 0, y: 0, z: 0 } },
+                { id: "b", tag: "solid", position: { x: 6, y: 2, z: 1 } },
+            ],
+            [{ src: "a", dst: "b", tag: "head" }],
+            [
+                layer("edge", "head", { "edge.arrowHead": "normal" }),
+                layer("node", "solid", { "node.shape": "octahedron" }),
+            ],
+        );
+        const { nodes } = element.graph.getDataManager();
+        const [a, b] = [nodes.get("a"), nodes.get("b")];
+        assert.isDefined(a);
+        assert.isDefined(b);
+        element.graph.openRowTable();
+        a.setMeshPosition(1, 1, 0);
+        const scale = b.drawnScale;
+        b.drawShrunk(scale / 2, scale);
+
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.srcNode, e.dstNode]),
+            [],
+            "moved and shrunk",
+        );
+
+        b.drawShrunk(scale, scale);
+        assert.deepEqual(
+            meshFreeMisses(element, (e) => [e.srcNode, e.dstNode]),
+            [],
+            "whole again",
+        );
+    });
+});
+
+describe("mesh-free ends at a group", () => {
+    it("land where the mesh's ends land across from a group, which keeps its mesh", async () => {
+        const element = await grouped();
+
+        const free = (edge: Edge): Node[] => [edge.srcNode, edge.dstNode].filter((node) => !node.isDrawnAsGroup);
+        assert.deepEqual(meshFreeMisses(element, free), [], "the free node batched");
     });
 });
 

@@ -16,6 +16,7 @@ import {
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { pendingWorkOf } from "../managers/PendingWork";
 import { wantsLowDetail } from "../managers/ShaderGuard";
 import type { HostShader } from "../session/shaders";
 import { BATCH_ATTRIBUTES, BATCH_FLOATS, batchProgram, type BatchRole } from "../shaders/runtime/nodePrograms";
@@ -160,6 +161,13 @@ export class NodeBillboardBatch {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+        if (this.choosesDetail) {
+            this.stopDetailWatch = pendingWorkOf(scene)?.watch(
+                "shader",
+                "a heavy shader's small-size program is still to come",
+                () => this.detailIsOwed(),
+            );
+        }
     }
 
     /**
@@ -219,11 +227,47 @@ export class NodeBillboardBatch {
     }
 
     /** The cheap program's material, once asked for; see {@link chooseDetail}. */
-    private lowMaterial: { material: ShaderMaterial; ready: boolean } | null = null;
+    private lowMaterial: { material: ShaderMaterial; ready: boolean; compiling: boolean } | null = null;
     /** The camera's view and projection when the batch last looked, to see it come to rest. */
     private readonly cameraWas = new Float32Array(32);
     /** Whether the camera moved since the detail was last chosen. */
     private cameraMoved = true;
+    /** Whether the choice the next rest makes changes the program drawn; see {@link detailIsOwed}. */
+    private detailChangeOwed = true;
+    /** Takes the batch off the scene's record of pending work; absent when it never chooses. */
+    private readonly stopDetailWatch?: () => void;
+
+    /**
+     * Whether this batch has two programs to choose between.
+     * @returns True for a heavy surface with a cheap program, drawn on an impostor or a square.
+     */
+    private get choosesDetail(): boolean {
+        return (
+            this.shader.registration.lowDetail !== undefined && (this.role === "impostor" || this.role === "replace")
+        );
+    }
+
+    /**
+     * Whether a later frame draws another program than this one, so this frame is not the final
+     * picture: the choice comes the frame after the camera rests, then the cheap program compiles,
+     * then the frame after that swaps it in. Counted while the camera moves only when the rest
+     * would change the program, so a reader's drag that changes nothing holds nothing back, and
+     * never for a camera turning by itself, which never rests.
+     * ponytail: a VR camera never rests either; a wait there holds while its choice is owed. Tell
+     * this batch about it as `camera.autoRotate` does if a wait in a VR session ever needs it.
+     * @returns True while a change of program is still to come.
+     */
+    private detailIsOwed(): boolean {
+        const scene = this.mesh.getScene();
+        if (this.liveCount === 0 || scene.activeCamera === null) {
+            return false;
+        }
+
+        return (
+            this.lowMaterial?.compiling === true ||
+            (this.detailChangeOwed && pendingWorkOf(scene)?.cameraTurnsByItself !== true)
+        );
+    }
 
     /**
      * Choose the level of detail when the camera comes to rest (design section 5): a heavy
@@ -233,12 +277,7 @@ export class NodeBillboardBatch {
     private chooseDetail(): void {
         const { lowDetail } = this.shader.registration;
         const camera = this.mesh.getScene().activeCamera;
-        if (
-            lowDetail === undefined ||
-            (this.role !== "impostor" && this.role !== "replace") ||
-            camera === null ||
-            this.liveCount === 0
-        ) {
+        if (lowDetail === undefined || !this.choosesDetail || camera === null || this.liveCount === 0) {
             return;
         }
 
@@ -254,6 +293,8 @@ export class NodeBillboardBatch {
 
         if (moved) {
             this.cameraMoved = true;
+            const drawsLow = this.mesh.material !== this.material;
+            this.detailChangeOwed = wantsLowDetail(this.pixelSizes(view, projection)) !== drawsLow;
             return;
         }
 
@@ -262,6 +303,7 @@ export class NodeBillboardBatch {
         }
 
         this.cameraMoved = false;
+        this.detailChangeOwed = false;
         const low = wantsLowDetail(this.pixelSizes(view, projection));
         if (!low) {
             this.useMaterial(this.material);
@@ -269,16 +311,25 @@ export class NodeBillboardBatch {
         }
 
         if (this.lowMaterial === null) {
-            const entry = { material: this.buildMaterial(`${this.name}low`, lowDetail), ready: false };
+            const entry = {
+                material: this.buildMaterial(`${this.name}low`, lowDetail),
+                ready: false,
+                compiling: true,
+            };
             this.lowMaterial = entry;
             void entry.material.forceCompilationAsync(this.mesh).then(
                 () => {
                     entry.ready = true;
+                    entry.compiling = false;
                     // Chosen again on the next frame, from where the camera is then.
                     this.cameraMoved = true;
+                    this.detailChangeOwed = true;
                     this.checkMotionNextFrame();
                 },
-                () => undefined,
+                () => {
+                    // The full program goes on drawing: nothing further is to come.
+                    entry.compiling = false;
+                },
             );
             return;
         }
@@ -521,6 +572,7 @@ export class NodeBillboardBatch {
 
         this.gone = true;
         this.stopFlush();
+        this.stopDetailWatch?.();
         this.stopData();
         this.releaseMotion?.();
         this.releaseMotion = null;

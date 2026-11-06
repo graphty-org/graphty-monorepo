@@ -21,8 +21,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
-/** Long enough to need a CI shard of its own (tools/ci-test-matrix.mjs, graphty-large-graph). */
-const LARGE_GRAPH_TESTS = "src/workspace/selection/__tests__/LargeGraph.real-element.test.tsx";
+/** Long enough that each file needs a CI shard of its own (tools/ci-test-matrix.mjs, graphty-large-graph-N). */
+const LARGE_GRAPH_TESTS = "src/workspace/selection/__tests__/LargeGraph.*.real-element.test.tsx";
 /** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
 const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];

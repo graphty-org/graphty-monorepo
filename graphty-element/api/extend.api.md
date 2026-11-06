@@ -126,6 +126,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -151,6 +152,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -159,6 +161,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
+    readonly sharesDevice?: (adapter: unknown) => boolean;
 }
 
 // @public
@@ -2112,6 +2115,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -2119,8 +2124,10 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
+    // @internal
+    drawInBatch(source: AbstractMesh | null): void;
     // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
@@ -2136,10 +2143,16 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal
@@ -2194,8 +2207,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;

@@ -78,6 +78,12 @@ time a WebGPU graph opens on the page, about 1 MB together. The element fetches 
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
 says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
 
+## One device for drawing and layout
+
+With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapter is real hardware, the renderer and the accelerator
+run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
+If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
+
 ## Is WebGPU faster?
 
 Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are in the
@@ -85,6 +91,23 @@ Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are 
 At those sizes a frame is spent on the CPU -- the element's own update and Babylon.js deciding
 what to draw -- and under WebGL the GPU itself is busy for a small part of it (GPU time under
 WebGPU is not yet measured). That is why `webgl` stays the default.
+
+## Drawing many nodes at once
+
+By default every node is a mesh of its own. `render-path="batched"` draws every node that shares a
+look in one draw call instead, and the picture stays the same:
+
+```html
+<graphty-element render-path="batched"></graphty-element>
+```
+
+The path can change at any time. A node a batch cannot draw yet (one with a border, a label, a
+picture or transparency, say) stays a mesh, and so do the other nodes of its shape and size.
+`rowCounts` says how many nodes each path is drawing:
+
+```js
+const { batchedNodes, objectNodes } = element.rowCounts;
+```
 
 ## Drawing only when something changes
 

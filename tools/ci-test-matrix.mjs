@@ -48,7 +48,8 @@
  *   "never"                 never run it locally
  */
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -71,6 +72,9 @@ const ELEMENT_BROWSER_PARTS = 8;
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+
+/** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
+export const LARGE_GRAPH_PARTS = 4;
 
 // graphty's projects the five graphty parts run: all but the stories and large-graph, which have shards of their own.
 const GRAPHTY_PROJECTS = "--project=browser --project=real-element --project=eslint-rules --project=node";
@@ -278,17 +282,19 @@ const OFF_SHARDS = [
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
     })),
-    // LargeGraph.real-element.test.tsx, the `large-graph` project: alone at load average 20 it took 1,434 s of
-    // the file guard's 1,560 s (tools/test-wait-guard.mjs), and it held graphty-4 near the job's 30-minute limit.
+    // LargeGraph.*.real-element.test.tsx, the `large-graph` project, one file per part: as one file of 549 s
+    // locally it ran past the file guard's 1,560 s (tools/test-wait-guard.mjs) on a 4-core runner, about 3.2 times
+    // slower (run 42135560695). Vitest's --shard gives each of as many parts as there are files exactly one, and
+    // each file is planned at under half the guard, so a job fits its 30-minute limit with a re-run of its file.
     // Its pickers on 50,000 nodes pin their own experiments, so the On twins would repeat it: no twin runs it. No
-    // coverage: it would slow the file further, and the graphty parts measure the source.
-    {
-        shard: "graphty-large-graph",
+    // coverage: it would slow the files further, and the graphty parts measure the source.
+    ...Array.from({ length: LARGE_GRAPH_PARTS }, (_, i) => ({
+        shard: `graphty-large-graph-${i + 1}`,
         package: "graphty",
-        "test-command": "cd graphty && pnpm exec vitest run --project=large-graph",
+        "test-command": `cd graphty && pnpm exec vitest run --project=large-graph --shard=${i + 1}/${LARGE_GRAPH_PARTS}`,
         "needs-browser": true,
         local: "when-paths-change",
-    },
+    })),
     // graphty's stories: every play function run as a test, as graphty-element's storybook shards
     // do. No coverage: the stories exercise the same source the graphty shard measures.
     {
@@ -543,7 +549,7 @@ export const STORY_RUNS = {
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
- * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph (one file of about 24 minutes)
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
  * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
  */
 export const GROUPS = {
@@ -582,7 +588,7 @@ const NO_COVERAGE = new Set([
     "graphty-element-webgpu",
     "graphty-element-gpu-loss",
     "graphty-storybook",
-    "graphty-large-graph",
+    ...Array.from({ length: LARGE_GRAPH_PARTS }, (_, i) => `graphty-large-graph-${i + 1}`),
     "algorithms-storybook",
     "graph-io-storybook-1",
     "graph-io-storybook-2",
@@ -674,7 +680,7 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
                 : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
         });
     for (const [name, names] of Object.entries(GROUPS)) {
-        const members = names.map((n) => shards.find((s) => s.shard === n)).filter(wanted);
+        const members = names.map((n) => shards.find((s) => s.shard === n)).filter((s) => s && wanted(s));
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
@@ -808,8 +814,8 @@ export function outputLines(affected, only, light, pullRequest = false, shards =
     const planned = include.length <= 2 * MATRIX_CAP ? lines(include) : null;
     if (planned && size(planned) <= OUTPUTS_BUDGET) return planned;
     // a selected bin runs whether or not nx calls its package affected (plan()), so its whole shard must too
-    const selected = (light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]);
-    const packages = shards.filter((s) => selected.includes(s.shard)).map((s) => s.package);
+    const selected = new Set((light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]));
+    const packages = shards.filter((s) => selected.has(s.shard)).map((s) => s.package);
     const whole = lines(plan([...affected, ...packages], only, { none: light?.none }, pullRequest, shards));
     const sizes = whole.map((l) => `${l.slice(0, l.indexOf("="))} ${l.length}`).join(", ");
     if (size(whole) > OUTPUTS_BUDGET) {
@@ -819,6 +825,25 @@ export function outputLines(affected, only, light, pullRequest = false, shards =
         `::warning::the plan's ${include.length} test bins do not fit a job's outputs; shards run whole: ${sizes}`,
     );
     return whole;
+}
+
+/**
+ * Whether the checked-out commit has a vitest project this shard names. A full run's candidate is often older than
+ * the workflow, whose tools/ are overlaid on it (tools/own-tools-overlay.test.mjs), so SHARDS can name a project the
+ * commit does not have yet; vitest then fails with "No projects matched the filter" (#5996). Such an older commit
+ * still runs those tests, in the project that held them before. A shard with no --project, or whose config file is
+ * not there to read, fits: only a project that is certainly missing leaves a shard out.
+ * @param shard a SHARDS entry
+ * @param [root] the checkout
+ * @returns false when the shard's config holds none of the projects it names
+ */
+export function fitsCheckout(shard, root = fileURLToPath(new URL("..", import.meta.url))) {
+    const command = shard["test-command"];
+    const projects = [...command.matchAll(/--project=(\S+)/g)].map((m) => m[1].replace(`-${ON_SUFFIX}`, ""));
+    const config = join(root, shard.package, /--config[= ](\S+)/.exec(command)?.[1] ?? "vitest.config.ts");
+    if (projects.length === 0 || !existsSync(config)) return true;
+    const text = readFileSync(config, "utf8");
+    return projects.some((p) => text.includes(`"${p}"`));
 }
 
 /**
@@ -884,9 +909,15 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
+    const shards = SHARDS.filter((s) => fitsCheckout(s));
+    const dropped = SHARDS.filter((s) => !shards.includes(s)).map((s) => s.shard);
+    if (dropped.length > 0) {
+        console.error(`::notice::this commit has no vitest project for these shards, left out: ${dropped.join(" ")}`);
+    }
     console.log(`affected=${JSON.stringify(affected)}`);
     try {
-        for (const line of outputLines(affected, only, light, values["pull-request"] === true)) console.log(line);
+        const pullRequest = values["pull-request"] === true;
+        for (const line of outputLines(affected, only, light, pullRequest, shards)) console.log(line);
     } catch (e) {
         console.error(`::error::${e.message}`);
         process.exit(1);

@@ -3,6 +3,7 @@ import type { Observable, Scene } from "@babylonjs/core";
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { NodeBatches } from "../meshes/NodeBatch";
 import type { RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
@@ -76,6 +77,13 @@ export interface GraphContext {
      * @internal
      */
     getRowTable?(): RowTable | null;
+
+    /**
+     * The node batches, on the `"batched"` render path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches?(): NodeBatches | null;
 
     /**
      * Get the Babylon.js Scene

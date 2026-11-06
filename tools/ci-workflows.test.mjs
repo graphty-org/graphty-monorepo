@@ -29,6 +29,7 @@ import { parse as parseYaml } from "yaml";
 
 import {
     ciCommand,
+    fitsCheckout,
     groupEntry,
     GROUPS,
     MATRIX_CAP,
@@ -37,6 +38,7 @@ import {
     OUTPUTS_LIMIT,
     outputLines,
     parseOnly,
+    LARGE_GRAPH_PARTS,
     plan,
     SHARDS,
     splitLines,
@@ -60,6 +62,7 @@ import {
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
     inputKey,
@@ -206,9 +209,24 @@ describe("the test matrix", () => {
         const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
         const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
         assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
-        const large = SHARDS.find((s) => s.shard === "graphty-large-graph");
-        assert.match(large["test-command"], /--project=large-graph$/);
-        assert.equal(plan(PACKAGES).find((e) => e.shard === large.shard).coverage, undefined);
+        const large = SHARDS.filter((s) => s.shard.startsWith("graphty-large-graph-"));
+        assert.equal(large.length, LARGE_GRAPH_PARTS);
+        large.forEach((s, i) => {
+            assert.match(
+                s["test-command"],
+                new RegExp(`--project=large-graph --shard=${i + 1}/${LARGE_GRAPH_PARTS}$`, "u"),
+            );
+            assert.equal(plan(PACKAGES).find((e) => e.shard === s.shard).coverage, undefined);
+        });
+    });
+
+    // Vitest's --shard hands N parts one file each only when there are N files, and a job has room for one.
+    it("gives every large-graph file a part and a bin of its own", () => {
+        const dir = new URL("../graphty/src/workspace/selection/__tests__/", import.meta.url);
+        const files = readdirSync(dir).filter((f) => /^LargeGraph\..*\.real-element\.test\.tsx$/u.test(f));
+        assert.equal(files.length, LARGE_GRAPH_PARTS);
+        const { overheadMs, scale } = binCost("graphty-large-graph");
+        assert.equal(packBins(files, new Map(), BIN_LIMIT_MS, overheadMs, scale).length, files.length);
     });
 
     // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
@@ -1267,6 +1285,58 @@ describe("ci.yml", () => {
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
         }
+    });
+});
+
+describe("the test matrix on a commit older than its tools (#5996)", () => {
+    const shard = (command) => ({ shard: "s", package: "p", "test-command": command });
+    const checkout = (files) => {
+        const root = mkdtempSync(join(tmpdir(), "fits-checkout-"));
+        mkdirSync(join(root, "p"));
+        for (const [name, text] of Object.entries(files)) writeFileSync(join(root, "p", name), text);
+        return root;
+    };
+
+    it("finds every shard's project in this commit's configs", () => {
+        assert.deepEqual(
+            SHARDS.filter((s) => !fitsCheckout(s)).map((s) => s.shard),
+            [],
+        );
+    });
+
+    it("leaves out a shard only when its config holds none of the projects it names", () => {
+        const root = checkout({ "vitest.config.ts": 'project("real-element"); // not `large-graph`' });
+        const fits = (command) => fitsCheckout(shard(command), root);
+        assert.equal(fits("vitest run --project=large-graph --shard=1/4"), false);
+        assert.equal(fits("vitest run --project=real-element --project=large-graph"), true);
+        assert.equal(fits("vitest run --project=real-element-features-on"), true);
+        assert.equal(fits("vitest run"), true);
+    });
+
+    it("reads the config a shard names, and keeps a shard whose config it cannot read", () => {
+        const root = checkout({ "vitest.storybook.config.ts": 'name: "storybook"' });
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=storybook"), root),
+            true,
+        );
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=other"), root),
+            false,
+        );
+        assert.equal(fitsCheckout(shard("vitest run --project=other"), root), true);
+    });
+
+    it("plans a group without a member the commit does not have", () => {
+        const [name, members] = Object.entries(GROUPS)[0];
+        const shards = SHARDS.filter((s) => s.shard !== members[0]);
+        const entry = plan(
+            SHARDS.map((s) => s.package),
+            undefined,
+            undefined,
+            false,
+            shards,
+        ).find((e) => e.shard === name);
+        assert.ok(!entry.members.includes(members[0]));
     });
 });
 
@@ -4012,7 +4082,9 @@ describe("release.yml", () => {
             );
             // a group keeps one pending job and cancels the rest: a third lane's filing would be dropped
             assert.equal(red.concurrency, undefined);
-            assert.deepEqual(red.permissions, { contents: "read", issues: "write" });
+            // the T4 filer reads its job's failed steps: a runner refused by machine.dev is an owner item
+            const reads = lane === "t4" ? { actions: "read" } : {};
+            assert.deepEqual(red.permissions, { ...reads, contents: "read", issues: "write" });
             const step = red.steps.at(-1);
             assert.equal(step.run, "node tools/full-run.mjs lane-red");
             assert.equal(step.env.LANE, lane);

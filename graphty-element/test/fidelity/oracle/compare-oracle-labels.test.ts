@@ -300,6 +300,34 @@ describe("label checks", () => {
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
     });
 
+    it("places a label by its font's line, not the browser's rounded reading of it, and fails one truly elsewhere", () => {
+        // yed-graphml-specimen-labels two-labels: the browser reads yEd's 10 px line 0.96 px under where it stands, past
+        // the line between inside-at-the-start and centered
+        const read = (over: Partial<PText>): PText => text("A", 100, 98, over);
+        const box = { x0: 80, y0: 80, x1: 120, y1: 120 };
+        assert.strictEqual(labelAnchor(read({}), box), "center/center");
+        assert.strictEqual(labelAnchor(read({ lineDrop: 1 }), box), "center/start");
+        const pair = (o: PText, y: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: o }), scene("graphty", {}, { a: text("A", 100, y) }));
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 96.5)["label.anchor"], undefined);
+        assert.deepEqual(pair(read({}), 96.5)["label.anchor"], ["a"]);
+        // the defect planted: graphty's label at the node's other end
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 110)["label.anchor"], ["a"]);
+    });
+
+    it("places words in another face by the end nearest the program's, and fails one where no end is in place", () => {
+        // gml-synthetic-coverage 9: yEd's left edge, in Courier New where yEd drew Dialog: narrower, so the middles part
+        const span = (x0: number, w: number, family: string): PText => text("A", x0 + w / 2, 100, { family }, w);
+        const pair = (g: PText): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: span(83, 30, "Dialog") }), scene("graphty", {}, { a: g }));
+        const courier = "Courier New, DejaVu Sans, sans-serif";
+        assert.deepEqual(pair(span(83, 27, courier))["label.anchor"], undefined);
+        // the same narrower box in the program's own class of face is out of place: its width is no other font's doing
+        assert.deepEqual(pair(span(83, 27, "DejaVu Sans, sans-serif"))["label.anchor"], ["a"]);
+        // the defect planted: another face, and neither end nor the middle where the program's are
+        assert.deepEqual(pair(span(95, 27, courier))["label.anchor"], ["a"]);
+    });
+
     it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
         // graphml-cla-checker-graph: draw.io draws 2 px labels 0.6 px left of their nodes' middles, graphty centers
         // them; at a quarter of a 2 px font the side's tolerance was half a pixel, and the program's label read as
@@ -408,6 +436,22 @@ describe("a label's lines drawn as separate texts", () => {
         // a line under another, or a text far to its side, stays apart
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 100, 112)])?.content, "a\nb");
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 160, 100)])?.lines?.length, 2);
+    });
+
+    it("reads texts side by side on one row left to right, one a little lower, and rows top to bottom", () => {
+        // dot-specimen-edge-labels label-and-head-tail: Graphviz draws T, lbl and H on one baseline; graphty draws its
+        // edge label 2 px below its end labels
+        const at = (lbl: number): string | undefined =>
+            mergeTexts([text("T", 100, 100, {}, 6), text("H", 160, 100, {}, 6), text("lbl", 125, lbl, {}, 12)])
+                ?.content;
+        assert.strictEqual(at(100), "T\nlbl\nH");
+        assert.strictEqual(at(102), "T\nlbl\nH");
+        // a word on a row of its own is read as its own line still, and words left out or changed still differ
+        assert.strictEqual(at(112), "T\nH\nlbl");
+        assert.notStrictEqual(
+            mergeTexts([text("T", 100, 100, {}, 6), text("lbl", 125, 102, {}, 12)])?.content,
+            at(102),
+        );
     });
 });
 

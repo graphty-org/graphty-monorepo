@@ -973,6 +973,7 @@ export type Channel =
     | "edge.labelOutlineOpacity"
     | "edge.labelBorderOpacity"
     | "edge.labelPadding"
+    | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
     | "edge.labelOffsetX"

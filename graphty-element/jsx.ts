@@ -101,6 +101,14 @@ export interface GraphtyElementJSXProps {
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
+    /**
      * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
@@ -260,6 +268,10 @@ export interface GraphtyElementJSXProps {
      */
     renderer?: Graphty["renderer"];
     /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    renderPath?: Graphty["renderPath"];
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -328,6 +340,14 @@ export interface GraphtyElementJSXProps {
      * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-path"?: string;
+    /**
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "edge-time-end-path"?: string;
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "node-time-end-path"?: string;
     /**
      * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
@@ -407,6 +427,10 @@ export interface GraphtyElementJSXProps {
      * Sets detailed profiling mode. Enables hierarchical timing and advanced stats collection.
      */
     "enable-detailed-profiling"?: boolean;
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    "render-path"?: string;
     /**
      * Sets the threshold and applies it immediately.
      *

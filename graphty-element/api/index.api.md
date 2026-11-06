@@ -194,6 +194,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -884,6 +885,8 @@ export class DataManager implements Manager {
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
+    // @internal
+    get nodesByIndex(): readonly (Node_2 | undefined)[];
     nodeVersion: number;
     // @internal
     notePaintDrawn(): void;
@@ -1337,6 +1340,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1611,6 +1615,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2034,6 +2039,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2255,6 +2261,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2750,6 +2757,8 @@ export class Graph implements GraphContext {
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     readonly eventManager: EventManager;
     exitXR(): Promise<void>;
+    // @internal
+    expectRenderer(): void;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
@@ -2779,7 +2788,11 @@ export class Graph implements GraphContext {
     getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
+    // @internal
+    getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    // @internal
+    getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     // @internal
@@ -2873,6 +2886,7 @@ export class Graph implements GraphContext {
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
+    get renderPath(): RenderPath;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
@@ -2882,6 +2896,7 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -2940,6 +2955,7 @@ export class Graph implements GraphContext {
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
+    setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
@@ -3038,6 +3054,8 @@ export interface GraphContext {
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
+    getNodeBatches?(): NodeBatches | null;
     // @internal
     getRowTable?(): RowTable | null;
     getScene(): Scene;
@@ -3242,6 +3260,9 @@ export class Graphty extends LitElement {
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
     // @beta
+    get edgeTimeEndPath(): string | undefined;
+    set edgeTimeEndPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
     // @beta
@@ -3381,6 +3402,9 @@ export class Graphty extends LitElement {
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     // @beta
+    get nodeTimeEndPath(): string | undefined;
+    set nodeTimeEndPath(value: string | undefined);
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
     // @beta
@@ -3408,6 +3432,8 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderPath(): RenderPath;
+    set renderPath(value: RenderPath);
     get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
@@ -3418,6 +3444,7 @@ export class Graphty extends LitElement {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -4635,6 +4662,8 @@ export class InputManager implements Manager {
     readonly onTouchStart: Observable_2<TouchPoint[]>;
     // (undocumented)
     readonly onWheel: Observable_2<WheelInfo>;
+    // @internal
+    rebind(context: ManagerContext): void;
     requestPointerLock(): Promise<void>;
     setEnabled(enabled: boolean): void;
     startPlayback(events?: RecordedInputEvent[]): Promise<void>;
@@ -5005,6 +5034,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5012,8 +5043,10 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
+    // @internal
+    drawInBatch(source: AbstractMesh | null): void;
     // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
@@ -5029,10 +5062,16 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal
@@ -5087,8 +5126,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;
@@ -5363,8 +5402,8 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            diameter: "diameter";
             uniform: "uniform";
+            diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             low: "low";
@@ -5873,6 +5912,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6094,6 +6134,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6315,6 +6356,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6950,6 +6992,8 @@ export class RenderManager implements Manager {
     drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
+    // @internal
+    frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;
@@ -6979,6 +7023,9 @@ export class RenderManager implements Manager {
         gpuBehind: number;
     };
 }
+
+// @public
+export type RenderPath = "objects" | "batched";
 
 // @public
 export interface RenderQuality {
@@ -7094,6 +7141,7 @@ export const RichTextStyle: z.ZodObject<{
         color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
         spacing: z.ZodNumber;
     }, z.core.$strict>>>;
+    table: z.ZodOptional<z.ZodString>;
     marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -7237,6 +7285,14 @@ export const RichTextStyle: z.ZodObject<{
 
 // @public (undocumented)
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
+
+// @public
+export interface RowCounts {
+    readonly batchedNodes: number;
+    readonly objectEdges: number;
+    readonly objectNodes: number;
+    readonly pulledEdges: number;
+}
 
 // @public (undocumented)
 export interface RunAlgorithmOptions extends QueueableOptions {
@@ -7872,6 +7928,7 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

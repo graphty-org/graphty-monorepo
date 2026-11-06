@@ -76,6 +76,12 @@ export interface JoinedLineOptions {
     };
     /** How it blends: straight alpha over (the default), premultiplied over, or added. */
     blend?: "combine" | "premultiplied" | "add";
+    /**
+     * Read each piece's ends from the row table by `gl_VertexID` (`EDGE_PULLED`, `PulledLineBatch`)
+     * instead of from per-piece attributes. A plain line only: not with `widened`, a `program`,
+     * a `fade` or a `pattern`.
+     */
+    pulled?: boolean;
 }
 
 /**
@@ -91,7 +97,42 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
         ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+        ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
     ];
+}
+
+/**
+ * The attributes the join shader reads for one look. A pulled line reads none: `gl_VertexID`
+ * names its piece and corner.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The attribute names.
+ */
+function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
+    if (options.pulled === true) {
+        return [];
+    }
+
+    return [
+        "position",
+        "pPrev2",
+        "pPrev",
+        "pA",
+        "pB",
+        "pNext",
+        "pNext2",
+        "run",
+        ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
+    ];
+}
+
+/**
+ * The textures the join shader itself reads for one look: a pulled line's row and edge tables.
+ * @param options - The look.
+ * @returns The sampler names.
+ */
+function joinedLineSamplers(options: JoinedLineOptions): string[] {
+    return options.pulled === true ? ["rowPosition", "edgeRows"] : [];
 }
 
 interface LineGeometry {
@@ -439,17 +480,7 @@ void main(void) {
                 ? { vertex: "edgeJoin", fragment: "edgeJoin" }
                 : { vertex: "edgeJoin", fragmentSource: program.fragment, spectorName: program.name },
             {
-                attributes: [
-                    "position",
-                    "pPrev2",
-                    "pPrev",
-                    "pA",
-                    "pB",
-                    "pNext",
-                    "pNext2",
-                    "run",
-                    ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
-                ],
+                attributes: joinedLineAttributes(options, widened),
                 uniforms: [
                     "world",
                     "viewProjection",
@@ -466,7 +497,7 @@ void main(void) {
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),
                 ],
-                samplers: [...(program?.samplers ?? [])],
+                samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
                 uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
                 // A faded line is translucent whatever its opacity: in the opaque pass it would

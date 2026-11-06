@@ -2693,6 +2693,27 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 }
 
 /**
+ * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, whose label `selfRight` hangs
+ * outside it, the box's left side on the loop's far point, level with the node.
+ * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+ * @param stored - the bends of its stored route, or null
+ * @param loop - the bends of the loop Graphviz lays, or null for an edge that is no such loop
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ */
+function readEdgeRoute(stored: string | null, loop: () => string | null, get: Attr, put: Put): void {
+    const laid = stored === null ? loop() : null;
+    const bends = stored ?? laid;
+    if (bends !== null) {
+        put("bends", bends);
+    }
+    if (laid !== null && get(LABEL_ATTRIBUTE) !== null) {
+        put("labelPosition", "center");
+        put("labelShiftX", 0.5);
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2760,21 +2781,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         if (noEdges) {
             edge.put(e, "visible", false);
         }
-        const route = splineBends(snapshot, e, get(POS_ATTRIBUTE));
-        const loop = route === null ? loops.bendsOf(e, get) : null;
-        const bends = route ?? loop;
-        if (bends !== null) {
-            edge.put(e, "bends", bends);
-        }
-        if (loop !== null && get(LABEL_ATTRIBUTE) !== null) {
-            // `selfRight` hangs a loop's label outside it, the box's left side on the loop's far point, level with the
-            // node. ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
-            edge.put(e, "labelPosition", "center");
-            edge.put(e, "labelShiftX", 0.5);
-        }
-        readLabelPlaces(snapshot, places, e, get, (p, v) => {
+        const put: Put = (p, v) => {
             edge.put(e, p, v);
-        });
+        };
+        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
+        readLabelPlaces(snapshot, places, e, get, put);
     }
     const graph = graphBackground(snapshot, notes);
     readGraphRotation(snapshot, graph);

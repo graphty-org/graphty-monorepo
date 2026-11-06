@@ -185,6 +185,13 @@ export default function AiProviderSection({
                         setKey(event.currentTarget.value);
                         setProblem(null);
                     }}
+                    onKeyDown={(event) => {
+                        // Enter runs Save. Not a form: a form would also submit on Enter in the Selects above.
+                        if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                            event.preventDefault();
+                            void save();
+                        }
+                    }}
                     onBlur={(event) => {
                         // Save checks the key itself: a line drawn on the way to Save moves Save from under the press.
                         if (key.trim() !== "" && event.relatedTarget !== saveButton.current) {

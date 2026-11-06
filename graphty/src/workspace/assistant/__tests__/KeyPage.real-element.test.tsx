@@ -126,6 +126,39 @@ describe("the AI provider page", () => {
         await within(again).findByRole("button", { name: "Forget key" });
     });
 
+    it("saves on Enter in the key field, and the panel is ready", async () => {
+        const dialog = await openKeyPage();
+        await userEvent.click(within(dialog).getByLabelText("API key"));
+        await userEvent.keyboard(`${KEY}{Enter}`);
+        await screen.findByRole("textbox", { name: "Message the assistant" });
+        assert.isNull(screen.queryByRole("dialog", { name: "Settings" }));
+        assert.deepEqual(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
+    });
+
+    it("keeps focus in the key field when Enter meets a bad key", async () => {
+        const dialog = await openKeyPage();
+        const field = within(dialog).getByLabelText("API key");
+        await userEvent.click(field);
+        await userEvent.keyboard("short{Enter}");
+        await within(dialog).findByText("This key is too short.");
+        assert.strictEqual(document.activeElement, field);
+        assert.isNull(readAssistantChoice());
+    });
+
+    it("does not save on Enter in an open Model list", async () => {
+        const dialog = await openKeyPage();
+        await userEvent.click(within(dialog).getByLabelText("API key"));
+        await userEvent.keyboard(KEY);
+        await userEvent.click(within(dialog).getByRole("textbox", { name: "Model" }));
+        await screen.findByRole("listbox");
+        await userEvent.keyboard("{ArrowDown}{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"));
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Settings" }));
+        assert.isNull(readAssistantChoice());
+    });
+
     it("reaches the field's eye by Tab", async () => {
         const dialog = await openKeyPage();
         await userEvent.click(within(dialog).getByLabelText("API key"));

@@ -208,6 +208,12 @@ export interface AcceleratorFactoryOptions {
      * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
      */
     readonly acceptSoftware?: boolean;
+    /**
+     * The device the renderer draws with, when a registration's `sharesDevice` said yes before
+     * the engine opened. Opaque here: only a backend knows what it is. The renderer owns it, so
+     * the accelerator neither destroys it nor treats its uncaptured errors as its own.
+     */
+    readonly device?: unknown;
 }
 
 /**

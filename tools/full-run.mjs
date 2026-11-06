@@ -1184,7 +1184,8 @@ export const heldLine = (held) =>
         : "";
 
 // this attempt's T4 owner item; a job list that cannot be read leaves the lane red, as a failure always was
-function t4OwnerItem(env) {
+function t4OwnerItem(env, result) {
+    if (result !== "failure") return "";
     const jobs = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs`;
     const steps = `.jobs[] | select(.name | startswith("${LANES.t4.name} /")) | .steps[] | select(.conclusion == "failure") | .name`;
     return bestEffort(
@@ -1194,6 +1195,9 @@ function t4OwnerItem(env) {
     );
 }
 
+// the lanes an account refused, so nothing of theirs ran
+const refusedLanes = (env, t4Item) => [env.LLM_OWNER_ITEM && "llm", t4Item && "t4"].filter(Boolean);
+
 async function verdictMain(env) {
     const cfg = config(env);
     // one group per phase: a step that stops printing names the phase it stopped in
@@ -1202,7 +1206,7 @@ async function verdictMain(env) {
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
     const { changed, missing } = differingImages(env.CAPTURES, projects);
     lanes.captures = captureLane(missing);
-    const t4Item = lanes.t4 === "failure" ? t4OwnerItem(env) : "";
+    const t4Item = t4OwnerItem(env, lanes.t4);
     const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD, t4Item);
     // unset (a run by hand): no attempt to wait for, so it decides at once
     const attempt = Number(env.RUN_ATTEMPT || 0);
@@ -1213,7 +1217,6 @@ async function verdictMain(env) {
     // a held head past its commit (FORWARD) is the hold issue's to report, never a "Full run red" one: master
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
-    const refused = [env.LLM_OWNER_ITEM && "llm", t4Item && "t4"].filter(Boolean);
     const facts = {
         sha: env.SHA,
         good: env.GOOD,
@@ -1222,7 +1225,7 @@ async function verdictMain(env) {
         red,
         lanes,
         forward,
-        refused,
+        refused: refusedLanes(env, t4Item),
     };
     console.log("::endgroup::");
     console.log("::group::verdict: red issue, bisect or close");
@@ -1333,7 +1336,7 @@ function laneRedMain(env) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;
     }
-    if (env.OWNER_ITEM || (env.LANE === "t4" && t4OwnerItem(env))) {
+    if (env.OWNER_ITEM || (env.LANE === "t4" && t4OwnerItem(env, env.RESULT))) {
         console.log(`::notice::${LANES[env.LANE].name} is red with an owner item: the verdict decides it`);
         return;
     }

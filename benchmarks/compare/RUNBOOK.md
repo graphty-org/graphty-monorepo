@@ -50,7 +50,8 @@ It answers with a URL. Then, in every Bash call below:
     mkdir -p ../results/$LABEL
 
 To measure a render path, also export `BENCH_RENDER_PATH=batched` (or `objects`), and give each path its own
-`LABEL`: `summarize.mjs` pools the rows of a file, whatever their path.
+`LABEL`: `summarize.mjs` pools the rows of a file, whatever their path. Under `batched` a run records `rowCounts`
+after the load and fails if any node is not on a batch.
 
 ## 3. Measure
 

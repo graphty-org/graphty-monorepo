@@ -9,18 +9,16 @@
  * project does).
  */
 
+import "../../src/graphty-element";
+
 import { Matrix, Mesh, type Scene } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { Graph } from "../../src/Graph";
-
-import "../../src/graphty-element";
-
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
-import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { drag } from "../helpers/real-input";
+import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
@@ -78,7 +76,7 @@ const NODES = Array.from({ length: 12 }, (_, id) => ({
     big: id % 2 === 0,
 }));
 
-const TONES = { red: "#e11d48", green: "#16a34a", blue: "#2563eb" };
+const TONES = { red: "#e11d48", green: "#16a34a", blue: "#000000" };
 
 /**
  * Paint some nodes.
@@ -171,9 +169,9 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const moved = await readFrame(graph);
         assert.notEqual(overBar(before, moved), 0);
         assert.equal(graph.rowCounts.objectNodes, 0);
-        const onBatches = moved;
+
         const onObjects = await frameOn(graph, "objects");
-        assert.equal(overBar(onBatches, onObjects), 0);
+        assert.equal(overBar(moved, onObjects), 0);
 
         graph.setRenderPath("batched");
         await element.session.styles.remove(small);
@@ -188,7 +186,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const before = await frameOn(graph, "batched");
         const [batch] = graph.getMeshCache().nodeBatchMap.values();
         assert.isDefined(batch);
-        const slots = batch.slots;
+        const { slots } = batch;
 
         // More than a quarter of the slots leave in one repaint, and come back out of row order.
         const small = await layer(element, [0, 4, 8], { "node.size": 0.7 });

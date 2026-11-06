@@ -4548,7 +4548,7 @@ export class Graph implements GraphContext {
                     root: () => this.scene.getTransformNodeByName("graph-root"),
                     view: () => ({
                         scaled: this.updateManager.nodesScaledByView,
-                        flatOutline: !this.is2D() && sceneLighting(this.scene) === "flat",
+                        flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
                     nodes: () => this.dataManager.nodes.values(),
                     meshesChanged: () => {

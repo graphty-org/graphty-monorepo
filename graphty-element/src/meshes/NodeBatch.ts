@@ -83,7 +83,7 @@ export class NodeBatch {
         this.mesh.renderingGroupId = source.renderingGroupId;
         this.mesh.hasVertexAlpha = source.hasVertexAlpha;
         this.mesh.useVertexColors = source.useVertexColors;
-        this.mesh.overrideMaterialSideOrientation = source.overrideMaterialSideOrientation;
+        this.mesh.sideOrientation = source.sideOrientation;
         this.mesh.setEnabled(false);
         if (source.material) {
             attachRowPull(source.material);
@@ -92,7 +92,10 @@ export class NodeBatch {
         this.setBuffers();
     }
 
-    /** @returns The rows drawn. */
+    /**
+     * The rows drawn.
+     * @returns How many.
+     */
     get liveSlots(): number {
         return this.slots - this.holes;
     }
@@ -123,7 +126,13 @@ export class NodeBatch {
         const r = (color?.r ?? 255) / 255;
         const g = (color?.g ?? 255) / 255;
         const b = (color?.b ?? 255) / 255;
-        if (colors[at] !== Math.fround(r) || colors[at + 1] !== Math.fround(g) || colors[at + 2] !== Math.fround(b)) {
+        // Alpha too: a new slot's color is all zeros, which black would otherwise leave transparent.
+        const same =
+            colors[at] === Math.fround(r) &&
+            colors[at + 1] === Math.fround(g) &&
+            colors[at + 2] === Math.fround(b) &&
+            colors[at + 3] === 1;
+        if (!same) {
             colors.set([r, g, b, 1], at);
             this.colorsDirty = true;
         }
@@ -314,7 +323,10 @@ export class NodeBatches {
         this.syncAll();
     }
 
-    /** @returns The rows the batches draw. */
+    /**
+     * The rows the batches draw.
+     * @returns How many.
+     */
     get batchedNodes(): number {
         let rows = 0;
         for (const group of this.groups.values()) {

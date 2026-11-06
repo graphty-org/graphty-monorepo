@@ -106,12 +106,18 @@ class RowPullPlugin extends MaterialPluginBase {
         super(material, PLUGIN_NAME, PLUGIN_PRIORITY, { ROW_PULL: false }, true, true);
     }
 
-    /** @returns The name Babylon keys this plugin's shader code on. */
+    /**
+     * The name Babylon keys this plugin's shader code on.
+     * @returns The name.
+     */
     override getClassName(): string {
         return PLUGIN_NAME;
     }
 
-    /** @returns True: there is code for both shader languages. */
+    /**
+     * Whether a material's shader language has code here.
+     * @returns True: both do.
+     */
     override isCompatible(): boolean {
         return true;
     }

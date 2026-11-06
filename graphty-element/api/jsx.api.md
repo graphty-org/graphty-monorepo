@@ -71,6 +71,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -250,6 +251,7 @@ export interface GraphtyElementJSXProps {
     "pixel-ratio"?: string;
     "position-scale"?: string;
     "render-on-demand"?: boolean;
+    "render-path"?: string;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
@@ -299,6 +301,7 @@ export interface GraphtyElementJSXProps {
     positionScale?: Graphty["positionScale"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
+    renderPath?: Graphty["renderPath"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];

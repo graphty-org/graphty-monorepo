@@ -203,7 +203,6 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                             size="compact-xs"
                             variant={running || waiting ? "default" : "filled"}
                             aria-disabled={!running && empty}
-                            data-disabled={!running && empty ? true : undefined}
                             aria-keyshortcuts={running ? "Escape" : undefined}
                             onClick={() => {
                                 if (running) {

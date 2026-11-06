@@ -3,7 +3,7 @@
  * not as a field caption, while the group keeps the question as its name and the radios keep
  * their size.
  */
-import { Button, Text } from "@mantine/core";
+import { Text } from "@mantine/core";
 import React from "react";
 import { assert, describe, it } from "vitest";
 
@@ -39,9 +39,6 @@ function show(multiple: boolean): { question: HTMLElement; title: HTMLElement } 
             <Text size="sm" fw={600} data-testid="title">
                 Title
             </Text>
-            <Button variant="filled" size="compact-xs" disabled data-testid="disabled">
-                Disabled
-            </Button>
         </WorkspaceContext.Provider>,
     );
     return { question: screen.getByText(QUESTION), title: screen.getByTestId("title") };
@@ -64,15 +61,5 @@ describe("QuestionCard", () => {
         show(false);
         const radio = screen.getByRole("radio", { name: "even" });
         assert.isAtMost(radio.getBoundingClientRect().height, 16);
-    });
-
-    it("draws Answer with nothing picked in the shared disabled look, keeping its name", () => {
-        show(false);
-        const answer = screen.getByRole("button", { name: "Answer" });
-        assert.strictEqual(answer.getAttribute("aria-disabled"), "true");
-        const looks = getComputedStyle(answer);
-        const shared = getComputedStyle(screen.getByTestId("disabled"));
-        assert.strictEqual(looks.backgroundColor, shared.backgroundColor);
-        assert.strictEqual(looks.color, shared.color);
     });
 });

@@ -3573,7 +3573,11 @@ export function associate(
     // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
     // their own words, and each of the oracle's lines there takes one of them.
     const pairWords = wordsByPair(guide.edges);
-    const pairLines = Map.groupBy(edges, (e) => unorderedPair(e.source, e.target));
+    const pairLines = new Map<string, PEdge[]>();
+    for (const e of edges) {
+        const k = unorderedPair(e.source, e.target);
+        pairLines.set(k, [...(pairLines.get(k) ?? []), e]);
+    }
     const edgeCandidates = edges.flatMap((e, ei) => {
         const wants = pairWords.get(unorderedPair(e.source, e.target));
         if (e.label !== null || wants === undefined) {

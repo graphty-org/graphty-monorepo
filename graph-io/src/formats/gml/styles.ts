@@ -84,6 +84,7 @@ import {
     valueColumns,
     YED_ARROWS,
     YED_LABEL_BOX_PADDING,
+    YED_LABEL_CHARACTER,
     YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
@@ -1417,9 +1418,6 @@ function readOgdfLabelPlace(
     );
 }
 
-/** A label's words against their font size, for a yEd GML label, which stores no width. */
-const YED_GML_CHARACTER = 0.55;
-
 /**
  * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
  * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
@@ -1451,7 +1449,7 @@ function readYedLabelPlace(
     const text = typeof label.text === "string" ? label.text : "";
     const size = Number(label.fontSize) || 12;
     const lines = text.split("\n");
-    const width = Math.max(...lines.map((l) => l.length)) * YED_GML_CHARACTER * size + YED_LABEL_BOX_PADDING;
+    const width = Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * size + YED_LABEL_BOX_PADDING;
     const [x, y] = [Number(label.x), Number(label.y)];
     const stored = label.x !== undefined && label.y !== undefined && Number.isFinite(x) && Number.isFinite(y);
     // a slider with no stored box sits somewhere along the line that the file does not say; a free label's box is not

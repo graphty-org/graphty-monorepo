@@ -363,6 +363,29 @@ function isGoogleKeyRefusal(message: string, response: ResponseRecord, settings:
     return settings.provider === "google" && response.status === 400 && message.includes("API_KEY_INVALID");
 }
 
+/** Provider error codes that mean the account has no credit or quota left. */
+const QUOTA_CODES = new Set(["insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached"]);
+
+/**
+ * Whether a provider refused for its account's limits rather than for the request: `"quota"` when
+ * the account has no credit, quota or spend left (OpenAI streams `insufficient_quota` inside an
+ * HTTP 200, Anthropic answers 400 "credit balance is too low", Gemini 429 "exceeded your current
+ * quota"), `"rate-limit"` when it asked for fewer requests.
+ * @param message - The provider's words.
+ * @param code - The provider's own error code, when the stream carried one.
+ * @returns The cause, or undefined for any other failure.
+ */
+function limitCause(message: string, code: string | undefined): "quota" | "rate-limit" | undefined {
+    if (
+        (code !== undefined && QUOTA_CODES.has(code)) ||
+        /credit balance|no credits|exceeded your current quota|insufficient_quota/i.test(message)
+    ) {
+        return "quota";
+    }
+
+    return code === "rate_limit_exceeded" ? "rate-limit" : undefined;
+}
+
 /**
  * A failure as a coded error event. The HTTP status comes from the response graphty's own fetch
  * saw, never from an SDK error's shape, so every provider codes the same status the same way.
@@ -370,6 +393,7 @@ function isGoogleKeyRefusal(message: string, response: ResponseRecord, settings:
  * @param response - What the turn's request got back.
  * @param settings - The provider and the key, which is scrubbed from the message.
  * @param signal - The turn's signal: when it fired, the turn was cancelled.
+ * @param code - The provider's own error code, from an error the stream carried.
  * @returns The error event.
  */
 export function failure(
@@ -377,6 +401,7 @@ export function failure(
     response: ResponseRecord,
     settings: ProviderApiSettings,
     signal: AbortSignal,
+    code?: string,
 ): TurnError {
     const error = Object.assign(new Error(providerMessage(message)), { name: "ProviderApiError" });
     const { status } = response;
@@ -385,12 +410,17 @@ export function failure(
     }
 
     const coded = providerFailure(error, settings.provider, signal, [settings.apiKey]);
-    const event: TurnError =
-        coded.code === "AI_PROVIDER_ERROR" && isGoogleKeyRefusal(message, response, settings)
-            ? { ...coded, code: "AI_KEY_REJECTED" }
-            : coded;
+    const limit = coded.code === "AI_PROVIDER_ERROR" ? limitCause(message, code) : undefined;
+    let event: TurnError = coded;
+    if (coded.code === "AI_PROVIDER_ERROR" && isGoogleKeyRefusal(message, response, settings)) {
+        event = { ...coded, code: "AI_KEY_REJECTED" };
+    } else if (limit !== undefined) {
+        event = { ...coded, params: { ...coded.params, cause: limit } };
+    }
+
     const retryable =
         event.code === "AI_PROVIDER_ERROR" &&
+        limit !== "quota" &&
         (status === undefined
             ? response.networkError
             : status === 408 || status === 409 || status === 429 || status >= 500);
@@ -619,7 +649,7 @@ class ChunkReader {
                 const error = chunk as RunError;
                 return isCutShort(error)
                     ? this.finished(error.usage)
-                    : [failure(error.message, this.response, this.settings, this.signal)];
+                    : [failure(error.message, this.response, this.settings, this.signal, error.code)];
             }
             case EventType.RUN_FINISHED:
                 this.done = true;

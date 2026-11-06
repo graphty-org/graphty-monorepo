@@ -58,6 +58,17 @@ describe("reasoning effort", () => {
         assert.deepStrictEqual((requests[0].body.reasoning as { effort?: string }).effort, "high");
     });
 
+    it("reaches Claude 5.5 as output_config.effort, with no thinking budget or temperature beside it", async () => {
+        const { engine, requests, settings } = providerApiFixture("anthropic");
+        settings.model = "claude-haiku-5-5";
+        settings.reasoningEffort = "low";
+        settings.temperature = 0.3;
+        await events(engine, request());
+        assert.deepStrictEqual(requests[0].body.output_config, { effort: "low" });
+        assert.notProperty(requests[0].body, "thinking");
+        assert.notProperty(requests[0].body, "temperature");
+    });
+
     it("is not sent when unset, so each provider keeps its own default", async () => {
         for (const provider of ["openai", "anthropic", "google"] as const) {
             const { engine, requests } = providerApiFixture(provider);

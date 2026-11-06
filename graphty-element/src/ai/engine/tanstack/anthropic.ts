@@ -95,6 +95,31 @@ function endpoint(
     };
 }
 
+/**
+ * How much the model thinks, and its temperature. Claude 5.5 models always think: an effort sets
+ * how much, and they refuse both a thinking budget and a temperature. Extended thinking refuses a
+ * temperature beside it, so none is sent while it is on.
+ * @param request - The turn's own temperature.
+ * @param settings - The effort, the budget and the temperature.
+ * @returns The options.
+ */
+function thinkingOptions(
+    request: Parameters<ProviderModule["modelOptions"]>[0],
+    settings: ProviderApiSettings,
+): Record<string, unknown> {
+    if (settings.reasoningEffort !== undefined) {
+        return { output_config: { effort: settings.reasoningEffort } };
+    }
+
+    const budget = settings.thinkingBudgetTokens;
+    if (budget !== undefined) {
+        return { thinking: { type: "enabled", budget_tokens: budget } };
+    }
+
+    const temperature = request.temperature ?? settings.temperature;
+    return temperature === undefined ? {} : { temperature };
+}
+
 export const anthropic: ProviderModule = {
     createAdapter: (settings, fetch, request) =>
         // Any model id the consumer names is passed on, the dated default among them.
@@ -115,18 +140,11 @@ export const anthropic: ProviderModule = {
         ),
     pausesTurns: true,
     roundTripsThinking: true,
-    modelOptions: (request, settings) => {
-        const budget = settings.thinkingBudgetTokens;
-        const temperature = request.temperature ?? settings.temperature;
-        return {
-            ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
-            max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),
-            // Extended thinking refuses a temperature beside it, so none is sent while it is on.
-            ...(budget === undefined
-                ? temperature !== undefined && { temperature }
-                : { thinking: { type: "enabled", budget_tokens: budget } }),
-        };
-    },
+    modelOptions: (request, settings) => ({
+        ...(request.tools.length > 0 && { tool_choice: { type: request.toolMode } }),
+        max_tokens: request.maxOutputTokens ?? settings.maxTokens ?? maxOutputTokens(settings.model),
+        ...thinkingOptions(request, settings),
+    }),
     // A call carries back the metadata it came with, and only that.
     callStates: (own) => own.map((data) => data as Record<string, unknown> | undefined),
 };

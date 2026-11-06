@@ -252,6 +252,79 @@ describe.each(["openai", "anthropic"] as const)("%s: a call whose argument text 
     });
 });
 
+describe("an account out of credit or quota", () => {
+    it("codes OpenAI's streamed quota error (inside an HTTP 200) as cause quota, and never retries", async () => {
+        const { engine, respondOnce, requests } = providerApiFixture("openai");
+        // What OpenAI streams for a key with no credits (checked 2026-11-06).
+        const event = (name: string, data: Record<string, unknown>): string =>
+            `event: ${name}\ndata: ${JSON.stringify({ type: name, ...data })}\n\n`;
+        const response = { id: "resp_1", object: "response", model: "gpt-5-mini", output: [] };
+        respondOnce(
+            200,
+            event("response.created", { response: { ...response, status: "in_progress" }, sequence_number: 0 }) +
+                event("error", {
+                    error: {
+                        type: "insufficient_quota",
+                        code: "credit_balance_exhausted",
+                        message: "You have no credits remaining. Add credits to continue using the API.",
+                        param: null,
+                    },
+                    sequence_number: 1,
+                }) +
+                event("response.failed", {
+                    response: {
+                        ...response,
+                        status: "failed",
+                        error: { code: "insufficient_quota", message: "You have no credits remaining." },
+                    },
+                    sequence_number: 2,
+                }),
+            { "content-type": "text/event-stream" },
+        );
+        const error = lastError(await events(engine, request()));
+        assert.strictEqual(error.code, "AI_PROVIDER_ERROR");
+        assert.strictEqual(error.params.cause, "quota");
+        assert.strictEqual(requests.length, 1);
+    });
+
+    it("codes Anthropic's 400 'credit balance is too low' as cause quota, and never retries", async () => {
+        const { engine, respondOnce, requests } = providerApiFixture("anthropic");
+        respondOnce(
+            400,
+            JSON.stringify({
+                type: "error",
+                error: {
+                    type: "invalid_request_error",
+                    message:
+                        "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+                },
+            }),
+            { "content-type": "application/json" },
+        );
+        const error = lastError(await events(engine, request()));
+        assert.deepStrictEqual(error.params, { provider: "anthropic", status: 400, cause: "quota" });
+        assert.strictEqual(requests.length, 1);
+    });
+
+    it("codes Gemini's 429 RESOURCE_EXHAUSTED quota as cause quota, and never retries", async () => {
+        const { engine, respondOnce, requests } = providerApiFixture("google");
+        respondOnce(
+            429,
+            JSON.stringify({
+                error: {
+                    code: 429,
+                    message: "You exceeded your current quota, please check your plan and billing details.",
+                    status: "RESOURCE_EXHAUSTED",
+                },
+            }),
+            { "content-type": "application/json" },
+        );
+        const error = lastError(await events(engine, request()));
+        assert.deepStrictEqual(error.params, { provider: "google", status: 429, cause: "quota" });
+        assert.strictEqual(requests.length, 1);
+    });
+});
+
 describe("Gemini errors and streaming", () => {
     it("codes a wrong key (400 API_KEY_INVALID) as AI_KEY_REJECTED, in Google's own words, and never retries", async () => {
         const { engine, respondOnce, requests } = providerApiFixture("google");

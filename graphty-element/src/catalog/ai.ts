@@ -73,6 +73,8 @@ export interface AiModelDescriptor {
 const GEMINI_FLASH_EFFORTS: readonly AiReasoningEffort[] = ["low", "medium", "high"];
 /** Anthropic's extended thinking: a budget of at least 1,024 tokens. */
 const ANTHROPIC_THINKING: AiModelReasoning = { budgetTokens: { min: 1024 } };
+/** Claude 5.5's efforts (it also takes xhigh and max, which graphty does not name). */
+const CLAUDE_EFFORTS: AiModelReasoning = { efforts: ["low", "medium", "high"] };
 
 /** One AI provider. */
 export interface AiProviderDescriptor {
@@ -116,6 +118,26 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[] = Object.f
             { id: "gpt-4o", plainName: "GPT-4o", supportsTools: true, temperature: { min: 0, max: 2 } },
             { id: "gpt-4.1", plainName: "GPT-4.1", supportsTools: true, temperature: { min: 0, max: 2 } },
             { id: "gpt-4.1-mini", plainName: "GPT-4.1 mini", supportsTools: true, temperature: { min: 0, max: 2 } },
+            // GPT-5 models take a reasoning effort and refuse a temperature; the 5.4 ones refuse
+            // "minimal" (checked 2026-11-06).
+            {
+                id: "gpt-5.4-mini",
+                plainName: "GPT-5.4 mini",
+                supportsTools: true,
+                reasoning: { efforts: ["low", "medium", "high"] },
+            },
+            {
+                id: "gpt-5-mini",
+                plainName: "GPT-5 mini",
+                supportsTools: true,
+                reasoning: { efforts: ["minimal", "low", "medium", "high"] },
+            },
+            {
+                id: "gpt-5-nano",
+                plainName: "GPT-5 nano",
+                supportsTools: true,
+                reasoning: { efforts: ["minimal", "low", "medium", "high"] },
+            },
         ],
     },
     {
@@ -148,6 +170,11 @@ export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[] = Object.f
                 reasoning: ANTHROPIC_THINKING,
                 temperature: { min: 0, max: 1 },
             },
+            // Claude 5.5 models always think, set by an effort, and refuse a thinking budget and
+            // a temperature.
+            { id: "claude-haiku-5-5", plainName: "Claude Haiku 5.5", supportsTools: true, reasoning: CLAUDE_EFFORTS },
+            { id: "claude-sonnet-5-5", plainName: "Claude Sonnet 5.5", supportsTools: true, reasoning: CLAUDE_EFFORTS },
+            { id: "claude-opus-5-5", plainName: "Claude Opus 5.5", supportsTools: true, reasoning: CLAUDE_EFFORTS },
         ],
     },
     {
@@ -529,7 +556,9 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403, or 400 from Google, which
  *   answers a wrong key that way). `{ provider, status }`.
  * - `AI_PROVIDER_ERROR` -- the provider or the network failed. `{ provider }`, and `{ status }`
- *   when the provider answered with an HTTP status.
+ *   when the provider answered with an HTTP status. `{ cause }` when the provider said why:
+ *   `"quota"` (the account has no credit, quota or spend left; asking again will not help),
+ *   `"rate-limit"` (too many requests for now), `"live-closed"` (a live voice session closed).
  * - `AI_CANCELLED` -- the command was cancelled (`cancelAiCommand()`); what it changed is taken back.
  * - `AI_UNDONE` -- the command was undone while it ran; what it changed is taken back.
  * - `AI_TOOL_UNKNOWN` -- the model called a tool that does not exist. `{ tool }`.

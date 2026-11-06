@@ -10,22 +10,20 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-11-05) Round 2 ran: the study's first readers. 11 of 12 succeeded, 0 false done, 0 void, 0 Sonnet. Bars
-  1 to 6 hold (4 and 5 weakly), 7, 8, 9 fail, 10 and 11 did not hold, 12 open. `round-2/scores.md` is the record.
-- (2026-11-05) The one confirmed 3: start screen file, changes undone, tab closed, no way back. Its weak point
-  is study-made: the setup opened the file, and Ruth's briefing promised Recent projects. If skeptics hold that,
-  it falls to 2 and bar 9 reads clean. Say so, never hide it.
-- (2026-11-05) The key's 3 on the refused key came down to 2: neither reader blocked or misled. Untested for a
-  reader with one bad key, since the prompt hands over a second.
-- (2026-11-05) Bars 10 and 11 need an audit of the 193 session screens; none has run. Bar 11 found no exception.
-  Don't let "12 graders, 0 exceptions" read as held: the bar names the audit and allows zero.
+- (2026-11-05) Round 2 settled in `round-2/insights.md`: 11 of 12 succeeded, 0 false done, no confirmed 3. After the
+  skeptics: 11 at 2, 6 at 1, 5 unconfirmed, 1 dropped. Bars: 6 hold, 2 fail (7 as worded, 8), 2 did not hold, 2 open.
+- (2026-11-05) Lead finding: the Autosave tooltip's "comes back when you reopen graphty" is false for a clean opened
+  file. No way of opening a file gets a handle, so none reaches Recent projects. No reader saw that tooltip.
+- (2026-11-05) Hover is a deliberate command in the tool: 1 hover in 12 sessions. Every "nobody hovered" measures
+  the tool. The one-hover chip check is untested, not refuted. Fix the tool or stop reporting it.
+- (2026-11-05) Bar 9 turns on the 400% claim: still no `repro/`, needs no model call. Do it first.
+- (2026-11-05) Bars 10 and 11 need an audit of the 193 session screens; none has run. Don't let "12 graders, 0
+  exceptions" read as held: the bar names the audit and allows zero.
 - (2026-11-05) Bar 5's pass is suspect: Dev, written to trust, doubted twice. One model plays every persona.
-- (2026-11-05) Readers check through the table, never a chip: 0 of 12 hovered one. That door leaves rows out of
-  view, moves scope and shrinks the drawing. Biggest gap between design and use so far.
-- (2026-11-05) "RETURNING" was in 12 of 12 first prompts, still unfixed: 9 sessions mislabeled. Limits every
-  first-meeting result. CORS lines also reached T90's participants.
-- (2026-11-05) Still open: the 400% claim at 3 has no `repro/`; three rulings (rollback, the x on close, a Colored
-  row for a painting run: sessions now lean yes); `answers.md` unmatched; restart unlogged in `criteria.md`.
+- (2026-11-05) "RETURNING" was in 12 of 12 first prompts, still unfixed: 9 sessions mislabeled. CORS lines also
+  reached T90's participants. Persona histories teach behavior: two of six insights died of it.
+- (2026-11-05) Still open: three rulings (rollback, the x on close, a Colored row for a painting run: sessions lean
+  yes); `answers.md` unmatched; restart unlogged in `criteria.md`; whether the conversation returns with a key.
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
@@ -68,6 +66,15 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (tier 6 round 2 insights):** Applied the verdicts from each skeptic's rows, not their summary lines:
+  both summaries disagree with their own rows, and skeptic 2's "10 at 2, 12 at 1" counts 11 and 11. Took row 1 to 2:
+  she was not blocked and kept a true belief, so the criteria's cost is missing, and the file reopens. Led with the
+  tooltip, since a false promise is the defect, not the close. Kept r2-s09's F and bar 7 as failing as worded. Bar 9
+  moved to open, not hold, because 400% stands unreproduced. Rejected "stop inviting a retry": Send again is right
+  for a drop. Rows with one drop (17, 22) went to no longer confirmed. Where rows differ on a fact I read the source:
+  `pickFiles`, `locateFile`, `findKept`, `remember`, the tooltip, and the wheel test's comment, which names the canvas
+  keeping the wheel. Left `scores.md` as written and listed its corrections in `insights.md`, as round 1 did.
 
 - **2026-11-05 (tier 6 round 2 scoring):** Scored all 12 bars by hand from the 12 grades, routes and logs. Kept
   r2-s09's F (bar 7 reads the end state) and its 3 (blocked is the criteria's test), and wrote the case against
@@ -129,6 +136,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (round 2 insights) -- Worked: recounting each skeptic's rows against their summaries; counting Show in
+  table from the `steps` field; viewing all six cited screens before citing. Did not work: grep on `route.jsonl`, which
+  matches the `screen` list too and gave r2-s01 two false hits. My scoring's "a different door" came from reading the
+  menu's name, not the command behind it: trace a door to its handler before saying two doors differ.
+
 - 2026-11-05 (round 2 scoring) -- Worked: asking of a defect whether the tool could have made it (`--reopen`
   against `beforeunload`; `--upload` against the file handle), which cleared both at source; a script over the
   logs, which turned "the first prompt said returning" into 12 of 12; recounting my own table before trusting
@@ -172,6 +184,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-11-05 -- A bar counted at the session's end can fail on what a persona's rule does after the task is over.
+  Read a persona rule like a prompt: it can force the very act that fails a bar.
+- 2026-11-05 -- An insight about what readers did not do needs the tool to make not-doing cheap and doing free. A
+  behavior that takes a deliberate command in the tool cannot show neglect.
 - 2026-11-05 -- A bar that passes because the prompt supplies the exit (bar 4) measures the door, not the
   message. Neither reader learned the cause and it still held. Word such a bar for what the reader knows after.
 - 2026-11-05 -- A task's failure can sit outside the feature: T94's only F came from a check the reader

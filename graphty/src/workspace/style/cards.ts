@@ -13,8 +13,10 @@ import {
     type ReadableValue,
     type ReadableValueKind,
     type RuleTree,
+    type Scope,
     selectorRule,
     type SourceKey,
+    type ValueHistogram,
 } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
@@ -34,15 +36,39 @@ export interface CardField {
     readonly path: string;
     readonly on: Side;
     /**
-     * What kind of card it makes: the element's kind, `name` for the node id, or `source` for the
-     * load an element came from.
+     * What kind of card it makes: the element's kind, `name` for the node id, `source` for the
+     * load an element came from, or `date` for a column graphty-element says measures time.
      */
-    readonly kind: ReadableValueKind | "name" | "source";
+    readonly kind: ReadableValueKind | "name" | "source" | "date";
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
+    /** graphty-element says it holds whole numbers only (a count, a rank), so a slider steps by 1. */
+    readonly integer?: boolean;
     /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
     readonly fact?: string;
+    /** The elements a card counts over (a selection's base); absent, the whole graph. */
+    readonly within?: "graph" | "visible";
+    /**
+     * What a checklist counts its values over when that is narrower than `within`: a Keep or
+     * Except step's input, so each value's count is what the step would keep of it.
+     */
+    readonly counted?: Scope;
+    /** How many of them have no value, when the card cannot read it by its path. */
+    readonly missing?: number;
+    /**
+     * How the values are spread, when no path names them (a selection step's own computation, on
+     * So far or over its Links): its bars are drawn from this instead of a column.
+     */
+    readonly spread?: ValueHistogram;
+    /** The values and counts of a selection step's own computation, when no path names them. */
+    readonly listed?: Extract<ValueHistogram, { kind: "categorical" }>;
+    /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
+    readonly links?: RuleTree;
+    /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */
+    readonly tip?: string;
+    /** Other words the picker's search finds it by ("links" for Degree). */
+    readonly aliases?: readonly string[];
 }
 
 /** How a text or a name card compares. */
@@ -67,6 +93,10 @@ export type Card =
           readonly min?: number;
           readonly max?: number;
           readonly top?: number;
+          /** Which end By position counts from: the highest values (the default) or the lowest. */
+          readonly from?: "high" | "low";
+          /** By position's count is a share of all the elements, in percent. */
+          readonly percent?: boolean;
       }
     | {
           readonly type: "category";
@@ -88,10 +118,20 @@ export type Card =
           readonly ids?: readonly string[];
       }
     | {
+          /** Instants, epoch milliseconds, both ends kept: the element's range leaf read `as: "time"`. */
+          readonly type: "date";
+          readonly key: string;
+          readonly field: CardField;
+          readonly match: "before" | "after" | "between" | Presence;
+          readonly min?: number;
+          readonly max?: number;
+      }
+    | {
           readonly type: "yes-no";
           readonly key: string;
           readonly field: CardField;
-          readonly match: "yes" | "no" | Presence;
+          /** `"unset"`: nothing picked yet, so the card makes no leaf. */
+          readonly match: "yes" | "no" | "unset" | Presence;
       }
     | {
           /** The loads an element came from (`data.sources()` keys), ticked ones being alternatives. */
@@ -141,11 +181,17 @@ const sourceField = (side: Side): CardField => ({
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
+    const times = new Set(
+        session.data
+            .attributes()
+            .filter((each) => each.kind === side && each.measurement === "time")
+            .map((each) => each.path),
+    );
     const fields = session.data
         .readableValues()
         // A data column that only spells each node's id is the node id, listed once as Node id.
         .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
-        .map((value) => fieldOf(session, value));
+        .map((value) => fieldOf(session, value, times.has(value.path)));
     return session.data.sources().length >= 2 ? [...fields, sourceField(side)] : fields;
 }
 
@@ -153,22 +199,127 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
  * One readable value as a card field.
  * @param session - the element's session.
  * @param value - the value.
+ * @param time - graphty-element says the column measures time: a date card, with the span of the
+ * time field it is, as the table writes dates.
  * @returns the field.
  */
-function fieldOf(session: GraphSession, value: ReadableValue): CardField {
+function fieldOf(session: GraphSession, value: ReadableValue, time = false): CardField {
     if (value.path === "id") {
         return { path: "id", on: value.on, kind: "name", name: "Node id", group: "Structure" };
     }
     const groups: Record<ReadableValue["from"], FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
+    const span = time ? timeSpan(session, value.path) : undefined;
     return {
         path: value.path,
         on: value.on,
-        kind: value.kind,
+        kind: time && value.kind !== "number" ? "date" : value.kind,
         name: readableName(session, value).name,
         group: groups[value.from],
+        // A result is found by its field's name too ("Label propagation: community").
+        ...(value.from === "run" ? { aliases: [value.path.split(".").at(-1) ?? ""] } : {}),
         ...(value.range === undefined ? {} : { range: value.range }),
-        ...withFact(valueFact(value)),
+        ...(value.kind === "number" && wholeNumbers(session, value.path) ? { integer: true } : {}),
+        ...withFact(span ?? valueFact(value)),
     };
+}
+
+/**
+ * Whether what a path reads holds whole numbers only (a count, a rank), as graphty-element types it:
+ * an integer column or an integer run field.
+ * @param session - the element's session
+ * @param path - what is read
+ * @returns true for an integer column or run result
+ */
+export function wholeNumbers(session: GraphSession, path: string): boolean {
+    if (session.data.attributes().some((column) => column.path === path && column.type === "integer")) {
+        return true;
+    }
+    return session.runs
+        .list()
+        .some((run) => run.fields.some((f) => f.type === "integer" && session.results.path(run.id, f.name) === path));
+}
+
+/**
+ * A time field's span in years, "1995 to 2018", when the path is the designated time field.
+ * @param session - the element's session.
+ * @param path - the column's path.
+ * @returns the words, or undefined for another column.
+ */
+function timeSpan(session: GraphSession, path: string): string | undefined {
+    const extent = session.time.extent();
+    const name = session.data.attributes().find((each) => each.path === path)?.name;
+    const { field } = session.time;
+    if (extent === null || name === undefined || (field?.nodes?.start !== name && field?.edges?.start !== name)) {
+        return undefined;
+    }
+    const [from, to] = [extent.from, extent.to].map((at) => new Date(at).getUTCFullYear());
+    return from === to ? String(from) : `${String(from)} to ${String(to)}`;
+}
+
+/** A day, in epoch milliseconds. */
+const DAY = 86_400_000;
+
+/** Text that names a whole year: "2005". */
+const YEAR_TEXT = /^\s*(\d{4})\s*$/u;
+
+/**
+ * The span typed text names: a year from its first instant to the next year's, a date to the next
+ * day's, an instant to itself. The session's time parser reads the text, so the card takes what a
+ * time field takes ("2005", "2005-03-01", "Mar 1, 2005").
+ * @param session - the element's session.
+ * @param text - the box's text.
+ * @returns the span's first instant and the first one after it, or null when the text names none.
+ */
+export function spanOf(session: GraphSession, text: string): { start: number; end: number } | null {
+    const year = YEAR_TEXT.exec(text);
+    if (year !== null) {
+        return { start: Date.UTC(Number(year[1]), 0, 1), end: Date.UTC(Number(year[1]) + 1, 0, 1) };
+    }
+    // A bare number is a year only at four digits: "2", "20" and "200" are a year still being typed.
+    const start = /^\s*[-+]?\d+(?:\.\d*)?\s*$/u.test(text) ? null : session.time.parse(text);
+    if (start === null) {
+        return null;
+    }
+    return { start, end: start % DAY === 0 ? start + DAY : start };
+}
+
+/** The table's way of writing a day, in UTC as the element's calendar is. */
+const DAY_WORDS = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" });
+
+/**
+ * A day as the table writes it.
+ * @param at - epoch milliseconds.
+ * @returns "May 12, 1998".
+ */
+export const dayWords = (at: number): string => DAY_WORDS.format(at);
+
+/**
+ * An instant as a date card writes it: a year when it starts one, a day when it starts one, else
+ * the date and time.
+ * @param at - epoch milliseconds.
+ * @returns "2005", "Jul 1, 2003", or an ISO date and time.
+ */
+export function startWords(at: number): string {
+    const date = new Date(at);
+    if (at % DAY !== 0) {
+        return date.toISOString();
+    }
+    return date.getUTCMonth() === 0 && date.getUTCDate() === 1 ? String(date.getUTCFullYear()) : DAY_WORDS.format(at);
+}
+
+/**
+ * The span that ends just before an instant, as a date card writes it: the year or the day before.
+ * @param at - the first instant after the span.
+ * @returns "2004", "Jun 30, 2003", or the instant itself.
+ */
+export function endWords(at: number): string {
+    const date = new Date(at);
+    if (at % DAY !== 0) {
+        return date.toISOString();
+    }
+    return date.getUTCMonth() === 0 && date.getUTCDate() === 1
+        ? String(date.getUTCFullYear() - 1)
+        : DAY_WORDS.format(at - DAY);
 }
 
 /**
@@ -216,6 +367,8 @@ export function newCard(field: CardField): Card {
             return { type: "category", key, field, match: "values", values: [], gaps: false };
         case "yes-no":
             return { type: "yes-no", key, field, match: "yes" };
+        case "date":
+            return { type: "date", key, field, match: "before" };
         case "source":
             return { type: "source", key, field, sources: [] };
         default:
@@ -249,9 +402,14 @@ export function leafOf(card: Card): RuleTree | null {
     switch (card.type) {
         case "number":
             return numberLeaf(card, path);
+        case "date":
+            return dateLeaf(card, path);
         case "category":
             return categoryLeaf(card, path);
         case "yes-no":
+            if (card.match === "unset") {
+                return null;
+            }
             return {
                 kind: "text",
                 reads: path,
@@ -268,6 +426,25 @@ export function leafOf(card: Card): RuleTree | null {
 type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
 
 /**
+ * A date card's leaf: its range compared as times, or null while it has neither end.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
+    if (card.min === undefined && card.max === undefined) {
+        return null;
+    }
+    return {
+        kind: "range",
+        attribute: path,
+        ...(card.min === undefined ? {} : { min: card.min }),
+        ...(card.max === undefined ? {} : { max: card.max }),
+        as: "time",
+    };
+}
+
+/**
  * A number card's leaf: its top N, or its range.
  * @param card - the card, matching neither present nor absent.
  * @param path - the value path.
@@ -275,7 +452,15 @@ type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
  */
 function numberLeaf(card: CardOf<"number">, path: string): RuleTree | null {
     if (card.match === "top") {
-        return card.top === undefined || card.top < 1 ? null : { kind: "threshold", path, top: card.top, ties: "all" };
+        const from = card.from === "low" ? { from: "low" as const } : {};
+        if (card.percent === true) {
+            return card.top === undefined || card.top <= 0 || card.top > 100
+                ? null
+                : { kind: "threshold", path, percentile: card.top, ...from };
+        }
+        return card.top === undefined || card.top < 1
+            ? null
+            : { kind: "threshold", path, top: card.top, ties: "all", ...from };
     }
     return {
         kind: "range",
@@ -461,18 +646,18 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             const notField = not === undefined ? undefined : field(not);
             return notField === undefined ? elsewhere : presenceCard(notField, "absent");
         }
-        case "range": {
-            const f = field(leaf.attribute);
-            return f?.kind === "number"
-                ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
-                : elsewhere;
-        }
+        case "range":
+            return rangeCard(leaf, field(leaf.attribute), elsewhere);
         case "threshold":
             return thresholdCard(leaf, field, elsewhere);
         case "expression":
             return expressionCard(leaf, field, elsewhere);
         case "categories": {
             const f = field(leaf.attribute);
+            if (f?.kind === "yes-no" && leaf.values.length === 0) {
+                // A yes-or-no value with nothing picked yet: its card, showing no choice.
+                return { type: "yes-no", key: keyOf(f), field: f, match: "unset" };
+            }
             return f === undefined
                 ? elsewhere
                 : { type: "category", key: keyOf(f), field: f, match: "values", values: leaf.values, gaps: false };
@@ -491,6 +676,47 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         default:
             return elsewhere;
     }
+}
+
+/**
+ * The card a range leaf draws: a date card for a range read as times, a number card for one read
+ * as numbers, else the fixed card.
+ * @param leaf - the range leaf.
+ * @param f - its field, if the kind has it.
+ * @param elsewhere - the fixed card.
+ * @returns the card.
+ */
+function rangeCard(leaf: Extract<RuleTree, { kind: "range" }>, f: CardField | undefined, elsewhere: Card): Card {
+    if (leaf.as === "time") {
+        return f?.kind === "date" ? dateCard(f, leaf.min, leaf.max) : elsewhere;
+    }
+    return f?.kind === "number"
+        ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
+        : elsewhere;
+}
+
+/**
+ * A date card from its leaf's bounds: Before with only an end, After with only a start.
+ * @param field - the date field.
+ * @param min - the leaf's first instant kept.
+ * @param max - the leaf's last instant kept.
+ * @returns the card.
+ */
+function dateCard(field: CardField, min: number | undefined, max: number | undefined): Card {
+    let match: "before" | "after" | "between" = "between";
+    if (min === undefined) {
+        match = "before";
+    } else if (max === undefined) {
+        match = "after";
+    }
+    return {
+        type: "date",
+        key: keyOf(field),
+        field,
+        match,
+        ...(min === undefined ? {} : { min }),
+        ...(max === undefined ? {} : { max }),
+    };
 }
 
 /** Finds the field a path names. */
@@ -515,8 +741,12 @@ function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere:
         // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
         return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
     }
+    const from = leaf.from === "low" ? { from: "low" as const } : {};
+    if (leaf.percentile !== undefined && leaf.top === undefined && leaf.above === undefined) {
+        return { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.percentile, percent: true, ...from };
+    }
     return leaf.top !== undefined && leaf.above === undefined
-        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top }
+        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top, ...from }
         : elsewhere;
 }
 
@@ -748,10 +978,17 @@ export function cardWords(session: GraphSession, card: Card): string {
     switch (card.type) {
         case "number":
             return numberWords(session, card, name);
+        case "date":
+            return dateWords(card, name);
         case "category":
             return categoryWords(session, card, name, path);
         case "yes-no":
-            return `${name}: ${card.match}`;
+            // Yes and No as the table and the field write them.
+            if (card.match === "unset") {
+                return `${name}: pick yes or no`;
+            }
+
+            return `${name}: ${card.match === "yes" ? "Yes" : "No"}`;
         default: {
             if (card.match === "list") {
                 return pickedWords((card.ids ?? []).length, 0);
@@ -796,10 +1033,14 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         if (card.top === undefined) {
             return `${name}: how many?`;
         }
+        const end = card.from === "low" ? "bottom" : "top";
+        if (card.percent === true) {
+            return `${end} ${num(card.top)}% by ${name}`;
+        }
         // A count of every element there is keeps them all, and says so.
         const stats = session.data.statistics();
         const total = card.field.on === "node" ? stats.nodeCount : stats.edgeCount;
-        return card.top >= total ? `${name}: all ${String(total)}` : `top ${String(card.top)} by ${name}`;
+        return card.top >= total ? `${name}: all ${String(total)}` : `${end} ${String(card.top)} by ${name}`;
     }
     if (card.min !== undefined && card.max !== undefined) {
         return `${name} ${num(card.min)} to ${num(card.max)}`;
@@ -808,6 +1049,23 @@ function numberWords(session: GraphSession, card: CardOf<"number">, name: string
         return `${name} ${num(card.min)} or more`;
     }
     return card.max === undefined ? `${name}: any value` : `${name} up to ${num(card.max)}`;
+}
+
+/**
+ * A date card in words: "installed before 2005", "installed after Jul 1, 2003", "installed 1998 to
+ * 2004".
+ * @param card - the card, matching neither present nor absent.
+ * @param name - its field's name.
+ * @returns the words.
+ */
+function dateWords(card: CardOf<"date">, name: string): string {
+    if (card.min !== undefined && card.max !== undefined) {
+        return `${name} ${startWords(card.min)} to ${endWords(card.max + 1)}`;
+    }
+    if (card.min !== undefined) {
+        return `${name} after ${endWords(card.min)}`;
+    }
+    return card.max === undefined ? `${name}: type a date` : `${name} before ${startWords(card.max + 1)}`;
 }
 
 /**
@@ -997,4 +1255,43 @@ export function selectionName(session: GraphSession): string {
         return edgeName(session, edge);
     }
     return countName(nodes.length, edges.length);
+}
+
+/** How many value rows a checklist draws in all, whatever the column holds (spec 4.3). */
+export const SHOWN_VALUES = 8;
+
+/** A value of a checklist: its value, its name and how many carry it. */
+export interface Listed {
+    readonly value: string;
+    readonly label: string;
+    readonly count: number;
+}
+
+/**
+ * The rows a checklist draws, never more than {@link SHOWN_VALUES} (spec 4.3): with nothing typed
+ * the checked values first, then the largest unchecked; while typing, the matches, checked or not.
+ * @param named - every value, largest first.
+ * @param checked - the checked values.
+ * @param typed - the search, lower case.
+ * @returns the rows, how many more are checked than drawn, and the matches and unchecked counts.
+ */
+export function checklistRows(
+    named: readonly Listed[],
+    checked: ReadonlySet<string>,
+    typed: string,
+): { rows: Listed[]; moreChecked: number; matches: readonly Listed[]; unchecked: number } {
+    if (typed !== "") {
+        const matches = named.filter((each) => each.label.toLowerCase().includes(typed));
+        return { rows: matches.slice(0, SHOWN_VALUES), moreChecked: 0, matches, unchecked: 0 };
+    }
+    const ticked = named.filter((each) => checked.has(each.value));
+    const rest = named.filter((each) => !checked.has(each.value));
+    // The checked never fill the list: the two largest unchecked stay reachable without a search.
+    const pinned = ticked.slice(0, SHOWN_VALUES - Math.min(2, rest.length));
+    return {
+        rows: [...pinned, ...rest.slice(0, SHOWN_VALUES - pinned.length)],
+        moreChecked: ticked.length - pinned.length,
+        matches: named,
+        unchecked: rest.length,
+    };
 }

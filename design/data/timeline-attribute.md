@@ -79,7 +79,7 @@ namespace, `session.time`.
 
 ```html
 <graphty-element
-    id="g"
+    features="timeline"
     data-source="url"
     data-source-config='{"url": "emails.csv"}'
     edge-time-path="data.sent"
@@ -87,20 +87,20 @@ namespace, `session.time`.
 <button id="play">Play</button>
 <script type="module">
     import "@graphty/graphty-element";
-    const g = document.querySelector("#g");
+    const g = document.querySelector("graphty-element");
     await new Promise((r) => g.addEventListener("data-loaded", r, { once: true }));
-    const time = g.session.time;
+    const { time } = g.session;
     await time.ready; // the time field is indexed
-    const { from } = time.extent(); // first instant in the data, epoch ms
-    await time.window({ from, to: from + 7 * 864e5, step: "day" }); // one week
-    document.querySelector("#play").onclick = () => (time.playing ? time.pause() : time.play());
+    document.querySelector("#play").onclick = () => (time.playing ? time.pause() : time.play({ step: "day" }));
     g.session.on("time:step", (s) => console.log(s.from, s.to, s.entered.edges));
 </script>
 ```
 
-Eighteen lines, and the author names one field. No index, mask, column, unit or bookkeeping
-appears. This example must compile against the published types, with `session.time` added,
-before the API is reviewed (repository rule); phase 1 adds it as a type test.
+Twelve lines, and the author names one field. No index, mask, column, unit or bookkeeping appears.
+`features="timeline"` switches the experiment on. `play()` opens the first window itself, so the
+example needs neither `extent()`, which stays nullable because an empty column has none, nor
+`window()`. It compiles against the published types (`test/types/consumer/timeline-guide.ts`) and
+runs in a browser test (`test/browser/timeline-guide.test.ts`).
 
 What the element does behind it:
 
@@ -110,7 +110,7 @@ What the element does behind it:
 - `time.ready` resolves once the designated field is indexed (section 5.7).
 - `time.window(...)` is `visibility.setWindow` with `attribute` filled in from the designated
   field. Edges carry the time here, so nodes follow their edges (section 2.4, "nodes").
-- `time.play()` advances the window by its `step` on a timer until the end of the data, then
+- `time.play({ step })` opens the first window and advances it by its `step` until the end of the data, then
   publishes `time:end` and pauses.
 
 ### 2.3 The `session.time` surface
@@ -129,7 +129,6 @@ interface TimeSource {
     readonly end?: Path; // phase 4
     readonly unit?: TimeUnit; // numbers only; default "ms"
     readonly parseZone?: string; // IANA zone for date-times with no offset; default "UTC"
-    readonly nodes?: "all" | "ends" | "none"; // edges only; see section 2.4
 }
 type TimeUnit = "ms" | "s" | "year" | "ordinal"; // "year" and inference added 2026-10-22 (decisions TL-27)
 interface TimeFieldResult {
@@ -150,17 +149,18 @@ of `MeasurementDeclaration` gains optional `unit` and `zone`. `time.field` then 
 column is designated from `knownFields` and how to read it from the declaration, so there is one
 place that says "this column is time" and one that says "this is the timeline". A column declared
 `ordinal` with an `order` (release names, phases) can be designated too: each value reads as its
-position in `order`, with `unit: "ordinal"` (feature 34).
+position in `order`, with `unit: "ordinal"` (feature 34). That is not built and has no phase:
+`setField` refuses any declaration but `time`.
 
 **Facts for drawing.** Before `time.ready` resolves these return `null`; after it they are
 synchronous and cheap (section 5.2).
 
 - `time.ready` (`Promise<void>`): Resolves when the designated field's index is built; replaced by a new promise when the field or the data changes. `time:ready` is published too.
 - `time.extent()` (`TimeExtent | null`): `{ from, to, nodes: { timed, untimed, unparsed }, edges: {...} }`. `to` is just past the last instant (half-open). Numbers only.
-- `time.bins({ count?, step?, from?, to?, timeZone? })` (`TimeBin[] | null`): The histogram. Each bin is `{ start, end, nodes, edges }`. `count` (default 100) or `step` (a `TimeStep`); calendar steps use `timeZone` (default: the current window's, else `"UTC"`).
+- `time.bins({ count?, step?, from?, to?, timeZone? })` (`TimeBin[] | null`): The histogram, null with nothing designated, because the dock reads it on every render. Each bin is `{ start, end, nodes, edges }`. `count` (default 100) or `step` (a `TimeStep`); calendar steps use `timeZone` (default: the current window's, else `"UTC"`).
 - `time.bins({ ..., scope: "visible" })` (same): Counting only elements that pass the other filters.
 - `time.bins({ ..., of: { nodes?, edges? } })` (same): Counting only the given `NodeId[]` and `EdgeId[]`: the selection profile drawn over the histogram.
-- `time.spanOf({ nodes?, edges? })` (`{ from, to } | null`): The time span of the given elements, for "jump the window to the selection".
+- `time.spanOf({ nodes?, edges?, incident? })` (`{ from, to } | null`): The time span of the given elements, half-open, for "jump the window to the selection". `incident` counts the edges at the given nodes, as in `bins({ of })`.
 - `time.changes()` (`{ entered: { nodes, edges }, left: { nodes, edges } }`): The ids that entered and left on the last step (arrays of `NodeId` and `EdgeId`), for "which hosts first appeared".
 
 **The window and the transport**
@@ -171,7 +171,7 @@ synchronous and cheap (section 5.2).
 - `time.play(options?)`: Start advancing. Options: `step`, `mode: "sliding" | "cumulative"`, `interval` (ms between steps, default 1000), `loop` (default false), `rerun` (re-run stale runs each step, default false), `waitForRender` (default true), `timeZone`.
 - `time.pause()`: Stop advancing and commit the cursor (one history step).
 - `time.stepBy(n)`: Move by `n` steps (negative goes back); commits.
-- `time.seek(instant, { commit? })`: Move the window so it starts (sliding) or ends (cumulative) at `instant`. Without `commit` it moves only the cursor.
+- `time.seek(instant, { commit? })`: Move the window so it starts (sliding) or ends (cumulative) at `instant`, one history step. With `commit: false` it moves only the cursor.
 - `time.commit()`: Record the cursor as one history step. The dock calls it on pointer-up and key-up.
 - `time.playing`, `time.mode`, `time.interval`: Read state.
 - `time.transition`: Read and write: `{ fadeMs: number }`, default `{ fadeMs: 0 }` (phase 5).
@@ -224,7 +224,7 @@ gate. The run reports progress and is cancelable like every `Run`.
 
 **Errors and notices**, always `{ code, params }`:
 
-- `E_NO_TIME_FIELD` (`{}`): `time.window`, `play` or `bins` without an attribute and with nothing designated.
+- `E_NO_TIME_FIELD` (`{}`): `time.window` or `play` without an attribute and with nothing designated.
 - `E_BAD_COMMAND` (`{ field, reason }`): Existing. New reasons: `"calendar-step-on-ordinal"`, `"declared-not-time"`.
 - **notice `time.unparsed`** (`{ path, count, examples }`): Values that would not parse; up to three raw examples.
 - **notice `time.parsed-loosely`** (`{ path, count }`): Values that only parsed through `Date.parse` (section 3.3).
@@ -254,8 +254,8 @@ the window under `missing: "inside"` and so keeps its endpoints; under `"outside
 This differs from the existing `"ends"` on a value leaf, which looks only at that leaf.
 
 **The `nodes` default.** `visibility.setWindow` keeps `"all"`, so nothing changes for existing
-callers. `time.window` (new) takes it from the field's `TimeSource.nodes`, which defaults to
-`"ends"` for an edge field when nodes carry no time and `"all"` otherwise. So the same
+callers. `time.window` (new) defaults it to `"ends"` for an edge field when nodes carry no time and
+`"all"` otherwise, and `TimeWindow.nodes` overrides that. So the same
 `time.window` call behaves the same whether `attribute` was written out or not.
 
 **Transition.** `time.transition` fades elements in and out. An instant change is the neutral
@@ -328,8 +328,7 @@ instead of hide"; it already applies to windowed-out elements.
 | Spells        | several disjoint lifetimes | any spell overlaps                | phase 4 |
 | Instant list  | GEXF 1.3 `timestamps`      | any instant inside                | phase 4 |
 
-Until phase 4, a field with an end path reads its start as an instant, and the designation result
-says so with a notice (`time.end-ignored`). Cumulative mode is a window whose `from` is
+Cumulative mode is a window whose `from` is
 `-Infinity`.
 
 Values that change over time (an edge weight per period, GEXF dynamic attributes) are not
@@ -368,8 +367,8 @@ call. The index parses a column once when it is built:
    strings such as `"1.10"` as dates, which is why the count is surfaced.
 5. Nothing parses: the value is missing, counted in `time.unparsed`.
 
-**Partial dates.** `2019` and `2019-03` read as the start of that year or month; in interval mode
-with no end, as the whole period. "circa 1850", "1850s" and other free text are missing values;
+**Partial dates.** `2019` and `2019-03` read as the start of that year or month. In interval mode
+a missing end is always open: a `hired: 2019` row with an empty `left` means still employed. "circa 1850", "1850s" and other free text are missing values;
 the AI agent's date-normalization use case (`design/ai/agent-use-cases.md`) writes a clean column
 the reader then designates.
 
@@ -415,8 +414,8 @@ Each line is format (what arrives): what the reader designates.
 - **XGMML (Cytoscape DynNetwork)** (`start` and `end` attributes): auto-designated like GEXF when both are present
 
 graphty-element's `GEXFDataSource` flattens GEXF times into ISO text keys on each record, which
-the index would re-parse. The index reads the snapshot's f64 column when the path names one, and
-record values only when it does not.
+the index re-parses. The element's snapshot holds only its own columns and attribute values live on
+records, so the index reads records, with a fast path for the exact ISO text `timeText` writes.
 
 ## 4. Competing products and the feature list
 
@@ -555,7 +554,7 @@ created lazily and cached per (snapshot token, path, unit, parseZone).
 - `perm: Uint32Array(k)`, the element row of each sorted entry;
 - `unset: Uint32Array`, rows with no usable time.
 
-Built by reading the f64 column directly, or parsing strings once, then a least-significant-digit
+Built by parsing the record values once (numbers read directly), then a least-significant-digit
 radix argsort over the float's bits (four 16-bit passes), five times faster than a comparator sort.
 A window `[from, to)` is two binary searches giving `[lo, hi)`.
 
@@ -589,15 +588,14 @@ filter change recomputes (1) and then visible in full, as today.
 endpoints. With node time, hiding a node re-tests all its incident edges, so the cost is the sum
 of the degrees of the changed nodes, which on hubs and bursty data approaches m. The step
 therefore estimates its work as changed edges plus the summed degree of changed nodes (degrees are
-in the snapshot's CSR offsets) and falls back to a full evaluation when that exceeds about
-(n + m) / 8.
+in the snapshot's CSR offsets) and rewrites both masks in flat loops when that exceeds about
+(n + m) / 4.
 
 **Interval index (phase 4).** A start index with the maximum duration as a bound: a window
-`[from, to)` takes starts in `[from - maxDuration, to)` and tests their ends. For data whose
-durations vary widely (tenures beside one-day events) the bound is loose, so durations are
-bucketed by powers of two, each bucket with its own start index and bound, and a jump queries each
-bucket. If measurement shows that long-lived intervals still cost more than the 10 ms jump
-budget, the stated fallback is the two-column scan, 6.1 ms at 1M. A step re-tests rows whose start
+`[from, to)` takes starts in `[from - maxDuration, to)` and tests their ends. A jump
+rewrites the masks anyway, so it scans both columns (6.1 ms at 1M), the same order of work. Durations
+bucketed by powers of two come only if a long-lived case misses the 10 ms jump budget in the
+benchmark. A step re-tests rows whose start
 crossed `to` or whose end crossed `from`, from a second index on ends. Spells expand to one row
 per spell with an owner array; an element is visible while its count of overlapping spells is
 above zero.
@@ -652,8 +650,8 @@ Today, on any mask change:
 1. `UpdateManager.syncViewMasks` walks every Node and Edge object (1.1M at the ceiling).
 2. A hidden edge is a zero-length instance that is still drawn: `EdgeLineBatch.setDrawn` zeroes
    its 14 floats but keeps it in the instance count.
-3. `EdgeLineBatch.flush` uploads the whole slot buffer, 56 bytes per edge: about 56 MB per changed
-   frame at 1M edges.
+3. `EdgeLineBatch.flush` uploads the whole slot buffer, 80 bytes per slot (the join shader's stride
+   is 20 floats): about 80 MB per changed frame at 1M edges.
 4. A style layer that reads a changing value repaints every element (`sources.ts`), unless it is
    bound to a run.
 
@@ -668,10 +666,11 @@ The fixes, in order:
    pieces, `Edge.ts` around line 338), and each one marks its range dirty.
 3. **Changed-rows repaint** (phase 5, with `timeline.entered`). A layer reading a `timeline.*`
    value source repaints only the rows in that source's change set.
-4. **The window inside the shader** (phase 4), the scalable path. Each edge's instant (or start
-   and end) goes into its instance data in every batch it owns, the window is a uniform, and the
-   vertex shader collapses instances outside it. A scrub then costs zero CPU and zero upload on
-   the render side, and fade and age become uniforms. The session masks are still computed,
+4. **Hidden edges in the shader** (phase 4), measured first. The vertex shader collapses instances
+   outside the window. Float32 cannot hold an epoch (at 1.7e12 a float steps by about 2 minutes),
+   so fade and age read a time normalized over the extent. A move still does O(changed) work on
+   the CPU and in uploads, and arrow caps stay on that path: 2D caps and the 3D sphere-dot use a
+   `StandardMaterial`, which has no such uniform. The session masks are still computed,
    because algorithms, counts and selection read the data scope. Instances outside the window are
    still vertex-processed but produce no fragments; whether that reaches the phase 4 targets at
    1M edges is phase 4's first measurement.
@@ -765,8 +764,8 @@ the dock, never in a text field.
 `aria-valuetext` gives the window with an inclusive end ("Jan 5 to Feb 3, 2026"). One polite live
 region announces the window and the entered and left counts on a step and on pause, never on
 every playback frame. The histogram has a text alternative: its label names the busiest bin and
-the total, and arrow keys move through the bars, each announcing its range and its node and edge
-counts. Play always shows a visible pause (WCAG 2.2.2), and `prefers-reduced-motion` turns off
+the total, and a hidden table holds every bar (a focusable bar inside `role="img"` is invalid). Play
+always shows a visible pause (WCAG 2.2.2), and `prefers-reduced-motion` turns off
 fades and auto-advance animation while stepping still works.
 
 **Reading the end of the window.** Windows are half-open, so every readout shows `to` minus one
@@ -774,8 +773,8 @@ unit of the window's step as the last included date: a 30-day window from Jan 5 
 Feb 3". With a sub-day or numeric step the readout shows both bounds and marks the end as
 excluded, in wording the app owns.
 
-**Nodes and edges in the bars.** Stacked bars differ by fill pattern as well as color (edges
-solid, nodes hatched), so the split does not rely on color.
+**Nodes and edges in the bars.** The bars draw one kind, edges when edges are timed, because
+`HistogramRow` draws one count and its look is locked to Figma. The readout gives both visible counts.
 
 ### 6.1 Option A: a docked histogram time bar
 
@@ -796,13 +795,13 @@ solid, nodes hatched), so the split does not rely on color.
   about 112 px on touch (a 44 px transport row, a 48 px histogram, axis labels). It resizes the
   canvas, so it never covers nodes.
 - Drag the brush body to move the window, drag an edge to resize it. A tap or click on a bar
-  outside the brush jumps the window there; inside the brush it does nothing; movement past 8 px
-  makes it a drag. Wheel or pinch over the bars zooms the time axis and the bins are fetched again
+  outside the brush jumps the window there; inside the brush it does nothing; movement past 3 px
+  (`DRAG_SLOP` in `HistogramBrush`, locked to Figma) makes it a drag. Wheel or pinch over the bars zooms the time axis and the bins are fetched again
   at the finer step; a pinch is the dock's only when it starts over the dock.
 - With a selection, a line over the bars shows the selection's own activity, and a button jumps
   the window to its span.
-- **Phone:** one 44 px row (transport, readout) over a 16 px activity sparkline with the brush on
-  it; tapping the readout opens a bottom sheet with the full bar. **iPad:** the 112 px touch dock.
+- **Phone:** one 44 px row (transport, readout) over the 32 px `SparklineRow`, which takes no brush;
+  tapping the readout opens a bottom sheet with the full bar and brush. **iPad:** the 112 px touch dock.
 - **App cost:** about 5 days.
 - **Best for** the cybersecurity analyst: bursts are visible, the selection's line places a
   pivot in time, and a short sliding window walks through an incident.
@@ -901,8 +900,9 @@ in Filters (C)**. Adding the card to the dock costs about 2 more app days than A
 
 **Dock contents, left to right:** step back, play/pause, step forward, speed (1x, 2x, 4x), the
 field name, the window readout (the only text the dock writes, from the element's numbers and the
-field's unit), Sliding/Cumulative, and a close button that clears the window. The histogram fills
-the second row with the brush over it.
+field's unit), and a close button that clears the window. The histogram fills
+the second row with the brush over it. Sliding/Cumulative stays on the Time card: the dock has no
+spare width on touch.
 
 **XR.** graphty-element hosts its own XR UI, so the time panel is the element's: a small panel on
 the off-hand controller with the histogram, the brush and play. The trigger plays or pauses; the
@@ -918,7 +918,7 @@ status bar already shows follow it.
 **Data loading and the data panel.**
 
 - The import plan's `TableMapping.time` already writes `nodeTimePath` and `edgeTimePath`. It
-  gains `timeEnd` and `timeUnit` and declares the measurement (section 2.3); the draft gains
+  gains `timeUnit` (an end column is set after load, from the End row or `setField`) and declares the measurement (section 2.3); the draft gains
   suggested time roles and the `time.found` finding.
 - The import screen offers Time in the role menu (the app's `ROLES_BY_KIND` copy of the element's
   roles is a known workaround, issue #926; the element should export the roles so the copy can be
@@ -1027,7 +1027,7 @@ Where it differs from sections 2 to 7:
   options and are not saved.
 - No cursor slot: every move is a `visibility.window` command. A play's steps merge into one
   history step (a transaction continuing the play's first step), so one undo returns to the
-  window before the play; `stepBy` and `seek` are one step each. `seek` always commits.
+  window before the play; `stepBy` and `seek` are one step each. `seek` commits by default.
 - Nodes and edges must name the same column (`reason: "time-paths-differ"`), because a window
   reads one attribute.
 - `nodes: "ends"` counts edges inside the window only, not edges that also pass the filter.
@@ -1035,7 +1035,7 @@ Where it differs from sections 2 to 7:
 Left out, each marked `ponytail:` in the code where it applies: the parse zone (date-times with
 no offset read as UTC) and the `timeZone` option (calendar steps and bins align in UTC); the
 radix sort and the time-sliced index build; the incremental mask pipeline (a step diffs both
-masks in full); `spanOf`, `series`, `transition`, `commit`, the cursor; intervals (phase 4);
+masks in full); `series`, `transition`; intervals (phase 4);
 the import-screen suggestion and `time.found`; the in-element benchmark.
 
 The app half (graphty app, `graphty/src/workspace/time/`):
@@ -1060,9 +1060,8 @@ keep the current window's, or open one step at the start of the data), a first c
 starts on the step's boundary, and `bins({ of: { nodes, incident: true } })` counts the edges at
 the given nodes, so a node selection over edge time has an activity line.
 
-Not built in the app: dragging the brush body (the thumbs and the track move it), wheel or pinch
-zoom of the time axis, a tap on a bar to jump, the T key, "jump to the selection's span"
-(`spanOf` is not built), the phone sparkline layout and bottom sheet, the import-screen time
+Not built in the app: wheel or pinch zoom of the time axis, "jump to the selection's span", the
+phone sparkline layout and bottom sheet, the import-screen time
 role suggestion and the Overview finding, and Storybook stories for each dock state.
 
 ### 8.4 For the owner
@@ -1093,7 +1092,7 @@ they change existing behavior.
    `TimeUnit` values `"ms" | "s" | "ordinal"`; the `unit` and `zone` on the time declaration.
 6. Selector fields: `timeline.time`, `timeline.entered`.
 7. Codes: `E_NO_TIME_FIELD`, `time.unparsed`, `time.parsed-loosely`, `time.unit-suspect`,
-   `time.end-ignored`, `time.found`; reasons `calendar-step-on-ordinal`, `declared-not-time`.
+   `time.found`; reasons `calendar-step-on-ordinal`, `declared-not-time`.
 8. Project file keys: `knownFields.nodeTimeEndPath`, `edgeTimeEndPath`, and
    `visibility.playback`.
 
@@ -1189,9 +1188,9 @@ Each phase lands on its own and leaves the product working.
 
 **Phase 4: intervals, spells, and a renderer that scales (element).**
 
-- Interval index with duration buckets, open ends, spells and instant lists; GEXF and XGMML
-  auto-designation; read the f64 columns directly.
-- The shader-side window in every edge batch, with fade and age as uniforms.
+- Interval index over sorted starts, sorted ends and a scan, with open ends, spells and instant
+  lists; GEXF and XGMML auto-designation.
+- Hidden edges collapsed in the shader, with fade and age as uniforms over a normalized time.
 - Tests: overlap at the half-open boundaries; GEXF fixtures with spells and open bounds; a jump
   over long-lived intervals within budget; frame time at 1M edges with a 2% window.
 

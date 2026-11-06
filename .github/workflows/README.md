@@ -93,6 +93,10 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
   re-run once on the same commit (`release-rerun.yml`) before anything is filed.
+- **Owner item**: a lane that failed on an account, not on code, so no code change fixes it: the LLM lane's refused
+  key or balance, or the T4 job refused by machine.dev before it ran (a failed step named `Machine: <why>`, such as
+  out of credit). Nothing is re-run, bisected or filed as red; the owner hears why through `Release status`. Once
+  the account is restored, `gh run rerun <run id> --failed` tests the lane again, and passing is not filed as flaky.
 - **Red**: one "Full run red: <lane> on <sha>" issue (`bug`, `priority:critical`) and one `bisect.yml` run,
   which names the merge to revert or fix forward. A merge whose message says `Fixes #N` for that issue starts a
   restart at once (`mode: restart`, from ci.yml's `release-due`) and closes it; `Refs #N` lets the red run finish
@@ -113,7 +117,8 @@ from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candi
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
+gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master

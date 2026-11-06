@@ -6,44 +6,42 @@ every insight and every fix. The job is to make sure a finding is about the desi
 of the study, the prototype or the task wording.
 
 Read "Top of mind" first at the start of every session. Update the dated sections as decisions are
-made and evidence comes in. Summarized 2026-10-21 (older entries folded; full text in git history).
+made and evidence comes in. Summarized 2026-11-03 twice (older entries folded; full text in git
+history).
 
 ## Top of mind
 
-- (2026-10-21) Tier 3 closed after round 1 at the 1-round safety cap without meeting the bars.
-  Bar 5 fails only on the two backlog 3s (node Fill "+" one-node layer; folder chain icon, 0
-  sessions reached it); bar 1 fails only on T49 B's "gold" F. Neither is new evidence about the
-  reader: before another round, fix the measures, not the sessions.
-- (2026-10-21) A round at its ceiling (55 of 56 succeeded) cannot meet "no severity 3" bars on
-  backlog items it never reaches. Next tier: tasks that route through every open severity 3, or
-  bars that count only what the round can observe.
-- (2026-10-21) Top design insights, all severity 2: Graph inspector looked at first for node color
-  (9 sessions, 5 halves); new style lines start at the current value so adding one looks broken;
-  layer membership checked by eye; keyboard focus lost twice; one color table decides grades and
-  spoken names.
-- (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
-  2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
-- (2026-10-21) Asked-color rule: `colorWord` returns CSS keyword "gold" for FFD700 before the hue
-  band. Decide between tiers whether a keyword inside the asked hue's band passes; never regrade.
-- (2026-10-21) `score.mjs` bar 4 takes the start page's demo as the start (printed 3, true median
-  6). Start = first steps line after the graph opens. Owed to the tool.
-- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
-  by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
-- (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
-  turn: 11 of 56 starts VOID. Starts run before the participant's turn.
-- (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
-  Repro gesture defects with real-sized events before they count.
-- (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
-  it jargon. Question 3 needs a measure that separates the two.
-- (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
-  participant is one model. Read tasks and key for leading before spending sessions.
-- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only those criteria
-  preflight 4 names.
-- (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
-  the screen and names the contradiction; never rewrite the key toward decided.md.
-- Expert counts are not user evidence; an expert-only severity 3 needs a repro under `repro/`.
-- (tier 2 lessons) Step counts must match the key's counting; histories, setups, prompt words and
-  the tool's own text all steer behavior -- grep all four before "unprompted".
+- (2026-11-03) Tier 5 stopped at the 1-round safety cap with bars 1, 3, 4, 8, 9 failing and 6, 7
+  unmeasured. A one-round cap cannot meet bars that need a fix round plus a re-test round: ask
+  for a cap of at least 2 (find, then confirm) before the next tier launches.
+- (2026-11-03) Open work handed on (`rounds/round-1/insights.md` "What the round needs next"):
+  fix the Results-pick run binding, By position's box and false error, the empty Fill box, "Is
+  exactly" on an empty step, Clear-then-Escape deleting a saved card; re-walk each by its repro.
+- (2026-11-03) Bars 6 and 7 went unmeasured because two expert walks never ran: make every bar's
+  feed a launch precondition, not a best effort.
+- (2026-11-03) Tier 5 round 1 after the skeptics (`rounds/round-1/insights.md`): bar 4 fails on 2
+  severity 3 (covered panel's speech, fixed after freeze; a Results pick binding another run); bar 9
+  fails 4 of 3 (Or group, Condition.../Or..., By position box, header Tab order); bar 1 fails on
+  T75 A only (one session, several causes); bars 3 and 8 fail; 6 and 7 not measured.
+- (2026-11-03) T73 as worded cannot measure the editor: it asks for a colored set and a count, the
+  key wants a rule. Reword the task (no control words) or change the key before T73 runs again.
+- (2026-11-03) Check the task words against the key's success line before calling a bar failure:
+  a P that the words never asked to avoid is a study defect.
+- (2026-11-03) Follow-up questions must not invite a wish ("would you rather...?"): same-model
+  participants all say yes.
+- (2026-11-03) Fixtures that pre-color in the task's color manufacture "drowned color" findings.
+- (2026-11-03) "Each finding counts once, in the smaller allowance": a keyboard-named element that
+  is also a bar 7 item counts in bar 9. Apply it when scoring, not after.
+- (2026-11-03) Code "least sure" answers from the grade's quote, not a summary: two of four value
+  picker citations were miscoded (r1-s18, r1-s06).
+- (2026-11-03) Bar 8's T70 overage is mostly outside the editor (Fill box, layer name box, hiding
+  a ramp layer, filter-first order). Decompose cost before blaming the editor.
+- (2026-11-03) Score per half, not pooled; tool fixes before round 2 scoring (`endstate.mjs`
+  hidden layers, `score.mjs` layouts, P in the graders' form).
+- (2026-11-03) A severity 3 from one session on a route the key does not use survives only with a
+  repro; say so beside it.
+- (2026-11-03) Check the briefing against the setup before a round (T73 A's missing saved project).
+- (2026-11-03) Check decided.md before scoring a defect; colliding decided rules need a ruling.
 
 ## Priorities and values
 
@@ -67,147 +65,130 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 The bars live in each tier's `criteria.md` (frozen before a round; changes only between rounds,
 logged). Their reasons, in short:
 
-- **Each task >= 80% success, each dataset half at a floor** -- the half floor stops a one-domain
-  fix passing on combined counts. At 4 sessions 80% means 4 of 4; at 6, 5 of 6.
-- **No confirmed severity-4 (tier 3: 3 or 4) problem.** Nielsen 0-4; confirmed = 2 participants,
-  or a scripted repro for a build defect.
-- **A time bar measured in steps, not minutes** (the clock holds model thinking), on pointer
-  sessions of newcomers; keyboard and expert-tool personas reported apart.
-- **A bar that only a route under study can meet** (T47 and, proposed, T48 `Route:` lines): a
-  pass around the feature is recorded but does not hold the bar.
-- **Every committed step visible on canvas and legend at once; every count from live state.**
+- **Each task >= 75-80% success, each dataset half at a floor** -- the half floor stops a
+  one-domain fix passing on combined counts.
+- **No confirmed severity 3 or 4.** Nielsen 0-4; confirmed = 2 sessions on different halves, a
+  session or an expert plus a scripted repro, or an expert screenshot finding the audit also shows.
+- **Cost measured in steps, not minutes** (the clock holds model thinking), per task half, on
+  pointer sessions; keyboard personas reported apart.
+- **An end-state script** for what a picture cannot show (filter and export counts).
+- **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
 
-- **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
-  one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
-  left the node's Style tab without a change, and r1-s35 rated the one-node layer 2, so only r1-s53
-  rated it 3 (skeptic 1 was right). Checked the wheel mechanism in `OrbitInputController` (one
-  event clamped to one notch, 0.75% per notch) before writing it: weakened, not dropped, since a
-  notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
-  bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
-
-- **2026-10-21 (round 1 scoring):** Scored bars 1 to 4 by hand where `score.mjs` was wrong and
-  said so in `scores.md` rather than editing the tool or a grader's file mid-scoring: the tool and
-  the grades are other roles' files, and a silent fix would hide the defects from them. Kept T49
-  B's F under the frozen asked-color rule (criteria change only between rounds) and gave the count
-  without it beside. Counted bar 5 as failing on the two backlog items rated 3 before the round,
-  and listed ten new severity 3 candidates for the skeptics instead of counting them, because the
-  graders and the experts rated several of them differently (2 vs 3) and an expert-only finding
-  needs a repro. Confirmed design problems only on two task halves, per the criteria, so the T47
-  B-only key scroll stays "seen on one half". Ran the key-and-drawing check myself as a script
-  (0 disagreements) because no one had and it feeds bar 5. Kept score.json (the tool's record)
-  and explained its two wrong numbers in scores.md.
-
-- **2026-10-21 (round 1 plan, recheck):** Kept the committed plan; re-checked the allocation and
-  T49's follow-up against tasks.md and roster.md after the prompts were reworded. Rewriting would
-  drop the gate evidence.
-- **2026-10-21 (round 1 plan):** Generated from roster.md's table with an asserting script (56
-  rows, halves equal names, no persona on both halves); core tasks first, A/B alternating; fixed
-  `real.mjs --brief`'s build regex rather than criteria's first line.
-- **2026-10-20 to 10-21 (pilots into the key, folded):** Kept every step count and bar where the
-  walked path matched; wrote older-build facts as "(on <build> ...)" instead of deleting; a grading
-  rule for a build defect leaves with the defect; the key counts the screen where decided.md
-  contradicts it; no prompt was wrong on any build.
-- **2026-10-17 to 10-20 (criteria reviews, folded):** Proposed, never applied (the Director
-  freezes): refreeze on golden, a round 1 verdict, phrase-level echo checks, named planted cases
-  per self-test, T50 B's summary reading as S with `Read from:`, a core half needs newcomers, a
-  design problem confirmed only across halves. Bar 4 judged on T39 only; T49 graded by the drawing.
-- **2026-10-10 to 10-11 (tier 2, folded):** Two skeptic drops = dropped, one = weakened unless
-  answered with evidence; disputed claims settled at their source; VOIDs re-run as `<id>b`; change
-  the prompt, not the key, when a prompt leads.
-- **2026-10-02 to 10-09 (tier 1, folded):** Real app only; criteria frozen before a round; every
-  task walked first; task words never echo the screen; personas validate, never generate features.
-
-- (2026-10-21) Decision: stop tier 3 at round 1 rather than spend sessions on a ceiling. Reason:
-  the remaining bar failures come from the grading rule (gold) and from backlog items no task
-  reaches; more sessions cannot move either.
+- 2026-11-03 -- Applied round 1 skeptics (`rounds/round-1/insights.md`). Kept at 3: covered-panel
+  speech, the Results pick binding another run. To 2: "Is exactly" (empty step only), Clear then
+  Escape. Bar 9: value picker weakened out (one drop), Except to 1, header Tab order moved in from
+  bar 7 by the counts-once rule -> 4 of 3, fails. T73 reclassified as not measured (wording vs
+  key). Reason: the rule (two drops drop, one weakens) plus the criteria's counts-once line, which
+  scoring had missed. Evidence: viewed `repro/r1-s13/06.png`, `sessions/r1-s08/05.png`,
+  `sessions/r1-s04/17.png`; criteria.md lines 66 and 78-81.
+- 2026-11-03 -- Scored tier 5 round 1 (`rounds/round-1/scores.md`). Used `grade.md`'s P where the
+  graders' form wrote F or G (7 sessions). Bar 8 per half (criteria's letter) over `steps.mjs`'s
+  pooled verdict. Bar 4: four severity 3 confirmed before skeptics -- the covered inspector's
+  speech (kept by both skeptics in the void round, unfixed on this build), Results entries binding
+  a whole-graph run (r1-s23 + repro), how-to-match stuck on Contains (r1-s18 + repro, with the
+  counter-argument written beside it), Clear then Escape deleting a saved card (accessibility walk
+    - repro). Bar 9 by element (Or group, Condition.../Or..., By position box, value picker) plus the
+      outline's Except column; fails at 4 even without the value picker. Bar 7: 5 confirmed severity 2
+      = allowance, reported "not measured" because the interaction walk did not run. Counted a replay
+      of an expert's walk as a scripted repro, as in the void round. Endstate's four mismatches called
+      a tool defect after reading `hidden: true` in each `styles.json`. Reason: every verdict by the
+      criteria's letter, with the reading a skeptic might prefer written beside it. Evidence: viewed
+      `repro/r1-s23/run/09.png`, `repro/r1-s18/05.png`, `expert/engineer/thanks-1200x900/04.png`;
+      `waits.mjs` (0 over 10 s); bars.json (0 serious axe).
+- 2026-11-03 -- Planned the round 1 rerun: the void round's 30 rows unchanged plus "no session
+  starts before `real.mjs --gate` writes Gate evidence". Moved the void tmp folders aside.
+- 2026-11-03 -- Void round insights (`rounds/round-1-void/insights.md`): kept at 3 only the covered
+  panel's speech; Clear then Escape on a new card to 2 as a decided-rule collision; bar 9 "not
+  measured" (scripted word counts confirm nothing). Reason: a claim stands only where a screen or
+  log backs it and no decided rule settles it.
+- 2026-11-03 -- Void round scored: every session bar "not measured"; recommended a full restart not
+  counted toward the round cap. A bar held by 0 sessions is a false pass.
+- 2026-11-03 -- Escape in a just-added color line taking the line back is build behavior (decided
+  reversal of a line with no value), not a defect.
+- 2026-11-02 -- Answer key matched to each dry-run build (0c163f54bf to 1e123d7d33): only the key
+  and the change log, a "Build notes (<build>)" section per build, T74's path count 12 -> 13 (an
+  addition slip), Shortest path's "On the route" added to Not success. Graders must not meet a
+  screen the key does not describe.
+- 2026-11-02 -- Two criteria reviews proposed (not applied; the Director freezes): calm-first must
+  walk every listed screen; "two counts of one result" only when they can never differ; an
+  editor-scoped "least sure" question; fix rates against the placement baselines; reword echoing
+  prompts (T74 B "routes"); one-domain features reported as such; count each defect once.
+- 2026-10-30 -- Tier 4: stopped at round 1 as findings, not a verdict; two skeptics per insight cut
+  all four severity 3s to 2 or below; scored by hand where scripts were wrong, and said so.
+- 2026-10-02 to 10-21 (tiers 1 to 3, folded) -- Real app only; criteria frozen before a round;
+  every task walked first; task words never echo the screen; VOIDs re-run as `<id>b`; change the
+  prompt, not the key, when a prompt leads; two skeptics per insight.
 
 ## Tried: worked / did not work
 
-- (2026-10-21) Worked: two independent skeptics per insight -- every single-half 3 came down to 2,
-  two build defects were restated or weakened to tool artifacts. Did not work: bars that require
-  "no open severity 3" while no task reaches the backlog 3s; a frozen color rule using CSS keywords.
-
-- 2026-10-21 (round 1 insights) -- Worked: grepping the three grades behind a disputed evidence
-  claim instead of picking a skeptic; grepping source for the mechanism a skeptic named; one
-  screenshot per owner insight, each viewed. Did not work: `scores.md` counting the same defect
-  in three lists (bar 5, build defects, design problems) -- count each once, at its highest list.
-
-- 2026-10-21 (round 1 scoring) -- Worked: re-tallying every grade from plan.md plus each
-  grade.md's `^Grade:` line anywhere (caught r1-s06b, which `score.mjs` dropped); recomputing bar 4
-  from `styles-steps.jsonl` with the sample's own starting color as the baseline; a key-and-drawing
-  script over every last state (`keycheck.py`); naming palette colors with `colorWord` from
-  compact-mantine's dist after checking `color-utils.ts` is unchanged since the build; reading
-  styles.json selectors to report card types (`cards.py`); checking a "every B session typed a
-  word" claim against the transcripts before writing it (it was false: two typed hex). Did not
-  work: trusting `score.mjs`'s bar 4 median; grepping grades for measure lines (`First move`,
-  `Edges looked for`) -- graders rarely write them, so those measures come from problem lists or
-  transcripts; ugrep with long `{0,60}` ranges ("exceeds complexity limits").
-
-- 2026-10-21 (round 1 plan) -- Worked: briefing all 56 rows and tallying each `^REAL_DIST=` line
-  (caught the wrong build); grepping briefings for the follow-up's words. Did not work: grepping
-  `--start` across briefings (README parts carry example lines).
-- 2026-10-17 to 10-21 (key edits, folded) -- Worked: one asserted edit script per pass with
-  `\s+`-joined old strings; prettier on the edited file (`--ignore-path /dev/null --check`);
-  checking a pilot's claim against session.log and one screenshot; grepping the key for stale
-  phrases and old build ids after edits; `git merge-base --is-ancestor` for change-log claims;
-  `grep buildStamp` over session.json per half. Did not work: trusting pilot step totals or "the
-  key already records" lines; copying files into tmp/ to preview prettier; `--no-ignore`.
-- 2026-09-28 to 10-11 (tiers 1 and 2, folded) -- Worked: `git status`, `git log` and round
-  listings after any stop; viewing every cited screenshot; one row per session with an assert; a
-  4-slot browser gate. Did not work: launching every agent at once; editing a script while it
-  runs; helper files at the scratchpad root; "Priming: none" lines written from prompts alone.
+- 2026-11-03 (tier 5 close) -- Did not work: a 1-round cap with fix-and-confirm bars; the round
+  could only find. Worked: two independent skeptics cut study defects (T73 key, leading
+  follow-up, pre-colored fixtures) before they reached the build's fix list.
+- 2026-11-03 (round 1 insights) -- Worked: a verdict table per item before writing, then the
+  drop/weaken rule mechanically; grepping criteria for the allowance and counts-once text. Did not
+  work: scoring's "least sure" coding from summaries (miscited sessions found by both skeptics).
+- 2026-11-03 (round 1 scoring) -- Worked: running steps, endstate, keydraw, waits and score first,
+  then reading every grade's head lines in one loop; printing each route's first three actions to
+  get first doors; reading `hidden` in `styles.json` before trusting an endstate mismatch; viewing
+  the repro screenshots that carry a severity 3. Did not work: `score.mjs` on these grades (layout
+  drift), `steps.mjs`'s pooled verdict, grepping routes for "Delete" (the screen lists match).
+- 2026-11-03 (rerun plan) -- Did not work: briefing into the void round's tmp folders (an old
+  `grade.md` reads as facilitator words). Worked: moving them aside, then briefing all 30 in a loop.
+- 2026-11-03 (void insights) -- Worked: printing cited route.jsonl steps and viewing each cited
+  screenshot; when skeptics split, a repro I verify myself settles it, saying who disagreed.
+- 2026-11-03 (void scoring) -- Worked: reading the tool's code before calling 60 leak lines false;
+  mapping expert findings across walks and the audit by screen. Did not work: graders labeling a
+  study-tool failure `build-defect`.
+- 2026-11-02 (keys, criteria, plan) -- Worked: per-build key notes; recounting path actions from
+  route.jsonl; grepping prompts against catalog keywords and option labels; diffing roster and
+  tasks since the plan commit. Did not work: pilots writing report.md (harness refuses subagent
+  report writes; the caller saves the text); trusting a pilot's own step count.
+- 2026-10-29 to 10-30 (tier 4) -- Worked: `steps.mjs` and `endstate.mjs` first, one asserted script
+  per tally, viewing the reference image beside a session screenshot. Did not work: trusting the
+  tool's `tooltip: null` and wrong-turn counts that included post-success checks.
+- 2026-09-28 to 10-21 (tiers 1 to 3) -- Worked: two skeptics per insight; a browser gate. Did not
+  work: launching every agent at once; editing a running script; counting one defect in several
+  lists.
+- 2026-11-03 (tier 5 void) -- Did not work: launching without the gate evidence (60 of 60 void).
 
 ## Thinking
 
-- 2026-10-21 -- A tool that measures "change from the start" must know where the start is: the
-  start page's demo, the sample's defaults and the participant's first edit are three different
-  starts, and each tier-3 tool so far picked the wrong one once (T49's rule, then bar 4).
-- 2026-10-21 -- When every task passes, a bar that counts success says little; the bars that
-  still move are cost (steps over key), route share and confirmed problems. A design whose traps
-  never fire may be avoided rather than understood.
-
-- 2026-10-20 -- A word list cannot catch an echo made of common words: "keeps its own color"
-  vs "each layer's own value" shares only stop-words. Echo checks need phrases, and the spoken
-  layer, where the bulk token's meaning is written out, is where the echo lives.
-- 2026-10-20 -- A change log entry is a claim about the build; check it against the commit graph
-  before trusting any decision that rests on it.
-
-- 2026-10-17 -- A prompt must state the goal, and when the goal IS the meaning a new control is
-  meant to convey ("every cluster keeps its own color" vs the bulk token), the session cannot
-  show whether the control conveyed it. Test the control's meaning where it is a trap, not where
-  it is beside the route (T46, not T47).
-- 2026-10-17 -- A wording check is only as complete as the screens it walks. Every popover on a
-  success path belongs in the walk, or its words are unchecked and its focus untested.
-- 2026-10-17 -- "Focus never falls to the page" is too weak for creation flows: focus on the
-  wrong control (a menu, a swatch) makes typing go nowhere and passes the bar. Test that typing
-  lands.
-- 2026-10-11 -- A study near its ceiling produces mostly study artifacts: audit prompt, history,
-  setup and step count first in any round where success is at 100%. A bar can hold because nobody
-  visited its screen; give each fixed screen a reader route.
-- 2026-10-11 -- Priming has four sources: the prompt, the history, the persona's playing rules and
-  the tool's own text. A leak check over participant logs sees none of the last three.
-- 2026-10-10 -- A reworded prompt can close one route and open another; re-read the key's S line
-  against new words, and pilot it.
-- 2026-10-09 -- A leaked facilitator file can only make routes look easier: a leak voids passes,
-  not problems. Participants choose the route nobody walked: seed dry runs with last round's
-  detours. Histories steer first moves; the second place looked is the real signal.
-- **What can produce a false pass on the real app.** Task words that echo controls; a goal that
-  states the control's meaning; graders accepting "I think it worked"; setups that pre-do part of a
-  task; tests that assert element reports a person never sees; a fix judged on the easier dataset;
-  a route around the feature counted as success.
-- **What can produce a false fail.** Build defects that decide the task, tool limits, headless
-  timing (name the mechanism, never "flaky"), and the runner (time limits, slot waits).
+- 2026-11-03 -- Skeptics this round cut more from the study than from the build: the T73 key, a
+  leading follow-up, a fixture ramp. A pre-round check of words vs key vs fixture would have saved
+  four sessions' worth of findings.
+- 2026-11-03 -- When a task's every session takes one door around the feature, the result is a
+  finding about the door, not about the feature: route the fix to where people already go
+  (Neighborhood writes the rule) rather than teaching them the editor.
+- 2026-11-03 -- Preview-then-color order means no one ever sees the final look while choosing;
+  people asked for it 5 of 5. The decided group colors answer "who is picked", not "how will it
+  look", and a lower layer can swallow the new color with only a small key line saying so.
+- 2026-11-03 -- A count that waits for Enter beside one that applies as typed reads as "nothing
+  happened". Mixed commit rules in one workspace cost more than either rule alone.
+- 2026-11-03 -- Expert-only rounds over-call severity; plan for the skeptics before calling a bar.
+- 2026-11-02 -- A self-rating that does not move between designs the owner rates very
+  differently cannot stand in for the owner. Prove a measure discriminates before it gates.
+- 2026-10-30 -- A trap that a task's order guarantees measures the task as much as the default;
+  vary the order before calling the default the cause. Ask of every fix what a half-done state
+  now looks like.
+- 2026-10-30 -- A count with no rows behind it turns every task into a checking task; it shows up
+  as cost, not failure.
+- 2026-10-29 -- A pilot "mismatch" splits three ways: the key described a door the build lacks, the
+  build gives a different number for the same act (grading line), or the act cannot be done.
+- **What can produce a false pass.** Task words that echo controls; a goal that states the control's
+  meaning; graders accepting "I think it worked"; setups that pre-do part of a task; a fix judged on
+  the easier dataset; a route around the feature counted as success; pooled halves.
+- **What can produce a false fail.** Build defects that decide the task, tool limits, a briefing
+  the setup does not match, headless timing (name the mechanism), and the runner.
 - **Stopping simulation.** When rounds stop moving the core tasks, go to real users (graphty.app
   with opt-in usage data, 5 to 8 analysts, a real screen-reader user).
 
 ## Sources
 
-- Tier 3: `tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md` (2026-10-16
-  section), `bulk-edit-plan.md`, `pilot-materials/README.md`; tool: `tool/score.mjs`
-  (ROUTE_TASKS), `tool/wording.mjs`, `tool/bars.mjs`; vocabulary `tmp/style-study/bars3/`.
-- App words: `graphty/src/workspace/style/words.ts`, `PropertyRow.tsx`, `Groups.tsx`,
-  `BindingPopover.tsx`.
-- Earlier: `design/ui/studio/digests/`, `tier2/report.md`, `report.md`, round folders,
-  `tmp/researcher/` scripts.
+- Tier 5: `tier5/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md`,
+  `rounds/round-1/scores.md`, `plan.md`, `expert/*.md`, `repro/`, `rounds/round-1-void/`; tools
+  `tool/steps.mjs`, `endstate.mjs`, `keydraw.mjs`, `waits.mjs`, `score.mjs`, `bars.mjs`, `real.mjs`.
+- Tier 4: `tier4/criteria.md`, `answers.md`, `decided.md`, `words-at-rest.md`,
+  `rounds/round-1/scores.md`; reference images in the main checkout's `tmp/design-studio/tier4/`.
+- Earlier: `tier3/`, `design/ui/studio/digests/`, `tier2/report.md`, `tmp/researcher/`.

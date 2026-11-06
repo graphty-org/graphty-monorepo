@@ -66,6 +66,8 @@ const DECLARED = [
     "node.labelShiftX",
     "node.labelShiftY",
     "node.labelShiftOf",
+    "node.labelGapOf",
+    "node.labelBox",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -106,6 +108,9 @@ const DECLARED = [
     "node.outerBorderStyle",
     "node.outerBorderOffset",
     "node.outerBorderCount",
+    "node.raisedBorderWidth",
+    "node.raisedBorderLightColor",
+    "node.raisedBorderDarkColor",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -150,6 +155,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -363,6 +369,8 @@ const DECLARED = [
     "edge.labelShiftX",
     "edge.labelShiftY",
     "edge.labelShiftOf",
+    "edge.labelGapOf",
+    "edge.labelBox",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
@@ -403,9 +411,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-nine node channels and one hundred and sixty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 189);
-        assert.strictEqual(channelsFor("edge").length, 160);
+    it("splits into one hundred and ninety-five node channels and one hundred and sixty-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 195);
+        assert.strictEqual(channelsFor("edge").length, 162);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -694,6 +702,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
@@ -817,6 +826,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelShiftX",
         "node.labelShiftY",
         "node.labelShiftOf",
+        "node.labelGapOf",
+        "node.labelBox",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -845,6 +856,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelShiftX",
         "edge.labelShiftY",
         "edge.labelShiftOf",
+        "edge.labelGapOf",
+        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -930,7 +943,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
+    it("are the thirty-six that carry a colour, and the type says the same thirty-six", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -942,6 +955,8 @@ describe("colour channels", () => {
             "node.haloColor",
             "node.borderColor",
             "node.outerBorderColor",
+            "node.raisedBorderLightColor",
+            "node.raisedBorderDarkColor",
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",

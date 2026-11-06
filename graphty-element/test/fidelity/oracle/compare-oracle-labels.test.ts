@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, mergeTexts, outerRingOf, stackedTexts, underlaysOf } from "./associate";
+import { associate, bandsGroup, mergeTexts, outerRingOf, stackedTexts, underlaysOf } from "./associate";
 import {
     browserFace,
     browserFontClass,
@@ -265,6 +265,17 @@ describe("label checks", () => {
         assert.strictEqual(lineAlign(text("a\nwide\nb", 110, 180, { lines: [centered, wide, b] })), "middle");
     });
 
+    it("takes no alignment from a table cell spanning two cells side by side", () => {
+        // dot-synth-nodes n_html3: A | B over a wide cell, whose edges fall a pixel either way of the narrow cells'
+        const a = { x0: 147.5, y0: 403.9, x1: 153.5, y1: 412.9 };
+        const b = { x0: 159.5, y0: 403.9, x1: 164.8, y1: 412.9 };
+        const wide = { x0: 146.8, y0: 419.8, x1: 164.7, y1: 428.8 };
+        assert.isNull(lineAlign(text("A\nB\nwide", 155, 416, { lines: [a, b, wide] })));
+        // two lines of one cell over a third say what they said: a line alone under them spans no cells
+        const under = { x0: 147.5, y0: 415, x1: 160, y1: 425 };
+        assert.strictEqual(lineAlign(text("A\nwide", 155, 416, { lines: [a, under] })), "start");
+    });
+
     it("fails a label at the start of its node where the program centered it, a shift the offset check passes", () => {
         // 4 px left of center: within half a font size, but no longer centered on the 40 px node
         assert.deepEqual(labelPair({ x: 96, box: { x0: 81, y0: 95, x1: 111, y1: 105 } }), { "label.anchor": ["a"] });
@@ -287,6 +298,34 @@ describe("label checks", () => {
             failures(scene("oracle", {}, { a: at(117.6) }), scene("graphty", {}, { a: at(g) }));
         assert.deepEqual(pair(117.3), {});
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
+    });
+
+    it("places a label by its font's line, not the browser's rounded reading of it, and fails one truly elsewhere", () => {
+        // yed-graphml-specimen-labels two-labels: the browser reads yEd's 10 px line 0.96 px under where it stands, past
+        // the line between inside-at-the-start and centered
+        const read = (over: Partial<PText>): PText => text("A", 100, 98, over);
+        const box = { x0: 80, y0: 80, x1: 120, y1: 120 };
+        assert.strictEqual(labelAnchor(read({}), box), "center/center");
+        assert.strictEqual(labelAnchor(read({ lineDrop: 1 }), box), "center/start");
+        const pair = (o: PText, y: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: o }), scene("graphty", {}, { a: text("A", 100, y) }));
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 96.5)["label.anchor"], undefined);
+        assert.deepEqual(pair(read({}), 96.5)["label.anchor"], ["a"]);
+        // the defect planted: graphty's label at the node's other end
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 110)["label.anchor"], ["a"]);
+    });
+
+    it("places words in another face by the end nearest the program's, and fails one where no end is in place", () => {
+        // gml-synthetic-coverage 9: yEd's left edge, in Courier New where yEd drew Dialog: narrower, so the middles part
+        const span = (x0: number, w: number, family: string): PText => text("A", x0 + w / 2, 100, { family }, w);
+        const pair = (g: PText): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: span(83, 30, "Dialog") }), scene("graphty", {}, { a: g }));
+        const courier = "Courier New, DejaVu Sans, sans-serif";
+        assert.deepEqual(pair(span(83, 27, courier))["label.anchor"], undefined);
+        // the same narrower box in the program's own class of face is out of place: its width is no other font's doing
+        assert.deepEqual(pair(span(83, 27, "DejaVu Sans, sans-serif"))["label.anchor"], ["a"]);
+        // the defect planted: another face, and neither end nor the middle where the program's are
+        assert.deepEqual(pair(span(95, 27, courier))["label.anchor"], ["a"]);
     });
 
     it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
@@ -789,6 +828,24 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.deepEqual(compareOracle("t", o, guide).failures, { "label.background": ["a"] });
     });
 
+    it("reads the band a group's label is drawn on as the label's background, and nothing else", () => {
+        const words = text("Title", 300, 70);
+        const box = { x0: 100, y0: 60, x1: 500, y1: 300 };
+        const band = (x0: number, y0: number, x1: number, y1: number, over: Partial<Prim> = {}): boolean =>
+            bandsGroup(
+                prim({ tag: "rect", corners: 4, points: rect(x0, y0, x1, y1), fill: fill("#00b050"), ...over }),
+                words,
+                box,
+            );
+        // yEd's node_width label: a strip the group's whole width, stopping short of its rounded corners
+        assert.isTrue(band(102, 60, 498, 80));
+        // the group's own body, a strip elsewhere in it, a short box and an outline with no fill are not
+        assert.isFalse(band(100, 60, 500, 300));
+        assert.isFalse(band(100, 200, 500, 220));
+        assert.isFalse(band(240, 60, 360, 80));
+        assert.isFalse(band(100, 60, 500, 80, { fill: null, stroke: stroke("#000000") }));
+    });
+
     it("reads a whole circle on a node's outline as that node's self-loop where graphty draws one, run as graphty's", () => {
         const prims = drawing(() => []);
         // vis-network's loop: an arc drawn all the way round, centered off the node, its ends meeting
@@ -1000,6 +1057,46 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.isNull(a?.stroke ?? null);
         // what graphty does not draw is a stray, not the node's border or fill
         assert.lengthOf(o.strays, 1);
+    });
+
+    it("leaves a ghost out of a node's body: a see-through copy drawn just before it, off its spot", () => {
+        // json-cyjs-synth-nodes n78: Cytoscape.js's `ghost`, read before as the node, its box the union of the two
+        const ghost = (): Prim => prim({ tag: "ellipse", points: circle(106, 106, 20), fill: fill("#cccccc", 0.4) });
+        const prims = drawing((id) => (id === "a" ? [ghost()] : []));
+        const { scene: o } = associate(prims, 600, 400, guide);
+        const a = o.nodes.find((n) => n.id === "a");
+        assert.deepEqual([a?.fill?.opacity, Math.round(a?.w ?? 0)], [1, 40]);
+        // a ghost graphty does not draw is a stray, so leaving it out of the body does not hide it
+        assert.lengthOf(o.strays, 1);
+    });
+
+    it("keeps a see-through shape as the node's unless it is the next shape's copy", () => {
+        index = 0;
+        const shape = (x: number, color: string, opacity: number): Prim =>
+            prim({ points: circle(x, 100, 20), fill: fill(color, opacity) });
+        // another color, or a shape between it and the opaque one: a see-through node beside another
+        assert.strictEqual(underlaysOf([shape(100, "#00ff00", 0.4), shape(106, "#cccccc", 1)]).size, 0);
+        const far = shape(100, "#cccccc", 0.4);
+        prim({ points: circle(300, 300, 5) });
+        assert.strictEqual(underlaysOf([far, shape(106, "#cccccc", 1)]).size, 0);
+        // on one spot it hides nothing and is no ghost
+        assert.strictEqual(underlaysOf([shape(100, "#cccccc", 0.4), shape(100, "#cccccc", 1)]).size, 0);
+    });
+
+    it("counts a part drawn exactly half as large in a node's box, whichever way its coordinates round", () => {
+        // Graphviz's fivepoverhang and threepoverhang: a 24 x 6 bar and a 12 x 6 bar under it, the same at any place
+        const heightOf = (widths: [number, number]): number | undefined => {
+            index = 0;
+            const hint = { role: "node" as const, key: "a", id: "a" };
+            const bar = (y: number, w: number): Prim =>
+                prim({ points: rect(100, y, 100 + w, y + 6), fill: fill("#cccccc"), hint });
+            const prims = [bar(100, widths[0]), bar(109, widths[1])];
+            return associate(prims, 600, 400, guide).scene.nodes.find((n) => n.id === "a")?.h;
+        };
+        assert.closeTo(heightOf([24, 12]) ?? 0, 15, 0.01);
+        assert.closeTo(heightOf([24, 11.999]) ?? 0, 15, 0.01);
+        // a part well under half stays out: a mark on the node is not its extent
+        assert.closeTo(heightOf([24, 6]) ?? 0, 6, 0.01);
     });
 
     it("keeps a see-through fill drawn over a smaller shape, which reaches past it unevenly, as the node's", () => {

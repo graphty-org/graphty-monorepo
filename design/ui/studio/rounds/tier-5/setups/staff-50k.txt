@@ -1,0 +1,8 @@
+# A research office's staff network (50,000 people, 100,000 ties, 40 departments in dept), as Alex
+# left it: drawn at random, which a big network keeps fast. Write the file first:
+# python3 design/ui/studio/tool/files/big-50k.py
+--click Open a file
+--upload staff-50k.graphml
+--click Layout
+--click Random
+--click Apply

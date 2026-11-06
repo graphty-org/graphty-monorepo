@@ -28,6 +28,8 @@
  * two, one per Test job of ci.yml (test and test-2), since GitHub refuses a matrix above 256 jobs (#5537).
  * test-matrix is then a slim index of the legs (no commands or file lists): later jobs only test it for a
  * shard's name, and a second full copy pushed a 261-bin plan past GitHub's 1 MB cap on a job's outputs (#5605).
+ * A plan past OUTPUTS_BUDGET runs its shards whole instead of its bins, whose commands list every file
+ * (outputLines()).
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
  * no affected name and its shards would silently never run on a pull request again.
@@ -46,7 +48,8 @@
  *   "never"                 never run it locally
  */
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -69,6 +72,12 @@ const ELEMENT_BROWSER_PARTS = 8;
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
     "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} ${GRAPHTY_RUNNING_TESTS:+--reporter=../tools/running-tests.mjs}";
+
+/** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
+export const LARGE_GRAPH_PARTS = 4;
+
+// graphty's projects the five graphty parts run: all but the stories and large-graph, which have shards of their own.
+const GRAPHTY_PROJECTS = "--project=browser --project=real-element --project=eslint-rules --project=node";
 
 const OFF_SHARDS = [
     // graph-format - single shard (Node.js, no browser)
@@ -264,13 +273,27 @@ const OFF_SHARDS = [
     // about 9 minutes each. Each part writes its coverage to its own .coverage-parts/<shard>
     // (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
-    // these commands never set, so "!storybook" never runs them.
+    // these commands never set. The projects are named one by one because vitest runs a project that any one
+    // --project matches, so a second "!name" would select the project the first one left out.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-${n}`,
         package: "graphty",
-        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run --project='!storybook' --shard=${n}/5 --coverage`,
+        "test-command": `cd graphty && COVERAGE_DIR=.coverage-parts/graphty-${n} pnpm exec vitest run ${GRAPHTY_PROJECTS} --shard=${n}/5 --coverage`,
         "coverage-file": `graphty/.coverage-parts/graphty-${n}/lcov.info`,
         "needs-browser": true,
+    })),
+    // LargeGraph.*.real-element.test.tsx, the `large-graph` project, one file per part: as one file of 549 s
+    // locally it ran past the file guard's 1,560 s (tools/test-wait-guard.mjs) on a 4-core runner, about 3.2 times
+    // slower (run 42135560695). Vitest's --shard gives each of as many parts as there are files exactly one, and
+    // each file is planned at under half the guard, so a job fits its 30-minute limit with a re-run of its file.
+    // Its pickers on 50,000 nodes pin their own experiments, so the On twins would repeat it: no twin runs it. No
+    // coverage: it would slow the files further, and the graphty parts measure the source.
+    ...Array.from({ length: LARGE_GRAPH_PARTS }, (_, i) => ({
+        shard: `graphty-large-graph-${i + 1}`,
+        package: "graphty",
+        "test-command": `cd graphty && pnpm exec vitest run --project=large-graph --shard=${i + 1}/${LARGE_GRAPH_PARTS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
     })),
     // graphty's stories: every play function run as a test, as graphty-element's storybook shards
     // do. No coverage: the stories exercise the same source the graphty shard measures.
@@ -334,6 +357,25 @@ const OFF_SHARDS = [
         // The helpers the browser and interaction tests import, which vitest does not list.
         "local-paths": ["graphty-element/test/helpers/", "graphty-element/test/interactions/"],
     })),
+    // The element drawn on WebGPU, on SwiftShader because no shard has a card: the five shards above launch
+    // Chromium with no WebGPU, so a shader only WebGPU refuses blanked every canvas with edges unseen (#5847).
+    {
+        shard: "graphty-element-webgpu",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
+        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+    },
+    // The WebGPU device destroyed and the GPU process crashed under the element, on the full Chromium build.
+    {
+        shard: "graphty-element-gpu-loss",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=gpu-loss ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        local: "when-paths-change",
+        "local-paths": ["graphty-element/test/gpu-loss/", "graphty-element/src/managers/RecoveringWebGPUEngine.ts"],
+    },
     // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
     // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
     // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
@@ -501,13 +543,14 @@ export const STORY_RUNS = {
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
+ *                  webgpu-graph-algorithms-browser 1.1, graphty-element-webgpu (new, not yet measured on CI),
+ *                  algorithms-storybook 1.8,
  *                  layout-storybook 0.3, cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graph-io-storybook-1 and -2 (13.8 minutes of vitest together; small-browser hit its 30 minute limit with it, #5631),
- * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
- * small-browser took over 64 minutes with the graphty shards in it).
+ * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS), graphty-large-graph-1 to -4 (one file each, at most about 10 minutes)
+ * and graphty-storybook (2.1 minutes; small-browser took over 64 minutes with the graphty shards in it).
  */
 export const GROUPS = {
     "small-node": [
@@ -527,6 +570,8 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
+        "graphty-element-webgpu",
+        "graphty-element-gpu-loss",
         "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
@@ -540,7 +585,10 @@ export const GROUPS = {
 // Nor do the On shards: coverage is judged on the Off run.
 const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
+    "graphty-element-webgpu",
+    "graphty-element-gpu-loss",
     "graphty-storybook",
+    ...Array.from({ length: LARGE_GRAPH_PARTS }, (_, i) => `graphty-large-graph-${i + 1}`),
     "algorithms-storybook",
     "graph-io-storybook-1",
     "graph-io-storybook-2",
@@ -632,7 +680,7 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
                 : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
         });
     for (const [name, names] of Object.entries(GROUPS)) {
-        const members = names.map((n) => shards.find((s) => s.shard === n)).filter(wanted);
+        const members = names.map((n) => shards.find((s) => s.shard === n)).filter((s) => s && wanted(s));
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
@@ -647,11 +695,12 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
 }
 
 /**
- * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
- * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
+ * The matrix entry of one light-check bin: its shard's fields, with its own name and the command that runs only
+ * its files (tools/test-select.mjs lightPlan()), without coverage. Its files are only in that command:
+ * no step reads a leg's file list, and a second copy is a quarter of the job's outputs (OUTPUTS_BUDGET).
  * @param bin a lightPlan() bin
  * @param [shards] the shards to look its shard up in (plan()'s)
- * @returns a matrix entry with `files` and `members` fields
+ * @returns a matrix entry with a `members` field
  */
 export function binEntry(bin, shards = SHARDS) {
     const shard = shards.find((s) => s.shard === bin.shard);
@@ -663,7 +712,6 @@ export function binEntry(bin, shards = SHARDS) {
         ...shard,
         shard: bin.name,
         members: bin.covers ?? [bin.shard],
-        files: bin.files,
         "test-command": bin.command,
     };
     delete e["coverage-file"];
@@ -715,7 +763,7 @@ export function splitLines(include) {
 }
 
 /** The fields a leg of the slim test-matrix leaves out: only the Test jobs run a leg, from test-matrix-1/2. */
-const SLIM_DROPS = new Set(["test-command", "files", "ids", "local-paths"]);
+const SLIM_DROPS = new Set(["test-command", "ids", "local-paths"]);
 
 /**
  * The test-matrix line: the whole plan, or, when splitLines cut it in two, a slim index of its legs that still
@@ -729,6 +777,73 @@ export function matrixLine(include) {
             ? include
             : include.map((leg) => Object.fromEntries(Object.entries(leg).filter(([k]) => !SLIM_DROPS.has(k))));
     return `test-matrix=${JSON.stringify({ include: listed })}`;
+}
+
+/**
+ * What GitHub's "Job outputs exceed 1,048,576 bytes" allows, in characters: it counts two bytes a character. Plans
+ * of 515,537 characters passed (run 42083308906) and one of 527,912 failed (run 42116998023), either side of this.
+ */
+export const OUTPUTS_LIMIT = 1_048_576 / 2;
+/** The characters a plan's outputs may hold; the rest of the limit is for the job's other outputs and for margin. */
+export const OUTPUTS_BUDGET = (OUTPUTS_LIMIT * 7) / 8;
+
+/**
+ * Every test and stories GITHUB_OUTPUT line of a plan. A light plan too large for the job's outputs, or for the two
+ * Test jobs, runs whole shards in place of its bins: their commands name no files, so their size does not depend
+ * on the change, and each runs every file its bins would have. The shards that selected nothing stay out, and the
+ * story bins stay as planned.
+ * @param affected package directory names
+ * @param [only] shard names: when given, every other shard is left out
+ * @param [light] tools/test-select.mjs --plan output
+ * @param [pullRequest] leave out the "full-run-only" shards and their bins
+ * @param [shards] the shards to plan from (for tests)
+ * @returns the lines, in order
+ * @throws when even whole shards do not fit, so the reason is not left to GitHub's annotation
+ */
+export function outputLines(affected, only, light, pullRequest = false, shards = SHARDS) {
+    const stories = storiesPlan(light);
+    const storyLines = [`stories-matrix=${JSON.stringify({ include: stories })}`, `stories-count=${stories.length}`];
+    const lines = (include) => [
+        matrixLine(include),
+        `test-count=${include.length}`,
+        ...splitLines(include),
+        ...storyLines,
+    ];
+    const size = (out) => out.join("").length;
+    const include = plan(affected, only, light, pullRequest, shards);
+    const planned = include.length <= 2 * MATRIX_CAP ? lines(include) : null;
+    if (planned && size(planned) <= OUTPUTS_BUDGET) return planned;
+    // a selected bin runs whether or not nx calls its package affected (plan()), so its whole shard must too
+    const selected = new Set((light?.bins ?? []).filter((b) => !b.whole).flatMap((b) => b.covers ?? [b.shard]));
+    const packages = shards.filter((s) => selected.has(s.shard)).map((s) => s.package);
+    const whole = lines(plan([...affected, ...packages], only, { none: light?.none }, pullRequest, shards));
+    const sizes = whole.map((l) => `${l.slice(0, l.indexOf("="))} ${l.length}`).join(", ");
+    if (size(whole) > OUTPUTS_BUDGET) {
+        throw new Error(`the job's outputs hold more than ${OUTPUTS_BUDGET} characters even as whole shards: ${sizes}`);
+    }
+    console.error(
+        `::warning::the plan's ${include.length} test bins do not fit a job's outputs; shards run whole: ${sizes}`,
+    );
+    return whole;
+}
+
+/**
+ * Whether the checked-out commit has a vitest project this shard names. A full run's candidate is often older than
+ * the workflow, whose tools/ are overlaid on it (tools/own-tools-overlay.test.mjs), so SHARDS can name a project the
+ * commit does not have yet; vitest then fails with "No projects matched the filter" (#5996). Such an older commit
+ * still runs those tests, in the project that held them before. A shard with no --project, or whose config file is
+ * not there to read, fits: only a project that is certainly missing leaves a shard out.
+ * @param shard a SHARDS entry
+ * @param [root] the checkout
+ * @returns false when the shard's config holds none of the projects it names
+ */
+export function fitsCheckout(shard, root = fileURLToPath(new URL("..", import.meta.url))) {
+    const command = shard["test-command"];
+    const projects = [...command.matchAll(/--project=(\S+)/g)].map((m) => m[1].replace(`-${ON_SUFFIX}`, ""));
+    const config = join(root, shard.package, /--config[= ](\S+)/.exec(command)?.[1] ?? "vitest.config.ts");
+    if (projects.length === 0 || !existsSync(config)) return true;
+    const text = readFileSync(config, "utf8");
+    return projects.some((p) => text.includes(`"${p}"`));
 }
 
 /**
@@ -794,14 +909,19 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
-    const include = plan(affected, only, light, values["pull-request"] === true);
+    const shards = SHARDS.filter((s) => fitsCheckout(s));
+    const dropped = SHARDS.filter((s) => !shards.includes(s)).map((s) => s.shard);
+    if (dropped.length > 0) {
+        console.error(`::notice::this commit has no vitest project for these shards, left out: ${dropped.join(" ")}`);
+    }
     console.log(`affected=${JSON.stringify(affected)}`);
-    console.log(matrixLine(include));
-    console.log(`test-count=${include.length}`);
-    for (const line of splitLines(include)) console.log(line);
-    const stories = storiesPlan(light);
-    console.log(`stories-matrix=${JSON.stringify({ include: stories })}`);
-    console.log(`stories-count=${stories.length}`);
+    try {
+        const pullRequest = values["pull-request"] === true;
+        for (const line of outputLines(affected, only, light, pullRequest, shards)) console.log(line);
+    } catch (e) {
+        console.error(`::error::${e.message}`);
+        process.exit(1);
+    }
 }
 
 // Run only as the entry point, not when imported.

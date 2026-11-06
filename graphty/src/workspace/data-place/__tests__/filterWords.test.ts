@@ -9,6 +9,10 @@ describe("the Filters words", () => {
     it("reads each step as one sentence", () => {
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", min: 4 }, NAMES), "weight is at least 4");
         assert.equal(ruleWords({ kind: "range", attribute: "data.weight", max: 2.5 }, NAMES), "weight is at most 2.5");
+        // A tier 4 degree leaf reads as its step's row does, never "a rule".
+        assert.equal(ruleWords({ kind: "degree", min: 4 }, NAMES), "Degree min 4");
+        assert.equal(ruleWords({ kind: "degree", min: 3, max: 7, direction: "in" }, NAMES), "In degree 3 to 7");
+        assert.equal(ruleWords({ kind: "isolated" }, NAMES), "Isolated");
         assert.equal(
             ruleWords({ kind: "range", attribute: "data.age", min: 20, max: 30, nodes: "ends" }, NAMES),
             "age is between 20 and 30",
@@ -79,11 +83,11 @@ describe("the Filters words", () => {
     it("names the cards that are on in the chip's name and tooltip", () => {
         assert.equal(
             chipName("9 of 22 nodes", ["weight is at least 4"]),
-            'Filter: 9 of 22 nodes, showing only "weight is at least 4"',
+            'Filter: 9 of 22 nodes, filtered by "weight is at least 4"',
         );
         assert.equal(
             chipName("9 of 22 nodes", ["weight is at least 4", "in the largest component"]),
-            'Filter: 9 of 22 nodes, showing only "weight is at least 4", "in the largest component"',
+            'Filter: 9 of 22 nodes, filtered by "weight is at least 4", "in the largest component"',
         );
     });
 });

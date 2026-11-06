@@ -13,6 +13,8 @@ import React, { useEffect } from "react";
 import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
+import { SettingsPopout } from "../options/SettingsPopout";
+import { splitOptions } from "../options/splitOptions";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -33,6 +35,7 @@ import {
     formatNumber,
     groupName,
     modularityBandName,
+    nodeName,
     queuedWords,
     rankedName,
     routeWords,
@@ -200,7 +203,8 @@ function MadeWith({
     // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
     const follow = options.find((o) => isPathFollow(run.algorithm, o.name));
     const fields = options.filter((o) => !rows.includes(o) && o !== follow && !(weighted && o.name === "weight"));
-    const form = (shown: typeof options, advancedLabel?: string, fieldInset?: "md"): React.JSX.Element | null =>
+    const { key, advanced } = splitOptions(fields);
+    const form = (shown: typeof options, fieldInset?: "md"): React.JSX.Element | null =>
         session === null || descriptor === undefined ? null : (
             <OptionsForm
                 session={session}
@@ -210,7 +214,6 @@ function MadeWith({
                 weightReads={descriptor.weightMeaning ?? null}
                 algorithm={run.algorithm}
                 canUseSelectedNode
-                advancedLabel={advancedLabel}
                 fieldInset={fieldInset}
                 onChange={(name, value) => {
                     onDraft({ ...draft, [name]: value });
@@ -224,6 +227,17 @@ function MadeWith({
                 stat
                 name="Analysis"
                 value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name}
+                trailing={
+                    advanced.length > 0 && (
+                        // Named for the panel, so it is never taken for a popover's own settings.
+                        <SettingsPopout
+                            label="Advanced run settings"
+                            changed={advanced.some((o) => settings[o.name] !== undefined)}
+                        >
+                            <Stack gap={8}>{form(advanced)}</Stack>
+                        </SettingsPopout>
+                    )
+                }
             />
             {date !== null && <DataRow stat name="Ran" value={date} />}
             {form(rows)}
@@ -237,14 +251,7 @@ function MadeWith({
                 />
             )}
             {run.status === "succeeded" && weighted && <WeightRow run={run} />}
-            {fields.length > 0 && (
-                <Stack gap={8}>
-                    {/* Named for the panel, so it is never taken for a popover's own Advanced. The
-                        fields are inset; the fold's toggle is not, so its chevron sits in the
-                        section's gutter with the section chevrons. */}
-                    {form(fields, "Advanced run settings", "md")}
-                </Stack>
-            )}
+            {key.length > 0 && form(key, "md")}
         </ControlSection>
     );
 }
@@ -444,7 +451,7 @@ export function PathValues({
                 {nodes.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
-                        name={String(entry.id)}
+                        name={nodeName(session, entry.id)}
                         value={formatNumber(entry.value + 1)}
                         onClick={() => {
                             selectNode(session, entry.id);
@@ -550,8 +557,7 @@ function groupScope(run: RunId, field: string, group: string | number): ScopeInp
 
 /**
  * A group row's Values tab (tier1-design.md section 2.7): Summary (its size, a link that selects
- * its members) and its first members, each a link that selects that node. Members are named by
- * id until graphty-element publishes a node's name (#895).
+ * its members) and its first members, each a link that selects that node, called by its name.
  * @param props - Component props
  * @param props.run - The grouping run
  * @param props.group - The group
@@ -599,7 +605,7 @@ export function GroupValues({
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow
                             key={nodeKey(id)}
-                            name={String(id)}
+                            name={nodeName(session, id)}
                             onClick={() => {
                                 selectNode(session, id);
                             }}

@@ -1,0 +1,189 @@
+{
+ "counts": {
+  "totalEdges": 0,
+  "totalNodes": 11,
+  "visibleEdges": 0,
+  "visibleNodes": 5,
+  "selectedNodes": 3,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "gauges.csv",
+   "kind": "file",
+   "counts": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "recount": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "chips": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": {
+    "tables": {
+     "rows": {
+      "rowsAre": "nodes",
+      "key": "id",
+      "label": null,
+      "time": null
+     }
+    }
+   }
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.lat",
+   "name": "lat",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.lon",
+   "name": "lon",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.depth_cm",
+   "name": "depth_cm",
+   "type": "integer",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.station",
+   "name": "station",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.code",
+   "name": "code",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.installed",
+   "name": "installed",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.telemetry",
+   "name": "telemetry",
+   "type": "boolean",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [
+  {
+   "id": "filter-1",
+   "effect": "keep",
+   "on": true,
+   "within": null,
+   "rule": {
+    "kind": "all",
+    "of": [
+     {
+      "kind": "text",
+      "reads": "data.telemetry",
+      "mode": "exact",
+      "text": "true",
+      "caseSensitive": true
+     },
+     {
+      "kind": "range",
+      "attribute": "data.depth_cm",
+      "min": 70,
+      "max": 210
+     }
+    ]
+   },
+   "count": {
+    "id": "filter-1",
+    "nodes": {
+     "matched": 5,
+     "total": 11
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {
+    "nodes": "5 of 11"
+   }
+  },
+  {
+   "id": "filter-2",
+   "effect": "select",
+   "on": true,
+   "within": "picture",
+   "rule": {
+    "kind": "range",
+    "attribute": "data.installed",
+    "max": 1104537599999,
+    "as": "time"
+   },
+   "count": {
+    "id": "filter-2",
+    "nodes": {
+     "matched": 3,
+     "total": 5
+    },
+    "edges": null,
+    "unresolved": []
+   },
+   "chips": {
+    "nodes": "3 of 5"
+   }
+  }
+ ],
+ "filter": null,
+ "window": null
+}

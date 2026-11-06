@@ -1,8 +1,7 @@
-// Installs scene.pick and scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
+// Installs scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
 import {
-    type AbstractMesh,
     type ActionEvent,
     ActionManager,
     ExecuteCodeAction,
@@ -19,164 +18,11 @@ import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
-import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
+import { filterPointerPicks, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
-import { pickAtLayout } from "./transitions/LayoutTransitionRunner";
-
-/**
- * The mesh a click at a canvas point lands on, as the reader sees the picture.
- *
- * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
- * on top (`ON_TOP_RENDERING_GROUP`, `onTop`) covers every node, even one nearer the camera, so the nearest
- * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
- * on top that is hit wins; otherwise the nearest hit does.
- * @param scene - The scene to pick in.
- * @param x - X in CSS pixels from the canvas's left edge.
- * @param y - Y in CSS pixels from the canvas's top edge.
- * @returns The mesh, or null when the point lands on nothing.
- */
-export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
-    // While a layout transition moves the nodes, a click reads the layout's answer, not the
-    // moving picture: what is selected is where the node is going.
-    return pickAtLayout(scene, () => {
-        const ray = scene.createPickingRay(x, y, null, null);
-        const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
-        const onTop = scene.pick(
-            x,
-            y,
-            alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
-        );
-        return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
-    });
-}
-
-/**
- * A pick predicate that admits a mesh only when `admit` does AND the world-space ray can reach
- * its world bounding sphere.
- *
- * Babylon's pick builds a ray in each admitted mesh's own space -- a world x view x projection
- * multiply, an invert and two unprojects -- before it tests the mesh, and every node is a mesh of
- * its own, so a pick with no such filter cost one unproject per node (issue #3244). Testing the one
- * world ray against the sphere Babylon keeps in world space costs a few multiplies, and Babylon's
- * own test is against that same sphere in the mesh's space, so a mesh this rejects is one Babylon
- * would have rejected: the line test below drops Babylon's "behind the ray's origin" check and pads
- * the radius, so it only ever admits more. What is picked is unchanged.
- *
- * ponytail: Babylon's pick still walks every mesh in `scene.meshes` and calls this for each, about
- * 15-20 ms a pick at 100,000 nodes; a GPU id buffer or a spatial index over node positions is the
- * upgrade if that matters.
- * @param scene - The scene being picked.
- * @param ray - The pick's ray in world space.
- * @param admit - Which meshes may be picked at all.
- * @returns The predicate.
- */
-export function alongRay(
-    scene: Scene,
-    ray: Ray,
-    admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
-): (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean {
-    // With several active cameras Babylon recomputes a camera-dependent mesh's world matrix for the
-    // pointer's camera, so the sphere read here could be the other camera's: filter nothing then.
-    const cameraDependent =
-        (scene.activeCameras?.length ?? 0) > 1 && scene.cameraToUseForPointers !== scene.activeCamera;
-    const { origin, direction } = ray;
-    const usable = !cameraDependent && direction.lengthSquared() > 0;
-    return (mesh, thinInstanceIndex = -1) => {
-        if (thinInstanceIndex >= 0) {
-            return admit(mesh, thinInstanceIndex);
-        }
-
-        if (!admit(mesh, thinInstanceIndex)) {
-            return false;
-        }
-
-        if (!usable || mesh.hasThinInstances) {
-            return true;
-        }
-
-        mesh.computeWorldMatrix();
-        const { centerWorld, radiusWorld } = mesh.getBoundingInfo().boundingSphere;
-        const dx = centerWorld.x - origin.x;
-        const dy = centerWorld.y - origin.y;
-        const dz = centerWorld.z - origin.z;
-        const along = dx * direction.x + dy * direction.y + dz * direction.z;
-        // Babylon widens the test by a line mesh's own threshold; no other mesh has one.
-        const threshold =
-            "intersectionThreshold" in mesh && typeof mesh.intersectionThreshold === "number"
-                ? mesh.intersectionThreshold
-                : 0;
-        const radius = radiusWorld * (1 + 1e-5) + threshold;
-        return dx * dx + dy * dy + dz * dz - along * along <= radius * radius;
-    };
-}
-
-/** Babylon's own pointer picks, each made with the predicate the scene holds under this name. */
-const POINTER_PICK_PREDICATES = ["pointerMovePredicate", "pointerDownPredicate", "pointerUpPredicate"] as const;
-
-/** A pick predicate as Babylon calls it: the mesh, and a thin instance's index or -1. */
-type PickPredicate = (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean;
-
-/**
- * Put {@link alongRay} in front of the predicates Babylon picks with on a pointer move, press and
- * release.
- *
- * Babylon picks the scene itself on every pointer move -- for the cursor and the action manager's
- * triggers, which every node mesh carries -- with `scene.pointerMovePredicate`, so a move cost one
- * unproject per node there too, besides the element's own picks. Babylon sets its default
- * predicates on the first event, and a consumer may set its own at any time, so each property is
- * replaced on this scene by one that wraps whatever is stored in it. A pick tests
- * `scene.meshes[0]` first, so the wrapper builds the pick's world ray there, from the pointer and
- * camera Babylon's own pointer picks use.
- * @param scene - The scene.
- */
-function filterPointerPicks(scene: Scene): void {
-    for (const key of POINTER_PICK_PREDICATES) {
-        const wrap = (base: PickPredicate | null | undefined): PickPredicate | null | undefined => {
-            if (!base) {
-                return base;
-            }
-
-            const ray = Ray.Zero();
-            let test = base;
-            return (mesh, thinInstanceIndex = -1) => {
-                if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
-                    const pointer = scene.unTranslatedPointer;
-                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
-                    test = alongRay(scene, ray, base);
-                }
-
-                return test(mesh, thinInstanceIndex);
-            };
-        };
-        let held = wrap(scene[key]);
-        Object.defineProperty(scene, key, {
-            configurable: true,
-            enumerable: true,
-            get: () => held,
-            set: (base: PickPredicate | null | undefined) => {
-                held = wrap(base);
-            },
-        });
-    }
-}
-
-/**
- * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
- *
- * Every pointer handler that asks "which node is under the pointer" and `elementAt` ask it here,
- * so the public answer and what a click selects cannot drift apart.
- * @param scene - The scene to pick in.
- * @param x - X in CSS pixels from the canvas's left edge.
- * @param y - Y in CSS pixels from the canvas's top edge.
- * @returns The node's id, or `undefined`.
- */
-export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
-    const metadata = pickAsDrawn(scene, x, y)?.metadata as { nodeId?: NodeIdType } | null | undefined;
-    return metadata?.nodeId;
-}
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -511,7 +357,7 @@ export class NodeDragHandler {
      */
     constructor(node: GraphNode) {
         this.node = node;
-        this.scene = node.mesh.getScene();
+        this.scene = node.drawnScene;
         this.dragState = {
             dragging: false,
             dragStartMeshPosition: null,
@@ -560,7 +406,7 @@ export class NodeDragHandler {
         this.dragState.dragging = true;
         this.dragState.moved = false;
         this.roster.engaged.add(this);
-        this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
+        this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.node.dragging = true;
 
@@ -595,7 +441,7 @@ export class NodeDragHandler {
         // Emit node-drag-start event
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-start", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -698,7 +544,7 @@ export class NodeDragHandler {
         // Emit node-drag-end event before resetting drag state
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -822,7 +668,7 @@ export class NodeDragHandler {
         }
 
         if (gesture.moved) {
-            const { x, y, z } = this.node.mesh.position;
+            const { x, y, z } = this.node.drawnPosition;
             scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
         }
 
@@ -868,7 +714,7 @@ export class NodeDragHandler {
 
     /**
      * Get the node being dragged.
-     * Used by XRInputHandler to access the node's mesh for position calculations.
+     * Used by XRInputHandler to read the node's position.
      * @returns The graph node associated with this drag handler
      */
     public getNode(): GraphNode {
@@ -1106,10 +952,10 @@ export class NodeDragHandler {
         // This maintains predictable drag behavior
         const camera = this.scene.activeCamera;
         if (!camera) {
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
-        const nodePosition = this.node.mesh.position;
+        const nodePosition = this.node.drawnPosition;
 
         // Use stored plane normal from drag start if available
         // Otherwise fall back to current camera forward (for initial calculation)
@@ -1127,7 +973,7 @@ export class NodeDragHandler {
         const denominator = Vector3.Dot(ray.direction, planeNormal);
         if (Math.abs(denominator) < 0.0001) {
             // Ray parallel to plane, return current position
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
         const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) / denominator;
@@ -1183,14 +1029,12 @@ export class NodeBehavior {
      * @param options - Configuration options for node behaviors
      */
     static addDefaultBehaviors(node: GraphNode, options: NodeBehaviorOptions = {}): void {
-        node.mesh.isPickable = true;
-
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
         // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
-        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
-        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // the node's drawn* accessors whenever it acts, so it needs nothing from the new mesh, and it
+        // holds what the pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
         // telling the selection, so a Hovered layer kept painting a node the pointer had left.
         node.dragHandler ??= new NodeDragHandler(node);
 
@@ -1203,7 +1047,7 @@ export class NodeBehavior {
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
-        node.mesh.actionManager = nodeActionManagerOf(this.getContext(node).getScene());
+        node.makeDrawnPickable(nodeActionManagerOf(this.getContext(node).getScene()));
     }
 
     /**

@@ -6,12 +6,18 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { nextFrame } from "../helpers/real-input";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const cleanups: (() => void)[] = [];
 

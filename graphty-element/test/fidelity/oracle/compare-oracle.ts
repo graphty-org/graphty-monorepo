@@ -25,6 +25,7 @@ import {
     type PFill,
     type PGradient,
     type PGroup,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PStray,
@@ -748,6 +749,28 @@ function arrowPlaceMiss(
     };
 }
 
+/**
+ * Whether a cap graphty stands back from its line's end stands as far back as the program's, each measured along its
+ * own whole line to the tip: between the nodes' outlines a node drawn in another shape would move the end.
+ * @param oLine - the oracle's whole line
+ * @param oa - the oracle's arrowhead
+ * @param gLine - graphty's whole line
+ * @param ga - graphty's arrowhead, in the same frame
+ * @returns the miss and what each side measured, or null where it stands at no read place
+ */
+function standBackMiss(
+    oLine: readonly Pt[],
+    oa: PArrow,
+    gLine: readonly Pt[],
+    ga: PArrow,
+): { miss: number; oracle: number; graphty: number } | null {
+    if (ga.standing !== true || oa.end === "middle" || oa.at === undefined || ga.at === undefined) {
+        return null;
+    }
+    const [o, g] = [fromOwnEnd(oLine, oa.at, oa.end).px, fromOwnEnd(gLine, ga.at, oa.end).px];
+    return { miss: Math.max(0, Math.abs(g - o) - ARROW_STAND_PX) / ARROW_STAND_PX, oracle: R(o), graphty: R(g) };
+}
+
 /** A break between a line and its half arrow of this share of the head's length or more is one a reader sees. */
 const LINE_GAP_SHARE = 0.25;
 
@@ -773,6 +796,8 @@ function halfRunOnMiss(oa: PArrow, ga: PArrow): { miss: number; oracle: string; 
 const ARROW_PART_WAY = 0.25;
 /** How far along its line a part-way arrowhead may sit from the program's, as a share of the line's length. */
 const ARROW_ALONG_SHARE = 0.05;
+/** How far a cap stood back from its line's end may sit from the program's, in pixels. */
+const ARROW_STAND_PX = 3;
 
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
@@ -815,9 +840,15 @@ function headParts(heads: readonly PArrow[]): number {
         // a part of the same head is drawn in the head's color at about its size: a neighbor's head read onto this
         // end (a diamond of another color beside a Cytoscape desktop head) is not one
         const first = placed[0];
+        // a head's size is its longer side: a bar across the line is as long as a stroke is wide (yEd's crow's foot with
+        // a bar behind it, tines 12 long and a bar 16 wide and 1 deep)
+        const size = (q: PArrow): number => Math.max(q.length, q.width);
         const kin =
             first === undefined ||
-            (h.color === first.color && h.length <= 2 * first.length && first.length <= 2 * h.length);
+            // a hollow head's white fill has no color of its own (yEd's circle, its fill then its ring)
+            ((h.color === first.color || first.color === null) &&
+                size(h) <= 2 * size(first) &&
+                size(first) <= 2 * size(h));
         if (kin && placed.every(apart)) {
             placed.push(h);
         }
@@ -1020,12 +1051,15 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
  * How far one route is from another: where its two ends are, and its shape, each route seen in its own chord's frame
  * (its start at the origin, its end at (1, 0), across in chord lengths), so the shape is judged relative to its own
  * ends: an arc against a sine wave between the same two nodes is as far apart as the arc's height and the wave's
- * together. A loop's chord is next to nothing; it is judged as drawn, against its length instead.
+ * together. A loop's chord is next to nothing, or only as long as its arrowhead leaves between its ends, and a share of
+ * that says nothing of the loop (dot-synth-edges-clusters f3 -> f3: the same loop read 1.6 chords apart); it is judged
+ * as drawn, where it sits on its node, against its length instead.
  * @param o - the oracle's route
  * @param g - graphty's, in the oracle's frame and direction
  * @param shift - how far graphty's source and target nodes sit from the oracle's, each end's own: an end is judged
  *     where it sits on its node, and where the node sits is node.position's to judge (dot-synth-nodes n_alpha ->
  *     n_hsv: two straight lines, 10 px apart because their nodes are)
+ * @param loop - whether the route runs from a node back to it
  * @returns the larger of the ends' distance and the shapes' Frechet distance over `pathSamples` samples, as a share
  *     of `unit` oracle pixels
  */
@@ -1036,6 +1070,7 @@ export function routeShape(
         [0, 0],
         [0, 0],
     ],
+    loop = false,
 ): { gap: number; unit: number } {
     const N = ORACLE_TOLERANCES.pathSamples;
     const length = pathLength(o);
@@ -1050,6 +1085,12 @@ export function routeShape(
         return Math.hypot(b[0] - pts[0][0], b[1] - pts[0][1]);
     };
     const chord = chordOf(o);
+    if (loop) {
+        const unit = Math.max(length, 1e-9);
+        const [sx, sy] = shift[0];
+        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
+        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+    }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
         return { gap: frechet(resample(o, N), resample(g, N)) / unit, unit };
@@ -1462,7 +1503,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
-        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half); one no class names matches nothing",
+        "the same shape class at each end (triangle, inverted, vee, crow, inverted-vee, diamond, circle, box, tee, half, cross); one no class names matches nothing",
     "edge.arrowParts": "as many arrowhead parts in a row at each end",
     "edge.dashPeriod": `where both sides read a dash array: its period (a dash and a gap) and the share of it drawn, each ratio in [${ORACLE_TOLERANCES.dashRatio.join(", ")}]`,
     "edge.arrowPlace": `graphty's arrowhead on its line's end: no gap ahead of it, not wholly back along the line, its middle on the line within a quarter of its width, each within ${String(2)} render pixels; a break between the line and half an arrow on both sides or on neither`,
@@ -2330,7 +2371,7 @@ export function compareOracle(
             meet(o.points[0], whole[0], shifts[0]) &&
             meet(o.points.at(-1), whole.at(-1), shifts[1]);
         const [vo, vg] = sliver ? [[...o.points], whole] : visible(o, g);
-        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]]);
+        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]], o.source === o.target);
         // a share of a long chord is more than a node: a line sent through another node on the way passed
         // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
         // is no more than the smaller side of the smaller of its two end nodes
@@ -2388,10 +2429,19 @@ export function compareOracle(
         };
         return [...new Set(e.arrows.map((x) => turn(x.end)))].sort().join(",");
     };
+    const headShapes = (e: PEdge, flipped: boolean): string =>
+        e.arrows
+            .map(
+                (x) =>
+                    `${flipped && x.end !== "middle" ? { source: "target", target: "source" }[x.end] : x.end} ${x.shape}`,
+            )
+            .sort()
+            .join();
     /**
      * How unlike an oracle edge found by its geometry a graphty edge between the same nodes is drawn, 0 for alike: in
-     * another color or with other words, then another line class, then its route failing, then curved otherwise, then
-     * arrowheads at other ends, then running the other way. Between two parallel or antiparallel edges only the look
+     * another color or with other words, then another line class, then other arrowheads (two lines alike, drawn over
+     * one another, with a bar and a standard head), then its route failing, then curved otherwise, then arrowheads at
+     * other ends, then running the other way. Between two parallel or antiparallel edges only the look
      * tells them apart: drawn over one another, or each program bowing them its own way (cx2-signor-aml 27->68, a blue
      * dashed line bowed and a purple solid one, each paired with the other's look by its route).
      */
@@ -2401,8 +2451,9 @@ export function compareOracle(
             norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
         const lined = o.stroke === null || g.stroke === null || o.stroke.dashClass === g.stroke.dashClass;
         return (
-            (dressed ? 0 : 32) +
-            (lined ? 0 : 16) +
+            (dressed ? 0 : 64) +
+            (lined ? 0 : 32) +
+            (headShapes(o, false) === headShapes(g, flips(o, g)) ? 0 : 16) +
             (routePasses ? 0 : 8) +
             (curved(routeOf(o, g)) === curved(o.points) ? 0 : 4) +
             (arrowEnds(o, false) === arrowEnds(g, flips(o, g)) ? 0 : 2) +
@@ -2595,8 +2646,13 @@ export function compareOracle(
             j.add("edge.route", "edge", id, Math.max(0, gap / near - 1), R(near), R(gap));
         }
         // how far each route bends between its own nodes, a ratio no frame changes
-        const oc = curvatureOf(vo);
-        const gc = curvatureOf(vg);
+        // a loop bends or it does not: its chord is what its arrowhead leaves open, and the route judges its shape
+        const bendOf = (pts: readonly Pt[]): number => {
+            const c = curvatureOf(pts);
+            return o.source === o.target ? Number(c > T.curvature) : c;
+        };
+        const oc = bendOf(vo);
+        const gc = bendOf(vg);
         // and no difference under a pixel deep over the shorter of the two chords, which no reader sees: a line
         // between two nodes that nearly touch (gexf-sigma-ediaspora's 63 -> 66, 9 px long, bent under a pixel off
         // straight; 141 -> 112, a squiggle under a pixel long). A loop's chord is next to nothing: judged as it is.
@@ -2712,7 +2768,9 @@ export function compareOracle(
                 oa.shape,
                 gg.shape,
             );
-            const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
+            const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
+            const place =
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(
@@ -3098,11 +3156,23 @@ export function compareOracle(
             j.add("stray.present", "stray", id, matched ? 0 : 1, s.text ?? s.fill ?? s.stroke, matched);
             return { ...s, matched };
         });
+    // a band a clip cuts from a node's paint (`bands`): graphty draws a piece over that part of the face, in its color
+    for (const n of oracle.nodes) {
+        for (const b of n.bands ?? []) {
+            const shown = gShapes.some(
+                ({ s, box }) =>
+                    strayIou(box, b.box) >= T.strayIoU && s.fill !== null && deltaE(s.fill, b.color) <= T.colorDeltaE,
+            );
+            const { x0, y0, x1, y1 } = b.box;
+            const at = [x0, y0, x1, y1].map(Math.round).join(",");
+            j.add("stray.present", "stray", `band@${at}`, shown ? 0 : 1, b.color, shown);
+        }
+    }
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
-    // a picture graphty draws over a node's face is drawn where the program draws one as part of a node
+    // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => n.pictures ?? []),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];
@@ -3115,6 +3185,7 @@ export function compareOracle(
     for (const s of oracle.nodesOnly === true ? [] : [...graphty.strays].sort((a, b) => a.index - b.index)) {
         const box = toO(s.box);
         const drawn =
+            s.tag === PICTURE_WHOLE ||
             shapesDrawn.has(s.index) ||
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));
@@ -3322,6 +3393,66 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number, mid
 const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
 
 /**
+ * A label's box where its font's line stands, not where the browser's rounded reading left it (`PText.lineDrop`): a
+ * place against a node is told apart by a quarter of the font size, and the reading is off by up to a pixel.
+ * @param t - the label
+ * @returns its box
+ */
+function lineBox(t: PText): PBox {
+    const drop = t.lineDrop ?? 0;
+    return { ...t.box, y0: t.box.y0 - drop, y1: t.box.y1 - drop };
+}
+
+/**
+ * Whether graphty's words are in another face than the oracle's, as `label.family` judges it.
+ * @param o - the oracle's label
+ * @param g - graphty's label
+ * @returns true when they differ
+ */
+function otherFace(o: PText, g: PText): boolean {
+    const face = programFace(o.family);
+    if (face !== null) {
+        return face !== browserFace(g.family);
+    }
+    const fontClass = programFontClass(o.family);
+    return fontClass !== null && fontClass !== browserFontClass(g.family);
+}
+
+/**
+ * Where graphty's label reaches across its box if its words were as wide as the oracle's. Another face makes a line of
+ * another width, which is `label.family`'s to judge; what `label.anchor` asks is whether the label stands in the
+ * oracle's place, so it keeps whichever of its start, middle or end is nearest the oracle's
+ * (gml-synthetic-coverage 9: 0.1 px from yEd's left edge, in Courier New where yEd drew Dialog, 1.3 px wider).
+ * @param o - the oracle's label
+ * @param ob - the oracle's box
+ * @param g - graphty's label
+ * @param gb - graphty's box
+ * @returns the label's two ends, in graphty's pixels
+ */
+function atOracleWidth(o: PText, ob: PBox, g: PText, gb: PBox): [number, number] {
+    const k = g.sizePx / o.sizePx;
+    const width = (o.box.x1 - o.box.x0) * k;
+    const off = (ends: (b: PBox) => number, box: (b: PBox) => number): number =>
+        Math.abs((ends(o.box) - box(ob)) * k - (ends(g.box) - box(gb)));
+    const middleOf = (b: PBox): number => (b.x0 + b.x1) / 2;
+    const [start, middle, end] = [
+        off(
+            (b) => b.x0,
+            (b) => b.x0,
+        ),
+        off(middleOf, middleOf),
+        off(
+            (b) => b.x1,
+            (b) => b.x1,
+        ),
+    ];
+    if (middle <= start && middle <= end) {
+        return [middleOf(g.box) - width / 2, middleOf(g.box) + width / 2];
+    }
+    return start <= end ? [g.box.x0, g.box.x0 + width] : [g.box.x1 - width, g.box.x1];
+}
+
+/**
  * Whether graphty's label is in the oracle's place against its box: on each axis its side, or one it reaches by
  * moving at most a small slack along that axis (a side only changes in order, before to after, as a label moves).
  * @param o - the oracle's label
@@ -3354,9 +3485,11 @@ export function sameAnchor(
         const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol, gmid));
         return want >= lo && want <= hi;
     };
+    const [gx0, gx1] = o.sizePx > 0 && otherFace(o, g) ? atOracleWidth(o, ob, g, gb) : [g.box.x0, g.box.x1];
+    const line = lineBox(o);
     return (
-        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, g.box.x0, g.box.x1, gb.x0, gb.x1) &&
-        axis(o.box.y0, o.box.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
+        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, gx0, gx1, gb.x0, gb.x1) &&
+        axis(line.y0, line.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
     );
 }
 
@@ -3368,7 +3501,8 @@ export function sameAnchor(
  */
 export function labelAnchor(t: PText, b: PBox): string {
     const tol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * t.sizePx, 0.5);
-    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(t.box.y0, t.box.y1, b.y0, b.y1, tol)}`;
+    const line = lineBox(t);
+    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(line.y0, line.y1, b.y0, b.y1, tol)}`;
 }
 
 /**
@@ -3378,9 +3512,18 @@ export function labelAnchor(t: PText, b: PBox): string {
  */
 export function lineAlign(t: PText): "start" | "middle" | "end" | null {
     // a table's cells side by side are read apart: a cell's lines overlap across, the cell beside them does not
-    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides
+    // (dot-specimen-labels-p2 html-td-balign-left); the cell with the most lines decides. A cell spanning two side by
+    // side is in neither column, so it says nothing of how either's lines align (dot-synth-nodes n_html3: A | B over
+    // a wide cell reads right-aligned or left-aligned by a pixel of where the two narrow cells fall)
+    const lines = t.lines ?? [];
+    const under = (wide: PBox, b: PBox): boolean => b !== wide && b.x0 < wide.x1 && b.x1 > wide.x0;
+    const sameRow = (a: PBox, b: PBox): boolean => a.y0 < b.y1 && b.y0 < a.y1;
+    const spans = (wide: PBox): boolean =>
+        lines.some(
+            (a) => under(wide, a) && lines.some((b) => b !== a && under(wide, b) && sameRow(a, b) && !under(a, b)),
+        );
     const cells: PBox[][] = [];
-    for (const b of [...(t.lines ?? [])].sort((p, q) => p.x0 - q.x0)) {
+    for (const b of lines.filter((l) => !spans(l)).sort((p, q) => p.x0 - q.x0)) {
         const last = cells.at(-1);
         if (last !== undefined && b.x0 < Math.max(...last.map((l) => l.x1))) {
             last.push(b);

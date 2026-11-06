@@ -56,7 +56,7 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
         ]);
     });
 
-    it("hands over an HTML-like label's text, whose words take the room", () => {
+    it("hands over an HTML-like label as HTML, whose table takes room its words alone do not (issue #5253)", () => {
         const structure = graphvizStructure(
             rowOf,
             [{ srcId: "a", dstId: "b", data: { label: "<<b>bold</b> words>" } }],
@@ -64,7 +64,7 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
             [],
         );
 
-        assert.strictEqual(structure.edges?.[0].attributes?.label, "bold words");
+        assert.strictEqual(structure.edges?.[0].attributes?.label, "<<b>bold</b> words>");
     });
 
     it("hands over each group's label, font and margin, and each rank subgraph's rows", () => {

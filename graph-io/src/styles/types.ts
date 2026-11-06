@@ -129,6 +129,13 @@ export type StyleLabelPosition =
 export type StyleLabelTextAlign = "left" | "center" | "right";
 
 /**
+ * What a node label's box is sized to: its words, its words held against the side it is placed at however large they
+ * are, or its node's width.
+ * @category Styles
+ */
+export type StyleLabelBox = "words" | "words-at-side" | "target-width";
+
+/**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
  * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
  * `labelPaddingY` added on each side, decides the rest.
@@ -322,6 +329,15 @@ export interface NodeStyleValues {
      */
     readonly outerBorderCount: number;
     /**
+     * The width of a raised border: strips along the inside of the node's edge, light on its left and top and dark on
+     * its bottom and right (a length; yEd's `use3DEffect` and `rectangle3d`, 1 px); 0 or absent draws none.
+     */
+    readonly raisedBorderWidth: number;
+    /** A raised border's color on the node's left and top. */
+    readonly raisedBorderLightColor: StyleColor;
+    /** A raised border's color on the node's bottom and right. */
+    readonly raisedBorderDarkColor: StyleColor;
+    /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
      */
@@ -475,6 +491,13 @@ export interface NodeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
+     * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
+     * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
+     * `labelTextAlign` lining the words up in it. Unset, `words`.
+     */
+    readonly labelBox: StyleLabelBox;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -558,6 +581,11 @@ export interface NodeStyleValues {
     readonly stripeDirection: string;
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
+    /**
+     * Keeps only the rim of the bands' box, four fractions "top right bottom left" of its height and width deep: the
+     * band yEd Live draws round a group's panel.
+     */
+    readonly stripeFrame: string;
     /**
      * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
      * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower

@@ -29,6 +29,7 @@ import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
+import { isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
@@ -47,6 +48,7 @@ import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
 import { minimumWorkPerFrame } from "./minimumWork";
 import { pendingWorkOf, trackOnScene } from "./PendingWork";
+import { RecoveringWebGPUEngine } from "./RecoveringWebGPUEngine";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -107,7 +109,8 @@ export interface RendererStatus {
     /**
      * Whether anything is drawn. False when the browser gave the page no working WebGL context:
      * the graph's data, its session and autosave still work, and the canvas stays empty. The log
-     * records it as `E_NO_WEBGL`.
+     * records it as `E_NO_WEBGL`. Also false once a shader cannot be built for WebGPU, which can lose
+     * every frame it is part of; that is reported as a `graph-error` with `E_SHADER_REFUSED`.
      * @since 3.29.0
      */
     readonly drawing: boolean;
@@ -182,16 +185,22 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * renderer once a frame has been drawn.
  * @param canvas - A canvas that has no context yet; a canvas holding a WebGL context cannot give
  *     out a WebGPU one.
+ * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
+ *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @returns The initialised engine, or the reason there is none.
  */
-export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine | string> {
+export async function openWebGPUEngine(
+    canvas: HTMLCanvasElement,
+    sharesDevice: (adapter: unknown) => boolean = () => false,
+): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
 
     // Asked first, and apart from the engine: an engine that fails to open is half built, and it
     // has already registered itself as Babylon's last created engine.
-    if ((await navigator.gpu.requestAdapter()) === null) {
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    if (adapter === null || adapter === undefined) {
         return "this browser has WebGPU but no adapter (navigator.gpu.requestAdapter() returned null)";
     }
 
@@ -210,7 +219,12 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
         );
     }
 
-    const engine = new WebGPUEngine(canvas, { antialias: true });
+    const shared = sharesDevice(adapter);
+    const engine = new RecoveringWebGPUEngine(canvas, {
+        antialias: true,
+        ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
+    });
+    engine.sharesDevice = shared;
     try {
         // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
         // is given, though its type and its docs ask for the instance itself.
@@ -392,6 +406,17 @@ const OUTLINE_EVENTS = [
 ] as const satisfies readonly (keyof SessionEventMap)[];
 
 /**
+ * End a pass's load quietly when the graph was disposed under it: nobody awaits that load, so the
+ * rejection would reach the page as unhandled. Any other failure is a real one and goes on.
+ * @param error - What the load threw.
+ */
+function rethrowUnlessDisposed(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_DISPOSED") {
+        throw error;
+    }
+}
+
+/**
  * The scene-level shader passes of one graph: the background shader, the group outlines and
  * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
  * that names no shader loads none of them.
@@ -530,6 +555,8 @@ class ShaderScene {
         this.backgroundLoads++;
         try {
             await this.loadBackground();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.backgroundLoads--;
         }
@@ -649,6 +676,8 @@ class ShaderScene {
             );
             // Asked again now it exists: the stack may have changed while it loaded.
             this.sync();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.outlineLoading = false;
         }
@@ -689,6 +718,10 @@ export class RenderManager implements Manager {
     private updateCallback?: (frameMs: number) => void;
     /** How many callers currently hold the frames back; see {@link holdFrames}. */
     private frameHolds = 0;
+    /** Whether the GL context is lost, so nothing draws until it is back. */
+    private contextLost = false;
+    /** What ends each {@link frameDrawn} still waiting. */
+    private readonly frameWaits = new Set<() => void>();
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
     /** Flips every tick in the minimum-work test mode; see {@link RenderManager.minimumWorkSkips}. */
@@ -796,8 +829,11 @@ export class RenderManager implements Manager {
         this.drawOwed = true;
         this.shaderGuard.ignore();
         this.flashCheck = null;
+        this.contextLost = event.type === "webglcontextlost";
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
+        } else {
+            this.endFrameWaits();
         }
     };
     /**
@@ -1219,6 +1255,8 @@ export class RenderManager implements Manager {
      * @param error - What it threw.
      */
     private reportFrameError(error: unknown): void {
+        // A frame that threw draws nothing, and the next one is likely to throw too.
+        this.endFrameWaits();
         const err = error instanceof Error ? error : new Error(String(error));
         this.eventManager.emitGraphError(null, err, "other", {
             component: "RenderManager",
@@ -1653,6 +1691,62 @@ export class RenderManager implements Manager {
         this.renderLoopActive = false;
         this.engine.stopRenderLoop();
         this.updateCallback = undefined;
+        this.endFrameWaits();
+    }
+
+    /** End every {@link frameDrawn} still waiting. */
+    private endFrameWaits(): void {
+        for (const end of [...this.frameWaits]) {
+            end();
+        }
+    }
+
+    /**
+     * Whether the loop can still draw: a tick that cannot says so by the end of the tick.
+     * @returns False when the next ticks draw nothing, or none will come.
+     */
+    private frameComing(): boolean {
+        return (
+            this.renderLoopActive &&
+            !this.contextLost &&
+            this.frameHolds === 0 &&
+            this.drawHeld?.() !== true &&
+            !document.hidden
+        );
+    }
+
+    /**
+     * Settles once the next frame is drawn, or as soon as none is coming: a hold, a load holding the
+     * draw, a hidden page, a lost context, a stopped loop or a frame that threw. A loop resting on a finished picture
+     * draws for it: a new frame observer is a frame someone waits for. It listens
+     * only while someone waits.
+     * @returns Settles as above; never rejects.
+     * @internal
+     */
+    frameDrawn(): Promise<void> {
+        if (!this.frameComing()) {
+            return Promise.resolve();
+        }
+
+        const { engine, scene } = this;
+
+        return new Promise((resolve) => {
+            const end = (): void => {
+                scene.onAfterRenderObservable.remove(drawn);
+                engine.onEndFrameObservable.remove(ticked);
+                document.removeEventListener("visibilitychange", end);
+                this.frameWaits.delete(end);
+                resolve();
+            };
+            const drawn = scene.onAfterRenderObservable.add(end);
+            const ticked = engine.onEndFrameObservable.add(() => {
+                if (!this.frameComing()) {
+                    end();
+                }
+            });
+            document.addEventListener("visibilitychange", end);
+            this.frameWaits.add(end);
+        });
     }
 
     /**

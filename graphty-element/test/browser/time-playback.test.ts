@@ -5,10 +5,16 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { TimeStepEvent } from "../../session.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -114,6 +120,56 @@ describe("session.time playback on the element", () => {
         await vi.waitFor(() => {
             assert.strictEqual(element.session.visibility.window?.from, T0, "one undo returns to before the play");
         });
+    });
+
+    it("holds the committed window through a smooth play", async () => {
+        const element = await emailElement();
+        const { time } = element.session;
+        await time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const recorded = time.committed;
+        const moved: boolean[] = [];
+        const held: boolean[] = [];
+        element.session.on("time:step", () => {
+            moved.push(time.current?.from !== recorded?.from);
+            held.push(time.committed === recorded);
+        });
+        time.play({ interval: 2000 });
+        await vi.waitFor(() => {
+            assert.isAtLeast(moved.length, 4, "frames played");
+        });
+        time.pause();
+        assert.isTrue(moved.at(-1), "the current window moved");
+        assert.isTrue(
+            held.every((same) => same),
+            "the committed window stayed",
+        );
+        const stopped = time.current;
+        await vi.waitFor(() => {
+            assert.strictEqual(time.committed?.from, stopped?.from, "pausing records where it stopped");
+        });
+    });
+
+    it("starts a smooth play with a step again from the first window at the end", async () => {
+        const element = await emailElement();
+        const { time } = element.session;
+        const firsts: number[] = [];
+        const playOnce = async (): Promise<void> => {
+            const off = element.session.on("time:step", (step) => {
+                firsts.push(step.from);
+                off();
+            });
+            await new Promise<void>((resolve) => {
+                const ended = element.session.on("time:end", () => {
+                    ended();
+                    resolve();
+                });
+                time.play({ step: "day", interval: 1 });
+            });
+            await element.waitForSettled();
+        };
+        await playOnce();
+        await playOnce();
+        assert.deepStrictEqual(firsts, [T0, T0]);
     });
 
     it("jumps whole steps when the reader asks for reduced motion", async () => {

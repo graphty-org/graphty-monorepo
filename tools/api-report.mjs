@@ -15,10 +15,16 @@
  * a string-literal union of codes or a `CodedFact` `{ code, params }`, never free text. Fields that
  * already exist never fail; see plainStringAdditions.
  *
+ * The same comparison fails a report that ADDS anything marking a style layer as special: a property
+ * of a layer or row type named like protected, system, builtin, owner or isBase, or an error code
+ * that protects a layer. Every layer is equal (issue #5905); see specialLayerAdditions. The reader's
+ * own lock (`styles.lockRow`, `StyleRow.locked`, `E_LOCKED`) is allowed.
+ *
  * Usage (after the package is built):
  *   node tools/api-report.mjs <package dir>           rewrite <package dir>/api/*.api.md
  *   node tools/api-report.mjs <package dir> --check   exit 1 when the built API differs from them,
- *                                                     or adds a plain string to a result type
+ *                                                     adds a plain string to a result type, or
+ *                                                     marks a style layer as special
  */
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { execFileSync } from "node:child_process";
@@ -125,6 +131,9 @@ const SESSION_ROOT = "GraphSession";
 export const PLAIN_STRING_ALLOWLIST = new Set([
     // identifiers and keys
     "id",
+    // the consumer's own name for how a step's test is edited (UnionStep.mode): written and read
+    // only by the consumer, never words graphty-element shows
+    "mode",
     "key",
     "nodeId",
     "edgeId",
@@ -139,6 +148,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "target",
     // a registered file format's id ("gexf", "graphml")
     "format",
+    // an IANA time zone name
+    "timeZone",
+    "parseZone",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",
@@ -197,6 +209,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "within",
     // the name of the credential slot a load filled, an identifier its source's descriptor declares
     "credentialSlot",
+    // a branches view's held filter condition and marked branch, each by its id (BranchesView)
+    "hold",
+    "mark",
 ]);
 
 const DECLARATION =
@@ -350,13 +365,69 @@ export function plainStringAdditions(baseTexts, headTexts) {
         );
 }
 
+/** A type that describes a style layer or a row of the style tree. */
+const LAYER_TYPE = /Layer|StyleRow|^Row[A-Z]/;
+/** A property, or a literal value of a layer type, that marks a layer as not like the others. */
+const SPECIAL_MARK =
+    /locked.?by|locked.?element|element.?locked|protected|system|built.?in|owner|owned|is.?base|^base$|^element$|editable.?base|special|reserved|immutable|deletable|removable/i;
+/** An error code that refuses a change because of which layer it is; `E_LOCKED` is the reader's own. */
+const SPECIAL_CODE = /"(E_(?:[A-Z]+_)*(?:PROTECT[A-Z]*|SYSTEM|BUILT_?IN|OWNE[DR]|RESERVED|BASE|SPECIAL)(?:_[A-Z]+)*)"/g;
+const PROPERTY_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??:/;
+
 /**
- * Checks a package's committed reports against the merge base's for added plain string fields.
- * @param packageDir - the package's directory
- * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
- * @returns the failure messages
+ * What one line of a declaration marks as special.
+ * @param name - the declaration's name
+ * @param line - the line
+ * @returns its marks
  */
-export function checkPlainStrings(packageDir, env = process.env) {
+function lineMarks(name, line) {
+    const layerType = LAYER_TYPE.test(name);
+    const property = PROPERTY_NAME.exec(line)?.[1];
+    // A property naming a layer or row is judged on any type (`protectedLayers` on a config).
+    const marked = property && SPECIAL_MARK.test(property) && (layerType || /layer|row/i.test(property));
+    const literals = layerType ? [...line.matchAll(/"([A-Za-z_-]+)"/g)].map((match) => match[1]) : [];
+    return [
+        ...(marked ? [`${name}.${property}`] : []),
+        ...literals.filter((literal) => SPECIAL_MARK.test(literal)).map((literal) => `${name}."${literal}"`),
+    ];
+}
+
+/**
+ * Everything in a report that marks a style layer as special.
+ * @param text - the report
+ * @returns `Type.property`, `Type."literal"` and `"E_CODE"` entries
+ */
+export function specialLayerMarks(text) {
+    const codes = [...text.matchAll(SPECIAL_CODE)].map((match) => `"${match[1]}"`);
+    const declared = [...parseReport(text)].flatMap(([name, lines]) => lines.flatMap((line) => lineMarks(name, line)));
+    return new Set([...codes, ...declared]);
+}
+
+/**
+ * The marks of a special layer a report adds, compared with the base reports.
+ * @param baseTexts - the base reports
+ * @param headTexts - the reports being checked
+ * @returns one failure message per added mark
+ */
+export function specialLayerAdditions(baseTexts, headTexts) {
+    const before = new Set(baseTexts.flatMap((t) => [...specialLayerMarks(t)]));
+    const added = new Set(headTexts.flatMap((t) => [...specialLayerMarks(t)].filter((mark) => !before.has(mark))));
+    return [...added]
+        .sort((a, b) => a.localeCompare(b))
+        .map(
+            (mark) =>
+                `${mark} marks a style layer as special. Every layer may be deleted or changed (issue #5905): ` +
+                `nothing in the API may say a layer is protected or owned. The reader's own lock stays allowed.`,
+        );
+}
+
+/**
+ * A package's committed reports, and the reports on the merge base with the branch it merges into.
+ * @param packageDir - the package's directory
+ * @param env - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the texts of both sets of reports
+ */
+function reportsAndBase(packageDir, env) {
     const apiDir = join(resolve(packageDir), "api");
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: apiDir, encoding: "utf8" }).trim();
     // from the top: ls-tree run in a subfolder lists only that subfolder's part of the tree
@@ -371,10 +442,32 @@ export function checkPlainStrings(packageDir, env = process.env) {
     const baseFiles = git("ls-tree", "--name-only", `${base}:${prefix}`)
         .split("\n")
         .filter((f) => f.endsWith(".api.md"));
-    return plainStringAdditions(
-        baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`)),
-        files.map((f) => readFileSync(join(apiDir, f), "utf8")),
-    );
+    return {
+        baseTexts: baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`)),
+        headTexts: files.map((f) => readFileSync(join(apiDir, f), "utf8")),
+    };
+}
+
+/**
+ * Checks a package's committed reports against the merge base's for added plain string fields.
+ * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the failure messages
+ */
+export function checkPlainStrings(packageDir, env = process.env) {
+    const { baseTexts, headTexts } = reportsAndBase(packageDir, env);
+    return plainStringAdditions(baseTexts, headTexts);
+}
+
+/**
+ * Checks a package's committed reports against the merge base's for added marks of a special layer.
+ * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the failure messages
+ */
+export function checkSpecialLayers(packageDir, env = process.env) {
+    const { baseTexts, headTexts } = reportsAndBase(packageDir, env);
+    return specialLayerAdditions(baseTexts, headTexts);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -389,7 +482,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("public API changed: run npm run api:report in the package and commit the new report");
         process.exit(1);
     }
-    const strings = flag ? checkPlainStrings(packageDir) : [];
+    const strings = flag ? [...checkPlainStrings(packageDir), ...checkSpecialLayers(packageDir)] : [];
     if (strings.length > 0) {
         for (const s of strings) console.error(`${packageDir}: ${s}`);
         process.exit(1);

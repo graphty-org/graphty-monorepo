@@ -1,21 +1,25 @@
 /**
  * @file Reading a value as an instant on a timeline, and stepping along a calendar.
  *
- * Parsed ONCE per designated column, never per window: the index in `./TimeApi` holds the result.
+ * Parsed ONCE per designated column, never per window: the index in `./timeIndex` holds the result.
  *
  * Every instant is UTC epoch milliseconds (or, for `unit: "ordinal"`, the plain number). A
- * date-time written with no offset is read as UTC, never as the machine's local time, so the same
- * file gives the same timeline on every machine.
+ * date-time written with no offset is read in the zone the caller names, never the machine's local
+ * time, so the same file gives the same timeline on every machine. With no zone named, strict text
+ * reads in UTC and loose text as `Date.parse` reads it, which is how it reads with the timeline off.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { TimeStep } from "../visibility/filter";
+import { instantOfWall, UTC_ZONE, wallClock } from "./zone";
 
 /**
  * How numbers in a time column are read: epoch milliseconds, epoch seconds, calendar years (`1995`
  * is January 1, 1995 UTC; a fraction is that share of the year), or plain ordered numbers with no
  * calendar (a simulation step, a tick). Strings and dates ignore it.
+ * @experimental timeline
+ * @beta
  */
 export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
@@ -34,6 +38,12 @@ const ISO =
 
 /** A plain decimal number written as text, such as a CSV cell holding an epoch. */
 const NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+
+/**
+ * Text that says its own zone, as `Date.parse` reads one: a zone name, or an offset after a clock
+ * time (a dash after a date is no offset: `01-15-2026`).
+ */
+const OWN_ZONE = /(?<![a-z])(?:Z|UTC?|GMT|[ECMP][SD]T)(?![a-z])|:\d{2}(?:\.\d+)?\s*(?:[ap]m\s*)?[+-]\d{1,2}/i;
 
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
@@ -67,9 +77,10 @@ function daysIn(year: number, month: number): number {
 /**
  * A strict ISO 8601 string as an instant, or null when it is not one or names no real date.
  * @param text - The trimmed text.
+ * @param zone - The zone text with no offset reads in.
  * @returns Milliseconds, or null.
  */
-function strictIso(text: string): number | null {
+function strictIso(text: string, zone: string): number | null {
     const match = ISO.exec(text);
     if (match === null) {
         return null;
@@ -101,9 +112,147 @@ function strictIso(text: string): number | null {
         const sign = offset.startsWith("-") ? -1 : 1;
         const digits = offset.slice(1).replace(":", "");
         at -= sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2))) * 60_000;
+    } else if (offset === undefined) {
+        at = instantOfWall(at, zone);
     }
 
     return Number.isFinite(at) ? at : null;
+}
+
+const CHAR_0 = 48;
+const CHAR_DASH = 45;
+const CHAR_COLON = 58;
+const CHAR_DOT = 46;
+const CHAR_T = 84;
+const CHAR_Z = 90;
+const DATE_LENGTH = 10;
+const DATE_TIME_LENGTH = 24;
+
+/**
+ * One character's code, in text whose length has been checked.
+ * @param text - The text.
+ * @param at - Where.
+ * @returns The code.
+ */
+function codeAt(text: string, at: number): number {
+    return text.charCodeAt(at); // NOSONAR(S7758): only ASCII matters here, and codePointAt's undefined would need a check per character on a path run a million times
+}
+
+/**
+ * Two decimal digits as a number.
+ * @param text - The text.
+ * @param at - Where they start.
+ * @returns The number, negative when either is no digit.
+ */
+function twoDigits(text: string, at: number): number {
+    const tens = codeAt(text, at) - CHAR_0;
+    const ones = codeAt(text, at + 1) - CHAR_0;
+
+    return tens >= 0 && tens <= 9 && ones >= 0 && ones <= 9 ? tens * 10 + ones : -1;
+}
+
+/**
+ * Whether text has the dashes of `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm:ss.sssZ`, the two forms a file
+ * writes a million of. No number written as text has them.
+ * @param text - The text.
+ * @returns True for that shape.
+ */
+export function isDateShaped(text: string): boolean {
+    return (
+        (text.length === DATE_LENGTH || text.length === DATE_TIME_LENGTH) &&
+        codeAt(text, 4) === CHAR_DASH &&
+        codeAt(text, 7) === CHAR_DASH
+    );
+}
+
+/**
+ * The milliseconds into a day of the clock in `YYYY-MM-DDTHH:mm:ss.sssZ`.
+ * @param text - Text of that length.
+ * @returns The milliseconds, NaN when it is not exactly that form or names no time.
+ */
+function exactClock(text: string): number {
+    const hour = twoDigits(text, 11);
+    const minute = twoDigits(text, 14);
+    const second = twoDigits(text, 17);
+    const hundreds = codeAt(text, 20) - CHAR_0;
+    const rest = twoDigits(text, 21);
+    if (
+        codeAt(text, 10) !== CHAR_T ||
+        codeAt(text, 13) !== CHAR_COLON ||
+        codeAt(text, 16) !== CHAR_COLON ||
+        codeAt(text, 19) !== CHAR_DOT ||
+        codeAt(text, 23) !== CHAR_Z ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59 ||
+        second < 0 ||
+        second > 59 ||
+        hundreds < 0 ||
+        hundreds > 9 ||
+        rest < 0
+    ) {
+        return Number.NaN;
+    }
+
+    return ((hour * 60 + minute) * 60 + second) * 1000 + hundreds * 100 + rest;
+}
+
+/**
+ * Text of exactly `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm:ss.sssZ`, read by character. What it leaves
+ * reads through {@link strictIso}, which answers the same for what it takes: years before 100, which
+ * `Date.UTC` would move, are among what it leaves.
+ * @param text - The text.
+ * @returns Milliseconds as UTC, NaN when it is not one of the two.
+ */
+function exactIso(text: string): number {
+    if (!isDateShaped(text)) {
+        return Number.NaN;
+    }
+
+    const century = twoDigits(text, 0);
+    const within = twoDigits(text, 2);
+    const month = twoDigits(text, 5);
+    const day = twoDigits(text, 8);
+    const year = century * 100 + within;
+    if (century < 1 || within < 0 || month < 1 || month > 12 || day < 1 || day > monthDays(year, month)) {
+        return Number.NaN;
+    }
+
+    const clock = text.length === DATE_LENGTH ? 0 : exactClock(text);
+
+    return civilDay(year, month, day) * MS_PER_DAY + clock;
+}
+
+/**
+ * How many days a month holds, by arithmetic: {@link daysIn} makes two `Date`s.
+ * @param year - The year.
+ * @param month - The month, 1 to 12.
+ * @returns The day count.
+ */
+function monthDays(year: number, month: number): number {
+    if (month === 2) {
+        return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+    }
+
+    return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+}
+
+/**
+ * Days from 1970-01-01 to a date of the proleptic Gregorian calendar, for a positive year: the
+ * civil-date count, with March first so a leap day ends its year. A quarter of `Date.UTC`'s cost.
+ * @param year - The year.
+ * @param month - The month, 1 to 12.
+ * @param day - The day.
+ * @returns The day number.
+ */
+function civilDay(year: number, month: number, day: number): number {
+    const shifted = month > 2 ? year : year - 1;
+    const era = Math.floor(shifted / 400);
+    const inEra = shifted - era * 400;
+    const inYear = Math.floor((153 * (month > 2 ? month - 3 : month + 9) + 2) / 5) + day - 1;
+
+    return era * 146_097 + inEra * 365 + Math.floor(inEra / 4) - Math.floor(inEra / 100) + inYear - 719_468;
 }
 
 /**
@@ -138,23 +287,60 @@ const YEARS = { min: 1000, max: 2999 } as const;
  * @returns The unit, or undefined.
  */
 export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
-    let count = 0;
-    let years = 0;
-    let seconds = 0;
-    let millis = 0;
+    const tally = newUnitTally();
     for (const value of values) {
-        const number = typeof value === "string" && isNumericText(value) ? Number(value) : value;
-        if (typeof number !== "number" || !Number.isFinite(number)) {
+        tallyUnit(tally, typeof value === "string" && isNumericText(value) ? Number(value) : value);
+        if (!tally.numeric) {
             return undefined;
         }
-
-        count++;
-        years += Number.isInteger(number) && number >= YEARS.min && number <= YEARS.max ? 1 : 0;
-        seconds += number >= 1e8 && number < 1e10 ? 1 : 0;
-        millis += number >= 1e11 && number < 1e13 ? 1 : 0;
     }
 
-    if (count === 0) {
+    return unitOfTally(tally);
+}
+
+/** What the present values of a column have looked like so far, for {@link unitOfTally}. */
+export interface UnitTally {
+    count: number;
+    years: number;
+    seconds: number;
+    millis: number;
+    /** False once a value is not a finite number. */
+    numeric: boolean;
+}
+
+/**
+ * A tally of no values.
+ * @returns It.
+ */
+export function newUnitTally(): UnitTally {
+    return { count: 0, years: 0, seconds: 0, millis: 0, numeric: true };
+}
+
+/**
+ * Count one present value, numeric text already read as its number.
+ * @param tally - The tally so far.
+ * @param number - The value.
+ */
+export function tallyUnit(tally: UnitTally, number: unknown): void {
+    if (typeof number !== "number" || !Number.isFinite(number)) {
+        tally.numeric = false;
+        return;
+    }
+
+    tally.count++;
+    tally.years += Number.isInteger(number) && number >= YEARS.min && number <= YEARS.max ? 1 : 0;
+    tally.seconds += number >= 1e8 && number < 1e10 ? 1 : 0;
+    tally.millis += number >= 1e11 && number < 1e13 ? 1 : 0;
+}
+
+/**
+ * The unit a tally's values call for, by the rule of {@link inferUnit}.
+ * @param tally - The tally.
+ * @returns The unit, or undefined.
+ */
+export function unitOfTally(tally: UnitTally): TimeUnit | undefined {
+    const { count, years, seconds, millis, numeric } = tally;
+    if (!numeric || count === 0) {
         return undefined;
     }
 
@@ -170,6 +356,83 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
 }
 
 /**
+ * The zone text reads in under a unit: 1995 in a year column is January 1 UTC in every zone, or it
+ * would read as 1994 west of Greenwich.
+ * @param unit - The unit.
+ * @param zone - The zone asked for.
+ * @returns The zone.
+ */
+function zoneUnder(unit: TimeUnit, zone: string): string {
+    return unit === "year" ? UTC_ZONE : zone;
+}
+
+/**
+ * Whether text only `Date.parse` understands says its own zone. `Date.parse` skips parentheses, so
+ * a zone named in them says nothing.
+ * @param text - The text.
+ * @returns True when the text says its zone.
+ */
+function namesOwnZone(text: string): boolean {
+    return OWN_ZONE.test(text.replaceAll(/\([^()]*\)/g, ""));
+}
+
+/**
+ * Text only `Date.parse` understands, in a zone. Text saying its own zone reads as it says: an
+ * added `UTC` would win over it.
+ * @param text - The text.
+ * @param zone - The zone.
+ * @returns The instant, NaN when it names none.
+ */
+function looseIn(text: string, zone: string): number {
+    const wall = namesOwnZone(text) ? Number.NaN : Date.parse(`${text} UTC`);
+
+    return Number.isNaN(wall) ? Date.parse(text) : instantOfWall(wall, zone);
+}
+
+/**
+ * Read text as an instant, as {@link readInstant} says.
+ * @param value - The text.
+ * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in.
+ * @returns The instant (NaN when there is none) and how it was read.
+ */
+function readText(
+    value: string,
+    unit: TimeUnit,
+    timeZone: string | undefined,
+): { readonly at: number; readonly how: InstantReading } {
+    // With the timeline off nothing names a zone: `time.parse` passes none and the window bounds'
+    // zone is the timeline's, so text reads below as it did before zones.
+    if (timeZone !== undefined) {
+        const exact = exactIso(value);
+        if (!Number.isNaN(exact)) {
+            const dated = value.length === DATE_LENGTH;
+            return { at: dated ? instantOfWall(exact, zoneUnder(unit, timeZone)) : exact, how: "strict" };
+        }
+    }
+
+    const text = value.trim();
+    const numeric = NUMERIC.test(text);
+    if (numeric && unit !== "ms") {
+        return { at: numberOf(Number(text), unit), how: "strict" };
+    }
+
+    const zone = zoneUnder(unit, timeZone ?? UTC_ZONE);
+    const iso = strictIso(text, zone);
+    if (iso !== null) {
+        return { at: iso, how: "strict" };
+    }
+
+    if (numeric) {
+        return { at: numberOf(Number(text), unit), how: "strict" };
+    }
+
+    const loose = timeZone === undefined ? Date.parse(text) : looseIn(text, zone);
+
+    return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
+}
+
+/**
  * Read one value as an instant.
  *
  * 1. A number: by the unit. 2. A `Date`: its time. 3. Text: strict ISO 8601 first (except under
@@ -177,9 +440,15 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
  * then `Date.parse` as a last resort, reported as `"loose"`. Nothing parses: `"unparsed"`.
  * @param value - The value an element carries.
  * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in, UTC included. Absent, strict text reads
+ *     in UTC and loose text as `Date.parse` reads it.
  * @returns The instant (NaN when there is none) and how it was read.
  */
-export function readInstant(value: unknown, unit: TimeUnit): { readonly at: number; readonly how: InstantReading } {
+export function readInstant(
+    value: unknown,
+    unit: TimeUnit,
+    timeZone?: string,
+): { readonly at: number; readonly how: InstantReading } {
     if (value === undefined || value === null || value === "") {
         return { at: Number.NaN, how: "missing" };
     }
@@ -194,37 +463,44 @@ export function readInstant(value: unknown, unit: TimeUnit): { readonly at: numb
         return { at, how: Number.isNaN(at) ? "unparsed" : "strict" };
     }
 
-    if (typeof value !== "string") {
-        return { at: Number.NaN, how: "unparsed" };
+    return typeof value === "string" ? readText(value, unit, timeZone) : { at: Number.NaN, how: "unparsed" };
+}
+
+/**
+ * Read one value as an instant the way the session's time parser reads typed text: as
+ * {@link readInstant} does, except that a date written loosely with no zone is read in the given
+ * zone, as the time field reads date-times.
+ * @param value - The value, or typed text.
+ * @param unit - How numbers are read.
+ * @param timeZone - The zone text with no offset reads in. Absent, text reads in UTC, and loose
+ *     text saying its own zone does too.
+ * @returns Epoch milliseconds (or the ordinal value), or null when it names no instant.
+ */
+export function readTimeValue(value: unknown, unit: TimeUnit, timeZone?: string): number | null {
+    const text = typeof value === "string" ? value.trim() : value;
+    const reading = readInstant(text, unit, timeZone);
+    if (reading.how === "strict") {
+        return reading.at;
     }
 
-    const text = value.trim();
-    const numeric = NUMERIC.test(text);
-    if (numeric && unit !== "ms") {
-        return { at: numberOf(Number(text), unit), how: "strict" };
+    if (typeof text === "string" && text !== "" && (timeZone === undefined || !namesOwnZone(text))) {
+        const utc = Date.parse(`${text} UTC`);
+        if (!Number.isNaN(utc)) {
+            return instantOfWall(utc, zoneUnder(unit, timeZone ?? UTC_ZONE));
+        }
     }
 
-    const iso = strictIso(text);
-    if (iso !== null) {
-        return { at: iso, how: "strict" };
-    }
-
-    if (numeric) {
-        return { at: numberOf(Number(text), unit), how: "strict" };
-    }
-
-    const loose = Date.parse(text);
-
-    return Number.isNaN(loose) ? { at: Number.NaN, how: "unparsed" } : { at: loose, how: "loose" };
+    return reading.how === "loose" ? reading.at : null;
 }
 
 /**
  * A window bound as a number: text is read as a date-time is read in a time column.
  * @param bound - The bound.
+ * @param timeZone - The zone text with no offset reads in, as {@link readInstant} takes it.
  * @returns The number, NaN when the text names no instant.
  */
-export function numericBound(bound: number | string): number {
-    return typeof bound === "number" ? bound : readInstant(bound, "ms").at;
+export function numericBound(bound: number | string, timeZone?: string): number {
+    return typeof bound === "number" ? bound : readInstant(bound, "ms", timeZone).at;
 }
 
 /**
@@ -319,14 +595,39 @@ export function isCalendarStep(step: TimeStep): step is Exclude<TimeStep, number
 }
 
 /**
- * Move an instant by whole steps, in UTC. A month added to January 31 lands on the last day of
- * February.
+ * Move an instant by whole days or longer on a zone's wall clock, so a day across a clock change is
+ * 23 or 25 hours. The first moment of a day stays the first moment of its day, also on a day whose
+ * midnight a change removed, so a walk of boundaries never drifts off midnight.
  * @param at - The instant.
  * @param step - The step.
  * @param count - How many steps; negative goes back.
+ * @param zone - The zone.
  * @returns The moved instant.
  */
-export function addSteps(at: number, step: TimeStep, count: number): number {
+function addWallSteps(at: number, step: Exclude<TimeStep, number>, count: number, zone: string): number {
+    const wall = wallClock(at, zone);
+    const midnight = alignTo(wall, "day");
+    const start = instantOfWall(midnight, zone) === at ? midnight : wall;
+    const moved = instantOfWall(addSteps(start, step, count), zone);
+
+    // A day the zone skipped reads as the day after it, which is no move at all going back.
+    return moved === at && count !== 0 ? addWallSteps(at, step, count + Math.sign(count), zone) : moved;
+}
+
+/**
+ * Move an instant by whole steps. A month added to January 31 lands on the last day of February.
+ * An hour is always absolute; a day and longer move on the zone's wall clock.
+ * @param at - The instant.
+ * @param step - The step.
+ * @param count - How many steps; negative goes back.
+ * @param zone - The zone calendar steps read in.
+ * @returns The moved instant.
+ */
+export function addSteps(at: number, step: TimeStep, count: number, zone: string = UTC_ZONE): number {
+    if (zone !== UTC_ZONE && isCalendarStep(step) && step !== "hour") {
+        return addWallSteps(at, step, count, zone);
+    }
+
     switch (step) {
         case "hour":
             return at + count * MS_PER_HOUR;
@@ -353,15 +654,24 @@ export function addSteps(at: number, step: TimeStep, count: number): number {
 }
 
 /**
- * The start of the calendar unit an instant falls in, in UTC: midnight for a day, Monday for a
- * week, the first of the month, quarter or year. A numeric step aligns nothing.
+ * The start of the calendar unit an instant falls in: midnight for a day, Monday for a week, the
+ * first of the month, quarter or year, and the whole hour on the zone's clock. A day with no
+ * midnight starts at its first moment. A numeric step aligns nothing.
  * @param at - The instant.
  * @param step - The step.
+ * @param zone - The zone calendar steps read in.
  * @returns The aligned instant.
  */
-export function alignTo(at: number, step: TimeStep): number {
+export function alignTo(at: number, step: TimeStep, zone: string = UTC_ZONE): number {
     if (!isCalendarStep(step)) {
         return at;
+    }
+
+    if (zone !== UTC_ZONE) {
+        const wall = wallClock(at, zone);
+        const aligned = alignTo(wall, step);
+
+        return step === "hour" ? at - (wall - aligned) : instantOfWall(aligned, zone);
     }
 
     if (step === "hour") {

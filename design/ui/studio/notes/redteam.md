@@ -16,46 +16,31 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
-  nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
-  adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
-  element is not reading is marked unused by the element's code, so the screen never claims a
-  column is placing nodes when it is not. Still open, watch in a study: does a reader with one
-  "location" column of "48.85, 2.35" find "Coordinates" (detection lists it with no action, so
-  only a mis-detected file tests it).
-- (2026-10-21) Round 1 closed at its 1-round cap, bars unmet. 55 of 56 sessions succeeded,
-  median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
-  routes and problems, and must screen tasks for leading before spending sessions -- the answer
-  key names most problems the graders cite.
-- (2026-10-21) The round's only F came from the grading rule, not the reader: `colorWord` returns
-  a CSS keyword before hue, so FFD700 is "gold", not "yellow". Fix the rule (hue band set before
-  the round) and the shared table in compact-mantine, which also speaks those names aloud; never
-  add a per-task synonym.
-- (2026-10-21) Bar 5 fails only on two backlog severity 3 items (node Fill "+" one-node layer;
-  folder chain icon) that no or few sessions reached. A frozen rule counted them on 1 rating; ask
-  for a repro or a reach before a backlog row gates a round.
-- (2026-10-21) Best real findings, all severity 2: newcomers look for node color in the Graph
-  inspector first (9 sessions); a new style line starts at the current value so it looks broken;
-  layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
-  hints: a new line should start at a visibly different value.
-- (2026-10-21) Keyboard: F6 stop with no focus ring (WCAG 2.4.7) and "Samples" dropping focus are
-  defects, fix them; the 30-Tab walk is cost, one persona only.
-- (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
-  tell avoidance from comprehension is not measuring; demand a separating measure.
-- (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
-  zooms"; storage notice caused by the automation's quota. Every build defect needs a repro made
-  the way a person would make it before it is counted.
-- (2026-10-21) Rejected generality traps: a "cube" shape synonym, a "cluster" ranking tweak,
-  currency or task wording in the product. Task words are not product requirements.
-- (2026-10-20) Owed and still unverified: build-equivalence and half-folder gate checks,
-  bars.mjs spoken/typing checks, wording.mjs stem; score.mjs bar 4 start point is now owed too.
-- (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
-  "Mlle"; bar 8 screens over budget as severity 2; T47's "around" route counts against bulk.
-- Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
-  every "unprompted" count. A process rule without a refusing gate is a wish.
-- Standing: after a rule is adopted, read the gate code and the tool, not the rule.
-- Standing: fix by removing, not adding; one change per problem; words at rest never rise;
-  rejected stays rejected without new evidence; never re-set a limit from data.
+- (2026-11-03) Tier 5 closed at the one-round cap, bars 1, 3, 4, 8, 9 failing. The editor is
+  doubted, not failed: Or-group sessions all succeeded at overwhelm 2-3. Attack cost and doubt.
+- (2026-11-03) Grade the key before the build: T73 0 of 4 measured an answer key that wanted a
+  rule the task never asked for. A task must ask for what only the feature gives, in plain words.
+- (2026-11-03) A picker entry must name what it binds: "Connected components" from a visible-only
+  run bound a whole-graph run (severity 3). One run, one scope fact from the element, app words it.
+- (2026-11-03) Speak only from the surface showing: a covered panel's count written to the same
+  status region was the other severity 3.
+- (2026-11-03) An empty control must still show its unit and direction, and its error may only
+  claim what is applied (By position: "highest 10" from a default nobody set).
+- (2026-11-03) Empty-state defects cluster: empty color box, "Is exactly" on empty text, Clear
+  then Escape deleting a saved card. Walk every control empty, then reopened.
+- (2026-11-03) "Least sure?" makes everyone name something; count only what repeats across halves.
+- (2026-11-03) Fixtures pre-colored in the task's color and leading follow-ups ("would you rather")
+  inflate findings. Vary the asked color; ask neutral questions.
+- (2026-11-03) Unmeasured is not held: bars 6 and 7 had no walks, calm-first did not run, so bar
+  9's count is a floor. A bar with no feed is reported "not measured".
+- (2026-11-03) Two decided rules can collide; ask decided.md which wins before calling a defect.
+- (2026-11-03) Every bespoke twin of a shared control breaks Tab, Escape and speech at once.
+- (2026-11-03) Only hand word counts decide the words budget; tool FAIL lines quoted by
+  participants trip the leak check.
+- (2026-10-30) Audit keys before counting; one source of truth per fact; defaults applied after
+  the act get attacked in every design.
+- (2026-10-29) Fixes with no task that re-runs them report "not re-tested", never "passed".
+- (2026-10-21) Avoidance is not comprehension; no synonyms, task words or domain special cases.
 
 ## Priorities and values
 
@@ -105,6 +90,42 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-02, second tier 5 criteria review (after the rating and calm-first checks):**
+  proposed 7 changes: do not start round 1 on d3fda9f2b6 (calm-first-frozen fails bar 9's limits;
+  the 50k matches strip fails "Large graphs"; item 8 lists the old build's candidates; line 18
+  says "first build" of the sixth) -- audit and two skeptics on the calm-first screenshots now,
+  gate on both files; define "two counts of one result" by quantity per spec section 2/3.0
+  (finding 1 is ruled a different fact at spec 144-148 with two cards on; finding 2 is a spec gap:
+  extend "so far only where it differs" to a one-step group); re-run the calm-first calibration
+  blind and per complaint; words at rest counted by bars.mjs for tier 5; a pass rule for the two
+  "+"; named reasons at any rating (the frozen sessions' Fill color box); calm-first on the 50k
+  and reference screens, with the rejected build's "While has nodes" as the positive control.
+  Reason: the first review's changes were adopted as text, but the checks they produced already
+  fail the frozen build, and two of them (count duplication, calibration) cannot tell a real
+  defect from a decided rule or from the build the owner rejected.
+- **2026-11-02, tier 5 criteria review (selection workspace):** proposed 8 changes: freeze
+  only a build with no blocked half (T75 A) and no build note that already fails a bar (false
+  "covered" warning, table plus matches strip), with one path-step number per core half; calibrate
+  bar 9's rating on the owner-rejected cards and gate on it only if it separates them; make the
+  calm-first check countable (needed-controls list per screen, words-at-rest budget, two counts of
+  one result) since the audit cannot confirm "the eye lands"; a scripted 50k walk of every list
+  (reference picker, Selected (N), matches strip, outline summaries); neutral follow-ups with the
+  rating asked first, in every task; a coverage table from each of the owner's six complaints to
+  the check that re-tests it; wrong turns before success only and a written hover/tool rule; the
+  accessibility walk's keyboard blocks count in bar 5 with a `--keys` repro, and "Either" checked
+  against T73 B / T78 B. Reason: each lets bar 9 or bar 1 pass or fail on the instrument, not on
+  what the owner complained about.
+- **2026-10-29, tier 4 criteria review (data management):** proposed 8 changes: freeze after the
+  R fixes and rewrite answers.md paths on that build (T67's path is still the table, against
+  "table view-only" and R9); reword T64 (stronger/farther), T65 (at least) and vary T60 B's
+  "web address"; T62 succeeds only on a changed kind, the time role alone is P; T63 needs a half
+  whose place the program does not designate, or grade the place as unverified; a coverage table
+  from every R decision to the task half that re-tests it (R2's re-test quotes "T65 B words" that
+  T65 B does not have; R15 asks "open the longest", T62 asks "most recently"); bar 4/6 audit
+  confirms only what it measures, approved surfaces listed, words at rest a counted bar; T65's
+  two halves are both people networks, move B to the gauges; cost and first-move measures for
+  returning users, T66 detour table lists its own success path, T68 reported per half. Reason:
+  each lets a bar pass while the thing studied was not exercised, or checks a build nobody froze.
 - **2026-10-23, menu sections (issue #3315, director ruled).** I pressed three points. (1)
   "Other" is a junk drawer (Keep positions, Map, Clusters, Treemap); accepted as the honest name
   for the catalog's `special` family and for plugins, since inventing a heading per row is worse.
@@ -112,41 +133,13 @@ served at `/?next`.
   do not re-sort it in the app. (3) The engine-in-the-form alternative was not tested; it stays
   open as a separate question, not reason to keep the indent. Watch at the next round: whether
   readers look for Map under "Other".
-- **2026-10-20, fifth tier 3 criteria review:** proposed 8 changes: refreeze on the commit
-  that holds golden (or strike the golden entry) and re-read answers.md on it; make preflight 9's
-  refusals real (half folder, three walks, `--keys`, bar 6 screen coverage, spoken.json) and the
-  gate's missing list the pilot queue; build the owed bars.mjs and wording.mjs items or report
-  T43, T47, T51 as primed; drop T37 from the judged set and report round 1 per bar; a keyboard
-  block on Sam's halves is a blocked task, and backlog rows carry a severity counted in bar 5;
-  experts feed bars 5 and 7 only, and the key-and-drawing check runs by script after sessions;
-  settle T50 B's summary reading; score asked colors by hue bands. Reason: each is a rule written
-  and not run, or a judgment left to one grader's eye, on a one-round study.
+- **2026-10-17 to 2026-10-20, five tier 3 criteria reviews (summarized 2026-11-02):** each
+  proposed 7-8 changes of one kind: a rule written but not run or not refused on the build under
+  study (exit test, gate by half, three walks, `--keys`, spoken.json, wording.mjs on the frozen
+  strings, refreeze on the commit that holds the merge), a bar a grader's eye decides (asked color
+  by hue bands, expert severity 3-4 only by repro), and task words that echo a screen (T37
+  "connected", "drawn", T50 "color them"). Most text adopted; the tool parts mostly not built.
 
-- **2026-10-19, fourth tier 3 criteria review:** proposed 7 changes: the round 1 build is not
-  ready until a full pass on 1fa51e2b0b meets the exit test (T40 B's discarded letters after
-  "Starts with" is on a success path); the gate counts a half only with a success, detours and
-  `keyboardOnlyMode: true` walk under `pilot/<half>/` on the frozen build; run preflight 6, 7, 9
-  on 1fa51e2b0b and name round 1's wording baseline; T41 B varies "missing" so wording and
-  dataset can be split; T50 "draw them" to "color them"; bar 7's "cannot reach" confirmed by a
-  `--keys` repro; the change log's freeze entries carry an "owed" list. Reason: each is a rule
-  written but not run or not refused on the build under study.
-- **2026-10-18, third tier 3 criteria review:** proposed 7 changes: preflight 4 takes the
-  skill's exit test and a pass is incomplete while any round 1 half lacks its three walks; run
-  wording.mjs on 52cb47a85a and re-justify or reword "drawn" and B's "clusters"; settle the four
-  deferred grading questions, with a Route value for T48 B's Filters route; bar 4 states 12 with
-  no derivation; expert severity 3-4 confirmed by repro only; T49's look compared by script with
-  revision stripped; status of the study told as "not started, dry run pass 5". Reason: each is a
-  rule the round cannot follow as written, or a check that has not run on the build under study.
-- **2026-10-17, second tier 3 criteria review:** proposed 8 changes: route bar for T47 and T48
-  counts folder or several only; kept words re-checked per build; T37 reworded off "connected";
-  info-circle text joins the vocabulary and T48 varies its noun; newcomers hold each half (swap
-  Alex off T40 B); bar 4 excludes `--keys` sessions and needs the asked color; expert and audit
-  findings get a checklist, a dark-mode bar 6 run and a counted measure; one bar numbering.
-  Reason throughout: each lets a bar pass while the thing studied failed or was never used.
-- **2026-10-17, first tier 3 criteria review:** bar 1 `!judged` hole, bar 4 dropping never,
-  T47 around route, T49 red never drawn, COMMON hiding control words, Sam with no file or folder.
-  Adopted (change logs of criteria, tasks, answers, roster, 2026-10-17). Not adopted: T50 A's
-  rule hidden by names (per-half reporting instead); words-over-budget screens gated.
 - **2026-10-14, round 6:** repaint test reads what was painted, not explain(); restore a run layer
   without rerunning; one `otherwise` value, no copy into a binding; "draws nothing" over the whole
   stack; no Alt+drag. Open: whether a reader's edit to a highlight layer survives the next run.
@@ -167,6 +160,22 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- (2026-11-02) Reading bars.json's largeLists for ok:false and spec.md for the strip's search:
+  worked -- one command found a sev 3 candidate on every 50k screen that no review had named.
+  Checking calm-first findings against the spec's count rules: worked -- finding 1 contradicts a
+  ruled count (spec 144-148). First review's 8 changes: adopted as text (rating check, calm-first
+  counts, 50k walk, coverage table, wrong-turn rule, --keys); did not work: the round plan still
+  targets a build those new checks fail.
+- (2026-11-02) Grepping the app's option labels (not just nouns) for prompt words: worked --
+  found "Either" (Edge ends) and "Either direction" (Connected) against "either direction" in two
+  prompts. Reading the placement study's ratings beside the owner's verdict: worked -- showed the
+  rating scale has no spread, so a bar on it is untested.
+- (2026-10-30) Tier 4 round 1: the two-skeptic settle worked again -- it caught a study-tool defect (tooltip:null on popovers), a grading-key false done and inflated wrong turns. Did not work: screening tasks for leading before the round (prompts still echoed success words) and a frozen build that had not built the decided source-row fix.
+
+- 2026-10-29 -- Grepping the app source for each prompt's key words (Fields.tsx "Higher weight
+  means" with "farther"; filterWords.ts "is at least") found echoes the task file's own word list
+  missed: the avoided list holds interface nouns, not option values or summary words. Worked:
+  cheap, one command. Owed: wording.mjs must read the frozen build's strings, not a hand list.
 - (2026-10-21) Did not work: a single studio round with frozen grading rules. The cap ended the
   tier with the bars failing on a grading-table artifact (gold vs yellow) and on backlog rows no
   session reached; the round could not distinguish product failure from rule failure. Worked: two
@@ -197,6 +206,11 @@ served at `/?next`.
   only supplied the right file. Taught: test end states; a rule needs a refusing gate; check the
   refusal myself.
 
+- (2026-11-03) Tier 5 round 1 closed at the 1-round cap with every session void (start gate never
+  ran). Did not work: launching without gate evidence. Worked: two independent skeptic checks cut
+  the expert findings to one severity 3 and several 2s, and dropped decided behavior reported as
+  defects. Lesson: the cheapest red-team move is to check the launch gate, not the screens.
+
 ## Thinking
 
 - (2026-10-17) The bulk tasks are the study's point, and every softening of their bars (around,
@@ -217,6 +231,17 @@ served at `/?next`.
 
 ## Sources
 
+- tier5/criteria.md (first line d3fda9f2b6, change log to the rating check), tier5/rounds/round-1/
+  {plan,rating-check,calm-first-rejected,calm-first-frozen}.md, bars/bars.json (largeLists,
+  wordsAtRest), bars/vocabulary.json, selection-groups/spec.md lines 52-55, 141-149, 446;
+  tool/bars.mjs:1421 (2026-11-02, second review)
+- tier5/{criteria,tasks,answers,roster,decided,placement-study,owner-feedback-2026-11-01}.md
+  (2026-11-02, first line still `<sha>`), selection-groups/spec.md, main checkout
+  `tmp/selection-redesign/study/{panel,results}.md`; `graphty/src/workspace/selection/StepPane.tsx`
+  (Edge ends Both/Either), `selection/words.ts:156-171`, `analyze/words.ts:360` (2026-11-02)
+- tier4/{criteria,tasks,answers,roster,decided}.md (2026-10-29, first line `<sha>`), setups under
+  `rounds/tier-4/setups/`, `graphty/src/workspace/data-place/Fields.tsx:559`, `filterWords.ts:75`,
+  `words.ts:429`, `DataPlace.stories.tsx:153-159` (worktree head 68919794d2) (2026-10-29)
 - criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
   entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
   `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`
@@ -269,3 +294,18 @@ served at `/?next`.
 - `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`, owner messages 2026-09-25 to
   2026-10-06 (via `design/ui/studio/tmp/owner-all.jsonl`)
 - Extraction scripts: `design/ui/studio/tmp/redteam/scan.py`, `group.py`, `triage.py`
+
+## Tier 5 round 1 lessons (2026-11-03)
+
+- Decision: insights.md's two-skeptic rule (both drop = drop, one = weaken) stands as the way to
+  settle a round; it cut "no orange swatch" (task color, Figma-locked swatches) and kept the two
+  severity 3s. Worked.
+- Tried: grading T73 by rule-vs-picked-ids. Did not work: the key graded P on correct answers.
+  Next time a key may require only what the task words require.
+- Tried: "least sure" and "would you rather" follow-ups. Partly worked: they surface doubt but
+  invite wishes; only cross-half repeats count.
+- Thinking: the round's real cost lives in empty states (color row is T70's largest overage) and
+  in first states of added parts (Or group at "B 0" with a full range bar). Smaller fix than any
+  new aid: give each empty control its unit, direction and a working first click.
+- Thinking: the single-round cap ended the studio with fixes known but unre-walked; the next
+  tier should start by re-walking insights 1, 2, 4-7 by their repros on a new frozen build.

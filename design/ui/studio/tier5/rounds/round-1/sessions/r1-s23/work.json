@@ -1,0 +1,54 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "node-tool_1 node.tool",
+   "node-draworder_1 node.drawOrder",
+   "edge-tool_1 edge.tool",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "Graph researchers"
+  ]
+ },
+ "end": {
+  "runs": [
+   "components Connected components (label Separate pieces (visible))",
+   "components_2 Connected components (label Separate pieces (whole graph))"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "node-tool_1 node.tool",
+   "node-draworder_1 node.drawOrder",
+   "edge-tool_1 edge.tool",
+   "group-3_1 Group 3",
+   "group-2_1 Group 2",
+   "group-1_1 Group 1",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0o9ng11\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0o9tyc2\",\"op\":\"keep\",\"rule\":{\"kind\":\"range\",\"attribute\":\"graphty.degree\",\"min\":10},\"mode\":\"range\"},{\"id\":\"smw0oar183\",\"op\":\"keep\",\"rule\":{\"kind\":\"member\",\"of\":\"largest-component\"}}],\"color\":\"#009E73\"}]}",
+   "filter-2 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0obbis4\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0obj0t5\",\"op\":\"keep\",\"rule\":{\"kind\":\"measure\",\"algorithm\":\"components\",\"params\":{\"strength\":\"weak\"},\"field\":\"groupSize\",\"test\":{\"kind\":\"range\",\"min\":50}},\"computedOn\":\"so-far\",\"mode\":\"range\"}],\"color\":\"#009E73\"}]}"
+  ],
+  "sources": [
+   "Graph researchers"
+  ]
+ },
+ "gone": {}
+}

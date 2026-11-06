@@ -21,7 +21,8 @@
 //       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
 //       what a participant would notice
 //   node real.mjs --end <session dir>
-//       closes the browser and frees its browser slot; a participant's folder is copied to the
+//       writes the end-state records (work.json, styles.json, key.json, data.json), closes the
+//       browser and frees its browser slot; a participant's folder is copied to the
 //       round's, adding files and never removing or rewriting a note already there
 //   node real.mjs --leaks <session dir | round dir>
 //       what the participant opened outside its folder; a session whose log it cannot read fails
@@ -91,7 +92,7 @@ import { appendFile, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/
 import { createServer } from "node:http";
 import { connect, createServer as netServer } from "node:net";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PNG } from "pngjs";
@@ -99,13 +100,18 @@ import { PNG } from "pngjs";
 import {
     activeInView,
     axeViolations,
+    catalogKeywords,
     bar6Gaps,
     bar10,
+    dataState,
     drawnColors,
     focusOnPage,
     keyShown,
     LAUNCH,
+    largeLists,
+    layerMembers,
     NAME_CHARS,
+    networkCounts,
     nodeColors,
     openWork,
     plant,
@@ -113,10 +119,15 @@ import {
     styleChanges,
     styleContent,
     styleTree,
+    tier4Gaps,
+    tier5Gaps,
     unplant,
     wordsOnScreen,
     workGone,
 } from "./measure.mjs";
+import { checkSession } from "./endstate.mjs";
+import { find, refusalFacts, refusedName, resolvedLine, ROLES, TIP } from "./match.mjs";
+import { CORE_BY_TIER, pathSteps } from "./steps.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
@@ -134,7 +145,9 @@ const VIEWPORT = { width: vw, height: vh };
 // A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
 // its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
 // REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
-const IDLE_MS = (Number(process.env.REAL_IDLE_SECONDS) || 15 * 60) * 1000;
+const MAX_IDLE_MS = 24 * 60 * 60 * 1000;
+const askedIdleMs = Number(process.env.REAL_IDLE_SECONDS) * 1000;
+const IDLE_MS = askedIdleMs > 0 && askedIdleMs < MAX_IDLE_MS ? askedIdleMs : 15 * 60 * 1000;
 
 // GPU rendering. Headless Chromium draws WebGL with SwiftShader, a software rasterizer: each idle
 // graphty page burned 550-690% CPU, so four study browsers loaded the machine past 47 and every step
@@ -269,7 +282,7 @@ function sessionTask(dir, task, persona) {
 }
 const tasksText = (tier) => readFileSync(join(here, `../tier${tier ?? 2}`, "tasks.md"), "utf8");
 const sectionOf = (text, head) => {
-    const at = text.search(new RegExp(`^### ${head}\\.`, "m"));
+    const at = text.search(new RegExp(`^### ${reEscape(head)}\\.`, "m"));
     if (at < 0) return null;
     const rest = text.slice(at + 4);
     const end = rest.search(/^#{2,3} /m);
@@ -280,9 +293,11 @@ const oneLine = (t) => t.replace(/\s+/g, " ").trim();
 function taskWords(t) {
     const sec = sectionOf(tasksText(t.tier), t.task);
     if (!sec) return null;
-    const prompt = sec.match(new RegExp(`^- \\*\\*Prompt ${t.half}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"))?.[1];
+    const prompt = sec.match(
+        new RegExp(`^- \\*\\*Prompt ${reEscape(t.half)}\\b[^*]*\\*\\* "([\\s\\S]*?)"\\s*$`, "m"),
+    )?.[1];
     const fu = sec.match(/^- \*\*Follow-up[\s\S]*?(?=^- \*\*|$(?![\s\S]))/m)?.[0];
-    const followUp = fu?.match(new RegExp(`^\\s+- ${t.half}: "([\\s\\S]*?)"`, "m"))?.[1];
+    const followUp = fu?.match(new RegExp(`^\\s+- ${reEscape(t.half)}: "([\\s\\S]*?)"`, "m"))?.[1];
     return { prompt: prompt && oneLine(prompt), followUp: followUp && oneLine(followUp) };
 }
 // Files nobody playing a participant may see. In round 1 a participant agent, sent to tasks.md to
@@ -389,7 +404,9 @@ async function brief(dir, task, persona) {
     // entry further down names an older build in backticks, and briefed participants onto it)
     const distLine = readFileSync(join(tierDir, "criteria.md"), "utf8").match(/served from `?([^`\s]+)`?/)?.[1];
     // the start: the plan's, or else the task's half in the roster's "Where each session starts"
-    const cell = roster.match(new RegExp(`^\\| ${t.task} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[t.half === "A" ? 1 : 2];
+    const cell = roster.match(new RegExp(`^\\| ${reEscape(t.task)} +\\|([^|]*)\\|([^|]*)\\|`, "m"))?.[
+        t.half === "A" ? 1 : 2
+    ];
     const fromRoster = cell && (/empty/.test(cell) ? "empty" : `setup:${cell.replaceAll("`", "").trim()}`);
     const start = t.start ?? fromRoster ?? "<the start you were given>";
     const doc = [
@@ -501,6 +518,21 @@ function transcriptsFor(own) {
 }
 const stringsIn = (v) =>
     typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(stringsIn) : [];
+// A heredoc's body is text being written, not a file being opened; it is dropped unless the shell
+// would run something inside it (an unquoted delimiter with $( or a backtick in the body).
+const withoutHeredocs = (cmd) =>
+    cmd.replace(/<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n([\s\S]*?)^[ \t]*\2[ \t]*$/gm, (all, q, tag, rest, body) =>
+        !q && /\$\(|`/.test(body) ? all : `<<${tag}${rest}`,
+    );
+// The strings of a tool call that name what it opens: a writing tool's target, never its content (a
+// participant who quotes the tool's FAIL line into its transcript opened nothing; tier 5 round 1's
+// check voided every session for that), a shell command without its heredoc bodies, anything else whole.
+function openedBy(name, input) {
+    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name))
+        return [input?.file_path, input?.notebook_path].filter((s) => typeof s === "string");
+    if (name === "Bash" && typeof input?.command === "string") return [withoutHeredocs(input.command)];
+    return stringsIn(input);
+}
 // why one string a tool call was given opens something the participant may not
 function leaksIn(s, allowed) {
     const out = [];
@@ -533,7 +565,7 @@ function leakCheck(own, given = []) {
             for (const b of (l.type === "assistant" && l.message?.content) || []) {
                 if (b?.type !== "tool_use") continue;
                 calls++;
-                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed));
+                const found = openedBy(b.name, b.input).flatMap((s) => leaksIn(s, allowed));
                 // a search with no folder searches wherever the agent runs, the repository included
                 if (/^(Grep|Glob)$/.test(b.name) && !b.input?.path)
                     found.push(["a search outside its folder", b.input?.pattern ?? ""]);
@@ -650,7 +682,132 @@ function sameAppCode(sha, commit) {
         sameApp.set(k, spawnSync("git", ["-C", repo, "diff", "--quiet", sha, commit, "--", ...APP_CODE]).status === 0);
     return sameApp.get(k);
 }
-const walkKind = (name) => (/keys|keyboard/i.test(name) ? "keyboard" : /detour/i.test(name) ? "detours" : "success");
+// A walk is the keyboard walk by its name (keys, keyboard), the success walk only when its name says
+// so (success, path, pointer), and otherwise a detours walk: a detour named for where it goes
+// (T67A/x2a-table, T61B/n4-quick-actions) is not a success walk.
+const walkKind = (name) =>
+    /keys|keyboard/i.test(name) ? "keyboard" : /success|path|pointer/i.test(name) ? "success" : "detours";
+// Where a round's readiness walks are: its own (readinessOf), and for round-N the walks of its dry
+// run's passes, rN and rNd1, rNd2, ... beside it (under WALKS, or their own pilot/ in the studio's files)
+function readinessDirs(rd) {
+    const dirs = [readinessOf(rd)];
+    const n = basename(rd).match(/^round-(\d+)$/)?.[1];
+    if (!n) return dirs;
+    const passes = new Set();
+    for (const parent of [dirname(rd), walksOf(dirname(rd))].filter((p) => p && existsSync(p)))
+        for (const x of readdirSync(parent)) if (new RegExp(`^r${reEscape(n)}(?:d\\d+)?$`).test(x)) passes.add(x);
+    for (const x of [...passes].sort()) dirs.push(readinessOf(join(dirname(rd), x)));
+    return [...new Set(dirs)];
+}
+// Tier 5's own items of "Before the first session" (../tier5/criteria.md), past the walks and the bars:
+//   3. every setup the plan starts from started a walk on the frozen build with no failed setup step;
+//   4. real.mjs --end recorded each layer's painted members on a success walk, and the end-state
+//      check (endstate.mjs) finds no mismatch on any success walk that recorded them;
+//   6. every core task half the plan runs has a "Path steps" number in answers.md (steps.mjs);
+//   7. decided.md lists the approved surfaces' new reference screenshots, each a file that exists;
+//   9. the rating check ran: T70 A and T70 B each walked as "rating-rejected" on the rejected build
+//      the criteria names and as "rating-frozen" on the frozen build, and the calm-first check on the
+//      rejected build is written up in <round>/calm-first-rejected.md.
+// (Item 5's walk is the bars runs, checked with the other tiers' below; item 8 is the studio's call.)
+const SETUP_FAIL =
+    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not \w+ "|stopped after|could not empty the undo history|typed nothing/;
+function tier5Gate(rd, sha, counted, keyText, problems, evidence) {
+    // 3: each setup the plan names, started on the frozen build with every setup step working
+    const setups = [
+        ...new Set(
+            planRows(rd)
+                .map((c) => (c[5] ?? "").match(/setup:([^\s`]+)/)?.[1])
+                .filter(Boolean),
+        ),
+    ];
+    for (const setup of setups) {
+        const ok = counted.find(({ dir }) => {
+            if (!existsSync(join(dir, "route.jsonl"))) return false;
+            const first = readFileSync(join(dir, "route.jsonl"), "utf8").split("\n")[0] ?? "";
+            if (!new RegExp(`setup:[^"]*\\b${setup.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(first)) return false;
+            const sess = JSON.parse(readFileSync(join(dir, "session.json"), "utf8"));
+            const log = existsSync(join(dir, "setup.log")) ? readFileSync(join(dir, "setup.log"), "utf8") : "";
+            return sess.setupOk !== false && !SETUP_FAIL.test(log);
+        });
+        if (ok) evidence.push(`setup ${setup}: started cleanly in ${ok.dir}/`);
+        else problems.push(`setup ${setup}: no walk on build ${sha} started from it with every setup step working`);
+    }
+    // 4: the end-state check on the success walks that recorded each layer's painted members
+    const recorded = counted.filter(({ kind, dir }) => {
+        if (kind !== "success") return false;
+        try {
+            return Boolean(JSON.parse(readFileSync(join(dir, "styles.json"), "utf8")).end?.painted);
+        } catch {
+            return false;
+        }
+    });
+    if (!recorded.length)
+        problems.push(
+            `no success walk on build ${sha} recorded each layer's painted members (styles.json "painted", written by real.mjs --end since 2026-11-02): walk one again`,
+        );
+    for (const { half, dir } of recorded) {
+        const r = checkSession(dir);
+        if (r.problems.length) problems.push(`end-state check on ${half} ${dir}: ${r.problems[0]}`);
+        else if (!r.items) problems.push(`end-state check on ${half} ${dir} read no item`);
+        else evidence.push(`end-state ${half}: ${r.items} items (${r.layers} layers) hold in ${dir}/`);
+    }
+    // 6: a path step count for every core half the plan runs
+    const paths = pathSteps(keyText);
+    const coreHalves = [
+        ...new Set(
+            planRows(rd)
+                .filter((c) => CORE_BY_TIER.tier5.includes(c[2]))
+                .map((c) => c[2] + ((c[3] ?? "").match(/^([AB]):/)?.[1] ?? "A")),
+        ),
+    ].sort();
+    const noPath = coreHalves.filter((h) => paths[h] === undefined);
+    if (noPath.length) problems.push(`answers.md has no "Path steps" number for ${noPath.join(", ")}`);
+    else evidence.push(`path steps: ${coreHalves.map((h) => `${h} ${paths[h]}`).join(", ")}`);
+    // 7: the approved surfaces' reference screenshots listed in decided.md, each on disk
+    const decided = join(tierFiles(rd), "decided.md");
+    const dtext = existsSync(decided) ? readFileSync(decided, "utf8") : "";
+    const section = dtext.match(/^#+ [^\n]*reference screenshots[^\n]*\n([\s\S]*?)(?=\n#+ |$(?![\s\S]))/im)?.[1] ?? "";
+    const shots = [...section.matchAll(/`([^`]+\.png)`/g)].map((m) => m[1]);
+    const gone = shots.filter((f) => ![resolve(dirname(decided), f), resolve(repo, f)].some((p) => existsSync(p)));
+    if (!shots.length)
+        problems.push(
+            `${decided} has no "Reference screenshots" section listing the approved surfaces' new screenshots (\`<file>.png\`)`,
+        );
+    else if (gone.length) problems.push(`${decided} lists reference screenshots that do not exist: ${gone.join(", ")}`);
+    else evidence.push(`reference screenshots: ${shots.length} listed in ${decided}`);
+    // 9: the rating check's four sessions and the calm-first check on the rejected build
+    const crit = readFileSync(join(tierFiles(rd), "criteria.md"), "utf8");
+    const rejected = [
+        crit.match(/build the owner rejected\s*\(([0-9a-f]{7,40})/)?.[1],
+        crit.match(/if it cannot be built,\s*([0-9a-f]{7,40})/)?.[1],
+    ].filter(Boolean);
+    const pds = readinessDirs(rd);
+    for (const half of ["T70A", "T70B"])
+        for (const [name, builds] of [
+            ["rating-rejected", rejected],
+            ["rating-frozen", [sha]],
+        ]) {
+            const hit = pds
+                .map((pd) => join(pd, half, name))
+                .find((d) => {
+                    try {
+                        const sess = JSON.parse(readFileSync(join(d, "session.json"), "utf8"));
+                        const c = sess.commit ?? sess.buildStamp?.split(" ")[0];
+                        return builds.some((b) => sameAppCode(b, c));
+                    } catch {
+                        return false;
+                    }
+                });
+            if (hit) evidence.push(`rating check ${half}: ${hit}/`);
+            else
+                problems.push(
+                    `rating check: no ${half} session "${name}" on ${builds.join(" or ") || "the rejected build (criteria.md names none)"} under ${pds.map((pd) => join(pd, half)).join(", ")}`,
+                );
+        }
+    const calm = join(rd, "calm-first-rejected.md");
+    if (existsSync(calm)) evidence.push(`calm-first check on the rejected build: ${calm}`);
+    else problems.push(`no calm-first check on the rejected build: ${calm} is missing`);
+}
 function gateCheck(rd) {
     const sha = frozenSha(rd);
     if (!sha)
@@ -669,13 +826,32 @@ function gateCheck(rd) {
         halves.set(h, halves.get(h) || /--keys\b/.test(t.start ?? ""));
     }
     if (!halves.size) problems.push(`${join(rd, "plan.md")} lists no session`);
-    const pd = readinessOf(rd);
+    // an answer key value not yet read off the frozen build grades the walked build, not the frozen one
+    const key = join(tierFiles(rd), "answers.md");
+    const keyText = existsSync(key) ? readFileSync(key, "utf8") : "";
+    if (/pilot to confirm/i.test(keyText))
+        problems.push(`${key} still holds "pilot to confirm": read each value off the frozen build first`);
+    if (/the dry run reads/i.test(keyText))
+        problems.push(`${key} still holds "the dry run reads": read each value off the frozen build first`);
+    const tier = tierOf(rd);
+    // tier 5's item 2: each "Build notes" heading names the frozen build or is removed
+    if (tier === "5")
+        for (const m of keyText.matchAll(/^#+ Build notes \(([0-9a-f]{7,40})\)/gm))
+            if (!(m[1].startsWith(sha) || sha.startsWith(m[1])))
+                problems.push(
+                    `${key}: "Build notes (${m[1]})" names a build other than the frozen ${sha}; read it again on ${sha} or remove it`,
+                );
+    const pds = readinessDirs(rd);
+    // every walk the gate counted, for tier 5's setup and end-state checks
+    const counted = [];
     for (const [h, keys] of [...halves].sort()) {
-        const hd = join(pd, h);
+        const hd = join(pds[0], h);
         const walks = { success: [], detours: [], keyboard: [] };
         const why = [];
-        for (const w of existsSync(hd) ? readdirSync(hd) : []) {
-            const wd = join(hd, w);
+        for (const wd of pds.flatMap((pd) =>
+            existsSync(join(pd, h)) ? readdirSync(join(pd, h)).map((w) => join(pd, h, w)) : [],
+        )) {
+            const w = relative(pds.find((pd) => wd.startsWith(pd + "/")) ?? dirname(dirname(wd)), wd);
             const sj = join(wd, "session.json");
             if (!existsSync(sj)) continue;
             let sess = null;
@@ -686,6 +862,8 @@ function gateCheck(rd) {
             }
             // a replay that diverged was ended partway: not a whole walk (tool/README.md, "Replaying a route")
             if (w.endsWith("-diverged")) continue;
+            // the rating check's sessions (rating-rejected, rating-frozen) are a participant's, not a walk
+            if (/rating/i.test(w)) continue;
             const kind = walkKind(w);
             if (!sess) why.push(`${w}: unreadable session.json`);
             else if (!readdirSync(wd).some((x) => /^\d+\.png$/.test(x))) why.push(`${w}: no screenshots`);
@@ -693,18 +871,23 @@ function gateCheck(rd) {
                 why.push(`${w}: build ${sess.commit ?? sess.buildStamp} has app code other than ${sha}'s`);
             else if (kind === "keyboard" && sess.keyboardOnlyMode !== true)
                 why.push(`${w}: not started --keys (keyboardOnlyMode is not true)`);
-            else walks[kind].push(w);
+            else walks[kind].push(wd);
         }
         const needs = ["success", "detours", ...(keys ? ["keyboard"] : [])];
         const missing = needs.filter((k) => !walks[k].length);
+        const where = pds.length > 1 ? `${pds.map((pd) => join(pd, h)).join(", ")}` : `${hd}/`;
         if (missing.length)
             problems.push(
-                `${h}: no ${missing.join(", no ")} walk on build ${sha} under ${hd}/${why.length ? ` (${why.join("; ")})` : ""}`,
+                `${h}: no ${missing.join(", no ")} walk on build ${sha} under ${where}${why.length ? ` (${why.join("; ")})` : ""}`,
             );
-        else evidence.push(`pilot ${h}: ${needs.map((k) => `${k} ${join(hd, walks[k][0])}/`).join(", ")}`);
+        else evidence.push(`pilot ${h}: ${needs.map((k) => `${k} ${walks[k][0]}/`).join(", ")}`);
+        counted.push(...walks.success.map((d) => ({ half: h, kind: "success", dir: d })));
+        counted.push(...[...walks.detours, ...walks.keyboard].map((d) => ({ half: h, kind: "other", dir: d })));
     }
-    const tier3 = tierOf(rd) === "3";
-    for (const name of tier3 ? ["bars", "bars-light"] : ["bars"]) {
+    if (tier === "5") tier5Gate(rd, sha, counted, keyText, problems, evidence);
+    const tier3 = tier === "3";
+    const own = tier === "3" || tier === "4" || tier === "5";
+    for (const name of own ? ["bars", "bars-light"] : ["bars"]) {
         const bj = join(rd, name, "bars.json");
         let bars = null;
         try {
@@ -713,17 +896,26 @@ function gateCheck(rd) {
             // missing or unreadable: no bars run
         }
         const bp = [];
-        if (!bars) bp.push(`no bars run: ${bj} is missing (node bars.mjs ${join(rd, name)} --dist <frozen build>)`);
+        const how = own ? ` --tier ${tier}${tier3 ? "" : ` --scheme ${name === "bars-light" ? "light" : "dark"}`}` : "";
+        if (!bars)
+            bp.push(`no bars run: ${bj} is missing (node bars.mjs ${join(rd, name)}${how} --dist <frozen build>)`);
         else {
             if (!sameAppCode(sha, String(bars.build).split(" ")[0]))
                 bp.push(`${bj} measured build ${bars.build}, whose app code is not ${sha}'s`);
             if (bars.untrusted?.length) bp.push(`${bj} missed planted cases: ${bars.untrusted.join("; ")}`);
             const miss = (bars.log ?? []).filter((l) => l.startsWith("MISS"));
             if (miss.length) bp.push(`${bj} has ${miss.length} MISS lines, the first: ${miss[0]}`);
-            if (tier3) {
-                if (bars.tier !== "3") bp.push(`${bj} is not a --tier 3 run`);
-                const gaps = bar6Gaps(bars.walked ?? {}, ["1440x900", "900x700"]);
-                if (gaps.length) bp.push(`${bj} leaves out ${gaps.length} of bar 6's checks, the first: ${gaps[0]}`);
+            if (own) {
+                if (bars.tier !== tier) bp.push(`${bj} is not a --tier ${tier} run`);
+                // tier 4's bar 5 names both themes: bars is the dark run, bars-light the light one
+                if (!tier3 && bars.scheme !== (name === "bars-light" ? "light" : "dark"))
+                    bp.push(`${bj} is not a ${name === "bars-light" ? "light" : "dark"}-theme run (--scheme)`);
+                const gaps = (tier3 ? bar6Gaps : tier === "5" ? tier5Gaps : tier4Gaps)(bars.walked ?? {}, [
+                    "1440x900",
+                    "900x700",
+                ]);
+                const bar = tier3 ? "bar 6" : tier === "5" ? "item 5" : "bar 5";
+                if (gaps.length) bp.push(`${bj} leaves out ${gaps.length} of ${bar}'s checks, the first: ${gaps[0]}`);
                 const sp = join(rd, name, "spoken.json");
                 let spoken = {};
                 try {
@@ -732,6 +924,17 @@ function gateCheck(rd) {
                     // missing: checked below
                 }
                 if (!Object.keys(spoken).length) bp.push(`no spoken text: ${sp} is missing or empty`);
+                if (!tier3) {
+                    // the wording check's input (wording.mjs), one entry per measured screen
+                    let vocab = {};
+                    try {
+                        vocab = JSON.parse(readFileSync(join(rd, name, "vocabulary.json"), "utf8"));
+                    } catch {
+                        // missing: checked below
+                    }
+                    if (!Object.keys(vocab).length)
+                        bp.push(`no screen words: ${join(rd, name, "vocabulary.json")} is missing or empty`);
+                }
             }
         }
         problems.push(...bp);
@@ -1049,6 +1252,11 @@ async function serve(dir, sr) {
         try {
             body = await readFile(f);
         } catch {
+            // the deploy writes site.json beside the app (graphty/sites/<channel>.json); a local
+            // build has none, and the app's 404 for it ended every setup with SETUP FAILED (tier 4)
+            if (f === join(dist, "site.json"))
+                body = await readFile(join(repo, "graphty/sites/production.json")).catch(() => null);
+            if (body) return res.writeHead(200, { "content-type": "application/json" }).end(body);
             if (extname(f)) return res.writeHead(404).end();
             // a rebuild in progress removes the page for a moment; that must not kill the session
             body = await readFile(join(dist, "index.html")).catch(() => null);
@@ -1145,7 +1353,8 @@ async function serve(dir, sr) {
     };
     const touch = () => {
         clearTimeout(idle);
-        const ms = s.idleMs || IDLE_MS;
+        // a setTimeout past 2^31 ms fires at once, so an out-of-range REAL_IDLE_SECONDS is ignored
+        const ms = s.idleMs > 0 && s.idleMs < MAX_IDLE_MS ? s.idleMs : IDLE_MS;
         idle = setTimeout(() => {
             console.log(`no step for ${ms / 1000} seconds; closing the session`);
             close();
@@ -1169,7 +1378,7 @@ async function serve(dir, sr) {
                     else if (req.op === "start") {
                         [s.task, s.followUp] = [req.task, req.followUp];
                         r = await opStart(s, req.setup, req.route);
-                    } else if (req.op === "step") r = await opStep(s, req.steps);
+                    } else if (req.op === "step") r = await opStep(s, req.steps, req.asRecorded);
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "plant-live") r = await plantLive(s);
                     else if (req.op === "plant-ticker") r = await plantTicker(s);
@@ -1205,6 +1414,11 @@ async function serve(dir, sr) {
 // start waits in the queue. A warm browser that waits REAL_WARM_SECONDS (default 600) unclaimed, or
 // sees starts queue for a slot, closes and frees its slot. Its page was opened on a clean profile and
 // never touched, so the session it becomes is the one a cold start makes.
+// REAL_WARM_HOLD=1 (--prove's warm-pool check only) makes a warm browser wait in the queue for its
+// slot and stay up while starts queue: in try mode the check's verdict followed how busy the
+// machine's slots were (8 studio browsers held every spare slot for 152 s and no warm browser came
+// ready), not whether a warm browser is taken over.
+const WARM_HOLD = process.env.REAL_WARM_HOLD === "1";
 const WARM_DIR = "/tmp/graphty-real-warm";
 const WARM_POOL = Number(process.env.REAL_WARM_POOL ?? 2);
 const WARM_MS = (Number(process.env.REAL_WARM_SECONDS) || 600) * 1000;
@@ -1214,10 +1428,15 @@ const warmKey = () =>
         .update(
             JSON.stringify([
                 dist,
+                // the build itself: a rebuild of the same folder is another build, never a warm one
+                existsSync(join(dist, "index.html")) ? statSync(join(dist, "index.html")).mtimeMs : 0,
                 VIEWPORT,
                 process.env.REAL_SCHEME || "",
                 GPU,
-                statSync(fileURLToPath(import.meta.url)).mtimeMs,
+                // and the modules it imports: a change to measure.mjs or match.mjs is a new tool too
+                ...["real.mjs", "measure.mjs", "match.mjs"].map(
+                    (f) => statSync(join(dirname(fileURLToPath(import.meta.url)), f)).mtimeMs,
+                ),
             ]),
         )
         .digest("hex")
@@ -1248,7 +1467,11 @@ function topUp() {
         const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--warm"], {
             detached: true,
             stdio: ["ignore", log, log],
-            env: { ...process.env, BROWSER_SLOT_TRY: "1", ...(GPU ? { BROWSER_GPU: "1" } : {}) },
+            env: {
+                ...process.env,
+                ...(WARM_HOLD ? {} : { BROWSER_SLOT_TRY: "1" }),
+                ...(GPU ? { BROWSER_GPU: "1" } : {}),
+            },
         });
         writeFileSync(join(WARM_DIR, `${warmKey()}-${child.pid}.warming`), "");
         child.unref();
@@ -1299,7 +1522,7 @@ async function warmUp(s, browser, http) {
             if (Date.now() - s.warmSince > WARM_MS) quit(`unclaimed for ${WARM_MS / 1000} s`);
             // starts waiting for a slot (another build's, or one that missed the claim) come first
             queued = existsSync(QUEUE) && readdirSync(QUEUE).length ? queued + 1 : 0;
-            if (queued >= 3) quit("starts are queued for a slot");
+            if (queued >= 3 && !WARM_HOLD) quit("starts are queued for a slot");
         }, 2000);
         let taken = false;
         const server = netServer({ allowHalfOpen: true }, (c) => {
@@ -1331,6 +1554,8 @@ async function newTab(s) {
     const { origin } = s;
     page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
     page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
+    // the step's first input reached the page (see INPUT_PROBE); heard here even while the page is busy
+    page.on("console", (m) => m.type() === "debug" && m.text() === INPUT_SEEN && s.onInput?.());
     page.on(
         "response",
         (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
@@ -1655,6 +1880,12 @@ async function saveDownload(s, d) {
     for (let k = 2; existsSync(join(dir, name)); k++) name = d.suggestedFilename().replace(/(\.[^.]*)?$/, ` (${k})$1`);
     const path = join(dir, name);
     await d.saveAs(path);
+    // the network as it was when the file was written, for the end-state check's row counts
+    const network = await d
+        .page()
+        .evaluate(networkCounts)
+        .catch((e) => ({ error: e.message.split("\n")[0] }));
+    await appendFile(join(s.dir, "downloads.jsonl"), JSON.stringify({ file: name, network }) + "\n");
     const buf = readFileSync(path);
     // a PNG's size is in its header; anything else is described by its length
     const what =
@@ -1688,14 +1919,25 @@ async function opening(s, out) {
         .catch(() => out.push("the app did not finish loading in 60 s"));
     await s.page
         .waitForFunction(
-            // the workspace, or the start page a first visit with no project open lands on
+            // the workspace, or the landing page a first visit with no project open lands on (.ws-land;
+            // [data-start-door] was the start page before it)
             () =>
                 document.querySelector("#root")?.children.length > 0 &&
-                document.querySelector("main, [role=main], [data-start-door]"),
+                document.querySelector("main, [role=main], .ws-land, [data-start-door]"),
             null,
             { timeout: 30000 },
         )
         .catch(() => out.push("the app never drew its window"));
+}
+// In the page, at a setup's end: waits up to 30 s for pending work, then empties the element's
+// history through its public session.history.clear(); returns "" or why it could not
+async function setupHistoryClear() {
+    const h = document.querySelector("graphty-element")?.session?.history;
+    if (!h) return "no graphty-element session on the page";
+    for (let i = 0; i < 300 && h.pending.length; i++) await new Promise((r) => setTimeout(r, 100));
+    if (h.pending.length) return `${h.pending.length} step(s) still pending after 30 s`;
+    h.clear();
+    return h.steps.length ? `${h.steps.length} step(s) left after clear()` : "";
 }
 async function opStart(s, setup, route) {
     const out = [];
@@ -1735,6 +1977,11 @@ async function opStart(s, setup, route) {
         const said = [];
         // a failed request (the start page's remote pictures) is logged, but only a step that does not work fails it
         const r = await run(s, setup, said, SETUP_CLICK_MS, false);
+        // a reopened project has no undo history: the setup's own steps must not be the participant's
+        // to undo (a Ctrl+Z at the start took back the setup's PageRank colors). Pending work (a run
+        // still computing) finishes first, since clear() would cancel it.
+        const left = await s.page.evaluate(setupHistoryClear).catch((e) => e.message.split("\n")[0]);
+        if (left) said.push(`could not empty the undo history after the setup: ${left}`);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
         // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
@@ -1751,7 +1998,17 @@ async function opStart(s, setup, route) {
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
         await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
-        if (r.code || r.missed) {
+        // whether the setup worked, for the gate's "every setup starts" (criteria, before the first session)
+        const sj = join(s.dir, "session.json");
+        await writeFile(
+            sj,
+            JSON.stringify(
+                { ...JSON.parse(await readFile(sj, "utf8")), setupOk: !(r.code || r.missed || left) },
+                null,
+                1,
+            ) + "\n",
+        );
+        if (r.code || r.missed || left) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
             code = 1;
         }
@@ -1762,11 +2019,7 @@ async function opStart(s, setup, route) {
         JSON.stringify(await s.page.evaluate(openWork).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
             "\n",
     );
-    await writeFile(
-        join(s.dir, "styles-start.json"),
-        JSON.stringify(await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
-            "\n",
-    );
+    await writeFile(join(s.dir, "styles-start.json"), JSON.stringify(await stylesNow(s.page), null, 1) + "\n");
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
     if (s.sr) await srReport(s, out);
     out.push(
@@ -1794,6 +2047,14 @@ async function giveFollowUp(s) {
     };
 }
 
+// The style tree with each layer's own counts, and each layer's members as the element paints them
+// (layerMembers: the end-state check holds one against the other, and the start's against the end's)
+async function stylesNow(page) {
+    const tree = await page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
+    if (!tree || tree.error) return tree;
+    const painted = await page.evaluate(layerMembers).catch((e) => ({ error: e.message.split("\n")[0] }));
+    return { ...tree, painted };
+}
 // Bar 2: the open work at the end beside the start's, and what is gone, in work.json for the graders
 // (whether each loss was the participant's own choice is theirs to judge); never shown to the participant
 async function opEnd(s) {
@@ -1809,7 +2070,7 @@ async function opEnd(s) {
         JSON.stringify({ start, end, gone: workGone(start, end) }, null, 1) + "\n",
     );
     // the whole style tree at the end beside the start's, and what changed in it, for the graders
-    const stylesEnd = await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
+    const stylesEnd = await stylesNow(s.page);
     const stylesStart = JSON.parse(await readFile(join(s.dir, "styles-start.json"), "utf8").catch(() => "null"));
     await writeFile(
         join(s.dir, "styles.json"),
@@ -1821,11 +2082,15 @@ async function opEnd(s) {
     const key = await s.page.evaluate(keyShown).catch((e) => ({ error: e.message.split("\n")[0] }));
     const drawn = await s.page.evaluate(drawnColors).catch((e) => ({ error: e.message.split("\n")[0] }));
     await writeFile(join(s.dir, "key.json"), JSON.stringify({ key, drawn }, null, 1) + "\n");
+    // the sources, columns, filter cards and counts at the end, for the graders and the end-state
+    // check (endstate.mjs)
+    const data = await s.page.evaluate(dataState).catch((e) => ({ error: e.message.split("\n")[0] }));
+    await writeFile(join(s.dir, "data.json"), JSON.stringify(data, null, 1) + "\n");
     return { out: [`session ended: ${s.dir}`], code: 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
-// ("img", "twins", "blur", "cut", "raw", "unscroll") puts a known failure on the page first and
+// ("img", "twins", "blur", "cut", "raw", "unscroll", "biglist", "wordy") puts a known failure on the page first and
 // takes it away after, to prove each check can fail.
 async function measure(s, planted) {
     const { page } = s;
@@ -1841,6 +2106,13 @@ async function measure(s, planted) {
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),
+                // the selection workspace's own words, apart from the screen behind it (tier 5's
+                // words at rest), or null when no workspace is open
+                wsWords: await page.evaluate(wordsOnScreen, ".sel-ws"),
+                keywords: await page.evaluate(catalogKeywords).catch(() => []),
+                lists: await page
+                    .evaluate(largeLists)
+                    .catch((e) => [{ list: `unreadable: ${e.message.split("\n")[0]}`, ok: false }]),
                 spoken: await spokenNow(s),
                 ...(await bar10Counts(page)),
             },
@@ -1980,6 +2252,57 @@ async function plantDom(s, kind) {
             setTimeout(() => r.fulfill({ status: 204 }).catch(() => {}), 4500),
         );
     await s.page.evaluate((kind) => {
+        // a page that takes no dropped file: the drag events never reach the app, so nothing allows
+        // the drop (--prove's planted case for "the drop was not delivered")
+        if (kind === "nodrop") {
+            for (const t of ["dragenter", "dragover", "drop"])
+                addEventListener(t, (e) => e.stopImmediatePropagation(), { capture: true });
+            return;
+        }
+        if (kind === "hover-card") {
+            // a mark that opens a card, not a tooltip, on hover (as a column's issue mark does)
+            const b = document.createElement("button");
+            b.textContent = "Planted card mark";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "40px", zIndex: 99999 });
+            b.onmouseenter = () => {
+                const c = document.createElement("div");
+                c.dataset.realHoverCard = "";
+                c.setAttribute("aria-label", "Planted issues");
+                c.textContent = "2 values with padded spaces";
+                Object.assign(c.style, { position: "fixed", left: "600px", top: "70px", zIndex: 99999 });
+                document.body.append(c);
+                b.onmouseleave = () => c.remove();
+            };
+            document.body.append(b);
+            return;
+        }
+        if (kind === "invisible") {
+            // kept in place, drawn as nothing: what the data table is behind an open workspace
+            const b = document.createElement("button");
+            b.setAttribute("aria-label", "Planted invisible");
+            b.textContent = "Planted invisible";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "40px", visibility: "hidden" });
+            document.body.append(b);
+            return;
+        }
+        if (kind === "rerender") {
+            // a control the app draws again right after the matcher found it (a pane re-rendered by
+            // the step before): the first handle is gone, the same name is on screen again
+            const make = () => {
+                const b = document.createElement("button");
+                b.textContent = "Planted rerender";
+                Object.assign(b.style, { position: "fixed", left: "600px", top: "10px", zIndex: 99999 });
+                b.onclick = () => (b.textContent = "Planted rerender clicked");
+                return b;
+            };
+            const first = make();
+            new MutationObserver((_, o) => {
+                o.disconnect();
+                first.replaceWith(make());
+            }).observe(first, { attributes: true, attributeFilter: ["data-try-key"] });
+            document.body.append(first);
+            return;
+        }
         if (kind === "slow") {
             const b = document.createElement("button");
             b.textContent = "Planted slow";
@@ -2008,7 +2331,7 @@ async function plantDom(s, kind) {
 // In screen-reader mode the participant has no pointer: these steps are refused before anything runs
 const POINTER = new Set([...Object.keys(CLICKS), ...Object.keys(AT), "--hover-icon", "--drag", "--wheel", "--drop"]);
 
-async function opStep(s, steps) {
+async function opStep(s, steps, asRecorded = []) {
     const pointer = (s.sr || s.keysOnly) && steps.find(([a]) => POINTER.has(a));
     if (pointer)
         return {
@@ -2018,7 +2341,11 @@ async function opStep(s, steps) {
     const out = [];
     const t0 = performance.now();
     s.ms = {};
-    const r = await run(s, steps, out);
+    // a replay names the clicks its route recorded as refused: checked by name, never done
+    s.asRecorded = new Set(asRecorded);
+    const glance = await watchInput(s, t0);
+    const r = await run(s, steps, out).finally(() => (s.asRecorded = null));
+    await glance();
     const t1 = performance.now();
     const said = await shot(s);
     out.push(said);
@@ -2030,6 +2357,99 @@ async function opStep(s, steps) {
     s.ms.total = performance.now() - t0;
     const check = await recordRoute(s, { steps, out, code, missed: r.missed });
     return { out, code, check };
+}
+
+// How soon the page answers an input. Before a step, the page is armed to log INPUT_SEEN at the
+// step's first pointer press or key and to time the first animation frame after it: ms.firstFrame
+// in route.jsonl is the wait from the input to the frame the browser paints next, the frame that
+// shows whether the app said it is working before it blocked. REAL_GLANCE_MS=<ms> on --start also
+// saves NN-glance.png, the last frame the browser drew by that long after the input (the screen a
+// person sees while the step works); ms.glance is when that frame was drawn, from the input.
+const INPUT_SEEN = "real:input";
+function INPUT_PROBE(seen) {
+    window.__realFirstFrame = null;
+    const on = () => {
+        removeEventListener("pointerdown", on, true);
+        removeEventListener("keydown", on, true);
+        const at = performance.now();
+        console.debug(seen);
+        requestAnimationFrame(() => {
+            window.__realFirstFrame = performance.now() - at;
+        });
+    };
+    addEventListener("pointerdown", on, true);
+    addEventListener("keydown", on, true);
+}
+async function watchInput(s, t0) {
+    const glanceMs = Number(process.env.REAL_GLANCE_MS) || 0;
+    s.lastGlance = null;
+    await s.page.evaluate(INPUT_PROBE, INPUT_SEEN).catch(() => {});
+    // REAL_PROFILE=1: a CPU profile of the step's own work, NN.cpuprofile (open it in DevTools)
+    const profile = process.env.REAL_PROFILE === "1";
+    if (profile) {
+        s.cdp ??= await s.context.newCDPSession(s.page);
+        await s.cdp.send("Profiler.enable");
+        await s.cdp.send("Profiler.start");
+    }
+    // s.ms is replaced as the step goes, so these are kept apart and added at the end
+    const got = {};
+    // The glance is taken from the browser's screencast, the frames it actually drew with the time
+    // each was drawn: a screenshot asked for while the page is busy comes back only after it is not.
+    const frames = [];
+    let seenAt = null;
+    const onFrame = ({ data, metadata, sessionId }) => {
+        frames.push({ data, at: metadata.timestamp * 1000 });
+        s.cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+    };
+    if (glanceMs > 0) {
+        s.cdp ??= await s.context.newCDPSession(s.page);
+        s.cdp.on("Page.screencastFrame", onFrame);
+        await s.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+    }
+    s.onInput = () => {
+        s.onInput = null;
+        seenAt = Date.now();
+        got.input = performance.now() - t0;
+    };
+    return async () => {
+        s.onInput = null;
+        const frame = await s.page.evaluate(() => window.__realFirstFrame).catch(() => null);
+        if (typeof frame === "number") got.firstFrame = frame;
+        if (glanceMs > 0) {
+            await s.cdp.send("Page.stopScreencast").catch(() => {});
+            s.cdp.off("Page.screencastFrame", onFrame);
+            // the screen as it stood glanceMs after the input: the last frame drawn by then
+            const shown = seenAt === null ? [] : frames.filter((f) => f.at <= seenAt + glanceMs);
+            const last = shown[shown.length - 1];
+            if (last) {
+                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+                const name = `${String(n).padStart(2, "0")}-glance.png`;
+                await writeFile(join(s.dir, name), Buffer.from(last.data, "base64"));
+                s.lastGlance = name;
+                // when that frame was drawn, from the input (negative: nothing new was drawn by then)
+                got.glance = last.at - seenAt;
+            }
+            // REAL_GLANCE_EVERY_MS=<ms>: also the screen every that long after the input until the
+            // step settled, NN-glance-<ms>.png, to see a sign of work hold through the whole wait
+            const every = Number(process.env.REAL_GLANCE_EVERY_MS) || 0;
+            const end = frames.length > 0 ? frames[frames.length - 1].at : 0;
+            for (let t = every; every > 0 && seenAt !== null && seenAt + t <= end; t += every) {
+                const at = frames.filter((f) => f.at <= seenAt + t).pop();
+                if (!at) continue;
+                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+                await writeFile(
+                    join(s.dir, `${String(n).padStart(2, "0")}-glance-${t}.png`),
+                    Buffer.from(at.data, "base64"),
+                );
+            }
+        }
+        if (profile) {
+            const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
+            const { profile: p } = await s.cdp.send("Profiler.stop");
+            await writeFile(join(s.dir, `${String(n).padStart(2, "0")}.cpuprofile`), JSON.stringify(p));
+        }
+        Object.assign(s.ms, got);
+    };
 }
 
 // The screenshot is always saved for graders; a screen-reader participant is not told where. It is
@@ -2067,7 +2487,9 @@ function screenOf() {
         "button,a[href],input,select,textarea,h1,h2,h3,h4,[role=button],[role=link],[role=tab],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=treeitem],[role=checkbox],[role=radio],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[role=slider],[role=dialog],[role=alertdialog],[role=heading],[role=row]";
     const out = [];
     for (const e of document.querySelectorAll(sel)) {
-        if (!e.checkVisibility() || e.closest("[aria-hidden=true]")) continue;
+        // visibility: hidden keeps a box in place but draws nothing (the data table behind an open
+        // workspace): a person cannot see it, so it is not on the screen
+        if (!e.checkVisibility({ visibilityProperty: true }) || e.closest("[aria-hidden=true]")) continue;
         const name = (e.getAttribute("aria-label") || e.innerText || e.value || e.placeholder || "")
             .replace(/\s+/g, " ")
             .trim()
@@ -2083,6 +2505,7 @@ async function recordRoute(s, { steps, out, code, missed }) {
         code,
         missed,
         shot: s.lastShot,
+        ...(s.lastGlance ? { glance: s.lastGlance } : {}),
         out: checkLines(out, s.dir),
         screen: await s.page.evaluate(screenOf).catch(() => []),
         ms,
@@ -2098,13 +2521,18 @@ function divergence(rec, now) {
     // a route written by hand (its steps only) has no check points but its names
     if (!rec.out) return null;
     if (now.code !== rec.code) return `the step exited ${now.code}, the route's ${rec.code}: ${now.out.join(" | ")}`;
-    const a = rec.out.join("\n"),
-        b = now.out.join("\n");
+    // a refusal by what was refused and the candidates offered, never the tool's wording of it
+    const a = rec.out.map(refusalFacts).join("\n"),
+        b = now.out.map(refusalFacts).join("\n");
     if (a !== b)
         return `the step printed other things: recorded ${JSON.stringify(rec.out)}, now ${JSON.stringify(now.out)}`;
-    const left = [...rec.screen];
+    // a control with no name is left out on both sides: a route recorded before the screen record
+    // dropped controls hidden with visibility: hidden holds them nameless (the data table behind an
+    // open workspace added 21), and a nameless control is axe's to find, not a replay's
+    const named = (xs) => xs.filter((x) => !x.endsWith(" "));
+    const left = named(rec.screen);
     const added = [];
-    for (const x of now.screen) {
+    for (const x of named(now.screen)) {
         const i = left.indexOf(x);
         if (i >= 0) left.splice(i, 1);
         else added.push(x);
@@ -2255,157 +2683,6 @@ function canvasDiffers(a, b, clip, covered) {
 }
 
 // ---------- finding controls, nodes and points ----------
-const ROLES = [
-    "button",
-    "link",
-    "menuitem",
-    "menuitemcheckbox",
-    "menuitemradio",
-    "tab",
-    "treeitem",
-    "switch",
-    "option",
-    "checkbox",
-    "radio",
-    "combobox",
-    "textbox",
-    "searchbox",
-];
-const TIP = "[role=tooltip], .mantine-Tooltip-tooltip";
-// The control a click names: "<name>", "<name>#2" or "role=<role>:<name>". Exact names before partial
-// ones, controls before text, a text box's placeholder only when no name matches; a name several
-// controls share is refused with the list of them. With no control of that name, a node whose label is drawn on the canvas,
-// at its center.
-async function find(page, raw, out) {
-    let name = raw,
-        role = null,
-        nth = 0;
-    const r = raw.match(/^role=([a-z]+):(.+)$/);
-    if (r) [role, name] = [r[1], r[2]];
-    const n = name.match(/^(.*\S)#(\d+)$/);
-    if (n) [name, nth] = [n[1], +n[2]];
-    for (const exact of [true, false]) {
-        const locs = role
-            ? [page.getByRole(role, { name, exact })]
-            : [
-                  ...ROLES.map((x) => page.getByRole(x, { name, exact })),
-                  page.getByLabel(name, { exact }),
-                  page.getByText(name, { exact }),
-              ];
-        const seen = new Map(); // one entry per control: text inside a button is that button
-        let behind = 0; // controls of that name behind an open modal dialog, which a person cannot reach
-        // a box is also named by the words it shows: its placeholder, when no accessible name matches
-        for (let loc of [...locs, ...(role ? [] : ["placeholder"])]) {
-            if (loc === "placeholder") {
-                if (seen.size || behind) break;
-                loc = page.getByPlaceholder(name, { exact });
-            }
-            let handles = await loc.filter({ visible: true }).elementHandles();
-            // a radio or checkbox drawn only by its label (a segmented control hides its input):
-            // the label is what a person sees and clicks
-            if (role && !handles.length)
-                handles = (
-                    await Promise.all(
-                        (await loc.elementHandles()).map(async (h) =>
-                            (
-                                await h.evaluateHandle((e) => (e.labels?.[0]?.checkVisibility() ? e.labels[0] : null))
-                            ).asElement(),
-                        ),
-                    )
-                ).filter(Boolean);
-            for (const el of handles) {
-                const [key, desc, control, kind] = await el.evaluate(
-                    (e, [tip, chars]) => {
-                        // a tooltip bubble, hidden text and the graph's canvas are not controls
-                        if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
-                        // with a modal dialog open, only it (and a list or menu it opened) can be used
-                        const modal = [...document.querySelectorAll("[aria-modal=true]")]
-                            .filter((m) => m.checkVisibility())
-                            .pop();
-                        if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
-                        const found = e.closest(
-                            "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
-                        );
-                        const hit = found || e;
-                        // a label and the control it labels are one control to a person
-                        const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
-                        c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
-                        const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
-                            .trim()
-                            .replace(/\s+/g, " ")
-                            .slice(0, chars);
-                        const input = { checkbox: "checkbox", radio: "radio", range: "slider" }[c.type] || "textbox";
-                        const kind =
-                            c.getAttribute("role") ||
-                            { TR: "row", A: "link", SELECT: "combobox", TEXTAREA: "textbox", INPUT: input }[
-                                c.tagName
-                            ] ||
-                            c.tagName.toLowerCase();
-                        // where a person sees it: an open list or menu sits over the panel behind it
-                        const where = c.closest("[role=listbox],[role=menu]") ? " in the open list" : "";
-                        return [c.dataset.tryKey, `${kind} "${said}"${where}`, found !== null, kind];
-                    },
-                    [TIP, NAME_CHARS],
-                );
-                if (key === "behind") behind++;
-                else if (key && !seen.has(key)) seen.set(key, { el, desc, control, kind });
-            }
-        }
-        let all = [...seen.values()];
-        // controls before text: words that only read the name (a stat's label and its group) give way
-        if (all.some((x) => x.control)) all = all.filter((x) => x.control);
-        if (!all.length && behind)
-            return { miss: `nothing in the open dialog is called "${name}" (a control behind the dialog is)` };
-        if (!all.length && !role) all = await nodesNamed(page, name, exact);
-        if (!all.length) continue;
-        if (nth > all.length)
-            return {
-                miss: `"${raw}": only ${all.length} control${all.length === 1 ? " is" : "s are"} called "${name}" (${all.map((x) => x.desc).join(", ")})`,
-            };
-        // a shared name is refused, never resolved to the first: in round 1 that clicked the wrong
-        // table row (the first of five "Enjolras" cells) and a panel heading for a list row
-        if (!nth && all.length > 1)
-            return {
-                miss: `ambiguous: "${name}" matches ${all.length} controls, so the step did nothing; name one: ${all.map((x, i) => `"${name}#${i + 1}" ${x.desc}`).join(", ")}`,
-            };
-        // "#n" picks by position, which a person never sees; among different kinds of control (a
-        // panel row and the open list's option) it is refused: in round 2 "weight#2" took the panel
-        // row, not the option the participant meant, and threw away a half-made filter step
-        const kinds = [...new Set(all.map((x) => x.kind).filter(Boolean))];
-        if (nth && !role && kinds.length > 1)
-            return {
-                miss: `ambiguous: "${raw}" picks by position among different kinds of control, so the step did nothing; name it by kind: ${kinds.map((k) => `"role=${k}:${name}"`).join(", ")} (${all.map((x) => x.desc).join(", ")})`,
-            };
-        return all[Math.max(nth, 1) - 1];
-    }
-    return { miss: `nothing on screen is called "${name}"` };
-}
-// Nodes whose label reads <name> and is drawn, on screen: graphty-element's labelOf and nodeScreenPosition
-async function nodesNamed(page, name, exact) {
-    return page
-        .evaluate(
-            ([w, exact]) => {
-                const el = document.querySelector("graphty-element");
-                if (!el || typeof el.labelOf !== "function") return [];
-                const box = el.getBoundingClientRect();
-                const hits = [];
-                for (const node of el.getNodes()) {
-                    const label = el.labelOf(node.id);
-                    if (!label?.drawn) continue;
-                    const text = label.text.trim();
-                    if (exact ? text !== w : !text.toLowerCase().includes(w.toLowerCase())) continue;
-                    const at = el.nodeScreenPosition(node.id);
-                    if (!at?.visible) continue;
-                    const x = Math.round(box.x + at.x),
-                        y = Math.round(box.y + at.y);
-                    hits.push({ at: [x, y], desc: `node "${text}" on the canvas, at ${x},${y}` });
-                }
-                return hits;
-            },
-            [name, exact],
-        )
-        .catch(() => []);
-}
 // What is at a point of the window: a node (graphty-element's elementAt), empty canvas, or a control
 async function whatIsAt(page, x, y) {
     return page.evaluate(
@@ -2507,6 +2784,29 @@ async function tooltip(page) {
     }
     return tipNow(page, true);
 }
+// A hover can open a hover card or a popover instead of a tooltip (a column's issue mark opens its
+// fix list). Round 1 printed "tooltip: null" for those and four participants believed it over their
+// screenshot, so a hover reports what it opened: the tooltip, else the card, else null.
+const POP = ".mantine-HoverCard-dropdown, .mantine-Popover-dropdown, [data-real-hover-card]";
+const forgetPops = (page) =>
+    page.evaluate((pop) => document.querySelectorAll(pop).forEach((e) => (e.dataset.realStale = "")), POP);
+const popNow = (page) =>
+    page.evaluate((pop) => {
+        const t = [...document.querySelectorAll(pop)].find(
+            (e) =>
+                !("realStale" in e.dataset) && e.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+        );
+        if (!t) return null;
+        const name = t.getAttribute("aria-label") || t.querySelector("[aria-label]")?.getAttribute("aria-label");
+        const text = t.innerText.replace(/\s+/g, " ").trim().slice(0, 160);
+        return name ? `${name}: ${text}` : text;
+    }, POP);
+async function hoverLines(page) {
+    const tip = await tooltip(page);
+    if (tip) return [`tooltip: ${JSON.stringify(tip)}`];
+    const card = await popNow(page);
+    return card === null ? ["tooltip: null"] : [`opened a hover card: ${JSON.stringify(card)}`];
+}
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
 async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
@@ -2593,37 +2893,49 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
         }
         if (a in CLICKS) {
             const verb = a === "--hover" ? "hover" : a === "--dblclick" ? "dblclick" : "click";
-            const f = await find(page, v, out);
+            let f = await find(page, v);
+            // a replay of a click its recording refused: the matcher resolves it now (a container it
+            // no longer counts), so the replay says what it names and, like the recording, does nothing
+            if (!f.miss && s.asRecorded?.has(v)) f = { miss: resolvedLine(v, f.desc) };
             if (f.miss) {
                 out.push(f.miss);
                 missed++;
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
-                if (verb === "hover") await forgetTips(page);
-                await act(page, f, verb, CLICKS[a], clickMs).catch((e) => {
-                    // Playwright counts its wait after the click (for navigations it may have started)
-                    // inside the limit: a click its call log says was done landed, and was only slow
-                    if (callLog(e).some((l) => / action done$/.test(l))) {
-                        out.push(
-                            `slow ${verb} (landed): "${v}" was ${verb}ed; the wait after it ran past ${clickMs} ms`,
-                        );
-                        return;
-                    }
-                    // Playwright's call log names the actionability check that failed (covered, not stable, ...)
-                    out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
-                    missed++;
-                });
+                if (verb === "hover") await Promise.all([forgetTips(page), forgetPops(page)]);
+                await act(page, f, verb, CLICKS[a], clickMs)
+                    // the app drew the control again between finding it and acting on it (a pane
+                    // re-rendered by the step before): find it again by its name and act on that one
+                    .catch(async (e) => {
+                        if (!/not attached to the DOM/.test(e.message)) throw e;
+                        const again = await find(page, v);
+                        if (again.miss || again.at) throw e;
+                        return act(page, again, verb, CLICKS[a], clickMs);
+                    })
+                    .catch((e) => {
+                        // Playwright counts its wait after the click (for navigations it may have started)
+                        // inside the limit: a click its call log says was done landed, and was only slow
+                        if (callLog(e).some((l) => / action done$/.test(l))) {
+                            out.push(
+                                `slow ${verb} (landed): "${v}" was ${verb}ed; the wait after it ran past ${clickMs} ms`,
+                            );
+                            return;
+                        }
+                        // Playwright's call log names the actionability check that failed (covered, not stable, ...)
+                        out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
+                        missed++;
+                    });
             }
             if (verb !== "hover") await appIdle(page);
-            if (verb === "hover" && !f.miss) out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+            if (verb === "hover" && !f.miss) out.push(...(await hoverLines(page)));
         } else if (a in AT) {
             const [x, y] = v.split(",").map(Number);
             out.push(`at ${x},${y}: ${await whatIsAt(page, x, y)}`);
             if (a === "--hover-at") {
-                await forgetTips(page);
+                await Promise.all([forgetTips(page), forgetPops(page)]);
                 await page.mouse.move(x, y);
                 out.push(`cursor: ${await cursorAt(page, x, y)}`);
-                out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+                out.push(...(await hoverLines(page)));
             } else {
                 await page.mouse.click(x, y, { button: AT[a].button || "left", clickCount: AT[a].clickCount || 1 });
                 await appIdle(page);
@@ -2652,9 +2964,9 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             }
             const [x, y] = icons[+v - 1];
             out.push(`icon ${v} of ${icons.length}, at ${x},${y}`);
-            await forgetTips(page);
+            await Promise.all([forgetTips(page), forgetPops(page)]);
             await page.mouse.move(x, y);
-            out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+            out.push(...(await hoverLines(page)));
         } else if (a === "--drag") {
             const [[x1, y1], [x2, y2]] = [v, v2].map((p) => p.split(",").map(Number));
             out.push(`drag from ${x1},${y1} (${await whatIsAt(page, x1, y1)}) to ${x2},${y2}`);
@@ -2838,7 +3150,11 @@ async function replay(from, dir, { endOnDiverge, keep }) {
         const p = parseSteps(rec.steps);
         const r = p.refused
             ? { out: [p.refused], code: 2 }
-            : await ask(dir, { op: "step", steps: p.steps }).catch((e) => ({ out: [e.message], code: 1 }));
+            : await ask(dir, {
+                  op: "step",
+                  steps: p.steps,
+                  asRecorded: (rec.out || []).map(refusedName).filter(Boolean),
+              }).catch((e) => ({ out: [e.message], code: 1 }));
         const why = r.check ? divergence(rec, r.check) : `the step did not run: ${r.out.join(" | ")}`;
         if (why) {
             summary.diverged = {
@@ -2948,6 +3264,10 @@ async function prove() {
     await rm(base, { recursive: true, force: true });
     // the warm pool is off for every check but its own, so each start below is the cold one it tests
     process.env.REAL_WARM_POOL = "0";
+    // its planted rounds and briefings use tier 2's tasks (T18, T20): a REAL_TIER exported for a study
+    // of another tier (tier 5's briefing start command does) would brief and grade them against that
+    // tier's files, which hold no such task
+    process.env.REAL_TIER = "2";
     let bad = 0;
     const node = (args, cwd) =>
         spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env, ...(cwd && { cwd }) });
@@ -3058,6 +3378,8 @@ async function prove() {
     // a participant's session runs outside the studio's files, from its own briefing; one whose
     // transcript opened a facilitator file is void, by name
     {
+        // the planted round must sit inside the studio's files (that is what a participant's folder is
+        // mirrored out of), so with REAL_PROVE_DIR elsewhere it goes under the studio's own tmp/ (ignored)
         const R = join(under(base, STUDIO) ? base : join(STUDIO, "tmp", basename(base)), "rounds/round-9");
         await rm(R, { recursive: true, force: true });
         await rm(scratchOf(R), { recursive: true, force: true });
@@ -3248,7 +3570,8 @@ async function prove() {
         };
         while (spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status === 0)
             await new Promise((ok) => setTimeout(ok, 100));
-        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1" };
+        // the planted pool takes a machine slot too, so its browser never runs beside the machine's
+        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: dirname(QUEUE) };
         r = spawnSync(process.execPath, [self, "--start", own4, "empty"], {
             encoding: "utf8",
             env: { ...full, REAL_SLOT_WAIT_SECONDS: "2" },
@@ -3321,8 +3644,6 @@ async function prove() {
             "Open a file",
             "--upload",
             "florentine.gml",
-            "--click",
-            "Load",
             "--expect",
             "role=button:Project: florentine",
         );
@@ -3362,10 +3683,37 @@ async function prove() {
             /^slow click \(landed\): "Planted slow"/m.test(x.out) && !/could not click/.test(x.out),
             x.out,
         );
+        // a control drawn again between finding it and clicking it is found again by name, not missed
+        await ask(A, { op: "plant-dom", kind: "rerender" });
+        x = step(A, "--click", "Planted rerender", "--expect", "Planted rerender clicked");
+        check(
+            "a click on a control the app drew again after it was found clicks the new one by name",
+            x.code === 0 && !/could not click|not attached/.test(x.out) && !/expected on screen, not there/.test(x.out),
+            x.out,
+        );
+        // a control hidden with visibility: hidden is not on the screen a route records
+        await ask(A, { op: "plant-dom", kind: "invisible" });
+        x = step(A, "--key", "Shift");
+        const lastScreen = readFileSync(join(A, "route.jsonl"), "utf8").trim().split("\n").pop();
+        check(
+            "the screen a route records leaves out a control hidden with visibility: hidden",
+            !lastScreen.includes("Planted invisible") && lastScreen.includes("Planted rerender"),
+            lastScreen.slice(0, 400),
+        );
         // a tooltip dismissed by CSS, and an empty one, are no tooltip; Everything has none of its own
         await ask(A, { op: "plant-dom", kind: "hidden-tip" });
         x = step(A, "--hover", "Everything");
         check("a hover over a dismissed, hidden tooltip reports tooltip: null", /^tooltip: null$/m.test(x.out), x.out);
+        // a hover that opens a card and no tooltip reports the card, never "tooltip: null" (round 1:
+        // four participants believed the null over their screenshot of the issue mark's fix list)
+        await ask(A, { op: "plant-dom", kind: "hover-card" });
+        x = step(A, "--hover", "Planted card mark");
+        check(
+            "a hover that opens a hover card reports the card, not tooltip: null",
+            /^opened a hover card: "Planted issues: 2 values with padded spaces"$/m.test(x.out) &&
+                !/^tooltip: null$/m.test(x.out),
+            x.out,
+        );
         // a client stopped mid-step (its agent was stopped): the session answers the next step
         // (the request is written, then the client is gone before its answer; the next step queues
         // behind it, so it is answered only after the session tried to answer the gone one)
@@ -3524,6 +3872,14 @@ async function prove() {
     check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
     const lit = (await ask(B, { op: "hovered" })).out[0];
     check("a setup leaves the pointer over nothing, so no control is lit by a hover", lit === "", lit);
+    // a setup start is a reopened project: no undo history, so the setup's steps cannot be undone
+    const undoOff = step(B, "--hover", "Undo");
+    check(
+        "after a setup start Undo is disabled, with the tooltip Nothing to undo",
+        /^tooltip: "Nothing to undo"$/m.test(undoOff.out),
+        undoOff.out,
+    );
+    step(B, "--key", "Escape");
     // bar 2: the open work at the start is listed, and a planted removal shows up as gone at the end
     const workStart = JSON.parse(readFileSync(join(B, "work-start.json"), "utf8"));
     check(
@@ -3588,7 +3944,7 @@ async function prove() {
     await writeFile(
         srSetup,
         // the last click is on a control that stays, so Tab would start after it if the setup left it there
-        "--click Open a file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
+        "--click Open a file\n--upload florentine.gml\n--click role=button:Graph\n",
     );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
@@ -3675,19 +4031,19 @@ async function prove() {
         let x = step(H, "--click", "PageRank");
         check(
             "a name several controls share is refused, with each candidate named",
-            /ambiguous: "PageRank" matches \d+ controls, so the step did nothing; name one: "PageRank#1" treeitem/.test(
+            /ambiguous: "PageRank" matches \d+ controls, so the step did nothing; name one: "(?:role=treeitem:)?PageRank(?:#1)?" treeitem/.test(
                 x.out,
             ) && pngs(H).length === 2,
             x.out,
         );
-        // a planted two-kind name: the open Attribute list's option "weight" and the Data panel's
-        // row "weight". "#n" picks by position, which a person never sees, so it is refused
+        // a planted two-kind name ("weight" names controls of more than one kind on the Data page;
+        // which kinds moves with the build). "#n" picks by position, which a person never sees, so it is refused
         x = step(H, "--click", "Data", "--click", "Add filter step", "--click", "Attribute");
         const before = pngs(H).length;
         x = step(H, "--click", "weight#1");
         check(
             "a position pick among different kinds of control is refused, naming each kind",
-            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=option:weight"/.test(
+            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: "role=\w+:weight", "role=\w+:weight"/.test(
                 x.out,
             ) && pngs(H).length === before + 1,
             x.out,
@@ -3697,10 +4053,24 @@ async function prove() {
         x = step(H, "--key", "Escape", "--key", "Escape");
         x = step(H, "--click", "Nothing is called this");
         check("a participant's miss exits 0", x.code === 0 && /nothing on screen is called/.test(x.out), x.out);
+        // the canvas takes any dropped file (a model goes on the nodes, any other file opens), so a
+        // drop there reaches the page through the browser's own input path
         x = step(H, "--drop", "friends-v2.csv");
         check(
-            "a drop where nothing takes it says it was not delivered",
-            /the drop was not delivered: nothing in the middle of the window \(empty canvas\)/.test(x.out),
+            "a file dropped on the canvas is taken by the page",
+            /dropped the file friends-v2\.csv on the middle of the window \(empty canvas\); the page took it/.test(
+                x.out,
+            ),
+            x.out,
+        );
+        // a page that takes no file: the tool says the drop was not delivered, never that it opened
+        await ask(H, { op: "plant-dom", kind: "nodrop" });
+        x = step(H, "--drop", "friends-v2.csv");
+        check(
+            "a drop the page does not take is reported as not delivered",
+            /the drop was not delivered: nothing in the middle of the window \(empty canvas\) takes a dropped file/.test(
+                x.out,
+            ) && !/the page took it/.test(x.out),
             x.out,
         );
     }
@@ -3714,6 +4084,20 @@ async function prove() {
     if (check("a walk's session starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
         const x = step(M, "--click", "Nothing is called this");
         check("with REAL_MISS_FAILS=1 a planted miss exits 2", x.code === 2, `exit ${x.code} ${x.out}`);
+        // the start screen has a link and a button called Samples: the refusal offers each by kind,
+        // and the pick it offers is taken (it once offered "Samples#1", which it then refused)
+        const y = step(M, "--click", "Samples");
+        const offered = y.out.match(/name one: "(role=[a-z]+:Samples)"/)?.[1];
+        check(
+            "a name shared by different kinds of control is refused with a pick by kind, which is then taken",
+            /ambiguous: "Samples" matches 2 controls, .*"role=button:Samples" button "Samples", "role=link:Samples" link "Samples"/.test(
+                y.out,
+            ) &&
+                !/Samples#\d/.test(y.out) &&
+                Boolean(offered) &&
+                step(M, "--click", offered).code === 0,
+            y.out,
+        );
     }
     node(["--end", M]);
     await proveRoutes(base, check, node, step);
@@ -3721,10 +4105,10 @@ async function prove() {
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
-        // a data file dropped on the start screen opens the Data page as a new graph, not a project
-        const x = step(I, "--drop", "friends.csv", "--expect", "Open as a new graph");
+        // a data file dropped on the start screen opens as a new graph, with no step between
+        const x = step(I, "--drop", "friends.csv", "--expect", "role=button:Project: friends");
         check(
-            "a file dropped on the start screen opens it on the Data page",
+            "a file dropped on the start screen opens it as a new graph",
             x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),
             x.out,
         );
@@ -3750,7 +4134,7 @@ async function proveRoutes(base, check, node, step) {
     const R = join(base, "route-walk");
     let r = node(["--start", R, "empty"]);
     if (!check("a walk to replay starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
-    step(R, "--click", "Open a file", "--upload", "florentine.gml", "--click", "Load");
+    step(R, "--click", "Open a file", "--upload", "florentine.gml");
     step(R, "--hover", "Undo");
     let x = step(R, "--click", "Nothing is called this", "--key", "Tab");
     check(
@@ -3827,14 +4211,20 @@ async function proveWarm(base, check) {
         ...process.env,
         BROWSER_SLOT_DIR: pool,
         BROWSER_SLOTS: "6",
+        // and a slot of the machine's pool, so the browsers it starts never run beside the machine's 8
+        BROWSER_SLOT_ALSO: dirname(QUEUE),
         REAL_WARM_POOL: "1",
         REAL_WARM_SECONDS: "180",
+        // its warm browser waits for a slot and holds it, so the verdict is the takeover's alone
+        REAL_WARM_HOLD: "1",
     };
     const run = (a) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env });
     const [W1, W2] = [join(base, "warm-1"), join(base, "warm-2")];
     let r = run(["--start", W1, "empty"]);
     check("a cold start tops up the warm pool", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`);
-    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
+    // until it is ready, while it still waits or warms (a busy machine can hold every slot for minutes)
+    for (let i = 0; i < 1800 && !warmOnes().ready.length && warmOnes().warming; i++)
+        await new Promise((ok) => setTimeout(ok, 500));
     const t = Date.now();
     r = run(["--start", W2, "empty"]);
     const took = Date.now() - t;

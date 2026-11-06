@@ -6,7 +6,9 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
+import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -73,10 +75,12 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -147,6 +151,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -155,6 +160,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
+    readonly sharesDevice?: (adapter: unknown) => boolean;
 }
 
 // @public
@@ -263,6 +269,8 @@ export interface AlgorithmDescriptor {
     fields: readonly FieldDescriptor[];
     // (undocumented)
     key: AlgorithmKey;
+    // @beta
+    keywords?: readonly string[];
     // (undocumented)
     options: readonly OptionDescriptor[];
     // (undocumented)
@@ -514,6 +522,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    // @beta
     readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
@@ -830,6 +839,8 @@ export class Edge {
     supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
+    // @internal
+    get trimInput(): EdgeTrimInput;
     update(): void;
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
@@ -958,24 +969,37 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 // @public
 export interface FieldDescriptor {
     directedOnly?: boolean;
+    // @beta
+    domain?: {
+        readonly min: number;
+        readonly max: number;
+    };
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
+    // @beta
+    missing?: "unreached" | "unmeasured" | (string & {});
     // (undocumented)
     name: string;
     // (undocumented)
     normalization?: string;
+    // @beta
+    order?: readonly (string | number)[];
     // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
+    // @beta
+    polarity?: "higher" | "lower";
     // (undocumented)
     technicalName: string;
     // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
+    // @beta
+    unstable?: true;
 }
 
 // @public
@@ -1167,9 +1191,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1541,6 +1574,14 @@ export type GraphtyErrorCode =
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
 | "E_NO_WEBGL"
+/**
+* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+* leaves empty. Reported as `graph-error`.
+*/
+| "E_SHADER_REFUSED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -1919,11 +1960,12 @@ export abstract class LayoutEngine {
     protected abstract addNode(n: Node_2): void;
     protected addNodes(nodes: Node_2[]): void;
     protected attachPositions(positions: ElementPositions): void;
+    // @internal
+    clusterColumn: ClusterColumn | null;
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
-    // (undocumented)
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
@@ -1959,8 +2001,15 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    // @internal
+    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
+    // @internal
+    protected publishScratch(count: number): {
+        rows: Float64Array;
+        coords: Float64Array;
+    };
     readNodePosition(n: Node_2, out: {
         x: number;
         y: number;
@@ -1980,6 +2029,8 @@ export abstract class LayoutEngine {
     get type(): string;
     protected abstract unpin(n: Node_2): void;
     updatePositions(_nodes: readonly Node_2[]): void;
+    // @internal
+    wakeForClusters(): boolean;
     // @internal
     wakeForResize(): boolean;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
@@ -2072,13 +2123,52 @@ class Node_2 implements ModelUser {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
+    get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
+    // @internal
+    get drawnByRowScan(): boolean;
     get drawnFill(): string | null;
+    // @internal
+    get drawnGeneration(): number;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
         z: number;
     }>;
+    // @internal
+    get drawnInBatch(): boolean;
+    // @internal
+    get drawnPickMesh(): AbstractMesh;
+    // @internal
+    get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
+    // @internal
+    get drawnRootScale(): number;
+    // @internal
+    get drawnScale(): number;
+    set drawnScale(scale: number);
+    // @internal
+    get drawnScaling(): Readonly<Vector3>;
+    // @internal
+    get drawnScene(): Scene;
+    // @internal
+    get drawnSourceMesh(): AbstractMesh;
+    // @internal
+    drawnWorldMatrix(force?: boolean): Matrix;
+    // @internal
+    get drawnWorldPosition(): Vector3;
+    // @internal
+    get drawnWorldRadius(): number;
+    // @internal
+    get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;
@@ -2099,13 +2189,19 @@ class Node_2 implements ModelUser {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    // @internal
+    get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    // @internal
+    isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
+    // @internal
+    makeDrawnPickable(actions: ActionManager): void;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -2159,7 +2255,11 @@ class Node_2 implements ModelUser {
     // @internal
     get surfaceIsBox(): boolean;
     // @internal
+    get surfaceIsClosedForm(): boolean;
+    // @internal
     syncXlabelPlace(): void;
+    // @internal
+    get teardownMesh(): AbstractMesh;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;

@@ -1,12 +1,17 @@
 import {
     AbstractMesh,
+    type ActionManager,
     type BaseTexture,
+    type BoundingBox,
     Camera,
     Color3,
     Color4,
     InstancedMesh,
+    type Matrix,
     Mesh,
     MeshBuilder,
+    type Plane,
+    type Ray,
     type Scene,
     StandardMaterial,
     TransformNode,
@@ -57,6 +62,8 @@ import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { rowScanOf } from "./render/PickService";
+import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
 import { CHANNEL_DESCRIPTORS, drawnUses, toColorValue } from "./session/styles/channels";
@@ -275,6 +282,9 @@ const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 /** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
 const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
+/** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
+const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
+
 type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
 
 /**
@@ -427,6 +437,8 @@ export class Node implements ModelUser {
     /** The record, as the graph last handed it over. */
     #record: AdHocData<string | number>;
     mesh: AbstractMesh;
+    /** The shared mesh a batch draws this node from, or null while it has its own. */
+    private batchSource: AbstractMesh | null = null;
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -767,6 +779,11 @@ export class Node implements ModelUser {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            return batched.extentOf(this.row).round;
+        }
+
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
         // camera turns, and its edges must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
@@ -1166,6 +1183,7 @@ export class Node implements ModelUser {
         const before = stretch.clone();
         stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
+        this.measureRow();
         if (
             this.border !== this.groupBorder ||
             !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
@@ -1257,10 +1275,300 @@ export class Node implements ModelUser {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.mesh.position.set(x, y, z);
+        this.rowTable?.place(this.row, x, y, z);
         this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
         this.syncOverlayPositions();
+    }
+
+    /**
+     * Where the node is drawn, in graph-root's space: live, so read it and never write it
+     * ({@link Node.setMeshPosition} is the only way to move a node). Code outside this class reads
+     * this and the other `drawn*` members, never `mesh`: the `local/node-mesh-funnel` lint rule
+     * reports any other read, so a node can later be drawn with no mesh of its own.
+     * @returns The position.
+     * @internal
+     */
+    get drawnPosition(): Readonly<Vector3> {
+        return this.batchTable?.centerOf(this.row) ?? this.mesh.position;
+    }
+
+    /**
+     * Where the node is drawn, in world space.
+     * @returns The position.
+     * @internal
+     */
+    get drawnWorldPosition(): Vector3 {
+        if (this.batchSource !== null) {
+            const center = rowScanOf(this.context.getScene())?.worldCenter(this.row);
+            if (center !== undefined) {
+                return center;
+            }
+        }
+
+        return this.mesh.getAbsolutePosition();
+    }
+
+    /**
+     * Whether a batch draws this node, so its ends, scale and size come from its row and never its mesh.
+     * @returns True when one does.
+     * @internal
+     */
+    get drawnInBatch(): boolean {
+        return this.batchSource !== null;
+    }
+
+    /**
+     * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
+     * @param source - The shared mesh the batch draws from, or null.
+     * @internal
+     */
+    drawInBatch(source: AbstractMesh | null): void {
+        this.batchSource = source;
+    }
+
+    /**
+     * Where a world ray meets this node's own shape, whatever else it crosses.
+     * @param ray - The ray.
+     * @returns The point in the world, or null for a miss.
+     * @internal
+     */
+    drawnRayHit(ray: Ray): Vector3 | null {
+        if (this.batchSource !== null) {
+            return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
+        }
+
+        return ray.intersectsMeshes([this.mesh])[0]?.pickedPoint ?? null;
+    }
+
+    /**
+     * Write this node's `rowExtent` row. The mesh is what is measured, even under a batch.
+     *
+     * ponytail: a batched row reads its mesh here, the one read left; stage 11 takes the mesh away
+     * and has to measure from the source mesh and the style.
+     */
+    private measureRow(): void {
+        const held = this.batchSource;
+        this.batchSource = null;
+        this.rowTable?.measure(this);
+        this.batchSource = held;
+    }
+
+    /**
+     * The matrix that places the node in world space.
+     * @param force - Recompute it even if Babylon already did this frame.
+     * @returns The matrix.
+     * @internal
+     */
+    drawnWorldMatrix(force?: boolean): Matrix {
+        return this.mesh.computeWorldMatrix(force);
+    }
+
+    /**
+     * The mesh that draws this node: the source of its instance, or its own when it is not one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnSourceMesh(): AbstractMesh {
+        if (this.batchSource !== null) {
+            return this.batchSource;
+        }
+
+        const { mesh } = this;
+        return "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+    }
+
+    /**
+     * The mesh a pick answers with for this node. Stage 9 of the row renderer gives a press an
+     * answer without one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnPickMesh(): AbstractMesh {
+        return this.mesh;
+    }
+
+    /**
+     * Whether the row scan answers for this node. A model is picked by its whole bounding box
+     * (`NodeMesh.createModelInstance`), not by its source's triangles, so it stays on Babylon's pick.
+     * @returns True when it does.
+     * @internal
+     */
+    get drawnByRowScan(): boolean {
+        return this.drawnModel === null;
+    }
+
+    /**
+     * The box the node is drawn in.
+     * @returns The box.
+     * @internal
+     */
+    get drawnBoundingBox(): BoundingBox {
+        return this.mesh.getBoundingInfo().boundingBox;
+    }
+
+    /**
+     * The radius of the sphere the node is drawn in, in world space.
+     * @returns The radius.
+     * @internal
+     */
+    get drawnWorldRadius(): number {
+        return this.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+    }
+
+    /**
+     * The node's scale in world space.
+     * @returns The scale on each axis.
+     * @internal
+     */
+    get drawnWorldScaling(): Vector3 {
+        return this.mesh.absoluteScaling;
+    }
+
+    /**
+     * The node's own scale on each axis: a group's box is stretched, a model may be.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            const { scale } = batched.extentOf(this.row);
+            return new Vector3(scale, scale, scale);
+        }
+
+        return this.mesh.scaling;
+    }
+
+    /**
+     * The node's own scale, the same on every axis.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScale(): number {
+        return this.batchTable?.extentOf(this.row).scale ?? this.mesh.scaling.x;
+    }
+
+    /**
+     * Set the node's own scale on every axis.
+     * @param scale - The scale.
+     * @internal
+     */
+    set drawnScale(scale: number) {
+        this.mesh.scaling.setAll(scale);
+        this.measureRow();
+    }
+
+    /**
+     * Draw the node shrunk, part of the way through a particle transition.
+     * @param scale - The scale to draw it at.
+     * @param whole - Its scale when it is not shrunk.
+     * @internal
+     */
+    drawShrunk(scale: number, whole: number): void {
+        this.rowTable?.shrink(this.row, whole === 0 ? 1 : scale / whole);
+        this.drawnScale = scale;
+    }
+
+    /**
+     * The radius of the sphere around the node's place that holds its whole mesh, in graph-root's
+     * space. The mesh's own bounding sphere need not be centered on that place: a tetrahedron's
+     * is not.
+     * @returns The radius.
+     * @internal
+     */
+    get drawnBoundingRadius(): number {
+        if (this.mesh.isDisposed()) {
+            return 0;
+        }
+
+        const { boundingSphere } = this.mesh.getBoundingInfo();
+        const { x, y, z } = this.mesh.scaling;
+        const reach = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+        return (boundingSphere.center.length() + boundingSphere.radius) * reach;
+    }
+
+    /**
+     * The graph's row table.
+     * @returns The table, or null when nothing has opened it.
+     */
+    private get rowTable(): RowTable | null {
+        return this.context.getRowTable?.() ?? null;
+    }
+
+    /**
+     * The graph's row table when a batch draws this node.
+     * @returns The table, or null when the node's mesh answers for it.
+     */
+    private get batchTable(): RowTable | null {
+        return this.batchSource === null ? null : this.rowTable;
+    }
+
+    /**
+     * The scene the node is drawn in.
+     * @returns The scene.
+     * @internal
+     */
+    get drawnScene(): Scene {
+        return this.mesh.getScene();
+    }
+
+    /**
+     * Whether the node is on the canvas now: neither disposed nor switched off.
+     * @returns True when it is.
+     * @internal
+     */
+    get isDrawn(): boolean {
+        return !this.mesh.isDisposed() && this.mesh.isEnabled();
+    }
+
+    /**
+     * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
+     * @returns The number.
+     * @internal
+     */
+    get drawnGeneration(): number {
+        return this.mesh.uniqueId;
+    }
+
+    /**
+     * The scale of what the node is drawn inside: `graph-root`, which an XR gesture scales.
+     * @returns The scale, or 1 when the node has no such parent.
+     * @internal
+     */
+    get drawnRootScale(): number {
+        const { parent } = this.mesh;
+        return parent instanceof TransformNode ? parent.absoluteScaling.x : 1;
+    }
+
+    /**
+     * Let the pointer reach the node. A rebuilt mesh starts without this, so a restyle says it again.
+     * @param actions - What the node does when the pointer acts on it.
+     * @internal
+     */
+    makeDrawnPickable(actions: ActionManager): void {
+        this.mesh.isPickable = true;
+        this.mesh.actionManager = actions;
+    }
+
+    /**
+     * Whether the node is inside a view.
+     * @param planes - The view's frustum planes.
+     * @returns True when any of it is inside.
+     * @internal
+     */
+    isDrawnInFrustum(planes: Plane[]): boolean {
+        return this.mesh.isInFrustum(planes);
+    }
+
+    /**
+     * The mesh a graph teardown disposes for this node, with its children.
+     * @returns The mesh.
+     * @internal
+     */
+    get teardownMesh(): AbstractMesh {
+        return this.mesh;
     }
 
     /**
@@ -1282,6 +1590,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+        this.measureRow();
     }
 
     /**
@@ -1365,6 +1674,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
+        this.measureRow();
     }
 
     /**
@@ -2159,6 +2469,7 @@ export class Node implements ModelUser {
         }
 
         this.disposed = true;
+        this.rowTable?.drop(this.row);
 
         if (this.dragHandler) {
             this.dragHandler.dispose();
@@ -2296,6 +2607,7 @@ export class Node implements ModelUser {
 
         const state = this.getRenderState();
         const drawn = state === "visible";
+        this.rowTable?.hide(this.row, !drawn);
 
         if (!this.mesh.isDisposed()) {
             this.mesh.setEnabled(drawn);
@@ -2609,6 +2921,11 @@ export class Node implements ModelUser {
      * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
      */
     get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            return batched.extentOf(this.row).half;
+        }
+
         const own = this.mesh.scaling;
         const seen = this.halfExtentsScale;
         const value = this.halfExtentsValue;
@@ -2650,6 +2967,21 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a line meets this node's mesh exactly where it leaves the box of
+     * {@link drawnHalfExtents}, so arithmetic can stand in for a ray: a box or a rectangle left unturned. Not an ellipse:
+     * its mesh is a slab of facets, a line through depth meets the face, and across the view it is 0.003 short.
+     * @returns True for such a node.
+     * @internal
+     */
+    get surfaceIsClosedForm(): boolean {
+        return (
+            this.drawnModel === null &&
+            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
+            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
+        );
+    }
+
+    /**
      * The outline an edge ends on, for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
      * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size, which
      * {@link Node.drawnHalfExtents} scales back out. Built once per mesh, style and label fit, so an edge pays one
@@ -2659,7 +2991,8 @@ export class Node implements ModelUser {
      */
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
         const built = this.reachOutlineBuilt;
-        if (built?.mesh === this.mesh && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
+        const source = this.drawnSourceMesh;
+        if (built?.mesh === source && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
             return built.value;
         }
 
@@ -2675,11 +3008,11 @@ export class Node implements ModelUser {
                           border: style?.border,
                       },
                       this.size,
-                      this.mesh,
+                      source,
                   ).outline,
               )
             : null;
-        this.reachOutlineBuilt = { mesh: this.mesh, style, fit: this.fittedExtent, value };
+        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value };
         return value;
     }
 

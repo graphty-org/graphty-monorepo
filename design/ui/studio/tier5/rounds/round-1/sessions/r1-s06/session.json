@@ -1,0 +1,40 @@
+{
+ "commit": "1e123d7d33eb66f190fb4a197f90102ede2478a5",
+ "toolCommit": "296294ddad008fb30df546b221407b6b38c73231",
+ "uncommittedChanges": false,
+ "buildStamp": "1e123d7d33eb graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-03T12:25:54.728Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tool/files/gauges.csv",
+  "--click Data",
+  "--click Add source",
+  "--click File...",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tool/files/flows.csv",
+  "--click role=button:Join",
+  "--click Issues in depth_cm",
+  "--click Make blank",
+  "--rclick installed",
+  "--click Type",
+  "--click date",
+  "--click 1 issue in flows.csv",
+  "--click Remove nodes and edges",
+  "--key Escape",
+  "--click Expand gauges.csv",
+  "--click Add to node attributes",
+  "--click Label",
+  "--click role=option:station",
+  "--click role=button:Graph"
+ ],
+ "task": "T71B",
+ "followUp": "given 2026-11-03T12:28:16.407Z",
+ "setupOk": true
+}

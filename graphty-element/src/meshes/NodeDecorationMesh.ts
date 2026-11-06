@@ -26,9 +26,11 @@ import {
     clipToBox,
     type ColorPiece,
     databaseRim,
+    framedBand,
     imageBox,
     type PieceBox,
     pieSlices,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
@@ -44,7 +46,7 @@ import { earClip, type Point2 } from "./shapeOutlines";
 export interface NodeDecorationPiece {
     readonly kind: "shape" | "image" | "body";
     readonly box: PieceBox;
-    /** A body piece's fill: red, green and blue, 0..1, and its opacity. */
+    /** A colored piece's fill: red, green and blue, 0..1, and its opacity. */
     readonly fill?: Pick<ColorPiece, "rgb" | "opacity">;
 }
 
@@ -74,6 +76,7 @@ export interface NodeDecorationOptions {
     readonly border?: NodeStyleConfig["border"];
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
+    readonly raisedBorder?: NodeStyleConfig["raisedBorder"];
     readonly chart?: NodeStyleConfig["chart"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
@@ -97,6 +100,7 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
+        (o.raisedBorder?.width ?? 0) > 0 ||
         o.chart?.values !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
@@ -334,11 +338,13 @@ type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean; r
  */
 function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; width: number; height: number }): Placed[] {
     // a band is the box it fills, cut to the node: its box for a reader is the band's own, as a clipped
-    // rectangle's is in an SVG
-    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) => {
-        const outline = clipToBox(face.outline, b.box);
-        return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
-    });
+    // rectangle's is in an SVG, and a framed band's strips each read as the whole band they make
+    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) =>
+        framedBand(o.stripes?.frame, b.box).flatMap((part) => {
+            const outline = clipToBox(face.outline, part);
+            return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
+        }),
+    );
     const rim =
         o.shape?.type === "database"
             ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))
@@ -356,6 +362,10 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         ...chartPieces(o.chart, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
         ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
+        ...raisedStrips(o.raisedBorder, face.width, face.height, scale).flatMap((s) => {
+            const outline = clipToBox(face.outline, s.box);
+            return outline.length < 3 ? [] : [{ ...s, outline }];
+        }),
     ];
 }
 
@@ -464,7 +474,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
             .map((p) => ({
                 kind: p.body === true ? "body" : "shape",
                 box: p.box ?? boxOf(p.outline),
-                ...(p.body === true ? { fill: { rgb: p.rgb, opacity: p.opacity } } : {}),
+                fill: { rgb: p.rgb, opacity: p.opacity },
             })),
     };
     mesh.metadata = metadata;

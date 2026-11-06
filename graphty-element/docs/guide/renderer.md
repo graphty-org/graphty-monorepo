@@ -44,7 +44,18 @@ drawing.
 
 `rendererStatus.drawing` is false when the browser gave the page no working WebGL context at
 all: nothing is drawn, but the data, the session and [autosave](./autosave) still work, so the
-reader can still save a file.
+reader can still save a file. It is also false once a shader cannot be built for WebGPU, which can
+lose every frame the shader is part of: a `graph-error` event carries `E_SHADER_REFUSED`, with the
+step that gave up in `error.details.stage` (`"compiler"`, `"translator"` or `"device"`) and what it
+said in `error.details.messages`. The translator says nothing the element can read, so its list is
+empty; the page's console holds its line. A shader passed to `defineShader` may use a name
+WGSL or the Vulkan GLSL compiler reserves, such as `pass`, `target`, `fn` or `image2D`: the element
+renames it for you. One thing still differs: a `const` at the top of a shader may not call `acosh`,
+`asinh` or `atanh` under WebGPU, so move it into the function that uses it.
+
+If the WebGPU device is lost, by a driver reset or a GPU process crash, the element opens a new one,
+rebuilds and draws the same graph, with nothing for you to do. If no new device can be had,
+`rendererStatus.drawing` turns false and a `graph-error` event carries `E_DEVICE_LOST`.
 
 ## What differs under WebGPU
 
@@ -66,6 +77,12 @@ WebAssembly modules, glslang and twgsl, which it fetches from `https://cdn.babyl
 time a WebGPU graph opens on the page, about 1 MB together. The element fetches them before it
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
 says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
+
+## One device for drawing and layout
+
+With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapter is real hardware, the renderer and the accelerator
+run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
+If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
 
 ## Is WebGPU faster?
 

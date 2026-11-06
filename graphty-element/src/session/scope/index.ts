@@ -22,8 +22,23 @@ export {
     type ScopeApi,
     type ScopeCount,
     type ScopeCountOptions,
+    type ScopeEdit,
     type ScopeResolver,
     type ScopeSelectionSource,
     type ScopeSources,
     type ScopeVisibilitySource,
 } from "./ScopeApi";
+export {
+    type BranchReading,
+    type BranchState,
+    DEFAULT_BRANCH_PALETTE,
+    type ScopeStepOptions,
+    type StepCheckOptions,
+    type StepReading,
+    type StepReasonCode,
+    type StepsReading,
+    type StepState,
+    type StepsWatch,
+    type ValueHistogram,
+    type ValueHistogramOptions,
+} from "./steps";

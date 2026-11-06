@@ -127,6 +127,8 @@ export interface AlgorithmDescriptor {
     fields: readonly FieldDescriptor[];
     // (undocumented)
     key: AlgorithmKey;
+    // @beta
+    keywords?: readonly string[];
     // (undocumented)
     options: readonly OptionDescriptor[];
     // (undocumented)
@@ -273,6 +275,23 @@ export interface ByDesignWaiver {
     readonly reason: string;
 }
 
+// @beta
+export interface BySizeLeaf {
+    readonly from?: "high" | "low";
+    // (undocumented)
+    readonly kind: "by-size";
+    // (undocumented)
+    readonly max?: number;
+    // (undocumented)
+    readonly min?: number;
+    // (undocumented)
+    readonly path: Path;
+    // (undocumented)
+    readonly ties?: TopTies;
+    // (undocumented)
+    readonly top?: number;
+}
+
 // @public
 export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[];
 
@@ -355,7 +374,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -533,7 +552,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];
@@ -555,24 +574,37 @@ export interface FieldBand {
 // @public
 export interface FieldDescriptor {
     directedOnly?: boolean;
+    // @beta
+    domain?: {
+        readonly min: number;
+        readonly max: number;
+    };
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
+    // @beta
+    missing?: "unreached" | "unmeasured" | (string & {});
     // (undocumented)
     name: string;
     // (undocumented)
     normalization?: string;
+    // @beta
+    order?: readonly (string | number)[];
     // (undocumented)
     path: Path;
     // (undocumented)
     plainName: string;
+    // @beta
+    polarity?: "higher" | "lower";
     // (undocumented)
     technicalName: string;
     // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
     // (undocumented)
     unit?: string;
+    // @beta
+    unstable?: true;
 }
 
 // @public
@@ -757,9 +789,18 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A command, API member, saved document or attribute asked for something whose experiment is
+* off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+* `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+* that part out.
+*/
+| "E_FEATURE_OFF"
+/**
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+* @experimental timeline
+* @beta
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1132,6 +1173,14 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
+* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+* leaves empty. Reported as `graph-error`.
+*/
+| "E_SHADER_REFUSED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
@@ -1358,6 +1407,17 @@ export type GraphtyErrorCode =
 // @public
 export type GroupMatchCode = "group.new" | "group.gone";
 
+// @beta
+export interface HopsLeaf {
+    // (undocumented)
+    readonly direction?: SelectionDirection;
+    // (undocumented)
+    readonly kind: "hops";
+    // (undocumented)
+    readonly max?: number;
+    readonly of?: StepReference;
+}
+
 // @public
 export function isAttributeType(value: unknown): value is AttributeType;
 
@@ -1463,6 +1523,7 @@ export interface LabelStyle {
     borderColor?: string;
     borderOpacity?: number;
     borderWidth?: number;
+    box?: "words" | "words-at-side" | "target-width";
     boxPadding?: number;
     closeButton?: boolean;
     color?: string;
@@ -1473,6 +1534,7 @@ export interface LabelStyle {
     depthFadeNear?: number;
     enabled?: boolean;
     font?: string;
+    gapOf?: "box" | "words";
     gradient?: boolean;
     gradientColors?: readonly string[];
     gradientDirection?: LabelGradientDirection;
@@ -1721,6 +1783,20 @@ export function logSinkDescriptor(id: LogSinkId): LogSinkDescriptor | undefined;
 // @public
 export type LogSinkId = (typeof KNOWN_LOG_SINK_IDS)[number] | (string & {});
 
+// @beta
+export interface MeasureLeaf {
+    readonly algorithm: string;
+    // (undocumented)
+    readonly bind?: Readonly<Record<string, StepReference>>;
+    readonly field: string;
+    // (undocumented)
+    readonly kind: "measure";
+    // (undocumented)
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly scope?: Scope;
+    readonly test?: MeasureTest;
+}
+
 // @public
 export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {});
 
@@ -1734,6 +1810,17 @@ export type MeasurementDeclaration = {
 
 // @public
 export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {});
+
+// @beta
+export type MeasureTest = Omit<Extract<RuleTree, {
+    kind: "range";
+}>, "attribute" | "nodes"> | Omit<Extract<RuleTree, {
+    kind: "threshold";
+}>, "path"> | Omit<Extract<RuleTree, {
+    kind: "categories";
+}>, "attribute" | "nodes"> | Omit<Extract<RuleTree, {
+    kind: "text";
+}>, "reads" | "nodes"> | Omit<BySizeLeaf, "path"> | Omit<SameValueLeaf, "path">;
 
 // @public
 export interface MetricAvailability {
@@ -1755,6 +1842,9 @@ export interface MetricAvailability {
     // (undocumented)
     technicalName: string;
 }
+
+// @beta
+export type MissingValues = "include" | "exclude";
 
 // @public
 export const MODEL_DESCRIPTORS: readonly ModelDescriptor[];
@@ -1789,6 +1879,13 @@ export type NodeId = string | number;
 
 // @public
 export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
+
+// @beta
+export interface NonemptyLeaf {
+    // (undocumented)
+    readonly kind: "nonempty";
+    readonly of?: StepReference;
+}
 
 // @public
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
@@ -1943,6 +2040,8 @@ export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolea
 export interface ReadableValue {
     readonly completeness: number;
     readonly end?: "source" | "target";
+    // @beta
+    readonly facts?: Pick<FieldDescriptor, "domain" | "polarity" | "order" | "missing" | "unstable">;
     readonly fits: readonly ReadableChannelKind[];
     readonly from: "element" | "data" | "run";
     readonly holdsNodeIds?: true;
@@ -1959,11 +2058,16 @@ export interface ReadableValue {
     readonly tests: readonly RuleTestKind[];
     readonly usedBy?: readonly AttributeUse[];
     readonly valueCount?: number;
+    // @beta
+    readonly valueKind?: ValueKind;
     readonly valuesAreColors?: true;
 }
 
 // @public
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
+export function resolveFeatures(requested?: readonly string[]): EnabledFeatures;
 
 // @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];
@@ -2005,12 +2109,16 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly as?: "time";
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
     readonly nodes?: AttributeLeafNodes;
+    readonly missing?: MissingValues;
+    readonly match?: "any" | "all";
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -2074,6 +2182,9 @@ export type RuleTree = {
     readonly top?: number;
     readonly ties?: TopTies;
     readonly above?: number;
+    readonly percentile?: number;
+    readonly from?: "high" | "low";
+    readonly missing?: MissingValues;
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2098,7 +2209,7 @@ export type RuleTree = {
     readonly kind: "source";
     readonly sources: readonly SourceKey[];
     readonly side?: RuleSide;
-} | {
+} | UnionLeaf | HopsLeaf | TouchingLeaf | NonemptyLeaf | SameValueLeaf | BySizeLeaf | MeasureLeaf | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
 } | {
@@ -2111,6 +2222,14 @@ export type RuleTree = {
 
 // @public
 export type RunId = string;
+
+// @beta
+export interface SameValueLeaf {
+    readonly as?: StepReference;
+    // (undocumented)
+    readonly kind: "same-value";
+    readonly path: Path;
+}
 
 // @public
 export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[];
@@ -2438,7 +2557,7 @@ export interface ShaderProblem {
 }
 
 // @public
-export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.group-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas";
+export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.uses-not-a-list" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.group-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas";
 
 // @public
 export interface ShaderRegistration {
@@ -2531,11 +2650,16 @@ export type SourceKey = string;
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
+// @beta
+export type StepReference = Scope | "hovered-or-selected" | "so-far";
+
 // @public
 export interface StructureValue {
     readonly path: Path;
     readonly plainName: string;
     readonly technicalName: string;
+    // @beta
+    readonly valueKind?: ValueKind;
 }
 
 // @public
@@ -2592,6 +2716,15 @@ export function toColorValue(value: string | Rgba | null | undefined): ColorValu
 // @public
 export type TopTies = "fewer" | "all";
 
+// @beta
+export interface TouchingLeaf {
+    // (undocumented)
+    readonly ends: "either" | "both" | "one";
+    // (undocumented)
+    readonly kind: "touching";
+    readonly of?: StepReference;
+}
+
 // @public
 export interface TransitionDescriptor {
     readonly drawable?: TransitionDrawable;
@@ -2602,6 +2735,38 @@ export interface TransitionDescriptor {
 
 // @public
 export type TransitionDrawable = "particles";
+
+// @beta
+export interface UnionBranch {
+    readonly color?: string;
+    readonly id?: string;
+    readonly name?: string;
+    readonly on?: boolean;
+    readonly start: "all" | "none";
+    readonly steps: readonly UnionStep[];
+}
+
+// @beta
+export interface UnionLeaf {
+    readonly branches: readonly UnionBranch[];
+    // (undocumented)
+    readonly kind: "union";
+    readonly side: "nodes" | "edges";
+    readonly within: "graph" | "visible";
+}
+
+// @beta
+export interface UnionStep {
+    readonly computedOn?: "base" | "so-far";
+    readonly ends?: "both" | "either";
+    readonly frozenFrom?: "selection" | "hovered-or-selected";
+    readonly id?: string;
+    readonly links?: RuleTree;
+    readonly mode?: string;
+    readonly on?: boolean;
+    readonly op: "add" | "keep" | "except";
+    readonly rule: RuleTree;
+}
 
 // @public
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[];
@@ -2641,6 +2806,9 @@ export interface UnservedLayout {
     // (undocumented)
     reason: string;
 }
+
+// @beta
+export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";
 
 // @public
 export type Waiver = ByDesignWaiver | DefectWaiver;

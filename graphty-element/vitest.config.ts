@@ -420,8 +420,12 @@ const OWN_ENTRY_POINTS = {
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
  * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
  * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
- * ANGLE switches alone left `requestAdapter()` null on one host, and `metal` and `warp` are the
- * macOS and Windows legs of the host-matrix workflow.
+ * ANGLE switches alone left `requestAdapter()` null on one host, the three Vulkan switches on it
+ * because Chromium has no way to back a WebGPU canvas without its own Vulkan context: a real scene
+ * crashes the GPU process and every later `requestAdapter()` comes back null. `--use-vulkan=swiftshader`
+ * gives it that context from the driver Chromium ships, because a CI runner has no system Vulkan
+ * driver for `--enable-features=Vulkan` alone to find. `metal` and `warp` are the macOS and Windows
+ * legs of the host-matrix workflow.
  *
  * This table must know EVERY value any workflow puts in GRAPHTY_BROWSER_GPU, whether or not that
  * job runs the element's tests. `.github/workflows/hosts.yml` sets the variable for the whole job
@@ -434,7 +438,8 @@ const OWN_ENTRY_POINTS = {
  *
  * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
- * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
+ * accelerator. `test/browser/webgpu-layout.test.ts` asks for a real card, and the
+ * `graphty-element-webgpu` shard runs `test/browser/webgpu-renderer.test.ts` on SwiftShader.
  */
 const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
     nvidia: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
@@ -443,6 +448,9 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--use-angle=swiftshader",
         "--enable-unsafe-swiftshader",
         "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--disable-vulkan-surface",
     ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.
@@ -494,6 +502,41 @@ function browserLaunchEnv(): Record<string, string> | undefined {
 }
 
 /** One Playwright Chromium entry for a browser project's `instances`. */
+/** What `test/gpu-loss/` asks of the browser from outside the page. */
+const gpuLossCommands: {
+    crashGpuProcess: BrowserCommand<[]>;
+    canvasPicture: BrowserCommand<[]>;
+} = {
+    /**
+     * Crashes this browser's GPU process, the real thing a driver reset does to a page.
+     * @param ctx - the browser command context.
+     */
+    async crashGpuProcess(ctx) {
+        const browser = ctx.context.browser();
+        if (browser === null) {
+            throw new Error("the page has no browser to crash");
+        }
+
+        const session = await browser.newBrowserCDPSession();
+        const { processInfo } = await session.send("SystemInfo.getProcessInfo");
+        await session.detach();
+        const gpu = processInfo.find(({ type }) => type === "GPU");
+        if (gpu === undefined) {
+            throw new Error(`no GPU process among ${processInfo.map(({ type }) => type).join(", ")}`);
+        }
+
+        process.kill(gpu.id, "SIGKILL");
+    },
+    /**
+     * The graph's canvas as the page shows it, read past the element so reading draws nothing.
+     * @param ctx - the browser command context.
+     * @returns The picture, as base64 PNG.
+     */
+    async canvasPicture(ctx) {
+        return (await ctx.iframe.locator("canvas").last().screenshot()).toString("base64");
+    },
+};
+
 interface ChromiumInstance {
     /** The browser to launch. */
     browser: "chromium";
@@ -667,6 +710,8 @@ const config = defineConfig({
                         "test/ai/llm-regression/**/*.test.ts",
                         // Lifecycle tests launch their own browsers: see the "lifecycle" project
                         "test/lifecycle/**",
+                        // These lose the GPU device: see the "gpu-loss" project
+                        "test/gpu-loss/**",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -949,6 +994,42 @@ const config = defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The WebGPU device lost and given back. Its own project because it needs the full
+                // Chromium build, where every other browser project runs the headless shell, and
+                // the shell dies with its GPU process. SwiftShader unless GRAPHTY_BROWSER_GPU names
+                // another flag set. A run crashes the GPU process several times: Chromium stops
+                // restarting it after a few, and after a second crash refuses the page an adapter.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "gpu-loss",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/gpu-loss/**/*.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: gpuLossCommands,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright({
+                            launchOptions: {
+                                args: [
+                                    ...BROWSER_GPU_FLAGS[browserGpu === "" ? "swiftshader" : browserGpu],
+                                    "--disable-gpu-process-crash-limit",
+                                    "--disable-domain-blocking-for-3d-apis",
+                                ],
+                                channel: "chromium",
+                                env: browserLaunchEnv(),
+                            },
+                        }),
+                        instances: [{ browser: "chromium" }],
                     },
                 },
             },

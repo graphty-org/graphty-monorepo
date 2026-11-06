@@ -72,6 +72,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_FEATURE_OFF",
     "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
@@ -129,6 +130,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
+    "E_SHADER_REFUSED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -160,6 +162,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_FEATURE_OFF":
         case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
@@ -213,6 +216,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
+        case "E_SHADER_REFUSED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":

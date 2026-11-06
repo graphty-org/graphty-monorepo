@@ -569,7 +569,7 @@ describe("removing a run", () => {
     it("says honestly that nothing went with a run it does not hold", () => {
         const { runs } = harness();
 
-        assert.deepStrictEqual(runs.remove("absent"), { removedLayers: 0, layerIds: [] });
+        assert.deepStrictEqual(runs.remove("absent"), { removedLayers: 0, layerIds: [], selections: [] });
     });
 
     it("reports no bindings while the style layers still select on the old path", () => {

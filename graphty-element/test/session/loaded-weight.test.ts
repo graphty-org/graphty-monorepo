@@ -83,6 +83,30 @@ describe("session.data.loadedWeight", () => {
         session.dispose();
     });
 
+    it("is the column given the weight role after the load, and moves with its undo", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "csv", config: { data: MESSAGES } },
+            { mapping: { rowsAre: "edges", source: "from", target: "to" } },
+        );
+        assert.isNull(session.data.loadedWeight());
+        await session.data.setRole({ kind: "edge", name: "emails" }, "weight");
+        await session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+        assert.deepStrictEqual(session.data.loadedWeight(), { attribute: "emails", meaning: "distance" });
+        await session.undo();
+        await session.undo();
+        assert.isNull(session.data.loadedWeight());
+        session.dispose();
+    });
+
+    it("is none once the weight role is taken away", async () => {
+        const session = createGraphSession();
+        await loadMessages(session, { weight: "emails", weightMeaning: "strength" });
+        await session.data.setRole({ kind: "edge", name: "emails" }, null);
+        assert.isNull(session.data.loadedWeight());
+        session.dispose();
+    });
+
     it("is kept by a saved project", async () => {
         const saved = createGraphSession();
         await loadMessages(saved, { weight: "emails", weightMeaning: "strength" });

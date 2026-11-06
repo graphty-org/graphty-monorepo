@@ -153,6 +153,10 @@ interface MetricValue {
      * naming a unit for one would be inventing a measurement.
      */
     unit?: string;
+    /** The fixed range the measure defines, such as 0 to 1 for a share. */
+    domain?: FieldDescriptor["domain"];
+    /** `"lower"` when a smaller value counts as more, as a distance does. */
+    polarity?: FieldDescriptor["polarity"];
 }
 
 /**
@@ -173,9 +177,18 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
             kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
+            ...(value.domain === undefined ? {} : { domain: value.domain }),
+            ...(value.polarity === undefined ? {} : { polarity: value.polarity }),
         }),
-        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
-        field({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
+        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer", polarity: "lower" }),
+        field({
+            name: "percentile",
+            plainName: "Percentile",
+            technicalName: "percentile",
+            kind,
+            type: "number",
+            domain: { min: 0, max: 1 },
+        }),
         field({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),
         field({ name: "max", plainName: "Highest", technicalName: "max", kind: "graph", type: "number" }),
         field({ name: "median", plainName: "Middle", technicalName: "median", kind: "graph", type: "number" }),
@@ -245,6 +258,8 @@ function communityFields(plainName: string, withModularity: boolean): readonly F
             kind: "node",
             type: "integer",
             measurement: "categorical",
+            // A re-run may number the same groups differently.
+            unstable: true,
         }),
         field({
             name: "groupSize",
@@ -419,6 +434,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Degree centrality",
         description: "Counts how many edges each node has, incoming, outgoing and in total.",
         category: "centrality",
+        keywords: ["connections", "links", "neighbors"],
         shape: "node-metric",
         fields: [
             ...metricFields("node", {
@@ -456,6 +472,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
         category: "centrality",
+        keywords: ["bridges", "brokers", "gatekeepers"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Bridging", technicalName: "betweenness" }),
         options: optionsOf(BetweennessCentralityAlgorithm),
@@ -497,6 +514,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "PageRank",
         description: "Ranks a node by the influence that flows into it from the nodes that point at it.",
         category: "centrality",
+        keywords: ["influence", "importance"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence", technicalName: "PageRank score" }),
         options: optionsOf(PageRankAlgorithm, {
@@ -565,6 +583,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Groups nodes into communities by repeatedly merging the groups whose merger tightens the partition the most.",
         category: "community",
+        keywords: ["communities", "clusters", "groups"],
         shape: "community",
         fields: communityFields("Community", true),
         options: optionsOf(LouvainAlgorithm, { useOptimized: { internal: true } }),
@@ -681,6 +700,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
         category: "path",
+        keywords: ["route", "distance", "path between"],
         shape: "path",
         fields: [
             field({
@@ -703,6 +723,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "distance",
                 kind: "node",
                 type: "number",
+                polarity: "lower",
+                missing: "unreached",
             }),
             field({
                 name: "onPath",
@@ -808,7 +830,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Distance to the furthest node", technicalName: "eccentricity" }),
+            ...metricFields("node", {
+                plainName: "Distance to the furthest node",
+                technicalName: "eccentricity",
+                polarity: "lower",
+            }),
             field({
                 name: "diameter",
                 plainName: "Widest distance",
@@ -836,6 +862,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Breadth-first search",
         description: "Walks outwards from one node a level at a time, recording how many steps away each node is.",
         category: "path",
+        keywords: ["hops", "steps", "reachable"],
         shape: "layered-grouping",
         fields: [
             field({
@@ -845,6 +872,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "node",
                 type: "integer",
                 measurement: "categorical",
+                missing: "unreached",
             }),
             field({
                 name: "levelSize",
@@ -1020,6 +1048,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
         category: "structure",
+        keywords: ["core", "dense center"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
         options: optionsOf(KCoreAlgorithm),
@@ -1036,7 +1065,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "structure",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "How tightly knit", technicalName: "local clustering coefficient" }),
+            ...metricFields("node", {
+                plainName: "How tightly knit",
+                technicalName: "local clustering coefficient",
+                domain: { min: 0, max: 1 },
+            }),
             field({
                 name: "triangles",
                 plainName: "Triangles",

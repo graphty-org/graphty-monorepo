@@ -55,9 +55,11 @@ incident with a named cause (#5052).
 ### Every dashboard member owned
 
 Run `node tools/health-owner-sweep.mjs`: every health dashboard member that is not ok, and every row of the
-chronic, flaky-quarantine and owner tables, with its issue or pull request, whether that owner is live (open, and a
-pull request, touched in 24 hours, or with an open pull request), and how long the member has been not ok. Exit 1
-names each one with no live owner.
+chronic, flaky-quarantine and owner tables, with its issue or pull request, whether that owner is live, and how long
+the member has been not ok. Live means real work: a commit in 24 hours on a branch naming the issue, an open pull
+request that is green or has a commit in 24 hours, or a `taken` marker whose session is alive. A comment is not work:
+an owner with only status comments prints `IDLE ... (owned, idle <N> h)`. Exit 1 names each one with no live owner,
+idle ones included.
 
 - **No live owner:** take it this round -- file the issue (priority by impact) or start the fix within step 12's
   bounds -- or name who owns it with evidence the sweep can see (an issue whose title or body names the member).

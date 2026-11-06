@@ -453,7 +453,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const covers = await inspector().findByRole("group", { name: "Covers" });
         assert.include(within(covers).getByRole("group", { name: "Matched nodes" }).textContent, "12");
 
-        // A group row: its members are the nodes Louvain put in that group.
+        // A group row: its members are the nodes Louvain put in that group, each called by its
+        // label ("Node 0"), not its id ("n0").
         const group = session.runs.get(id)?.result?.summary().groups?.[0];
         if (group === undefined) {
             throw new Error("Louvain found no groups");
@@ -470,8 +471,15 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const louvain = session.runs.get(id);
         const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
         assert.isNotNull(field);
+        const inGroup = new Set(
+            session.data
+                .nodes()
+                .filter((node) => louvain?.result?.node(node.id)?.[field ?? ""] === group.group)
+                .map((node) => session.data.name(node.id)),
+        );
         for (const name of names) {
-            assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
+            assert.match(name ?? "", /^Node \d+$/);
+            assert.isTrue(inGroup.has(name ?? ""), `${name ?? ""} is in the group`);
         }
         assert.deepEqual(controlNames(), [...new Set(controlNames())]);
 

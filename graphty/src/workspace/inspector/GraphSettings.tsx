@@ -19,6 +19,7 @@ import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/ses
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
@@ -199,9 +200,11 @@ export function GraphSettings(): React.JSX.Element | null {
                                     />
                                 </FieldRow>
                             </PanelLabelsProvider>
-                            <Text size="xs" c="dimmed">
-                                Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
-                            </Text>
+                            {!selectionWorkspaceOn(session) && (
+                                <Text size="xs" c="dimmed">
+                                    Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
+                                </Text>
+                            )}
                         </div>
                     )}
                 </Stack>

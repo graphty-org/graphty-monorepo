@@ -124,6 +124,10 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "sourceArrowParts",
+        "targetArrowParts",
+        "sourceArrowSide",
+        "targetArrowSide",
         "sourceArrowColor",
         "targetArrowColor",
         "arrowSize",
@@ -448,21 +452,30 @@ function stripTags(text: string): string {
 /**
  * Reads the font runs of an HTML-like label (`<B>`, `<I>`, `<FONT COLOR FACE POINT-SIZE>`) as Graphviz draws them:
  * one run in a font of its own sets the label's own font (color, size, family, weight, slant), several are
- * `labelRuns`. Underline, overline, strike-through, `<SUB>` and `<SUP>` have no neutral slot and draw plain.
+ * `labelRuns`, a `<SUB>` or `<SUP>` run lowered or raised (`shift`). Underline, overline and strike-through have no
+ * neutral slot and draw plain.
  * @param raw - the label as the file gives it
  * @param html - the file's HTML strings
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size (`fontsize`)
  * @param put - receives the values
  * @param at - the sites
  */
-function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | null, put: Put, at: At): void {
+function readHtmlRuns(
+    raw: string,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    size: number,
+    put: Put,
+    at: At,
+): void {
     if (!isHtmlString(raw) && !html.has(`<${raw}>`)) {
         return;
     }
     const markup = isHtmlString(raw) ? raw : `<${raw}>`;
     const runs: Record<string, StyleValue>[] = [];
     for (const span of htmlLabelSpans(markup)) {
-        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, at("labelRuns")) };
+        const run = { text: span.text, ...htmlRunFont(span.tags, scheme, size, at("labelRuns")) };
         const last = runs.at(-1);
         if (last !== undefined && JSON.stringify({ ...last, text: "" }) === JSON.stringify({ ...run, text: "" })) {
             last.text = `${String(last.text)}${run.text}`;
@@ -475,7 +488,8 @@ function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | n
         return;
     }
     if (runs.length === 1) {
-        const { text: _text, ...font } = runs[0];
+        // a label raised or lowered whole is drawn where the label is
+        const { text: _text, shift: _shift, ...font } = runs[0];
         for (const [property, value] of Object.entries(font)) {
             put(RUN_PROPERTY[property], value);
         }
@@ -512,18 +526,27 @@ const RUN_PROPERTY: Readonly<Record<string, string>> = {
 };
 
 /**
- * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, and the innermost `FONT`'s face,
- * point size and color.
+ * The font of a run inside HTML font tags, as `labelRuns` fields: bold, italic, the innermost `FONT`'s face, point
+ * size and color, and how far `<SUB>` lowers it or `<SUP>` raises it.
  * @param tags - the open tags, outermost first
  * @param scheme - the element's color scheme
+ * @param size - the label's own font size
  * @param site - where a bad color is noted
  * @returns the fields that differ from the label's own font
  */
-function htmlRunFont(tags: readonly string[], scheme: string | null, site: CanonSite): Record<string, StyleValue> {
+function htmlRunFont(
+    tags: readonly string[],
+    scheme: string | null,
+    size: number,
+    site: CanonSite,
+): Record<string, StyleValue> {
     const out: Record<string, StyleValue> = {};
+    let shift = 0;
     for (const tag of tags) {
         const name = /^<(\w+)/.exec(tag)?.[1].toLowerCase();
-        if (name === "b") {
+        if (name === "sub" || name === "sup") {
+            shift += name === "sub" ? 1 : -1;
+        } else if (name === "b") {
             out.weight = "bold";
         } else if (name === "i") {
             out.italic = true;
@@ -533,8 +556,30 @@ function htmlRunFont(tags: readonly string[], scheme: string | null, site: Canon
             }
         }
     }
+    if (shift !== 0) {
+        const own = typeof out.size === "number" ? out.size : size;
+        out.shift = Math.round(shift * SUB_SUP_SHIFT * own * 100) / 100;
+    }
     return out;
 }
+
+/**
+ * A `fontsize` as Graphviz reads it, 14 when it is unset or no size.
+ * @param raw - the attribute's value
+ * @returns the size
+ */
+function fontSizeOf(raw: string | null): number {
+    const size = Number(raw ?? Number.NaN);
+    return Number.isFinite(size) && size > 0 ? size : 14;
+}
+
+/**
+ * How far `<SUB>` lowers a run and `<SUP>` raises it, over its font size. Graphviz writes `baseline-shift="sub"` and
+ * `"super"` in its SVG (plugin/core/gvrender_core_svg.c) and leaves the distance to the viewer; Chromium shifts by half
+ * the font's height (ascent plus descent), 0.585 of a DejaVu Sans em, measured.
+ * ponytail: one share for every face; read the face's own height when a serif label is judged off by it
+ */
+const SUB_SUP_SHIFT = 0.585;
 
 /**
  * Reads one attribute of a `FONT` tag into a run's font fields: its face, point size or color.
@@ -811,7 +856,11 @@ function htmlTableFrame(
     const cells = readLabelTable(
         markup,
         tagAttrs,
-        (tags) => htmlRunFont(tags, scheme, site),
+        (tags) => {
+            // ponytail: a table cell's SUB and SUP draw on the line; carry the shift into cells when one is judged
+            const { shift: _shift, ...font } = htmlRunFont(tags, scheme, 0, site);
+            return font;
+        },
         (value) => {
             const c = canonColor(value, "graphviz", site, { scheme, use: "fill" });
             return c === null || c.alpha <= 0 ? null : c.color;
@@ -947,7 +996,7 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
     if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
-        readHtmlRuns(label, cx.html, n.scheme, put, at);
+        readHtmlRuns(label, cx.html, n.scheme, fontSizeOf(get("fontsize")), put, at);
         if (n.table !== null) {
             // a text line set as Graphviz sets it; a cell sized by its picture counts each of its pixels as Graphviz does
             put("labelTable", JSON.stringify({ ...n.table.cells, ...HTML_LINE, imagePixel: IMAGE_POINTS_PER_PIXEL }));
@@ -1989,7 +2038,8 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             put(property, labelText(raw, cx.names, cx.html, false, at(property)));
             if (property === "label") {
                 readLabelAlign(raw, cx.names, cx.html, false, put);
-                readHtmlRuns(raw, cx.html, scheme, put, at);
+                readHtmlRuns(raw, cx.html, scheme, fontSizeOf(get("fontsize")), put, at);
+                readEdgeLabelTable(htmlTableFrame(raw, cx.html, scheme, at("label")), get, put, at);
             }
         }
     }
@@ -1999,6 +2049,37 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
         put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
+}
+
+/**
+ * Reads the box of an edge label that is an HTML-like table: its fill (the table's, else a lone cell's), its outline
+ * (in the table's color, else the edge's) and the room between the outline and the words.
+ * ponytail: the box is the table's outside; the rules between and round its cells need `labelTable` on edge labels
+ * @param table - the frame of the table the label is, or null
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeLabelTable(table: HtmlTableFrame | null, get: Attr, put: Put, at: At): void {
+    if (table === null || table.style.includes("invis")) {
+        return;
+    }
+    const { border, cellBorder, cellSpacing, cellPadding, fill, rows } = table.cells;
+    const cell = rows.length === 1 && rows[0].cells.length === 1 ? rows[0].cells[0] : null;
+    put("labelBackground", fill ?? cell?.fill ?? null);
+    put("labelPadding", border + cellSpacing + (cell?.border ?? cellBorder) + (cell?.padding ?? cellPadding));
+    if (border > 0) {
+        readColor(
+            table.color ?? nonEmpty(get("color")) ?? "black",
+            get("colorscheme"),
+            "line",
+            "labelBorderColor",
+            null,
+            put,
+            at,
+        );
+        put("labelBorderWidth", border);
+    }
 }
 
 /**
@@ -2317,6 +2398,12 @@ export function readEdgeArrow(end: "target" | "source", raw: string | null, on: 
     }
 }
 
+/** The shapes of Graphviz's arrow grammar (arrows.c), as a regular expression's alternatives. */
+const GRAPHVIZ_ARROW_SHAPES = "normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve";
+
+/** The first shape of an arrow name, with its modifiers. */
+const GRAPHVIZ_ARROW_SHAPE = new RegExp(`^([olr]{0,3})(${GRAPHVIZ_ARROW_SHAPES})`);
+
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
 
@@ -2385,7 +2472,7 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
     const shapes: GraphvizArrowShape[] = [];
     // arrows.c reads at most NUMB_OF_ARROWHEADS (4) shapes, a `none` among them, and ignores the rest
     for (let slot = 0; rest.length > 0 && slot < 4; slot++) {
-        const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
+        const m = GRAPHVIZ_ARROW_SHAPE.exec(rest);
         if (m === null) {
             return shapes.length === 0 ? null : shapes;
         }
@@ -2606,6 +2693,27 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 }
 
 /**
+ * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, whose label `selfRight` hangs
+ * outside it, the box's left side on the loop's far point, level with the node.
+ * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+ * @param stored - the bends of its stored route, or null
+ * @param loop - the bends of the loop Graphviz lays, or null for an edge that is no such loop
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ */
+function readEdgeRoute(stored: string | null, loop: () => string | null, get: Attr, put: Put): void {
+    const laid = stored === null ? loop() : null;
+    const bends = stored ?? laid;
+    if (bends !== null) {
+        put("bends", bends);
+    }
+    if (laid !== null && get(LABEL_ATTRIBUTE) !== null) {
+        put("labelPosition", "center");
+        put("labelShiftX", 0.5);
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2673,13 +2781,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         if (noEdges) {
             edge.put(e, "visible", false);
         }
-        const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE)) ?? loops.bendsOf(e, get);
-        if (bends !== null) {
-            edge.put(e, "bends", bends);
-        }
-        readLabelPlaces(snapshot, places, e, get, (p, v) => {
+        const put: Put = (p, v) => {
             edge.put(e, p, v);
-        });
+        };
+        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
+        readLabelPlaces(snapshot, places, e, get, put);
     }
     const graph = graphBackground(snapshot, notes);
     readGraphRotation(snapshot, graph);
@@ -2780,6 +2886,26 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:open-square", "obox"],
     ["other:open-inverted", "oinv"],
 ]);
+
+/**
+ * The Graphviz arrows a name is made of: every neutral arrow that has one. A shape outside this table would make the
+ * whole name one Graphviz does not know. The element draws `icurve` as its open half circle.
+ */
+const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
+    ...ARROWS,
+    ["other:curve", "curve"],
+    ["other:inv-curve", "icurve"],
+    ["other:open-half-circle", "icurve"],
+]);
+
+/** The most shapes a Graphviz arrow name holds (arrows.c's NUMB_OF_ARROWHEADS). */
+const MAX_ARROW_NAME_SHAPES = 4;
+
+/**
+ * An `other:` arrow whose name Graphviz reads: its shapes and modifiers in any order, the deprecated `e`, `half`, `empty`
+ * and `open` included (`ebox`, `halfbox`, `emptydot`). No word here is made of others, so a long name cannot backtrack.
+ */
+const GRAPHVIZ_OTHER_ARROW_NAME = new RegExp(`^other:((?:o|l|r|e|half|empty|open|${GRAPHVIZ_ARROW_SHAPES})+)$`);
 
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
 const STROKES: ReadonlyMap<string, string> = new Map([
@@ -3234,7 +3360,9 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const target = get("targetArrow");
     const tail = typeof source === "string" && source !== "none";
     const head = typeof target === "string" && target !== "none";
-    const plain = directed ? head && !tail && target === "triangle" && get("targetArrowSide") === null : !head && !tail;
+    const plain = directed
+        ? head && !tail && target === "triangle" && get("targetArrowParts") === null && get("targetArrowSide") === null
+        : !head && !tail;
     if (plain || (source === null && target === null)) {
         return;
     }
@@ -3247,23 +3375,71 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
         dir = "back";
     }
     out.set("dir", dir);
-    // a one-sided arrow is its shape with an `l` or `r` before it; the neutral half arrow, one barb, is nearest to the
-    // left half of Graphviz's triangle, which reads back as that
-    const arrow = (value: string, side: StyleValue | null, property: string): string => {
+    // the neutral half arrow, one barb, is nearest to the left half of Graphviz's triangle, which reads back as that
+    const arrow = (value: string, property: string): string => {
+        const parts = get(`${property}Parts`);
+        const side = sideSuffix(get(`${property}Side`));
+        if (typeof parts === "string") {
+            return arrowName(`${value}${side} ${parts}`, property, approximate);
+        }
         if (value === "half") {
             approximate(property, value);
             approximate(`${property}Side`, value);
             return "lnormal";
         }
-        const name = spelled(ARROWS, value, "normal", property, approximate);
-        return side === "left" || side === "right" ? `${side[0]}${name}` : name;
+        // an `other:` name Graphviz reads, though no neutral arrow has it, is written as it is, with no side
+        const kept = ARROW_NAME_SHAPES.has(value) ? undefined : GRAPHVIZ_OTHER_ARROW_NAME.exec(value)?.[1];
+        if (kept === undefined) {
+            return arrowName(`${value}${side}`, property, approximate);
+        }
+        if (side !== "") {
+            approximate(`${property}Side`, value);
+        }
+        return kept;
     };
     if (head) {
-        out.set("arrowhead", arrow(target, get("targetArrowSide"), "targetArrow"));
+        out.set("arrowhead", arrow(target, "targetArrow"));
     }
     if (tail) {
-        out.set("arrowtail", arrow(source, get("sourceArrowSide"), "sourceArrow"));
+        out.set("arrowtail", arrow(source, "sourceArrow"));
     }
+}
+
+/**
+ * A side as an arrow word writes it after its shape.
+ * @param side - the side, or null for the whole shape
+ * @returns the suffix
+ */
+function sideSuffix(side: StyleValue | null): string {
+    return side === "left" || side === "right" ? `:${side}` : "";
+}
+
+/**
+ * The Graphviz name of an arrow of one shape or several, nearest the node first, each with an `l` or `r` before it for
+ * the side it keeps: the inverse of graphvizArrows(). A shape Graphviz has no name for and any past the fourth are left
+ * out, so the name stays one Graphviz reads, and a name with no shape left is its plain arrow.
+ * @param shapes - the shapes as `targetArrowParts` writes them, separated by spaces
+ * @param property - the property, for the approximation note
+ * @param approximate - records approximations
+ * @returns the name
+ */
+function arrowName(shapes: string, property: string, approximate: Approximate): string {
+    const names = shapes
+        .trim()
+        .split(/\s+/)
+        .flatMap((word) => {
+            const side = /:(left|right)$/.exec(word)?.[1];
+            const name = ARROW_NAME_SHAPES.get(word.replace(/:(left|right)$/, ""));
+            if (name === undefined) {
+                approximate(property, word);
+                return [];
+            }
+            return [side === undefined ? name : name.replace(/^o?/, `$&${side[0]}`)];
+        });
+    for (const dropped of names.slice(MAX_ARROW_NAME_SHAPES)) {
+        approximate(property, dropped);
+    }
+    return names.slice(0, MAX_ARROW_NAME_SHAPES).join("") || "normal";
 }
 
 /**

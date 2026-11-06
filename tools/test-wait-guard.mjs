@@ -18,9 +18,16 @@
  * A wait's guard is below the test's so a hung wait reports its last failure instead of a bare
  * "test timed out".
  *
- * These guards run where the test runs, so a browser page that is blocked or never finishes a file's imports does not
- * fire them, and they start with the test, so they can outlast a CI job. CI's test job stops such a run itself and
- * names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
+ * Those two guards are timers in the test's own thread, so they cannot end everything. A page that
+ * is blocked (a synchronous read from a software GPU, a loop), or a file whose imports never settle,
+ * never runs them; and a file of tests that each stay under TEST_GUARD_MS never reaches them, however
+ * long the file takes (#5816: a file of tests of ten minutes each ran on past an hour). So vitest's
+ * own process, which neither can block, holds a third guard: FILE_GUARD_MS on one test file
+ * (tools/vitest-file-guard.mjs). It sits above TEST_GUARD_MS so a test that hangs in a page that
+ * still runs is ended by the test guard, with its stack.
+ *
+ * Each file can stay under FILE_GUARD_MS while a job of several files outlasts the CI job, so CI's test job also
+ * stops the whole run itself and names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
  *
  * Measurements are not tests and carry no guard: an inline project whose name starts with
  * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
@@ -30,13 +37,22 @@
  * (vitest.wait-guard-setup.ts) gives `vi.waitFor` and `vi.waitUntil` the wait guard. Testing
  * Library keeps its default per copy of the library, so each setup file or Storybook preview that
  * loads one calls `configure({ asyncUtilTimeout: WAIT_GUARD_MS })`.
+ *
+ * A real `userEvent` action is a wait too: Playwright retries until the target can take it. With no
+ * `actionTimeout`, vitest gives the action what is left of the test's time, so a click on something
+ * that never shows (a hidden radio, issue #5845) ran the full test guard and ended as a bare "Test
+ * timed out". `withTestGuards` gives every Playwright provider the wait guard, so the action fails
+ * first and says what it was waiting for.
  */
 
-/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element) may run. */
+/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element, a real action) may run. */
 export const WAIT_GUARD_MS = 900_000;
 
 /** How long one test, hook or teardown may run. */
 export const TEST_GUARD_MS = 1_500_000;
+
+/** How long one test file may run, from the moment it is handed to its page or worker. */
+export const FILE_GUARD_MS = TEST_GUARD_MS + 60_000;
 
 /**
  * The guard setup file as an absolute path, so a config at any depth (a package, tools/pipeline-health,
@@ -47,6 +63,20 @@ export const TEST_GUARD_MS = 1_500_000;
  */
 function guardSetup() {
     return decodeURIComponent(new URL("../vitest.wait-guard-setup.ts", import.meta.url).pathname);
+}
+
+/**
+ * Gives every Playwright provider of a `browser` block the wait guard as its action deadline: the
+ * block's own and any an instance carries, which wins over it. In place, because the provider reads
+ * the object `playwright()` was handed, and a copy of it would change nothing.
+ * @param browser - the `browser` block of a `test` block
+ */
+function guardActions(browser) {
+    for (const provider of [browser.provider, ...(browser.instances ?? []).map((i) => i.provider)]) {
+        if (provider?.name === "playwright") {
+            provider.options.actionTimeout = WAIT_GUARD_MS;
+        }
+    }
 }
 
 /**
@@ -61,6 +91,9 @@ function guardTest(test) {
     }
     const guard = guardSetup();
     const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== guard);
+    if (test.browser) {
+        guardActions(test.browser);
+    }
     return {
         ...test,
         testTimeout: TEST_GUARD_MS,

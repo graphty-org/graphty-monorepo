@@ -13,11 +13,14 @@ import type {
     HistoryCode,
     NodeId,
     RuleTree,
+    UnionLeaf,
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
+import { selectionWords } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { type Card, cardFields, cardOf, leafOf, type Side } from "../style/cards";
+import { timelineOn } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { sourceName } from "./words";
 
@@ -32,7 +35,9 @@ function namerOf(session: GraphSession): Namer {
         attribute: (path) =>
             path === "id"
                 ? "Node id"
-                : (attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, "")),
+                : (attributes.find((a) => a.path === path)?.plainName ??
+                  session.data.structureValues().find((value) => value.path === path)?.plainName ??
+                  path.replace(/^data\./, "")),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),
@@ -50,7 +55,8 @@ function namerOf(session: GraphSession): Namer {
  * @returns the words.
  */
 export function conditionWords(session: GraphSession, rule: RuleTree): string {
-    return ruleWords(rule, namerOf(session));
+    // A selection is said as its rows say it, so the card's name, remove and undo never differ.
+    return rule.kind === "union" ? selectionWords(session, rule) : ruleWords(rule, namerOf(session));
 }
 
 /** The Filters row, and the inspected id, of the time window. */
@@ -74,7 +80,21 @@ export const PLUS = "+";
  * @param target - `<node|edge>:<path>`, or `PLUS`.
  */
 export function openFilterDraft(store: WorkspaceStore, target: string): void {
+    draftOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     store.set({ page: "panels", place: "data", filterDraft: target });
+}
+
+/** What held focus when `openFilterDraft` was asked: the card opens a render later, on the Data place. */
+let draftOpener: HTMLElement | null = null;
+
+/**
+ * Takes what held focus when the last new card was asked for (once).
+ * @returns that element, or null.
+ */
+export function takeDraftOpener(): HTMLElement | null {
+    const from = draftOpener;
+    draftOpener = null;
+    return from;
 }
 
 /**
@@ -166,12 +186,24 @@ export function shapeOf(session: GraphSession, condition: Pick<FilterCondition, 
 }
 
 /**
+ * A card's leaf as a filter writes it. A Data source leaf speaks of nodes only (`side: "nodes"`):
+ * keeping a load keeps the nodes it supplied and every edge between them, whichever load supplied
+ * the edge, so a load of nodes and a load of edges between them can be narrowed by either.
+ * @param card - the card.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function filterLeaf(card: Card): RuleTree | null {
+    const leaf = leafOf(card);
+    return leaf?.kind === "source" ? { ...leaf, side: "nodes" } : leaf;
+}
+
+/**
  * The rule a card's field cards make: their leaves ANDed, or null while none has a value.
  * @param cards - the cards.
  * @returns the rule.
  */
 export function ruleOfCards(cards: readonly Card[]): RuleTree | null {
-    const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+    const leaves = cards.flatMap((card) => filterLeaf(card) ?? []);
     if (leaves.length === 0 || leaves.length < cards.length) {
         return null;
     }
@@ -262,5 +294,19 @@ export async function selectRule(session: Pick<GraphSession, "selection">, rule:
  * @returns true when a time window can be offered.
  */
 export function offersTime(session: GraphSession): boolean {
-    return session.time.field !== null || session.time.candidates().length > 0;
+    return timelineOn(session) && (session.time.field !== null || session.time.candidates().length > 0);
+}
+
+/**
+ * The change that writes a card's selection: its rule, and for a tier 4 card the conversion to
+ * what stays (effect keep, no picture scope; a Select card turned off).
+ * @param rule - the selection.
+ * @param effect - the card's effect as the element holds it.
+ * @returns the change.
+ */
+export function keepChange(rule: UnionLeaf, effect: FilterCondition["effect"]): Partial<Omit<FilterCondition, "id">> {
+    if (effect === "keep") {
+        return { rule };
+    }
+    return { rule, effect: "keep", within: undefined, ...(effect === "select" ? { on: false } : {}) };
 }

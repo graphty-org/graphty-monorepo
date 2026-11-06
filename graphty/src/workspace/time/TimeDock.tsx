@@ -19,8 +19,8 @@ import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { announceWindow, reportTimeError, stepWindow, togglePlay, unitOf } from "./timeActions";
-import { countWords, finerThanDay, instantWords, intervalOf, rangeWords, SPEEDS, windowWords } from "./timeWords";
+import { announceWindow, playAt, reportTimeError, stepWindow, togglePlay, unitOf } from "./timeActions";
+import { countWords, finerThanDay, instantWords, rangeWords, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 
 /** The narrowest a bar is drawn: the element is asked for at most one bin per this many pixels. */
@@ -279,7 +279,7 @@ export function TimeDock(): React.JSX.Element | null {
         });
     }, [session, store]);
 
-    const extent = session?.time.field ? session.time.extent() : null;
+    const extent = session === null ? null : session.time.extent();
     if (session === null || extent === null || !open) {
         return null;
     }
@@ -373,7 +373,7 @@ export function TimeDock(): React.JSX.Element | null {
                             // A play in progress goes on at the new speed.
                             if (time.playing) {
                                 time.pause();
-                                time.play({ interval: intervalOf(nextSpeed) });
+                                playAt(session, nextSpeed);
                             }
                         }}
                     >

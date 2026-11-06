@@ -1617,7 +1617,7 @@ export class LayoutManager implements Manager {
             this.ownArrangement = true;
             // Run layout pre-steps -- unless there is nothing to step yet, in which case they
             // are owed to the first frame that has something. See `preStepsOwed`.
-            if (nodeArray.length === 0) {
+            if (nodeArray.length === 0 || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
@@ -2269,6 +2269,20 @@ export class LayoutManager implements Manager {
      * caller inside a render loop can wait for a device; what {@link LayoutManager.spendPreSteps}
      * guarantees for one is that every owed iteration is computed rather than coalesced away.
      */
+    /**
+     * Whether a layout that keeps nodes apart by their drawn size (`nodeGap`) would spend its pre-steps before
+     * every size has been drawn. A style pass arrives, and the object rows build their meshes over several
+     * frames, on the clock; pre-steps spent then took whichever sizes had arrived, so the same seed drew a
+     * different graph built before the nodes were drawn than after, and on the object rows than on the batch.
+     * The pre-steps are owed instead, and paid on the first frame with every size.
+     * @param engine - The engine about to spend them.
+     * @returns True while a size is still to come.
+     */
+    private sizesToCome(engine: LayoutEngine): boolean {
+        const painter = this.graphContext?.getStylePainter?.();
+        return engine.spacesBySize && (painter?.isPainting === true || painter?.hasPendingNodes === true);
+    }
+
     private runPreStepsOnceThereIsSomethingToStep(): void {
         const engine = this.layoutEngine;
         if (!this.preStepsOwed || !engine) {
@@ -2278,7 +2292,7 @@ export class LayoutManager implements Manager {
         // The DataManager adds every node to the engine as it creates it, so this is the same
         // question as "does the engine have anything to move" without walking an iterable on
         // every frame of an empty graph.
-        if (this.dataManager.nodes.size === 0) {
+        if (this.dataManager.nodes.size === 0 || this.sizesToCome(engine)) {
             return;
         }
 
@@ -2680,8 +2694,8 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
-        if (this.preStepsInFlight) {
-            // The payment just started has its first chunk on the device.
+        if (this.preStepsInFlight || (this.preStepsOwed && this.dataManager.nodes.size > 0)) {
+            // The payment just started has its first chunk on the device, or it waits for sizes.
             return;
         }
         this.syncFollowers();

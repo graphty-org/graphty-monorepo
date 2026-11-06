@@ -3,6 +3,7 @@ import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-el
 import { Button, Collapse, Group, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -512,7 +513,18 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
                 })}
             </section>
             {behind ? (
-                <Button className="ws-assistant-jump" variant="default" size="compact-xs" onClick={toFoot}>
+                <Button
+                    className="ws-assistant-jump"
+                    variant="default"
+                    size="compact-xs"
+                    onClick={() => {
+                        toFoot();
+                        // The pill goes at the foot.
+                        goToComposer(store);
+                    }}
+                >
+        // Send again goes with its failure row.
+        goToComposer(store);
                     {WORDS["assistant.jump"]}
                 </Button>
             ) : null}

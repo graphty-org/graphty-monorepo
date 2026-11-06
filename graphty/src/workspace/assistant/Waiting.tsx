@@ -2,6 +2,7 @@ import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-elem
 import { Button, Checkbox, Group, Radio, Stack, Text } from "@mantine/core";
 import React, { useState } from "react";
 
+import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ChipRow } from "./Checks";
@@ -11,7 +12,7 @@ import { approvalWords, WORDS } from "./words";
 
 /**
  * One approval: worded from its gate and preview, with verb buttons. Its chips peek at what it would
- * touch. Change this declines and goes to the composer.
+ * touch. Each button declines or approves and hands focus to the composer, as the card goes with it.
  * @param props - Component props
  * @param props.request - the request
  * @param props.choice - the provider and model
@@ -31,6 +32,7 @@ function ApprovalCard({
             void decide(element, store, choice, request.id, approve);
         }
     };
+        goToComposer(store);
     return (
         <Stack gap={4}>
             <Group justify="space-between" gap={4} wrap="nowrap">
@@ -60,7 +62,6 @@ function ApprovalCard({
                     size="compact-xs"
                     onClick={() => {
                         answer(false);
-                        store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
                     }}
                 >
                     {WORDS["assistant.waiting.change"]}
@@ -137,6 +138,8 @@ function QuestionCard({
                     }}
                 >
                     {WORDS["assistant.waiting.answer"]}
+                            // The card goes with its button.
+                            goToComposer(store);
                 </Button>
             </Group>
         </Stack>

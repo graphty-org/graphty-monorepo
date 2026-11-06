@@ -30,6 +30,7 @@
 // input carries neither.
 
 import { mulberry32 } from "@graphty/algorithms";
+import type { NodeMask } from "@graphty/graph-format";
 
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
@@ -46,7 +47,7 @@ import {
     requireFunction,
 } from "./definition";
 import { checkViewOptions, expandOptions } from "./options";
-import { viewSourceOf } from "./source";
+import { type ViewSource, viewSourceOf } from "./source";
 import type { GraphView, LayoutContext, LayoutDefinition, NodeId, OptionsShorthand, Point } from "./types";
 import { createGraphView, quoteId, viewWarnings } from "./view";
 
@@ -421,7 +422,14 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             }
 
             const twoD = graph.getStyles().config.graph.viewMode === "2d";
-            const view = createGraphView(viewSourceOf(session), { id, directed: false, source: "layout" });
+            const source = viewSourceOf(session);
+            // A node the layout leaves out (see `LayoutEngine.setLeftOut`) is not in the view `place` reads.
+            const kept = this.keptRows(source.snapshot.nodeCount);
+            const view = createGraphView(kept === null ? source : keptSource(source, kept), {
+                id,
+                directed: false,
+                source: "layout",
+            });
             checkViewOptions(view, id, plan.options, this.#values, "layout");
 
             const byId = new Map<NodeId, Node>(this._nodes.map((node) => [node.id, node]));
@@ -482,6 +490,26 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 
             return twoD ? [at.x, at.y] : [at.x, at.y, at.z];
         }
+    };
+}
+
+/**
+ * A view source over only the kept rows of another: their induced subgraph, each value read
+ * from the row it came from.
+ * @param source - The source over every row.
+ * @param kept - The rows to keep.
+ * @returns The source over the kept rows.
+ */
+function keptSource(source: ViewSource, kept: NodeMask): ViewSource {
+    const derived = source.snapshot.inducedSubgraph({ mask: kept });
+    const { nodeOrigin, edgeOrigin } = derived;
+    return {
+        snapshot: derived.snapshot,
+        nodeValue: (row, path) => source.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
+        edgeValue: (row, path) => source.edgeValue(edgeOrigin === null ? row : edgeOrigin[row], path),
+        ...(source.attributeNames === undefined
+            ? {}
+            : { attributeNames: (target) => source.attributeNames?.(target) ?? [] }),
     };
 }
 

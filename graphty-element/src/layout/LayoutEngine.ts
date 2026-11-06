@@ -288,6 +288,8 @@ export const layoutEngineInternals = {} as {
         rows: ReadonlySet<number> | null,
         members?: ReadonlyMap<number, readonly number[]>,
     ): void;
+    /** See `LayoutEngine.setLeftOut`. */
+    setLeftOut(engine: LayoutEngine, mask: NodeMask | null, rows: number): void;
 };
 
 /**
@@ -379,6 +381,9 @@ export abstract class LayoutEngine {
         layoutEngineInternals.setFollowers = (engine, rows, members) => {
             engine.setFollowers(rows, members);
         };
+        layoutEngineInternals.setLeftOut = (engine, mask, rows) => {
+            engine.setLeftOut(mask, rows);
+        };
     }
 
     static type: string;
@@ -456,6 +461,12 @@ export abstract class LayoutEngine {
 
     /** The rows the element places itself (group nodes following their members), or null. */
     private followers: ReadonlySet<number> | null = null;
+
+    /** The rows the layout leaves out (hidden by the filter under `layout.visibleOnly`), or null. */
+    private leftOut: NodeMask | null = null;
+
+    /** How many rows {@link leftOut} covers; a row past it is not left out. */
+    private leftOutRows = 0;
 
     /** Each follower row's member rows. See {@link LayoutEngine.followerGroups}. */
     private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
@@ -751,6 +762,52 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Hand the engine the rows it leaves out: nodes the visibility filter hides while
+     * `behavior.layout.visibleOnly` is on. A left-out row takes no part, as a follower takes none
+     * (see {@link LayoutEngine.isFollower}): held where it is, it exerts no force, its edges pull
+     * nothing, and a one-pass layout gives it no slot. Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * these rows up too.
+     * @param mask - One bit per row to leave out, or null for none.
+     * @param rows - How many rows the mask covers.
+     */
+    protected setLeftOut(mask: NodeMask | null, rows: number): void {
+        this.leftOut = mask;
+        this.leftOutRows = mask === null ? 0 : rows;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Whether the layout leaves this row out: see {@link LayoutEngine.setLeftOut}.
+     * @param index - The node's row.
+     * @returns True for a left-out row.
+     */
+    protected isLeftOut(index: number): boolean {
+        const mask = this.leftOut;
+        return (
+            mask !== null && Number.isInteger(index) && index >= 0 && index < this.leftOutRows && maskTest(mask, index)
+        );
+    }
+
+    /**
+     * The rows the layout lays out, when it leaves any out: see {@link LayoutEngine.setLeftOut}.
+     * @param rows - How many rows the graph has.
+     * @returns A mask of the rows kept, or null when none is left out.
+     */
+    protected keptRows(rows: number): NodeMask | null {
+        if (this.leftOut === null) {
+            return null;
+        }
+
+        const kept = makeMask(rows);
+        for (let row = 0; row < rows; row++) {
+            maskSet(kept, row, !this.isLeftOut(row));
+        }
+
+        return kept;
+    }
+
+    /**
      * Reads a `clusterBy` path through the session; set by `LayoutManager` before `init()`.
      * @internal
      */
@@ -772,7 +829,7 @@ export abstract class LayoutEngine {
      * @returns True for a follower row.
      */
     protected isFollower(index: number): boolean {
-        return this.followers?.has(index) === true;
+        return this.followers?.has(index) === true || this.isLeftOut(index);
     }
 
     /**
@@ -790,7 +847,7 @@ export abstract class LayoutEngine {
      * @returns True when {@link LayoutEngine.isHeld} can answer true.
      */
     protected get holdsAny(): boolean {
-        return this.hold !== null || this.followers !== null;
+        return this.hold !== null || this.followers !== null || this.leftOut !== null;
     }
 
     /**

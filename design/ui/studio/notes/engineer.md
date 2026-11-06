@@ -8,6 +8,7 @@ Words: "the app" is the graphty app; "the element" is graphty-element; "the stud
 `.worktrees/feat-tanstack-ai` (branch `feat/tanstack-ai`). "Frozen build" is a copy of
 `graphty/dist` under `.study-builds/`, named on the first line of `tier6/criteria.md`.
 
+Summarized 2026-11-06 at the round 2 close (44 KB): the round 2 critique, round 1 insights, dry run 1 and 2 fixes and the pre-tier-6 tried list: `git show 564d726ce3:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 after round 2 (26 KB): tier 6 study tool fixes, round 1 audit detail and old Top of mind 1 to 3: `git show bf3ca180c3:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 at the tier 6 round 1 close, dry run 1 fixes and older Top of mind items: `git show 22d9aa4f3a:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (27 KB), tier 4 round 1 close, the shard-death note, test traps, the ScriptedAssistant probe and older decision pointers: `git show 899ecf2f6a:design/ui/studio/notes/engineer.md`.
@@ -19,138 +20,54 @@ Older: 2026-10-17 dry-run fixes `git show 54c009f84:design/ui/studio/notes/engin
 
 ## Top of mind
 
-0. (2026-11-06) Round 2 fixes are done; 11 were rejected and reverted (see "Tier 6 round 2 fixes").
-   Every rejection was something the walk saw and no unit test did: walk each fix's acceptance route,
-   read the HEAD file, zoom focus rings and dialog edges, and read generated phrases as words.
-1. (2026-11-05) Before accepting "that was the model", read what the tool told the model. The repaint
-   is the tool's default (`style ?? true`) with no effect and no word in its result.
-2. (2026-11-05) A fix must reach the surface the reader met: no reader hovered, so a tooltip fix
-   alone would not have reached Ruth; the label did the harm.
-3. (2026-11-05) In an audit, read the cause in the code before naming it, and cite the screenshot of
-   the step itself. The skeptics caught me on two: the starters' cause (`justify` was already set) and
-   07.png cited for what 08.png shows. The 400% owner was also misnamed: `frame.css`, not the modal.
-4. (2026-11-05) A severity 3 needs a reader who acts on a wrong belief that does not correct itself.
-   Done and Talk both came down to 2 on that test. Count sightings honestly: a second walk that
-   shows half a defect is not a second sighting.
-5. (2026-11-05) Trace a symptom to the turn's real calls before fixing the layer that shows it
-   (chip-row: the app fix was rejected, bfeb7ef81c in the element held). The route log settles who
-   made a state: when the x first appears tells whose selection it is.
-6. (2026-11-05) Walk the exact route a fix's acceptance names, with its state carried in, and read
-   acceptance from the walked result, not the tests. export-scope passed every test and gave a
-   one-row file.
-7. (2026-11-05) `--replay` matches pre-model steps and diverges at the first model reply: use it for
-   setup and keyboard stretches, then `--step` by hand and judge the screenshots. A "match" can hit a
-   same-named control. route.jsonl line N+1 is replay step N.
-8. (2026-11-05) During a run, poll `--read` for "Stop Esc" gone before the next message (allow 75 s
-   under a selection); a fixed `--wait` garbles the composer. Long steps: nohup into a log and
-   `tmp/agent-wait.sh` on a grep of it. `tail -f`, sleep loops and Monitor loops are refused, and the
-   hook refuses a Bash heredoc that merely holds those words: use Write.
-9. (2026-11-05) Trust a dist only by grepping the bundle for a string literal from the commit. Copy
-   the dist into the walk's tmp folder: a neighbor's rebuild 404s lazy chunks. A tier 6 walk outside
-   tier6/ needs REAL_TIER=6 as well as REAL_DIST; real.mjs takes its own browser slot.
-10. (2026-11-05) Shared worktree: check `git status` and `git diff` first, commit a tested fix before
-    the long walk, commit by path. See "Committing beside a sibling" below. commitlint: lowercase
-    subject, body lines of 100 characters or fewer, and use -F. The safety check refuses `rm -rf` on a
-    variable path: use a fresh folder or a literal path.
-11. (2026-11-05) A live model's optional arguments vary per run, so a default that makes a reply false
-    belongs in the tool, not in description wording. Force a question by wording ("Select the top five").
-12. (2026-11-05) Element assistant facts: the element reopens a conversation on load, matches typed
-    answers, forgets keys and clears history with no assistant up, moves keys between storages,
-    reports `undone`, and names a call's algorithm (`calledAlgorithm`). Regenerate the saved-format
-    schema with `GRAPHTY_WRITE_FORMAT_SCHEMA=1` on `test/ai/conversation/formats.test.ts`. A raw
-    `style.encode` layer with `by` paints nothing: encode through `styles.encode`, then narrow. Only
-    the newest facts block is sent, so earlier turns' scope lines never reach the model.
-13. (2026-11-05) `main.tsx` is StrictMode: an effect cleanup that clears store state must check the
-    state really left, because the dev double effect runs cleanups on mount.
-14. (2026-10-30) Show a choice before the act. Every participant is the same model: a failure is
-    strong evidence, a pass weak. A tool line is a claim; check the screenshot before fixing.
+1. (2026-11-06) Round 3 runs on build a80da6d62e. Watch first: does a painting run's line ("..., colored
+   by it") reach readers and stop the model denying the repaint; does the placeholder under
+   "Selection N" stop the planted wrong answer; do Settings at 400%, focus after a press, reply end in
+   view and Show in table hold now that the refixes landed.
+2. (2026-11-06) Round 2's one shape: the screen says less than the graph did, or says it where the
+   reader is not looking. Fix by joining an existing line, never by adding rows at rest.
+3. (2026-11-06) One change per problem so a round can credit it; the refused second forms (scope word
+   "Only selection", a Colored row, "Autosave: no changes") are the next step only if the first fails.
+4. (2026-11-06) Rulings settled: a painting run says so on its existing line; a rollback leaves no
+   selection or Redo; closing the panel does not end the scope x (design 5.2).
+5. (2026-11-06) 11 round 2 fixes were rejected on the re-walk, all for what only a walk sees: walk
+   each fix's acceptance route, read the HEAD file, zoom focus rings and dialog edges, read generated
+   phrases as words.
+6. (2026-11-06) The study tool hovers only on command, so "nobody hovered" measures the tool, not the
+   design. Never rest a fix on a tooltip alone, and never count hover data as evidence.
+7. (2026-11-06) Check a claim at its source before building on it: "a different door gives a handle"
+   was false (both Opens are one `pickFiles` command; only Save and Locate get a handle).
+8. (2026-11-05) Before accepting "that was the model", read what the tool told the model.
+9. (2026-11-05) A severity 3 needs a reader who acts on a wrong belief that does not correct itself.
+10. (2026-11-05) Trace a symptom to the turn's real calls before fixing the layer that shows it.
+11. (2026-11-05) Walks: `--replay` for setup only, then `--step` by hand; poll `--read` for "Stop Esc"
+    gone; trust a dist only by grepping the bundle; copy the dist into the walk folder.
+12. (2026-11-05) Shared worktree: `git status` first, commit tested fixes by path before long walks;
+    commitlint lowercase subject, body lines of 100 or fewer, `-F`.
+13. (2026-11-05) A default that makes a model reply false belongs in the tool, not description wording.
+14. (2026-11-05) StrictMode double effects: a cleanup that clears store state must check it really left.
+15. (2026-10-30) Every participant is the same model: a failure is strong evidence, a pass weak.
 
-## Tier 6 round 2 critique (2026-11-05)
+## Tier 6 round 2 close (2026-11-06)
 
-Read in source, not run, on HEAD bf3ca180c3. Screens viewed: r2-s01/18, r2-s02/29, r2-s05/05,
-r2-s07/05, r2-s10/05, repro r2-s06/04.
+Taught: 11 of 12 finished, no false done, Undo 2 of 2, every count held, no confirmed severity 3.
+What is left is the screen saying less than the graph did (repaint with only "Computed", "Ask about
+this graph" under "Selection 14", focus lost after a press, a reply foot below the fold).
 
-Proposed, in order:
+Decided, with reasons (tier6/rounds/round-2/decisions.md):
 
-- Painting run: `runEffects` (`ai/tools/families/algorithms.ts`) adds style effects for the run's
-  layers, `summarizeRun` says it painted; `apply_suggestion` (`families/style.ts`) has the same hole.
-  Why: `RunsApi` line 1398 paints by default and only AI_EFFECT_RUN comes back. Which runs passed
-  `style: false` is inferred: walks record no arguments.
-- Autosave: `status.unexported` already tells a change from none. Branch label and tooltip in
-  `autosave/words.ts`; the tooltip alone reaches nobody.
-- Long reply: Conversation's follow effect has no dependency on the saved messages, so the rows
-  that land after the status settles may not scroll. Hypothesis; prove it on a walk first.
-- Composer placeholder says "this graph" under "Selection N"; scope word becomes "Only selection".
-- Names: `wordsFor` at the three `plainName` uses in `assistant/words.ts`, as style and history do.
-- Status-less AI_PROVIDER_ERROR: say the key may be at fault, offer both buttons. AI_KEY_REJECTED
-  already has its door, so no element work; skip the key words for a provider needing no key.
-- Show in table: follow the `dockColumn` pattern, call DataTable's `scrollToRow`.
-- Small: question label as a nested Text, `<form>` for Enter, strip the trailing period at
-  `historyWords.ts` line 359, composer focus after Undo, Remove and Answer, 400% repro and rule.
+- Keep the run's `style ?? true` default and the catalog `plainName`: changing either is breaking and
+  not needed; the painted fact comes from the element's own decision instead.
+- Refused key: the app cannot tell a 401 from a drop (no CORS header on OpenAI's 401), so the words
+  say the key "may be" at fault, offer the provider, and keep Send again.
+- Autosave: tooltip made true; label branch refused (flips on every Save and Undo).
+- `showOpenFilePicker` on Open refused for now: a new door with a permission prompt on reopen.
+- Opened-step plain words, Group 1 to N, start page wheel: refused, each needs a concept or a design.
 
-Decided: not changing the `style` default, the catalog's `plainName`, Open run, Group names, the
-start page wheel (approved surface), or Recent projects for opened files (`locateFile`'s picker is
-JSON only, and `chooseAndOpenFile` opens every format).
-
-Worked: reading the tool's description and result beside the insight's "model's" verdict; a 2x crop
-of the panel foot showed the cut line and the placeholder together.
-
-## Tier 6 round 1 insights (2026-11-05)
-
-Source: `tier6/rounds/round-1/insights.md`, on frozen build 3b2a7f0649. All 24 sessions were refused,
-so it rests on four expert walks and reading the source. Mechanisms are read, not run, unless stated.
-
-Fix list, with the owner the check settled on (none is a breaking change, none is started):
-
-- 400% Settings: `.ws-dialog-columns` in `graphty/src/workspace/frame/frame.css` leaves
-  `.ws-dialog-page` 0 px under 720 px wide and about 330 px tall, in every section. Write `repro/`.
-- Missing selection line: `results` `top` in `graphty-element/src/ai/tools/families/algorithms.ts`
-  calls `selection.apply` and returns only `foundEffects`. Add a selection effect (additive); the app
-  words it with design 6.6's "Selected {N} nodes".
-- Focus after Undo, Remove, Answer: one rule, composer gets focus. `Waiting.tsx` raises
-  `composerCalls` only for Change this. Settings is out: returning to the opener is correct.
-- Two names for one result (Influence, PageRank, Degree, Connections): the app replaces the name by
-  id. Changing the catalog's `plainName` changes what an API returns, so do not.
-- Done drops a typed key: it is local state and only Save writes it. Severity 2.
-- Talk: `VoiceSession.ts` line 530 emits `ai-voice-start` before `startSpeechInput`, an element
-  ordering defect; `Talk.tsx` lines 89 and 90 announce nothing on end. Severity 2.
-- Question text smallest on its card: `Radio.Group label` takes `cm-field-label`; fix in `Waiting.tsx`,
-  never the locked theme.
-- Starters centered: `justify` at `AssistantPanel.tsx` line 78 is inert, since compact-mantine applies
-  `--button-justify` only to a full-width button. Likely `fullWidth`, not run.
-- Still open from my audit, at 2: second scrollbar around the panel (mechanism unproven), no Declined
-  line after Keep them, the log losing the reader's place (Undo half's mechanism not found).
-
-Do not build until ruled (none is a one-way door): whether the kept "selection surviving Undo" covers a
-rollback, whether `decided.md`'s x entry reaches closing the panel, whether a painting run also gets a
-Colored row. Chip inside a change line stays a question for the sessions. Only a rollback's lit Redo is
-new, and "Redo removes with no card" was never run: run it before claiming it.
-
-Held up: approval card, peek, rail dot and notice, dark theme, axe on every state measured, and every
-count on a chip, card or line. Do not spend fixes there.
-
-## Tier 6 dry run 1 fixes (2026-11-05)
-
-Full reasons per fix: the git pointer at the top of this file. All stand except chip-row's first fix.
-
-- undone-reopen: the mark must not bump updatedAt; always save the copy just listed or loaded.
-- `batch.writes` is false for undo failures and denials too, so it does not mean "a read".
-- run-scope: bound scopes become `{ nodes: ids }`; a message's scope is what was selected when sent.
-- words-stay: `saveInto` is append-only by id; a request must end in tool results.
-- export: listen in `link`, not `useAssistantView`; `link` can run twice, so it needs the WeakSet guard.
-- privacy: words shared with the lazy assistant chunk go in assistant-door/provider.ts, or the main
-  chunk pulls the catalog and "off means no chunk" breaks.
-
-## Tier 6 dry run 2 fixes (2026-11-05)
-
-Per-fix decisions, walk craft and the six unacted sightings moved out 2026-11-06:
-`git show 51923a5411:design/ui/studio/notes/engineer.md`.
-
-Committing beside a sibling editing the same file (still the rule; refined in the round 2 section):
-`GIT_INDEX_FILE=tmp/<task>/index`, `read-tree HEAD` right before committing, put my hunks on the
-`git show HEAD:<file>` text, `hash-object -w` + `update-index --cacheinfo`, commit with the real
-hooks, then `update-index --cacheinfo` the same blobs on the shared index, or a neighbor's commit
-reverts mine. Check `git show --stat` for paths that are not mine.
+Watch in round 3: whether the 400% repro settles bar 9; whether bar 5 moves after units 3 and 7
+(re-run T92 A and T90 for credit); "Changed the graph" rows left after T93 B and T94 A detours (name
+the write behind each); the 193-screen audit for bars 10 and 11; whether the conversation returns
+with a key after a reopen.
 
 ## Tier 6 round 2 fixes (2026-11-06)
 
@@ -287,8 +204,8 @@ Did not work, or traps:
 - `git -C ../..` from design/ui/studio points at design/, so path-limited diffs come back empty.
 - Settings' section list is a PageList: its items are role gridcell, not button. Start-page node
   clicks miss while the drawing turns: pause it or take the node by label.
-Refreshed 2026-11-03 after tier 5 round 1 closed; prior Top of mind (audit mechanisms, tool fixes,
-void-round lesson): `git show 296294ddad:design/ui/studio/notes/engineer.md`.
+  Refreshed 2026-11-03 after tier 5 round 1 closed; prior Top of mind (audit mechanisms, tool fixes,
+  void-round lesson): `git show 296294ddad:design/ui/studio/notes/engineer.md`.
 
 - (2026-11-03) TIER 5 ROUND 1 CLOSED, studio stopped at the 1-round cap with bars 1, 3, 4, 8, 9
   failing (`tier5/rounds/round-1/insights.md`, 30 valid sessions on build 1e123d7d33). Next round
@@ -442,105 +359,6 @@ date)` lost its kind and column arguments: a text or number time field shows its
 
 - (2026-10-17) Any per-frame input needs a "pressed since the last frame" record: polling hid taps.
 - (2026-10-10) A finding that traces to the prompt's own words is fixed in the prompt.
-
-## Tried: worked / did not work (before tier 6)
-
-- 2026-10-30: design-studio screenshots never go into git (`tools/check-committed-images.mjs`);
-  commit only the .md, naming screenshots by path.
-- 2026-10-30: `--expect` text does not read accessible names; use `--expect role=button:<name>`.
-- 2026-10-29: `--replay` "matches" ignore a combobox value and a card body: look at the screenshots.
-- 2026-10-29: a wait loop on `pgrep -f` matches its own command line; wait on a file the job writes.
-- 2026-10-29: `npm run build` in graph-io breaks the element's tests (writes `dist/src`).
-- Entries dated 2026-10-29 to 10-30 in full: `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
-- (2026-11-03) Worked: reusing the void round's walk scripts (`tmp/engineer-audit/walk.sh`,
-  `big.sh`) unchanged for the rerun; the build and the canvas points (1200x900: 620,790; 900x700:
-  480,575) were the same, and every step matched with no miss. Run them one after another from one
-  script (`tmp/engineer-audit-r1/all.sh`) while a round runs: one browser per agent, and the start
-  queues behind the round's sessions anyway. While waiting, arm a background `until` on the next
-  log line and read the finished sessions' screenshots; the hook refuses a waiting loop in the
-  foreground (and any command whose text looks like one).
-- (2026-11-03) Worked: tracing each finding to a line before writing it (a CSS rule, a constant, a
-  field nothing reads) turned three "to trace" owners into exact ones in minutes of grep.
-
-- (2026-11-03) Re-check of the warm-hold fix (90e826175a): it changes only design/ui/studio/tool
-  (real.mjs, README, with-browser.test), no app source and no route, so no walk and no rebuild.
-  Worked: with-browser.test 7 pass (incl. the new "waits in the queue for a slot"), match.test and
-  bar8-9.test 5 pass, `node --check real.mjs`, no leftover flock/sleep/warm processes. Did not
-  work once: the first `node --test with-browser.test.mjs | tail` ran past a 300 s timeout; two
-  reruns (to a file, and through a pipe) finished in 4 s. Mechanism not found; if it recurs, run
-  with `--test-reporter=spec` to a file to see which test it stops in.
-- (2026-11-03) Warm-hold fix, checked on the frozen build: 10 starts at once peaked at 8 studio
-  browsers (count node processes only: `ps -eo comm,args | awk '$1=="node" && /real\.mjs --(serve|warm)/'`;
-  `pgrep -f` also counts the bash gate wrappers and read 20); all 10 GPU, 2 took over warm browsers;
-  a replay of T71B detour-1 matched all 13 steps. Did not work: reusing a gate folder from an
-  earlier run (s10 refused: "already holds a session's screenshots"); use a fresh folder.
-- (2026-11-03) Re-check of the study tool fix (2aa3ff3fad): it changes only design/ui/studio/tool, no app
-  route, so no walk. Worked: with-browser.test (11 pass, incl. BROWSER_SLOT_ALSO), match.test (2),
-  bar8-9.test (3), waits.mjs --self-test, and waits.mjs on round-1/bars/sessions (9 waits over 10 s on
-  the 50k path, longest 33.7 s on Done). Did not work: waits.mjs on rounds/*/pilot reads 0 routes (the
-  pilot folders hold none; routes live under rounds/round-1/bars/sessions). Slip: ran bar8-9.test
-  without with-browser.sh; it starts a browser, so always wrap it as its header says.
-- (2026-11-03) Did not work: a gate test holding only slot1 of a planted "machine" pool: a command
-  not drawn on the GPU defaults to 4 slots and took slot2 at once. Hold 1 to 4. Worked: `exec 7>&9
-9>&-` then `exec` the gate on the second pool keeps both locks and the pid.
-
-- 2026-11-02 did not work: resolving the page's scope before reading the revision in `page()`
-  (as `neighbors` does). The scope resolution cache is itself keyed on the tick, so it served the
-  stale masks too. The defect was below every cache, in the mask that failed to move the tick.
-- 2026-11-02 did not work: a page assertion in the app's `FilterCardKinds` "leaves the history as
-  it was" test passed on the old element too (something else in the app moves the tick on that
-  path), so it proves nothing; the element test is the one that fails. The app test resolves
-  graphty-element through its dist: rebuild `graphty-element:build` to test an element change there.
-- 2026-11-02 worked: before fixing a walk's defect, read the walk's `session.json` `commit` and ask
-  `git merge-base --is-ancestor <fix> <that commit>`. The round 1 pilot's "Nodes 0" for "James" on
-  volunteers.graphml ran on baac78342b, which predates the fix 92a64cffe5 (a graph file's load names
-  `label` as the label column even when the file has none; `query.textTest` now reads every value
-  when no name path is a held column). Nothing had regressed: the test
-  `test/session/page-matching-file-names.test.ts` passes on HEAD and fails with the old line put
-  back, and a fresh walk lists "v02 name James Carter" first for James, Carter and James Carter.
-
-- 2026-11-02 did not work: asserting "the frame before the longest pause between frames shows the
-  box ticked" (or "the last frame with the old count") in the 50,000-node test: in the test the
-  tick's work does not block at once, so frames keep coming through the transition and the test
-  passed without the fix. Worked: assert at the moment the work starts (wrap `scope.watchSteps`)
-  that the control has no running animation -- deterministic however long the block is.
-- 2026-11-02 worked: a cache test that wraps the reading and counts answers it has not given
-  before (object identity), from the app side, needs no hook in the element.
-
-- 2026-11-02 did not work: a CPU profile (CDP `Profiler`) of opening, a tick and Done inside the
-  `real-element` test on 50,000 nodes: the force layout and SwiftShader frames swamp it (React's
-  share under 1 s of 100 s), so it cannot say what blocks the real app. What blocks is not needed
-  to fix the sign: deferring everything an input starts by one painted frame covers it whatever it is.
-- 2026-11-02 worked: timing the first animation frame after an input, armed by a capture
-  `pointerdown`/`keydown` listener, both in a test (`firstFrameAfter` in
-  `LargeGraph.real-element.test.tsx`, asserts what that frame drew, never how long) and in the
-  study tool (`ms.firstFrame`, `ms.input`, `ms.glance` in route.jsonl).
-
-- 2026-11-02 worked: probing a reading at each moment (in the event listener, right after
-  `view.end()`, after `settled()`) in a happy-dom session test found the stale window in one
-  run; a reading only after `settled()` (the earlier fix's test) can never see it.
-- 2026-11-02 did not work: `git diff <path> | git apply -R` to test without a fix in a shared
-  worktree also reverts other agents' uncommitted hunks; build a patch from `git show HEAD:<file>`
-  with only your own edits and `git apply --cached` it to commit just those.
-
-- Entries dated 2026-10-29 and 2026-10-30 (screenshot audit with bars.mjs, names in audit walks,
-  the browser gate check, replay with --keep and --end-on-diverge, background re-walk scripts, the
-  date Autocomplete, the 1,000-node real-element test): `git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
-- 2026-11-02 worked: comparing a keyboard path in two `--sr` sessions, the fixed `graphty/dist`
-  and the frozen build, side by side: the `focus:` lines show a focus-return regression that a
-  pointer walk (no focus ring after a click) cannot.
-- Entries dated 2026-10-21 and earlier (bars.mjs sizes, real.mjs keys and starts, builds while
-  other agents rebuild, Escape and focus traces, live regions, disabled-state proofs), in full:
-  `git show 51d0e57509:design/ui/studio/notes/engineer.md`.
-
-- (2026-11-02) Worked: one helper (`amongDrawn` in StylesApi) serves both `counts().visible` and
-  the legend's `selects`, so the key and the rows cannot drift. Did not work: a real-element test
-  whose `waitFor` callback awaited `findByRole` sat with no output for 13 minutes; a synchronous
-  `getByRole` inside `waitFor` is the shape the other tests use.
-
-- (2026-11-02) Worked: reproducing a reading bug by loading the study's own fixture shape through
-  `data.import` and `data.prepare(...).load()` in a happy-dom test; a test that builds nodes with
-  `addNodes` skips the load's label default and passed while the app failed.
 
 ## Sources
 

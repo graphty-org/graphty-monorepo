@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { AiTarget } from "../../../catalog/ai";
 import type { FormatId } from "../../../catalog/types";
 import { canExpand, expansionOf } from "../../../data/expand";
-import type { ExportResult } from "../../../data/export";
+import type { ExportResult, ExportScope } from "../../../data/export";
 import type { Graph } from "../../../Graph";
 import type { TransactionScope } from "../../../session/types";
 import { dataEffects, effectTarget } from "../effects";
@@ -23,6 +23,7 @@ import {
     requireMatch,
     requireTarget,
     resolveNode,
+    settleTarget,
     type Target,
     targetFields,
     text,
@@ -475,6 +476,36 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
 }
 
 /**
+ * What an export writes: the target the call names, else all of a bound message's selection, else
+ * the whole graph. A narrowed call is about its nodes, so a CSV that names no table writes the node
+ * table, not the default edge table, which would hold a list of nodes with few or no edges as an
+ * almost empty file.
+ * @param tx - The session.
+ * @param args - The call.
+ * @param format - The format.
+ * @param options - The call's writer options.
+ * @returns The options to write with.
+ * @throws {ToolRefusal} `AI_EMPTY_MATCH` when the target holds no node.
+ */
+function narrowedOptions(
+    tx: TransactionScope,
+    args: Record<string, unknown>,
+    format: string,
+    options: Record<string, unknown>,
+): Record<string, unknown> {
+    const { target } = settleTarget(tx, args, "node", boundIds(args, "node") !== undefined);
+    if (target === undefined || target.kind === "all") {
+        return options;
+    }
+
+    const { ids } = idsOf(tx, target, "node");
+    requireMatch(ids.length, target);
+    const scope: ExportScope = { nodes: ids };
+    const nodeTable = format === "csv" && options.table === undefined && options.variant !== "neo4j";
+    return { ...options, scope, ...(nodeTable ? { table: "nodes" } : {}) };
+}
+
+/**
  * The `export_graph` tool for a catalog.
  * @param catalog - The catalog, for the formats and their writer options.
  * @returns The tool.
@@ -487,13 +518,14 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
         plainName: "Export",
         core: false,
         description:
-            "Writes the graph as a file in a catalog format and hands it to the reader's application to save. You receive only its size, never the document.",
+            "Writes the target and the edges between its nodes as a file in a catalog format, and hands it to the reader's application to save: the target the call names, else all of the selection the message is about, else the whole graph. The graphty format holds only the whole graph. You receive only its size, never the document.",
         example: { action: "export", format: "graphml" },
         actions: [
             {
                 name: "export",
-                summary: "Export the graph in a format.",
+                summary: "Export the target in a format.",
                 fields: {
+                    ...targetFields,
                     format: nameField(formats, "Format."),
                     options: z
                         .record(z.string(), z.unknown())
@@ -506,7 +538,7 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                     { options: "writers" },
                     ...formats.map((id) => ({ catalog: `formats/${id}` })),
                 ],
-                run: async ({ session, graph, host }, args) => {
+                run: async ({ tx, session, graph, host }, args) => {
                     const format = requireEntry("format", text(args.format), formats);
                     const writerOptions = writable.find((each) => each.id === format)?.writerOptions ?? [];
                     const parsed = optionsSchema(writerOptions).schema.safeParse(args.options ?? {});
@@ -517,17 +549,18 @@ export function exportGraphTool(catalog: CatalogView): ToolDefinition {
                         });
                     }
 
+                    const options = narrowedOptions(tx, args, format, parsed.data);
                     const renderer = graph as unknown as {
                         exportGraph?: (id: FormatId, options: object) => Promise<ExportResult>;
                     };
                     const result = await coded(async () => {
                         if (typeof renderer.exportGraph === "function") {
-                            return renderer.exportGraph(format, parsed.data);
+                            return renderer.exportGraph(format, options);
                         }
 
                         // The writers load only when a session with no renderer exports.
                         const { exportSession } = await import("../../../data/export");
-                        return exportSession(session, format, parsed.data);
+                        return exportSession(session, format, options);
                     });
                     const data = await result.text();
                     host.emit({ type: "ai-export-ready", format, data, losses: result.losses });

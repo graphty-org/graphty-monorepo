@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided by the team: an export scope can name nodes, and the export tool takes a target (graphty-element)
+
+`ExportScope` gains `{ nodes }`: these nodes and the edges between them. It is additive; every form an
+existing caller passes reads as before. The assistant's `export_graph` takes `where`, `ids` and `result`
+like every other tool and settles them the same way: a named target, else all of a bound message's
+selection, else the whole graph. A rule's `nodes` leaf option is no clash, since every rule has a `kind`.
+A narrowed CSV call that names no table writes the node table: the tool's call is about nodes, and the
+default edge table left a list of five people as one edge row under a reply that said it held them.
+`exportGraph`'s own default stays the edge table.
+
+**Why settled here.** `tier6/decided.md`, "What the Assistant exports is what the message is about", says
+what the tool must do, and `{ nodes }` is the form `Scope` already has. The project format needed no
+change: it already refuses every option, `scope` included, with `E_UNKNOWN_OPTION`, so a narrowed call
+never writes the whole project. A selection holding only edges is refused as an empty match, because an
+export scope's edges are always the edges between its nodes.
+
 ## 2026-11-05 -- Decided by the team: a message's scope ends with its selection (graphty-element)
 
 **What.** A message sent with `scope: "selection"` is limited to that selection only while the

@@ -90,11 +90,13 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * - `"shown"`: what the visibility filter and the time window leave showing.
  * - `"selection"`: the selected nodes and the edges between them.
  * - `{ set }`: a kept set's members.
+ * - `{ nodes }`: these nodes and the edges between them.
  * - a {@link RuleTree}: the nodes and edges it keeps, read as the visibility filter reads it.
  *
  * An edge is written only when both its ends are.
  */
-export type ExportScope = RuleTree | "shown" | "selection" | { readonly set: SetId };
+export type ExportScope =
+    RuleTree | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
 
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
@@ -397,11 +399,7 @@ function scopeInputOf(scope: ExportScope): ScopeInput {
         return "selection";
     }
 
-    if ("set" in scope) {
-        return { set: scope.set };
-    }
-
-    return { define: { kind: "rule", where: scope, reading: "clipped" } };
+    return "kind" in scope ? { define: { kind: "rule", where: scope, reading: "clipped" } } : scope;
 }
 
 /**

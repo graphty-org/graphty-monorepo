@@ -129,7 +129,7 @@ export const PajekShapesAndMidLineArrows: Story = {
         await assertGraphLoaded(scene, { nodes: PAJEK_SHAPES.length, edges: PAJEK_EDGES.length });
         await assertShapeVariety(scene, PAJEK_SHAPES.length);
 
-        const bodiless = scene.graph.getNode("none")?.mesh;
+        const bodiless = scene.graph.getNode("none")?.drawnPickMesh;
         const sourceOf = bodiless instanceof InstancedMesh ? bodiless.sourceMesh : bodiless;
         await holds(
             sourceOf?.getTotalIndices() === 0,
@@ -149,8 +149,8 @@ export const PajekShapesAndMidLineArrows: Story = {
         // Every arrowhead sits near the middle of its line, not at the target node.
         const offMiddle = [...scene.graph.getDataManager().edges.values()].filter((edge) => {
             const cap = edge.arrowCap?.position;
-            const src = edge.srcNode.mesh.position;
-            const dst = edge.dstNode.mesh.position;
+            const src = edge.srcNode.drawnPosition;
+            const dst = edge.dstNode.drawnPosition;
             const middle = src.add(dst).scale(0.5);
             return cap === undefined || Vector3.Distance(cap, middle) > Vector3.Distance(src, dst) / 4;
         });
@@ -256,7 +256,7 @@ export const WidthAndHeight: Story = {
         await assertGraphLoaded(scene, { nodes: EXTENT_NODES.length, edges: EXTENT_NODES.length - 1 });
 
         const square = scene.nodes.filter((node) => {
-            const mesh = scene.graph.getNode(node.id)?.mesh;
+            const mesh = scene.graph.getNode(node.id)?.drawnPickMesh;
             const extent = mesh?.getBoundingInfo().boundingBox.extendSize;
 
             return extent === undefined || Math.abs(extent.x - extent.y) < 1e-6;
@@ -308,7 +308,7 @@ export const RelativeExtentsIn3D: Story = {
         await assertViewMode(scene, "3d");
         await assertGraphLoaded(scene, { nodes: STRETCH_NODES.length, edges: 0 });
 
-        const deep = scene.graph.getNode("box deep")?.mesh.getBoundingInfo().boundingBox.extendSize;
+        const deep = scene.graph.getNode("box deep")?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize;
         await holds(
             deep !== undefined && deep.z > 2.5 * deep.x,
             "Styles/Node RelativeExtentsIn3D: the deep box is three times as deep as it is wide",
@@ -369,7 +369,7 @@ export const LabelFit: Story = {
         await assertGraphLoaded(scene, { nodes: LABEL_FIT_NODES.length, edges: 0 });
 
         const width = (id: string): number =>
-            scene.graph.getNode(id)?.mesh.getBoundingInfo().boundingBox.extendSize.x ?? 0;
+            scene.graph.getNode(id)?.drawnPickMesh.getBoundingInfo().boundingBox.extendSize.x ?? 0;
         const rows = LABEL_FIT_NODES.filter((_node, index) => index % 3 === 0);
         const narrow = rows.filter((row, index) => {
             const longer = LABEL_FIT_NODES[index * 3 + 2];

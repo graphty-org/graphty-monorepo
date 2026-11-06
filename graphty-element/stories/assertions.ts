@@ -551,24 +551,26 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     };
 
     const nodes: DrawnNode[] = graph.getNodes().map((node, index) => {
-        const source = (node.mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
-        const box = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        // drawnPickMesh, not mesh: reading `mesh` would hold the node off the batch (see Node.mesh).
+        const mesh = node.drawnPickMesh;
+        const source = (mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
+        const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
         const plane = node.label?.labelMesh ?? null;
         const label = labelInk(plane);
 
         return {
             id: String(node.id),
             index,
-            shape: source?.name ?? node.mesh.name,
-            geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
-            vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? node.mesh),
+            shape: source?.name ?? mesh.name,
+            geometryKey: `${source?.name ?? mesh.name}#${String(source?.uniqueId ?? mesh.uniqueId)}`,
+            vertexCount: source?.getTotalVertices() ?? mesh.getTotalVertices(),
+            geometryDigest: digestOf(source ?? mesh),
             wireframe: source?.material?.wireframe ?? false,
-            enabled: node.mesh.isEnabled(),
-            opacity: node.mesh.visibility,
+            enabled: mesh.isEnabled(),
+            opacity: mesh.visibility,
             radius: Number(box.x.toFixed(4)),
-            hex: instanceHex(node.mesh),
-            position: [node.mesh.absolutePosition.x, node.mesh.absolutePosition.y, node.mesh.absolutePosition.z],
+            hex: instanceHex(mesh),
+            position: [mesh.absolutePosition.x, mesh.absolutePosition.y, mesh.absolutePosition.z],
             hasLabelMesh: plane !== null && !plane.isDisposed() && plane.isEnabled(),
             labelInk: label.ink,
             labelColours: label.colours,

@@ -182,12 +182,16 @@ try {
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
-    if (lib === "graphty" && RENDER_PATH === "batched") {
-        // A row that quietly left the fast path would be measured as if it were on it.
+    // A row that quietly left the fast path would be measured as if it were on it. Checked after
+    // the load and again after the drag, the one stage that touches a node.
+    const checkBatched = async (stage) => {
+        if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
-        log("rowCounts", rows);
-        if (!rows || rows.objectNodes > 0) throw new Error(`rows left the batched path: ${JSON.stringify(rows)}`);
-    }
+        log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
+        if (!rows || rows.objectNodes > 0)
+            throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
+    };
+    await checkBatched("load");
     if (process.env.ONLY_ORBIT) {
         console.log("orbit-debug", JSON.stringify(await page.evaluate(() => B.orbitDebug(20))));
         throw new Error("debug stop");
@@ -216,6 +220,7 @@ try {
         .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
+    if (!noMove) await checkBatched("drag");
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is

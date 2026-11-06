@@ -71,7 +71,7 @@ const ELEMENT_BROWSER_PARTS = 8;
 
 // The CLI reporters every graphty-element shard names (a --reporter on the command line replaces the config's).
 const ELEMENT_REPORTERS =
-    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}";
+    "--reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} ${GRAPHTY_RUNNING_TESTS:+--reporter=../tools/running-tests.mjs}";
 
 /** How many CI parts the `large-graph` project splits into: one per LargeGraph.*.real-element.test.tsx file. */
 export const LARGE_GRAPH_PARTS = 4;

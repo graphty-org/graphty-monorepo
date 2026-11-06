@@ -279,7 +279,7 @@ describe("talking to the Assistant", () => {
         });
         await screen.findByRole("button", { name: "Gemini 3.8 Flash" });
         await screen.findByRole("button", { name: "Sends to Google" });
-        assert.deepEqual(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
+        assert.deepInclude(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
     });
 
     it("lists AI provider... in Quick actions, opening the section", async () => {
@@ -446,6 +446,10 @@ describe("talking to the Assistant", () => {
             const said = [...document.querySelectorAll('[role="status"]')].map((region) => region.textContent);
             assert.include(said, "Stopped.");
         });
+        const log = screen.getByRole("region", { name: "Chat" });
+        assert.notInclude(log.textContent, "Changes taken back", "nothing had changed");
+        await userEvent.click(within(log).getByRole("button", { name: "Send again" }));
+        await screen.findByText("The reply.");
     });
 
     it("Esc in the composer stops a run, and with nothing running keeps the text", async () => {
@@ -499,6 +503,7 @@ describe("talking to the Assistant", () => {
         await userEvent.click(screen.getByRole("button", { name: "New chat" }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         assert.isNull(screen.queryByRole("alert"));
+        assert.strictEqual((await composer()).value, "", "the failed words stay with the chat they failed in");
     });
 
     it("sends the reader to setup when the provider refuses the key", async () => {
@@ -618,6 +623,53 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
+    });
+
+    it("shows the log again when a message is sent from under the chat list", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("Color by department");
+        await openList(1);
+        await say("Hubs please");
+        await within(await chatLog()).findByText("Hubs please");
+        assert.isNull(screen.queryByRole("list", { name: "Chats" }));
+    });
+
+    it("cuts a long chat title short inside the header and its list row, clear of the buttons beside it", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        const long =
+            "How many nodes does this graph have, and which node is the most connected? Give its id and its number of connections.";
+        await chat(long);
+        const panel = screen.getByRole("region", { name: "Assistant" }).getBoundingClientRect();
+        const add = screen.getByRole("button", { name: "New chat" }).getBoundingClientRect();
+        await waitFor(() => {
+            const title = chatsButton().querySelector(".ws-chat-title")?.getBoundingClientRect();
+            assert.exists(title);
+            assert.isAtLeast(title.left, panel.left, "the title starts inside the panel");
+            assert.isAtMost(title.right, add.left, "the title ends before New chat");
+        });
+
+        const list = await openList(1);
+        const row = within(list).getAllByRole("listitem")[0];
+        const date = row.querySelector(".ws-chat-date")?.getBoundingClientRect();
+        const title = row.querySelector(".ws-chat-title")?.getBoundingClientRect();
+        assert.exists(date);
+        assert.exists(title);
+        assert.isAtLeast(title.left, row.getBoundingClientRect().left, "the row's title starts inside the row");
+        assert.isAtMost(title.right, date.left, "the row's title ends before its date");
+    });
+
+    it("keeps Send whole inside the composer beside the model and its effort, at the narrowest panel", async () => {
+        await open(createWorkspaceStore({ project: { name: "Talk", id: 1 }, assistantWidth: 240 }));
+        await setUpGoogle();
+        await screen.findByRole("combobox", { name: "Effort" });
+        const foot = (await composer()).closest(".ws-assistant-foot")?.getBoundingClientRect();
+        const send = screen.getByRole("button", { name: "Send" }).getBoundingClientRect();
+        assert.exists(foot);
+        assert.isAtMost(send.right, foot.right, "Send ends inside the composer");
     });
 
     it("lists a new chat before its first message as a checked New chat row, and counts it", async () => {

@@ -13,7 +13,7 @@ import { type ChatRow, chatTitle, useChatRows } from "./chats";
 import { Composer } from "./Composer";
 import { Conversation } from "./Conversation";
 import { ConversationList } from "./ConversationList";
-import { type AssistantView, useAssistantView } from "./useAssistantView";
+import { type AssistantView, isRunning, useAssistantView } from "./useAssistantView";
 import { Waiting } from "./Waiting";
 import { chatsOpenLabel, starterColumn, WORDS } from "./words";
 
@@ -167,6 +167,13 @@ export default function AssistantPanel(): React.JSX.Element {
             store.set({ assistantTalkPress: false });
         }
     }, [asked, view.linked, setUp, store]);
+    // A message sent from under the list shows: the log comes back to show it and its answer.
+    const running = isRunning(view.status);
+    useEffect(() => {
+        if (running) {
+            setListing(false);
+        }
+    }, [running]);
     const listId = useId();
     const { rows, reload } = useChatRows(setUp && listing, view.conversation);
     const title = chatTitle(view.conversation);
@@ -212,7 +219,13 @@ export default function AssistantPanel(): React.JSX.Element {
                                 aria-label={WORDS["assistant.new"]}
                                 onClick={() => {
                                     void element?.newAiConversation().then(() => {
-                                        store.set({ assistantEnded: null });
+                                        // A new chat starts empty: no words left from the last one.
+                                        store.set({
+                                            assistantEnded: null,
+                                            assistantDraft: "",
+                                            assistantSpoken: null,
+                                            assistantRefused: false,
+                                        });
                                         backToLog();
                                     });
                                 }}

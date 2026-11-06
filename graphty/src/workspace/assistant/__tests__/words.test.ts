@@ -1,4 +1,5 @@
 import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { changeLines, effectLine, endWords, voiceWords } from "../words";
@@ -38,6 +39,18 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
         "Could not reach Google: too many requests or the spend limit was reached.",
         AGAIN,
     ],
+    [
+        "AI_PROVIDER_ERROR",
+        { status: 429, cause: "quota" },
+        "Google has no credit left on this key. Add credit with Google, or choose another provider.",
+        PROVIDER,
+    ],
+    [
+        "AI_PROVIDER_ERROR",
+        { cause: "rate-limit" },
+        "Google is getting too many requests. Wait a moment, then send again.",
+        AGAIN,
+    ],
     ["AI_PROVIDER_ERROR", { status: 503 }, "Could not reach Google: the service is unavailable.", AGAIN],
     ["AI_PROVIDER_ERROR", { status: 418 }, "Could not reach Google: error 418.", AGAIN],
     ["AI_PROVIDER_PAUSED", {}, "Google paused and did not finish.", AGAIN],
@@ -45,8 +58,9 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
     ["AI_TOOL_THREW", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_UNKNOWN", {}, "The assistant could not finish this step.", AGAIN],
     ["AI_TOOL_INVALID_ARGUMENTS", {}, "The assistant could not finish this step.", AGAIN],
-    ["AI_CANCELLED", {}, "Stopped.", NONE],
-    ["AI_CANCELLED", { steps: 2 }, "Stopped. Changes taken back.", NONE],
+    ["AI_CANCELLED", {}, "Stopped.", { action: "again", failed: false }],
+    ["AI_CANCELLED", { steps: 0 }, "Stopped.", { action: "again", failed: false }],
+    ["AI_CANCELLED", { steps: 2 }, "Stopped. Changes taken back.", { action: "again", failed: false }],
     ["AI_UNDONE", {}, "Undone while running. Changes taken back.", NONE],
     ["AI_ROLLBACK_PARTIAL", { steps: 3 }, "Stopped. 3 changes could not be taken back.", NONE],
     ["AI_APPROVAL_DENIED", {}, "Declined. Nothing changed.", NONE],
@@ -120,6 +134,20 @@ describe("endWords", () => {
             effectLine(null, { code: "AI_EFFECT_RUN", params: { ...run, ...params } });
         assert.match(line({ painted: 1 }), /^Computed .+ for 24 nodes, colored by it$/);
         assert.match(line({}), /^Computed .+ for 24 nodes$/);
+    });
+
+    it("names a style sourced from a run's result by the algorithm, never the result path", () => {
+        // Only what the line reads: the run's algorithm, and the columns for any other source.
+        const session = {
+            runs: { get: (id: string) => (id === "degree-1" ? { algorithm: "degree" } : undefined) },
+            data: { attributes: () => [] },
+        } as unknown as GraphSession;
+        const line = effectLine(session, {
+            code: "AI_EFFECT_STYLE",
+            params: { channel: "node.size", nodes: 3, source: "results.degree-1.value" },
+        });
+        assert.notInclude(line, "results.");
+        assert.match(line, /^Sized 3 nodes by \S/);
     });
 
     it("of a turn's painting runs, only the last says it colored the graph", () => {

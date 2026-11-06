@@ -154,9 +154,20 @@
     flex: 0 1 auto;
 }
 
+/* Mantine's inner box centers its content and does not shrink: it starts the title at the left and
+   gives way, so the label can, and the title in it ends in an ellipsis inside the button. */
+.ws-assistant-switch .mantine-Button-inner,
+.ws-chat-open .mantine-Button-inner {
+    justify-content: flex-start;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .ws-assistant-switch .mantine-Button-label,
 .ws-chat-open .mantine-Button-label {
+    flex: 0 1 auto;
     min-width: 0;
+    overflow: hidden;
 }
 
 .ws-assistant-switch[aria-expanded="true"] .mantine-Button-section svg {
@@ -164,6 +175,8 @@
 }
 
 .ws-chat-title {
+    display: block;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

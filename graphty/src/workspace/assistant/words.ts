@@ -303,6 +303,14 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_HOSTED_TOOL_UNSUPPORTED":
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
         case "AI_PROVIDER_ERROR": {
+            if (params.cause === "quota") {
+                return setup(
+                    `${name} has no credit left on this key. Add credit with ${name}, or choose another provider.`,
+                );
+            }
+            if (params.cause === "rate-limit") {
+                return retry(`${name} is getting too many requests. Wait a moment, then send again.`);
+            }
             const keyed = needsKey(id);
             const words = retry(`Could not reach ${name}: ${causeWords(params.status, keyed)}.`);
             const unknown = params.status === undefined || Number.isNaN(Number(params.status));
@@ -318,7 +326,9 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_TOOL_FAILED":
             return retry(failedStepWords(params.tool, params.cause));
         case "AI_CANCELLED":
-            return note(params.steps === undefined ? "Stopped." : "Stopped. Changes taken back.");
+            return Number(params.steps) > 0
+                ? { line: "Stopped. Changes taken back.", action: "again", failed: false }
+                : { line: "Stopped.", action: "again", failed: false };
         case "AI_UNDONE":
             return note("Undone while running. Changes taken back.");
         case "AI_ROLLBACK_PARTIAL":
@@ -548,8 +558,21 @@ export const isChange = (effect: AiEffect): boolean =>
     (effect.code !== "AI_EFFECT_SELECTION" || Number(effect.params.nodes ?? 0) + Number(effect.params.edges ?? 0) > 0);
 
 /**
+ * What a style effect's source is called: a run's result by its algorithm, a column by its name.
+ * @param session - the session.
+ * @param path - the source's path.
+ * @returns the name.
+ */
+function sourceName(session: GraphSession, path: string): string {
+    // A run's result, `results.<run>.<field>`, is named by the algorithm that made it.
+    const run = /^results\.([^.]+)\./.exec(path)?.[1];
+    const algorithm = run === undefined ? undefined : session.runs.get(run)?.algorithm;
+    return (algorithm === undefined ? undefined : algorithmByKey(algorithm)?.plainName) ?? attributeName(session, path);
+}
+
+/**
  * A style effect's line.
- * @param session - the session, to name a source.
+ * @param session - the session, for column names.
  * @param params - the effect's facts.
  * @returns the line.
  */
@@ -558,7 +581,7 @@ function styleLine(session: GraphSession | null, params: AiEffect["params"]): st
     const count =
         params.edges === undefined ? counted(Number(params.nodes), "node") : counted(Number(params.edges), "edge");
     const source = typeof params.source === "string" ? params.source : undefined;
-    const named = session === null || source === undefined ? source : attributeName(session, source);
+    const named = session === null || source === undefined ? source : sourceName(session, source);
     const by = named === undefined ? "" : ` by ${named}`;
     if (channel.endsWith(".color")) {
         return `Colored ${count}${by}`;

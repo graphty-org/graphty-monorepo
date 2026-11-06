@@ -193,6 +193,11 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
         if (focusTo === null) {
             return;
         }
+        // A rename field opened meanwhile keeps the focus it took.
+        if (document.activeElement?.closest(".ws-chat-rename") instanceof HTMLElement) {
+            setFocusTo(null);
+            return;
+        }
         const button = list.current?.querySelector<HTMLElement>(`[data-chat-open="${CSS.escape(focusTo)}"]`);
         if (button) {
             button.focus();

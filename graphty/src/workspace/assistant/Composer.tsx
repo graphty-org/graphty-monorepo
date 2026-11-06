@@ -186,7 +186,8 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                     }}
                 />
             </div>
-            <Group justify="space-between" gap={4} wrap="nowrap">
+            {/* Wraps in a narrow panel, Talk and Send kept together at the right. */}
+            <Group justify="space-between" gap={4}>
                 <Group gap={4} wrap="nowrap">
                     <Tooltip label={WORDS["assistant.model.tooltip"]}>
                         <Button
@@ -224,7 +225,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                         </Tooltip>
                     ) : null}
                 </Group>
-                <Group gap={4} wrap="nowrap">
+                <Group gap={4} wrap="nowrap" ml="auto">
                     <Talk
                         provider={providerDescriptor(choice.provider).plainName}
                         linked={view.linked}

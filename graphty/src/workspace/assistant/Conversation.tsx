@@ -213,7 +213,7 @@ function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX
         <Group justify="space-between" align="flex-end" gap={4} wrap="nowrap">
             <div role={words.failed ? "alert" : undefined}>
                 <Text size="sm">{words.line}</Text>{" "}
-                {words.action !== null && unchanged ? (
+                {words.failed && words.action !== null && unchanged ? (
                     <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
                 ) : null}
             </div>
@@ -402,11 +402,7 @@ function ReplyRows({
                 </Text>
             )}
             {running && late && status !== null ? <Text size="sm">{workingLine(status, provider)}</Text> : null}
-            <TurnEffects
-                turn={turn}
-                effects={effects}
-                onMore={onHold}
-            />
+            <TurnEffects turn={turn} effects={effects} onMore={onHold} />
             {words === null ? null : (
                 <EndRow
                     words={words}

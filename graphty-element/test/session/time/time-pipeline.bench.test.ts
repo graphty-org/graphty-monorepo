@@ -5,15 +5,23 @@
  *
  * Three seeded graphs, each under a node filter that hides a tenth of the nodes: uniform edge
  * instants, node-timed, and Zipf (bursty times on hub-heavy degrees, nodes and edges both timed).
- * Each measurement is the median of seven rounds after one warm-up. The window is 30 days wide.
+ * Each measurement is the median of seven rounds, after one untimed pass through the same rounds: a
+ * play is hundreds of moves, so a stopwatch on the first few would time the compiler. That pass's
+ * slowest round prints too, as what a first play pays. The window is 30 days wide.
  * A jump goes between quantiles of the data. `stepBy` and `slide` move it a day, the first through
  * a recorded window and the second as a smooth play frame does, from a place where that day takes
  * in a quantile instant or, in the last round, the best connected node's instant: every round must
  * cross rows, and the rows crossed print beside the timings. `binsVisible` is the first read after
- * a filter change, with no window: a window would leave it about 1% of the rows that pass the filter.
+ * a filter change, with no window; `binsWindowed` the same under a window, which reads the filter's
+ * tests again where the masks cannot answer.
+ *
+ * Two more cases time only the build, the one budget that depends on where the values live: edge
+ * records loaded through `session.data`, as an application's are, and date text with no offset read
+ * in a named zone. The three graphs above read through the test harness's own record maps.
  *
  * THE BUDGETS ARE PRINTED, NOT ASSERTED: a stopwatch on a busy machine measures the machine. Each
- * measurement prints as a `[time-pipeline]` line with its pass or fail, and each graph appends a row
+ * measurement prints as a `[time-pipeline]` line, passing when its slowest round is within budget,
+ * and each case appends a row
  * to `benchmarks/results/browser-<host>.jsonl`, the ignored file of this machine's runs. Run with:
  * npx vitest run --project=bench test/session/time/time-pipeline.bench.test.ts
  */
@@ -26,6 +34,7 @@ import { runInNewContext } from "node:vm";
 import { mulberry32 } from "@graphty/algorithms";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
+import { createGraphSession } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeField, TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
@@ -50,7 +59,7 @@ const BURST_SPAN = 3 * DAY;
 const JUMP_ORDER = [3, 0, 5, 1, 6, 2, 4];
 
 /** Design 5.2's budgets, in milliseconds. */
-const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5 };
+const BUDGET_MS = { build: 150, jump: 10, stepBy: 2, slide: 2, bins: 1, binsVisible: 5, binsWindowed: 5 };
 type Measure = keyof typeof BUDGET_MS;
 
 /** Design 5.2's memory: 24 bytes per timed element, and 1 per element for the cached filter mask. */
@@ -61,6 +70,8 @@ const BYTES_PER_ELEMENT = 1;
 interface Timing {
     readonly median: number;
     readonly slowest: number;
+    /** The slowest round of the untimed pass, which pays what a first play pays. */
+    readonly firstPass: number;
 }
 
 /** One seeded graph. */
@@ -139,7 +150,7 @@ const CASES: Record<string, () => Graph> = {
 };
 
 /**
- * Time some work over the rounds, after one warm-up.
+ * Time some work over the rounds, after one untimed pass through them.
  * @param work - The work, handed its round.
  * @param prepare - What each round needs first, untimed.
  * @returns The median and the slowest round.
@@ -155,15 +166,19 @@ async function timed(
         return performance.now() - start;
     };
 
-    // The warm-up stands at the last round's place, so the first round still moves.
-    await round(ROUNDS - 1);
+    // The warm-up ends at the last round's place, so the first round still moves.
+    let firstPass = 0;
+    for (let at = 0; at < ROUNDS; at++) {
+        firstPass = Math.max(firstPass, await round(at));
+    }
+
     const rounds: number[] = [];
     for (let at = 0; at < ROUNDS; at++) {
         rounds.push(await round(at));
     }
 
     rounds.sort((a, b) => a - b);
-    return { median: rounds[ROUNDS >> 1], slowest: rounds[ROUNDS - 1] };
+    return { median: rounds[ROUNDS >> 1], slowest: rounds[ROUNDS - 1], firstPass };
 }
 
 /**
@@ -229,7 +244,19 @@ function bytesHeld(): number {
 function report(name: string, measure: Measure, timing: Timing): void {
     const budget = BUDGET_MS[measure];
     console.log(
-        `[time-pipeline] ${name} ${measure}: median ${timing.median.toFixed(2)} ms, slowest ${timing.slowest.toFixed(2)} ms, budget ${String(budget)} ms: ${timing.median <= budget ? "pass" : "fail"}`,
+        `[time-pipeline] ${name} ${measure}: median ${timing.median.toFixed(2)} ms, slowest ${timing.slowest.toFixed(2)} ms, first pass ${timing.firstPass.toFixed(2)} ms, budget ${String(budget)} ms: ${timing.slowest <= budget ? "pass" : "fail"}`,
+    );
+}
+
+/**
+ * Append a case's row to this machine's results.
+ * @param name - The case.
+ * @param row - What it measured.
+ */
+function writeRow(name: string, row: Record<string, unknown>): void {
+    appendFileSync(
+        new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
+        `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, ...row })}\n`,
     );
 }
 
@@ -316,7 +343,7 @@ describe("the timeline at 1,000,000 edges", () => {
             let hidden = 9;
 
             await time.window(null);
-            // Ends where it began: the warm-up and the seven rounds are eight changes.
+            // Ends where it began: the warm-up and the rounds are fourteen changes.
             const binsVisible = await timed(
                 () => time.bins({ count: BINS, scope: "visible" }),
                 () => {
@@ -330,6 +357,13 @@ describe("the timeline at 1,000,000 edges", () => {
             );
             // Seeking with no window would open the first one, not this one.
             await time.window(OPENING);
+            const binsWindowed = await timed(
+                () => time.bins({ count: BINS, scope: "visible" }),
+                () => {
+                    hidden = hidden === 9 ? 8 : 9;
+                    return hideTenth(hidden);
+                },
+            );
 
             const timings: Record<Measure, Timing> = {
                 jump: await timed(seek),
@@ -349,6 +383,7 @@ describe("the timeline at 1,000,000 edges", () => {
                 ),
                 bins: await timed(() => time.bins({ count: BINS })),
                 binsVisible,
+                binsWindowed,
                 // A new data token drops the index; the snapshot is rebuilt before the clock starts. The
                 // `extent()` asks for the build, and `ready` holds until it is done.
                 build: await timed(
@@ -374,7 +409,7 @@ describe("the timeline at 1,000,000 edges", () => {
             for (const measure of Object.keys(BUDGET_MS) as Measure[]) {
                 const timing = timings[measure];
                 report(name, measure, timing);
-                if (timing.median > (worst.get(measure)?.median ?? -1)) {
+                if (timing.slowest > (worst.get(measure)?.slowest ?? -1)) {
                     worst.set(measure, { ...timing, name });
                 }
             }
@@ -384,10 +419,71 @@ describe("the timeline at 1,000,000 edges", () => {
             console.log(
                 `[time-pipeline] ${name} bytes added per timed element: ${bytes.perTimed.toFixed(1)} (${bytes.historyPerTimed.toFixed(1)} held by the undo history), budget ${bytes.budget.toFixed(1)}: ${bytes.perTimed <= bytes.budget ? "pass" : "fail"}`,
             );
-            appendFileSync(
-                new URL(`../../../benchmarks/results/browser-${hostname()}.jsonl`, import.meta.url),
-                `${JSON.stringify({ date: new Date().toISOString(), runner: "node", bench: "time-pipeline", case: name, nodes: NODES, edges: EDGES, visibleEdges, binnedRows, timings, crossed, bytes })}\n`,
-            );
+            writeRow(name, { visibleEdges, binnedRows, timings, crossed, bytes });
+            session.dispose();
         });
     }
+
+    it("records: builds a column of edge records loaded through session.data", async () => {
+        const next = mulberry32(5);
+        const session = createGraphSession();
+        await session.data.addNodes(Array.from({ length: NODES }, (_, at) => ({ id: `n${String(at)}` })));
+        await session.data.addEdges(
+            Array.from({ length: EDGES }, () => ({
+                source: `n${String(Math.floor(next() * NODES))}`,
+                target: `n${String(Math.floor(next() * NODES))}`,
+                t: START + Math.floor(next() * SPAN),
+            })),
+        );
+        await session.time.setField({ edges: { start: "t" } });
+        assert.strictEqual(session.time.extent()?.edges.timed, session.data.snapshot().edgeCount);
+
+        const build = await timed(
+            () => {
+                session.time.extent();
+                return session.time.ready;
+            },
+            async (round) => {
+                // An edit of a record rebuilds the column; an append would only merge.
+                await session.data.updateEdges([{ id: "1", values: { t: START + round } }]);
+                session.data.snapshot();
+            },
+        );
+
+        report("records", "build", build);
+        writeRow("records", { timings: { build } });
+        session.dispose();
+    });
+
+    it("zoned-text: builds a column of date text with no offset in a named zone", async () => {
+        const next = mulberry32(6);
+        const harness = makeSession();
+        const wall = (): string => new Date(START + Math.floor(next() * SPAN)).toISOString().slice(0, 19);
+        harness.add(
+            Array.from({ length: NODES }, (_, at) => ({ id: `n${String(at)}` })),
+            Array.from({ length: EDGES }, () => ({
+                src: `n${String(Math.floor(next() * NODES))}`,
+                dst: `n${String(Math.floor(next() * NODES))}`,
+                t: wall(),
+            })),
+        );
+        const { session } = harness;
+        await session.time.setField({ edges: { start: "t", parseZone: "America/New_York" } });
+        assert.strictEqual(session.time.extent()?.edges.timed, EDGES);
+
+        const build = await timed(
+            () => {
+                session.time.extent();
+                return session.time.ready;
+            },
+            () => {
+                harness.touch();
+                session.snapshot();
+            },
+        );
+
+        report("zoned-text", "build", build);
+        writeRow("zoned-text", { timings: { build } });
+        session.dispose();
+    });
 });

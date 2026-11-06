@@ -283,4 +283,47 @@ describe("ElementMask, as bytes for a worker", () => {
         assert.isFalse(mask.has(1), "the mask is unmoved");
         assert.notStrictEqual(mask.bytes(), bytes, "and the next read is a fresh copy too");
     });
+
+    it("keeps what a rewrite changed until another write, and none past its cap", () => {
+        const mask = maskOf(["a", "b", "c", "d"]);
+        const write = (bytes: Uint8Array): { entered: number[]; left: number[] } => {
+            bytes[1] = 1;
+            bytes[2] = 1;
+            return { entered: [1, 2], left: [] };
+        };
+        assert.isNull(mask.lastRows);
+        const rows = mask.rewrite(write);
+        assert.strictEqual(mask.lastRows, rows);
+
+        mask.rewrite(() => ({ entered: [], left: [] }));
+        assert.strictEqual(mask.lastRows, rows, "still what brought the mask to this version");
+
+        mask.add(0);
+        assert.isNull(mask.lastRows, "another write");
+
+        mask.clear();
+        mask.rewrite(write, 1);
+        assert.isNull(mask.lastRows, "over the cap");
+    });
+
+    it("rewrites rows in one version bump, and none when nothing changed", () => {
+        const mask = fillWith(maskOf(["a", "b", "c"]), ["a"]);
+        const { version } = mask;
+        const rows = mask.rewrite((bytes) => {
+            bytes[0] = 0;
+            bytes[1] = 1;
+            bytes[2] = 1;
+            return { entered: [1, 2], left: [0] };
+        });
+        assert.deepEqual(rows, { entered: [1, 2], left: [0] });
+        assert.deepEqual([...mask.bytes()], [0, 1, 1]);
+        assert.strictEqual(mask.size, 2);
+        assert.strictEqual(mask.version, version + 1);
+
+        mask.rewrite(() => ({ entered: [], left: [] }));
+        assert.strictEqual(mask.version, version + 1, "no rows, no change");
+        assert.throws(() => {
+            mask.readOnlyCopy().rewrite(() => ({ entered: [], left: [] }));
+        });
+    });
 });

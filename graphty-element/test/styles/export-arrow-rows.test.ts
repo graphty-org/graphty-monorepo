@@ -140,3 +140,52 @@ describe("an export through the layers", () => {
         assert.include(text, 'target="crows_foot_one"');
     });
 });
+
+describe("an export of Graphviz's arrows of several shapes through the layers (#5925)", () => {
+    const NAMES = ["crowodot", "dotodot", "lteeoldiamond", "boxdotnormal", "normalnormal", "crowobox", "doticurve"];
+    const file = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} z -> y [dir=both, arrowtail=crowodot]; }`;
+
+    /**
+     * Each arrow name a DOT file holds.
+     * @param text - The file.
+     * @param attribute - `arrowhead` or `arrowtail`.
+     * @returns The names.
+     */
+    const namesIn = (text: string, attribute: string): string[] =>
+        [...text.matchAll(new RegExp(`\\b${attribute}="?(\\w+)`, "g"))].map((m) => m[1]);
+
+    it("writes each one's whole name", async () => {
+        const text = await rewritten(file, "dot", "dot");
+        // the last edge draws both ends
+        assert.deepEqual(namesIn(text, "arrowhead"), [...NAMES, "normal"]);
+        assert.deepEqual(namesIn(text, "arrowtail"), ["crowodot"]);
+    });
+
+    it("writes the same file again from the file it wrote", async () => {
+        const first = await rewritten(file, "dot", "dot");
+        assert.strictEqual(await rewritten(first, "dot", "dot"), first);
+    });
+
+    it("keeps the whole name when another program strips the style block", async () => {
+        const first = await rewritten(file, "dot", "dot");
+        const plain = first.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        assert.deepEqual(namesIn(await rewritten(plain, "dot", "dot"), "arrowhead"), [...NAMES, "normal"]);
+    });
+
+    it("writes a lone arrow as its name alone", async () => {
+        const text = await rewritten("digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=odot]; }", "dot", "dot");
+        assert.deepEqual(namesIn(text, "arrowhead"), ["crow", "odot"]);
+        assert.notInclude(text, "ArrowParts");
+    });
+
+    it("writes a lone arrow's side, and keeps it when another program strips the style block (#5947)", async () => {
+        const lone = ["lbox", "rbox", "olbox", "lnormal", "rcrow", "licurve", "icurve"];
+        const doc = `digraph { ${lone.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} y -> z [dir=both, arrowtail=lbox]; }`;
+        const first = await rewritten(doc, "dot", "dot");
+        assert.deepEqual(namesIn(first, "arrowhead"), [...lone, "normal"]);
+        assert.deepEqual(namesIn(first, "arrowtail"), ["lbox"]);
+        assert.strictEqual(await rewritten(first, "dot", "dot"), first);
+        const plain = first.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        assert.deepEqual(namesIn(await rewritten(plain, "dot", "dot"), "arrowhead"), [...lone, "normal"]);
+    });
+});

@@ -618,6 +618,16 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The node on a row of the snapshot.
+     * @param row - The row.
+     * @returns The node, or undefined when the row holds none.
+     * @internal
+     */
+    nodeAtRow(row: number): Node | undefined {
+        return this.nodes.get(this.store.builder.idOf(row));
+    }
+
+    /**
      * Whether the next {@link getSnapshot} would freeze a new snapshot.
      * @returns True when the store is not settled.
      */
@@ -743,6 +753,7 @@ export class DataManager implements Manager {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
+            loading: () => this.ingest.settling,
             apply: (mutation, draft, after) => {
                 if (mutation.kind === "remove-nodes") {
                     hooks.removing(mutation.ids, []);

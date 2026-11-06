@@ -906,6 +906,7 @@ export class Dispatcher {
             },
             strict: this.strict,
             session: true,
+            countsRewrites: () => this.services.timeline?.() === true,
         });
         this.events = { ...options.events };
         // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event

@@ -35,6 +35,8 @@ export interface TransitionSubject {
     readonly drawnPosition: Vec3;
     /** A particle transition shrinks the node while its cloud is in flight. */
     drawnScale: number;
+    /** Draw it at `scale`, part of its `whole` size: a particle transition's shrink. */
+    drawShrunk(scale: number, whole: number): void;
     drawnWorldMatrix(force?: boolean): unknown;
     readonly drawnRadius: number;
     readonly paintedColor: { r: number; g: number; b: number; a: number } | null;
@@ -117,12 +119,12 @@ export function attachTransitions(layoutManager: object, runner: LayoutTransitio
 /**
  * Run a pick against the layout's answer rather than the moving picture.
  * @param scene - The scene picked in.
- * @param pick - The pick.
+ * @param pick - The pick, told whether a transition is moving the nodes.
  * @returns What the pick returned.
  */
-export function pickAtLayout<T>(scene: Scene, pick: () => T): T {
+export function pickAtLayout<T>(scene: Scene, pick: (moving: boolean) => T): T {
     const runner = runners.get(scene);
-    return runner === undefined ? pick() : runner.atLayout(pick);
+    return runner === undefined ? pick(false) : runner.atLayout(pick);
 }
 
 /**
@@ -429,7 +431,7 @@ export class LayoutTransitionRunner {
         mover.drawn.z = drawn.z;
         mover.travel = t >= 1 ? 1 : travelOf(mover, t);
         if (state.transition.descriptor.drawable === "particles") {
-            node.drawnScale = this.hold === undefined ? drawnScale(mover) : mover.scale;
+            node.drawShrunk(this.hold === undefined ? drawnScale(mover) : mover.scale, mover.scale);
         }
 
         return drawn;
@@ -511,16 +513,19 @@ export class LayoutTransitionRunner {
     /**
      * Run something with every moving node at its place in the new layout, then put the picture back.
      *
+     * The move goes through the mesh funnel, so an open row table holds the same places and the
+     * row scan needs nothing of its own here.
+     *
      * ponytail: moves each moving node's mesh twice per pick (a pointer move picks once); a pick
      * against a position table instead of the meshes, if a graph of 100,000 moving nodes ever
      * hitches on hover.
-     * @param pick - What to run: a pick.
+     * @param pick - What to run: a pick, told whether anything is moving.
      * @returns What it returned.
      */
-    atLayout<T>(pick: () => T): T {
+    atLayout<T>(pick: (moving: boolean) => T): T {
         const { state } = this;
         if (state?.start === null || state === null) {
-            return pick();
+            return pick(false);
         }
 
         const moved: [TransitionSubject, Mover][] = [];
@@ -531,7 +536,7 @@ export class LayoutTransitionRunner {
                 node.setMeshPosition(to.x, to.y, to.z);
                 if (shrinks) {
                     // Picked at its whole size, not shrunk into its cloud.
-                    node.drawnScale = mover.scale;
+                    node.drawShrunk(mover.scale, mover.scale);
                 }
 
                 // Forced: between two frames Babylon keeps the world matrix of the last frame
@@ -542,13 +547,13 @@ export class LayoutTransitionRunner {
         }
 
         try {
-            return pick();
+            return pick(true);
         } finally {
             for (const [node, mover] of moved) {
                 const { drawn } = mover;
                 node.setMeshPosition(drawn.x, drawn.y, drawn.z);
                 if (shrinks) {
-                    node.drawnScale = this.hold === undefined ? drawnScale(mover) : mover.scale;
+                    node.drawShrunk(this.hold === undefined ? drawnScale(mover) : mover.scale, mover.scale);
                 }
 
                 node.drawnWorldMatrix(true);
@@ -560,7 +565,7 @@ export class LayoutTransitionRunner {
     end(): void {
         if (this.state?.transition.descriptor.drawable === "particles") {
             for (const [node, mover] of this.state.movers) {
-                node.drawnScale = mover.scale;
+                node.drawShrunk(mover.scale, mover.scale);
             }
         }
 

@@ -1,6 +1,3 @@
-// Installs scene.pickWithRay; see test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Culling/ray.js";
-
 import {
     Quaternion,
     Ray,
@@ -11,7 +8,8 @@ import {
 } from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
-import { alongRay, type NodeDragHandler } from "../NodeBehavior";
+import type { NodeDragHandler } from "../NodeBehavior";
+import { pickRayAsDrawn } from "../render/PickService";
 import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 
@@ -811,17 +809,13 @@ export class XRInputHandler {
 
         // Pick meshes in the scene
         // Only pick node meshes (they have dragHandler in metadata or on the node)
-        const pickInfo = this.scene.pickWithRay(
-            ray,
-            alongRay(this.scene, ray, (mesh) => mesh.isPickable && mesh.isEnabled()),
-        );
-
-        if (!pickInfo?.hit || !pickInfo.pickedMesh) {
+        const { mesh: picked, point: pickedPoint } = pickRayAsDrawn(this.scene, ray);
+        if (picked === null) {
             return;
         }
 
         // Try to find the NodeDragHandler for this mesh
-        const dragHandler = this.findDragHandlerForMesh(pickInfo.pickedMesh);
+        const dragHandler = this.findDragHandlerForMesh(picked);
         if (!dragHandler) {
             return;
         }
@@ -829,7 +823,6 @@ export class XRInputHandler {
         // Get the node's current position for debugging
         const node = dragHandler.getNode();
         const nodeMeshPosition = node.drawnPosition;
-        const { pickedPoint } = pickInfo;
 
         logger.debug("Drag start", {
             handedness,

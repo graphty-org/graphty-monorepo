@@ -22,9 +22,11 @@
  * goes back to a walk of every object, so the smooth target covers moves under it. A line whose
  * move stayed under the cap but still uploaded a whole buffer ends with `UNDER-CAP-FULL-UPLOAD`.
  *
- * Known costs over a 16 ms frame, tracked as issues: a jump under the cap uploads whole buffers and
- * spends tens of milliseconds per 10,000 changed rows (#6025); a Ghost step costs about twice a Hide
- * step (#6026); every move re-evaluates every active mesh, 62 ms on 100,000 nodes (#6027).
+ * Known costs over a 16 ms frame, tracked as issues: a jump under the cap spends tens of
+ * milliseconds per 10,000 changed rows showing and hiding edges, and its scattered rows still send
+ * about two thirds of each buffer in 4,096 runs (#6025); a Ghost step costs about twice a Hide step,
+ * because every edge that crosses the window is restyled into another batch (#6026); every move
+ * re-evaluates every active mesh, 35 to 62 ms on 100,000 nodes against 6 ms on 10,000 (#6027).
  *
  * TEMPORARY: each graph has its own test file, so each loads into a page of its own, because about
  * 2.4 GB of heap stays held after a removed element (#6028) and a second graph in the same page ran
@@ -33,7 +35,7 @@
  * 10,000.
  *
  * Numbers go to the console as `[timeline-frame]` lines; nothing about speed is asserted. What is
- * asserted, at the end of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
+ * asserted, at the end of the jumps, of a Hide slide and of a Ghost slide: every edge, one by one, is drawn or not
  * (and ghosted or not) as a brute-force test of its `t` against the window says, and the slots read
  * back from the GPU buffers are empty exactly for the edges that are not drawn. The suites run only
  * when `GRAPHTY_BROWSER_GPU` is set: on the software renderer the numbers mean nothing and one frame
@@ -470,29 +472,35 @@ export function describeFrames(nodes: number): void {
             await run("step", slide);
         });
 
-        it("a 2% window jumping", async () => {
-            const place = mulberry32(7);
-            await run("jump", () => time().seek(START + Math.floor(place() * (SPAN - WIDTH)), { commit: false }));
-        });
-
         /**
-         * Slide once more, pump the frame, and check every edge against the window.
+         * Make one more move, pump the frame, and check every edge against the window.
+         * @param move - The move.
          * @param ghosting - Whether `outside` is `"ghost"`.
          */
-        async function check(ghosting: boolean): Promise<void> {
-            const step = await slide(WARM_FRAMES + TIMED_FRAMES);
-            assert.isDefined(step, "the slide reported its window");
+        async function check(move: () => Promise<TimeStepEvent | undefined>, ghosting: boolean): Promise<void> {
+            const step = await move();
+            assert.isDefined(step, "the move reported its window");
             await frame();
             assertEdgesMatchWindow(on().element, on().gl, step, ghosting);
         }
 
+        it("a 2% window jumping", async () => {
+            const place = mulberry32(7);
+            const jump = (): Promise<TimeStepEvent | undefined> =>
+                time().seek(START + Math.floor(place() * (SPAN - WIDTH)), { commit: false });
+            await run("jump", jump);
+            await check(jump, false);
+        });
+
+        const slideOnce = (): Promise<TimeStepEvent | undefined> => slide(WARM_FRAMES + TIMED_FRAMES);
+
         it("a 2% window stepping under Outside: Ghost", async () => {
             await time().setSettings({ outside: "ghost" });
             await run("ghost", slide);
-            await check(true);
+            await check(slideOnce, true);
             await time().setSettings({ outside: "hide" });
             await run("step-after-ghost", slide);
-            await check(false);
+            await check(slideOnce, false);
         });
     });
 }

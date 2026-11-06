@@ -26824,7 +26824,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.84,
+            "node.gradient": 1,
             "node.stroke": 0.926,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -26834,7 +26834,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94,
             "raster.canvas": 0.99,
             "stray.extra": 1
@@ -26850,7 +26850,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.84,
+            "node.gradient": 1,
             "node.stroke": 0.926,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -27639,7 +27639,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.871,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -27715,7 +27715,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.871,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -28409,7 +28409,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.611,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -28465,11 +28465,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.95,
+            "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.92,
             "raster.edge": 0.83,
-            "raster.arrowhead": 0.9,
-            "raster.label": 0.92,
+            "raster.arrowhead": 0.91,
+            "raster.label": 0.93,
             "raster.canvas": 0.98,
             "label.backgroundBox": 1
         },
@@ -28484,7 +28484,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.611,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -28691,7 +28691,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -28737,7 +28737,7 @@
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.94,
             "raster.edge": 0.83,
-            "raster.arrowhead": 0.92,
+            "raster.arrowhead": 0.93,
             "raster.label": 0.94,
             "raster.canvas": 0.98
         },
@@ -28752,7 +28752,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -29069,7 +29069,7 @@
             "node.shape": 0.985,
             "node.fill": 0.985,
             "node.fillOpacity": 1,
-            "node.gradient": 0.803,
+            "node.gradient": 0.968,
             "node.stroke": 1,
             "node.strokeWidth": 0.952,
             "node.strokeDash": 0.952,
@@ -29141,7 +29141,7 @@
             "node.shape": 0.985,
             "node.fill": 0.985,
             "node.fillOpacity": 1,
-            "node.gradient": 0.803,
+            "node.gradient": 0.968,
             "node.stroke": 1,
             "node.strokeWidth": 0.952,
             "node.strokeDash": 0.952,
@@ -39395,7 +39395,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.871,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -39446,7 +39446,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.421,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -39497,7 +39497,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.421,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -39544,7 +39544,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.871,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -39747,7 +39747,7 @@
             "node.shape": 1,
             "node.fill": 0.921,
             "node.fillOpacity": 1,
-            "node.gradient": 0.889,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -39757,7 +39757,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.92,
             "raster.canvas": 0.99
         },
@@ -39772,7 +39772,7 @@
             "node.shape": 1,
             "node.fill": 0.921,
             "node.fillOpacity": 1,
-            "node.gradient": 0.889,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -40109,7 +40109,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.952,
+            "node.gradient": 1,
             "node.stroke": 0.909,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -40133,7 +40133,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.952,
+            "node.gradient": 1,
             "node.stroke": 0.909,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -56326,12 +56326,6 @@
             }
         },
         "gml-synthetic-coverage": {
-            "node.gradient": {
-                "floor": 0.871,
-                "to": 0.859,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "label.offLine": {
                 "floor": 0.429,
                 "to": 0.375,
@@ -56340,12 +56334,6 @@
             }
         },
         "gml-synthetic-coverage@matched": {
-            "node.gradient": {
-                "floor": 0.871,
-                "to": 0.859,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "label.offLine": {
                 "floor": 0.429,
                 "to": 0.375,
@@ -56365,22 +56353,6 @@
             "label.alongLine": {
                 "floor": 0.9,
                 "to": 0.8,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            }
-        },
-        "graphml-synthetic-nodes": {
-            "node.gradient": {
-                "floor": 0.803,
-                "to": 0.794,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            }
-        },
-        "graphml-synthetic-nodes@matched": {
-            "node.gradient": {
-                "floor": 0.803,
-                "to": 0.794,
                 "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
                 "date": "2026-11-05"
             }

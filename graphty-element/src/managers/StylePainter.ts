@@ -870,6 +870,12 @@ export class StylePainter {
     /** The edges whose paint the renderer has not applied yet. */
     private readonly pendingEdges = new PendingRows();
 
+    /** Whether the frame that draws the last pending node has to visit every edge. */
+    private nodeWalkOwed = false;
+
+    /** Whether the frame that draws the last pending edge has to visit every edge. */
+    private edgeWalkOwed = false;
+
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
 
@@ -930,16 +936,42 @@ export class StylePainter {
         }
 
         const nodes = paint.lastPainted("node");
+        const edges = paint.lastPainted("edge");
+        const walk = !paint.lastPaintRowsOnly();
+
+        this.nodeWalkOwed ||= walk && nodes.length > 0;
+        this.edgeWalkOwed ||= walk && edges.length > 0;
 
         for (let at = 0; at < nodes.length; at++) {
             this.pendingNodes.add(nodes[at]);
         }
 
-        const edges = paint.lastPainted("edge");
-
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
         }
+    }
+
+    /**
+     * Whether the nodes just drawn owe a visit to every edge, which only a time window's slide does
+     * not. Asked by the frame that drew the last of them.
+     * @returns True when they do, once.
+     */
+    takeNodeWalk(): boolean {
+        const owed = this.nodeWalkOwed;
+        this.nodeWalkOwed = false;
+
+        return owed;
+    }
+
+    /**
+     * Whether the edges just drawn owe a visit to every edge; see {@link StylePainter.takeNodeWalk}.
+     * @returns True when they do, once.
+     */
+    takeEdgeWalk(): boolean {
+        const owed = this.edgeWalkOwed;
+        this.edgeWalkOwed = false;
+
+        return owed;
     }
 
     /**
@@ -952,6 +984,8 @@ export class StylePainter {
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
+            this.nodeWalkOwed ||= target === "node";
+            this.edgeWalkOwed ||= target === "edge";
         }
     }
 
@@ -1027,6 +1061,9 @@ export class StylePainter {
      * @param edges - How many edges it holds.
      */
     invalidate(nodes: number, edges: number): void {
+        this.nodeWalkOwed ||= nodes > 0;
+        this.edgeWalkOwed ||= edges > 0;
+
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);
         }

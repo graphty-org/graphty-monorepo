@@ -288,6 +288,12 @@ export interface ViewMasks {
      * @returns True while ghosts are drawn.
      */
     readonly ghost?: () => boolean;
+    /**
+     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
+     * changed rows; off, every pass is the walk it always was.
+     * @returns True while the experiment is on.
+     */
+    readonly timeline?: () => boolean;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -768,6 +774,16 @@ export class UpdateManager implements Manager {
         // out of date. See `settleActiveMeshFreeze`.
         this.sceneChanged = true;
 
+        // A time window's slide says which rows it moved, so a step costs those rows and not the
+        // graph. Anything else that moved a mask answers null here and walks, as below.
+        const sameLook =
+            masks.timeline?.() === true &&
+            this.appliedAnything &&
+            showContext === this.appliedShowContext &&
+            ghost === this.appliedGhost;
+        const nodeRows = sameLook ? (nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
+        const edgeRows = sameLook ? (edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
+
         // With what is drawn unchanged, only the selection moved: touch the elements that leave
         // it and the ones in it, not the whole graph. A visibility or context change rewrites its
         // mask wholesale, so that one still walks everything.
@@ -779,13 +795,24 @@ export class UpdateManager implements Manager {
         const edgeSelectionOnly =
             this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
-        if (nodesMoved && nodeSelectionOnly) {
+        if (nodeRows !== null) {
+            this.applyNodeRows(nodeRows, nodeVisibility, showContext);
+            // A click during play moves the selection in the same pass as the window.
+            if (nodeSelectionVersion !== this.appliedNodeSelection) {
+                this.applyNodeSelection(nodeSelection);
+            }
+        } else if (nodesMoved && nodeSelectionOnly) {
             this.applyNodeSelection(nodeSelection);
         } else if (nodesMoved) {
             this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
         }
 
-        if (edgesMoved && edgeSelectionOnly) {
+        if (edgeRows !== null) {
+            this.applyEdgeRows(edgeRows, edgeVisibility);
+            if (edgeSelectionVersion !== this.appliedEdgeSelection) {
+                this.applyEdgeSelection(edgeSelection);
+            }
+        } else if (edgesMoved && edgeSelectionOnly) {
             this.applyEdgeSelection(edgeSelection);
         } else if (edgesMoved) {
             this.applyEdgeMasks(edgeVisibility, edgeSelection);
@@ -798,6 +825,48 @@ export class UpdateManager implements Manager {
         this.appliedShowContext = showContext;
         this.appliedGhost = ghost;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show and hide only the nodes on some rows. A row with no render object yet has nothing drawn.
+     * @param rows - The rows a slide moved.
+     * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeRows(
+        rows: readonly number[],
+        nodeVisibility: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const { nodesByIndex } = this.dataManager;
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+
+        for (const row of rows) {
+            nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState);
+        }
+    }
+
+    /**
+     * Show and hide only the edges on some rows. A revealed edge is placed by its own update this
+     * frame (see {@link UpdateManager.applyEdgeMasks} for why it needs one), with no walk of every
+     * edge, except one bowed by a support point: only a walk tells the support points of it.
+     * @param rows - The rows a slide moved.
+     * @param edgeVisibility - The visible edges.
+     */
+    private applyEdgeRows(rows: readonly number[], edgeVisibility: ElementMask<EdgeId> | null): void {
+        const { edgesByIndex } = this.dataManager;
+
+        for (const row of rows) {
+            const edge = edgesByIndex[row];
+            const visible = edgeVisibility?.has(row) === true;
+
+            if (edge?.setRenderVisible(visible) === true && visible) {
+                this.edgesToPlace.push(edge);
+                if (edge.supportEdge() !== null) {
+                    this.forceEdgeWalk();
+                }
+            }
+        }
     }
 
     /**
@@ -1102,8 +1171,9 @@ export class UpdateManager implements Manager {
         // A repainted edge's own appearance changed, so this frame places the edges it painted, and
         // the frame that finishes the repaint visits every edge. Visiting every edge on each frame
         // made a repaint cost its frames times the edges: a million edges take about a thousand
-        // frames, and those walks were most of a 100,000-node load.
-        if (!painter.hasPendingEdges) {
+        // frames, and those walks were most of a 100,000-node load. A time window's slide changes
+        // nothing but the rows it painted, so what this frame places is all of it.
+        if (!painter.hasPendingEdges && painter.takeEdgeWalk()) {
             this.forceEdgeWalk();
         }
     }
@@ -1157,8 +1227,9 @@ export class UpdateManager implements Manager {
         // A repaint can change how a node is drawn in ways that move where its edges stop without
         // moving the node, so the frame that finishes the repaint visits every edge. The frames in
         // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
-        // repaint was spread over.
-        if (!painter.hasPendingNodes) {
+        // repaint was spread over. A time window's slide changes nothing but the rows it painted, and
+        // the lines above placed the edges of any node of those that changed size or was rebuilt.
+        if (!painter.hasPendingNodes && painter.takeNodeWalk()) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };
         }

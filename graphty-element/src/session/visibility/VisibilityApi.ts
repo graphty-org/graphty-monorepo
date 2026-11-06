@@ -638,7 +638,7 @@ export interface VisibilitySources extends FilterSources {
      */
     readonly onChange?: (change: VisibilityChange) => void;
     /** Told after the time cursor slid the masks, which no step records. */
-    readonly onSlide?: () => void;
+    readonly onSlide?: (moved: SlideCounts) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
@@ -1511,6 +1511,35 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         null;
 
     /**
+     * Bring the kept ghosts forward by the rows a slide moved, in place: with the drawn masks
+     * unmoved, those are the only rows that can have become or stopped being ghosts.
+     * @param key - The key of what is asked for.
+     * @returns The ghosts, or null when more than that moved.
+     */
+    const ghostsAfterSlide = (key: readonly unknown[]): typeof ghostCache => {
+        if (ghostCache === null || key.slice(2).some((part, at) => part !== ghostCache?.key[at + 2])) {
+            return null;
+        }
+
+        const { key: kept, node, edge } = ghostCache;
+        const nodeRows = nodeMaskValue.changedSince(kept[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(kept[1] as number);
+        if (nodeRows === null || edgeRows === null) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = nodeMaskValue.has(row) ? 0 : 1;
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = edgeMaskValue.has(row) ? 0 : 1;
+        }
+
+        return { key, node, edge };
+    };
+
+    /**
      * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
      * graph, the filter or the runs it reads move, so a repaint asking per element walks once.
      * @returns The bytes, or null.
@@ -1530,6 +1559,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             sources.snapshot(),
         ];
         if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
+            return ghostCache;
+        }
+
+        const carried = ghostsAfterSlide(key);
+        if (carried !== null) {
+            ghostCache = carried;
             return ghostCache;
         }
 
@@ -2524,7 +2559,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 unresolvedValue = unresolvedOfSlide(window, instants);
             }
 
-            sources.onSlide?.();
+            sources.onSlide?.(counts);
 
             return { ...counts, graph: active.graph };
         },

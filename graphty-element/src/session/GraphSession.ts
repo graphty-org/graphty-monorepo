@@ -219,6 +219,7 @@ import type {
 } from "./types";
 import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import type { SlideCounts } from "./visibility/slide";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -2426,6 +2427,7 @@ function repaintAgainstCurrentData(
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
+            lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
             problems: () => engine.problems(),
@@ -2596,7 +2598,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let selection: SelectionOwner | null = null;
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
-    let repaintGhosts = (): void => undefined;
+    let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2973,8 +2975,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
         },
-        onSlide: () => {
-            repaintGhosts();
+        onSlide: (moved) => {
+            repaintGhosts(moved);
         },
         onMaskVersion: advanceTick,
         selection: {
@@ -3429,13 +3431,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
         stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
-    const repaintStates = (dirty: ElementIndices): void => {
+    const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
             return;
         }
 
         painter
-            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
                     console.error("[graphty] Could not repaint the layers reading the selection.", error);
@@ -3479,7 +3481,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
     // elements that became or stopped being ghosts.
     let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
-    repaintGhosts = (): void => {
+    repaintGhosts = (moved?: SlideCounts): void => {
         if (!readsState()) {
             paintedGhosts = null;
             return;
@@ -3487,6 +3489,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         const ghosts = visibility.ghosts();
         if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
+        if (moved !== undefined && ghosts !== null && ghosts.node === paintedGhosts?.node) {
+            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
+            paintedGhosts = ghosts;
+            repaintStates(
+                {
+                    node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
+                    edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
+                },
+                true,
+            );
             return;
         }
 

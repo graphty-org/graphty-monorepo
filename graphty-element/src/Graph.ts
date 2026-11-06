@@ -1558,6 +1558,7 @@ export class Graph implements GraphContext {
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
+            timeline: () => this.session.features.enabled.includes("timeline"),
         };
         this.updateManager.bindViewMasks(viewMasks);
 

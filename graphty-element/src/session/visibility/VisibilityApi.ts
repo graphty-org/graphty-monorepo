@@ -121,6 +121,7 @@ import {
     type TimePlayback,
     type TimeWindow,
     windowBounds,
+    windowInstants,
     windowNeedsTimeline,
     windowReadsRecords,
 } from "./filter";
@@ -2178,7 +2179,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True when an index alone cannot say what the window keeps.
      */
     const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
-        const key = [graph, window.attribute, instants?.node, instants?.edge];
+        const key = [graph, window.attribute, window.end, window.spells, instants?.node, instants?.edge];
         if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
             recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
         }
@@ -2237,20 +2238,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return {
             directed: graph.directed,
             move(window) {
-                target ??= slideTarget(
-                    graph,
-                    rule,
-                    nodes,
-                    edges,
-                    sources.instants?.(window.attribute) ?? null,
-                    (moved) => {
-                        slideCounters.full++;
-                        nodes.clear();
-                        edges.clear();
-                        const compiled = compileVisibility(graph, rule, moved, passSources(graph));
-                        runPass({ compiled, edges, graph, nodes });
-                    },
-                );
+                target ??= slideTarget(graph, rule, nodes, edges, windowInstants(window, sources), (moved) => {
+                    slideCounters.full++;
+                    nodes.clear();
+                    edges.clear();
+                    const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                    runPass({ compiled, edges, graph, nodes });
+                });
                 counter = counter === undefined ? WindowCounter.open(target, window) : counter;
                 if (counter !== null) {
                     return counter.move(window, target);
@@ -2617,7 +2611,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             };
 
             const startedAt = performance.now();
-            const instants = sources.instants?.(window.attribute) ?? null;
+            const instants = windowInstants(window, sources);
             let passed = false;
             const counts = slider.move(
                 slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {

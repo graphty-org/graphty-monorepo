@@ -3247,6 +3247,9 @@ export class Graphty extends LitElement {
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
     // @beta
+    get edgeTimeEndPath(): string | undefined;
+    set edgeTimeEndPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
     // @beta
@@ -3385,6 +3388,9 @@ export class Graphty extends LitElement {
         height: number;
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
+    // @beta
+    get nodeTimeEndPath(): string | undefined;
+    set nodeTimeEndPath(value: string | undefined);
     // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);

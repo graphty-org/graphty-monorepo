@@ -3261,9 +3261,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
                 nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
+                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
                 edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
+                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
             };
         },
         declarations: () => dispatcher.state.attributes,

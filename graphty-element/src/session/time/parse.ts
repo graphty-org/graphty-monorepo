@@ -467,6 +467,58 @@ export function readInstant(
 }
 
 /**
+ * The smallest number above a finite one.
+ * @param at - The number.
+ * @returns The next float up.
+ */
+export function nextAbove(at: number): number {
+    if (at === 0) {
+        return Number.MIN_VALUE;
+    }
+
+    const bits = new BigInt64Array(Float64Array.of(at).buffer);
+    bits[0] += at > 0 ? 1n : -1n;
+
+    return new Float64Array(bits.buffer)[0];
+}
+
+/**
+ * Where a span ends. An instant is a span ending at the next float above it, so the one test
+ * `start < to && end > from` covers both; an end at or before its start reads as such an instant.
+ * @param start - The span's start.
+ * @param end - The end as given.
+ * @returns The end.
+ */
+export function spanEnd(start: number, end: number): number {
+    return end > start ? end : nextAbove(start);
+}
+
+/**
+ * A spells value as its spells' raw bounds: a list of `{ start, end }`, `[start, end]` or bare
+ * instants, whose two bounds are the same value.
+ * @param value - The value.
+ * @returns One `[start, end]` per spell; none for an empty value.
+ */
+export function spellPairs(value: unknown): readonly (readonly [unknown, unknown])[] {
+    if (value === undefined || value === null || value === "") {
+        return [];
+    }
+
+    return (Array.isArray(value) ? value : [value]).map((spell: unknown) => {
+        if (Array.isArray(spell)) {
+            return [spell[0], spell[1]] as const;
+        }
+
+        if (typeof spell === "object" && spell !== null && !(spell instanceof Date)) {
+            const { start, end } = spell as { readonly start?: unknown; readonly end?: unknown };
+            return [start, end] as const;
+        }
+
+        return [spell, spell] as const;
+    });
+}
+
+/**
  * Read one value as an instant the way the session's time parser reads typed text: as
  * {@link readInstant} does, except that a date written loosely with no zone is read in the given
  * zone, as the time field reads date-times.

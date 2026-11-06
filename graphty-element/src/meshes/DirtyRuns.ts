@@ -1,3 +1,5 @@
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
+
 import type { Mesh } from "@babylonjs/core";
 
 /** Runs past which one upload of the whole buffer costs less than many small ones. */

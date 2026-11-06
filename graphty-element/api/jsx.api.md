@@ -96,6 +96,7 @@ export interface GraphtyElementJSXProps {
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-end-path"?: string;
     "edge-time-path"?: string;
     "edge-time-unit"?: string;
     "edge-weight-path"?: string;
@@ -108,6 +109,7 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-end-path"?: string;
     "node-time-path"?: string;
     "node-time-unit"?: string;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
@@ -273,6 +275,7 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     edgeTimePath?: Graphty["edgeTimePath"];
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
@@ -291,6 +294,7 @@ export interface GraphtyElementJSXProps {
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     nodeTimePath?: Graphty["nodeTimePath"];
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)

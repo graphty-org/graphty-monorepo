@@ -53,6 +53,53 @@ numbers from 1000 to 2999 are years, epochs are seconds or milliseconds, and any
 plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that read as time, and
 `time.notices()` reports values that did not.
 
+## Elements that exist for a span
+
+A tenure, a contract or a lease has a start and an end. `node-time-end-path` and `edge-time-end-path`
+name the end column, beside the start:
+
+```html
+<graphty-element
+    features="timeline"
+    data-source="url"
+    data-source-config='{"url": "tenures.csv"}'
+    node-time-path="hired"
+    node-time-end-path="left"
+></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+    const g = document.querySelector("graphty-element");
+    await new Promise((r) => g.addEventListener("data-loaded", r, { once: true }));
+    await g.session.time.ready;
+    await g.session.time.window({ from: "2020-01-01", to: "2021-01-01" });
+</script>
+```
+
+An element is inside a window when it starts before `to` and ends after `from`, so one that ends
+exactly at `from`, or starts exactly at `to`, is out. A missing end means it is still going. A missing
+start means it was always there, when an end is present. A row with neither has no time and follows
+`missing`. An end at or before its start reads as an instant at the start.
+
+An element that comes and goes has spells: a column holding a list of `{ start, end }`, `[start, end]`
+or bare instants. Spells have no attribute, so they go through `setField`:
+
+```js
+await g.session.time.setField({ nodes: { start: "start", end: "end", spells: "spells" } });
+```
+
+A row with a non-empty list is timed by that list alone, whatever `start` and `end` hold, and is inside
+while any of its spells overlaps the window. It leaves in a gap between spells and comes back after,
+and `time.changes()` says so. The `start` column may be absent. GEXF's open-bound flags (`startOpen`,
+`endOpen`) are ignored: they move a bound by one tick.
+
+When nodes and edges both name an `end`, or both name `spells`, they must name the same column, or
+`setField` refuses with `reason: "time-paths-differ"` and `field` naming which. A kind naming neither
+keeps instants.
+
+`extent()` covers the finite bounds, and open ones do not stretch it. A bar of `bins()` counts the
+spans overlapping it, so a long element counts in every bar it crosses, and an element with two spells
+in one bar counts twice there.
+
 ## Reading the data's time
 
 After `await time.ready`, these answer at once:
@@ -68,7 +115,8 @@ null and `notices()` returns none: wait on `time.ready`, or redraw on `time:read
 waits for a load or a `setField` running, and if the field or the data changes meanwhile it waits for
 the index of what is there now. A window set in the meantime is applied at once, and `parse()` and
 `spanOf()` finish the build to answer, which holds the page for as long as the rest of it takes. Rows
-added later are merged into the index without reading the rest of the column again.
+added later are merged into the index without reading the rest of the column again; a field with an
+end or spells reads its columns again instead.
 
 `time.bins({ count: 50, scope: "visible" })` counts only what passes your filters. The window does
 not narrow it, so a bar outside the window keeps its filtered count: draw the two kinds of bar
@@ -168,4 +216,5 @@ if (span !== null) await g.session.time.window(span);
 ```
 
 `span` is null when none of the elements has a time. Its `to` is just past the last instant, so the
-last element is inside the window.
+last element is inside the window. It covers all of an element's spans, and an open start or end stops
+at the data's `extent()`, so it is always a window you can pass on.

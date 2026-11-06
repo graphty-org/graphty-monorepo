@@ -95,6 +95,14 @@ export default tseslint.config(
         plugins: { local },
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },
+    {
+        // Stories and shared test helpers: a read of Node.mesh holds that node off the batch, so a
+        // play function or helper that read it would quietly turn a batched run into an objects one.
+        files: ["stories/**/*.ts", "test/helpers/*.ts"],
+        // Not "local": the root config already names its test-timing plugin that for test files.
+        plugins: { element: local },
+        rules: { "element/node-mesh-funnel": "error" },
+    },
 
     // ============================================
     // ALGORITHM FILES - RELAXED REQUIRE-AWAIT

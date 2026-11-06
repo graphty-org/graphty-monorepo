@@ -41,11 +41,13 @@ import {
 } from "@graphty/graph-io/styles";
 
 import type { Binding, Channel, EdgeId, LayerSpec, NodeId, Path, Rgba } from "../../../catalog/types";
+import { parseArrowStack } from "../../../meshes/arrowStack";
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
 import { computedOf, parseFileStylePath } from "./path";
 import {
+    ARROW_RUNS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
     FILE_STYLE_SHAPES,
@@ -54,7 +56,7 @@ import {
     TOOL_ARROW_SHAPES,
 } from "./shapes";
 import { fileStyleColumn, type FileStyleStore } from "./store";
-import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
+import { arrowRunStack, LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -165,6 +167,37 @@ const ARROW_OF = inverse(
     ARROW_SHAPES_NEAREST,
 );
 
+/**
+ * A stack without its sizes, which grow with the line.
+ * @param stack - An end cap's `stack` value.
+ * @returns Its caps and their widths.
+ */
+const stackShape = (stack: string): string => stack.replaceAll(/\*[^x\s]+/g, "");
+
+/** The formats whose writers spell yEd's arrows; every other format writes the end cap, which it has a name for. */
+const YED_ARROW_FORMATS: ReadonlySet<string> = new Set(["graphml", "gml"]);
+
+// yEd's arrows of several pieces share end caps, so `ARROW_OF` names only one of them: the whole row names each
+const ARROW_ROWS = new Map(
+    [...ARROW_RUNS].map(([shape, run]) => [
+        `${String(ARROW_SHAPES.get(shape))} ${stackShape(arrowRunStack(run.parts, 1))}`,
+        shape,
+    ]),
+);
+
+/**
+ * An end cap's `stack` as a neutral `targetArrowParts` value.
+ * @param value - The `stack` value.
+ * @returns The parts, or null for none a file can name.
+ */
+function stackParts(value: unknown): string | null {
+    const words = parseArrowStack(typeof value === "string" ? value : undefined).flatMap(({ type, side }) => {
+        const shape = ARROW_OF.get(type);
+        return shape === undefined ? [] : [side === undefined ? shape : `${shape}:${side}`];
+    });
+    return words.length === 0 ? null : words.join(" ");
+}
+
 const color: PropertyPlan["toNeutral"] = (value) => {
     const found = colorOf(value);
     return found !== null && found.alpha >= 1 ? found.hex : null;
@@ -186,6 +219,20 @@ const plan = (toNeutral: PropertyPlan["toNeutral"], ...properties: string[]): Pr
     properties,
     toNeutral,
 });
+
+/**
+ * What DOT's writer needs beyond the end cap to spell a Graphviz arrow's whole name: each channel's neutral property,
+ * its end cap, and its value there. In every other format a cap's side stays `graphty:<channel>`.
+ */
+const ARROW_NAME_CHANNELS: ReadonlyMap<
+    string,
+    { readonly property: string; readonly cap: string; readonly toNeutral: PropertyPlan["toNeutral"] }
+> = new Map([
+    ["edge.arrowHeadStack", { property: "targetArrowParts", cap: "edge.arrowHead", toNeutral: stackParts }],
+    ["edge.arrowTailStack", { property: "sourceArrowParts", cap: "edge.arrowTail", toNeutral: stackParts }],
+    ["edge.arrowHeadSide", { property: "targetArrowSide", cap: "edge.arrowHead", toNeutral: text }],
+    ["edge.arrowTailSide", { property: "sourceArrowSide", cap: "edge.arrowTail", toNeutral: text }],
+]);
 
 /**
  * The neutral property of each channel that has one, so that a load reads it back to the same
@@ -349,6 +396,8 @@ class KindExport {
     readonly #n: number;
     /** Per layer id, per channel, what the layer painted each element. */
     readonly #painted = new Map<string, Map<string, unknown[]>>();
+    /** Per row, everything the element is drawn with, whichever layers painted it. */
+    readonly #merged: Readonly<Record<string, unknown>>[] = [];
     readonly #columns = new Map<string, StyleColumn>();
     /** Per file-style path, the key it is written under. */
     readonly #fileKeys = new Map<string, string>();
@@ -371,7 +420,9 @@ class KindExport {
         this.#n = ids.length;
         ids.forEach((id, row) => {
             const target: ExplainTarget = kind === "node" ? { node: id } : { edge: id as EdgeId };
-            for (const contribution of input.explain(target).contributions) {
+            const { merged, contributions } = input.explain(target);
+            this.#merged[row] = merged;
+            for (const contribution of contributions) {
                 let channels = this.#painted.get(contribution.layerId);
                 if (channels === undefined) {
                     channels = new Map();
@@ -595,7 +646,9 @@ class KindExport {
     #neutral(channel: string, values: readonly unknown[]): NeutralChannel | null {
         const known = PLANS[this.#kind].get(channel);
         if (known !== undefined) {
-            const converted = values.map((value) => (value === null ? null : known.toNeutral(value)));
+            const converted = values.map((value, row) =>
+                value === null ? null : (this.#arrowRow(channel, value, row) ?? known.toNeutral(value)),
+            );
             if (converted.every((value, i) => value !== null || values[i] === null)) {
                 return { properties: known.properties, values: converted, convert: known.toNeutral };
             }
@@ -607,6 +660,42 @@ class KindExport {
         }
 
         return { properties: [`graphty:${channel}`], values: converted, convert: graphtyValue };
+    }
+
+    /**
+     * The arrow of several pieces an end cap is the first of, read from the whole stack the element is drawn with: the
+     * stack may come from another layer than the cap.
+     * @param channel - The channel.
+     * @param cap - The channel's value.
+     * @param row - The element.
+     * @returns The neutral arrow, or undefined when the channel is no end cap of such an arrow or the format has none.
+     */
+    #arrowRow(channel: string, cap: unknown, row: number): string | undefined {
+        const stack = this.#merged[row]?.[`${channel}Stack`];
+        return YED_ARROW_FORMATS.has(this.#input.format) && typeof stack === "string" && typeof cap === "string"
+            ? ARROW_ROWS.get(`${cap} ${stackShape(stack)}`)
+            : undefined;
+    }
+
+    /**
+     * What a channel adds to a Graphviz arrow name, for DOT alone: a stack behind an end cap, or that cap's side. yEd's
+     * rows are stacks too, but DOT writes their end cap.
+     * @param channel - The channel.
+     * @param drawn - What it painted.
+     * @returns The neutral property and its values by row, or null when the channel adds nothing.
+     */
+    #arrowName(channel: string, drawn: readonly unknown[]): { property: string; values: StyleColumn } | null {
+        const end = ARROW_NAME_CHANNELS.get(channel);
+        if (end === undefined || this.#input.format !== "dot") {
+            return null;
+        }
+
+        const values = drawn.map((value, row) => {
+            const stack = this.#merged[row]?.[`${end.cap}Stack`];
+            const yed = ARROW_ROWS.has(`${String(this.#merged[row]?.[end.cap])} ${stackShape(String(stack))}`);
+            return value === null || yed ? null : end.toNeutral(value);
+        });
+        return values.some((value) => value !== null) ? { property: end.property, values } : null;
     }
 
     /**
@@ -632,6 +721,12 @@ class KindExport {
                 this.#unwritten(entry, channel, drawn);
             } else {
                 this.#channel({ entry, at, where, channel: channel as Channel }, written, body);
+            }
+
+            const name = this.#arrowName(channel, drawn);
+            if (name !== null) {
+                const key = this.#keep(`layer.${String(at)}.${name.property}`, name.values);
+                body.map[name.property] = { kind: "passthrough", by: { style: key } };
             }
         }
         const { set, map, reason } = body;

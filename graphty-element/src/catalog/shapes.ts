@@ -131,6 +131,8 @@ export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[] = des
     // The flat shapes: drawn on one plane, so each glyph is its outline.
     ["rectangle", "Rectangle", '<rect x="3" y="6" width="18" height="12"/>'],
     ["round-rectangle", "Rounded rectangle", '<rect x="3" y="6" width="18" height="12" rx="3"/>'],
+    ["top-round-rectangle", "Rectangle, rounded top", '<path d="M3 18V9a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v9z"/>'],
+    ["bottom-round-rectangle", "Rectangle, rounded bottom", '<path d="M3 6v9a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V6z"/>'],
     ["ellipse", "Ellipse", '<ellipse cx="12" cy="12" rx="9" ry="6"/>'],
     ["diamond", "Diamond", '<path d="M12 3l9 9-9 9-9-9z"/>'],
     ["triangle", "Triangle", '<path d="M12 4l9 16H3z"/>'],
@@ -241,6 +243,8 @@ export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[] =
     ["kite", "Kite", `<path d="M2 12h12"/><path d="M22 12l-6-4-4 4 4 4z" ${FILL}/>`],
     ["deltoid", "Deltoid", `<path d="M2 12h14"/><path d="M22 12q-3-1-7-6 1 6 0 12 4-5 7-6z" ${FILL}/>`],
     ["open-vee", "Open vee", '<path d="M2 12h16 M14 7l8 5-8 5"/>'],
+    ["slash", "Slash", '<path d="M2 12h20 M10 7l8 10"/>'],
+    ["stem", "Stem", '<path d="M2 12h20"/>'],
 ]);
 
 /**

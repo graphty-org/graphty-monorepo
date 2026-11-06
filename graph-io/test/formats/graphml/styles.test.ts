@@ -12,6 +12,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GRAPHML_ISSUE } from "../../../src/formats/graphml/index.js";
+import { configurationOutline, putOutline } from "../../../src/formats/graphml/styles-yed.js";
 import { extractPositions } from "../../../src/positions/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
@@ -397,10 +398,10 @@ describe("GraphML styles: yEd", () => {
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
-        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0 #c0c0c0");
+        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0");
         expect([colors[at("cols")], sizes[at("cols")], direction[at("cols")]]).toEqual([
-            "#ecf5ff #c0c0c0 #c0c0c0",
-            "0.133333 0.333333 0.533333",
+            "#ecf5ff #c0c0c0",
+            "0.133333 0.866667",
             "right",
         ]);
         expect(direction[at("rows")]).toBeNull();
@@ -757,6 +758,67 @@ describe("GraphML styles: yFiles 3", () => {
         expect(resolveStyles(styles, "node", "width", snapshot)[i]).toBe(145);
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Order");
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[i]).toBe("Arial");
+    });
+
+    it("reads a RectangleNodeStyle's corners=TOP as a box rounded along its top", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml"),
+            ),
+        );
+        const shape = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
+    });
+
+    it("paints yEd's BevelNode family as a ramp over the upper half with a line 2 in, in the border's color", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml"),
+            ),
+        );
+        const at = snapshot.ids.indexOf("generic-legacy-bevelnode");
+        const read = (property: StyleProperty): unknown => resolveStyles(styles, "node", property, snapshot)[at];
+        expect(read("fillGradientColors")).toBe("#f1f1f1 #d3d3d3 #c8c8c8 #c8c8c8");
+        expect(read("borderWidth")).toBe(0);
+        expect(read("borderColor")).toBe("#505050");
+        expect(String(read("shapeLines")).split(" ")[0]).toBe("-1+2.000,1-3.000");
+    });
+
+    it("draws no line in a bevel whose border has no color", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(join(CORPUS, "yed-genericnode/awslabs__aws-c-io__slots.graphml")),
+        );
+        const lines = resolveStyles(styles, "node", "shapeLines", snapshot);
+        const paint = resolveStyles(styles, "node", "fillGradientColors", snapshot);
+        expect(paint.filter((p) => p !== null).length).toBeGreaterThan(0);
+        expect(lines.filter((l) => l !== null)).toEqual([]);
+    });
+
+    it("keeps a display's curves their length at any width", () => {
+        const points = (width: number): string => {
+            const put: Record<string, unknown> = {};
+            const outline = configurationOutline("com.yworks.flowchart.display");
+            if (outline === null) {
+                throw new Error("no outline");
+            }
+            putOutline(outline, width, 36, (property, value) => {
+                put[property] = value;
+            });
+            return String(put.shapePoints);
+        };
+        // 18 in from the left side at the curve's end: a fraction of the half width
+        expect(points(48).split(" ")[8]).toBe("-0.25,-1");
+        expect(points(56).split(" ")[8]).toBe("-0.357,-1");
+    });
+
+    it("draws a line in a color with no alpha as no line", async () => {
+        const border = '<y:BorderStyle color="#FFFFFF00" type="line" width="1.0"/>';
+        const graph = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
+            <key for="node" id="d0" yfiles.type="nodegraphics"/><graph edgedefault="directed"><node id="n"><data key="d0">
+            <y:ShapeNode><y:Geometry height="10" width="1" x="0" y="0"/>${border}</y:ShapeNode></data></node></graph></graphml>`;
+        const { snapshot, styles } = await load(new TextEncoder().encode(graph));
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)[0]).toBe(0);
     });
 
     it("notes shared references that refer to each other and finishes", async () => {

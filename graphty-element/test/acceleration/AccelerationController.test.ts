@@ -102,6 +102,26 @@ function softwareOnlyFactory(
 
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
 
+describe("AccelerationController: sharing the renderer's device", () => {
+    it("takes a registration that throws as a no, and still asks the next one", () => {
+        const registry = new AcceleratorRegistry();
+        const factory = (): Promise<null> => Promise.resolve(null);
+        registry.register({
+            name: "broken",
+            factory,
+            sharesDevice: () => {
+                throw new Error("no adapter info");
+            },
+        });
+        const controller = new AccelerationController({ registry });
+
+        assert.isFalse(controller.sharesDevice({}));
+
+        registry.register({ name: "willing", factory, sharesDevice: () => true });
+        assert.isTrue(controller.sharesDevice({}));
+    });
+});
+
 describe("AccelerationController: probing", () => {
     it("starts in probing, because an unfinished probe is not a missing GPU", () => {
         const controller = new AccelerationController({ registry: new AcceleratorRegistry() });

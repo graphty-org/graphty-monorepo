@@ -1351,6 +1351,12 @@ jobs:
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
+            # No style layer is special (#5905): tools/special-layers-baseline.json may only shrink against
+            # the merge base, and its lint and API rows may not go stale. The same check runs in
+            # tools/check-quick.sh.
+            - name: No special style layers
+              run: pnpm run check:special-layers
+
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
             # The same check runs in tools/prepush-source-checks.sh.

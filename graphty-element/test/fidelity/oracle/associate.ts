@@ -322,6 +322,30 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
     return fills.some((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
 }
 
+/**
+ * The line a reader sees along an outline: a narrower one drawn over it down the same path (yFiles' bevel, a line of 1
+ * over a lighter one of 2), which leaves the wider only a halo either side. A line under half as wide is the gap of a
+ * double line (Cytoscape.js's `double` border, a third of its width), whose outline is the wider.
+ * @param line - the outline
+ * @param shapes - the node's shapes
+ * @returns the narrower line drawn over it, else the outline
+ */
+export function lineOnTop(line: Prim | undefined, shapes: readonly Prim[]): Prim | undefined {
+    const width = line?.stroke?.width;
+    if (line === undefined || width === undefined) {
+        return line;
+    }
+    const along = (s: Prim): boolean =>
+        s.index > line.index &&
+        s.fill === null &&
+        s.stroke !== null &&
+        s.stroke.width < width &&
+        s.stroke.width >= width / 2 &&
+        s.points.length === line.points.length &&
+        s.points.every(([x, y], i) => Math.hypot(x - line.points[i][0], y - line.points[i][1]) <= 0.01);
+    return shapes.filter(along).at(-1) ?? line;
+}
+
 /** The node shapes whose outline is not their box's, nor an ellipse in it: a line ends on their slanted sides. */
 const SLANTED: ReadonlySet<PShape> = new Set(["triangle", "diamond", "hexagon", "octagon"]);
 
@@ -409,9 +433,10 @@ function nodeFrom(
     // of several outlines, the one centered on the body (a line of dots passing the node is not its outline)
     const at = body ?? all[0];
     const off = (s: Prim): number => (at ? Math.hypot(cx(s.box) - cx(at.box), cy(s.box) - cy(at.box)) : 0);
-    const stroked = all
+    const strokedFirst = all
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
+    const stroked = lineOnTop(strokedFirst, all);
     // a gradient painted as a picture over the node's whole face (Cytoscape desktop's gradient custom graphics) is the
     // node's fill as a reader sees it, not a picture on it
     const overlap = (a: PBox, b: PBox): number =>
@@ -428,10 +453,15 @@ function nodeFrom(
             ? null
             : { color: painted.gradient.stops[0]?.color ?? "#000000", opacity: 1, gradient: painted.gradient };
     const pictures = shapes.filter((s) => s.kind === "image" && s !== painted).map((s) => s.box);
+    const faces =
+        piecesFirst(sorted) === null
+            ? []
+            : sorted.filter((s) => s.fill !== null && s.kind !== "image").map((s) => s.box);
     const shape = outline && area(outline.box) > 0 ? shapeOf(outline) : null;
     const node: PNode = {
         id,
         ...(pictures.length > 0 ? { pictures } : {}),
+        ...(faces.length > 0 ? { faces } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
@@ -1650,8 +1680,12 @@ export function arrowheadEdge(
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
     // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
+    // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
+    // spans its middle (gml-synthetic-coverage, 29->40).
+    const armsOnly = p.closed && p.points.length > 2 && areaCentroid(p.points) === null;
     if (
         !lineEnd &&
+        !armsOnly &&
         nodes.some(
             (n) =>
                 inside([n.cx, n.cy], p.box) ||
@@ -1763,7 +1797,14 @@ export function arrowheadEdge(
                   ["source", "target"],
               )) ??
         pointed ??
-        (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
+        // a cap within reach of an end that does not reach its line's middle is that end's, stood back from it: on a
+        // short line yEd's circle or bar in a row sits nearer the middle than the end (gml-specimen-arrows-p2), where a
+        // middle cap, however it is set on the middle, covers it
+        (held ||
+        middle === null ||
+        (ends !== null && (ends.d < middle.d || toBox(pointAlong(middle.e.points, 0.5), p.box) > 1))
+            ? ends
+            : middle);
     if (best === null) {
         return null;
     }
@@ -2279,6 +2320,74 @@ export function foldRaisedBorders(prims: readonly Prim[]): Prim[] {
 }
 
 /**
+ * Whether three shapes are a two-part bevel: a flat lower half, an upper half over it by a pixel at most, and a line
+ * inside the two.
+ * @param lower - the first shape
+ * @param upper - the next
+ * @param line - the one after it
+ * @returns true for such shapes
+ */
+function areBevelHalves(lower: Prim, upper: Prim, line: Prim | undefined): boolean {
+    const halves = [lower, upper].every((p) => p.tag === "path" && p.stroke === null && p.fill !== null);
+    const aligned =
+        Math.abs(lower.box.x0 - upper.box.x0) <= 0.01 &&
+        Math.abs(lower.box.x1 - upper.box.x1) <= 0.01 &&
+        upper.box.y1 >= lower.box.y0 &&
+        upper.box.y1 - lower.box.y0 <= 1.5;
+    if (!halves || !aligned || lower.fill?.gradient !== null || line?.fill !== null || line.stroke === null) {
+        return false;
+    }
+    const { box } = line;
+    return box.x0 > lower.box.x0 && box.x1 < lower.box.x1 && box.y0 > upper.box.y0 && box.y1 < lower.box.y1;
+}
+
+/**
+ * The drawing with each two-part bevel read as the one body it is: yEd paints its BevelNode family as a flat lower half
+ * and, over it, an upper half in a ramp, the two overlapping by a pixel, with the node's line inside them. Neither is
+ * the node, and alone each is a box half its size. Two such halves become a whole body painted as both were.
+ * @param prims - the oracle's primitives
+ * @returns the primitives, each bevel's two halves one body
+ */
+export function foldBevelHalves(prims: readonly Prim[]): Prim[] {
+    const out: Prim[] = [];
+    for (let i = 0; i < prims.length; i++) {
+        const [lower, upper, line] = [prims[i], prims[i + 1], prims.at(i + 2)];
+        const ramp = upper?.fill?.gradient;
+        const halves = ramp !== null && ramp !== undefined && areBevelHalves(lower, upper, line);
+        if (!halves) {
+            out.push(lower);
+            continue;
+        }
+        const box = union([lower.box, upper.box]);
+        const seam = bh(upper.box) / bh(box);
+        const color = lower.fill?.color ?? "#000000";
+        const { squareCorner: _seam, ...body } = upper;
+        out.push({
+            ...body,
+            box,
+            points: [
+                ...upper.points.filter(([, y]) => y < lower.box.y0),
+                ...lower.points.filter(([, y]) => y > upper.box.y1),
+            ],
+            fill: {
+                color: upper.fill?.color ?? color,
+                opacity: upper.fill?.opacity ?? 1,
+                gradient: {
+                    ...ramp,
+                    stops: [
+                        ...ramp.stops.map((s) => ({ ...s, offset: s.offset * seam })),
+                        { color, opacity: 1, offset: seam },
+                        { color, opacity: 1, offset: 1 },
+                    ],
+                },
+            },
+        });
+        i += 1;
+    }
+    return out;
+}
+
+/**
  * Associates an oracle's primitives with graph elements.
  * @param primitives - the oracle's primitives (`readSvgPrimitives`)
  * @param width - the oracle's rendered width
@@ -2296,7 +2405,7 @@ export function associate(
     guide: PScene,
     options: { ownLayout?: boolean } = {},
 ): Association {
-    const prims = foldRaisedBorders(primitives);
+    const prims = foldBevelHalves(foldRaisedBorders(primitives));
     const kept = new Set(prims.map((p) => p.index));
     const strips = primitives.filter((p) => !kept.has(p.index));
     const used = new Set<number>();
@@ -3576,15 +3685,23 @@ export function associate(
             .filter((a) => a.kind === "shape")
             .map((a) => boxOfPoints([at(a.box.x0, a.box.y0), at(a.box.x1, a.box.y1)]));
     };
-    const labelled = [
+    const labelled: { t: PText | null; n?: PNode; group?: PBox }[] = [
         ...nodeList.map((n) => ({ t: n.label, n })),
-        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label, n: undefined })),
-        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, n: undefined })),
-    ].filter((x): x is { t: PText; n: PNode | undefined } => x.t !== null && x.t.sizePx > 0);
-    for (const { t, n } of labelled) {
+        ...[...edges].sort((a, b) => compareIds(a.id, b.id)).map((e) => ({ t: e.label })),
+        ...[...groups].sort((a, b) => compareIds(a.id, b.id)).map((g) => ({ t: g.label, group: g.box })),
+    ];
+    for (const { t, n, group } of labelled) {
+        if (t === null || !(t.sizePx > 0)) {
+            continue;
+        }
         const framed = guideAnnotations(n, t);
         const backs = free()
-            .filter((p) => p.kind === "shape" && backsText(p, t) && !framed.some((b) => boxIoU(b, p.box) >= 0.5))
+            .filter(
+                (p) =>
+                    p.kind === "shape" &&
+                    (backsText(p, t) || (group !== undefined && bandsGroup(p, t, group))) &&
+                    !framed.some((b) => boxIoU(b, p.box) >= 0.5),
+            )
             .sort((a, b) => area(a.box) - area(b.box) || a.index - b.index);
         const filled = backs.find((p) => p.fill !== null);
         const bordered = backs.find((p) => p.stroke !== null && (filled === undefined || p.fill === null));
@@ -3640,6 +3757,9 @@ export function associate(
     };
 }
 
+/** The share of a group's side a band behind its label runs: a rounded group's band stops short of its outline. */
+const BAND_OF_GROUP = 0.9;
+
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
  * them by no more than two font sizes on any side (a node's body or a group box round a label reaches much further).
@@ -3662,6 +3782,23 @@ function backsText(p: Prim, t: PText): boolean {
         b.x1 <= t.box.x1 + reach &&
         b.y1 <= t.box.y1 + reach
     );
+}
+
+/**
+ * Whether a shape is the band a group's label is drawn on: a filled box behind the words that runs the group's whole
+ * width, or height for a label down its side, and reaches past the words the other way no further than a label's
+ * background does (yEd's `autoSizePolicy="node_width"`: graphml-galaxy-lcms-workflow's green band under "Preprocessing").
+ * @param p - the shape
+ * @param t - the label
+ * @param group - the group's box
+ * @returns true for the group's label band
+ */
+export function bandsGroup(p: Prim, t: PText, group: PBox): boolean {
+    const reach = Math.max(2 * t.sizePx, 4);
+    const b = p.box;
+    const across = bw(b) >= BAND_OF_GROUP * bw(group) && b.y0 >= t.box.y0 - reach && b.y1 <= t.box.y1 + reach;
+    const down = bh(b) >= BAND_OF_GROUP * bh(group) && b.x0 >= t.box.x0 - reach && b.x1 <= t.box.x1 + reach;
+    return p.fill !== null && inside([cx(t.box), cy(t.box)], b) && (across || down);
 }
 
 /** Intersection over union of two boxes. */

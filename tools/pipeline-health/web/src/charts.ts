@@ -307,10 +307,7 @@ export function sortedBars(
     const table = hiddenTable(
         caption,
         ["item", "value"],
-        items.map((i) => [
-            cellHtml(i.label).replaceAll(/<[^>]+>/g, ""),
-            i.unit === "usd" ? `${fmtN(i.n)} USD` : fmtUnit(i.n, i.unit),
-        ]),
+        items.map((i) => [stripTags(cellHtml(i.label)), i.unit === "usd" ? `${fmtN(i.n)} USD` : fmtUnit(i.n, i.unit)]),
     );
     return `<div class="bars">${rows}</div>${table}`;
 }

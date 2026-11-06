@@ -51,10 +51,10 @@ import { type FoldableLayer, foldToCap } from "./fold";
 import type { FileStyleMeaning, FileStyleOrigin } from "./origin";
 import { computedPath, fileStylePath, isFileStylePath, parseFileStylePath } from "./path";
 import {
-    ARROW_ROW_SIZES,
-    ARROW_ROWS,
+    ARROW_RUNS,
     ARROW_SHAPES,
     ARROW_SHAPES_NEAREST,
+    type ArrowRunPart,
     arrowShapesOf,
     BORDER_STYLES,
     BORDER_STYLES_NEAREST,
@@ -864,6 +864,7 @@ function channelPlans(
             ["labelPadding", [labelLength("node.labelPadding", false)]],
             ["labelCornerRadius", [labelLength("node.labelCornerRadius", false)]],
             ["labelLineHeight", [label("labelLineHeight")]],
+            ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
             ["labelOffsetY", [length("node.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
@@ -1128,14 +1129,7 @@ const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
  * How deep along its line an element cap of a neutral arrow shape is, as a fraction of its size's
  * length, where it is not the whole length (FilledArrowRenderer: a tee is 0.5 deep).
  */
-const CAP_DEPTH: ReadonlyMap<string, number> = new Map([
-    ["tee", 0.5],
-    // yEd's bars, drawn as the tee
-    ["other:dash", 0.5],
-    ["other:crows_foot_one", 0.5],
-    ["other:crows_foot_one_mandatory", 0.5],
-    ["other:crows_foot_one_optional", 0.5],
-]);
+const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
 
 /**
  * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
@@ -1179,10 +1173,6 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:white_delta_bar", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["other:crows_foot_many_mandatory", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["other:crows_foot_many_optional", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
-    ["other:dash", 3],
-    ["other:crows_foot_one", 3],
-    ["other:crows_foot_one_mandatory", 3],
-    ["other:crows_foot_one_optional", 3],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -1267,12 +1257,44 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
 
     // a picture is drawn at the size the file gives it, whatever the arrow size
     const picture = imageSizeOf(end, i);
+    const lead = ARROW_RUNS.get(shape)?.lead;
     const length =
         picture?.height ??
-        geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) *
-            (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
-            factor(end.length, i);
+        headLengthOf(geometry, end, width, i) *
+            (lead === undefined ? (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) : lead / YED_HEAD_LENGTH);
     return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
+}
+
+/** How long yEd draws its standard head at line width 1, the pixels `ARROW_RUNS` measures in. */
+const YED_HEAD_LENGTH = 12;
+
+/**
+ * How long a program draws its plain head at an edge's end, in the program's units.
+ * @param geometry - How the program sizes its arrowheads.
+ * @param end - The end.
+ * @param width - The line's width.
+ * @param i - The edge.
+ * @returns The length.
+ */
+function headLengthOf(geometry: ToolArrowhead, end: ArrowEnd, width: number, i: number): number {
+    return geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) * factor(end.length, i);
+}
+
+/**
+ * An end cap's `stack` for one of yEd's arrows of several pieces.
+ * @param parts - The pieces behind the end cap, nearest first.
+ * @param pixel - One of yEd's pixels (`ARROW_RUNS`) as an element cap's length, at this edge's line width.
+ * @returns The `stack` value.
+ */
+export function arrowRunStack(parts: readonly ArrowRunPart[], pixel: number): string {
+    return parts
+        .map(({ type, along, across }) => {
+            const size = round((along * pixel) / (CAP_DEPTH.get(type) ?? 1));
+            const breadth = across === undefined ? null : round(across / along / (CAP_ASPECT.get(type) ?? 1));
+            const wide = breadth === null ? "" : `x${String(breadth)}`;
+            return `${type}*${String(size)}${wide}`;
+        })
+        .join(" ");
 }
 
 /**
@@ -1320,14 +1342,15 @@ function arrowStackOf(
         .trim()
         .split(/\s+/)
         .flatMap((word) => {
-            const [shape, side] = word.split(":");
+            // a shape may hold a colon of its own (`other:open-square`)
+            const [, shape, side] = /^(.+?)(?::(left|right))?$/.exec(word) ?? [];
             const type = ARROW_SHAPES.get(shape);
             if (type === undefined || type === "none") {
                 return [];
             }
 
             const sizes = sized?.(shape);
-            const kept = side === "left" || side === "right" ? `:${side}` : "";
+            const kept = side === undefined ? "" : `:${side}`;
             const size = typeof sizes?.size === "number" ? `*${String(sizes.size)}` : "";
             const width = typeof sizes?.width === "number" ? `x${String(sizes.width)}` : "";
             return [`${type}${kept}${size}${width}`];
@@ -3299,20 +3322,24 @@ class KindTranslation {
             if (end === "Head" || end === "Tail") {
                 encode(
                     `edge.arrow${end}Stack`,
-                    parts[end].map((value, i) =>
-                        arrowStackOf(value ?? ARROW_ROWS.get(sides.shapes[i] as string) ?? null, (shape) => {
+                    parts[end].map((value, i) => {
+                        const run = ARROW_RUNS.get(sides.shapes[i] as string);
+                        if ((value ?? null) === null && run !== undefined) {
+                            const head = headLengthOf(geometry, sides, factor(width, i, 0), i);
+                            const pixel = (head * scene) / (YED_HEAD_LENGTH * EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH);
+                            return arrowRunStack(run.parts, pixel);
+                        }
+                        return arrowStackOf(value, (shape) => {
                             const part: ArrowEnd = {
                                 ...sides,
-                                shapes: sides.shapes.map((own, j) =>
-                                    j === i ? (ARROW_ROW_SIZES.get(own as string) ?? shape) : null,
-                                ),
+                                shapes: sides.shapes.map((_own, j) => (j === i ? shape : null)),
                             };
                             return {
                                 size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),
                                 width: arrowBreadthOf(geometry, part, i),
                             };
-                        }),
-                    ),
+                        });
+                    }),
                 );
             }
         }

@@ -7,7 +7,8 @@
  * running clock -- and, after each story's play function, its waits, then asks the Node commands
  * of story-test.mjs for the shot of every mode. A first shot that differs from the baseline is
  * rendered and shot again (in an afterEach hook of its own), as capture.mjs does. A failed play, a render error, the project's
- * console rule and an unstable story (two shots that disagree) fail the test.
+ * console rule and an unstable story (two shots that disagree, even when the second matches the
+ * baseline) fail the test, so its retry and the test ledger judge it like any flaky test.
  */
 
 /* global document, requestAnimationFrame, history, location, localStorage, sessionStorage, indexedDB -- browser only */
@@ -108,6 +109,15 @@ function runningClock() {
  * @returns {Record<string, unknown>} the globals to render with
  */
 export const modeGlobals = (globals, forced, mode) => ({ ...globals, ...mode, ...forced });
+
+/**
+ * Whether a story's two shots drew different pictures: unstable, or flaky, whose second shot matched
+ * the baseline and so counts as unchanged, but was a different picture from its first all the same
+ * (#3389). Either fails the test, so its retry and the test ledger judge it like any flaky test.
+ * @param {{ status?: string, flaky?: boolean }} result the second shot's result
+ * @returns {boolean} whether the shots disagreed
+ */
+export const shotsDisagreed = ({ status, flaky }) => status === "unstable" || flaky === true;
 
 /**
  * Installs the visual step in the tester page.
@@ -266,7 +276,7 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
                     if (stale(mine)) {
                         return;
                     }
-                    if ((await shot(story, chromatic, mode)).status === "unstable") {
+                    if (shotsDisagreed(await shot(story, chromatic, mode))) {
                         unstable.push(mode.name ?? story.id);
                     }
                 } catch (e) {

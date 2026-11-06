@@ -6,6 +6,7 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
+import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
@@ -79,6 +80,7 @@ import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -149,6 +151,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -157,6 +160,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
+    readonly sharesDevice?: (adapter: unknown) => boolean;
 }
 
 // @public
@@ -841,6 +845,8 @@ export class Edge {
     supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
+    // @internal
+    get trimInput(): EdgeTrimInput;
     update(): void;
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
@@ -1955,7 +1961,6 @@ export abstract class LayoutEngine {
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
-    // (undocumented)
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
@@ -1991,8 +1996,15 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    // @internal
+    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
+    // @internal
+    protected publishScratch(count: number): {
+        rows: Float64Array;
+        coords: Float64Array;
+    };
     readNodePosition(n: Node_2, out: {
         x: number;
         y: number;
@@ -2107,16 +2119,37 @@ class Node_2 implements ModelUser {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
     get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
+    // @internal
+    get drawnByRowScan(): boolean;
     get drawnFill(): string | null;
+    // @internal
+    get drawnGeneration(): number;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
+    get drawnPickMesh(): AbstractMesh;
+    // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
+    // @internal
+    get drawnRootScale(): number;
+    // @internal
+    get drawnScale(): number;
+    set drawnScale(scale: number);
+    // @internal
+    get drawnScaling(): Readonly<Vector3>;
     // @internal
     get drawnScene(): Scene;
     // @internal
@@ -2126,7 +2159,11 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnWorldPosition(): Vector3;
     // @internal
+    get drawnWorldRadius(): number;
+    // @internal
     get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;
@@ -2147,6 +2184,8 @@ class Node_2 implements ModelUser {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    // @internal
+    get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
     // @internal
     isDrawnInFrustum(planes: Plane[]): boolean;
@@ -2156,6 +2195,8 @@ class Node_2 implements ModelUser {
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
+    // @internal
+    makeDrawnPickable(actions: ActionManager): void;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -2208,6 +2249,8 @@ class Node_2 implements ModelUser {
     spacingRadius(flat: boolean): number;
     // @internal
     get surfaceIsBox(): boolean;
+    // @internal
+    get surfaceIsClosedForm(): boolean;
     // @internal
     syncXlabelPlace(): void;
     // @internal

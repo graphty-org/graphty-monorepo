@@ -71,6 +71,7 @@ import {
 import { normalizeText, textMatcher } from "../text";
 import { numericBound, readTimeValue } from "../time/parse";
 import { isTimeZone } from "../time/zone";
+import { slideCounters } from "./slide";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
@@ -103,7 +104,7 @@ export interface TimeWindow {
     /**
      * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
      * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
-     * window ends at it, so nodes follow their edges.
+     * window, and passing the filter, ends at it, so nodes follow their edges.
      * @experimental timeline
      * @beta
      */
@@ -375,6 +376,12 @@ export interface CompiledVisibility {
      * @returns The unresolved paths, without duplicates.
      */
     unresolvedPaths(): readonly Path[];
+    /**
+     * The filter on its own, the window aside: tests a reader can walk without compiling the filter
+     * again, and {@link CompiledVisibility.unresolvedPaths} for the paths the filter names. Null
+     * with no filter.
+     */
+    readonly filter: Omit<CompiledVisibility, "filter"> | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1801,24 +1808,59 @@ export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: F
 }
 
 /**
+ * A window's bounds as instants: an unreadable bound leaves that side open.
+ * @param window - The window.
+ * @param sources - Where a designated column's zone is read.
+ * @returns `[from, to)`.
+ */
+export function windowBounds(window: TimeWindow, sources: FilterSources): readonly [number, number] {
+    const zone = sources.boundZone?.(window.attribute);
+    const boundOf = (bound: number | string): number | null =>
+        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
+
+    return [boundOf(window.from) ?? Number.NEGATIVE_INFINITY, boundOf(window.to) ?? Number.POSITIVE_INFINITY];
+}
+
+/**
+ * Whether a window reads a kind's own records: a kind no index holds that carries the column under
+ * the window's name, which `compileWindow` tests like any other value.
+ * @param graph - The snapshot.
+ * @param window - The window.
+ * @param sources - Where the values and the index are read.
+ * @returns True when an index alone cannot say what the window keeps.
+ */
+export function windowReadsRecords(graph: GraphSnapshot, window: TimeWindow, sources: FilterSources): boolean {
+    const { values } = sources;
+    const indexed = sources.instants?.(window.attribute) ?? null;
+    if (values === undefined) {
+        return false;
+    }
+
+    return (
+        ((indexed?.node ?? null) === null &&
+            carries(graph.nodeCount, (index) => values.nodeValue(index, window.attribute))) ||
+        ((indexed?.edge ?? null) === null &&
+            carries(graph.edgeCount, (index) => values.edgeValue(index, window.attribute)))
+    );
+}
+
+/**
  * Compile a time window into its node half and its edge half.
  *
  * Both halves read the SAME attribute path and share one mark, so a window on `data.timestamp`
  * that only the edges answer does not report the path as unresolved.
  * @param window - The window.
  * @param context - The compile context.
+ * @param filterEdge - The filter's edge test, which an edge passes too before it counts for
+ *     `nodes: "ends"`; null when the filter says nothing of edges.
  * @returns The two halves.
  * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session cannot read attributes.
  */
-function compileWindow(window: TimeWindow, context: CompileContext): CompiledHalves {
+function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: ElementTest | null): CompiledHalves {
     const values = valuesOf(context, "window");
     const { graph } = context;
     const mark = markFor(context, window.attribute);
-    const zone = context.sources.boundZone?.(window.attribute);
-    const boundOf = (bound: number | string): number | null =>
-        zone === undefined || typeof bound === "number" ? instantOf(bound) : numericBound(bound, zone);
-    const from = boundOf(window.from) ?? Number.NEGATIVE_INFINITY;
-    const to = boundOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const [from, to] = windowBounds(window, context.sources);
     // With the timeline off a saved window's options stay saved and are not applied.
     const timeline = context.sources.timeline?.() !== false;
     const missingInside = !timeline || window.missing !== "outside";
@@ -1862,13 +1904,13 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
     let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
 
-    if (timeline && window.nodes === "ends" && edge !== null) {
-        // ponytail: counts an edge inside the window, not one that also passes the filter's edge
-        // half, as the `ends` of a range leaf does; the design's rule ANDs both.
+    if (timeline && window.nodes === "ends") {
         const list = graph.edgeList();
         const ends = new Uint8Array(graph.nodeCount);
+        // Saying nothing of edges leaves each with no time, which passes only under "inside".
+        const counted = edge ?? ((): boolean => missingInside);
         for (let index = 0; index < graph.edgeCount; index++) {
-            if (edge(index)) {
+            if (counted(index) && (filterEdge === null || filterEdge(index))) {
                 ends[list.src[index]] = 1;
                 ends[list.dst[index]] = 1;
             }
@@ -1879,6 +1921,29 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
     }
 
     return { node, edge };
+}
+
+/**
+ * A test that answers each row once: a filter under a window, whose answers a slide reads again.
+ * @param test - The test, or null.
+ * @param count - How many rows.
+ * @returns The same test, remembering.
+ */
+function remembered(test: ElementTest | null, count: number): ElementTest | null {
+    if (test === null) {
+        return null;
+    }
+
+    slideCounters.filterReads++;
+    const answers = new Uint8Array(count);
+
+    return (index) => {
+        if (answers[index] === 0) {
+            answers[index] = test(index) ? 1 : 2;
+        }
+
+        return answers[index] === 1;
+    };
 }
 
 /**
@@ -1915,13 +1980,35 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
+    const compiledFilter = filter === null ? null : compileOne(filter, context);
+    // Only a slide reads the answers again, so with the timeline off a pass runs the tests as they are.
+    const filtering =
+        window === null || compiledFilter === null || sources.timeline?.() !== true
+            ? compiledFilter
+            : {
+                  node: remembered(compiledFilter.node, graph.nodeCount),
+                  edge: remembered(compiledFilter.edge, graph.edgeCount),
+              };
 
-    if (filter !== null) {
-        halves.push(compileOne(filter, context));
+    if (filtering !== null) {
+        halves.push(filtering);
     }
 
+    const filterPaths = [...context.marks.keys()];
+    const unresolved = (paths: Iterable<Path>): readonly Path[] => {
+        const found = new Set(context.unresolvedQueries);
+
+        for (const path of paths) {
+            if (context.marks.get(path)?.seen === false) {
+                found.add(path);
+            }
+        }
+
+        return Object.freeze([...found]);
+    };
+
     if (window !== null) {
-        halves.push(compileWindow(window, context));
+        halves.push(compileWindow(window, context, filtering?.edge ?? null));
     }
 
     const folded =
@@ -1941,17 +2028,11 @@ export function compileVisibility(
     return {
         node: folded.node,
         edge: folded.edge,
-        unresolvedPaths(): readonly Path[] {
-            const unresolved = new Set(context.unresolvedQueries);
-
-            for (const [path, mark] of context.marks) {
-                if (!mark.seen) {
-                    unresolved.add(path);
-                }
-            }
-
-            return Object.freeze([...unresolved]);
-        },
+        unresolvedPaths: () => unresolved(context.marks.keys()),
+        filter:
+            filtering === null
+                ? null
+                : { node: filtering.node, edge: filtering.edge, unresolvedPaths: () => unresolved(filterPaths) },
     };
 }
 

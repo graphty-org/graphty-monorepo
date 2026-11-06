@@ -20,8 +20,8 @@
 #    tools tests (test:ci-workflows, which no test shard runs), CI budgets, offline links, the signing
 #    bypass grep, Knip, published dependencies (of the affected packages, the ones built here), the
 #    peer dependencies, the ESLint root config, the API report, feature flags, declared build tools, dry-run outcome checks,
-#    the release hold list, data sources, migration counts, legacy API use, committed images, the Figma
-#    lock, and the whole-repository formatting check when one of prettier's inputs changed;
+#    the release hold list, data sources, migration counts, legacy API use, special style layers,
+#    committed images, the Figma lock, and the whole-repository formatting check when one of prettier's inputs changed;
 #    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
 # 10. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
 #    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
@@ -137,6 +137,7 @@ if affected graphty-element || touched '^tools/check-data-source-migration'; the
 fi
 step "Migration count script" pnpm run check:migration-counts
 step "Legacy graph API use" pnpm run check:legacy-use
+step "No special style layers" pnpm run check:special-layers
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.

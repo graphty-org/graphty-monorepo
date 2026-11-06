@@ -748,6 +748,28 @@ function arrowPlaceMiss(
     };
 }
 
+/**
+ * Whether a cap graphty stands back from its line's end stands as far back as the program's, each measured along its
+ * own whole line to the tip: between the nodes' outlines a node drawn in another shape would move the end.
+ * @param oLine - the oracle's whole line
+ * @param oa - the oracle's arrowhead
+ * @param gLine - graphty's whole line
+ * @param ga - graphty's arrowhead, in the same frame
+ * @returns the miss and what each side measured, or null where it stands at no read place
+ */
+function standBackMiss(
+    oLine: readonly Pt[],
+    oa: PArrow,
+    gLine: readonly Pt[],
+    ga: PArrow,
+): { miss: number; oracle: number; graphty: number } | null {
+    if (ga.standing !== true || oa.end === "middle" || oa.at === undefined || ga.at === undefined) {
+        return null;
+    }
+    const [o, g] = [fromOwnEnd(oLine, oa.at, oa.end).px, fromOwnEnd(gLine, ga.at, oa.end).px];
+    return { miss: Math.max(0, Math.abs(g - o) - ARROW_STAND_PX) / ARROW_STAND_PX, oracle: R(o), graphty: R(g) };
+}
+
 /** A break between a line and its half arrow of this share of the head's length or more is one a reader sees. */
 const LINE_GAP_SHARE = 0.25;
 
@@ -773,6 +795,8 @@ function halfRunOnMiss(oa: PArrow, ga: PArrow): { miss: number; oracle: string; 
 const ARROW_PART_WAY = 0.25;
 /** How far along its line a part-way arrowhead may sit from the program's, as a share of the line's length. */
 const ARROW_ALONG_SHARE = 0.05;
+/** How far a cap stood back from its line's end may sit from the program's, in pixels. */
+const ARROW_STAND_PX = 3;
 
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
@@ -2394,10 +2418,19 @@ export function compareOracle(
         };
         return [...new Set(e.arrows.map((x) => turn(x.end)))].sort().join(",");
     };
+    const headShapes = (e: PEdge, flipped: boolean): string =>
+        e.arrows
+            .map(
+                (x) =>
+                    `${flipped && x.end !== "middle" ? { source: "target", target: "source" }[x.end] : x.end} ${x.shape}`,
+            )
+            .sort()
+            .join();
     /**
      * How unlike an oracle edge found by its geometry a graphty edge between the same nodes is drawn, 0 for alike: in
-     * another color or with other words, then another line class, then its route failing, then curved otherwise, then
-     * arrowheads at other ends, then running the other way. Between two parallel or antiparallel edges only the look
+     * another color or with other words, then another line class, then other arrowheads (two lines alike, drawn over
+     * one another, with a bar and a standard head), then its route failing, then curved otherwise, then arrowheads at
+     * other ends, then running the other way. Between two parallel or antiparallel edges only the look
      * tells them apart: drawn over one another, or each program bowing them its own way (cx2-signor-aml 27->68, a blue
      * dashed line bowed and a purple solid one, each paired with the other's look by its route).
      */
@@ -2407,8 +2440,9 @@ export function compareOracle(
             norm(o.label?.content ?? "") === norm(g.label?.content ?? "");
         const lined = o.stroke === null || g.stroke === null || o.stroke.dashClass === g.stroke.dashClass;
         return (
-            (dressed ? 0 : 32) +
-            (lined ? 0 : 16) +
+            (dressed ? 0 : 64) +
+            (lined ? 0 : 32) +
+            (headShapes(o, false) === headShapes(g, flips(o, g)) ? 0 : 16) +
             (routePasses ? 0 : 8) +
             (curved(routeOf(o, g)) === curved(o.points) ? 0 : 4) +
             (arrowEnds(o, false) === arrowEnds(g, flips(o, g)) ? 0 : 2) +
@@ -2718,7 +2752,9 @@ export function compareOracle(
                 oa.shape,
                 gg.shape,
             );
-            const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
+            const framed = gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) };
+            const place =
+                standBackMiss(o.points, oa, g.points.map(edgeFrame), framed) ?? arrowPlaceMiss(vo, oa, vg, framed);
             const runOn = halfRunOnMiss(oa, gg);
             if (runOn !== null && runOn.miss > 0) {
                 j.add(
@@ -3105,10 +3141,10 @@ export function compareOracle(
             return { ...s, matched };
         });
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
-    // a picture graphty draws over a node's face is drawn where the program draws one as part of a node
+    // a picture or a stripe graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
-        ...oracle.nodes.flatMap((n) => n.pictures ?? []),
+        ...oracle.nodes.flatMap((n) => [...(n.pictures ?? []), ...(n.faces ?? [])]),
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];
@@ -3328,6 +3364,66 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number, mid
 const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
 
 /**
+ * A label's box where its font's line stands, not where the browser's rounded reading left it (`PText.lineDrop`): a
+ * place against a node is told apart by a quarter of the font size, and the reading is off by up to a pixel.
+ * @param t - the label
+ * @returns its box
+ */
+function lineBox(t: PText): PBox {
+    const drop = t.lineDrop ?? 0;
+    return { ...t.box, y0: t.box.y0 - drop, y1: t.box.y1 - drop };
+}
+
+/**
+ * Whether graphty's words are in another face than the oracle's, as `label.family` judges it.
+ * @param o - the oracle's label
+ * @param g - graphty's label
+ * @returns true when they differ
+ */
+function otherFace(o: PText, g: PText): boolean {
+    const face = programFace(o.family);
+    if (face !== null) {
+        return face !== browserFace(g.family);
+    }
+    const fontClass = programFontClass(o.family);
+    return fontClass !== null && fontClass !== browserFontClass(g.family);
+}
+
+/**
+ * Where graphty's label reaches across its box if its words were as wide as the oracle's. Another face makes a line of
+ * another width, which is `label.family`'s to judge; what `label.anchor` asks is whether the label stands in the
+ * oracle's place, so it keeps whichever of its start, middle or end is nearest the oracle's
+ * (gml-synthetic-coverage 9: 0.1 px from yEd's left edge, in Courier New where yEd drew Dialog, 1.3 px wider).
+ * @param o - the oracle's label
+ * @param ob - the oracle's box
+ * @param g - graphty's label
+ * @param gb - graphty's box
+ * @returns the label's two ends, in graphty's pixels
+ */
+function atOracleWidth(o: PText, ob: PBox, g: PText, gb: PBox): [number, number] {
+    const k = g.sizePx / o.sizePx;
+    const width = (o.box.x1 - o.box.x0) * k;
+    const off = (ends: (b: PBox) => number, box: (b: PBox) => number): number =>
+        Math.abs((ends(o.box) - box(ob)) * k - (ends(g.box) - box(gb)));
+    const middleOf = (b: PBox): number => (b.x0 + b.x1) / 2;
+    const [start, middle, end] = [
+        off(
+            (b) => b.x0,
+            (b) => b.x0,
+        ),
+        off(middleOf, middleOf),
+        off(
+            (b) => b.x1,
+            (b) => b.x1,
+        ),
+    ];
+    if (middle <= start && middle <= end) {
+        return [middleOf(g.box) - width / 2, middleOf(g.box) + width / 2];
+    }
+    return start <= end ? [g.box.x0, g.box.x0 + width] : [g.box.x1 - width, g.box.x1];
+}
+
+/**
  * Whether graphty's label is in the oracle's place against its box: on each axis its side, or one it reaches by
  * moving at most a small slack along that axis (a side only changes in order, before to after, as a label moves).
  * @param o - the oracle's label
@@ -3360,9 +3456,11 @@ export function sameAnchor(
         const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol, gmid));
         return want >= lo && want <= hi;
     };
+    const [gx0, gx1] = o.sizePx > 0 && otherFace(o, g) ? atOracleWidth(o, ob, g, gb) : [g.box.x0, g.box.x1];
+    const line = lineBox(o);
     return (
-        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, g.box.x0, g.box.x1, gb.x0, gb.x1) &&
-        axis(o.box.y0, o.box.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
+        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, gx0, gx1, gb.x0, gb.x1) &&
+        axis(line.y0, line.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
     );
 }
 
@@ -3374,7 +3472,8 @@ export function sameAnchor(
  */
 export function labelAnchor(t: PText, b: PBox): string {
     const tol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * t.sizePx, 0.5);
-    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(t.box.y0, t.box.y1, b.y0, b.y1, tol)}`;
+    const line = lineBox(t);
+    return `${sideOn(t.box.x0, t.box.x1, b.x0, b.x1, tol)}/${sideOn(line.y0, line.y1, b.y0, b.y1, tol)}`;
 }
 
 /**

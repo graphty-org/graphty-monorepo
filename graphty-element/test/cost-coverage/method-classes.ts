@@ -1223,6 +1223,7 @@ export const READ_ONLY: readonly string[] = [
     "TimeApi.notices",
     "TimeApi.parse",
     "TimeApi.pause",
+    "TimeApi.series",
     "TimeApi.spanOf",
     "VisibilityApi.conditionCounts",
     "VisibilityApi.edgeMask",

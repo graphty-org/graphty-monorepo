@@ -24,6 +24,8 @@ import {
     PLAIN_STRING_ALLOWLIST,
     plainStringAdditions,
     plainStringProperties,
+    specialLayerAdditions,
+    specialLayerMarks,
 } from "./api-report.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
@@ -265,6 +267,49 @@ export interface AlgorithmDescriptor {
                 ["CostEstimate.reason"],
             );
         });
+    });
+});
+
+describe("specialLayerAdditions", () => {
+    const report = (extra = "", code = "") =>
+        [
+            "// @public",
+            "export interface Layer {",
+            "    readonly locked: boolean;",
+            `    readonly name: string;${extra}`,
+            "}",
+            "",
+            "// @public",
+            `export type GraphtyErrorCode = "E_LOCKED" | "E_BASEMAP_UNREACHABLE"${code};`,
+            "",
+        ].join("\n");
+    const added = (head) => specialLayerAdditions([report()], [head]).map((m) => m.split(" ")[0]);
+
+    it("allows the reader's own lock, and a code that only looks like one", () => {
+        assert.deepEqual([...specialLayerMarks(report())], []);
+    });
+
+    it("fails a new property that marks a layer as special", () => {
+        for (const property of ["lockedByElement", "protected", "system", "builtIn", "owner", "isBase"]) {
+            assert.deepEqual(added(report(`\n    readonly ${property}?: boolean;`)), [`Layer.${property}`]);
+        }
+    });
+
+    it("fails a new literal that marks one, and a property naming one on any type", () => {
+        const source = report('\n    readonly by: "system" | "user";');
+        assert.deepEqual(added(source), ['Layer."system"']);
+        const config = `${report()}\nexport interface Config {\n    readonly protectedLayers: readonly string[];\n}\n`;
+        assert.deepEqual(added(config), ["Config.protectedLayers"]);
+    });
+
+    it("fails a new error code that protects a layer", () => {
+        assert.deepEqual(added(report("", ' | "E_LAYER_PROTECTED"')), ['"E_LAYER_PROTECTED"']);
+        assert.deepEqual(added(report("", ' | "E_BUILT_IN_LAYER"')), ['"E_BUILT_IN_LAYER"']);
+    });
+
+    it("passes what the base already has", () => {
+        const head = report("\n    readonly owner: string;", ' | "E_PROTECTED"');
+        assert.deepEqual(specialLayerAdditions([head], [head]), []);
     });
 });
 

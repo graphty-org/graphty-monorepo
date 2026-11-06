@@ -7,41 +7,48 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-30, tier 4 round 1 closed at its 1-round cap) Returning users managing data: task
-   success holds (25 of 26), no severity 3 or 4 after the skeptic checks. Bars fail on keyboard
-   (a tab names a panel never rendered), the owner's data rule (joined source row clips its
-   ratio) and cost on core tasks (joining a second file: about 12 inputs against a path of 7).
-2. (2026-10-30) Decide before the act, not after. The join preview tags the wrong rows and leaves
-   the unknown-end row looking "left out" while Join adds it; the unknown end is chosen after Join
-   with "Add nodes" already applied; "Leave out" does not say it deletes. A choice whose effect is
-   already in place is a door hidden behind its own consequence.
-3. (2026-10-30) One fact, one drawing. Setting a column as the time left its kind glyph on text
-   while the timeline drew dates; filter-card counts use two bases (whole graph under Hide, the
-   picture under Select); place roles are set but unmarked on headers. Each costs a second menu
-   to check. Every place that shows a fact must read it from the same element fact.
-4. (2026-10-30) The table header is where readers go for column work (T62 3 of 4). The
-   inspector's "Set in Data" is a fine door for a role and a trap when the task is the column's
-   kind -- a door must land on the control the reader came for, not near it.
-5. (2026-10-30) New filter cards start on Hide; with mark-first tasks 5 of 5 lost part of the
-   picture. Watch, not proven a design failure (task order drove it, and Hide helped T66). The
-   planned "Select | Filter to | Filter out" renames the effect but keeps the take-away default.
-6. (2026-10-30) Approved surfaces are a structural floor: the joined source row must show both
-   names and "N of M joined" at every width; and "17 of 19 joined" beside 18 edges contradicts
-   itself -- state what the count counts.
-7. (2026-10-30) Study lesson: the tool printed `tooltip: null` over open popovers and four
-   participants believed it over the screenshot. Before scoring a findability problem on a hover,
-   check the screenshot. A grading-key definition (column type must be date) can make a false
-   "done" that is not one -- read the key against what the product shows.
-8. (2026-10-21) Graph inspector must point to the layer list for node and edge appearance (a
-   door, not a second home). Still open.
-9. (2026-10-21) A new style line starting at the current value reads as nothing happened; fix in
-   the shared row (show set and what it overrides, give units).
-10. (2026-10-21) Checking a layer's members needs one readable home: the table scoped to the
-    layer, named by the label column. Element supplies membership.
-11. (2026-10-21) A door that looks like a rule must make a rule (find-box value rows).
-12. Every participant is one model: a fail is strong evidence, a pass weak; n of 2 per half
-    shows nothing about where people go.
-13. Standing rules: one home per capability; "+" only adds to lists; unset is the minus and says
+1. (2026-11-05, tier 6 round 1 closed) No reader has met the Assistant: all 24 sessions were
+   refused at the start, so every finding comes from four expert walks and reading the frozen
+   source. It says what is on screen, never what a reader paid. Claim nothing yet about whether
+   readers find, read or trust the panel; the sessions wait on the owner's Gemini cap decision.
+2. (2026-11-05) Scope is the Assistant's most important structure: the line at the composer
+   decides what a message is about, and selection is shared with the whole app. A model's
+   selection survived an Undo, narrowed "Color the nodes by role" to 5 nodes, and a later removal
+   took 1 of 16. Held at severity 2 because the reply and the scope line said so; a true label did
+   not stop the surprise. Watch whether readers read that line, set 2 px below body text.
+3. (2026-11-05) The change line is the one home for what a turn did, so every effect needs a line.
+   "Selected these five nodes" has none: the element's `results` `top` action emits no selection
+   effect, so the app has nothing to word. Fix in graphty-element, additive, then the app words it.
+4. (2026-11-05) One result, one name. Influence and PageRank, Degree and Connections sit on one
+   screen. Glossary line 481 retires "influence"; the app replaces the name by id, which breaks no
+   API. Any new surface inherits catalog names, so check it against the glossary at entry.
+5. (2026-11-05) After an act, the reader's place is the composer. Undo, Remove and Answer leave
+   focus elsewhere and letters go astray. The rule covers those three only: Settings rightly
+   returns to its opener. Do not stretch a rule past the cases it was shown on.
+6. (2026-11-05) Words that read as finishing must finish. Done drops a typed key because only Save
+   writes it, with no warning. Same family as item 8: the commit point sits away from the act.
+   Whether readers press Done is what the key task will show.
+7. (2026-11-05) A fact shown only on a passing surface has no home: the question lives only on the
+   approval card (the log's turn says "2 steps"), and it is the palest text there. Keep Declined
+   and asked-question facts in the log, the place that lasts.
+8. (2026-10-30) Decide before the act, not after. The join preview tags the wrong rows; the unknown
+   end is chosen after Join with "Add nodes" already applied; "Leave out" does not say it deletes.
+   A choice whose effect is already in place is a door hidden behind its own consequence.
+9. (2026-10-30) One fact, one drawing. Column kind glyphs, filter-card count bases and place roles
+   each disagree or go unmarked. Every place showing a fact reads the same element fact.
+10. (2026-10-30) The table header is where readers go for column work; a door must land on the
+    control the reader came for, not near it. New filter cards starting on Hide: watch.
+11. (2026-10-30) Approved surfaces are a structural floor: the joined source row keeps both names
+    and "N of M joined" at every width, and a count states what it counts.
+12. (2026-10-21) Still open: the Graph inspector points to the layer list for appearance (a door,
+    not a second home); a layer's members read in the table scoped to the layer; a new style line
+    at the current value must show it is set; a door that looks like a rule must make a rule.
+13. (2026-11-05) Study lessons: settle a disputed fact at its source (the route log named who made
+    the selection); read from code is not run; a bar's wording can fail correct behavior (Settings
+    focus); check screenshots over the tool's lines, and read keys against what the product shows.
+14. Every participant is one model: a fail is strong evidence, a pass weak; n of 2 per half shows
+    nothing about where people go.
+15. Standing rules: one home per capability; "+" only adds to lists; unset is the minus and says
     what comes back; two row kinds only; check proposals at their edges (keyboard, edges,
     non-community data) and round trip (made, then read back).
 
@@ -93,10 +100,25 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   screen (owner 2026-09-26), friendly words still findable.
 - **A rail button names a collection, never an activity.** Present and Export get no rail
   button. Reason: refined B section 4.
+- **Every effect has a line**: whatever a turn changed, including selection, appears in the
+  change line, from an effect the element reports. Reason: tier 6 round 1, a selection moved the
+  next message's scope with no line.
+- **Lasting facts live on lasting surfaces**: what was asked and declined stays in the log after
+  its card goes. Reason: same round, the question exists only on the card.
 - **Every top task has a starting place and a place where its answer is read** (refined B 15).
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 1 (no fixes built yet; studio stopped on the Gemini cap).** Positions:
+  (a) a selection made by the model reports as its own change line, from an additive element
+  effect; (b) app names results by id to match the glossary, leaving catalog `plainName` alone;
+  (c) focus returns to the composer after Undo, Remove and Answer only; (d) a declined approval
+  gets a line in the log, since "Keep them" left none and the model then called the removal
+  irreversible; (e) on the three open rulings I lean: the kept undo reselect should not cover a
+  rollback whose reader never made that selection, because the turn says "Nothing changed" while
+  scope has changed; the x's lasting rule should not be stretched without its dated line; a painting
+  run's Colored row stays a design question for sessions. None is a one-way door. Reason: each
+  puts a fact in the one place readers check it. Evidence: tier 6 round 1 insights 2 to 4, 7, 9.
 - **2026-10-30, tier 4 round 1 (no fixes built; studio stopped at its cap).** Positions to carry
   into the next tier: (a) the join screen previews every row's outcome with the same words Join
   will use, and the unknown-end choice is made on that screen before Join, with no pre-applied
@@ -133,6 +155,8 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 - 2026-10-11 to 10-16: bulk <<Layer>> token with chits; Node/Edge tab switch; owner answers on
   unset and split parent; round 5 element facts.
+- 2026-10-30 (tier 4 round 1): task success held (25 of 26), no severity 3 or 4; bars failed on
+  keyboard, the joined row's ratio and cost (joining a file: about 12 inputs against 7).
 - 2026-10-21 (tier 3 round 1): 55 of 56 succeeded; judge by cost and wrong first places;
   Location split into six Fields kinds (#3315); color names by hue family first in
   compact-mantine; <<Layer>> avoidance is not understanding; keyboard route costs 30+ Tabs and
@@ -140,6 +164,11 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Tried: worked / did not work
 
+- (2026-11-05) Tier 6 round 1, the Assistant: expert walks WORKED for what is on screen (scope
+  chain on one screen, naming clashes) and did NOT stand in for readers: of 4 candidate insights,
+  all were weakened, and the 6 scope routes in scoring shrank to about 3 mechanisms once a
+  reader's own acts were removed. A true scope label did NOT prevent a surprise. Approval card,
+  peek, rail dot and lasting notice HELD, and no count disagreed on the walks' turns.
 - (2026-10-30) Tier 4 round 1, returning users managing data: the table header as the home for
   column work WORKED (T62 3 of 4, T63 2 of 2 used the Role menu). The join preview did NOT work as
   a preview (wrong rows tagged; the result was learned from counts afterward). Choices placed
@@ -183,6 +212,10 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- (2026-11-05) `tier6/rounds/round-1/insights.md`; screenshots `expert/a11y/k1/99.png`,
+  `expert/engineer/setup-1200x900/29.png`, `38.png`; graphty-element
+  `src/ai/tools/families/algorithms.ts`; app `Waiting.tsx`, `Composer.tsx`, `Checks.tsx`.
 
 - (2026-10-13) `tier3/iterations/2/review.md` "Decided for iteration 3"; graphty-element
   `catalog/types.ts` (`ReadableValue.end`, `valueCount`, `valuesAreColors`), `session/query.ts`

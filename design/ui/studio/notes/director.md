@@ -5,26 +5,31 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-05 (tier 6 dry run of build 48879618c4 triaged).
+Last updated: 2026-11-05 (tier 6 round 1 closed on walks alone; the studio stops for the request cap).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-11-05) TIER 6 DRY RUN OF 48879618c4 TRIAGED: 63 lines, 6 of them notes; 15 fix now (0 crashes, 0 blocks, 15
-  spoils; 13 repeats, 2 new, 0 regressions), 1 decided, 40 backlog, 1 sessions, five units, `tier6/dry-run-r1-2.md`
-  (the earlier triage of that name is at e9ed843c6f). Next: build all five, re-match `answers.md`, refreeze, walk.
-- (2026-11-05) The build froze with an empty source diff: none of `chip-row`, `export-scope`, `last-read` was ever
-  built, and the pilots re-measured the same code. Do not freeze until `git diff <last> <new>` over source is not empty.
-- (2026-11-05) New: `approved-count` (approved totals re-hold the next batch, even a read) and `scope-change` (the x
-  does not reach the model's memory). The second reverses my own backlog call: the key made it `Build decided`.
-- (2026-11-05) The rejected chip-row fix had the right rule and the wrong layer: the binding outlives the selection in
-  `settleTarget`. One cause behind seven rows. Binding ends when the selection empties, for good within the message.
-- (2026-11-05) `last-read` is a prompt line and may only lower the odds of a 5 or 9 chip. If it does not hold, the key's
-  `Build decided` line stays and the report gives both numbers. Do not reach for a second chip.
-- (2026-11-05) Backlog's first line: the model acting after a no (Keep them hid the seven) and changing the selection
-  on a plain question. Truthful on screen, so not a spoil; both are the model's acts, and a tool or prompt rule is
-  the likely fix between rounds.
+- (2026-11-05) TIER 6 ROUND 1 CLOSED WITH NO READER: all 24 sessions were refused at the start, the request cap spent
+  (3,000 of 3,000, 2,892 before the expert walks, 0 by sessions). Everything in `insights.md` is walks and source: what
+  is on screen, never what a reader paid. Bars 1 to 7 and 11 have nothing to count. It is not a result about the Assistant.
+- (2026-11-05) THE STUDIO STOPS for one owner item: raise the cap to 4,000 or drop sessions. About 680 requests, near
+  $3.40 of the $150 monthly budget. Spending, so his alone. The open entry in `owner-decisions.md` is stale (says 145
+  left). It holds sessions and model walks only, not the fixes or `repro/`.
+- (2026-11-05) Budget a tier's dry runs against its sessions BEFORE the first pilot: reserve the sessions' requests so
+  dry runs cannot spend them. Three dry-run passes ate the tier. "The cap is far above need" was never computed.
+- (2026-11-05) Next, needing no request: `repro/` for the 400% Settings page (`frame.css`, not the modal; a short narrow
+  window, every section; not a counted 3 until `repro/` holds it), then the fixes. Fix first, then freeze and walk; the
+  round restarts from clean folders with no re-run spent. Also fix `leaksIn` and "RETURNING" in the first-meeting prompts.
+- (2026-11-05) Sharpest open defect: scope moves with no line saying so. Add a selection effect to the element's
+  `results` `top` action (additive, team's call); the "Selected {N} nodes" row is already in design 6.6.
+- (2026-11-05) Three rulings are mine, none a one-way door: does the kept reselect cover a rollback; does the x entry
+  reach closing the panel; does a painting run get a Colored row. Rule them with a dated line in `decided.md`.
+- (2026-11-05) Skeptics earned their keep: 0 of 4 candidate insights stood whole, 5 of 9 problems weakened, bar 11's fail
+  became nothing to count. Without sessions, severity claims stay at 2 unless a reader could pay; Talk fell for that.
+- (2026-11-05) A build must carry an acceptance check per fix, and never freezes on an empty source diff: `git diff
+<last> <new>` over source first. Writing a fix in a triage is not building it.
 - (2026-11-05) TIER 6 CRITERIA FROZEN, 12 bars: `tier6/criteria.md`. One round, then fixes walked again; the bars
   gate fixes, not a further round.
 - (2026-11-05) The doubt lives in follow-ups: T92, T93 and T95 prompts stop at the outcome, and `Taken on trust:`,
@@ -34,14 +39,10 @@ history.
 - (2026-11-04) ASSISTANT DESIGNED: `tier6/design.md`, `tier6/decided.md`, research in
   `design/ai/assistant-chat-research.md`. A rail place, not a window. Plain text is the model's, a chip is computed, a
   change line is what happened. Undo on the newest step only.
-- (2026-10-30) Give each decided fix its own dry-run acceptance check: four of fifteen walkthrough fixes in tier 4
-  were never built as decided, and a dry run graded only on spoils did not notice.
-- (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any later triage; an earlier walk stands when
-  the diff is code its route never reaches. Fix bar-failing defects before freezing.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Two skeptics settle scores.
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those. A docs-only
   commit never refreezes.
-- Owner items open: eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
+- Owner items open: the request cap, plus eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
 
 ## Priorities and values
 
@@ -82,6 +83,14 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 1 close.** Take `insights.md` as settled, and as walks only. Reasons: 0 sessions ran, so no
+  bar that reads "in every session" can pass or fail; bar 8 fails narrower and bar 10 did not hold on its state list.
+  The stop stands: spending is the owner's, so nobody uses `REAL_GEMINI_COUNT` to get past the cap. Dropping sessions
+  to fit is his alternative, not mine to take. The disputed selection in `k1/99.png` was settled from the route log,
+  not by argument: the model made it (x appears at step 50, walker's chip press at 84).
+  Two calls `scores.md` leaves to me, both yes: fix first, then freeze and walk, since no walk exists on this build and
+  walking first would pay for 26 walks twice; and the round starts over from clean folders with no re-run spent, since
+  no session started. The second still needs its line logged in `criteria.md` when the round restarts.
 - **2026-11-05, tier 6 dry run of 48879618c4.** 15 of 63 fix now. Reasons: every row a build note explains stays a
   repeat, not a new fault. The x keeping six moved from backlog to fix now, since two of three replies now hold no seven
   and `Build decided: yes` is the test for a spoil. The second request is new and on T93's own path: the grade is the
@@ -125,6 +134,12 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (tier 6 round 1) -- Worked: two skeptics again, and settling a disagreement at its source (route log,
+  `decided.md`, CSS arithmetic) rather than splitting it. Worked: expert walks and source reading still found nine
+  problems with no session. Did not work: three dry-run passes with no reserve for the sessions, so the gate
+  refused the round only once too few requests were left. Did not work: a private count file let the accessibility
+  walk make 4 real requests past the cap (3,004 in all): the cap binds only through the shared count file. Did not work: `scores.md` raising bar 11 and a 3 on Talk from
+  reading alone; both came down. Unknown still: every mechanism unless marked run; no skeptic re-ran anything.
 - 2026-11-05 (dry run of 48879618c4) -- Worked: `git diff` over source first, as the notes say; it turned 13 rows into
   one fact. Worked: reading `largePreview` and the second-request screenshot before ruling; the pilot's mechanism held.
   Worked: checking a pilot's claim against the build ('the line does not always hold', when the line was never in it).
@@ -158,6 +173,10 @@ history.
 
 ## Thinking
 
+- **2026-11-05, tier 6 round 1:** an instrument's budget is part of the study design, and the dry runs that protect a
+  round can consume it: each pass was right on its own, and together they left no round. The Assistant's faults share a
+  shape: the state that decides a message (scope, focus, a rolled-back selection) moves without a line, while the words
+  stay honest. Truthful counts did hold. A claim of harm needs a reader who paid; a walk shows only what is on screen.
 - **2026-11-05, dry run of 48879618c4:** a limit that counts a running total needs a rule for what closing the limit
   does to the total, and a frozen scope and a model's memory are the same drift: the screen moved on and the words
   did not. A remedy the study offers must be walked as a remedy, not only drawn. Writing a fix in a triage is not
@@ -186,7 +205,7 @@ history.
 
 ## Sources
 
-- Tier 6: `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
+- Tier 6: round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
   `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/`, `-2/` and `-3/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs

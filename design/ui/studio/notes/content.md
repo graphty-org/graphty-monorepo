@@ -7,36 +7,39 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-10-30) Tier 4 round 1 closed at the 1-round cap: task success held, 0 severity 4, no
-  severity 3 survived the skeptic check. Again words were not the main cost -- order of choices,
-  defaults and one fact drawn two ways were.
-- (2026-10-30) Most severe open problem is a preview that does not say what the act will do: the
-  join preview marks "1 not in graph", which 3 of 4 read as "will be left out", yet Join adds it.
-  A preview's tag must name the outcome of the act, not the row's current state.
-- (2026-10-30) "Leave out" does not say it deletes; a reader backed off it for that reason. A
-  destructive choice's label names the effect (remove/delete), never a soft verb.
-- (2026-10-30) One fact, one drawing: a time column still showing the text glyph while the
-  timeline draws dates made four sessions check a second menu. Header glyph, chip and caption must
-  agree with what the program does; mismatch costs steps, not answers.
-- (2026-10-30) Counts must state their basis: filter chips count the whole graph under Hide and the
-  picture under Select; "12 nodes" sits beside an 11-row table. Same number word, two bases = doubt.
-- (2026-10-30) "Hide" alone is ambiguous; its tooltip ("Hide nodes that do not match") is right.
-  The planned "Select | Filter to | Filter out" renames the effect but keeps the take-out default:
-  the default, not the word, is the bigger cost.
-- (2026-10-30) Owner-approved text clipped out of sight ("17/19 rows joined", source name cut)
-  breaks the approved-surface rule; a layout fix, not a rewording. "17 of 19 joined" beside 18
-  edges reads self-contradictory -- the ratio's noun must match what was counted.
-- (2026-10-30) The inspector's "Set in Data" is a trap only when the column's kind matters; a
-  shortcut label that does half the job should say which half.
-- (2026-10-30) Study-tool caveat: hovers that open a popover were reported "tooltip: null", so
-  hover findings this round are suspect until the tool is fixed. Do not reword on them.
+- (2026-11-05) Tier 6 round 1: no reader has seen the Assistant. All 24 sessions were refused at the
+  start (Gemini request cap), so every word finding is from expert walks and source. Do not reword
+  on reader behavior that does not exist; hold "reads as prose" and "the text that decides" for T90, T92.
+- (2026-11-05) Top word defect: one result, two names on one screen (Influence / PageRank, Degree /
+  Connections). Glossary line 481 retires "influence"; fix in the app by id, since changing
+  `plainName` changes what an API returns. "Connections" stands on the double name, not on retirement
+  (it is an inspector heading, glossary line 388).
+- (2026-11-05) A reply says "selected these five nodes" and no line says so. The missing words wait
+  on a fact: graphty-element must add a selection effect (additive), then the app words design 6.6's
+  "Selected {N} nodes". No effect, no line; never parse the model's prose.
+- (2026-11-05) Live claims apply to state words: "Listening" shows before any microphone opens. The
+  cure is the element's event order, not a softer word. "Nothing changed." beside a lit Redo and a
+  left-over selection is the same class, and waits on a ruling.
+- (2026-11-05) The model's words are the model's; the app's missing line is the defect. "Irreversible"
+  against the card's "Undo can bring them back" is answered by a Declined line after Keep them.
+- (2026-11-05) The model may say anything, so the app's lines are the only words I can stand behind:
+  each effect gets one line, and each line must be true without the prose beside it.
+- (2026-11-05) Before calling words a defect, check the design: the scope placeholder is design 6.1's
+  own text, and a change line with no chip on its turn is decided.
+- (2026-11-05) State claims narrowly: skeptics cut "cannot be told" and "nothing to hover" to what the
+  screen shows. Live-region logs are not what a reader hears; Undone and Transcript words stay open.
+- (2026-11-05) Open and word-related: whether "assistant node style" is element English or a default
+  layer's name (bar 10); whether a run that paints also gets a Colored row. No special layers (owner,
+  2026-11-05), so a layer name gets no special wording either way.
+- (2026-10-30) Preview tags and destructive labels name the act's outcome, never a state or a soft
+  verb ("1 not in graph", "Leave out"). Counts state their basis; one fact, one drawing.
+- (2026-10-30) Across tiers words were not the main cost: order, defaults and one fact drawn two ways
+  were. The default, not the word, is the bigger cost in Hide / Filter out.
 - (2026-10-21) Fix by pointing, not prose; never fix a no-op with explanatory text.
 - (2026-10-21) Do not rename on model opinion or a task's wording; avoidance is not understanding.
-- (2026-10-21) Spoken color names name the hue family first; fix in compact-mantine.
 - (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
 - (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
   pass weak. Element returns codes + params; the app writes every word.
-- (2026-10-30) Summarized: the tier 3 Top of mind (2026-10-21) is in git history of this file at 0c6bf1066b.
 
 ## Priorities and values
 
@@ -150,20 +153,8 @@ I read this file at the start of every session and update it as I decide and lea
   off-rest, above the buttons, count against incoming edges; mine to word with the fewest words,
   e.g. "41 of 41 edges are already loaded" + "Replace friends". Studio, reversible.
 
-- 2026-10-10 Tier 2 round 3 proposals (mine, to the studio, reversible, untested). (1)
-  `graph-place/FindBox.tsx` value row: visible text "<column> is 10 (2)" without "Select where"
-  (the Values heading and filter glyph say it; accessible name keeps the verb) -- the row was cut
-  in 4 sessions; plus, for a numeric column, a row "<column> 10 or more (N)", which needs an
-  additive element fact (at-least count and its rule on find's value rows). (2) `ruleRefusal`
-  backtick case: "Put numbers in backticks:" in red -> the existing "Rule: press Enter to select
-  matches" in the hint color (r3-s09, s11, s13; figma 9; zero new words). (3) A condition with no
-  column (">=10"): element offers the rewrite per numeric column, worded as (2). (4)
-  `analyze/words.ts hopWords`: "4 hops" -> "4 edges", the Summary's own term (engineer 28). (5)
-  Neighbor list at Hops > 1: subheadings "1 hop (N)", "2 hops (M)" from an element depth fact
-  (figma 18, r3-s48). (6) `inspector/words.ts` disabled reason: "Already on. Turn it off in
-  Filters", tied by aria-describedby (a11y 4). Reason: each fixes a confirmed sev 2 (6: sev 1)
-  with fewer words; none adds words at rest.
-
+- 2026-10-10 and 2026-10-11 Round 3 and 4 proposals (summarized 2026-11-05): full text is in git
+  history of this file; what was adopted or held is in the "closed" entries around this one.
 - 2026-10-11 Round 3 closed (tier2/rounds/round-3/decisions.md, Design Director). Adopted from my
   proposals: (1) value row without "Select where" plus the "or more" row (change 7, with an additive
   element fact `atLeast: { count, target }`). Held: (2) backtick refusal -> "Rule: press Enter"
@@ -172,17 +163,6 @@ I read this file at the start of every session and update it as I decide and lea
   fact, one session), (6) disabled-reason rewording (replaced by a check-first compact-mantine
   Tooltip fix, no word change). Reason: one variant per problem so round 4 can credit it; words at
   rest must not rise; claims from one specialist scripted before fixing. Studio, reversible.
-
-- 2026-10-11 Round 4 critique (mine, to the studio, reversible, untested). (1) Bare number: the
-  element's backtick suggestion must pass the same check the run uses, and `atLeast` covers any
-  number inside a numeric column's range; the app adds no words. (2) `atLeastOf` writes the rule
-  with the column's short spelling, as a typed rule ("minutes >= `5`"). (3) The key names a run's
-  scope once: drop ", full graph" from each entry and put one line under the key's title, "Ran on
-  20 nodes" (the tooltip's and inspector bar's words); the run row's accessible name "PageRank, out
-  of date" for a scope change becomes "PageRank, ran on 20 nodes". Reverses my 2026-10-10 "do not
-  reword 'PageRank, full graph'": new evidence (bar 9 fails on it; T17 r4-s24..26 and T23 r4-s45,
-  s46, s48 unsure whether sizes describe the drawn subset; engineer 17 three names). Reason: one
-  term per state, fewer words, no promise the screen does not keep.
 
 - 2026-10-11 Round 4 closed (tier2/rounds/round-4/decisions.md, Design Director). Adopted from my
   critique: (1) bare-number suggestion only when the selector accepts it, plus `atLeast` rows for
@@ -283,27 +263,7 @@ I read this file at the start of every session and update it as I decide and lea
   `session/styles/predicate.ts` refusal reasons; compact-mantine `ControlSection.tsx` (summary,
   collapsible), `GradientEditor.tsx`; glossary lines 79, 107, 187, 209.
 
-- `design/ui/studio/tier2/rounds/round-4/decisions.md` changes 3, 4, 8, 9, 12, held list (2026-10-11)
-- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md` (bar 9 b, bar 10), `expert/`
-  (figma 2, 23; visual 1, 9, 26, 40; engineer 17, 30; a11y 5, 9, 18); screenshots
-  `expert/figma/find/08.png`, `expert/visual/find/09.png`, `expert/visual/path/22.png`; code
-  `graphty/src/workspace/canvas/legendWords.ts` rowName, `graph-place/FindBox.tsx` ruleFromText,
-  `graphty-element/src/session/styles/predicate.ts` suggestBackticks, `session/query.ts` atLeastOf
-  (2026-10-11)
-
-- `design/ui/studio/tier2/rounds/round-3/decisions.md`, `insights.md` (2026-10-11)
-
-- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/` (figma 8-18, engineer
-  28, a11y 4, 9, 16; visual); screenshots `sessions/r3-s10/02.png`, `expert/figma/find/02.png` (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/decisions.md` changes 4, 5, 8, 9, 11, 12, 15 and
-  "Not changed" (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, `expert/`
-  (figma 1, 2, 16, 23; engineer 5); screenshots `sessions/r2-s12/03.png`, `r2-s15/06.png`,
-  `expert/figma/path/06.png` (2026-10-09)
-- `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/` (figma, a11y, visual);
-  screenshot `sessions/r1-s46/12.png`; transcripts r1-s05, r1-s19 (2026-10-09)
+- Tier 2 rounds 1-4 (summarized 2026-11-05): `design/ui/studio/tier2/rounds/round-N/` decisions.md, insights.md, scores.md, `expert/`.
 
 - `design/ui/studio/rounds/round-1/insights.md`, `decisions.md`, `rounds/r1/pilot/all/pilot.md`
   (2026-10-06)
@@ -329,3 +289,14 @@ I read this file at the start of every session and update it as I decide and lea
 - Decided: a count or glyph shown in two places must share one basis and one kind. Evidence: problems 2, 16, 3.
 - Tried: tier 3 watch on words -- worked as a check; again no surviving insight was word-first.
 - Did not work: trusting hover findings from the study tool (popovers logged as null).
+
+- Also kept from tier 4 (2026-11-05): owner-approved text clipped out of sight is a layout fix, not a rewording; a ratio's noun must match what was counted; a shortcut label that does half the job says which half; spoken color names name the hue family first (compact-mantine); hover findings stay suspect while the study tool logs popovers as null.
+
+## Tier 6 round 1 lessons (2026-11-05)
+
+- Decided: Influence / Connections naming is fixed in the app by id, against the glossary. Evidence: finding 5 (`expert/engineer/setup-1200x900/29.png`, `26.png`, `38.png`); CLAUDE.md allows replacing `plainName` by id.
+- Decided: no app wording for a selection made by the model until the element reports the effect. Evidence: finding 3, `graphty-element/src/ai/tools/families/algorithms.ts` returns only `foundEffects`.
+- Decided: "Listening" stays as a word; the element moves `ai-voice-start` after the microphone opens, and `Talk.tsx` announces the end. Evidence: finding 8, `VoiceSession.ts` line 530, `Talk.tsx` lines 89, 90.
+- Tried: nothing of mine was measured; words on the Assistant are untested with readers.
+- Did not work: a study round with no spare request budget gave 0 sessions, and 0 sessions leave bars 1 to 7 and 11 with nothing to count. Source: `tier6/rounds/round-1/insights.md`.
+- Thinking: when sessions run, watch whether a reader trusts the prose or the line when they differ; that decides how much a change line must carry.

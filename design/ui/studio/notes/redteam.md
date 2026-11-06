@@ -16,81 +16,46 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-11-05, tier 6 the Assistant) A doubt bar that counts wrong claims reported measures the
-  model, not the reader: a right reply passes it with nobody checking. Count only sessions whose
-  screen held a wrong or unsupportable claim; none means not tested.
-- (2026-11-05) A wrong number needs no falsified reply: a selection left in the file narrows an
-  honest answer, and the scope line is the only tell. Plant state, not text.
-- (2026-11-05) A prompt that asks for the check ("how sure", "what you looked at", "how many")
-  cannot measure whether the check happens. Move it to a follow-up, which any task may have.
-- (2026-11-05) A first-time reader cannot miss a layer list they never met. To see the cost of a
-  docked chat, make them reach the real control: a by-hand tweak after the AI's change.
-- (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
-  nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
-  adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
-  element is not reading is marked unused by the element's code, so the screen never claims a
-  column is placing nodes when it is not. Still open, watch in a study: does a reader with one
-  "location" column of "48.85, 2.35" find "Coordinates" (detection lists it with no action, so
-  only a mis-detected file tests it).
-- (2026-10-21) Round 1 closed at its 1-round cap, bars unmet. 55 of 56 sessions succeeded,
-  median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
-  routes and problems, and must screen tasks for leading before spending sessions -- the answer
-  key names most problems the graders cite.
-- (2026-10-21) Best real findings, all severity 2: newcomers look for node color in the Graph
-  inspector first (9 sessions); a new style line starts at the current value so it looks broken;
-  layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
-  hints: a new line should start at a visibly different value.
-- (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
-  tell avoidance from comprehension is not measuring; demand a separating measure.
-- (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
-  zooms"; storage notice caused by the automation's quota. Every build defect needs a repro made
-  the way a person would make it before it is counted.
-- (2026-10-21) Rejected generality traps: a "cube" shape synonym, a "cluster" ranking tweak,
-  currency or task wording in the product. Task words are not product requirements.
-- (2026-10-20) Owed and still unverified: build-equivalence and half-folder gate checks,
-  bars.mjs spoken/typing checks, wording.mjs stem; score.mjs bar 4 start point is now owed too.
-- (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
-  "Mlle"; bar 8 screens over budget as severity 2; T47's "around" route counts against bulk.
-- Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
-  every "unprompted" count. A process rule without a refusing gate is a wish.
-- Standing: after a rule is adopted, read the gate code and the tool, not the rule.
-- Standing: fix by removing, not adding; one change per problem; words at rest never rise;
-  rejected stays rejected without new evidence; never re-set a limit from data.
-- (2026-10-30) Tier 4 round 1 closed at its 1-round cap, bars 2, 3, 5, 6, 7 unmet. Before any
-  round 2: the study tool printed `tooltip: null` on hovers that open a popover, and four
-  participants trusted that line over the screenshot. A tool line that contradicts the picture
-  produced false findings and wrong turns. Fix the tool to report open popovers first.
-- (2026-10-30) Most severe open problem (sev 2): the join preview tags the wrong rows and marks
-  the unknown-end row "not in graph" though Join adds it. Fix the preview to show what Join will
-  do; no hint text.
-- (2026-10-30) Pattern to attack in every design: choices that arrive after the act with a
-  default already applied (unknown end decided after Join; a new filter card starting on Hide).
-  The planned "Select | Filter to | Filter out" rename keeps the subtractive default -- challenge
-  it, but note the default helped T66, so the evidence is order-dependent.
-- (2026-10-30) One fact drawn two ways (time set but column glyph says text; chip counts on
-  different bases under Hide and Select; place roles unmarked on headers) costs checks, not
-  wrong answers. One source of truth per fact.
-- (2026-10-30) Bar 6 fails on a layout clip, not a removal: the joined source row's ratio and
-  second file name are clipped. One layout fix covers both; "17 of 19 joined" beside 18 edges
-  also contradicts itself.
-- (2026-10-30) Bar 2's only false done rests on the answer key's definition, not the reader.
-  Second round in a row a bar failure came from the grading rule (tier 1: colorWord). Audit keys
-  and rules before counting.
-- (2026-10-30) Bar 3 is inflated by post-success checks and tool-caused hovers; graders counted
-  hovers inconsistently. Wrong turns must be counted before success only, with a written rule.
-- (2026-10-30) Bar 5 (axe critical: table's Nodes tab names a panel never rendered) is a real,
-  cheap, mechanical fix -- no study needed to confirm it.
-- (2026-10-29) Success-by-default and leading prompts carried over: still watch them. Fixes with
-  no task that re-runs them report "not re-tested", never "passed".
-- (2026-10-23) "+" menu one-per-kind: open watch item -- does a "48.85, 2.35" column find
-  "Coordinates"?
-- (2026-10-21) Avoidance is not comprehension; success saturates fast -- score cost and routes.
-- (2026-10-21) Every build defect needs a repro made the way a person would; tool artifacts
-  (synthetic wheel, storage quota, now tooltip:null) recur every round.
-- (2026-10-21) Rejected generality traps stay rejected: no synonyms, task words or domain cases
-  in the product.
-- (2026-10-20) Still owed: build-equivalence, half-folder gate, bars.mjs spoken/typing checks,
-  wording.mjs stem, score.mjs bar 4 start point.
+- (2026-11-05, tier 6 round 1) No reader has met the Assistant. 24 of 24 sessions were refused at
+  `--start`; every finding is four expert walks plus source reading. It says what is on screen,
+  never what a reader paid. Bars 1 to 7 and 11 have nothing to count: never quote them as pass or
+  fail.
+- (2026-11-05) A gate that refuses at the door still let the money go. `plan.md` said the gate
+  fails, the run launched, 12 re-runs repeated one cause. Check `--gate` before launch and stop on
+  the first refusal; a shared-cause void must not spend re-runs.
+- (2026-11-05) Raising the cap alone buys nothing: it is 1 of 7 preconditions. Also needed: 26
+  walks on the session build, the key matched to it, T92 A's plant confirmed, `leaksIn` fixed,
+  "RETURNING" out of the prompts, the gate check at launch. Attack any restart missing one.
+- (2026-11-05) "A RETURNING user" was in the first prompt of 24 of 24 sessions; 9 of 12 are first
+  meetings. I screened tasks and briefings, never the prompt the tool renders. Screen that text.
+- (2026-11-05) "Far above what 12 sessions need" was never measured: dry runs spent 2,892 of 3,000
+  and the walks the last 108. Any budget claim needs a per-phase ledger; "never re-set a limit from
+  data" covers bars, not spend. The cap also has a side door: 4 real requests went past it through
+  a private count file. Close it before raising it.
+- (2026-11-05) My plant idea held on a walk with no plant: the model's own selection survived an
+  Undo and narrowed "Color by role" to 5 nodes; later a removal took 1 of 16. Replies were honest
+  and the scope line read Selection. Whether a reader catches it is still untested; keep the bar
+  counting only sessions with something to doubt.
+- (2026-11-05) A code reading is not a 3. The 400% claim is CSS arithmetic, never measured; no
+  skeptic re-ran anything. It counts only once `repro/` holds it, which needs no Gemini request.
+  Talk fell to 2 by the test that held Done at 2: the belief corrects itself.
+- (2026-11-05) Bars failed on their own wording again: bar 8's Settings row (returning to the
+  opener is right), bar 11 ("every session", 0 ran), bar 10 (a list not reached). Audit the rule
+  before counting: tiers 1, 3 and 4 did the same.
+- (2026-11-05) Smallest fixes to hold to: one additive selection effect; one focus rule for Remove,
+  Answer, Undo (not five cases); the app replaces the name by id; `fullWidth` on starters. Refuse
+  a Colored row on painting runs unless a session shows the "Computed" line misleads.
+- (2026-11-05) Text size, the chip in a change line and scope drift as harm are questions for T90
+  and T92, not findings. Build nothing from them on two walks and a 2 px gap.
+- (2026-11-05) A question to the owner must carry live numbers: the open entry says 145 left, 0 are.
+- (2026-11-05, criteria) A prompt that asks for the check cannot measure it; a first-time reader
+  cannot miss a layer list they never met, so T91 keeps the by-hand tweak.
+- Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; success
+  saturates, so score cost and routes; avoidance is not comprehension; discount "unprompted".
+- Standing: a rule needs a refusing gate at the point of spend; after adoption read the code, not
+  the rule. Every build defect needs a repro made the way a person would; tool artifacts recur.
+- Standing: fix by removing, not adding; one change per problem; one source of truth per fact;
+  rejected stays rejected without new evidence; task words are never product requirements.
 
 ## Priorities and values
 
@@ -140,6 +105,11 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 1 closed, no session ran.** Positions: restart only on all seven
+  preconditions in `scores.md`, from clean folders with no re-run spent (the Director's call);
+  close the private count file before any cap rise; on the open rulings, a rollback that changed
+  nothing should not leave a lit Redo, and a painting run keeps one line. Reason: raising the cap
+  alone reruns a primed study on a build with no walks.
 - **2026-11-05, tier 6 criteria review (the Assistant):** proposed 8 changes: T92 and T95 stop
   ordering the doubt (questions to a follow-up, Dev on T92 A, Ruth on T91 A, bar 5 counts only
   sessions with something to doubt); a colleague's selection as the planted wrong number; T91 adds
@@ -168,41 +138,12 @@ served at `/?next`.
   do not re-sort it in the app. (3) The engine-in-the-form alternative was not tested; it stays
   open as a separate question, not reason to keep the indent. Watch at the next round: whether
   readers look for Map under "Other".
-- **2026-10-20, fifth tier 3 criteria review:** proposed 8 changes: refreeze on the commit
-  that holds golden (or strike the golden entry) and re-read answers.md on it; make preflight 9's
-  refusals real (half folder, three walks, `--keys`, bar 6 screen coverage, spoken.json) and the
-  gate's missing list the pilot queue; build the owed bars.mjs and wording.mjs items or report
-  T43, T47, T51 as primed; drop T37 from the judged set and report round 1 per bar; a keyboard
-  block on Sam's halves is a blocked task, and backlog rows carry a severity counted in bar 5;
-  experts feed bars 5 and 7 only, and the key-and-drawing check runs by script after sessions;
-  settle T50 B's summary reading; score asked colors by hue bands. Reason: each is a rule written
-  and not run, or a judgment left to one grader's eye, on a one-round study.
-
-- **2026-10-19, fourth tier 3 criteria review:** proposed 7 changes: the round 1 build is not
-  ready until a full pass on 1fa51e2b0b meets the exit test (T40 B's discarded letters after
-  "Starts with" is on a success path); the gate counts a half only with a success, detours and
-  `keyboardOnlyMode: true` walk under `pilot/<half>/` on the frozen build; run preflight 6, 7, 9
-  on 1fa51e2b0b and name round 1's wording baseline; T41 B varies "missing" so wording and
-  dataset can be split; T50 "draw them" to "color them"; bar 7's "cannot reach" confirmed by a
-  `--keys` repro; the change log's freeze entries carry an "owed" list. Reason: each is a rule
-  written but not run or not refused on the build under study.
-- **2026-10-18, third tier 3 criteria review:** proposed 7 changes: preflight 4 takes the
-  skill's exit test and a pass is incomplete while any round 1 half lacks its three walks; run
-  wording.mjs on 52cb47a85a and re-justify or reword "drawn" and B's "clusters"; settle the four
-  deferred grading questions, with a Route value for T48 B's Filters route; bar 4 states 12 with
-  no derivation; expert severity 3-4 confirmed by repro only; T49's look compared by script with
-  revision stripped; status of the study told as "not started, dry run pass 5". Reason: each is a
-  rule the round cannot follow as written, or a check that has not run on the build under study.
-- **2026-10-17, second tier 3 criteria review:** proposed 8 changes: route bar for T47 and T48
-  counts folder or several only; kept words re-checked per build; T37 reworded off "connected";
-  info-circle text joins the vocabulary and T48 varies its noun; newcomers hold each half (swap
-  Alex off T40 B); bar 4 excludes `--keys` sessions and needs the asked color; expert and audit
-  findings get a checklist, a dark-mode bar 6 run and a counted measure; one bar numbering.
-  Reason throughout: each lets a bar pass while the thing studied failed or was never used.
-- **2026-10-17, first tier 3 criteria review:** bar 1 `!judged` hole, bar 4 dropping never,
-  T47 around route, T49 red never drawn, COMMON hiding control words, Sam with no file or folder.
-  Adopted (change logs of criteria, tasks, answers, roster, 2026-10-17). Not adopted: T50 A's
-  rule hidden by names (per-half reporting instead); words-over-budget screens gated.
+- **2026-10-17 to 2026-10-20, five tier 3 criteria passes (summarized 2026-11-05):** route bar
+  counts folder or several only; refreeze on the commit that holds golden; the gate counts a half
+  only with its walks on the frozen build; expert severity 3-4 confirmed by repro only; bar 4 fixed
+  with no derivation from data; colors scored by hue bands; T37 reworded and dropped from judging;
+  T50 "color them". Not adopted: T50 A's rule hidden by names; over-budget screens gated. Reason:
+  each was a rule written and not run, or a bar passing with the thing studied unused.
 - **2026-10-14, round 6:** repaint test reads what was painted, not explain(); restore a run layer
   without rerunning; one `otherwise` value, no copy into a binding; "draws nothing" over the whole
   stack; no Alt+drag. Open: whether a reader's edit to a highlight layer survives the next run.
@@ -223,6 +164,10 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 -- Did not work: my prompt screen read tasks and briefings, so it missed "RETURNING"
+  in every rendered prompt. Worked: the planted-selection idea (a walk reached it unplanted); the
+  skeptics settling a fact at its source (the route log named who made the selection). Did not
+  work: the gate as a stop, since nothing checked it before launch.
 - 2026-11-05 -- Worked: a plain grep of the avoided words over the prompts and the briefing text
   in place of wording.mjs, which needs a vocabulary.json no tier 6 walk writes. One prompt hit
   ("stopped", T90) and five each of message, send, stop, step in the roster's briefing lines.
@@ -239,24 +184,10 @@ served at `/?next`.
   session reached; the round could not distinguish product failure from rule failure. Worked: two
   independent skeptic checks, which caught the wheel artifact, the automation storage notice, and
   task-wording-driven findings (cube, cluster) before they became product changes.
-- 2026-10-20 -- Fourth review's proposals: partly adopted in the text (gate by half, three
-  walks, spoken.json, irregular forms, T50 "color them", T51 judged). Did not work: none of the
-  tool parts was built (gateCheck, bars.mjs, wording.mjs unchanged), and the build was refrozen
-  twice more and then overtaken by the golden merge. Checking `git merge-base --is-ancestor` of
-  the change log's merge against the first line's build caught the contradiction in one command.
-
-- 2026-10-19 -- Third review's proposals: worked -- all seven adopted in criteria.md (exit test,
-  bar 4 fixed 10, repro-only confirmation, the four grading calls, "drawn" dropped). Did not
-  work: the exit test was written but the build was renamed "round 1" before a pass met it, and
-  the gate that should refuse it keys pilots by the wrong folder level. Taught: after a rule is
-  adopted, read the next freeze entry and the gate code, not the rule.
-- 2026-10-18 -- Second review's route bar: worked (score.mjs BULK_ROUTES folder, several, T48
-  included). Re-read of the change log as a to-do list: worked -- five entries said "for the
-  Director to settle between rounds" with no round coming, so the deferrals pile up.
-- 2026-10-17 -- First tier 3 criteria review: worked -- every scoring hole I named that had a
-  scripted fix was adopted and has a planted case in score.mjs self-test. Did not work: the T47
-  route bar was adopted at "not around" rather than "folder or several", so the hole moved.
-  Taught: re-read the code after a fix is adopted; the fix can land one notch short.
+- 2026-10-17 to 2026-10-20 (summarized 2026-11-05) -- Worked: scripted fixes with planted cases in
+  score.mjs; reading the change log as a to-do list; `git merge-base --is-ancestor` to catch a
+  freeze contradiction. Did not work: rules adopted in text with the tool parts unbuilt; a fix
+  landing one notch short (T47 "not around"). Taught: re-read the code after adoption.
 - 2026-09-06 to 2026-10-11 (summarized 2026-10-17) -- Worked: routing existing commands (T12 0 of
   8 -> 8 of 8); Shift-click (T24 2 of 4 -> 7 of 7); toolbar Filters (7 of 7); "units question
   first" on width. Did not work: v1 help text; copying Figma literally; rules written but not
@@ -266,6 +197,19 @@ served at `/?next`.
 
 ## Thinking
 
+- (carried 2026-11-05 from Top of mind) Open watches: does a "48.85, 2.35" column find
+  "Coordinates"; do readers look for Map under "Other"; choices that arrive after the act with a
+  default applied (Join's unknown end, a filter card on Hide; the planned "Select | Filter to |
+  Filter out" keeps it). Owed: build-equivalence, half-folder gate, bars.mjs spoken/typing checks,
+  wording.mjs stem and frozen-build strings, score.mjs bar 4 start point. Tier 4 open: join preview
+  tags wrong rows (sev 2), `tooltip: null` over popovers, source-row clip, axe panel name.
+  Accepted, not re-raised: T50 A guessable from "Mlle"; bar 8 screens over budget as severity 2;
+  T47's "around" counts against bulk. Tier 3: newcomers look for node color in Graph first; a new
+  style line must start at a visibly different value.
+- (2026-11-05) Expert walks kept their worth with no sessions: mechanisms and owners were found,
+  and the skeptics corrected the owner of the 400% defect and the source of the selection. But a
+  walk of a capped build shows failure states inflated: the pile-up in accessibility 5 came from
+  every message failing.
 - (2026-10-17) The bulk tasks are the study's point, and every softening of their bars (around,
   one by one, a cover layer as SD) is reasonable alone and together lets the study pass while
   nobody used the folder. The honest measure is question 3's count; make it the bar.
@@ -284,47 +228,14 @@ served at `/?next`.
 
 ## Sources
 
+- tier6/rounds/round-1/{insights,scores,plan}.md, `owner-decisions.md` top entry (2026-11-05)
 - tier6 criteria, tasks, answers, roster, decided, design, connected-*.txt;
   `design/ai/assistant-chat-research.md`; `tool/real.mjs` lines 293-300, 976 (follow-up for any
   task), `--reopen`, `--shift-click`, node click by label; `tool/tier6.mjs`; tool README "Tier 6
   sessions" (REAL_GEMINI_COUNT); `ToolExecutor.ts` largePreview; `graphty/src/workspace/assistant/words.ts`
   line 155; `tool/files/*.graphml`; notes/researcher.md (2026-11-05) (2026-11-05)
-- tier4/{criteria,tasks,answers,roster,decided}.md (2026-10-29, first line `<sha>`), setups under
-  `rounds/tier-4/setups/`, `graphty/src/workspace/data-place/Fields.tsx:559`, `filterWords.ts:75`,
-  `words.ts:429`, `DataPlace.stories.tsx:153-159` (worktree head 68919794d2) (2026-10-29)
-- criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
-  entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
-  `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`
-  stem; `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec` (false); session.json commits under
-  `tier3/rounds/` (34 on 3ef9, all in r1d1: T37-T41A); golden commit c2757912e (marks for routes,
-  not communities) (2026-10-20)
-- criteria.md first line and change log (1fa51e2b0b), `tier3/rounds/r1/pilot/` (session.json
-  commits: 33 on 1fa51e2b0b, 94 on 58556989e8; T40B/report.md defects 1-10), `tool/real.mjs`
-  gateCheck lines 523-571, `tool/wording.mjs` stem lines 29-34, `git diff 52cb47a85a 1fa51e2b0`
-  (docs only), tasks.md T41, T50 (2026-10-19)
-- tier3 criteria (first line 52cb47a85a), tasks, answers (T46 613-617, T48 731), roster;
-  `tool/score.mjs` lines 38-39, 122; `tool/measure.mjs` (no revision strip); compact-mantine
-  `src/i18n/labels.ts:482` ("drawn ${hex}"); `tmp/tier3-dryrun-analysis/summary.txt`,
-  `match_p3_p4_summary.md`; commit 4a01f1747 (dry-run exit test, chore/studio-convergence-rules);
-  `tier3/rounds/r1d3/pilot/` (T37, T38 only) (2026-10-18)
-- `tool/score.mjs` (ROUTE_TASKS, firstStyledOf `own`), `tool/wording.mjs` (ownKept, everywhere),
-  `tool/bars.mjs` (--scheme tier 1 only; internal bars 8-10), `graphty/src/components/shell/panel/AnalyzePanel.tsx`
-  (SUGGESTED_CARDS), tier3 criteria/tasks/answers/roster after 6ddcb6c7c (2026-10-17)
-- `design/ui/studio/tier3/{criteria,tasks,answers,roster,README}.md`, `tool/score.mjs` (bar 1
-  `judged`, `firstStyledOf`), `tool/wording.mjs` (COMMON), `tool/bars-limits.json` (2026-10-17)
-- `design/ui/studio/tier3/decide/*.md` (eight role answers), the source lines named in the
-  2026-10-12 decision entry (2026-10-12)
-- `design/ui/studio/tier2/rounds/round-4/decisions.md`, `insights.md` (closed, 2026-10-11)
-- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, the eight role critiques;
-  source files named in the 2026-10-11 decision entry (2026-10-11)
-- `design/ui/studio/tier2/rounds/round-3/insights.md`, `decisions.md` (closed, 2026-10-11)
-- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, the eight role critiques (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/decisions.md`, `insights.md` (2026-10-10)
-
-- `design/ui/studio/tier2/rounds/round-2/insights.md`, `scores.md`, `preflight.md`, the eight
-  role proposals (2026-10-09)
-- `design/ui/studio/tier2/rounds/round-1/insights.md`, the eight role proposals (2026-10-09)
+- tier 2 to 4 criteria, tasks, answers, roster, decided, round insights and scores; `tool/real.mjs`
+  gateCheck, `tool/score.mjs`, `tool/wording.mjs`, `tool/bars.mjs` (summarized 2026-11-05)
 
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
   `tier1.md` (studio worktree, 2026-10-06)

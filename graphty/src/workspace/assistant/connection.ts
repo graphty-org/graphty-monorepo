@@ -194,7 +194,9 @@ async function follow(
     const project = store.get().project?.id;
     const here = (): boolean => store.get().project?.id === project;
     const working = setTimeout(() => {
-        if (here()) {
+        // A request waiting on the reader was announced as waiting; Working would talk over it.
+        const waiting = element.getPendingAiApprovals().length + element.getPendingAiQuestions().length > 0;
+        if (here() && !waiting) {
             store.set({ announcement: WORDS["assistant.status.working"] });
         }
     }, WORKING_AFTER_MS);

@@ -103,6 +103,7 @@ function ChatListRow({ row, current, onOpen, onRename, onDelete }: ChatListRowPr
                     variant="subtle"
                     color="gray"
                     size="compact-sm"
+                    fullWidth
                     justify="flex-start"
                     className="ws-chat-open"
                     data-chat-open={row.id}

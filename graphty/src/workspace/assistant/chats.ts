@@ -27,10 +27,10 @@ export function chatTitle(chat: Pick<AiConversationSummary, "name" | "firstWords
 }
 
 /**
- * The chat list's rows while it shows: the saved chats newest first, as the element lists them, and
+ * The chats while the assistant is set up, for the header's count and the list: the saved chats newest first, as the element lists them, and
  * the open chat on top when it is not saved yet (before its first message). Reloads when the element
  * says the open chat changed.
- * @param shown - whether the list shows
+ * @param shown - whether to list them
  * @param open - the open chat
  * @returns the rows, and a reload
  */

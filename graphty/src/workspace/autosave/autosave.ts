@@ -103,7 +103,11 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
         store,
         entry,
         (name) => {
-            store.set({ ...place, announcement: reopenedTabSentence(name) });
+            // The kept place is put back once the data is in, so its row exists; a reader who went
+            // somewhere meanwhile (a rail click while the work reopened) stays there.
+            const { page, place: at, inspected } = store.get();
+            const moved = page !== "panels" || at !== "graph" || inspected !== null;
+            store.set({ ...(moved ? {} : place), announcement: reopenedTabSentence(name) });
         },
         focusMainHeading,
     );

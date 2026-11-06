@@ -581,7 +581,7 @@ describe("every generated action", () => {
         assert.include(JSON.stringify(layer), "#ff0000");
     });
 
-    it("refuses a second layer of its own that sets a channel its layer on the same elements sets", async () => {
+    it("changes its own layer when a second add sets a channel that layer sets on the same elements", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
         const servers = "data.type == 'server'";
@@ -592,12 +592,16 @@ describe("every generated action", () => {
             },
         ]);
         const first = session.styles.list().at(-1);
+        const before = session.styles.list().length;
         await assistant.say("orange instead", [
             { tool: "style", args: { action: "add", where: servers, values: { "node.color": "#ffa500" } } },
         ]);
-        const [refused] = assistant.lastResults();
-        assert.strictEqual(refused.code, "AI_ARG_INVALID", JSON.stringify(refused));
-        assert.deepInclude(refused.params, { path: "action", expected: "update", layer: first?.id });
+        const [changed] = assistant.lastResults();
+        assert.strictEqual(changed.code, "AI_OK", JSON.stringify(changed));
+        assert.deepInclude(changed.params, { layer: first?.id, updated: true });
+        const layer = session.styles.get(first?.id ?? "");
+        assert.deepInclude(layer?.set, { "node.color": "#ffa500", "node.size": 2 });
+        assert.strictEqual(session.styles.list().length, before, "no second layer");
         // Another channel on the same elements, or the same channel elsewhere, is a layer of its own.
         await assistant.say("labels", [
             { tool: "style", args: { action: "add", where: servers, values: { "node.label": "server" } } },
@@ -610,6 +614,68 @@ describe("every generated action", () => {
             },
         ]);
         assert.strictEqual(assistant.lastResults()[0].code, "style.add-layer");
+    });
+
+    it("colors the largest community in one turn: the run, then a style on its biggest group", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("color the largest community", [
+            { tool: "run_algorithm", args: { name: "louvain", style: false } },
+            {
+                tool: "style",
+                // The group field is read whatever field is named: only it holds the group ids.
+                args: {
+                    action: "add",
+                    result: { run: "louvain", field: "community", op: "largest" },
+                    values: { "node.color": "#ff0000" },
+                },
+            },
+        ]);
+        const [, styled] = assistant.lastResults();
+        assert.strictEqual(styled.code, "style.add-layer", JSON.stringify(styled));
+        const run = session.runs.list().at(-1);
+        const sizes = run?.result?.graph.sizes as { group: unknown; size: number }[];
+        assert.strictEqual(styled.params.matched, sizes[0].size);
+        assert.include(String(styled.params.rewritten), `== \`${JSON.stringify(sizes[0].group)}\``);
+        // "=" is how a model spells "==" for a result target.
+        await assistant.say("again with =", [
+            {
+                tool: "style",
+                args: {
+                    action: "add",
+                    result: { run: "louvain", field: "group", op: "=", value: sizes[0].group },
+                    values: { "node.color": "#00ff00" },
+                },
+            },
+        ]);
+        assert.strictEqual(assistant.lastResults()[0].code, "AI_OK", JSON.stringify(assistant.lastResults()[0]));
+        await assistant.say("a field the run does not have", [
+            {
+                tool: "style",
+                args: {
+                    action: "add",
+                    result: { run: "louvain", field: "community", op: "==", value: 1 },
+                    values: { "node.size": 2 },
+                },
+            },
+        ]);
+        const [unknown] = assistant.lastResults();
+        assert.strictEqual(unknown.code, "AI_UNKNOWN_COLUMN", JSON.stringify(unknown));
+        assert.include(unknown.params.didYouMean as string[], "group");
+        await assistant.say("largest of a ranking", [
+            { tool: "run_algorithm", args: { name: "degree", style: false } },
+            {
+                tool: "style",
+                args: {
+                    action: "add",
+                    result: { run: "degree", field: "value", op: "largest" },
+                    values: { "node.color": "#0000ff" },
+                },
+            },
+        ]);
+        const [, refused] = assistant.lastResults();
+        assert.strictEqual(refused.code, "AI_ARG_INVALID", JSON.stringify(refused));
+        assert.strictEqual(refused.params.path, "result.op");
     });
 
     it("describes an entry by its name alone when only one kind has it", async () => {

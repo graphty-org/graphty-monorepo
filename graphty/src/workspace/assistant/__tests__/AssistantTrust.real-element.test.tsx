@@ -819,6 +819,95 @@ describe("checking what the Assistant says", () => {
         await within(section).findByText("Remove 12 nodes?");
     });
 
+    it("says Working on a slow run, then how it ended, and a failure as an alert", async () => {
+        const { store } = await openOn(3);
+        const said: string[] = [];
+        store.subscribe(() => {
+            const { announcement } = store.get();
+            if (announcement !== "" && said.at(-1) !== announcement) {
+                said.push(announcement);
+            }
+        });
+        model.holdTurn = 0;
+        await say("Take your time");
+        await waitFor(() => {
+            assert.include(said, "Working");
+        });
+        model.release();
+        await finished();
+        await waitFor(() => {
+            assert.strictEqual(said.at(-1), "Answer ready");
+        });
+
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("Again");
+        const alert = await screen.findByRole("alert");
+        assert.include(alert.textContent, "Nothing changed.");
+    });
+
+    it("says a request waits on the reader once, and Working never talks over it", async () => {
+        const { store } = await openOn(12);
+        const said: string[] = [];
+        store.subscribe(() => {
+            const { announcement } = store.get();
+            if (announcement !== "" && said.at(-1) !== announcement) {
+                said.push(announcement);
+            }
+        });
+        model.turns = [calling("edit_data", { action: "remove_nodes", ids: ids(12) }), { text: "Ok.", toolCalls: [] }];
+        await say("Remove them");
+        await screen.findByRole("region", { name: "Waiting for you" });
+        await waitFor(() => {
+            assert.strictEqual(said.at(-1), "Waiting for your approval: Remove 12 nodes?");
+        });
+        assert.lengthOf(
+            said.filter((line) => line.startsWith("Waiting")),
+            1,
+        );
+    });
+
+    it("holds Talk's place until the element says speech is heard, so the composer row never moves", async () => {
+        fakeSpeech();
+        const tag = customElements.get("graphty-element") as unknown as {
+            prototype: HTMLElementTagNameMap["graphty-element"];
+        };
+        const realSupport = tag.prototype.getAiVoiceSupport;
+        // Every read waits until the test lets them answer, however early or often the panel asks.
+        let answered = false;
+        const asked: (() => void)[] = [];
+        const answer = (): void => {
+            answered = true;
+            for (const resolve of asked.splice(0)) {
+                resolve();
+            }
+        };
+        vi.spyOn(tag.prototype, "getAiVoiceSupport").mockImplementation(function support(
+            this: HTMLElementTagNameMap["graphty-element"],
+        ) {
+            const held = answered ? Promise.resolve() : new Promise<void>((resolve) => asked.push(resolve));
+            return held.then(() => realSupport.call(this));
+        });
+        await openOn(3);
+        const send = await screen.findByRole("button", { name: "Send" });
+        const held = await waitFor(() => {
+            const found = send.parentElement?.querySelector<HTMLButtonElement>("button[aria-hidden]") ?? null;
+            if (found === null) {
+                throw new Error("no held place yet");
+            }
+            return found;
+        });
+        assert.isNull(screen.queryByRole("button", { name: "Talk" }), "the held place is not a control yet");
+        const before = { held: held.getBoundingClientRect(), send: send.getBoundingClientRect() };
+
+        answer();
+        const talk = await screen.findByRole("button", { name: "Talk" });
+        assert.deepEqual(talk.getBoundingClientRect().toJSON(), before.held.toJSON());
+        assert.deepEqual(
+            screen.getByRole("button", { name: "Send" }).getBoundingClientRect().toJSON(),
+            before.send.toJSON(),
+        );
+    });
+
     it("a click on Talk latches, and a click on Stop talking stops with the words in the composer", async () => {
         fakeSpeech();
         await openOn(3);

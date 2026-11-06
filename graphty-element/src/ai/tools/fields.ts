@@ -38,8 +38,11 @@ const IDS_HELP = "Ids or labels.";
 /** Element ids. */
 export const idsField = z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe(IDS_HELP);
 
-/** The comparison operators a `result` target takes. */
-const RESULT_OPS = ["==", "!=", "<", "<=", ">", ">=", "in"] as const;
+/**
+ * The operators a `result` target takes: comparisons, `in` for a list, and `largest` for the
+ * `value` (default 1) biggest groups of a community run.
+ */
+const RESULT_OPS = ["==", "!=", "<", "<=", ">", ">=", "in", "largest"] as const;
 
 /** A primitive record value. */
 const primitive = z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]);
@@ -50,9 +53,9 @@ export const resultField = z
         run: z.string().max(200),
         field: z.string().max(200),
         op: z.enum(RESULT_OPS),
-        value: z.unknown().describe("A value; a list for in."),
+        value: z.unknown().optional().describe("A value; a list for in; how many groups for largest (default 1)."),
     })
-    .describe("Run value: {run, field, op, value}.");
+    .describe("Run value: {run, field, op, value}; op largest: biggest groups.");
 
 /** The three ways to name a target. */
 export const targetFields = {
@@ -432,21 +435,75 @@ export function requireTarget(
  * @returns The selector.
  */
 function resultSelector(session: TransactionScope, result: z.infer<typeof resultField>): string {
+    const run = resolveRun(session, result.run);
+    const path = session.results.path(run, resultFieldOf(session, run, result));
+    const literal = (value: unknown): string =>
+        typeof value === "string" ? rawString(value) : `\`${JSON.stringify(value)}\``;
+    const any = (values: readonly unknown[]): string =>
+        values.map((value) => `${path} == ${literal(value)}`).join(" || ");
+    if (result.op === "largest") {
+        return any(largestGroups(session, run, result.value));
+    }
+
     const valid = z.union([primitive, z.array(primitive).max(MAX_ITEMS)]).safeParse(result.value);
     if (!valid.success) {
         throw new ToolRefusal("AI_ARG_INVALID", { path: "result.value", expected: "a value, or a list of values" });
     }
 
-    const run = resolveRun(session, result.run);
-    const path = session.results.path(run, result.field);
-    const literal = (value: unknown): string =>
-        typeof value === "string" ? rawString(value) : `\`${JSON.stringify(value)}\``;
     if (result.op === "in") {
-        const values = Array.isArray(result.value) ? result.value : [result.value];
-        return values.map((value) => `${path} == ${literal(value)}`).join(" || ");
+        return any(Array.isArray(result.value) ? result.value : [result.value]);
     }
 
     return `${path} ${result.op} ${literal(result.value)}`;
+}
+
+/**
+ * The run field a `result` target reads. A field the run does not have is refused with the ones
+ * it has, so the model fixes it in one call; for `largest` it is the run's group field whatever
+ * was named, since only that field holds the group ids.
+ * @param session - The session, for the run.
+ * @param id - The run's id.
+ * @param result - The target.
+ * @returns The field.
+ * @throws {ToolRefusal} `AI_UNKNOWN_COLUMN` with the run's fields.
+ */
+function resultFieldOf(session: TransactionScope, id: string, result: z.infer<typeof resultField>): string {
+    const fields = session.runs.get(id)?.fields ?? [];
+    if (result.op === "largest") {
+        return fields.find((field) => field.kind === "node")?.name ?? result.field;
+    }
+
+    const names = fields.map((field) => field.name);
+    if (names.length > 0 && !names.includes(result.field)) {
+        throw new ToolRefusal("AI_UNKNOWN_COLUMN", { name: result.field, on: id, didYouMean: names });
+    }
+
+    return result.field;
+}
+
+/**
+ * The ids of a community run's biggest groups, largest first, read from the `sizes` table it
+ * publishes, so "the largest community" is one call rather than a look-up and a guess.
+ * @param session - The session, for the run.
+ * @param id - The run's id.
+ * @param count - How many groups: a whole number, default 1.
+ * @returns The group ids.
+ * @throws {ToolRefusal} `AI_ARG_INVALID` for a run that publishes no group sizes.
+ */
+function largestGroups(session: TransactionScope, id: string, count: unknown): unknown[] {
+    const sizes = session.runs.get(id)?.result?.graph.sizes;
+    if (!Array.isArray(sizes) || sizes.length === 0) {
+        const fields = session.runs.get(id)?.fields.map((field) => field.name) ?? [];
+        throw new ToolRefusal("AI_ARG_INVALID", {
+            path: "result.op",
+            expected: "largest only on a run that finds groups (communities, components)",
+            run: id,
+            fields,
+        });
+    }
+
+    const k = typeof count === "number" && Number.isInteger(count) && count > 0 ? count : 1;
+    return (sizes as readonly { readonly group: unknown }[]).slice(0, k).map((row) => row.group);
 }
 
 /**

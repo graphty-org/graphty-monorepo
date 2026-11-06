@@ -70,6 +70,16 @@ export function stripPlaceholders(args: Readonly<Record<string, unknown>>): Reco
 }
 
 /**
+ * A result target's `=` read as `==`: the one spelling a model writes for it that means nothing else.
+ * @param args - The arguments.
+ * @returns Them, the operator repaired.
+ */
+function equalsOp(args: Record<string, unknown>): Record<string, unknown> {
+    const result = args.result as { op?: unknown } | undefined;
+    return result?.op === "=" ? { ...args, result: { ...result, op: "==" } } : args;
+}
+
+/**
  * The refusal a failed parse means, with the path and what was expected.
  * @param error - The zod error.
  * @param action - The action, for its schema.
@@ -239,7 +249,8 @@ export class AssistantTool implements GraphCommand {
             });
         }
 
-        const prepared = entry.spec.prepare?.(rest) ?? rest;
+        const repaired = equalsOp(rest);
+        const prepared = entry.spec.prepare?.(repaired) ?? repaired;
         const parsed = entry.schema.safeParse(prepared);
         if (!parsed.success) {
             throw argRefusal(parsed.error, entry.spec);

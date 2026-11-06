@@ -68,7 +68,9 @@ export function watchWaiting(element: GraphtyElement, store: WorkspaceStore): vo
         } else {
             store.set({
                 announcement:
-                    title === null ? WORDS["assistant.status.waiting-answer"] : `Waiting for your approval: ${title}`,
+                    title === null
+                        ? WORDS["assistant.status.waiting-answer"]
+                        : `${WORDS["assistant.status.waiting-approval"]}: ${title}`,
             });
         }
     };

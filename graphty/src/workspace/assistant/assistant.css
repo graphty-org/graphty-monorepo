@@ -174,12 +174,30 @@
     transform: rotate(180deg);
 }
 
+/* "Chats 3" before the open chat's title: says there are several, in the secondary ink. */
+.ws-chat-count {
+    flex: none;
+    margin-inline-end: 6px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-assistant-switch[aria-expanded="true"] .ws-chat-count {
+    margin-inline-end: 0;
+    color: inherit;
+}
+
 .ws-chat-title {
     display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* The check's slot keeps its width when a long title squeezes the row, so every title starts in
+   one column. */
+.ws-chat-open .mantine-Button-section {
+    flex: none;
 }
 
 /* Keeps the titles of rows without the check in line with the checked one. */

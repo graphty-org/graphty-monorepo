@@ -5,7 +5,7 @@
  * message) is never read here.
  */
 
-import type { AiApprovalRequest } from "@graphty/graphty-element/ai";
+import type { AiApprovalRequest, AiStatus } from "@graphty/graphty-element/ai";
 import {
     AI_PROVIDER_DESCRIPTORS,
     type AiEffect,
@@ -84,6 +84,7 @@ export const WORDS = {
     "assistant.status.working": "Working",
     "assistant.status.ready": "Answer ready",
     "assistant.status.waiting-answer": "Waiting for your answer",
+    "assistant.status.waiting-approval": "Waiting for your approval",
     "assistant.status.listening": "Listening",
     "assistant.status.transcript": "Transcript in the message box",
     "assistant.provider.provider": "Provider",
@@ -109,11 +110,11 @@ export const WORDS = {
 } as const;
 
 /**
- * The chat list's label while it is open: "Chats 3".
- * @param count - the rows it shows
+ * The header's count of chats, open or closed: "Chats 3".
+ * @param count - the chats
  * @returns the label
  */
-export function chatsOpenLabel(count: number): string {
+export function chatsCountLabel(count: number): string {
     return `${WORDS["assistant.list.name"]} ${formatNumber(count)}`;
 }
 
@@ -304,9 +305,12 @@ export function endWords(code: string, params: AiResultParams, provider: string,
             return note(`${name} cannot use this tool, so the assistant worked without it.`);
         case "AI_PROVIDER_ERROR": {
             if (params.cause === "quota") {
-                return setup(
-                    `${name} has no credit left on this key. Add credit with ${name}, or choose another provider.`,
-                );
+                return {
+                    ...setup(
+                        `${name} has no credit left on this key. Add credit with ${name}, or choose another provider.`,
+                    ),
+                    action: "again-or-provider",
+                };
             }
             if (params.cause === "rate-limit") {
                 return retry(`${name} is getting too many requests. Wait a moment, then send again.`);
@@ -387,6 +391,26 @@ export const sendingWords = (provider: string): string => `Sending to ${provider
  * @returns the words.
  */
 export const runningWords = (name: string): string => `Running ${name}`;
+
+/**
+ * The working line: what is happening now, from what waits on the reader, the stage and the running tool.
+ * @param status - the status.
+ * @param provider - the provider's id.
+ * @returns the line.
+ */
+export function workingLine(status: AiStatus, provider: string): string {
+    if ((status.pending?.approvals ?? 0) > 0) {
+        return WORDS["assistant.status.waiting-approval"];
+    }
+    if ((status.pending?.questions ?? 0) > 0) {
+        return WORDS["assistant.status.waiting-answer"];
+    }
+    const tool = status.toolCalls?.findLast((call) => call.status === "executing");
+    if (status.stage === "executing" || tool !== undefined) {
+        return runningWords(stepName(tool?.name ?? "", tool?.arguments));
+    }
+    return status.stage === "generating" ? WORDS["assistant.working.writing"] : sendingWords(providerName(provider));
+}
 
 /**
  * The words the provider section names a provider in.

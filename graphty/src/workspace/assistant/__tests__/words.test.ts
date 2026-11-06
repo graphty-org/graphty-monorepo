@@ -2,7 +2,7 @@ import { AI_RESULT_CODES, type AiEffect } from "@graphty/graphty-element/catalog
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { changeLines, effectLine, endWords, voiceWords } from "../words";
+import { changeLines, effectLine, endWords, voiceWords, workingLine } from "../words";
 
 const AGAIN = { action: "again", failed: true } as const;
 const PROVIDER = { action: "provider", failed: true } as const;
@@ -43,7 +43,7 @@ const ROWS: readonly (readonly [string, Record<string, string | number>, string 
         "AI_PROVIDER_ERROR",
         { status: 429, cause: "quota" },
         "Google has no credit left on this key. Add credit with Google, or choose another provider.",
-        PROVIDER,
+        { action: "again-or-provider", failed: true },
     ],
     [
         "AI_PROVIDER_ERROR",
@@ -157,5 +157,21 @@ describe("endWords", () => {
         });
         const lines = changeLines(null, [run("first", 1), run("second", 1), run("third")]);
         assert.deepEqual(lines, ["Computed first", "Computed second, colored by it", "Computed third"]);
+    });
+});
+
+describe("workingLine", () => {
+    const sending = { state: "submitted", canCancel: true } as const;
+
+    it("says the run waits on the reader while an approval or a question waits, not Sending", () => {
+        assert.strictEqual(workingLine(sending, "google"), "Sending to Google");
+        assert.strictEqual(
+            workingLine({ ...sending, pending: { approvals: 1, questions: 0 } }, "google"),
+            "Waiting for your approval",
+        );
+        assert.strictEqual(
+            workingLine({ ...sending, pending: { approvals: 0, questions: 1 } }, "google"),
+            "Waiting for your answer",
+        );
     });
 });

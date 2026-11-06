@@ -15,12 +15,10 @@ import {
     endWords,
     isChange,
     isResult,
-    providerName,
-    runningWords,
-    sendingWords,
     stepName,
     stepsWords,
     WORDS,
+    workingLine,
 } from "./words";
 
 /** A scrolled-up reader this close to the foot still counts as following. */
@@ -84,20 +82,6 @@ function turnsOf(messages: readonly AiConversationMessage[]): readonly Turn[] {
         }
     }
     return turns;
-}
-
-/**
- * The working line: what is happening now, from the stage and the running tool.
- * @param status - the status.
- * @param provider - the provider's id.
- * @returns the line.
- */
-function workingLine(status: AiStatus, provider: string): string {
-    const tool = status.toolCalls?.findLast((call) => call.status === "executing");
-    if (status.stage === "executing" || tool !== undefined) {
-        return runningWords(stepName(tool?.name ?? "", tool?.arguments));
-    }
-    return status.stage === "generating" ? WORDS["assistant.working.writing"] : sendingWords(providerName(provider));
 }
 
 /**

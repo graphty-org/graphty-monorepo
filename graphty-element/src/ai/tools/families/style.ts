@@ -402,7 +402,8 @@ async function addLayer(
         set,
     };
     // A layer of the assistant's own over the same elements already sets one of these channels:
-    // a second only hides it ("orange instead of blue" left both). Change that one instead.
+    // a second only hides it ("orange instead of blue" left both), so the add changes that one.
+    // Refusing cost a small model rounds of retrying the add before it switched to update.
     const selector = JSON.stringify(spec.selector);
     const covered = tx.styles
         .list()
@@ -414,7 +415,14 @@ async function addLayer(
                 Object.keys(set).some((channel) => layer.set !== undefined && channel in layer.set),
         );
     if (covered !== undefined) {
-        throw new ToolRefusal("AI_ARG_INVALID", { path: "action", expected: "update", layer: covered.id });
+        const updated = await coded(() => tx.styles.update(covered.id, { set: { ...covered.set, ...set } }));
+        return {
+            ...ok(
+                { layer: updated.id },
+                { ...notes, layer: updated.id, updated: true, ...paintedFacts(tx, updated.id) },
+            ),
+            effects: () => styleEffects(tx, updated.id),
+        };
     }
 
     const facts = validate(tx, spec);

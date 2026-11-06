@@ -16,6 +16,7 @@ import { type GraphSession, listAutosaves } from "@graphty/graphty-element/sessi
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -211,6 +212,36 @@ async function fromAnotherTab(id: string): Promise<string> {
 }
 
 /**
+ * Holds autosave's database busy, so an entry's parts cannot be read until the hold ends; the
+ * listing (entries only) still answers. A reopen then waits at its read, as a slow disk makes it.
+ * @returns ends the hold.
+ */
+async function holdParts(): Promise<() => void> {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(DATABASE);
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            reject(request.error ?? new Error("the autosave database did not open"));
+        };
+    });
+    const blobs = db.transaction("blobs", "readwrite").objectStore("blobs");
+    let held = true;
+    // A transaction stays open while it has a request pending.
+    const spin = (): void => {
+        if (held) {
+            blobs.count().onsuccess = spin;
+        }
+    };
+    spin();
+    return () => {
+        held = false;
+        db.close();
+    };
+}
+
+/**
  * The start screen's offer of the earlier work.
  * @returns the offer's region.
  */
@@ -292,6 +323,46 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
+    it("keeps a rail click made while this tab's work reopens after a reload", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work's read held back: the reader clicks the rail's Assistant
+            // before the work is in.
+            const release = await holdParts();
+            const second = mountWorkspace();
+            const rail = await screen.findByRole("toolbar", { name: "Places" });
+            await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
+            await screen.findByRole("region", { name: "Assistant" });
+            assert.notInclude(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${FLORENTINE.name}`,
+                "the click came before the work was in",
+            );
+            release();
+
+            // The work comes in, and the reader is still where they went.
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+            assert.strictEqual(second.store.get().place, "assistant");
+            second.view.unmount();
+        } finally {
+            resetSiteConfig();
+        }
+    });
+
     it("never reopens the work another tab is writing: a duplicated tab starts on the start screen", async () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(LES_MIS.name));
@@ -307,11 +378,19 @@ describe("Workspace autosave with the real graphty-element", () => {
 
         // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
         // the element's last write lets it go. A duplicated tab has a copy of the original's
-        // session storage, which names the same entry.
+        // session storage, which names the same entry. A live tab answers when a page asks who
+        // holds the lock (graphty-element's lock channel), so the duplicate knows not to wait for it.
+        const lock = `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`;
+        const original = new BroadcastChannel("graphty-autosave-locks");
+        original.onmessage = (event: MessageEvent<{ ask?: string }>) => {
+            if (event.data.ask === lock) {
+                original.postMessage({ held: lock });
+            }
+        };
         let release = (): void => undefined;
         await new Promise<void>((resolve) => {
             void navigator.locks.request(
-                `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`,
+                lock,
                 () =>
                     new Promise<void>((done) => {
                         release = done;
@@ -330,6 +409,7 @@ describe("Workspace autosave with the real graphty-element", () => {
             second.view.unmount();
         } finally {
             release();
+            original.close();
         }
     });
 

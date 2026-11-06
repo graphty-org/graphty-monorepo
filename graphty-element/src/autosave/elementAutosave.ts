@@ -53,7 +53,25 @@ export interface PageLocks extends AutosaveLocks {
      * @returns True when this page holds it.
      */
     own?(name: string): Promise<boolean>;
+    /**
+     * Settle who has a lock this tab held before a reload: resolves once the lock is free (the page
+     * that held it has gone), once a live page says it holds it (a duplicated tab's original), or
+     * after {@link HANDOFF_MS} when the holder says nothing. Immediate when this page holds it.
+     * Optional: without it, nothing is waited for.
+     * @param name - The lock.
+     */
+    handoff?(name: string): Promise<void>;
 }
+
+/**
+ * The longest a reloaded tab waits for its own entry's lock from a holder that neither lets go nor
+ * answers (a tab running another copy of graphty-element, or one the browser froze). A page that is
+ * unloading lets go as soon as the browser tears it down, and a live holder answers at once.
+ */
+export const HANDOFF_MS = 3000;
+
+/** Where pages ask who holds a lock, and live holders answer. */
+const LOCKS_CHANNEL = "graphty-autosave-locks";
 
 /** What autosave needs from the page. `browserEnvironment()` is the real one. */
 export interface AutosaveEnvironment {
@@ -122,6 +140,48 @@ function webLocks(locks: LockManager): PageLocks {
         new Promise((resolve, reject) => {
             locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
         });
+    // A reload can start before the browser has torn down the page it replaces, which still holds
+    // this tab's lock; a duplicated tab finds the lock held by its live original. Holders answer
+    // "who holds it?" until their page hides, so the two can be told apart.
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(LOCKS_CHANNEL);
+    let leaving = false;
+    globalThis.addEventListener?.("pagehide", () => {
+        leaving = true;
+    });
+    globalThis.addEventListener?.("pageshow", () => {
+        leaving = false;
+    });
+    channel?.addEventListener("message", (event: MessageEvent<{ ask?: string }>) => {
+        const name = event.data.ask;
+        if (!leaving && name !== undefined && (mine.has(name) || parked.has(name))) {
+            channel?.postMessage({ held: name });
+        }
+    });
+    const handoff = (name: string): Promise<void> => {
+        if (mine.has(name) || parked.has(name)) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const stop = new AbortController();
+            const done = (): void => {
+                stop.abort();
+                clearTimeout(timer);
+                channel?.removeEventListener("message", heard);
+                resolve();
+            };
+            const heard = (event: MessageEvent<{ held?: string }>): void => {
+                if (event.data.held === name) {
+                    done();
+                }
+            };
+            // ponytail: the bound covers only a holder that is silent; every other case ends on an event.
+            const timer = setTimeout(done, HANDOFF_MS);
+            channel?.addEventListener("message", heard);
+            channel?.postMessage({ ask: name });
+            locks.request(name, { signal: stop.signal }, () => undefined).then(done, done);
+        });
+    };
     const claim = async (name: string): Promise<(() => void) | null> => {
         const kept = parked.get(name);
         if (kept !== undefined) {
@@ -161,6 +221,7 @@ function webLocks(locks: LockManager): PageLocks {
             let owning = claiming.get(name);
             if (owning === undefined) {
                 owning = claim(name)
+                    .then((release) => release ?? handoff(name).then(() => claim(name)))
                     .then((release) => {
                         if (release === null) {
                             return false;
@@ -177,6 +238,7 @@ function webLocks(locks: LockManager): PageLocks {
 
             return owning;
         },
+        handoff,
     };
 }
 
@@ -525,6 +587,9 @@ export class ElementAutosave {
                 await leaving;
                 await this.#env.locks.wait(lockName(key, own));
             }
+
+            // After a reload, the page it replaced may not have let go of the lock yet.
+            await this.#env.locks.handoff?.(lockName(key, own));
         }
 
         saver.setFacts(await this.#gatherFacts(), true);

@@ -120,8 +120,11 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
     const field = useRef<HTMLTextAreaElement>(null);
     const scope = useScope();
     useEffect(() => {
-        if (composerCalls > 0) {
-            field.current?.focus();
+        const box = field.current;
+        if (composerCalls > 0 && box !== null) {
+            box.focus();
+            // A field drawn with its words already in it holds the caret at 0; new words go after old.
+            box.setSelectionRange(box.value.length, box.value.length);
         }
     }, [composerCalls]);
     const running = isRunning(view.status);

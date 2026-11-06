@@ -181,6 +181,14 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
         return undefined;
     }, [asked, support, available, store, press, release]);
 
+    if (support === null) {
+        // Its place is held, unseen, until the element says whether speech is heard, so the row never jumps.
+        return (
+            <Button variant="default" size="compact-xs" tabIndex={-1} aria-hidden style={{ visibility: "hidden" }}>
+                {WORDS["assistant.talk"]}
+            </Button>
+        );
+    }
     if (!available) {
         return null;
     }

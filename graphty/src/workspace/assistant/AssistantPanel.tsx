@@ -15,7 +15,7 @@ import { Conversation } from "./Conversation";
 import { ConversationList } from "./ConversationList";
 import { type AssistantView, isRunning, useAssistantView } from "./useAssistantView";
 import { Waiting } from "./Waiting";
-import { chatsOpenLabel, starterColumn, WORDS } from "./words";
+import { chatsCountLabel, starterColumn, WORDS } from "./words";
 
 /**
  * The first screen: what the assistant does, then the one door to set it up. No composer, because
@@ -175,9 +175,11 @@ export default function AssistantPanel(): React.JSX.Element {
         }
     }, [running]);
     const listId = useId();
-    const { rows, reload } = useChatRows(setUp && listing, view.conversation);
+    // Loaded while set up, not only while listing: the closed header shows the count too.
+    const { rows, reload } = useChatRows(setUp, view.conversation);
     const title = chatTitle(view.conversation);
-    const switchName = listing ? chatsOpenLabel(rows.length) : `${WORDS["assistant.title.tooltip"]}, ${title}`;
+    const count = chatsCountLabel(rows.length);
+    const switchName = listing ? count : `${rows.length > 0 ? count : WORDS["assistant.title.tooltip"]}, ${title}`;
     const backToLog = (): void => {
         setListing(false);
         store.set((state) => ({ composerCalls: state.composerCalls + 1 }));
@@ -186,7 +188,7 @@ export default function AssistantPanel(): React.JSX.Element {
         <section className="ws-assistant" aria-label={WORDS["assistant.name"]}>
             <header className="ws-assistant-head">
                 {setUp ? (
-                    <Tooltip label={listing ? WORDS["assistant.title.tooltip"] : switchName}>
+                    <Tooltip label={listing ? WORDS["assistant.title.tooltip"] : title}>
                         <Button
                             variant="subtle"
                             color="gray"
@@ -204,7 +206,8 @@ export default function AssistantPanel(): React.JSX.Element {
                                 }
                             }}
                         >
-                            <span className="ws-chat-title">{listing ? chatsOpenLabel(rows.length) : title}</span>
+                            {rows.length > 0 ? <span className="ws-chat-count">{count}</span> : null}
+                            {listing ? null : <span className="ws-chat-title">{title}</span>}
                         </Button>
                     </Tooltip>
                 ) : (

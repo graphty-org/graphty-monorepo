@@ -594,21 +594,30 @@ describe("talking to the Assistant", () => {
         });
     });
 
-    it("titles the header by the open chat, counts the list's rows and marks the open one", async () => {
+    it("shows the chat count beside the open chat's title while closed, and marks the open one", async () => {
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await open();
         await openPanel();
         await chat("Color by department");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Color by department");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Color by department");
         });
         await newChat();
-        assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, New chat");
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 2, New chat");
+        });
         await chat("Hubs please");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Hubs please");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 2, Hubs please");
         });
-        assert.notStrictEqual(chatsButton().textContent, "Assistant");
+        // Seen without opening anything: the count and the title, side by side on one line.
+        const closed = chatsButton();
+        assert.strictEqual(closed.getAttribute("aria-expanded"), "false");
+        const count = within(closed).getByText("Chats 2").getBoundingClientRect();
+        const title = within(closed).getByText("Hubs please").getBoundingClientRect();
+        assert.isAtMost(count.right, title.left, "the count comes before the title");
+        assert.isAbove(count.width, 0, "the count shows");
+        assert.closeTo(count.top, title.top, 2, "on one line");
 
         const list = await openList(2);
         const hubs = within(list).getByRole("button", { name: "Hubs please" });
@@ -662,6 +671,27 @@ describe("talking to the Assistant", () => {
         assert.isAtMost(title.right, date.left, "the row's title ends before its date");
     });
 
+    it("starts every row's title at the same left edge, short or long, checked or not", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        await chat("Hi");
+        await newChat();
+        await chat("Which node has the most connections, and how many does it have?");
+        await newChat();
+        await chat("Count");
+
+        const list = await openList(3);
+        const lefts = within(list)
+            .getAllByRole("listitem")
+            .map((row) => row.querySelector(".ws-chat-title")?.getBoundingClientRect().left);
+        assert.lengthOf(lefts, 3);
+        for (const left of lefts) {
+            assert.exists(left);
+            assert.closeTo(left, lefts[0] ?? 0, 0.5, "titles start in one column, not centered in their rows");
+        }
+    });
+
     it("keeps Send whole inside the composer beside the model and its effort, at the narrowest panel", async () => {
         await open(createWorkspaceStore({ project: { name: "Talk", id: 1 }, assistantWidth: 240 }));
         await setUpGoogle();
@@ -707,14 +737,14 @@ describe("talking to the Assistant", () => {
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Departments");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Departments");
         });
         cleanup();
 
         await open(createWorkspaceStore({ project: { name: "Talk", id: 1 } }));
         await openPanel();
         await waitFor(() => {
-            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, Departments");
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats 1, Departments");
         });
         const again = await openList(1);
         within(again).getByRole("button", { name: "Departments" });
@@ -824,6 +854,30 @@ describe("talking to the Assistant", () => {
         await waitFor(() => {
             assert.isFalse(store.get().assistantTalkPress);
         });
+    });
+
+    it("Mod+I back into a composer holding a failed message puts the caret after its words", async () => {
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await open();
+        await openPanel();
+        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
+        await say("Please answer");
+        await screen.findByRole("alert");
+        const field = await composer();
+        assert.strictEqual(field.value, "Please answer");
+        // Mod+I in the composer closes the panel; again, it opens on a composer drawn with the words in it.
+        await userEvent.click(field);
+        await userEvent.keyboard("{Control>}i{/Control}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox", COMPOSER));
+        });
+        await userEvent.keyboard("{Control>}i{/Control}");
+        const again = await composer();
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, again);
+        });
+        await userEvent.keyboard(" now");
+        assert.strictEqual(again.value, "Please answer now");
     });
 
     it("follows a failure and its Send again to the foot of a long log", async () => {

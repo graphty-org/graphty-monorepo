@@ -795,28 +795,28 @@ export class UpdateManager implements Manager {
         const edgeSelectionOnly =
             this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
-        if (nodeRows !== null) {
-            this.applyNodeRows(nodeRows, nodeVisibility, showContext);
-            // A click during play moves the selection in the same pass as the window.
-            if (nodeSelectionVersion !== this.appliedNodeSelection) {
+        this.applyMove(nodeRows, nodesMoved, nodeSelectionOnly, nodeSelectionVersion !== this.appliedNodeSelection, {
+            rows: (rows) => {
+                this.applyNodeRows(rows, nodeVisibility, showContext);
+            },
+            selection: () => {
                 this.applyNodeSelection(nodeSelection);
-            }
-        } else if (nodesMoved && nodeSelectionOnly) {
-            this.applyNodeSelection(nodeSelection);
-        } else if (nodesMoved) {
-            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
-        }
-
-        if (edgeRows !== null) {
-            this.applyEdgeRows(edgeRows, edgeVisibility);
-            if (edgeSelectionVersion !== this.appliedEdgeSelection) {
+            },
+            walk: () => {
+                this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
+            },
+        });
+        this.applyMove(edgeRows, edgesMoved, edgeSelectionOnly, edgeSelectionVersion !== this.appliedEdgeSelection, {
+            rows: (rows) => {
+                this.applyEdgeRows(rows, edgeVisibility);
+            },
+            selection: () => {
                 this.applyEdgeSelection(edgeSelection);
-            }
-        } else if (edgesMoved && edgeSelectionOnly) {
-            this.applyEdgeSelection(edgeSelection);
-        } else if (edgesMoved) {
-            this.applyEdgeMasks(edgeVisibility, edgeSelection);
-        }
+            },
+            walk: () => {
+                this.applyEdgeMasks(edgeVisibility, edgeSelection);
+            },
+        });
 
         this.appliedNodeSelection = nodeSelectionVersion;
         this.appliedEdgeSelection = edgeSelectionVersion;
@@ -825,6 +825,37 @@ export class UpdateManager implements Manager {
         this.appliedShowContext = showContext;
         this.appliedGhost = ghost;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Bring one kind of element into line by the cheapest way that is exact.
+     * @param rows - The rows a slide moved, or null when they are not known.
+     * @param moved - Whether anything of this kind moved.
+     * @param selectionOnly - Whether only its selection did.
+     * @param selectionMoved - Whether its selection did, which a click during play does in the same
+     *     pass as the window.
+     * @param apply - The three ways.
+     * @param apply.rows - Show and hide by rows.
+     * @param apply.selection - Follow the selection.
+     * @param apply.walk - Walk every element.
+     */
+    private applyMove(
+        rows: readonly number[] | null,
+        moved: boolean,
+        selectionOnly: boolean,
+        selectionMoved: boolean,
+        apply: { rows(rows: readonly number[]): void; selection(): void; walk(): void },
+    ): void {
+        if (rows !== null) {
+            apply.rows(rows);
+            if (selectionMoved) {
+                apply.selection();
+            }
+        } else if (moved && selectionOnly) {
+            apply.selection();
+        } else if (moved) {
+            apply.walk();
+        }
     }
 
     /**

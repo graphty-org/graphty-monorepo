@@ -182,6 +182,20 @@ export const TwoSources: Story = {
 };
 
 /**
+ * The open selection workspace, waited for.
+ * @returns its modal.
+ */
+async function workspace(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        if (found === null) {
+            throw new Error("waiting for the selection workspace");
+        }
+        return found;
+    });
+}
+
+/**
  * Adds a filter card from the Filters "+", as a reader does.
  * @param canvasElement - the story's root.
  * @param item - the "+" list's item.
@@ -189,6 +203,12 @@ export const TwoSources: Story = {
 async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
     await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
+    // With the selection workspace on, the new card opens in its modal on the Card list: Value
+    // turns its picker to the attributes, as a reader picks one.
+    const element = canvasElement.querySelector("graphty-element");
+    if (element !== null && selectionWorkspaceOn(element.session)) {
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: "Value" }));
+    }
     const named = new RegExp(`^${item}(,|$)`);
     await userEvent.click(await within(document.body).findByRole("option", { name: named }));
 }
@@ -216,13 +236,7 @@ async function done(element: GraphtyElement): Promise<void> {
     if (!selectionWorkspaceOn(element.session)) {
         return;
     }
-    const modal = await waitFor(() => {
-        const found = document.querySelector<HTMLElement>(".sel-ws");
-        if (found === null) {
-            throw new Error("waiting for the selection workspace");
-        }
-        return found;
-    });
+    const modal = await workspace();
     await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
     await waitFor(() => {
         if (document.querySelector(".sel-ws") !== null) {

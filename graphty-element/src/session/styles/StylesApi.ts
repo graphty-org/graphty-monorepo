@@ -78,7 +78,7 @@
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
-import { isShaderId, type ShaderUse } from "../../catalog/shaders";
+import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -1519,6 +1519,11 @@ export interface StylesSources {
      */
     readonly onChange?: (change: StyleChange) => void;
     /**
+     * Called when a layer is refused for facts carrying a code, so a host can publish them.
+     * @param refusal - The facts.
+     */
+    readonly onRefused?: (refusal: StyleRefusal) => void;
+    /**
      * Called once after the last {@link StylesSources.onChange} of one repaint.
      * @param batch - The edits that pass told.
      */
@@ -1865,6 +1870,15 @@ function unknownRow(id: StyleRowId, rows: Rows): GraphtyError {
         source: "style",
         details: { id, known },
     });
+}
+
+/**
+ * A layer refused for what it says about shaders, as `style:refused` publishes it.
+ * @since 3.46.0
+ */
+export interface StyleRefusal {
+    /** Why, as codes the application words; see {@link LayerProblem.fact}. */
+    readonly problems: readonly ShaderProblem[];
 }
 
 /**
@@ -2848,6 +2862,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return encode === undefined ? spec : { ...spec, encode };
     };
 
+    /**
+     * The refusal of a specification, told to whoever watches as well: a run nobody awaited
+     * rejects with no trace, so a layer refused for its shaders went unseen (issue #5972).
+     * @param name - What the layer was called.
+     * @param result - The verdict.
+     * @returns The error to reject with.
+     */
+    const refused = (name: string, result: ValidationResult): GraphtyError => {
+        const problems = result.errors.flatMap((problem) => (problem.fact === undefined ? [] : [problem.fact]));
+        if (problems.length > 0) {
+            sources.onRefused?.({ problems: Object.freeze(problems) });
+        }
+
+        return refusedSpec(name, result);
+    };
+
     const check = (given: LayerSpec, id: LayerId, admit = true, mayBeEmpty = false): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
@@ -3194,7 +3224,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(spec, id);
 
         if (checked.layer === null) {
-            throw refusedSpec(spec.name, checked.result);
+            throw refused(spec.name, checked.result);
         }
 
         const next = [...current()];
@@ -3255,7 +3285,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(merged, id, true, keepEmpty || alreadyEmpty);
 
         if (checked.layer === null) {
-            throw refusedSpec(merged.name, checked.result);
+            throw refused(merged.name, checked.result);
         }
 
         const next = [...base];
@@ -3412,7 +3442,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(planned, id);
 
         if (checked.layer === null) {
-            throw refusedSpec(planned.name, checked.result);
+            throw refused(planned.name, checked.result);
         }
 
         const next = [...stack];
@@ -3472,7 +3502,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const checked = check(layerSpec, ids[index]);
 
             if (checked.layer === null) {
-                throw refusedSpec(layerSpec.name, checked.result);
+                throw refused(layerSpec.name, checked.result);
             }
 
             for (const unanswered of checked.result.unresolvedPaths) {
@@ -3601,7 +3631,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const checked = check(authored, ids[index], false);
 
             if (checked.layer === null) {
-                throw refusedSpec(authored.name, checked.result);
+                throw refused(authored.name, checked.result);
             }
 
             for (const unanswered of checked.result.unresolvedPaths) {
@@ -3628,7 +3658,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id, false);
 
             if (off.layer === null) {
-                throw refusedSpec(entry.spec.name, off.result);
+                throw refused(entry.spec.name, off.result);
             }
 
             return off.layer;
@@ -3710,7 +3740,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A row may start empty, whichever kinds it paints: its first write gives it a value.
             const checked = check(layerSpec, ids[index], true, true);
             if (checked.layer === null) {
-                throw refusedSpec(spec.name, checked.result);
+                throw refused(spec.name, checked.result);
             }
 
             checked.result.unresolvedPaths.forEach((path) => unresolved.add(path));
@@ -3986,7 +4016,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             const checked = check(spec, layerId);
             if (checked.layer === null) {
-                throw refusedSpec(spec.name, checked.result);
+                throw refused(spec.name, checked.result);
             }
 
             return checked.layer;

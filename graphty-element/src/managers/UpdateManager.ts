@@ -1973,6 +1973,7 @@ export class UpdateManager implements Manager {
         this.autoTurning = this.camera.autoTurn(
             (camera.autoRotate * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
         );
+        this.pending.cameraTurnsByItself = this.autoTurning;
 
         // Always update camera
         this.camera.update();

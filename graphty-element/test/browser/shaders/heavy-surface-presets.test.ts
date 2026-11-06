@@ -422,6 +422,77 @@ describe("the small-size program", () => {
         },
     );
 
+    it.each(HEAVY.map((id) => [id] as const))(
+        "%s draws its small-size program on the frame waitForStableFrame() calls final",
+        async (id) => {
+            const element = await mounted(GRID, [
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
+            ]);
+            await element.waitForStableFrame();
+            assert.strictEqual(impostor(element)?.material?.name.endsWith("low"), true);
+        },
+    );
+
+    it("waits for the small-size program after the element moves the camera away from large nodes", async () => {
+        const element = await mounted(GRID.slice(0, 4), [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "gemstone" }] },
+            },
+        ]);
+        await element.waitForStableFrame();
+        assert.isFalse(impostor(element)?.material?.name.endsWith("low"), "the large nodes start on the full program");
+
+        await element.setCameraState({ zoom: 0.02 });
+        await element.waitForStableFrame();
+        assert.isTrue(impostor(element)?.material?.name.endsWith("low"));
+    });
+
+    it("does not wait for a rest that a camera turning by itself never reaches", async () => {
+        const element = await mounted(GRID, [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "gemstone" }] },
+            },
+        ]);
+        await element.setViewMode("3d");
+        element.autoRotate = 1;
+        const scene = element.graph.getScene();
+        await until(element, "the frame is final while the camera turns", () => element.isFrameStable);
+        await drawnFrames(scene, 2);
+        await element.waitForStableFrame();
+        assert.isTrue(element.isFrameStable);
+    });
+
+    it("does not wait for a small-size program that cannot compile", async () => {
+        const { origin: _origin, ...facts } = GEMSTONE;
+        const id = "probe/broken-small-size";
+        registerShader({
+            descriptor: { ...facts, id },
+            glsl: GEMSTONE_BODY,
+            lowDetail: "vec4 shade(NodeInput n) { return this is not glsl; }",
+        });
+        const element = await mounted(GRID, [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: id }] },
+            },
+        ]);
+        await element.waitForStableFrame();
+        assert.isFalse(impostor(element)?.material?.name.endsWith("low"));
+    });
+
     it.each(HEAVY.map((id) => [id] as const))("%s keeps its full program when its nodes are large", async (id) => {
         const element = await mounted(
             [{ id: "a", x: 0, y: 0 }],

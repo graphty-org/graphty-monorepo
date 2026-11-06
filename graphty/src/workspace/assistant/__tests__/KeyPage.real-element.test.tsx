@@ -73,7 +73,13 @@ describe("the AI provider page", () => {
         await userEvent.keyboard(KEY);
         await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
         await screen.findByRole("textbox", { name: "Message the assistant" });
-        assert.deepEqual(readAssistantChoice(), { provider: "google", model: "gemini-3.8-flash", remember: false });
+        // Done saves the effort the page showed: the model's lowest, with none picked.
+        assert.deepEqual(readAssistantChoice(), {
+            provider: "google",
+            model: "gemini-3.8-flash",
+            remember: false,
+            effort: "low",
+        });
     });
 
     it("keeps the page open on a bad key at Done, with focus on the field", async () => {

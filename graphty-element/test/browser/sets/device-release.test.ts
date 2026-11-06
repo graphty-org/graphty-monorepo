@@ -14,7 +14,7 @@ import "../../../src/graphty-element";
 import "../../../webgpu";
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { afterAll, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { derivedInputsOf, withRunInput } from "../../../src/algorithms/input/ScopedInput";
@@ -66,7 +66,7 @@ async function until(predicate: () => boolean, what: string): Promise<void> {
     });
 }
 
-afterAll(() => {
+afterEach(() => {
     while (mounted.length > 0) {
         mounted.pop()?.remove();
     }

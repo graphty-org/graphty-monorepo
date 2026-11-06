@@ -1436,7 +1436,9 @@ export class Node implements ModelUser {
                 this.makeDrawnPickable(this.#actions);
             }
 
-            this.applyInstancePaint(this.#fit.style, this.drawnColor);
+            // The paint's own style, not the one the mesh was fitted from: an `instance` channel
+            // painted while batched (`node.visible`) changed no mesh key, so `#fit` never saw it.
+            this.applyInstancePaint(this.drawnStyle ?? this.#fit.style, this.drawnColor);
             this.applyRenderState();
         }
     }

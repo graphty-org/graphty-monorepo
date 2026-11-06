@@ -173,6 +173,11 @@ export interface Prim {
     kind: "shape" | "path" | "text" | "image";
     box: PBox;
     /**
+     * A fill its own clip cuts (`clipCut`): the box of the whole shape it was drawn as. `box` is what shows. Absent for
+     * a shape shown whole.
+     */
+    uncut?: PBox;
+    /**
      * An image's four corners as drawn, which a turned image's box is wider than.
      */
     quad?: readonly [number, number][];
@@ -251,6 +256,11 @@ export interface PNode {
      * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
      */
     faces?: PBox[];
+    /**
+     * The oracle's side only: the parts of the node a clip cuts from a fill of another color than the node's (yEd's
+     * entity header), each of which graphty must draw over the face in that color. Absent for none.
+     */
+    bands?: { box: PBox; color: string }[];
     label: PText | null;
     /**
      * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at

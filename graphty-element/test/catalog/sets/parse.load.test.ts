@@ -51,8 +51,8 @@ const OPAQUE: readonly (readonly [string, Record<string, unknown>, string])[] = 
     ],
     [
         "a reserved cut on a threshold, as its only cut",
-        { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "data.score", percentile: 0.9 } },
-        "threshold.percentile",
+        { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "data.score", z: 1.5 } },
+        "threshold.z",
     ],
     [
         "a reserved population on a threshold",

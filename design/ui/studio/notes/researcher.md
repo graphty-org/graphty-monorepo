@@ -6,47 +6,42 @@ every insight and every fix. The job is to make sure a finding is about the desi
 of the study, the prototype or the task wording.
 
 Read "Top of mind" first at the start of every session. Update the dated sections as decisions are
-made and evidence comes in. Summarized 2026-10-30 (older entries folded; full text in git history).
+made and evidence comes in. Summarized 2026-11-03 twice (older entries folded; full text in git
+history).
 
 ## Top of mind
 
-- (2026-10-30) The studio stopped at its 1-round cap with bars 2, 3, 5, 6 and 7 failing as frozen.
-  One round cannot both find and confirm fixes: plan the cap so a fix round and a re-test round
-  fit, and fix the study tool (popover-on-hover) and the bar definitions (bar 2 key, bar 3 hover
-  rule) before the next tier spends sessions.
-- (2026-10-30) Real design work left, most severe first: join preview mismarks rows (sev 2), choices
-  come after the act with a default applied (sev 2), one fact drawn two ways (time vs kind, sev 2),
-  clipped approved ratio on the joined source row (bar 6), table tab names an unrendered panel
-  (bar 5, axe critical on 14 of 16 screens).
-- (2026-10-30) Tier 4 round 1 settled (`tier4/rounds/round-1/insights.md`): bar 4 HOLDS after the
-  skeptics (no severity 3 survives); bars 2, 3, 5, 6, 7 fail as frozen, but bar 2 rests on the
-  key's definition and bar 3 on post-success checks plus a tool defect. Bar 6 is real (ratio clipped).
-- (2026-10-30) Fix `tool/real.mjs` before round 2: a hover that opens a popover prints
-  `tooltip: null`, and simulated participants believe the line over the screenshot (s13, s15, s21,
-  s22 reported "nothing appears" while 03.png shows the fix list). Check tool lines against images.
-- (2026-10-30) Top open problem: the join preview mismarks rows (one skeptic 3, one 2; held at 2).
-  Readers recover from the counts after Join; cost is steps (T61 about 12 vs path 7).
-- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. A
-  "false done" defined only by the answer key (a type the product itself blurs) is contestable.
-- (2026-10-30) Count wrong turns before the success state only, and decide whether a hover is a
-  turn before grading; graders split on it this round.
-- (2026-10-30) Bar 3 on a 2-session task is the mean of two: say so whenever it decides a bar.
-- (2026-10-30) Owner decision item 1 (Select | Filter to | Filter out, new card on Filter out)
-  keeps the default behind 5 of 5 "card hid the picture first" detours; but the task order forces
-  that trap, so test the default on a task that does not start with filtering.
-- (2026-10-30) Approved-surface checks: reference image beside a session screenshot, and the
-  route's text, to tell "removed" from "clipped" (the ratio was clipped, not removed).
-- (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona; never
-  report "people go where they are" from it.
-- (2026-10-30) Brief every row before a round; a fact in "Facts no briefing may hold" must be a
-  phrase no persona or README holds.
-- (2026-10-30) A prompt word that is a detour control's label steers into it; grep prompts
-  against detour controls too.
-- (2026-10-30) First check of any pilot finding: the build in its walk's session.json.
-- (2026-10-29) Grep the app's strings for every prompt word, not only the avoided list.
-- (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert
-  counts are not user evidence; an expert-only 3 needs a repro under `repro/`.
-- (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
+- (2026-11-03) Tier 5 stopped at the 1-round safety cap with bars 1, 3, 4, 8, 9 failing and 6, 7
+  unmeasured. A one-round cap cannot meet bars that need a fix round plus a re-test round: ask
+  for a cap of at least 2 (find, then confirm) before the next tier launches.
+- (2026-11-03) Open work handed on (`rounds/round-1/insights.md` "What the round needs next"):
+  fix the Results-pick run binding, By position's box and false error, the empty Fill box, "Is
+  exactly" on an empty step, Clear-then-Escape deleting a saved card; re-walk each by its repro.
+- (2026-11-03) Bars 6 and 7 went unmeasured because two expert walks never ran: make every bar's
+  feed a launch precondition, not a best effort.
+- (2026-11-03) Tier 5 round 1 after the skeptics (`rounds/round-1/insights.md`): bar 4 fails on 2
+  severity 3 (covered panel's speech, fixed after freeze; a Results pick binding another run); bar 9
+  fails 4 of 3 (Or group, Condition.../Or..., By position box, header Tab order); bar 1 fails on
+  T75 A only (one session, several causes); bars 3 and 8 fail; 6 and 7 not measured.
+- (2026-11-03) T73 as worded cannot measure the editor: it asks for a colored set and a count, the
+  key wants a rule. Reword the task (no control words) or change the key before T73 runs again.
+- (2026-11-03) Check the task words against the key's success line before calling a bar failure:
+  a P that the words never asked to avoid is a study defect.
+- (2026-11-03) Follow-up questions must not invite a wish ("would you rather...?"): same-model
+  participants all say yes.
+- (2026-11-03) Fixtures that pre-color in the task's color manufacture "drowned color" findings.
+- (2026-11-03) "Each finding counts once, in the smaller allowance": a keyboard-named element that
+  is also a bar 7 item counts in bar 9. Apply it when scoring, not after.
+- (2026-11-03) Code "least sure" answers from the grade's quote, not a summary: two of four value
+  picker citations were miscoded (r1-s18, r1-s06).
+- (2026-11-03) Bar 8's T70 overage is mostly outside the editor (Fill box, layer name box, hiding
+  a ramp layer, filter-first order). Decompose cost before blaming the editor.
+- (2026-11-03) Score per half, not pooled; tool fixes before round 2 scoring (`endstate.mjs`
+  hidden layers, `score.mjs` layouts, P in the graders' form).
+- (2026-11-03) A severity 3 from one session on a route the key does not use survives only with a
+  repro; say so beside it.
+- (2026-11-03) Check the briefing against the setup before a round (T73 A's missing saved project).
+- (2026-11-03) Check decided.md before scoring a defect; colliding decided rules need a ruling.
 
 ## Priorities and values
 
@@ -74,130 +69,126 @@ logged). Their reasons, in short:
   one-domain fix passing on combined counts.
 - **No confirmed severity 3 or 4.** Nielsen 0-4; confirmed = 2 sessions on different halves, a
   session or an expert plus a scripted repro, or an expert screenshot finding the audit also shows.
-- **Cost measured in steps, not minutes** (the clock holds model thinking), on pointer sessions;
-  keyboard personas reported apart.
+- **Cost measured in steps, not minutes** (the clock holds model thinking), per task half, on
+  pointer sessions; keyboard personas reported apart.
 - **An end-state script** for what a picture cannot show (filter and export counts).
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
 
-- **2026-10-30 (studio stopped after tier 4 round 1):** Record the round as findings, not a
-  verdict on the design: two failing bars (2, 3) are partly study artifacts (key definition, tool
-  hover line, inconsistent hover counting). Reason: a stop at the cap leaves no re-test, so the
-  notes must say which failures are the product's (5, 6, 7, join preview) and which are the
-  study's. Tried: two independent skeptics per insight -- worked; they caught the tool defect and
-  the contestable false done. Did not work: grading hovers without a rule decided in advance.
-- **2026-10-30 (tier 4 round 1 insights, skeptics applied):** Two drops = dropped, one drop or
-  weaken = weakened. All four severity 3 candidates fell to 2 or below (join preview 2, time vs
-  kind 2, "With issues 11" 1, Export focus a candidate), so bar 4 holds. Bar 2 counted but flagged
-  (false done only under the key's definition). Bar 3 reported as "fails as frozen, not shown as a
-  design failure" (1 wrong turn before success per T64 session). Bar 6 kept with the mechanism
-  corrected to clipping. Insights "a fix created a trap" dropped, "issue home depends on where
-  people are" confounded; the other four weakened. Added the tool's `tooltip: null` defect as a
-  must-fix. Reason: a claim stands only where both a screen and a reader's cost back it. Evidence:
-  `rounds/round-1/insights.md`; viewed repro/r1-s03/02.png, sessions/r1-s08/05.png,
-  r1-s09/16.png, r1-s03/20.png, r1-s13/03.png myself.
-
-- **2026-10-30 (tier 4 round 1 scoring):** Scored by hand from grade.md lines plus the two scripts
-  (`steps.mjs`, `endstate.mjs`), and wrote r1-s08 as P (grade.md and the criteria) where the
-  collected form said F. Proposed four severity 3s, each a confirmed defect with a 3 from a grader
-  or expert: the join preview mismarks rows (4 sessions both halves + repros), "Set in Data" leaves
-  the column text (5 sessions both halves + repro, one false done), "With issues 11" counts
-  suggestions and hides G12 (session + repro, a misread count), Export's warning drops focus
-  (accessibility walk; held as candidate until replayed). Held Figma's "Hide keeps matches" at 2
-  (the one session recovered) and left the raw-millisecond date card unconfirmed (no session
-  collapsed one). Called bar 6's ratio removal a violation after comparing the reference image with
-  r1-s01/14.png myself. Reported bar 7 as frozen and, beside it, the graders' to-success counts.
-  Reason: each claim must stand on a screen or a script, and the frozen rules stay frozen.
-  Evidence: `rounds/round-1/scores.md`, `steps.json`, each session's `endstate.json`.
-
-- **2026-10-30 (round 1 plan and recheck, folded):** 28 sessions exactly as roster.md (core tasks
-  first, A and B alternating, Sam last with `--keys`); follow-ups from tasks.md through the tool.
-  Changed T65 B's key facts to `5 gauges`/`3 gauges` so `--brief` stops refusing; kept plan.md on
-  recheck (the plan script now keeps "## Gate evidence" on a rerun).
-
-- **2026-10-29 to 10-30 (tier 4 key matched to each frozen build, folded):** The key writes the
-  screen of the frozen build; earlier-build notes kept beside new ones; a count the build gets
-  wrong becomes a grading line, never the key's number; T66's prompt changed to "Take it out" and
-  "Leave out" named under Not success; findings from stale walks or decided.md wording change
-  nothing. Removed the T66 id-card route (cannot be built).
-
-- **2026-10-29 (tier 4 criteria review):** Proposed eight changes, applied none (the Director
-  freezes): grade from end-state records plus a script, confirm expert findings by repro, reword
-  echoing prompts, map every decided fix to a route, count Sam apart, move T65 B to a second domain,
-  give T63 a place not preset and T68 a filtered start. Most were adopted into the criteria.
-
-- **2026-10-21 (tier 3, folded):** Two skeptics per insight (two drops = dropped, one = weakened);
-  disputed claims settled at their source; scored by hand where `score.mjs` was wrong and said so;
-  stopped tier 3 at round 1 (remaining failures came from the grading rule and unreached backlog).
-- **2026-10-02 to 10-20 (tiers 1 and 2, folded):** Real app only; criteria frozen before a round;
+- 2026-11-03 -- Applied round 1 skeptics (`rounds/round-1/insights.md`). Kept at 3: covered-panel
+  speech, the Results pick binding another run. To 2: "Is exactly" (empty step only), Clear then
+  Escape. Bar 9: value picker weakened out (one drop), Except to 1, header Tab order moved in from
+  bar 7 by the counts-once rule -> 4 of 3, fails. T73 reclassified as not measured (wording vs
+  key). Reason: the rule (two drops drop, one weakens) plus the criteria's counts-once line, which
+  scoring had missed. Evidence: viewed `repro/r1-s13/06.png`, `sessions/r1-s08/05.png`,
+  `sessions/r1-s04/17.png`; criteria.md lines 66 and 78-81.
+- 2026-11-03 -- Scored tier 5 round 1 (`rounds/round-1/scores.md`). Used `grade.md`'s P where the
+  graders' form wrote F or G (7 sessions). Bar 8 per half (criteria's letter) over `steps.mjs`'s
+  pooled verdict. Bar 4: four severity 3 confirmed before skeptics -- the covered inspector's
+  speech (kept by both skeptics in the void round, unfixed on this build), Results entries binding
+  a whole-graph run (r1-s23 + repro), how-to-match stuck on Contains (r1-s18 + repro, with the
+  counter-argument written beside it), Clear then Escape deleting a saved card (accessibility walk
+    - repro). Bar 9 by element (Or group, Condition.../Or..., By position box, value picker) plus the
+      outline's Except column; fails at 4 even without the value picker. Bar 7: 5 confirmed severity 2
+      = allowance, reported "not measured" because the interaction walk did not run. Counted a replay
+      of an expert's walk as a scripted repro, as in the void round. Endstate's four mismatches called
+      a tool defect after reading `hidden: true` in each `styles.json`. Reason: every verdict by the
+      criteria's letter, with the reading a skeptic might prefer written beside it. Evidence: viewed
+      `repro/r1-s23/run/09.png`, `repro/r1-s18/05.png`, `expert/engineer/thanks-1200x900/04.png`;
+      `waits.mjs` (0 over 10 s); bars.json (0 serious axe).
+- 2026-11-03 -- Planned the round 1 rerun: the void round's 30 rows unchanged plus "no session
+  starts before `real.mjs --gate` writes Gate evidence". Moved the void tmp folders aside.
+- 2026-11-03 -- Void round insights (`rounds/round-1-void/insights.md`): kept at 3 only the covered
+  panel's speech; Clear then Escape on a new card to 2 as a decided-rule collision; bar 9 "not
+  measured" (scripted word counts confirm nothing). Reason: a claim stands only where a screen or
+  log backs it and no decided rule settles it.
+- 2026-11-03 -- Void round scored: every session bar "not measured"; recommended a full restart not
+  counted toward the round cap. A bar held by 0 sessions is a false pass.
+- 2026-11-03 -- Escape in a just-added color line taking the line back is build behavior (decided
+  reversal of a line with no value), not a defect.
+- 2026-11-02 -- Answer key matched to each dry-run build (0c163f54bf to 1e123d7d33): only the key
+  and the change log, a "Build notes (<build>)" section per build, T74's path count 12 -> 13 (an
+  addition slip), Shortest path's "On the route" added to Not success. Graders must not meet a
+  screen the key does not describe.
+- 2026-11-02 -- Two criteria reviews proposed (not applied; the Director freezes): calm-first must
+  walk every listed screen; "two counts of one result" only when they can never differ; an
+  editor-scoped "least sure" question; fix rates against the placement baselines; reword echoing
+  prompts (T74 B "routes"); one-domain features reported as such; count each defect once.
+- 2026-10-30 -- Tier 4: stopped at round 1 as findings, not a verdict; two skeptics per insight cut
+  all four severity 3s to 2 or below; scored by hand where scripts were wrong, and said so.
+- 2026-10-02 to 10-21 (tiers 1 to 3, folded) -- Real app only; criteria frozen before a round;
   every task walked first; task words never echo the screen; VOIDs re-run as `<id>b`; change the
-  prompt, not the key, when a prompt leads.
+  prompt, not the key, when a prompt leads; two skeptics per insight.
 
 ## Tried: worked / did not work
 
-- 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
-  showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
-  tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
-- 2026-10-30 (round 1 scoring) -- Worked: running `steps.mjs` and `endstate.mjs` on the round
-  first, then one script (`tmp/researcher/score-t4r1/doors.py`) for grade, wrong turns, first door
-  and build per session with an assert on the build; parsing grade.md problem tables for kind and
-  severity (`kinds.py`, assert > 100 rows) and checking the two that did not parse (r1-s16, r1-s19:
-  another table form) against the collected grades; viewing the reference image beside a session
-  screenshot before calling a bar 6 violation. Did not work: a multi-line `old` string in an
-  asserted Python replace (match a fragment on one line).
-- 2026-10-30 (plan) -- Worked: diffing roster.md and tasks.md since the plan commit before
-  regenerating; briefing all 28 and tallying `REAL_DIST` and `setup:` lines.
-- 2026-10-29 to 10-30 (key edits) -- Worked: one Python edit script with exact-match asserts per
-  replacement; `git log -S` to find which commit wrote a stale key line; counting path steps from
-  each walk's `route.jsonl`; `wc -l` on pilots' downloads. Did not work: pilot report.md files (the
-  harness refuses subagent report writes); trusting the avoided-words list as the echo check.
-- 2026-10-21 (tier 3) -- Worked: two skeptics per insight; re-tallying every grade from plan.md and
-  each `^Grade:` line; a key-and-drawing script over last states; one screenshot per owner insight.
-  Did not work: bars requiring "no open severity 3" while no task reaches the backlog 3s; counting
-  one defect in three lists (count each once, at its highest list).
-- 2026-09-28 to 10-11 (tiers 1 and 2) -- Worked: `git status`, `git log` and round listings after
-  any stop; viewing every cited screenshot; a browser gate. Did not work: launching every agent at
-  once; editing a script while it runs.
+- 2026-11-03 (tier 5 close) -- Did not work: a 1-round cap with fix-and-confirm bars; the round
+  could only find. Worked: two independent skeptics cut study defects (T73 key, leading
+  follow-up, pre-colored fixtures) before they reached the build's fix list.
+- 2026-11-03 (round 1 insights) -- Worked: a verdict table per item before writing, then the
+  drop/weaken rule mechanically; grepping criteria for the allowance and counts-once text. Did not
+  work: scoring's "least sure" coding from summaries (miscited sessions found by both skeptics).
+- 2026-11-03 (round 1 scoring) -- Worked: running steps, endstate, keydraw, waits and score first,
+  then reading every grade's head lines in one loop; printing each route's first three actions to
+  get first doors; reading `hidden` in `styles.json` before trusting an endstate mismatch; viewing
+  the repro screenshots that carry a severity 3. Did not work: `score.mjs` on these grades (layout
+  drift), `steps.mjs`'s pooled verdict, grepping routes for "Delete" (the screen lists match).
+- 2026-11-03 (rerun plan) -- Did not work: briefing into the void round's tmp folders (an old
+  `grade.md` reads as facilitator words). Worked: moving them aside, then briefing all 30 in a loop.
+- 2026-11-03 (void insights) -- Worked: printing cited route.jsonl steps and viewing each cited
+  screenshot; when skeptics split, a repro I verify myself settles it, saying who disagreed.
+- 2026-11-03 (void scoring) -- Worked: reading the tool's code before calling 60 leak lines false;
+  mapping expert findings across walks and the audit by screen. Did not work: graders labeling a
+  study-tool failure `build-defect`.
+- 2026-11-02 (keys, criteria, plan) -- Worked: per-build key notes; recounting path actions from
+  route.jsonl; grepping prompts against catalog keywords and option labels; diffing roster and
+  tasks since the plan commit. Did not work: pilots writing report.md (harness refuses subagent
+  report writes; the caller saves the text); trusting a pilot's own step count.
+- 2026-10-29 to 10-30 (tier 4) -- Worked: `steps.mjs` and `endstate.mjs` first, one asserted script
+  per tally, viewing the reference image beside a session screenshot. Did not work: trusting the
+  tool's `tooltip: null` and wrong-turn counts that included post-success checks.
+- 2026-09-28 to 10-21 (tiers 1 to 3) -- Worked: two skeptics per insight; a browser gate. Did not
+  work: launching every agent at once; editing a running script; counting one defect in several
+  lists.
+- 2026-11-03 (tier 5 void) -- Did not work: launching without the gate evidence (60 of 60 void).
 
 ## Thinking
 
-- 2026-10-30 -- Simulated participants trust the tool's text over the picture. Every tool line
-  that says "nothing" is a claim to verify against the screenshot, before it becomes a finding.
-- 2026-10-30 -- A trap that a task's order guarantees (filter first, then mark) measures the task
-  as much as the default; vary the order before calling the default the cause.
-- 2026-10-30 -- A fix can create the trap the next round finds: R15 made the first header click
-  sort A to Z, which on ISO-day text looks exactly like a date column. Ask of every fix what a
-  half-done state now looks like.
-- 2026-10-30 -- A count with no rows behind it turns every task into a checking task; that shows up
-  as cost (bar 7), not failure. When cost fails and success holds, look for results the screen does
-  not confirm.
-- 2026-10-30 -- Where people go first depends on where they stand: T67 A went to the table, T67 B
-  to the source row. A decided "one home" has to carry everything the other door has.
-- 2026-10-29 -- A pilot "mismatch" splits three ways: the key described a door the build lacks
-  (rewrite the path), the build gives a different number for the same act (grading line while the
-  defect stands), or the act cannot be done (blocked). Never fold the second into the first.
-- 2026-10-21 -- A tool that measures "change from the start" must know where the start is.
-- 2026-10-21 -- When every task passes, the bars that still move are cost, route share and
-  confirmed problems. A design whose traps never fire may be avoided rather than understood.
-- 2026-10-20 -- Echo checks need phrases, not word lists; the spoken layer is where echoes live.
-- 2026-10-11 -- A study near its ceiling produces mostly study artifacts: audit prompt, history,
-  setup and step count first. Priming has four sources: prompt, history, persona rules, tool text.
+- 2026-11-03 -- Skeptics this round cut more from the study than from the build: the T73 key, a
+  leading follow-up, a fixture ramp. A pre-round check of words vs key vs fixture would have saved
+  four sessions' worth of findings.
+- 2026-11-03 -- When a task's every session takes one door around the feature, the result is a
+  finding about the door, not about the feature: route the fix to where people already go
+  (Neighborhood writes the rule) rather than teaching them the editor.
+- 2026-11-03 -- Preview-then-color order means no one ever sees the final look while choosing;
+  people asked for it 5 of 5. The decided group colors answer "who is picked", not "how will it
+  look", and a lower layer can swallow the new color with only a small key line saying so.
+- 2026-11-03 -- A count that waits for Enter beside one that applies as typed reads as "nothing
+  happened". Mixed commit rules in one workspace cost more than either rule alone.
+- 2026-11-03 -- Expert-only rounds over-call severity; plan for the skeptics before calling a bar.
+- 2026-11-02 -- A self-rating that does not move between designs the owner rates very
+  differently cannot stand in for the owner. Prove a measure discriminates before it gates.
+- 2026-10-30 -- A trap that a task's order guarantees measures the task as much as the default;
+  vary the order before calling the default the cause. Ask of every fix what a half-done state
+  now looks like.
+- 2026-10-30 -- A count with no rows behind it turns every task into a checking task; it shows up
+  as cost, not failure.
+- 2026-10-29 -- A pilot "mismatch" splits three ways: the key described a door the build lacks, the
+  build gives a different number for the same act (grading line), or the act cannot be done.
 - **What can produce a false pass.** Task words that echo controls; a goal that states the control's
   meaning; graders accepting "I think it worked"; setups that pre-do part of a task; a fix judged on
-  the easier dataset; a route around the feature counted as success.
-- **What can produce a false fail.** Build defects that decide the task, tool limits, headless
-  timing (name the mechanism), and the runner (time limits, slot waits).
+  the easier dataset; a route around the feature counted as success; pooled halves.
+- **What can produce a false fail.** Build defects that decide the task, tool limits, a briefing
+  the setup does not match, headless timing (name the mechanism), and the runner.
 - **Stopping simulation.** When rounds stop moving the core tasks, go to real users (graphty.app
   with opt-in usage data, 5 to 8 analysts, a real screen-reader user).
 
 ## Sources
 
-- Tier 4: `tier4/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` (R1-R15, owner
-  data rules, approved surfaces), `words-at-rest.md`, `owner-decisions.md`,
-  `rounds/round-1/scores.md`, `design/data/filter-cards.md`; tools `tool/steps.mjs`,
-  `tool/endstate.mjs`, `tool/bars.mjs`; reference images in the main checkout's
-  `tmp/design-studio/tier4/reference/`.
-- Tier 3: `tier3/criteria.md`, `tasks.md`, `answers.md`, `rounds/round-1/scores.md`; tool
-  `tool/score.mjs`, `tool/wording.mjs`.
-- Earlier: `design/ui/studio/digests/`, `tier2/report.md`, round folders, `tmp/researcher/`.
+- Tier 5: `tier5/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md`,
+  `rounds/round-1/scores.md`, `plan.md`, `expert/*.md`, `repro/`, `rounds/round-1-void/`; tools
+  `tool/steps.mjs`, `endstate.mjs`, `keydraw.mjs`, `waits.mjs`, `score.mjs`, `bars.mjs`, `real.mjs`.
+- Tier 4: `tier4/criteria.md`, `answers.md`, `decided.md`, `words-at-rest.md`,
+  `rounds/round-1/scores.md`; reference images in the main checkout's `tmp/design-studio/tier4/`.
+- Earlier: `tier3/`, `design/ui/studio/digests/`, `tier2/report.md`, `tmp/researcher/`.

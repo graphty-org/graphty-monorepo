@@ -153,7 +153,8 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * edge), read literally; on nodes also a structure path (`graphty.degree`, and on a directed
+     * graph `graphty.inDegree` and `graphty.outDegree`). Numbers (bigints among them) come before text, text sorts in natural
      * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;
@@ -261,7 +262,22 @@ export interface RecordPageOptions {
      * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
      * ```
      */
-    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+        /**
+         * Look only at what a record is called: a node's id and its name ({@link SessionDataApi.name}'s
+         * label column), an edge's id and its endpoints' ids, never the other columns. What a
+         * picker of nodes by name wants on a graph whose columns hold numbers and codes. A graph
+         * with no label column names its nodes in its other columns, so there every value is read.
+         *
+         * ```ts
+         * session.data.nodePage({ matching: { text: "1", names: true }, limit: 8 }); // n1, n10, ...
+         * ```
+         * @beta
+         */
+        readonly names?: boolean;
+    };
     /**
      * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
      * issue (no issue id is `"any"`).
@@ -1335,6 +1351,17 @@ export interface SessionDataApi {
      * @since 3.35.0
      */
     structureValues(): readonly StructureValue[];
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     * @example
+     * const degree = session.data.structureValue("Valjean", "graphty.degree");
+     */
+    structureValue(id: NodeId, path: Path): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -2988,6 +3015,12 @@ export interface SessionEventMap {
      */
     "style:batch-changed": StyleBatchChange;
     /**
+     * A branches view (`styles.showBranches`) started or ended.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "style:branches-shown-changed": { readonly shown: boolean };
+    /**
      * The element tried to paint something of its own and was refused.
      *
      * THE ONLY STYLE FAILURE A CONSUMER CANNOT OTHERWISE SEE. A style edit a consumer asks for
@@ -3453,9 +3486,10 @@ export interface SessionHistory {
      * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
      * of undos or redos. Resolves once the picture matches the state.
      * @param step - The step, or null for the state before every step.
+     * @param options - Whether the steps after it can still be redone.
      * @returns What was done.
      */
-    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    restoreTo(step: HistoryStepId | null, options?: HistoryRestoreOptions): Promise<HistoryOutcome>;
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
@@ -3472,6 +3506,16 @@ export interface SessionHistory {
      * @param options - What happens to pending work that has changed nothing yet.
      */
     clear(options?: HistoryClearOptions): void;
+}
+
+/** What `history.restoreTo` leaves to redo. */
+export interface HistoryRestoreOptions {
+    /**
+     * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
+     * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
+     * abandoned (a cancelled edit) leaves nothing to redo.
+     */
+    readonly redo?: "keep" | "drop";
 }
 
 /** How `history.clear` treats work that is still pending. */

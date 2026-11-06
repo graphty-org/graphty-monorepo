@@ -770,7 +770,7 @@ export function drawnPrimitives(
                     tag: `annotation-${a.kind}`,
                     kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
                     box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
-                    fill: null,
+                    fill: a.fill ?? null,
                     stroke: null,
                     text: a.text ?? null,
                 },

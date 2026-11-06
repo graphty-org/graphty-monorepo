@@ -745,7 +745,7 @@ export interface DrawnNode {
      */
     figure?: [Xy, Xy][];
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
-    pieces: { kind: "shape" | "image"; box: ScreenBox }[];
+    pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     label: DrawnLabel | null;
@@ -1417,7 +1417,13 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         ...(figure === undefined ? {} : { figure }),
         pieces: pieces
             .filter((piece) => piece !== picture && piece.kind !== "body")
-            .map((piece) => ({ kind: piece.kind as "shape" | "image", box: piece.box })),
+            .map((piece) => ({
+                kind: piece.kind as "shape" | "image",
+                box: piece.box,
+                ...(piece.fill === undefined
+                    ? {}
+                    : { fill: hex({ r: piece.fill.rgb[0], g: piece.fill.rgb[1], b: piece.fill.rgb[2] }) }),
+            })),
         // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
         faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
         glyph:
@@ -1832,6 +1838,8 @@ export interface DrawnAnnotation {
     box: ScreenBox;
     /** An arrow's heads, each one's screen box. */
     heads?: ScreenBox[];
+    /** A piece over a node's face: its color. */
+    fill?: string;
 }
 
 /**

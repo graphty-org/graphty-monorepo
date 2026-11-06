@@ -1355,13 +1355,7 @@ export class LayoutManager implements Manager {
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
 
-        // A layout that keeps nodes apart by their drawn size (`nodeGap`) reads every node's size when it starts. The
-        // build awaited above (the accelerator's probe) ends at no fixed point against the frames that draw a load's
-        // style paint, so without this the layout started on unstyled sizes or on styled ones -- or on a mix, as frames
-        // draw the paint in batches -- and one seeded layout drew two pictures from load to load (#6030).
-        if (((layoutOpts as { nodeGap?: unknown }).nodeGap ?? null) !== null) {
-            this.drawArrivedPaint?.();
-        }
+        this.drawPaintForSizes(layoutOpts);
 
         if (ignored !== undefined) {
             this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
@@ -1451,6 +1445,20 @@ export class LayoutManager implements Manager {
             }
 
             throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * Draw the arrived style paint before a layout that keeps nodes apart by their drawn size (`nodeGap`) reads every
+     * node's size, which it does when it starts. The build before it awaits the accelerator's probe, which ends at no
+     * fixed point against the frames that draw a load's style paint, so without this the layout started on unstyled
+     * sizes or on styled ones -- or on a mix, as frames draw the paint in batches -- and one seeded layout drew two
+     * pictures from load to load (#6030). A layout without `nodeGap` reads no sizes and is left to the frames.
+     * @param layoutOpts - The options the engine is built with.
+     */
+    private drawPaintForSizes(layoutOpts: object): void {
+        if (((layoutOpts as { nodeGap?: unknown }).nodeGap ?? null) !== null) {
+            this.drawArrivedPaint?.();
         }
     }
 

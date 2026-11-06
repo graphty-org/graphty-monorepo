@@ -714,9 +714,15 @@ export function TimeDock(): React.JSX.Element | null {
                 hold.current = null;
             }}
             onKeyDown={(event) => {
-                // Space plays and pauses from anywhere in the dock but a button or a field.
+                // Space plays and pauses from anywhere in the dock but a button or a field. The phone's
+                // sheet bubbles here through its portal, and has nothing to stop a play with.
                 const target = event.target as HTMLElement;
-                if (event.key === " " && !(target instanceof HTMLButtonElement) && target.tagName !== "INPUT") {
+                if (
+                    event.key === " " &&
+                    event.currentTarget.contains(target) &&
+                    !(target instanceof HTMLButtonElement) &&
+                    target.tagName !== "INPUT"
+                ) {
                     event.preventDefault();
                     togglePlay(session, store);
                 }

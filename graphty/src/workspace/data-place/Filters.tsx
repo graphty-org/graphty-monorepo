@@ -32,7 +32,7 @@ import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
 import { AddCondition, CardBody, type ExtraItem } from "../style/WhichPicker";
-import { reportTimeError, timelineOn, unitOf } from "../time/timeActions";
+import { panelsInView, reportTimeError, timelineOn, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
     conditionWords,
@@ -1074,7 +1074,7 @@ export function FilterChip(): React.JSX.Element | null {
                     aria-label={name}
                     leftSection={<GLYPHS.filter size={12} aria-hidden />}
                     onClick={() => {
-                        store.set({ page: "panels", place: "data" });
+                        store.set({ page: "panels", place: "data", ...panelsInView() });
                     }}
                 >
                     {words}

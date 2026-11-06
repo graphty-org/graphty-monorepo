@@ -8,7 +8,7 @@
 
 import { SparklineRow, type SparklineRowProps } from "@graphty/compact-mantine";
 import { Drawer, Group, UnstyledButton } from "@mantine/core";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { focusWindowStart } from "./timeActions";
@@ -44,6 +44,18 @@ export function TimePhoneDock({
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const opened = useWorkspaceState((state) => state.timeSheetOpen);
+    // The Drawer slides, and tells its end, only on a change of `opened` after its portal has drawn
+    // it closed, so a sheet that comes up with the dock opens a frame later. An effect alone is too
+    // soon: it runs before the portal's first draw, and both land in one render.
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => {
+            setMounted(true);
+        });
+        return () => {
+            cancelAnimationFrame(frame);
+        };
+    }, []);
     const close = (): void => {
         store.set({ timeSheetOpen: false });
     };
@@ -71,7 +83,7 @@ export function TimePhoneDock({
             </Group>
             <SparklineRow {...line} />
             <Drawer
-                opened={opened}
+                opened={opened && mounted}
                 onClose={close}
                 onEnterTransitionEnd={focusWindowStart}
                 position="bottom"

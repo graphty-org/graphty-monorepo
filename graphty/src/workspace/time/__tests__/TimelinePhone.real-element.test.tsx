@@ -170,6 +170,39 @@ describe("the timeline dock on a phone", () => {
         });
     });
 
+    it("closes the timeline for the Filters list the toolbar's Filters asks for", async () => {
+        await openDock();
+
+        await tap(screen.getByRole("button", { name: "Filters" }));
+
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+            assert.isAbove(screen.getByRole("complementary", { name: "Left panel" }).clientWidth, 0);
+        });
+    });
+
+    it("closes the timeline for the draft Add note opens", async () => {
+        await openDock();
+
+        await userEvent.keyboard("n");
+
+        const panel = await screen.findByRole("complementary", { name: "Left panel" });
+        assert.isNotNull(await within(panel).findByRole("textbox", { name: "Note" }));
+        assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+    });
+
+    it("closes the timeline for the box Find puts focus in", async () => {
+        await openDock();
+
+        await userEvent.keyboard("/");
+
+        const panel = await screen.findByRole("complementary", { name: "Left panel" });
+        const box = await within(panel).findByRole("combobox", { name: "Find" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box);
+        });
+    });
+
     it("gives every target a finger's size, in the row and in the sheet", async () => {
         const { dock } = await openDock();
         await onTouchScreen(async () => {
@@ -177,6 +210,10 @@ describe("the timeline dock on a phone", () => {
             await userEvent.click(within(dock).getByTestId("time-readout"));
             const sheet = await screen.findByRole("dialog", { name: "Time window" });
             await within(sheet).findByRole("slider", { name: "Window" });
+            // Measured once the sheet has slid up: mid-slide its boxes read a fraction off.
+            await waitFor(() => {
+                assert.equal(sheet.getBoundingClientRect().bottom, window.innerHeight);
+            });
             assert.deepEqual(smallTargets(sheet), []);
         });
     });
@@ -250,8 +287,25 @@ describe("the timeline dock on a phone", () => {
 
         await tap(screen.getByRole("button", { name: /^Time: / }));
 
-        await screen.findByRole("dialog", { name: "Time window" });
+        const sheet = await screen.findByRole("dialog", { name: "Time window" });
         assert.isNotNull(screen.queryByRole("region", { name: "Timeline", hidden: true }));
+        const start = await within(sheet).findByRole("slider", { name: "Window start" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, start);
+        });
+    });
+
+    it("plays nothing behind the sheet when Space is pressed on its brush", async () => {
+        const { session, dock } = await openDock();
+        const sheet = await openSheet(dock);
+        const start = await within(sheet).findByRole("slider", { name: "Window start" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, start);
+        });
+
+        await userEvent.keyboard(" ");
+
+        assert.isFalse(session.time.playing, "nothing in the sheet could stop it");
     });
 
     it("spans a landscape phone, with nothing to scroll", async () => {

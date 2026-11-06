@@ -41,6 +41,7 @@ export const registration = defineRegistration({
                 workspace.set((state) => ({
                     page: "panels",
                     place: "notes",
+                    ...panelsInView(),
                     // A draft already about the same things keeps its text.
                     noteDraft: {
                         targets,

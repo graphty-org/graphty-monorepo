@@ -17,6 +17,14 @@ describe("the instructions", () => {
             );
         }
     });
+
+    it("tell every profile that a decline ends the request and that selecting is the reader's to ask for", () => {
+        for (const profile of ["standard", "small"] as const) {
+            const lines = assistantInstructions(profile, []).split("\n");
+            assert.isTrue(lines.some((line) => line.startsWith("A declined request (AI_APPROVAL_DENIED) is over:")));
+            assert.isTrue(lines.some((line) => line.startsWith("Select only when the reader asks you to:")));
+        }
+    });
 });
 
 describe("the facts block", () => {

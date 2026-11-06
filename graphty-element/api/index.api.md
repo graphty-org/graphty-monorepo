@@ -5045,8 +5045,8 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
     drawInBatch(source: AbstractMesh | null): void;
     // @internal

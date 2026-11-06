@@ -11,12 +11,13 @@
 
 import "../../src/graphty-element";
 
-import { Matrix, Mesh, type Scene } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { Matrix, Mesh, type Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
+import { RowTable } from "../../src/render/RowTable";
 import { drag, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
@@ -251,6 +252,49 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await layer(element, [0], { "node.color": "#f59e0b" });
         await frameOn(graph, "batched");
         assert.isAbove(graph.rowCounts.objectNodes, 0);
+    });
+
+    it("read a batched row from its table, keep edges on eased rows and walk no batched row at rest", async () => {
+        const element = await mounted(renderer);
+        await element.session.data.addNodes([
+            { id: "a", position: { x: -4, y: -1, z: 2 } },
+            { id: "b", position: { x: 4, y: -1, z: -2 } },
+        ]);
+        await element.session.data.addEdges([{ source: "a", target: "b" }]);
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await readFrame(graph);
+        const node = graph.getNode("a");
+        assert.isDefined(node);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.isTrue(node.drawnInBatch, "a batched row answers from its table");
+
+        // A frame at rest asks the table for no batched row: the edge walk is told by the table.
+        const centerOf = vi.spyOn(RowTable.prototype, "centerOf");
+        cleanups.push(() => centerOf.mockRestore());
+        await readFrame(graph);
+        await readFrame(graph);
+        assert.equal(centerOf.mock.calls.length, 0, "no batched row compared on a frame at rest");
+        centerOf.mockRestore();
+
+        // Held halfway through a glide, the rows sit off the lane and the edge still ends on them.
+        const edge = [...graph.getLayoutManager().edges][0];
+        assert.isDefined(edge);
+        const before = node.drawnPosition.clone();
+        const restCentre = edge.drawnCentre.clone();
+        await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4, hold: 0.5 } });
+        await graph.setLayout("circular");
+        await element.waitForStableFrame();
+        assert.isTrue(node.drawnInBatch, "the eased row is still batched");
+        assert.isAbove(Vector3.Distance(before, node.drawnPosition), 0.5, "the row moved");
+        const centre = edge.drawnCentre.clone();
+        assert.isAbove(Vector3.Distance(restCentre, centre), 0.5, "the edge followed");
+        graph.setRenderPath("objects");
+        await readFrame(graph);
+        assert.isAtMost(Vector3.Distance(edge.drawnCentre, centre), 1e-4, "where the object path draws it");
     });
 
     it("move a dragged row through the table alone", async () => {

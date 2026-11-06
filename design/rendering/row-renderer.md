@@ -158,6 +158,17 @@ helper sets the flag and turns a batched render-parity or forced-batched run int
 `test/browser` and `test/interactions` still read `Node.mesh` (365 reads in 109 files when this was written); each such test
 runs those nodes on the objects path even in the forced-batched project.
 
+As built (stage 11, third pull request, first commit): `NodeBatches` now calls `Node.drawInBatch` -- with the source when it
+settles a group onto the batch or syncs a row into a batched group whose row the table holds, with null on leave, forget,
+and at the start of every sync (so a repaint that moves a node to another source is read from its mesh, not the batch).
+So a batched row's `drawn*` reads, edge ends and ray hits come from the row tables while the proxies still exist.
+`RowTable.moves` counts every write that can move a row (a repack from the lane, `place`, a freeze, a clear), and
+`nodesMoved` skips batched rows while it is unchanged since the last walk: a frame at rest calls `centerOf` for no
+batched row. This is a correction to the row: `lane.changes` alone is not enough, since an eased or dragged row is
+`place`d off its lane row without the lane changing; `node-batch.test.ts` holds a glide at its midpoint and checks the
+edge is drawn where the objects path draws it. The node loop itself still visits every node. Batched rows still hold
+their mesh: removing it is the stage's remaining work.
+
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror
 for `Edge.capScale`.

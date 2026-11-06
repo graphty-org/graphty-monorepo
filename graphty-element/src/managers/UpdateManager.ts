@@ -2565,6 +2565,9 @@ export class UpdateManager implements Manager {
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
+    /** The row table's `moves` at the last walk of the node positions, or -1. */
+    private lastRowMoves = -1;
+
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
 
@@ -2703,6 +2706,11 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
+        // A batched row is drawn where its table row says, so while the table moved no row, no
+        // batched row moved and only the object rows are compared.
+        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        this.lastRowMoves = moves;
 
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
@@ -2721,6 +2729,10 @@ export class UpdateManager implements Manager {
 
             if (at + 2 >= this.lastNodePositions.length) {
                 unseen = true;
+                continue;
+            }
+
+            if (rowsStill && node.drawnInBatch) {
                 continue;
             }
 

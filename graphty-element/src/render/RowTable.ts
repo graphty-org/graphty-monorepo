@@ -187,6 +187,11 @@ export class RowTable {
     uploads = 0;
     /** Bytes those calls sent. */
     uploadedBytes = 0;
+    /**
+     * Counts every write that can move a row: a repack from the lane, a placed row, a freeze or a
+     * clear. Unchanged, no row is drawn anywhere new, so a walk of the drawn positions skips the rows.
+     */
+    moves = 0;
 
     private readonly positions: RowTexture;
     private readonly extents: RowTexture;
@@ -296,6 +301,7 @@ export class RowTable {
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
+        this.moves++;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
         const bounds = this.rowBounds;
@@ -396,6 +402,7 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
+        this.moves++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
         const { length } = this.positions.floats;
@@ -426,6 +433,7 @@ export class RowTable {
 
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
+        this.moves++;
         this.flags.fill(0);
         this.rows = 0;
         this.laneChanges = -1;
@@ -438,6 +446,7 @@ export class RowTable {
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
             this.twoD = twoD;
             this.laneChanges = lane.changes;
+            this.moves++;
             this.repack(lane.view(Math.min(this.rows, lane.count)));
         }
 

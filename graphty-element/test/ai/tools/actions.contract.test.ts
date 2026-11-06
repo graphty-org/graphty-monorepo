@@ -129,10 +129,16 @@ const withTime = async (session: GraphSession): Promise<void> => {
     await session.time.ready;
     await session.time.window({ step: "year" });
 };
+/** A session with the timeline experiment on, which session.time needs. */
+const timeSession = (): Promise<GraphSession> => assistantSession(undefined, ["timeline"]);
 /** A condition to change. */
 const withCondition = (session: GraphSession): Promise<unknown> =>
     Promise.resolve(
-        session.visibility.addCondition({ id: "c1", effect: "keep", rule: { kind: "expression", where: "true" } }),
+        session.visibility.addCondition({
+            id: "c1",
+            effect: "keep",
+            rule: { kind: "expression", where: "data.load > `0.5`" },
+        }),
     );
 /** A column with padded values, which the session lists as an issue. */
 const withIssue = (session: GraphSession): Promise<unknown> =>
@@ -374,14 +380,19 @@ const ROWS: Record<string, Row> = {
     "notes.list": { args: { action: "list" }, setup: withNote },
     "notes.get": { args: { action: "get", note: "NOTE" }, setup: withNote },
     "import_data.import": { args: { action: "import", format: "csv", text: "source,target\nx,y" } },
-    "time.status": { args: { action: "status" }, setup: withTime },
-    "time.set_field": { args: { action: "set_field", column: "load" } },
-    "time.settings": { args: { action: "settings", mode: "cumulative" }, setup: withTime },
-    "time.window": { args: { action: "window", from: "2001-01-01", to: "2003-01-01" }, setup: withTime },
-    "time.step": { args: { action: "step", count: 1 }, setup: withTime },
-    "time.seek": { args: { action: "seek", instant: "end" }, setup: withTime },
-    "time.play": { args: { action: "play", interval: 3_600_000 }, setup: withTime },
+    "time.status": { session: timeSession, args: { action: "status" }, setup: withTime },
+    "time.set_field": { session: timeSession, args: { action: "set_field", column: "load" } },
+    "time.settings": { session: timeSession, args: { action: "settings", mode: "cumulative" }, setup: withTime },
+    "time.window": {
+        session: timeSession,
+        args: { action: "window", from: "2001-01-01", to: "2003-01-01" },
+        setup: withTime,
+    },
+    "time.step": { session: timeSession, args: { action: "step", count: 1 }, setup: withTime },
+    "time.seek": { session: timeSession, args: { action: "seek", instant: "end" }, setup: withTime },
+    "time.play": { session: timeSession, args: { action: "play", interval: 3_600_000 }, setup: withTime },
     "time.pause": {
+        session: timeSession,
         args: { action: "pause" },
         setup: async (s) => {
             await withTime(s);

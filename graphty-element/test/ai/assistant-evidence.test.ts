@@ -5,7 +5,7 @@
  * @module test/ai/assistant-evidence.test
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeEach, describe, it } from "vitest";
 
 import type { GraphSession } from "../../session";
 import type { AiCommandOptions } from "../../src/ai/AiController";
@@ -14,6 +14,7 @@ import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
 import { conversationSnapshot } from "../../src/ai/conversation/snapshot";
 import type { AiEffect } from "../../src/catalog/ai";
 import { isGraphtyError } from "../../src/errors";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
 const ON = ["assistant"];
@@ -165,6 +166,8 @@ describe("effects", () => {
         };
         const [on] = await durations(ON);
         assert.isAtLeast(on ?? -1, 0);
+        // Off even where every experiment is on by default (the "-features-on" projects).
+        setDefaultFeatures([]);
         assert.deepEqual(await durations(), [undefined]);
     });
 
@@ -548,6 +551,11 @@ describe("scope", () => {
 });
 
 describe("with the experiment off", () => {
+    // Off even where every experiment is on by default (the "-features-on" projects).
+    beforeEach(() => {
+        setDefaultFeatures([]);
+    });
+
     it("records no effect and no target", async () => {
         const session = await assistantSession(ring(20));
         const assistant = new ScriptedAssistant(session, { history: "memory" });

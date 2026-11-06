@@ -10,6 +10,7 @@ import { readConversation } from "../../src/ai/conversation/formats";
 import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
 import type { AiConversationMessage } from "../../src/ai/conversation/snapshot";
 import type { TurnRequest } from "../../src/ai/engine/types";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { assistantSession, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
 /**
@@ -55,6 +56,8 @@ describe("AiController history", () => {
     });
 
     it("leaves the default exactly as it was: one conversation per message, no history event", async () => {
+        // The default, even where every experiment is on by default (the "-features-on" projects).
+        setDefaultFeatures([]);
         const assistant = new ScriptedAssistant(await assistantSession());
         const first = await assistant.say("add a node", [ADD_NODE]);
         const second = await assistant.say("now another");
@@ -69,6 +72,8 @@ describe("AiController history", () => {
     });
 
     it("gives a snapshot of what the reader and the model said, without graphty's own text", async () => {
+        // With the experiment off, a call carries no duration (the "-features-on" projects switch it on).
+        setDefaultFeatures([]);
         const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
         const { events } = await assistant.say("add a node", [ADD_NODE]);
 

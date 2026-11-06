@@ -734,12 +734,13 @@ describe("the timeline across a reload", () => {
         await session.time.ready;
         await session.time.setSettings({ results: "keep", outside: "ghost" });
         await session.time.stepBy(3);
-        const window = session.time.current;
         session.time.play({ interval: 60_000, motion: "steps" });
         assert.isTrue(session.time.playing);
         await waitFor(() => {
             assert.strictEqual(autosaver.status.state, "saved");
         });
+        // The window the reader leaves on: a step of the play can land before the save.
+        const window = session.time.current;
         view.unmount();
 
         const again = createWorkspaceStore({ autosave: true });

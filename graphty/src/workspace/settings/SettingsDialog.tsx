@@ -11,9 +11,9 @@ import {
     Title,
     useMantineColorScheme,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import { AI_PROVIDER_SECTION, AiProviderPage } from "../assistant-door/AssistantPlace";
+import { AI_PROVIDER_SECTION, AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
@@ -229,6 +229,14 @@ export function SettingsDialog(): React.JSX.Element {
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // Done commits what the open page holds, as its own Save does; X and Esc cancel.
+    const commit: PageCommit = useRef(null);
+    const done = async (): Promise<void> => {
+        const taken = section === AI_PROVIDER_SECTION.id && (await commit.current?.()) === true;
+        if (!taken) {
+            close();
+        }
+    };
     // Saving a provider sends focus to the composer, not back to what opened Settings.
     const [toComposer, setToComposer] = useState(false);
     useEffect(() => {
@@ -282,12 +290,18 @@ export function SettingsDialog(): React.JSX.Element {
                             onSaved={() => {
                                 setToComposer(true);
                             }}
+                            commit={commit}
                         />
                     ) : null}
                 </section>
             </div>
             <ModalFooter>
-                <Button className={onStart ? "ws-land-settings-done" : undefined} onClick={close}>
+                <Button
+                    className={onStart ? "ws-land-settings-done" : undefined}
+                    onClick={() => {
+                        void done();
+                    }}
+                >
                     Done
                 </Button>
             </ModalFooter>

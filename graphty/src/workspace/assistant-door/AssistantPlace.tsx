@@ -10,15 +10,25 @@ const AiProviderSection = React.lazy(() => import("../assistant/AiProviderSectio
 export const AI_PROVIDER_SECTION = { id: "assistant", name: "AI provider" } as const;
 
 /**
+ * What Settings' Done runs on a page that holds unsaved input: true when the page took the press
+ * (saved and closed, or kept open on a problem), false when there was nothing to commit.
+ */
+export type PageCommit = React.RefObject<(() => Promise<boolean>) | null>;
+
+/**
  * Settings' AI provider section, loaded with the panel's code.
  * @param props - Component props
  * @param props.onSaved - called as Save closes Settings, with focus bound for the composer
+ * @param props.commit - set by the section to what Done runs
  * @returns The section
  */
-export function AiProviderPage({ onSaved }: Readonly<{ onSaved: () => void }>): React.JSX.Element {
+export function AiProviderPage({
+    onSaved,
+    commit,
+}: Readonly<{ onSaved: () => void; commit: PageCommit }>): React.JSX.Element {
     return (
         <Suspense fallback={null}>
-            <AiProviderSection onSaved={onSaved} />
+            <AiProviderSection onSaved={onSaved} commit={commit} />
         </Suspense>
     );
 }

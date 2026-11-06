@@ -288,7 +288,8 @@ export const editDataTool: ToolDefinition = {
                 refuseWhenBound(args, "delete_all");
                 const { nodes, edges } = tx.status.counts;
                 if (gated(message, "replaces") && nodes > 0) {
-                    throw new GateHold("replaces", { nodes, edges });
+                    // A clear removes everything and loads nothing: say so, so a host words it as a removal.
+                    throw new GateHold("replaces", { nodes, edges, removeNodes: nodes, removeEdges: edges });
                 }
 
                 await coded(() => tx.data.clear());

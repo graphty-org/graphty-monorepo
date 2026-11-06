@@ -1067,7 +1067,7 @@ export interface AiPendingResolvedEvent {
  * would cancel. OPEN: fields may be added in a minor release.
  */
 export interface AiApprovalPreview {
-    /** Nodes the message would remove in all. */
+    /** Nodes the message would remove in all; a `"replaces"` hold sets it when it removes the graph and loads nothing. */
     readonly removeNodes?: number;
     /** Edges the message would remove in all. */
     readonly removeEdges?: number;

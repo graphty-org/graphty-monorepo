@@ -1028,9 +1028,7 @@ failures in graphty-element's `test/fidelity/oracle-floors.json` and `oracle-kno
 
 Still open after fix round 1:
 
-- The free and ratio-anchored models' `LayoutOffset` (`model-free-offset`, `v2-model-...`): the neutral style
-  vocabulary has no label offset (shared with the other formats' label anchor and offset work). A label at an
-  edge's end, a segment's middle, or left or right of the edge's direction is not placed either.
+- A label at an edge's end, a segment's middle, or left or right of the edge's direction is not placed.
 - GroupNodeStyle stroke (`groups`, `groups-p2`, `groups-p3`: 39 groups): not an import defect. Every sheet writes the
   stroke (`#FF505050` 1, `stroke-group` `#FFFF0000` 2) and graphty draws it; draw.io, the stand-in, ignores
   `GroupNodeStyle.stroke` and draws every group outline black and 1 wide, the red 2-wide one too. yFiles documents the

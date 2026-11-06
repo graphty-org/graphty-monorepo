@@ -27644,11 +27644,11 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["group:box@581,224,666,349","group:box@581,92,666,218","n29","n30","n31","n32","n33","n34","n35","n36","n61","n63","n72","n84"],
+            "label.offset": ["group:box@581,224,666,349","group:box@581,92,666,218","n29","n30","n31","n32","n36","n63","n72"],
             "label.opacity": [],
             "label.family": ["group:box@188,282,402,616","group:box@3,477,60,529","group:box@582,322,665,448","group:box@582,454,665,578","n1","n10","n101","n102","n104","n105","n107","n108","n11","n110","n111","n113","n114","n115","n116","n117","n118","n122","n123","n124","n125","n126","n128","n129","n13","n132","n133","n135","n136","n137","n138","n139","n14","n140","n141","n143","n144","n145","n146","n15","n16","n17","n18","n19","n2","n22","n23","n24","n29","n30","n31","n32","n33","n34","n35","n36","n4","n40","n41","n42","n43","n47","n48","n49","n5","n51","n59","n6","n60","n61","n63","n64","n65","n7","n72","n73","n74","n75","n76","n77","n78","n79","n8","n80","n81","n82","n83","n84","n85","n86","n87","n88","n89","n9","n90","n91","n92","n93","n94","n95","n96","n98","n99"],
             "label.lines": ["group:box@581,224,666,349","group:box@581,92,666,218"],
-            "label.anchor": ["n33","n35","n36","n61","n72","n84"],
+            "label.anchor": ["n36","n72"],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
@@ -27709,11 +27709,11 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["group:box@581,224,666,349","group:box@581,92,666,218","n29","n30","n31","n32","n33","n34","n35","n36","n61","n63","n72","n84"],
+            "label.offset": ["group:box@581,224,666,349","group:box@581,92,666,218","n29","n30","n31","n32","n36","n63","n72"],
             "label.opacity": [],
             "label.family": ["group:box@188,282,402,616","group:box@3,477,60,529","group:box@582,322,665,448","group:box@582,454,665,578","n1","n10","n101","n102","n104","n105","n107","n108","n11","n110","n111","n113","n114","n115","n116","n117","n118","n122","n123","n124","n125","n126","n128","n129","n13","n132","n133","n135","n136","n137","n138","n139","n14","n140","n141","n143","n144","n145","n146","n15","n16","n17","n18","n19","n2","n22","n23","n24","n29","n30","n31","n32","n33","n34","n35","n36","n4","n40","n41","n42","n43","n47","n48","n49","n5","n51","n59","n6","n60","n61","n63","n64","n65","n7","n72","n73","n74","n75","n76","n77","n78","n79","n8","n80","n81","n82","n83","n84","n85","n86","n87","n88","n89","n9","n90","n91","n92","n93","n94","n95","n96","n98","n99"],
             "label.lines": ["group:box@581,224,666,349","group:box@581,92,666,218"],
-            "label.anchor": ["n33","n35","n36","n61","n72","n84"],
+            "label.anchor": ["n36","n72"],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
@@ -28155,9 +28155,9 @@
             "frame.zoom": [],
             "background": ["background"],
             "label.text": ["n0::n148","n0::n149"],
-            "label.offset": ["group:box@1466,227,2254,489","group:box@1624,263,2235,470"],
+            "label.offset": [],
             "label.lines": ["n0::n148"],
-            "label.anchor": ["group:box@1466,227,2254,489","group:box@1624,263,2235,470"],
+            "label.anchor": [],
             "stray.present": ["path@2263,35,2277,49","path@2266,41,2273,43","text@33,34,278,54"]
         },
         "graphml-yfiles-html-ss13-tree@matched": {
@@ -28209,9 +28209,9 @@
             "frame.zoom": [],
             "background": ["background"],
             "label.text": ["n0::n148","n0::n149"],
-            "label.offset": ["group:box@1466,227,2254,489","group:box@1624,263,2235,470"],
+            "label.offset": [],
             "label.lines": ["n0::n148"],
-            "label.anchor": ["group:box@1466,227,2254,489","group:box@1624,263,2235,470"],
+            "label.anchor": [],
             "stray.present": ["path@2263,35,2277,49","path@2266,41,2273,43","text@33,34,278,54"]
         },
         "graphml-yfiles-html-stag-flowchart": {
@@ -28252,7 +28252,7 @@
             "frame.rotation": [],
             "frame.zoom": [],
             "background": [],
-            "label.anchor": ["n12","n13","n15","n17","n25","n30"]
+            "label.anchor": []
         },
         "graphml-yfiles-html-stag-flowchart@matched": {
             "node.present": [],
@@ -28292,7 +28292,7 @@
             "frame.rotation": [],
             "frame.zoom": [],
             "background": [],
-            "label.anchor": ["n12","n13","n15","n17","n25","n30"]
+            "label.anchor": []
         },
         "graphology-specimen-arrows": {
             "node.present": [],
@@ -38811,11 +38811,11 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["model-smart-offset","model-smart-top-left"],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [],
-            "label.anchor": ["model-smart-offset","model-smart-top-left"],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
@@ -38847,11 +38847,11 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["model-smart-offset","model-smart-top-left"],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [],
-            "label.anchor": ["model-smart-offset","model-smart-top-left"],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
@@ -39482,7 +39482,7 @@
             "label.offLine": ["edge:auto-flip-false-s->auto-flip-false-t#g0","edge:background-fill-s->background-fill-t#g0","edge:background-stroke-s->background-stroke-t#g0","edge:default-s->default-t#g0","edge:font-family-dejavu-sans-mono-s->font-family-dejavu-sans-mono-t#g0","edge:font-family-dejavu-serif-s->font-family-dejavu-serif-t#g0","edge:font-size-12-s->font-size-12-t#g0","edge:font-size-18-s->font-size-18-t#g0","edge:font-size-6-s->font-size-6-t#g0","edge:font-style-italic-s->font-style-italic-t#g0","edge:font-weight-bold-s->font-weight-bold-t#g0","edge:model-free-edge-angle-s->model-free-edge-angle-t#g0","edge:model-free-edge-s->model-free-edge-t#g0","edge:model-nine-angle-s->model-nine-angle-t#g0","edge:model-nine-source-below-s->model-nine-source-below-t#g0","edge:model-nine-source-centered-s->model-nine-source-centered-t#g0","edge:model-nine-target-below-s->model-nine-target-below-t#g0","edge:model-nine-target-centered-s->model-nine-target-centered-t#g0","edge:model-path-above-edge-s->model-path-above-edge-t#g0","edge:model-path-angle-s->model-path-angle-t#g0","edge:model-path-auto-rotation-false-s->model-path-auto-rotation-false-t#g0","edge:model-path-left-of-edge-s->model-path-left-of-edge-t#g0","edge:model-path-on-edge-s->model-path-on-edge-t#g0","edge:model-path-right-of-edge-s->model-path-right-of-edge-t#g0","edge:model-segment-0-25-s->model-segment-0-25-t#g0","edge:model-segment-angle-s->model-segment-angle-t#g0","edge:model-segment-auto-rotation-false-s->model-segment-auto-rotation-false-t#g0","edge:model-smart-angle-s->model-smart-angle-t#g0","edge:model-smart-auto-rotation-false-s->model-smart-auto-rotation-false-t#g0","edge:model-smart-center-s->model-smart-center-t#g0","edge:model-smart-distance-12-s->model-smart-distance-12-t#g0","edge:model-smart-distance-minus-12-s->model-smart-distance-minus-12-t#g0","edge:model-smart-place-along-false-s->model-smart-place-along-false-t#g0","edge:model-smart-ratio-0-2-s->model-smart-ratio-0-2-t#g0","edge:text-fill-ff0000-s->text-fill-ff0000-t#g0"],
             "label.background": [],
             "label.backgroundBorder": [],
-            "label.backgroundBox": ["edge:background-stroke-s->background-stroke-t#g0"]
+            "label.backgroundBox": []
         },
         "yed-live-graphml-specimen-edge-labels-p2": {
             "node.present": [],
@@ -39615,7 +39615,7 @@
             "label.offLine": ["edge:auto-flip-false-s->auto-flip-false-t#g0","edge:background-fill-s->background-fill-t#g0","edge:background-stroke-s->background-stroke-t#g0","edge:default-s->default-t#g0","edge:font-family-dejavu-sans-mono-s->font-family-dejavu-sans-mono-t#g0","edge:font-family-dejavu-serif-s->font-family-dejavu-serif-t#g0","edge:font-size-12-s->font-size-12-t#g0","edge:font-size-18-s->font-size-18-t#g0","edge:font-size-6-s->font-size-6-t#g0","edge:font-style-italic-s->font-style-italic-t#g0","edge:font-weight-bold-s->font-weight-bold-t#g0","edge:model-free-edge-angle-s->model-free-edge-angle-t#g0","edge:model-free-edge-s->model-free-edge-t#g0","edge:model-nine-angle-s->model-nine-angle-t#g0","edge:model-nine-source-below-s->model-nine-source-below-t#g0","edge:model-nine-source-centered-s->model-nine-source-centered-t#g0","edge:model-nine-target-below-s->model-nine-target-below-t#g0","edge:model-nine-target-centered-s->model-nine-target-centered-t#g0","edge:model-path-above-edge-s->model-path-above-edge-t#g0","edge:model-path-angle-s->model-path-angle-t#g0","edge:model-path-auto-rotation-false-s->model-path-auto-rotation-false-t#g0","edge:model-path-left-of-edge-s->model-path-left-of-edge-t#g0","edge:model-path-on-edge-s->model-path-on-edge-t#g0","edge:model-path-right-of-edge-s->model-path-right-of-edge-t#g0","edge:model-segment-0-25-s->model-segment-0-25-t#g0","edge:model-segment-angle-s->model-segment-angle-t#g0","edge:model-segment-auto-rotation-false-s->model-segment-auto-rotation-false-t#g0","edge:model-smart-angle-s->model-smart-angle-t#g0","edge:model-smart-auto-rotation-false-s->model-smart-auto-rotation-false-t#g0","edge:model-smart-center-s->model-smart-center-t#g0","edge:model-smart-distance-12-s->model-smart-distance-12-t#g0","edge:model-smart-distance-minus-12-s->model-smart-distance-minus-12-t#g0","edge:model-smart-place-along-false-s->model-smart-place-along-false-t#g0","edge:model-smart-ratio-0-2-s->model-smart-ratio-0-2-t#g0","edge:text-fill-ff0000-s->text-fill-ff0000-t#g0"],
             "label.background": [],
             "label.backgroundBorder": [],
-            "label.backgroundBox": ["edge:background-stroke-s->background-stroke-t#g0"]
+            "label.backgroundBox": []
         },
         "yed-live-graphml-specimen-edges-lines": {
             "node.present": [],
@@ -40041,8 +40041,8 @@
             "frame.zoom": [],
             "background": [],
             "label.size": ["group:box@398,409,548,489","group:box@678,409,828,489"],
-            "label.offset": ["group:box@398,409,548,489","group:box@678,409,828,489"],
-            "label.anchor": ["group:box@398,409,548,489","group:box@678,409,828,489"]
+            "label.offset": [],
+            "label.anchor": []
         },
         "yed-live-graphml-specimen-groups-p4@matched": {
             "node.present": [],
@@ -40075,8 +40075,8 @@
             "frame.zoom": [],
             "background": [],
             "label.size": ["group:box@398,409,548,489","group:box@678,409,828,489"],
-            "label.offset": ["group:box@398,409,548,489","group:box@678,409,828,489"],
-            "label.anchor": ["group:box@398,409,548,489","group:box@678,409,828,489"]
+            "label.offset": [],
+            "label.anchor": []
         },
         "yed-live-graphml-specimen-groups@matched": {
             "node.present": [],
@@ -40176,13 +40176,13 @@
             "label.text": ["label-shape-round-rectangle"],
             "label.weight": ["font-weight-lighter"],
             "label.style": ["font-style-italic","font-style-oblique"],
-            "label.offset": ["v-align-bottom","v-align-top"],
+            "label.offset": [],
             "label.align": ["h-align-left","h-align-right"],
-            "label.anchor": ["v-align-bottom","v-align-top"],
+            "label.anchor": [],
             "label.background": [],
             "label.backgroundBorder": [],
             "stray.present": ["text@315,814,351,825"],
-            "label.backgroundBox": ["background-stroke","label-shape-hexagon","label-shape-pill","label-shape-rectangle","label-shape-round-rectangle","label-shape-squircle"]
+            "label.backgroundBox": ["label-shape-hexagon","label-shape-pill","label-shape-round-rectangle","label-shape-squircle"]
         },
         "yed-live-graphml-specimen-labels-p2": {
             "node.present": [],
@@ -40206,8 +40206,8 @@
             "background": [],
             "label.text": ["wrapping-trim-character","wrapping-trim-character-ellipsis","wrapping-trim-word","wrapping-trim-word-ellipsis","wrapping-wrap-character","wrapping-wrap-character-ellipsis","wrapping-wrap-word","wrapping-wrap-word-ellipsis"],
             "label.rotation": ["model-stretch-center-vertical","model-stretch-left","model-stretch-right"],
-            "label.offset": ["model-composite","model-exterior-margins","model-free-offset","model-free-offset-left","model-interior-padding"],
-            "label.anchor": ["model-composite","model-free-offset","model-free-offset-left","model-interior-padding","model-stretch-padding"],
+            "label.offset": [],
+            "label.anchor": [],
             "stray.present": ["text@379,836,399,862"]
         },
         "yed-live-graphml-specimen-labels-p2@matched": {
@@ -40232,8 +40232,8 @@
             "background": [],
             "label.text": ["wrapping-trim-character","wrapping-trim-character-ellipsis","wrapping-trim-word","wrapping-trim-word-ellipsis","wrapping-wrap-character","wrapping-wrap-character-ellipsis","wrapping-wrap-word","wrapping-wrap-word-ellipsis"],
             "label.rotation": ["model-stretch-center-vertical","model-stretch-left","model-stretch-right"],
-            "label.offset": ["model-composite","model-exterior-margins","model-free-offset","model-free-offset-left","model-interior-padding"],
-            "label.anchor": ["model-composite","model-free-offset","model-free-offset-left","model-interior-padding","model-stretch-padding"],
+            "label.offset": [],
+            "label.anchor": [],
             "stray.present": ["text@379,836,399,862"]
         },
         "yed-live-graphml-specimen-labels-p3": {
@@ -40320,8 +40320,8 @@
             "background": [],
             "label.size": ["v2-model-exterior-east","v2-model-exterior-insets","v2-model-exterior-north","v2-model-exterior-north-east","v2-model-exterior-north-west","v2-model-exterior-south","v2-model-exterior-south-east","v2-model-exterior-south-west","v2-model-exterior-west","v2-model-interior-center","v2-model-interior-east","v2-model-interior-insets","v2-model-interior-north","v2-model-interior-north-east","v2-model-interior-north-west","v2-model-interior-south","v2-model-interior-south-east","v2-model-interior-south-west","v2-model-interior-west","v2-model-ratio-anchored","v2-model-sandwich-north","v2-model-sandwich-south","v2-model-sandwich-yoffset","v2-model-stretch-center","v2-model-stretch-center-horizontal","v2-model-stretch-center-vertical","v2-model-stretch-east","v2-model-stretch-insets","v2-model-stretch-north","v2-model-stretch-south","v2-model-stretch-west"],
             "label.rotation": ["v2-model-stretch-center-vertical","v2-model-stretch-east","v2-model-stretch-west"],
-            "label.offset": ["v2-model-exterior-insets","v2-model-interior-insets","v2-model-ratio-anchored","v2-model-sandwich-yoffset"],
-            "label.anchor": ["v2-model-interior-insets","v2-model-ratio-anchored","v2-model-stretch-insets"]
+            "label.offset": [],
+            "label.anchor": ["v2-model-interior-insets"]
         },
         "yed-live-graphml-specimen-labels-p4@matched": {
             "node.present": [],
@@ -40345,8 +40345,8 @@
             "background": [],
             "label.size": ["v2-model-exterior-east","v2-model-exterior-insets","v2-model-exterior-north","v2-model-exterior-north-east","v2-model-exterior-north-west","v2-model-exterior-south","v2-model-exterior-south-east","v2-model-exterior-south-west","v2-model-exterior-west","v2-model-interior-center","v2-model-interior-east","v2-model-interior-insets","v2-model-interior-north","v2-model-interior-north-east","v2-model-interior-north-west","v2-model-interior-south","v2-model-interior-south-east","v2-model-interior-south-west","v2-model-interior-west","v2-model-ratio-anchored","v2-model-sandwich-north","v2-model-sandwich-south","v2-model-sandwich-yoffset","v2-model-stretch-center","v2-model-stretch-center-horizontal","v2-model-stretch-center-vertical","v2-model-stretch-east","v2-model-stretch-insets","v2-model-stretch-north","v2-model-stretch-south","v2-model-stretch-west"],
             "label.rotation": ["v2-model-stretch-center-vertical","v2-model-stretch-east","v2-model-stretch-west"],
-            "label.offset": ["v2-model-exterior-insets","v2-model-interior-insets","v2-model-ratio-anchored","v2-model-sandwich-yoffset"],
-            "label.anchor": ["v2-model-interior-insets","v2-model-ratio-anchored","v2-model-stretch-insets"]
+            "label.offset": [],
+            "label.anchor": ["v2-model-interior-insets"]
         },
         "yed-live-graphml-specimen-labels-p5": {
             "node.present": [],
@@ -40369,10 +40369,10 @@
             "frame.zoom": [],
             "background": [],
             "label.size": ["v2-markup-plain","v2-model-composite"],
-            "label.offset": ["bpmn-annotation-label-background","bpmn-annotation-label-insets","bpmn-annotation-label-outline","v2-model-composite"],
-            "label.anchor": ["v2-model-composite"],
-            "label.background": ["bpmn-annotation-label-background","bpmn-annotation-label-insets","bpmn-annotation-label-outline","bpmn-message-label-initiating-color","bpmn-message-label-is-initiating","bpmn-message-label-outline","bpmn-message-label-response-color"],
-            "label.backgroundBorder": ["bpmn-message-label-initiating-color","bpmn-message-label-is-initiating","bpmn-message-label-outline","bpmn-message-label-response-color"],
+            "label.offset": [],
+            "label.anchor": [],
+            "label.background": [],
+            "label.backgroundBorder": [],
             "stray.present": ["text@601,367,625,399","text@810,367,864,381"]
         },
         "yed-live-graphml-specimen-labels-p5@matched": {
@@ -40396,10 +40396,10 @@
             "frame.zoom": [],
             "background": [],
             "label.size": ["v2-markup-plain","v2-model-composite"],
-            "label.offset": ["bpmn-annotation-label-background","bpmn-annotation-label-insets","bpmn-annotation-label-outline","v2-model-composite"],
-            "label.anchor": ["v2-model-composite"],
-            "label.background": ["bpmn-annotation-label-background","bpmn-annotation-label-insets","bpmn-annotation-label-outline","bpmn-message-label-initiating-color","bpmn-message-label-is-initiating","bpmn-message-label-outline","bpmn-message-label-response-color"],
-            "label.backgroundBorder": ["bpmn-message-label-initiating-color","bpmn-message-label-is-initiating","bpmn-message-label-outline","bpmn-message-label-response-color"],
+            "label.offset": [],
+            "label.anchor": [],
+            "label.background": [],
+            "label.backgroundBorder": [],
             "stray.present": ["text@601,367,625,399","text@810,367,864,381"]
         },
         "yed-live-graphml-specimen-labels@matched": {
@@ -40425,13 +40425,13 @@
             "label.text": ["label-shape-round-rectangle"],
             "label.weight": ["font-weight-lighter"],
             "label.style": ["font-style-italic","font-style-oblique"],
-            "label.offset": ["v-align-bottom","v-align-top"],
+            "label.offset": [],
             "label.align": ["h-align-left","h-align-right"],
-            "label.anchor": ["v-align-bottom","v-align-top"],
+            "label.anchor": [],
             "label.background": [],
             "label.backgroundBorder": [],
             "stray.present": ["text@315,814,351,825"],
-            "label.backgroundBox": ["background-stroke","label-shape-hexagon","label-shape-pill","label-shape-rectangle","label-shape-round-rectangle","label-shape-squircle"]
+            "label.backgroundBox": ["label-shape-hexagon","label-shape-pill","label-shape-round-rectangle","label-shape-squircle"]
         },
         "yed-live-graphml-specimen-mappings-bypass": {
             "node.present": [],

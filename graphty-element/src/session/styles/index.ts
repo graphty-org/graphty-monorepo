@@ -101,6 +101,7 @@ export type {
     StyleBatchChange,
     StyleChange,
     StyleFileDocument,
+    StyleRefusal,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

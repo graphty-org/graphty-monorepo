@@ -520,6 +520,7 @@ export type ShaderProblemCode =
     | "shader.unknown"
     | "shader.target-mismatch"
     | "shader.place-unsupported"
+    | "shader.uses-not-a-list"
     | "shader.min-size-place"
     | "shader.held"
     | "shader.quarantined"

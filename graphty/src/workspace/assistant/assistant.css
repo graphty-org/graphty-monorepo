@@ -211,10 +211,37 @@
 }
 
 .ws-assistant-foot {
+    position: relative;
     display: flex;
     flex: none;
     flex-direction: column;
     gap: 4px;
     padding: 8px;
     border-top: 1px solid var(--cm-border);
+}
+
+/* Send and Stop share one cell; the hidden label still sizes it. */
+.ws-assistant-swap {
+    display: inline-grid;
+}
+
+.ws-assistant-swap > * {
+    grid-area: 1 / 1;
+    text-align: center;
+}
+
+.ws-assistant-swap > [aria-hidden="true"] {
+    visibility: hidden;
+}
+
+/* What Talk last heard (or did not), laid over the log's foot above the composer. */
+.ws-assistant-voice {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    padding: 2px 16px;
+    border-top: 1px solid var(--cm-border);
+    background: var(--cm-bg);
+    pointer-events: none;
 }

@@ -249,12 +249,21 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                                 field.current?.focus();
                             }}
                         >
-                            {running ? WORDS["assistant.stop"] : WORDS["assistant.send"]}
+                            {/* Both labels hold the slot, the one not shown hidden, so the button keeps one width. */}
+                            <span className="ws-assistant-swap">
+                                <span aria-hidden={running}>{WORDS["assistant.send"]}</span>
+                                <span aria-hidden={!running}>{WORDS["assistant.stop"]}</span>
+                            </span>
                         </Button>
                     </Tooltip>
                 </Group>
             </Group>
-            {voiceLine === null ? null : <Text size="xs">{voiceLine}</Text>}
+            {/* Over the log's foot, so the line coming and going never moves the composer. */}
+            {voiceLine === null ? null : (
+                <Text size="xs" className="ws-assistant-voice">
+                    {voiceLine}
+                </Text>
+            )}
         </div>
     );
 }

@@ -89,10 +89,13 @@ export function Talk({ provider, linked, onLine }: Readonly<TalkProps>): React.J
         const end = ({ detail }: CustomEvent<AiVoiceEndEvent>): void => {
             // An earlier press still being transcribed may end while a later one listens.
             setListening(element.isAiTalking());
-            if (detail.reason === "error") {
-                onLine(voiceWords(detail.params?.reason));
-            } else {
-                onLine(detail.code === "AI_COMPLETED" && !heardAny.current ? WORDS["assistant.talk.nothing"] : null);
+            const nothing =
+                detail.code === "AI_COMPLETED" && !heardAny.current ? WORDS["assistant.talk.nothing"] : null;
+            const line = detail.reason === "error" ? voiceWords(detail.params?.reason) : nothing;
+            onLine(line);
+            // The line is drawn, not live: the status line speaks it.
+            if (line !== null) {
+                store.set({ announcement: line });
             }
         };
         const heard = ({ detail }: CustomEvent<AiVoiceTranscriptEvent>): void => {

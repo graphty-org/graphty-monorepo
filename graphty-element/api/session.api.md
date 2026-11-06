@@ -6790,10 +6790,11 @@ export interface TimeIds {
 export type TimeMeasure = "nodes" | "edges" | "density";
 
 // @beta
-export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
+export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect" | "time.age-fade-inactive";
 
 // @beta
 export interface TimePlayback {
+    readonly ageFade?: number;
     readonly missing?: "inside" | "outside";
     readonly mode?: "sliding" | "cumulative";
     readonly outside?: "hide" | "ghost";
@@ -6854,6 +6855,7 @@ export interface TimeSeriesRow {
 
 // @beta
 export interface TimeSettings {
+    readonly ageFade: number;
     readonly missing: "inside" | "outside";
     readonly mode: TimePlayMode;
     readonly outside: "hide" | "ghost";

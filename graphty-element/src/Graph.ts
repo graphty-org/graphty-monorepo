@@ -1558,6 +1558,7 @@ export class Graph implements GraphContext {
             ghost: () => this.session.visibility.ghosting,
             timeline: () => this.session.features.enabled.includes("timeline"),
             timeWindow: () => this.session.time.current !== null,
+            ageFade: () => this.session.edgeAges(),
         };
         this.updateManager.bindViewMasks(viewMasks);
 

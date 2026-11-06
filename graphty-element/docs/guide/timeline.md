@@ -204,6 +204,28 @@ support point (`edge.supportModel`): support points settle together, so a move t
 repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
 ghost or back.
 
+## Fading older edges
+
+`ageFade` fades the edges in the window by how long ago they started, so the newest stand out
+while a window plays:
+
+```js
+await time.setSettings({ ageFade: 0.2 }); // older edges in the window fade toward 20%
+time.play();
+```
+
+An edge starting at the window's first instant draws at `ageFade` times its opacity, one at the
+window's end at full opacity, and those between in proportion. The default, 1, draws no fade. The
+setting is saved in the project and leaves the window where it is. A value outside 0 to 1 is refused
+with `E_BAD_COMMAND`.
+
+It applies to edges timed by an instant or by a start and an end, with `outside: "hide"`. Elsewhere it
+draws nothing, and `time.notices()` holds `time.age-fade-inactive` with a `reason`:
+`"no-edge-time"` (the field times only nodes), `"spells"` (the edges carry spells or lists of
+instants) or `"ghost"`. A line drawn with `line.blending` false stays opaque. Straight animated lines
+(`line.animationSpeed`) and patterned lines keep their opacity, except a dash or dot line that bends
+or curves, which fades. Arrowheads keep their opacity too.
+
 ## Every window at once
 
 `time.series` counts every window of a step without moving what is on screen, for a chart over time:

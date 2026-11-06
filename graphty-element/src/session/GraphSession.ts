@@ -183,6 +183,7 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import { isTimeZone } from "./time/zone";
@@ -418,6 +419,8 @@ interface SessionParts {
     readonly timelineOn: () => boolean;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
+    /** What the renderer fades edges by age with; see {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
     /** The project's shaders, and whether each may run. */
@@ -561,6 +564,8 @@ class Session implements ElementSession {
     private readonly shadersController: ShadersController;
     /** Stops playback. */
     private readonly stopTime: () => void;
+    /** See {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -632,6 +637,7 @@ class Session implements ElementSession {
         this.visibility = parts.visibility;
         this.time = parts.time;
         this.stopTime = parts.stopTime;
+        this.edgeAges = parts.edgeAges;
         this.styles = parts.styles;
         this.shaders = parts.shaders.api;
         this.shadersController = parts.shaders;
@@ -4167,6 +4173,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopTime: () => {
             time.internals.dispose();
         },
+        edgeAges: () => (timelineOn() ? time.internals.edgeAges() : null),
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

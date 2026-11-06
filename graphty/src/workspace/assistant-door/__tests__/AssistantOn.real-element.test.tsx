@@ -157,7 +157,7 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.keyboard(MOD_I);
         const region = await composer();
         await focusOn(region);
-        screen.getByRole("button", { name: "Close Assistant" }).focus();
+        screen.getByRole("button", { name: "Close" }).focus();
         await userEvent.keyboard(MOD_I);
         await focusOn(region);
     });
@@ -167,7 +167,7 @@ describe("the Assistant with its experiment on", () => {
         await userEvent.click(screen.getByRole("button", { name: "Notes" }));
         await userEvent.click(screen.getByRole("button", { name: "Assistant" }));
         await composer();
-        const close = screen.getByRole("button", { name: "Close Assistant" });
+        const close = screen.getByRole("button", { name: "Close" });
         await userEvent.hover(close);
         assert.include((await screen.findByRole("tooltip")).textContent, "Close");
         await screen.findByText("Ctrl+I");

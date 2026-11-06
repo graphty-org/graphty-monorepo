@@ -1,6 +1,6 @@
 import type { AiApprovalRequest, AiQuestionRequest } from "@graphty/graphty-element/ai";
 import { Button, Checkbox, Group, Radio, Stack, Text } from "@mantine/core";
-import React, { useId, useState } from "react";
+import React, { useState } from "react";
 
 import { goToComposer } from "../assistant-door/commands";
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -26,7 +26,6 @@ function ApprovalCard({
 }: Readonly<{ request: AiApprovalRequest; choice: AssistantChoice; place: string | null }>): React.JSX.Element {
     const { element, store } = useWorkspace();
     const { title, line, primary, decline } = approvalWords(request);
-    const titleId = useId();
     const { target } = request.preview;
     const answer = (approve: boolean): void => {
         if (element !== null) {
@@ -37,7 +36,7 @@ function ApprovalCard({
     return (
         <Stack gap={4}>
             <Group justify="space-between" gap={4} wrap="nowrap">
-                <Text size="sm" fw={600} id={titleId}>
+                <Text size="sm" fw={600}>
                     {title}
                 </Text>
                 {place === null ? null : (
@@ -47,12 +46,11 @@ function ApprovalCard({
                 )}
             </Group>
             {line === null ? null : <Text size="sm">{line}</Text>}
-            {target === undefined ? null : <ChipRow target={target} kinds={["node", "edge"]} of={title} />}
+            {target === undefined ? null : <ChipRow target={target} kinds={["node", "edge"]} />}
             <Group gap={4}>
                 <Button
                     variant="filled"
                     size="compact-xs"
-                    aria-describedby={titleId}
                     onClick={() => {
                         answer(true);
                     }}
@@ -62,7 +60,6 @@ function ApprovalCard({
                 <Button
                     variant="default"
                     size="compact-xs"
-                    aria-describedby={titleId}
                     onClick={() => {
                         answer(false);
                     }}
@@ -72,7 +69,6 @@ function ApprovalCard({
                 <Button
                     variant="default"
                     size="compact-xs"
-                    aria-describedby={titleId}
                     onClick={() => {
                         answer(false);
                     }}

@@ -177,7 +177,6 @@ function Steps({ steps, open, onToggle }: Readonly<StepsProps>): React.JSX.Eleme
                                       <ResultRow
                                           key={at} // NOSONAR(S6479): an effect has no id to key by
                                           effect={effect}
-                                          of={step.name}
                                       />
                                   ))
                                 : null}

@@ -1839,6 +1839,9 @@ const YED_EDGE_LABEL_END = 10;
 export const YED_LABEL_BOX_PADDING = 4;
 export const YED_LABEL_LINE = 1.164;
 
+/** A label's words against their font size, for a file that stores no width. */
+export const YED_LABEL_CHARACTER = 0.55;
+
 /**
  * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
  * @param box - the box's center x and y, width and height
@@ -1861,7 +1864,7 @@ function boxExit(box: readonly number[], from: BendPoint, to: BendPoint): BendPo
  * @param distance - how far from its start
  * @returns the point and its direction
  */
-function pointAlong(line: readonly BendPoint[], distance: number): { at: BendPoint; dir: BendPoint } {
+export function pointAlong(line: readonly BendPoint[], distance: number): { at: BendPoint; dir: BendPoint } {
     let left = distance;
     for (let i = 1; i < line.length; i++) {
         const [a, b] = [line[i - 1], line[i]];
@@ -1873,6 +1876,15 @@ function pointAlong(line: readonly BendPoint[], distance: number): { at: BendPoi
         left -= len;
     }
     return { at: line[0], dir: [1, 0] };
+}
+
+/**
+ * A polyline's length.
+ * @param line - the polyline
+ * @returns its length
+ */
+export function lineLength(line: readonly BendPoint[]): number {
+    return line.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - line[i][0], p[1] - line[i][1]), 0);
 }
 
 /** What a yEd edge label's place is worked out from. */
@@ -1908,7 +1920,7 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
         return null;
     }
     const [along, side] = spot;
-    const length = line.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - line[i][0], p[1] - line[i][1]), 0);
+    const length = lineLength(line);
     const end = YED_EDGE_LABEL_END + label.width / 2;
     const reach = { source: end, middle: length / 2, target: Math.max(0, length - end) };
     const { at, dir } = pointAlong(line, reach[along]);
@@ -1917,9 +1929,38 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
 }
 
 /**
- * Puts where yEd draws an edge's label as an offset from where graphty-element hangs it: a model's position is an end
- * or the middle of the line drawn between the nodes' sides, on the line or `distance` clear of it to one side; a stored
- * box is relative to where that line starts.
+ * Puts a place worked out on the line drawn between the nodes' sides as an offset from where graphty-element hangs the
+ * edge's label.
+ * @param boxes - the source's and the target's center x and y, width and height
+ * @param route - the route, from port to port through its bends
+ * @param centerOn - the middle of the label's box on that line, or null to keep graphty's place
+ * @param put - receives the values
+ */
+export function putEdgeLabelAt(
+    boxes: readonly [readonly number[], readonly number[]],
+    route: readonly BendPoint[],
+    centerOn: (line: readonly BendPoint[]) => BendPoint | null,
+    put: PutValue,
+): void {
+    const last = route.length - 1;
+    const line = [
+        boxExit(boxes[0], route[0], route[1]),
+        ...route.slice(1, -1),
+        boxExit(boxes[1], route[last], route[last - 1]),
+    ];
+    const center = centerOn(line);
+    if (center?.every(Number.isFinite) !== true) {
+        return;
+    }
+    const hang = routeMiddle(route);
+    put("labelPosition", "center");
+    put("labelOffsetX", num6(center[0] - hang[0]) || null);
+    put("labelOffsetY", num6(center[1] - hang[1]) || null);
+}
+
+/**
+ * Puts where yEd draws an edge's label: a model's position is an end or the middle of the line drawn between the nodes'
+ * sides, on the line or `distance` clear of it to one side; a stored box is relative to where that line starts.
  * @param boxes - the source's and the target's center x and y, width and height
  * @param route - the route, from port to port through its bends
  * @param label - the label
@@ -1931,20 +1972,7 @@ export function putYedEdgeLabel(
     label: YedEdgeLabel,
     put: PutValue,
 ): void {
-    const last = route.length - 1;
-    const line = [
-        boxExit(boxes[0], route[0], route[1]),
-        ...route.slice(1, -1),
-        boxExit(boxes[1], route[last], route[last - 1]),
-    ];
-    const center = edgeLabelCenter(label, line);
-    if (center?.every(Number.isFinite) !== true) {
-        return;
-    }
-    const hang = routeMiddle(route);
-    put("labelPosition", "center");
-    put("labelOffsetX", num6(center[0] - hang[0]) || null);
-    put("labelOffsetY", num6(center[1] - hang[1]) || null);
+    putEdgeLabelAt(boxes, route, (line) => edgeLabelCenter(label, line), put);
 }
 
 /**

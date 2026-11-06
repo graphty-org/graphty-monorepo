@@ -3,9 +3,10 @@
  * shaders will take in, and `trimEnds`, its TypeScript mirror for whatever reads an end on the CPU.
  * Design: `design/rendering/row-renderer.md`, section 4.3.
  *
- * In shadow for now: only tests read either one, and `Edge.getInterceptPoints` still draws. They
- * follow its order. Each end first meets its node's surface, then both move out past their borders
- * and gaps, a group's end replaces either, and the line stops short of the arrow head.
+ * `Edge.getInterceptPoints` answers from `trimEnds` once a batch draws either end, and no shader takes
+ * in the include yet. Both follow its order. Each end first meets its node's surface, then both move
+ * out past their borders and gaps, a group's end replaces either, and the line stops short of the
+ * arrow head.
  *
  * Plain numbers and strings, nothing from Babylon.js, as `edgeJoinShader.ts` is.
  */

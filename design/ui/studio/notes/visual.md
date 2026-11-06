@@ -5,35 +5,46 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-11-05 (tier 6 round 1 walk). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-11-05 (tier 6 round 1 closed). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-05) Tier 6 round 1 walk done on 3b2a7f0649: 23 findings, 0 at sev 3 or 4, 10 at sev 2, all but one
-   owned by the app. Report: `tier6/rounds/round-1/expert/visual.md`.
-2. The Assistant's three marks collapse into one on screen: change lines, failures and the working
-   line are all 11 px body ink under the model's prose. Fix the marks first (change-line chip as
-   design 4.6 draws it; the empty result's warning row for failures).
-3. State text at 9 px is back: scope line, "No microphone found.", the provider disclosure. Design
-   section 8 forbids it; each is one `size="sm"`.
-4. Tier 6's Gemini cap (3,000) was reached during my walk. A model-dependent state cannot be walked
-   until the owner raises it; the question is already in `owner-decisions.md`.
-5. A failed key through OpenAI costs no Gemini request, and Settings > General > Dark switches the
-   theme with a request waiting: one paid message then shows a card in both themes.
-6. A visual finding needs a reader who paid or a scripted repro to hold sev 3. Mark "watch" with the
-   task that would show it, and let the sessions raise it.
-7. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
-8. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
-   the owner, never into code. No tier 6 finding touches it.
-9. Read `decided.md` before rating: unfinished decisions are not new findings.
-10. Tier 4's open items still stand: the join preview's tags, the clipped join ratio, the header
+1. (2026-11-05) Tier 6 round 1 closed with no reader: all 24 sessions were refused, so every finding is
+   what is on screen, never what a reader paid. The studio is stopped until the owner rules on the
+   Gemini cap (3,000 of 3,000 used). The walk report: `tier6/rounds/round-1/expert/visual.md`.
+2. My "three marks collapse" lead did not hold as a finding. A real change keeps its line with no chip
+   (`decided.md`); only a gap to the 4.6 drawing survives, and table 6.6 draws no chip. "Reads as prose"
+   is a question for T92, not a fix to lead with. Read the design's table as well as its drawing.
+3. "State text at 9 px" is now a hypothesis: the size is fact, the gap is 2 px, and design 8 fits the
+   scope line and the microphone line, not clearly the disclosure or the question. Selection also
+   shows as chips and an inspector title. T90 and T92 decide.
+4. Name the cause only after tracing it to the rendered CSS: my starters fix (`justify="flex-start"`)
+   was already in the source and inert; compact-mantine applies it only to a full-width button. Likely
+   `fullWidth` in graphty, not run.
+5. Kept at 2 and mine to check first on the fixed build: one result with two names on a screen
+   (Influence, PageRank, Degree, Connections); the question as the smallest, palest text on its card
+   (fix in `Waiting.tsx`, not the locked theme). I never reached the question card.
+6. Left edges: 3 or 4 measured (65, 73, 81, and 101 with steps open), but severity 1. Design 4.4 aligns
+   only the You and Assistant headings. Count edges against what the design asks for.
+7. When the Gemini cap lifts, walk first: question card, 429, failure during a change, the change
+   notices. A failed key through OpenAI costs no Gemini request; Settings > General > Dark switches
+   theme with a request waiting, so one paid message shows a card in both themes.
+8. A visual finding needs a reader who paid or a scripted repro to hold sev 3. Mark "watch" with the
+   task that would show it, and let the sessions raise it. It held again: nothing of mine was cut for
+   its rating.
+9. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
+10. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
+    the owner, never into code. No tier 6 finding touches it.
+11. Read `decided.md` before rating: unfinished decisions are not new findings. This means every
+    clause, including how it scopes a chip or a line.
+12. Tier 4's open items still stand: the join preview's tags, the clipped join ratio, the header
     glyph following the column's kind, the filter card's Hide default.
-11. Focus visibility, `colorWord` hue names and the purple "Layer" token are open from tier 3.
-12. A study-tool defect once made false findings: before trusting "nothing appeared on hover", look at
+13. Focus visibility, `colorWord` hue names and the purple "Layer" token are open from tier 3.
+14. A study-tool defect once made false findings: before trusting "nothing appeared on hover", look at
     the screenshot, and check the point still holds that control (a log that grew moves everything).
-13. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with a small PIL script in
+15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with a small PIL script in
     `tmp/<task>/`; `--hover-at` on the name text itself.
 
 ## Priorities and values
@@ -57,6 +68,13 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-11-05 (tier 6 round 1 closed):** Withdrew "fix the marks first". Reason: `decided.md` says a turn
+  with a real change keeps its line alone, 6.6 draws no chip, and the line sits on the Open run and Undo
+  row, so "cannot be told" overstated it. It stays a question for the sessions.
+- **2026-11-05:** Accepted the 9 px claim as a hypothesis, and the alignment items at severity 1. The
+  one-word `size="sm"` fix still stands for the scope and microphone lines, where design 8 clearly
+  applies.
 
 - **2026-11-05 (tier 6 round 1 walk):** Rated nothing 3. The change line looking like prose and the
   scope line at 9 px are the likeliest to rise, but no reader has paid yet; marked "watch" with T92,
@@ -184,6 +202,13 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 did not work: proposing a prop without tracing it to the rendered CSS (starters); the prop
+  was already set and did nothing.
+- 2026-11-05 did not work: quoting the design's drawing without its table and `decided.md` (change-line
+  chip); the three sources differ, and the drawing was the weakest.
+- 2026-11-05 worked: "watch" instead of sev 3, and listing unreached states as not clean. The check
+  found no overclaim in the ratings; the overclaims were in the mechanism and the wording.
+
 - 2026-11-05 worked: three sessions (light 1440, dark 1440, 900 x 700 light then dark) in 76 steps and
   29 Gemini calls. Reaching failure through the OpenAI key and no provider through Forget key cost
   nothing.
@@ -254,6 +279,12 @@ in git history of this file.
 
 ## Thinking
 
+- (2026-11-05) A round with no reader shows the limit of my walk: I can say what is smallest or
+  alike, not what misleads. Without readers, a claim like "decides" or "reads as prose" is a
+  hypothesis and should be written as one, with the task that would test it.
+- (2026-11-05) My "no hue, so each state needs a shape" still stands as a thought, but needs a reader
+  confusing a change line with prose before it becomes a proposal.
+
 - (2026-11-05) "No hue" and "three marks" pull against each other: with no hue, the marks must come from
   shape (a chip, a glyph), so any line without one reads as prose. Each state needs a shape of its own.
 
@@ -268,6 +299,7 @@ in git history of this file.
 
 ## Sources
 
+- `design/ui/studio/tier6/rounds/round-1/insights.md` (settled findings 5, 9, 10, 11, 12 are the visual ones)
 - `design/ui/studio/tier6/rounds/round-1/expert/visual.md` (tier 6 round 1 walkthrough, 23 findings);
   sessions in `expert/visual/v1-light`, `v2-sources-dark`, `v3-yeast-900`
 - `design/ui/studio/tier6/design.md` sections 4 and 8; `tier6/decided.md`

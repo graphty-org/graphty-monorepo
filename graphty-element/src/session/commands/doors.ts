@@ -2042,6 +2042,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
+            nodesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
             rankSets: READ,

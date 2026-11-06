@@ -1355,6 +1355,14 @@ export class LayoutManager implements Manager {
 
         const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
 
+        // A layout that keeps nodes apart by their drawn size (`nodeGap`) reads every node's size when it starts. The
+        // build awaited above (the accelerator's probe) ends at no fixed point against the frames that draw a load's
+        // style paint, so without this the layout started on unstyled sizes or on styled ones -- or on a mix, as frames
+        // draw the paint in batches -- and one seeded layout drew two pictures from load to load (#6030).
+        if (((layoutOpts as { nodeGap?: unknown }).nodeGap ?? null) !== null) {
+            this.drawArrivedPaint?.();
+        }
+
         if (ignored !== undefined) {
             this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
         }

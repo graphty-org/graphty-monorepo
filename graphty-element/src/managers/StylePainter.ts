@@ -62,6 +62,58 @@ export interface EdgePaint {
     readonly style: EdgeStyleConfig;
 }
 
+/** The scene state a node batch depends on that a paint does not hold. */
+export interface BatchView {
+    /** A node's size follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`). */
+    readonly scaled: boolean;
+    /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
+    readonly flatOutline: boolean;
+}
+
+/** The shape options a batch draws: everything else about a shape waits for a wider batch. */
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail"]);
+/** The effects a batch draws: both are in the geometry or the material. */
+const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
+/** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
+const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
+    "shape",
+    "texture",
+    "effect",
+    "visible",
+    "label",
+    "tooltip",
+]);
+
+/**
+ * Whether a node batch can draw a paint. An allow list, so a style option added later stays on the
+ * object path until someone proves a batch draws it (design/rendering/row-renderer.md 3).
+ * @param paint - The paint.
+ * @param view - The scene state it is drawn in.
+ * @returns True when the row can be batched.
+ */
+export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
+    const { style } = paint;
+    if (view.scaled || view.flatOutline) {
+        return false;
+    }
+
+    const set = (bag: object | undefined): string[] =>
+        Object.entries(bag ?? {})
+            .filter(([, value]) => value !== undefined)
+            .map(([key]) => key);
+    const color = style.texture?.color;
+    return (
+        set(style).every((key) => BATCHABLE_STYLE_KEYS.has(key)) &&
+        set(style.shape).every((key) => BATCHABLE_SHAPE_KEYS.has(key)) &&
+        set(style.effect).every((key) => BATCHABLE_EFFECT_KEYS.has(key)) &&
+        set(style.texture).every((key) => key === "color") &&
+        // A plain color, or a solid one with no transparency: alpha waits for a wider batch.
+        (typeof color !== "object" || (color.colorType === "solid" && (color.opacity ?? 1) >= 1)) &&
+        style.label?.enabled !== true &&
+        style.tooltip?.enabled !== true
+    );
+}
+
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 

@@ -48,7 +48,8 @@
  *   "never"                 never run it locally
  */
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -679,7 +680,7 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
                 : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
         });
     for (const [name, names] of Object.entries(GROUPS)) {
-        const members = names.map((n) => shards.find((s) => s.shard === n)).filter(wanted);
+        const members = names.map((n) => shards.find((s) => s.shard === n)).filter((s) => s && wanted(s));
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
@@ -827,6 +828,25 @@ export function outputLines(affected, only, light, pullRequest = false, shards =
 }
 
 /**
+ * Whether the checked-out commit has a vitest project this shard names. A full run's candidate is often older than
+ * the workflow, whose tools/ are overlaid on it (tools/own-tools-overlay.test.mjs), so SHARDS can name a project the
+ * commit does not have yet; vitest then fails with "No projects matched the filter" (#5996). Such an older commit
+ * still runs those tests, in the project that held them before. A shard with no --project, or whose config file is
+ * not there to read, fits: only a project that is certainly missing leaves a shard out.
+ * @param shard a SHARDS entry
+ * @param [root] the checkout
+ * @returns false when the shard's config holds none of the projects it names
+ */
+export function fitsCheckout(shard, root = fileURLToPath(new URL("..", import.meta.url))) {
+    const command = shard["test-command"];
+    const projects = [...command.matchAll(/--project=(\S+)/g)].map((m) => m[1].replace(`-${ON_SUFFIX}`, ""));
+    const config = join(root, shard.package, /--config[= ](\S+)/.exec(command)?.[1] ?? "vitest.config.ts");
+    if (projects.length === 0 || !existsSync(config)) return true;
+    const text = readFileSync(config, "utf8");
+    return projects.some((p) => text.includes(`"${p}"`));
+}
+
+/**
  * The --only argument as a list of shard names.
  * @param arg the argument's JSON text, or undefined when it was not given
  * @returns the names, or undefined for no filter
@@ -889,9 +909,15 @@ function main() {
     }
 
     const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
+    const shards = SHARDS.filter((s) => fitsCheckout(s));
+    const dropped = SHARDS.filter((s) => !shards.includes(s)).map((s) => s.shard);
+    if (dropped.length > 0) {
+        console.error(`::notice::this commit has no vitest project for these shards, left out: ${dropped.join(" ")}`);
+    }
     console.log(`affected=${JSON.stringify(affected)}`);
     try {
-        for (const line of outputLines(affected, only, light, values["pull-request"] === true)) console.log(line);
+        const pullRequest = values["pull-request"] === true;
+        for (const line of outputLines(affected, only, light, pullRequest, shards)) console.log(line);
     } catch (e) {
         console.error(`::error::${e.message}`);
         process.exit(1);

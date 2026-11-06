@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { textOf } from "../../../src/ai/engine/types";
 import type { AiApprovalRequestedEvent, AiExportReadyEvent } from "../../../src/events";
-import { assistantSession, digest, ScriptedAssistant, textTurn } from "../../helpers/assistant";
+import { assistantSession, callsTurn, digest, ScriptedAssistant, textTurn } from "../../helpers/assistant";
 
 /** The approval requests a message made. */
 function approvals(events: readonly { type: string }[]): AiApprovalRequestedEvent[] {
@@ -231,6 +231,44 @@ describe("large, slow, replacing and irreversible changes wait for the host", ()
         assert.strictEqual(session.history.steps.at(-1)?.provenance.via, "assistant");
         await session.undo();
         assert.strictEqual(session.status.counts.nodes, 5);
+    });
+
+    it("holds a later batch only for what it does itself once the reader has approved one", async () => {
+        const ids = ["a1", "a2", "a3", "b1", "b2", "b3", "c1", "c2", "c3", "c4"];
+        const session = await assistantSession({
+            nodes: ids.map((id) => ({ id, group: id[0] })),
+            edges: [],
+        });
+        const assistant = new ScriptedAssistant(session, { gate: { removeNodes: 3, removeNodesShare: 1 } });
+        const removal = (group: string): { tool: string; args: Record<string, unknown> } => ({
+            tool: "edit_data",
+            args: { action: "remove_nodes", where: `data.group == '${group}'` },
+        });
+        const { result } = await assistant.say("remove the a and b groups", [removal("a")]);
+        assistant.engine.push(
+            callsTurn([{ tool: "query", args: { action: "overview" } }], 1),
+            callsTurn(
+                [{ tool: "edit_data", args: { action: "update_nodes", ids: ["c1"], values: { seen: true } } }],
+                2,
+            ),
+            callsTurn([removal("b")], 3),
+            textTurn("done"),
+        );
+
+        const next = await assistant.controller.resolveAiApproval(String(result.params?.request), { approve: true });
+
+        // The read and the small write ran; only the second removal is asked about, and for itself.
+        assert.strictEqual(next.code, "AI_CONFIRMATION_NEEDED");
+        assert.deepStrictEqual(
+            assistant.lastResults().map((call) => call.code),
+            ["AI_OK", "AI_OK", "AI_OK", "AI_CONFIRM_REQUIRED"],
+        );
+        const requests = approvals(assistant.events);
+        assert.strictEqual(requests.length, 2);
+        assert.deepStrictEqual(requests[1].request.calls[0].arguments, removal("b").args);
+        assert.strictEqual(requests[1].request.preview.removeNodes, 3);
+        assert.strictEqual(session.status.counts.nodes, 7);
+        assert.strictEqual(session.data.nodePage({ scope: { where: "data.seen == `true`" }, limit: 0 }).total, 1);
     });
 
     it("drops a held change the host denies, and refuses an answer after the graph changed", async () => {

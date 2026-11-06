@@ -265,7 +265,7 @@ export interface MessageState {
      * every copy of the state, so a `maxUses` is the message's. Absent, each run counts its own.
      */
     readonly hostedUses?: Record<string, number>;
-    /** The message's running totals of what its writes did. */
+    /** The running totals of what the message's writes did since its last approved batch. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
     /** Record what calls did (`AiEffect`) and what a held batch names (the assistant experiment). */
     readonly evidence?: boolean;

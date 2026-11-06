@@ -365,8 +365,9 @@ primitive or arrays of primitives; keys `__proto__`, `constructor` and `prototyp
     - a run whose estimate trips the slow gate is held before it starts (4.2);
     - run it.
 3. **Measure** what the batch did: the `data.statistics()` delta, the counts each command returns,
-   values changed, history bytes. Add it to the message's running totals. Totals past a limit roll
-   the transaction back and hold the batch for approval (4.2).
+   values changed, history bytes. Add it to the message's running totals, which restart at zero
+   once a batch has run under the reader's approval. Totals past a limit roll the transaction back
+   and hold the batch for approval (4.2).
 4. **Any call failing** rolls back the whole batch (the transaction's rollback is the mechanism).
    This changes `ToolExecutor.runCalls`, which today commits the calls before a failed one.
 5. **Shape** the results (section 6).
@@ -382,9 +383,9 @@ A batch is **held** when:
 - **slow**: a run's estimate passes the session's own `CostGateLimits.exactComputationSeconds`
   (30 seconds by default) and the run cannot be sampled or asked for `exact: true`, or the estimate
   is unbounded; a `layout set` whose estimate passes the same limit;
-- **large**: the message's totals reach `removeNodes` (default 50) or `removeNodesShare` (0.2) or
-  `removeEdges` (500) or `changedValues` (1,000), or the step would trim the reader's older history
-  steps (`limitBytes`);
+- **large**: the message's totals since its last approved batch reach `removeNodes` (default 50) or
+  `removeNodesShare` (0.2) or `removeEdges` (500) or `changedValues` (1,000), or the step would trim
+  the reader's older history steps (`limitBytes`);
 - **replaces**: `delete_all`, or an import over a non-empty graph;
 - **irreversible**: `results cancel` of a run the assistant did not start;
 - **network**: an import from a URL that `allowImportUrl` admitted (4.4).

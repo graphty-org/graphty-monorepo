@@ -96,7 +96,7 @@ export interface HeldBatch {
     readonly gate: GateKind;
     readonly preview: JsonObject;
     readonly calls: readonly ToolCallRequest[];
-    /** The message's running totals before the batch, which an approved run counts on from. */
+    /** The message's running totals before the batch, restored for the run after the reader's decision. */
     readonly totals: MessageState["totals"];
 }
 
@@ -774,10 +774,16 @@ async function runInTransaction(
         targets.push(...(result.target === undefined ? [] : [result.target]));
     }
 
-    const { totals } = batch.message;
+    const { totals, approved } = batch.message;
     const large = largePreview(batch, tx, measured, affected, targets);
     if (large !== undefined) {
         throw new RollBack(held("large", large, batch, ready, writes));
+    }
+
+    // The count restarts at what the reader approved: a later batch is held only for what it does.
+    if (approved !== undefined) {
+        Object.assign(totals, { removeNodes: 0, removeEdges: 0, changedValues: 0 });
+        return { results, writes };
     }
 
     totals.removeNodes += measured.removeNodes;
@@ -787,8 +793,8 @@ async function runInTransaction(
 }
 
 /**
- * What the reader is shown when a batch, with what the message did before it, passes the gate's
- * limits.
+ * What the reader is shown when a batch, with what the message did since its last approved batch,
+ * passes the gate's limits.
  * @param batch - The batch.
  * @param tx - The transaction.
  * @param measured - What its calls did.
@@ -814,7 +820,7 @@ function largePreview(
     const removeNodes = totals.removeNodes + measured.removeNodes;
     const removeEdges = totals.removeEdges + measured.removeEdges;
     const changedValues = totals.changedValues + measured.changedValues;
-    // The share is of the graph before the message removed anything: what is left plus what went.
+    // The share is of the graph before the removals counted here: what is left plus what went.
     const large =
         removeNodes >= gate.removeNodes ||
         (removeNodes > 0 && removeNodes / (tx.status.counts.nodes + removeNodes) >= gate.removeNodesShare) ||

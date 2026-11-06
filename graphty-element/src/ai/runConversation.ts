@@ -1503,7 +1503,7 @@ async function continueDecided(loop: Loop, decided: DecidedBatch): Promise<boole
         [...conversation.messages].reverse().find((message) => message.parts.some((part) => part.type === "tool-call"))
             ?.id ?? "";
     // Only the hold the reader approved is let through, and only for this batch; every
-    // other limit still holds, counted on from what the message did before it.
+    // other limit still holds, counted with what the message did before it.
     const approved = decided.approved === undefined ? state : { ...state, approved: decided.approved };
     const batch = await runBatch(run, [...calls], approved, loop.resultOf);
     await tallyBatch(tally, batch, run, callsMessage);

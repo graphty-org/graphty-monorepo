@@ -5,8 +5,7 @@
 
 import { z } from "zod";
 
-import type { AiEffect, AiTarget } from "../../../catalog/ai";
-import { effectTarget } from "../effects";
+import { effectTarget, selectionEffects } from "../effects";
 import { MAX_STRING, requireTarget, settleTarget, targetFields, text } from "../fields";
 import { type ActionContext, type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
@@ -56,25 +55,8 @@ async function apply(
             },
         ),
         affectedNodes: tx.selection.nodes.slice(0, 50).map(String),
-        effects: () => selectionEffects(context, named),
+        effects: () => selectionEffects(tx, named),
     };
-}
-
-/**
- * The selection as an effect.
- * @param context - The action's context.
- * @param context.tx - The session.
- * @param target - What the call named.
- * @returns The effect.
- */
-function selectionEffects({ tx }: Pick<ActionContext, "tx">, target?: AiTarget): AiEffect[] {
-    return [
-        {
-            code: "AI_EFFECT_SELECTION",
-            params: { nodes: tx.selection.nodes.length, edges: tx.selection.edges.length },
-            ...(target === undefined ? {} : { target }),
-        },
-    ];
 }
 
 const SELECT_DOOR = [
@@ -127,7 +109,7 @@ export const selectTool: ToolDefinition = {
                 const delta = tx.selection.clear();
                 return Promise.resolve({
                     ...ok(undefined, { removed: delta.removed.length, ...endBinding(context) }),
-                    effects: () => selectionEffects({ tx }),
+                    effects: () => selectionEffects(tx),
                 });
             },
         },
@@ -153,7 +135,7 @@ export const selectTool: ToolDefinition = {
                         { nodes: tx.selection.nodes.length },
                         { ...notes, added: delta.added.length, ...endBinding(context) },
                     ),
-                    effects: () => selectionEffects({ tx }),
+                    effects: () => selectionEffects(tx),
                 };
             },
         },

@@ -56,6 +56,22 @@ export function styleEffects(tx: Pick<TransactionScope, "styles">, id: string): 
 }
 
 /**
+ * The selection as an effect.
+ * @param tx - The session.
+ * @param target - What the call named.
+ * @returns The effect.
+ */
+export function selectionEffects(tx: Pick<TransactionScope, "selection">, target?: AiTarget): AiEffect[] {
+    return [
+        {
+            code: "AI_EFFECT_SELECTION",
+            params: { nodes: tx.selection.nodes.length, edges: tx.selection.edges.length },
+            ...(target === undefined ? {} : { target }),
+        },
+    ];
+}
+
+/**
  * What a read found: the elements it named, or nothing and what it looked for.
  * @param tool - The tool.
  * @param counts - How many it found.

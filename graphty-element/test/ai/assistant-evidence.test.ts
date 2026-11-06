@@ -202,6 +202,28 @@ describe("effects", () => {
         });
     });
 
+    it("a ranking that selects says so beside what it found; one that only reads does not", async () => {
+        const session = await assistantSession(undefined, ON);
+        const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });
+        await assistant.say(
+            "the top two, selected",
+            [{ tool: "run_algorithm", args: { action: "run", name: "degree", style: false } }],
+            [{ tool: "results", args: { action: "top", run: "degree", k: 2, select: true } }],
+            [{ tool: "results", args: { action: "top", run: "degree", k: 1 } }],
+        );
+
+        const [, selection, found, read] = effectsOf(assistant);
+        assert.deepEqual(
+            effectsOf(assistant).map((effect) => effect.code),
+            ["AI_EFFECT_RUN", "AI_EFFECT_SELECTION", "AI_EFFECT_FOUND", "AI_EFFECT_FOUND"],
+        );
+        assert.deepEqual(selection.params, { nodes: 2, edges: 0 });
+        assert.deepEqual(found.params, { nodes: 2 });
+        assert.deepEqual(read.params, { nodes: 1 });
+        assert.lengthOf(session.selection.nodes, 2);
+        assert.strictEqual((await session.selection.count(selection.target!)).nodes, 2);
+    });
+
     it("words every other kind of change as a code with its facts", async () => {
         const session = await assistantSession(undefined, ON);
         const assistant = new ScriptedAssistant(session, { history: "memory", gate: false });

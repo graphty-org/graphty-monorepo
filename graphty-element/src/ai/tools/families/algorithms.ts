@@ -11,7 +11,7 @@ import { algorithmKeyOf } from "../../../catalog/algorithms";
 import type { LayerId, Scope } from "../../../catalog/types";
 import type { Run } from "../../../session/runs/types";
 import type { GraphSession, TransactionScope } from "../../../session/types";
-import { foundEffects } from "../effects";
+import { foundEffects, selectionEffects } from "../effects";
 import { requireTarget, resolveRun, scopeOf, text, WHERE_HELP, whereField } from "../fields";
 import { checkOptions } from "../optionSchema";
 import { suggest } from "../search";
@@ -406,19 +406,22 @@ export const resultsTool: ToolDefinition = {
                     value: toJson(entry.value),
                     rank: entry.rank,
                 }));
+                const ids = rows.map((row) => row.id);
                 if (args.select === true) {
-                    await coded(() => tx.selection.apply({ ids: rows.map((row) => row.id) }, "replace"));
+                    await coded(() => tx.selection.apply({ ids }, "replace"));
                 }
 
                 return {
                     ...ok(rows, { run: run.id, field }),
-                    affectedNodes: rows.map((row) => row.id),
-                    effects: () =>
-                        foundEffects(
+                    affectedNodes: ids,
+                    effects: () => [
+                        ...(args.select === true ? selectionEffects(tx, { ids }) : []),
+                        ...foundEffects(
                             "results",
                             { nodes: rows.length },
                             { top: { run: run.id, field, n: rows.length } },
                         ),
+                    ],
                 };
             },
         },

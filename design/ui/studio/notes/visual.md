@@ -5,42 +5,36 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-30 (tier 4 closed after round 1). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-11-05 (tier 6 round 1 walk). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-10-30) Tier 4 closed after one round without meeting its bars; the studio is stopped.
-   Settled result: `tier4/rounds/round-1/insights.md`. Next tier starts from it.
-2. The most severe open problem is visual: the join preview tags the wrong rows and leaves the
-   unknown-end row untagged beside "1 not in graph", which 3 of 4 read as "left out". A preview
-   must draw exactly what the act will do, mark by mark.
-3. Bar 6 fails on layout, not removal: the joined source row's "17/19 rows joined" ratio and second
-   name are clipped out of sight while the text still holds them. Clipped equals removed for a
-   reader. One layout fix (counts win, R11) covers both; "17 of 19 joined" next to 18 edges also
-   needs to agree.
-4. One fact drawn two ways costs a second menu: setting the time leaves the header's text glyph
-   while the timeline draws dates (four sessions named it). The header glyph must follow the
-   column's designated role/kind.
-5. The header is where readers do column work (3 of 4 on T62); put the state there (role chips for
-   place roles are missing).
-6. A new filter card starts on Hide and the deciding words are about 8 px; the default bit 5 of 5
-   who meant to mark. Give the effect control enough weight to be seen before it acts.
-7. Issue mark still has a default cursor and image role; fix with a pointer cursor and a name.
-8. Downgraded this round, do not re-raise without new evidence: "With issues 11" (sev 1), the Hide
-   label (sev 1), differing kind glyphs (sev 1, no reader tripped), the name cut alone.
-9. A study-tool defect (hover popovers reported as `tooltip: null`) made false findings. Before
-   trusting any "nothing appeared on hover", look at the screenshot.
-10. Lesson held: a visual finding needs a reader who paid for it or a scripted repro to hold sev 3;
-    none held at 3 this round, and two skeptics cut most candidates by one level.
-11. The link glyph doubles as "web address" and "joined" (`SourceRow.tsx`); cheapest fix still open.
-12. Focus visibility, `colorWord` hue names and the purple "Layer" token are still open from tier 3.
-13. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
-    the owner, never into code.
-14. Read `decided.md` (R1-R15) before rating: unfinished decisions are not new findings.
-15. Tool habits: `REAL_SLOT_WAIT_SECONDS=600` on `--start`; crop with `tmp/visual-t4/crop.py`;
-    `--hover-at` on the name text itself.
+1. (2026-11-05) Tier 6 round 1 walk done on 3b2a7f0649: 23 findings, 0 at sev 3 or 4, 10 at sev 2, all
+   owned by the app. Report: `tier6/rounds/round-1/expert/visual.md`.
+2. The Assistant's three marks collapse into one on screen: change lines, failures and the working
+   line are all 11 px body ink under the model's prose. Fix the marks first (change-line chip as
+   design 4.6 draws it; the empty result's warning row for failures).
+3. State text at 9 px is back: scope line, "No microphone found.", the provider disclosure. Design
+   section 8 forbids it; each is one `size="sm"`.
+4. Tier 6's Gemini cap (3,000) was reached during my walk. A model-dependent state cannot be walked
+   until the owner raises it; the question is already in `owner-decisions.md`.
+5. A failed key through OpenAI costs no Gemini request, and Settings > General > Dark switches the
+   theme with a request waiting: one paid message then shows a card in both themes.
+6. A visual finding needs a reader who paid or a scripted repro to hold sev 3. Mark "watch" with the
+   task that would show it, and let the sessions raise it.
+7. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
+8. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
+   the owner, never into code. No tier 6 finding touches it.
+9. Read `decided.md` before rating: unfinished decisions are not new findings.
+10. Tier 4's open items still stand: the join preview's tags, the clipped join ratio, the header
+    glyph following the column's kind, the filter card's Hide default.
+11. Focus visibility, `colorWord` hue names and the purple "Layer" token are open from tier 3.
+12. A study-tool defect once made false findings: before trusting "nothing appeared on hover", look at
+    the screenshot, and check the point still holds that control (a log that grew moves everything).
+13. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with a small PIL script in
+    `tmp/<task>/`; `--hover-at` on the name text itself.
 
 ## Priorities and values
 
@@ -63,6 +57,19 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-11-05 (tier 6 round 1 walk):** Rated nothing 3. The change line looking like prose and the
+  scope line at 9 px are the likeliest to rise, but no reader has paid yet; marked "watch" with T92,
+  T95 and T92 A.
+- **2026-11-05:** Rated the failure row 2 though the design's text sizes allow body ink for errors:
+  the design also names error ink for danger, and a failure left in the log reads as a reply. Proposed
+  reusing the empty result's warning row, so a problem has one look.
+- **2026-11-05:** Rated the provider section's 64 words 2 because the criteria say so, and recommended
+  keeping them: the disclosure is what bar 3 measures. Size is the fix, not fewer words.
+- **2026-11-05:** Did not report the key over a node, the model label as text or the sparse rail dot:
+  `decided.md` settles them.
+- **2026-11-05:** Stopped spending Gemini requests once the shared count neared 3,000 and listed the
+  unreached states as not clean, rather than use `REAL_GEMINI_COUNT` to get past a spending cap.
 
 - **2026-10-30 (tier 4 round 1 walk):** Rated nothing 3. The kind-glyph conflict (`opened` a
   calendar in the picker while text in the table) could mislead T62, but no reader has paid for it
@@ -177,6 +184,14 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 worked: three sessions (light 1440, dark 1440, 900 x 700 light then dark) in 76 steps and
+  29 Gemini calls. Reaching failure through the OpenAI key and no provider through Forget key cost
+  nothing.
+- 2026-11-05 did not work: a hover whose point came from an older screenshot; opening the steps had
+  moved Open run, so its `cursor: auto` was void and I dropped the claim.
+- 2026-11-05 did not work: `--wait` under about 20 s after a change request; 8 steps ran past 20 s, so
+  look at `session.log` before judging a screen as stuck.
+
 - 2026-10-30: Worked: rating no visual finding at sev 3 without a paying reader -- the skeptics cut
   every other team's sev 3 candidates to 2 or 1. Did not work: my "kind glyphs differ" finding (36)
   had no reader trip on it; ended at 1. Missed: the join preview's wrong tags and the clipped ratio
@@ -239,6 +254,9 @@ in git history of this file.
 
 ## Thinking
 
+- (2026-11-05) "No hue" and "three marks" pull against each other: with no hue, the marks must come from
+  shape (a chip, a glyph), so any line without one reads as prose. Each state needs a shape of its own.
+
 - (2026-10-21) The picker repeats the closed/open problem I saw in tier 2's key: a
   summary written per part reads as the whole. Any summary of combined conditions should print
   the combined result once and the parts without numbers.
@@ -249,6 +267,13 @@ in git history of this file.
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier6/rounds/round-1/expert/visual.md` (tier 6 round 1 walkthrough, 23 findings);
+  sessions in `expert/visual/v1-light`, `v2-sources-dark`, `v3-yeast-900`
+- `design/ui/studio/tier6/design.md` sections 4 and 8; `tier6/decided.md`
+- `graphty/src/workspace/assistant/` at 3b2a7f0649: `assistant.css`, `Conversation.tsx`, `Checks.tsx`,
+  `Composer.tsx`, `AiProviderSection.tsx`, `AssistantPanel.tsx`, `ConversationList.tsx`;
+  `compact-mantine/src/theme/tokens.ts:395` (xs 9 px, sm 11 px)
 
 - `design/ui/studio/tier4/rounds/round-1/expert/visual.md` (tier 4 round 1 walkthrough, 29
   findings); sessions in `expert/visual/v1..v4`

@@ -332,3 +332,21 @@ heading, count or current mark, and graphty-element keeps no name for a conversa
   is Chrome's bookmark manager), a bare Delete key, a filter field, date groups, a pending dot, roving
   focus. "+" in the header stays the one door; the element already saves a chat only with its first
   message, so empty chats cannot pile up.
+
+## Overturned: the closed chat switcher shows the count (2026-11-06)
+
+Evidence: the owner, after the switcher above was built, still found "it only shows my first query... that's
+a chat and I can have multiple chats. That wasn't clear." The OpenAI, Anthropic and Google QA walks of the
+same build agree: the closed header showed only the current title and a chevron, and "Chats" lived only in
+the tooltip and the accessible name, which a reader who does not hover never meets. The walks also found the
+open list's titles centered in their rows, so short and long titles started at different edges.
+
+- **The closed header reads "Chats {N}" in the secondary ink, then the open chat's title, then the
+  chevron.** (2026-11-06.) This overturns "No count and no glyph at rest" in the section above. N counts
+  the chats, the unsaved open one included, so the unit travels with the number and the bare-number
+  objection no longer holds. Open, the header stays "Chats {N}" alone. Accessible name "Chats {N},
+  {title}"; tooltip the full title, since the title truncates. Reason: the plural word and its count say
+  there are several chats without opening anything; a count badge was rejected as a bare number again.
+- **Every row's title starts at one left edge.** The row button is full width with its content at the
+  start, and the check's slot keeps its width when a long title squeezes the row. Reason: centered titles
+  read as a menu of unrelated labels, not a list of one kind of thing; it was a defect, not a choice.

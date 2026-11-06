@@ -101,6 +101,9 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-06, chat switcher.** I let "a bare number at rest has no unit" keep the count off the closed
+  header; the owner and every QA walk then missed that chats are plural. Lesson: when I object to a
+  form, propose the unit, not the removal. Now "Chats {N}" shows at rest.
 - **2026-11-06, tier 6 round 2 closed.** The director took one path per problem and refused the
   rest once (decisions.md "Refused"): scope placeholder only, keyed on `scope.kind`; painted fact on
   the existing line via `session.runs.painting(id)`, also in `summarizeRun`; Autosave tooltip only;

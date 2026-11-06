@@ -102,6 +102,9 @@ history.
   may cost up to about 490; round 2's 12 sessions cost 125. Running short a third time costs a round; 1,000 requests
   cost about $5 inside the owner's $150 a month (2026-10-31). Decided by the team, as the raise to 5,000 was.
 
+- **2026-11-06, chat switcher reversed.** The closed header now shows "Chats {N}" before the title
+  (tier6/decided.md, "Overturned"). Reason: the owner and all three QA walks missed several chats when the
+  word lived only in a tooltip; a fact a reader needs at rest must be visible at rest.
 - **2026-11-06, round 2 closed.** Kept the round's settled reading: 0 sev 3 confirmed, 11 at sev 2, bars 7 and 9 not
   moved by a unit. Reason: the skeptics' rows, not their summary lines, are the count; bar 7's miss is the bar's
   reading point, so the fix is the reading, not the product. Round 3 is frozen on a80da6d62e with the 30 units of

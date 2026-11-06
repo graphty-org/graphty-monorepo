@@ -7,50 +7,41 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-11-05, tier 6 round 1 closed) No reader has met the Assistant: all 24 sessions were
-   refused at the start, so every finding comes from four expert walks and reading the frozen
-   source. It says what is on screen, never what a reader paid. Claim nothing yet about whether
-   readers find, read or trust the panel; the sessions wait on the owner's Gemini cap decision.
-2. (2026-11-05) Scope is the Assistant's most important structure: the line at the composer
-   decides what a message is about, and selection is shared with the whole app. A model's
-   selection survived an Undo, narrowed "Color the nodes by role" to 5 nodes, and a later removal
-   took 1 of 16. Held at severity 2 because the reply and the scope line said so; a true label did
-   not stop the surprise. Watch whether readers read that line, set 2 px below body text.
-3. (2026-11-05) The change line is the one home for what a turn did, so every effect needs a line.
-   "Selected these five nodes" has none: the element's `results` `top` action emits no selection
-   effect, so the app has nothing to word. Fix in graphty-element, additive, then the app words it.
-4. (2026-11-05) One result, one name. Influence and PageRank, Degree and Connections sit on one
-   screen. Glossary line 481 retires "influence"; the app replaces the name by id, which breaks no
-   API. Any new surface inherits catalog names, so check it against the glossary at entry.
-5. (2026-11-05) After an act, the reader's place is the composer. Undo, Remove and Answer leave
-   focus elsewhere and letters go astray. The rule covers those three only: Settings rightly
-   returns to its opener. Do not stretch a rule past the cases it was shown on.
-6. (2026-11-05) Words that read as finishing must finish. Done drops a typed key because only Save
-   writes it, with no warning. Same family as item 8: the commit point sits away from the act.
-   Whether readers press Done is what the key task will show.
-7. (2026-11-05) A fact shown only on a passing surface has no home: the question lives only on the
-   approval card (the log's turn says "2 steps"), and it is the palest text there. Keep Declined
-   and asked-question facts in the log, the place that lasts.
-8. (2026-10-30) Decide before the act, not after. The join preview tags the wrong rows; the unknown
-   end is chosen after Join with "Add nodes" already applied; "Leave out" does not say it deletes.
-   A choice whose effect is already in place is a door hidden behind its own consequence.
-9. (2026-10-30) One fact, one drawing. Column kind glyphs, filter-card count bases and place roles
-   each disagree or go unmarked. Every place showing a fact reads the same element fact.
-10. (2026-10-30) The table header is where readers go for column work; a door must land on the
-    control the reader came for, not near it. New filter cards starting on Hide: watch.
-11. (2026-10-30) Approved surfaces are a structural floor: the joined source row keeps both names
-    and "N of M joined" at every width, and a count states what it counts.
-12. (2026-10-21) Still open: the Graph inspector points to the layer list for appearance (a door,
-    not a second home); a layer's members read in the table scoped to the layer; a new style line
-    at the current value must show it is set; a door that looks like a rule must make a rule.
-13. (2026-11-05) Study lessons: settle a disputed fact at its source (the route log named who made
-    the selection); read from code is not run; a bar's wording can fail correct behavior (Settings
-    focus); check screenshots over the tool's lines, and read keys against what the product shows.
-14. Every participant is one model: a fail is strong evidence, a pass weak; n of 2 per half shows
-    nothing about where people go.
+1. (2026-11-05, tier 6 round 2 closed) Readers can use the Assistant; no confirmed severity 3. Scope
+   marks belong at the answer, not the composer: Dev read "Selection 14" and asked anyway, and the
+   placeholder beside it still says "Ask about this graph". Each message already stores its scope
+   (`AiMessageScope`), so the turn can say "About 14 selected nodes" with no element change.
+2. (2026-11-05) One name per result: the app already has it. `wordsFor` drives the legend and
+   `runName`; only the Assistant's lines read `plainName`, which gives Reach beside Closeness. Use
+   the same call. No catalog change, no breaking change.
+3. (2026-11-05) Every effect has a line: the run tool colors unless the model passes `style: false`
+   (`families/algorithms.ts`), so a repaint is our default, not a model whim, and `runEffects`
+   reports no style effect. Rule yes on a Colored row, from an additive element effect.
+4. (2026-11-05) The Recent projects home never fills from opening: `chooseAndOpenFile` uses
+   `pickFiles`, while `locateFile` beside it already gets a handle. A home only Save can reach is the
+   real gap under the Autosave finding; the tooltip fix is needed either way (not every browser has
+   handles).
+5. (2026-11-05) Say a truth that varies with the fact: `status.unexported` already separates "your
+   changes are kept" from "nothing to keep". One sentence for both states was the false promise.
+6. (2026-11-05) Two scrollbars are probably not cosmetic: the outer bar narrows the text after the
+   log reached its foot, which may be what hides the reply's end, chips and Undo. Measure first.
+7. (2026-11-05) A door must land on what it names: Show in table should narrow to its rows, with
+   the table's existing removable chip. The element's table scope already takes `{ nodes }`.
+8. (2026-11-05) After an act, the reader's place is the composer: Undo, Remove and Answer only.
+   Settings rightly returns to its opener. Do not stretch a rule past the cases it was shown on.
+9. (2026-11-05) Words that read as finishing must finish: Done drops a typed key; 0 of 2 readers
+   pressed it, so it stays at 2 with no reader cost shown.
+10. (2026-11-05) Lasting facts live on lasting surfaces: Declined and asked-question facts stay in
+    the log after the card goes.
+11. (2026-10-30) Decide before the act, not after: join preview, unknown end, "Leave out".
+12. (2026-10-30) One fact, one drawing: column kind glyphs, filter-card bases, place roles.
+13. (2026-10-21) Still open: Graph inspector's door to the layer list; a layer's members read in the
+    table scoped to the layer; a new style line at the current value must show it is set.
+14. Study lessons: settle a disputed fact at its source; read from code is not run; check screenshots
+    over the tool's lines; one model plays every participant, so a fail is strong and a pass weak;
+    hover counts measure the tool, not readers.
 15. Standing rules: one home per capability; "+" only adds to lists; unset is the minus and says
-    what comes back; two row kinds only; check proposals at their edges (keyboard, edges,
-    non-community data) and round trip (made, then read back).
+    what comes back; two row kinds only; check proposals at their edges and round trip.
 
 ## Priorities and values
 
@@ -109,6 +100,16 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 2 (proposed; nothing built).** (a) The sent turn states its scope from
+  the stored `AiMessageScope`, and the placeholder follows the scope, because a warning on the scope
+  line sits where Dev already read and went on. (b) The Assistant's run, step and approval lines use
+  `wordsFor`, so one result has one name. (c) A run that painted gets a Colored row, from an additive
+  element effect; this answers the open ruling yes. (d) Autosave's tooltip and label branch on
+  `unexported`, and Open uses the handle picker where one exists. (e) Show in table narrows to its
+  rows with a removable chip; selecting them stays, as design 5.3 settles. (f) A failure with no
+  status says the key may be at fault and offers AI provider... beside Send again. Not changed:
+  apply at once, no preview, Group 1 to N, starters, Open run's landing. None is a one-way door.
+
 - **2026-11-05, tier 6 round 1 (no fixes built yet; studio stopped on the Gemini cap).** Positions:
   (a) a selection made by the model reports as its own change line, from an additive element
   effect; (b) app names results by id to match the glossary, leaving catalog `plainName` alone;
@@ -164,6 +165,11 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Tried: worked / did not work
 
+- (2026-11-05) Tier 6 round 2, first readers: chat as a place WORKED (word found 2 of 2, approval read
+  2 of 2, Undo restored 2 of 2). The scope line alone did NOT carry scope: one reader read it and was
+  narrowed anyway. Show in table as a proof door did NOT land on its rows. Reading the tool's source
+  beat the insights' "the model's" on repainting: the default is ours.
+
 - (2026-11-05) Tier 6 round 1, the Assistant: expert walks WORKED for what is on screen (scope
   chain on one screen, naming clashes) and did NOT stand in for readers: of 4 candidate insights,
   all were weakened, and the 6 scope routes in scoring shrank to about 3 mechanisms once a
@@ -212,6 +218,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- (2026-11-05) `tier6/rounds/round-2/insights.md`, `scores.md`; screens `sessions/r2-s05/05.png`,
+  `r2-s10/05.png`, `r2-s01/18.png`, `repro/r2-s06/walk/04.png`; app `assistant/words.ts`,
+  `assistant/Composer.tsx`, `analyze/words.ts`, `runWords.ts`, `autosave/words.ts`, `start/open.ts`,
+  `project/files.ts`, `table/TableDock.tsx`; element `ai/tools/families/algorithms.ts`,
+  `ai/conversation/snapshot.ts`, `catalog/ai.ts`, `catalog/types.ts`, `autosave/types.ts`.
 
 - (2026-11-05) `tier6/rounds/round-1/insights.md`; screenshots `expert/a11y/k1/99.png`,
   `expert/engineer/setup-1200x900/29.png`, `38.png`; graphty-element

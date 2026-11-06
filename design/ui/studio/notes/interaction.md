@@ -15,54 +15,42 @@ save and reopen.
 
 ## Top of mind
 
-1. (2026-11-05) **Tier 6 round 1 closed with no reader having seen the Assistant.** All 24 sessions
-   were refused at the start and the Gemini request cap is spent, so the studio waits on the
-   owner's spending decision. Everything known comes from four expert walks and frozen source:
-   what is on screen, never what a reader paid. Treat every Assistant finding as unproven on cost.
-2. (2026-11-05) **After Undo, Remove or Answer in the log, focus returns to the composer.** Today it
-   lands on the disabled top-bar Undo or on Jump to newest, and typed keys go nowhere or act.
-   `Waiting.tsx` raises `composerCalls` only for Change this. One rule, three cases; Settings
-   stays out (returning to the opener is right). The one confirmed flow defect that is clearly mine.
-3. (2026-11-05) **Scope must not move unasked; the composer line decides what a message is about.**
-   Esc closing Settings and Esc on a focused chip each clear the selection, with no undo: a direct
-   break of my Esc ladder (an Esc that closes something does nothing else). Fix these first. A
-   surviving model selection turned "color the nodes" into 5 of them and a removal into 1 of 16.
-4. (2026-11-05) **Every effect gets its line.** The model selected five nodes and no line said so:
-   the element's `results` `top` action returns only `foundEffects`. Add a selection effect
-   (additive, element), and word "Selected {N} nodes" in the app.
-5. (2026-11-05) **A claim of no change must be true of the whole state.** "Nothing changed." sat
-   beside a lit Redo and a selection the reader never made. Same for "Listening" emitted before any
-   microphone opens (`VoiceSession.ts`) and no Declined line after Keep them: state words follow
-   the event, and every ending of a flow leaves a line.
-6. (2026-11-05) **A closing verb must not silently drop typed input.** Done discards a typed key;
-   only Save writes it. Severity 2 until T90 shows whether readers press Done; it bears on bar 3.
-7. (2026-11-05) **Three open rulings, my view:** a rollback is not an Undo the reader asked for, so
-   the kept "selection survives Undo" should not cover it; closing the panel neither sends a
-   message nor changes the selection, so by design 5.2 the x should last; a painting run keeps
-   "Computed ..." with no Colored row until sessions show a need. None is a one-way door.
-8. (2026-11-05) **Settings at a short, narrow window has a zero-height page** (`frame.css`, the
-   only open severity 3, every section). Read from CSS, not measured: `repro/` needs no Gemini
-   request. Not counted until it holds.
-9. (2026-11-05) **Study gates:** check the remaining request count before launching a round, and
-   never read the tool's live-region log as what a screen reader says. A bar's wording can fail
-   right behavior: settle whether it is a defect before counting it.
-10. (2026-10-30) **Show what an act will do, and decide before it, not after with a default
-    applied.** Join's preview tags must equal its result row for row; unknown ends are decided only
-    after Join; a new filter card should start on the non-destructive effect; every choice names
-    its consequence. Also: a new style line starts where the reader can see it act.
-11. (2026-10-30) **One fact, one drawing; column work starts at the table header.** One result with
-    two names on one screen (Influence and PageRank, tier 6) is the same defect as the header
-    glyph against timeline dates. A count should be a link that selects what it counts.
-12. (2026-10-30) **Keyboard debts:** the header "..." is not a Tab stop; the issue mark is not
-    spoken on focus; Export's format warning drops focus (needs its own repro); a repeat's menu
-    marks no current choice; a popover press on its own scrollbar must not count as outside.
-13. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center
+1. (2026-11-05) **Tier 6 round 2: readers met the Assistant.** 11 of 12 succeeded, 0 false "done", no
+   confirmed severity 3, Undo restored all in 2 of 2. One model plays every persona. No fix has
+   started, so everything below is still open on build 3b2a7f0649.
+2. (2026-11-05) **After Undo, Remove or Answer, focus returns to the composer.** Still the fix bar 8
+   fails on. `Waiting.tsx` raises `composerCalls` only for Change this; Settings stays out.
+3. (2026-11-05) **The field contradicts the scope line.** Under "Selection 14" the placeholder says
+   "Ask about this graph". Word the placeholder from the scope, and draw the stored
+   `AiConversationMessage.scope` on the You turn, so a reply can be read against what it was about.
+4. (2026-11-05) **Scope must not move unasked.** Esc closing Settings and Esc on a focused chip clear
+   the selection, with no undo: a direct break of the Esc ladder. Selection is a hidden argument.
+5. (2026-11-05) **The log's foot has two causes, neither the reader.** `Conversation.tsx`'s follow
+   effect does not depend on the conversation, and the panel's second scrollbar narrows the text after
+   the log reached its foot. Fix both before calling "never scrolled" reader behavior.
+6. (2026-11-05) **I reversed my view: a painting run says it painted.** One line, "Computed X for N
+   nodes, colored by it", from an additive fact on `AI_EFFECT_RUN`. Painting stays the tool's default.
+7. (2026-11-05) **A failure with two possible causes gets two doors.** Refused key: "may be" wording,
+   Send again and AI provider... My one-action rule assumed one known cause.
+8. (2026-11-05) **A claim must be true of the whole state:** Autosave's tooltip (false for a clean
+   project from a file), "Nothing changed." beside a lit Redo, "Listening" before the microphone.
+   Change the words; Recent projects for opened files is a different, larger question.
+9. (2026-11-05) **Every effect gets its line; every ending leaves one:** no Declined line after Keep
+   them. A closing verb must not drop input: Done loses a typed key (0 of 2 pressed it, stays 2).
+10. (2026-11-05) **Open rulings, my view:** a rollback is not an Undo the reader asked for; closing the
+    panel should keep the x (design 5.2). The 400% Settings page (`frame.css`) needs a `repro/`.
+11. (2026-11-05) **Study gates:** the study tool's hover is a deliberate command, so hover counts
+    measure the tool; a live-region log is not what a screen reader says; a bar's wording can fail
+    right behavior.
+12. (2026-10-30) **Show what an act will do, and decide before it.** Join's preview tags must equal
+    its result; a new style line starts where the reader can see it act.
+13. (2026-10-30) **One fact, one drawing; column work starts at the table header.** A count should be
+    a link that selects what it counts. Keyboard debts: header "..." not a Tab stop; issue mark not
+    spoken; Export's format warning drops focus; a repeat's menu marks no current choice.
+14. (2026-10-21) Owed traces from tier 3: the 130 px drawing move on first color, the off-center
     reopen of a saved project, a real-notch wheel repro. Name the mechanism before any fix.
-14. Standing: one model plays every persona -- a failure is strong evidence, a pass weak; trust
-    repros and code causes over tool text; a decided change unverified on the served build is not
-    done.
-15. Standing: graph facts in graphty-element, flows/focus/words in the app, shared control defects
-    in compact-mantine; location entries behave like Label and Weight ("+", minus, Escape drops).
+15. Standing: a failure is strong evidence, a pass weak; trust repros and code causes over tool text;
+    graph facts in graphty-element, flows/focus/words in the app, shared defects in compact-mantine.
 
 ## Priorities and values
 
@@ -178,32 +166,25 @@ Each with its reason. A screen that breaks one is a defect.
   an off step stays off when its editor closes unedited; New project then Discard never crashes;
   the briefings are checked for leaks before anything counts as unprompted.
 
-- 2026-10-12 Tier 3 proposals, mine (owner approves the built UI before any study). "+" only on
-  repeatable lists; 0-or-1 properties as always-shown core fields or one "Add style" menu with
-  glyphs; switches added flipped with a minus (a switch cannot say "not written"). One scroll, no
-  accordions (owner ruled popovers, never accordions) and no Nodes/Edges tabs (hide half a route);
-  sticky group headings, a scroll-to SegmentedControl only on overflow. Hide a kind the rule cannot
-  reach; keep it live with "0 edges now" when it can (no dead controls). Field picker: In use, then
-  by origin, fitting first, the rest disabled with the element's reason. Gradient: a shared
-  compact-mantine ramp-over-histogram editor (domain, clamp, midpoint, step handles as APG
-  sliders). Split parent is a layer with its own glyph, never a folder; folders never scope. One
-  rule per layer with a Nodes/Edges/Both first control. Labels: source, named look, size, position
-  inline; looks are named and reusable (element). Manual picking: find-style text first, the
-  Filters rule editor behind it, selection as a fixed set; no algorithm favored. Element asks
-  (additive): `agreement` below a layer, reachable kinds from `validate`, a fit check, a
-  distribution with paint steps, named label looks, a RuleTree text leaf, `FindResult.rule`,
-  bindable label size, color and background. Reason: one pattern per job, words at rest down,
-  every element fact from the element.
+- 2026-10-12 (summarized) Tier 3 proposals and owner feedback 1, mine. "+" only on repeatable lists;
+  one scroll, no accordions, no Nodes/Edges tabs; hide a kind a rule cannot reach; field picker In use,
+  then by origin; a shared ramp-over-histogram gradient editor; manual picking find-style first. Split
+  into layers makes an ordinary folder of ordinary layers; minus is the one unset gesture; per-entry eye
+  on list entries only. Reason: two row kinds, one gesture per job, element facts from the element.
 
-- 2026-10-12 Owner feedback 1, mine. Split parent replaced by Split into layers (ordinary folder,
-  empty ordinary layers above the original); minus is the one unset gesture for every field,
-  including label settings (drops "Edited"/Reset); inherited list entries visible; per-entry eye on
-  list entries only. Element asks (additive): keep a layer that sets nothing, `split`, a rule on an
-  arbitrary label that follows members across re-runs, `agreement` naming the source row. Given up:
-  a group's rule is copied at split time. Reason: two row kinds, one gesture per job.
+- 2026-11-05 Tier 6 round 2 critique, mine. Proposed: focus rule; follow effect on the conversation
+  plus `position: relative` on the log; placeholder and You-turn scope; two doors on the failed
+  connection; one run line naming its paint; the change line reading the key's name; Show in table as
+  a selected-first sort; Enter saves a key; strip the doubled period. Rejected: a warning sentence on
+  the scope line, reversing apply-at-once, a Recent entry for opened files in this pass.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 Tier 6 round 2 (12 sessions). Worked: the approval card, Undo in the reply as first
+  choice, the disclosure once read, focus staying in the composer through send and failure, Sam's two
+  keyboard sessions. Did not: the scope line alone (Dev read it and asked anyway); Show in table with
+  no row in view; a failed key's cause; Enter in the key box; a reply's foot below the fold. Taught:
+  a line that states a fact is not a line that warns, and readers check facts by rows, not chips.
 - 2026-11-05 Tier 6 round 1 (the Assistant; 0 of 24 sessions ran, four expert walks, frozen build
   3b2a7f0649). Held on the walks: the approval card, the peek, the rail dot and lasting notice, every
   count on a chip, card or line. Did not work: focus after Undo, Remove, Answer; two Esc routes
@@ -266,6 +247,10 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Thinking
 
+- 2026-11-05 **Check the mechanism before accepting "reader behavior".** The insights called "never
+  scrolled" partly the participant; the code shows the log can stop short with no Jump to newest. And
+  "the repaint is the model's" is half true: `run_algorithm` colors unless told `style: false`.
+
 - 2026-11-05 **A chat panel makes selection a hidden argument.** Everywhere else a selection only
   affects the next act the reader can see; at the composer it silently scopes a sentence. So
   anything that moves selection without a line (model, undo, rollback, Esc) changes what the next
@@ -306,4 +291,4 @@ Each with its reason. A screen that breaks one is a defect.
   s56), `r2/pilot/T6-T16/pilot.md`, read 2026-10-07.
 - `design/ui/studio/tier2/rounds/round-1/insights.md` and `decisions.md`, read 2026-10-09.
 - `design/ui/studio/tier3/rounds/round-1/insights.md`, read 2026-10-21.
-- `design/ui/studio/tier6/rounds/round-1/insights.md`, read 2026-11-05.
+- `design/ui/studio/tier6/rounds/round-1/insights.md`, `round-2/insights.md`, `scores.md`, read 2026-11-05.

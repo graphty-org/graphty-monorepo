@@ -7,34 +7,27 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-11-05) Tier 6 round 1: no reader has seen the Assistant. All 24 sessions were refused at the
-  start (Gemini request cap), so every word finding is from expert walks and source. Do not reword
-  on reader behavior that does not exist; hold "reads as prose" and "the text that decides" for T90, T92.
-- (2026-11-05) Top word defect: one result, two names on one screen (Influence / PageRank, Degree /
-  Connections). Glossary line 481 retires "influence"; fix in the app by id, since changing
-  `plainName` changes what an API returns. "Connections" stands on the double name, not on retirement
-  (it is an inspector heading, glossary line 388).
-- (2026-11-05) A reply says "selected these five nodes" and no line says so. The missing words wait
-  on a fact: graphty-element must add a selection effect (additive), then the app words design 6.6's
-  "Selected {N} nodes". No effect, no line; never parse the model's prose.
-- (2026-11-05) Live claims apply to state words: "Listening" shows before any microphone opens. The
-  cure is the element's event order, not a softer word. "Nothing changed." beside a lit Redo and a
-  left-over selection is the same class, and waits on a ruling.
-- (2026-11-05) The model's words are the model's; the app's missing line is the defect. "Irreversible"
-  against the card's "Undo can bring them back" is answered by a Declined line after Keep them.
-- (2026-11-05) The model may say anything, so the app's lines are the only words I can stand behind:
-  each effect gets one line, and each line must be true without the prose beside it.
-- (2026-11-05) Before calling words a defect, check the design: the scope placeholder is design 6.1's
-  own text, and a change line with no chip on its turn is decided.
-- (2026-11-05) State claims narrowly: skeptics cut "cannot be told" and "nothing to hover" to what the
-  screen shows. Live-region logs are not what a reader hears; Undone and Transcript words stay open.
-- (2026-11-05) Open and word-related: whether "assistant node style" is element English or a default
-  layer's name (bar 10); whether a run that paints also gets a Colored row. No special layers (owner,
-  2026-11-05), so a layer name gets no special wording either way.
-- (2026-10-30) Preview tags and destructive labels name the act's outcome, never a state or a soft
-  verb ("1 not in graph", "Leave out"). Counts state their basis; one fact, one drawing.
-- (2026-10-30) Across tiers words were not the main cost: order, defaults and one fact drawn two ways
-  were. The default, not the word, is the bigger cost in Hide / Filter out.
+- (2026-11-05) Tier 6 round 2 gave the first readers. Words held: no count disagreed, approval cards
+  were read, no false "done". What failed was where words sit and what they promise, not the terms.
+- (2026-11-05) Composer placeholder says "Ask about this graph" while the scope reads Selection 14:
+  the app contradicts itself where the reader types. Follow the scope: "Ask about this selection".
+- (2026-11-05) "Your work ... comes back" is false for a clean opened file. "Your changes" is true in
+  every case. A tooltip fix cannot be measured while the study tool hovers only on command.
+- (2026-11-05) A hidden 401 and a dropped network are one fact (no status). Word both with "or", not
+  "may be": "the connection failed or the key was refused". Keep Send again; add AI provider...
+- (2026-11-05) One measure, one name, by id: the Assistant's lines take Analyze's `wordsFor` name, not
+  `plainName`. Glossary section 2 rule 1 and line 481. No element change.
+- (2026-11-05) A painting run owes a Colored row: an app line must be true without the prose, and
+  r2-s02's prose denied a repaint over "Computed" lines alone. The effect is unpublished, so additive.
+- (2026-11-05) CORRECTED: "Selected N nodes" exists and showed (r2-s01 `18.png`). My round 1 note that
+  no line says so was the sessions' other path, not the rule.
+- (2026-11-05) The model's words are the model's; each effect gets one app line that stands alone.
+- (2026-11-05) Live claims apply to state words: "Listening" before a microphone opens is cured by the
+  element's event order, not a softer word.
+- (2026-11-05) Before calling words a defect, check the design, and if the design's own text is wrong
+  say so with the evidence. No special layers, so a layer name gets no special wording.
+- (2026-10-30) Preview tags and destructive labels name the act's outcome. Counts state their basis;
+  one fact, one drawing. Order and defaults cost more than words.
 - (2026-10-21) Fix by pointing, not prose; never fix a no-op with explanatory text.
 - (2026-10-21) Do not rename on model opinion or a task's wording; avoidance is not understanding.
 - (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
@@ -220,22 +213,8 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Thinking
 
-- 2026-10-07 **Tier 2 words (proposal to the studio, not yet decided or tested).** Filters: chip
-  "Full graph" / "Filtered: 2 of 22 nodes" (glossary state word + the "N of M" form); step reads
-  as one sentence "[weight] [is at least] [4]"; an edge-attribute step's inspector line "Keeps
-  edges that pass and the nodes at their ends"; empty "No filters. Add filter"; after undo the
-  notice names the step. Checkbox: accessible name "Apply step: weight is at least 4"; the
-  glossary's "Turn off step" is a menu verb -- one of the two must go (open). Path: "Path between"
-  (P), fields From, To, Follow (directed only), Weight; summary "3 nodes, 2 edges, length 7"
-  (length only with a distance weight); never "route". Notes: refined B section 8 words as
-  written; empty "No notes. Add note (N)". Weight: Data page "Higher means: Stronger | Farther |
-  Capacity", with nothing chosen for an auto-picked column; Analyze "Weight: weight, stronger
-  (loaded)"; override recorded in Made with "Weight: emails, stronger (this run only)"; no meaning
-  -> path runs refuse or run unweighted with "(unweighted)". Node weight: line only on entries the
-  catalog marks; attribute text "No measure reads node weight yet". Replace: "Replace with
-  file...", page title "Replace: friends.csv", report "Was 20 nodes, 60 edges; now 22, 74";
-  stale rows "Data changed since this run -- Rerun". Edge inspector title "Ava -- Kofi" /
-  "Ava -> Kofi". Neighborhood popover: "1 | 2 | 3 hops", "Follow: Out | In | All".
+- 2026-10-07 Tier 2 proposals, filter, path, notes, weight and replace words (summarized 2026-11-05):
+  full text is in git history; what shipped is in the tier 2 "closed" entries above.
 - 2026-10-07 Element must give codes, not English, for: filter plan counts per step; selector
   parse failure (number needs backticks, unknown attribute); path refusal (no path, weight has no
   meaning); replace report (added, removed, changed counts); staleness reason (data replaced,
@@ -300,3 +279,13 @@ I read this file at the start of every session and update it as I decide and lea
 - Tried: nothing of mine was measured; words on the Assistant are untested with readers.
 - Did not work: a study round with no spare request budget gave 0 sessions, and 0 sessions leave bars 1 to 7 and 11 with nothing to count. Source: `tier6/rounds/round-1/insights.md`.
 - Thinking: when sessions run, watch whether a reader trusts the prose or the line when they differ; that decides how much a change line must carry.
+
+## Tier 6 round 2 critique (2026-11-05)
+
+- Decided (proposed to the Director): placeholder follows scope; "Your changes" tooltip; "or the key was refused" plus a provider button on a statusless failure; Assistant names by `wordsFor`; Undo notice with no added period (historyWords.ts 359; other notices already have none); Colored row on a painting run.
+- Decided: no change to the "Autosave: saved" label, the model's prose, Group 1 to N, "Show in table", or the failure row's "Nothing changed."
+- Evidence: `r2-s05/05.png`, `r2-s01/18.png`, `r2-s02/29.png`, `r2-s10/05.png`; `grade.md` of r2-s05 ("I did not select anything").
+- Worked: approval card words, 2 of 2; "Undo" in the reply, first choice 2 of 2; change-line counts, no disagreement.
+- Did not work: "the connection failed" alone, 0 of 2 learned the cause; "Selection" as a one-word warning; plain names beside field names (Reach and Closeness on one screen).
+- Thinking: "Computed Bridges for 14 nodes" already carried the narrowing and no reader used it, so a true line after the fact is not a warning. Words must arrive before Send.
+- Open: "Rule: data.gal4RGexp < -1" on an app row (`cards.ts` 1068) keeps the field path; bar 10's audit decides it.

@@ -16,38 +16,35 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-11-05, tier 6 round 1) No reader has met the Assistant. 24 of 24 sessions were refused at
-  `--start`; every finding is four expert walks plus source reading. It says what is on screen,
-  never what a reader paid. Bars 1 to 7 and 11 have nothing to count: never quote them as pass or
-  fail.
-- (2026-11-05) A gate that refuses at the door still let the money go. `plan.md` said the gate
-  fails, the run launched, 12 re-runs repeated one cause. Check `--gate` before launch and stop on
-  the first refusal; a shared-cause void must not spend re-runs.
-- (2026-11-05) Raising the cap alone buys nothing: it is 1 of 7 preconditions. Also needed: 26
-  walks on the session build, the key matched to it, T92 A's plant confirmed, `leaksIn` fixed,
-  "RETURNING" out of the prompts, the gate check at launch. Attack any restart missing one.
-- (2026-11-05) "A RETURNING user" was in the first prompt of 24 of 24 sessions; 9 of 12 are first
-  meetings. I screened tasks and briefings, never the prompt the tool renders. Screen that text.
-- (2026-11-05) "Far above what 12 sessions need" was never measured: dry runs spent 2,892 of 3,000
-  and the walks the last 108. Any budget claim needs a per-phase ledger; "never re-set a limit from
-  data" covers bars, not spend. The cap also has a side door: 4 real requests went past it through
-  a private count file. Close it before raising it.
-- (2026-11-05) My plant idea held on a walk with no plant: the model's own selection survived an
-  Undo and narrowed "Color by role" to 5 nodes; later a removal took 1 of 16. Replies were honest
-  and the scope line read Selection. Whether a reader catches it is still untested; keep the bar
-  counting only sessions with something to doubt.
-- (2026-11-05) A code reading is not a 3. The 400% claim is CSS arithmetic, never measured; no
-  skeptic re-ran anything. It counts only once `repro/` holds it, which needs no Gemini request.
-  Talk fell to 2 by the test that held Done at 2: the belief corrects itself.
-- (2026-11-05) Bars failed on their own wording again: bar 8's Settings row (returning to the
-  opener is right), bar 11 ("every session", 0 ran), bar 10 (a list not reached). Audit the rule
-  before counting: tiers 1, 3 and 4 did the same.
-- (2026-11-05) Smallest fixes to hold to: one additive selection effect; one focus rule for Remove,
-  Answer, Undo (not five cases); the app replaces the name by id; `fullWidth` on starters. Refuse
-  a Colored row on painting runs unless a session shows the "Computed" line misleads.
-- (2026-11-05) Text size, the chip in a change line and scope drift as harm are questions for T90
-  and T92, not findings. Build nothing from them on two walks and a 2 px gap.
-- (2026-11-05) A question to the owner must carry live numbers: the open entry says 145 left, 0 are.
+- (2026-11-05, tier 6 round 2) 12 sessions ran: 11 of 12 succeeded, no severity 3 confirmed, the
+  worst are 2s. Nine critics converged, so the risk now is every role adding one more line to the
+  same turn. Hold one change per problem so the next round can credit each.
+- (2026-11-05) A painting run keeps ONE line. `styleEffects` is one effect per channel, so a Colored
+  row multiplies by channels and by runs (r2-s02 has three), and its `source` is a result path that
+  `attributeName` may print raw. Use `session.runs.painting(id)`, already public, for one fact on
+  `AI_EFFECT_RUN` and the same fact in `summarizeRun`, which is what stops the model's denial.
+- (2026-11-05) Scope gets the placeholder only, keyed on `scope.kind` (x pressed reads Whole graph).
+  No "Only selection", no row under You: the evidence is one planted reader, and two changes blur
+  the credit. Escalate only if the plant fails again.
+- (2026-11-05) The log: `conversation` as a dependency misses `ChipRow`, which draws after an async
+  count. A ResizeObserver needs a wrapper (the log's own box never grows) and must not pull a reader
+  who just opened a step. Measure `position: relative` alone first.
+- (2026-11-05) One name means `wordsFor` with no `plainName` fallback: the key falls back to the
+  technical name, so a fallback splits every extension in two. Prose keeps the catalog's words, so
+  finding 6 may survive in replies; do not claim it closed.
+- (2026-11-05) Autosave: tooltip only, "not yet in a file" (never "Unsaved" under a chip saying
+  saved). A label that flips on every Save and Undo is a new state for two primed readers. This
+  does not close Ruth's session; say so.
+- (2026-11-05) Show in table: scrollToRow reveals 1 of 7 and has no index in a paged sort; narrowing
+  to the rows is the only proposal reaching all of them, but the chip is tied to a run today.
+- (2026-11-05) "RETURNING" in first-meeting prompts and the CORS lines still need removing before
+  round 3. I missed the first by screening tasks, never the prompt the tool renders. Screen that.
+- (2026-11-05) A gate that refuses at the door still let the money go in round 1. Check `--gate`
+  before launch; a shared-cause void must not spend re-runs. Budget claims need a per-phase ledger.
+- (2026-11-05) A code reading is not a 3. The 400% failure now has walks in tmp; it counts once
+  `repro/` holds them. Every proposal in round 2 is source reading, unmeasured.
+- (2026-11-05) Bars failed on their own wording again (bar 7 reads the session's end, not Undo).
+  Audit the rule before counting: tiers 1, 3 and 4 did the same.
 - (2026-11-05, criteria) A prompt that asks for the check cannot measure it; a first-time reader
   cannot miss a layer list they never met, so T91 keeps the by-hand tweak.
 - Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; success
@@ -105,6 +102,14 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 round 2 critique.** Reversed my "refuse a Colored line unless a session shows
+  it misleads": r2-s02/29 and r2-s10/05 are that evidence, but the answer is one fact on the run's
+  line, not a row. Rejected: "Only selection", a You-turn scope row, "Autosave: no changes", the
+  open-file handle in this pass, scrollToRow, selected-first sort, the failure glyph, the Esc rider
+  on the focus fix, the reply gap. Kept: second button on the status-less failure (a named cause
+  with no door is a notice). Closed a false lead: "Bridges (visible)" is `work.json`'s record; the
+  screen column reads "Betweenness (visible)" (r2-s05 transcript line 72). Reason: each rejection
+  adds a state or a row on evidence from one session, or misses the mechanism in source.
 - **2026-11-05, tier 6 round 1 closed, no session ran.** Positions: restart only on all seven
   preconditions in `scores.md`, from clean folders with no re-run spent (the Director's call);
   close the private count file before any cap rise; on the open rulings, a rollback that changed
@@ -164,6 +169,11 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 -- Worked: checking each proposal's named site against source. It found the wrong path
+  (`apply_suggestion` at style.ts:822 is not how `run_algorithm` paints), a false claim (DataTable
+  does have `scrollToRow`), a void risk (`assistant/words.ts` already reaches `analyze/words` through
+  `style/words`), and an existing public fact (`runs.painting`) nobody cited. Not tried: whether
+  `painting()` is filled when `settleRun` reads it; nothing here was run.
 - 2026-11-05 -- Did not work: my prompt screen read tasks and briefings, so it missed "RETURNING"
   in every rendered prompt. Worked: the planted-selection idea (a walk reached it unplanted); the
   skeptics settling a fact at its source (the route log named who made the selection). Did not
@@ -228,6 +238,9 @@ served at `/?next`.
 
 ## Sources
 
+- tier6/rounds/round-2/{insights,scores}.md, r2-s05 transcript and grade; `assistant/Conversation.tsx`,
+  `Checks.tsx`, `words.ts`, `table/TableDock.tsx`, `analyze/words.ts`, `autosave/words.ts`;
+  element `ai/tools/effects.ts`, `families/algorithms.ts`, `families/style.ts`, `session/runs/types.ts` (2026-11-05)
 - tier6/rounds/round-1/{insights,scores,plan}.md, `owner-decisions.md` top entry (2026-11-05)
 - tier6 criteria, tasks, answers, roster, decided, design, connected-*.txt;
   `design/ai/assistant-chat-research.md`; `tool/real.mjs` lines 293-300, 976 (follow-up for any

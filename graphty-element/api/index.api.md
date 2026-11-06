@@ -5411,8 +5411,8 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            uniform: "uniform";
             diameter: "diameter";
+            uniform: "uniform";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             low: "low";

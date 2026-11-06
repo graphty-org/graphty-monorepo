@@ -2250,6 +2250,20 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether a layout that keeps nodes apart by their drawn size (`nodeGap`) would spend its pre-steps before
+     * every size has been drawn. A style pass arrives, and the object rows build their meshes over several
+     * frames, on the clock; pre-steps spent then took whichever sizes had arrived, so the same seed drew a
+     * different graph built before the nodes were drawn than after, and on the object rows than on the batch.
+     * The pre-steps are owed instead, and paid on the first frame with every size.
+     * @param engine - The engine about to spend them.
+     * @returns True while a size is still to come.
+     */
+    private sizesToCome(engine: LayoutEngine): boolean {
+        const painter = this.graphContext?.getStylePainter?.();
+        return engine.spacesBySize && (painter?.isPainting === true || painter?.hasPendingNodes === true);
+    }
+
+    /**
      * Spend the pre-steps a layout built over an empty graph could not spend at the time.
      *
      * WHY THIS EXISTS. `preSteps` promises the simulation is run that many times BEFORE THE FIRST
@@ -2269,20 +2283,6 @@ export class LayoutManager implements Manager {
      * caller inside a render loop can wait for a device; what {@link LayoutManager.spendPreSteps}
      * guarantees for one is that every owed iteration is computed rather than coalesced away.
      */
-    /**
-     * Whether a layout that keeps nodes apart by their drawn size (`nodeGap`) would spend its pre-steps before
-     * every size has been drawn. A style pass arrives, and the object rows build their meshes over several
-     * frames, on the clock; pre-steps spent then took whichever sizes had arrived, so the same seed drew a
-     * different graph built before the nodes were drawn than after, and on the object rows than on the batch.
-     * The pre-steps are owed instead, and paid on the first frame with every size.
-     * @param engine - The engine about to spend them.
-     * @returns True while a size is still to come.
-     */
-    private sizesToCome(engine: LayoutEngine): boolean {
-        const painter = this.graphContext?.getStylePainter?.();
-        return engine.spacesBySize && (painter?.isPainting === true || painter?.hasPendingNodes === true);
-    }
-
     private runPreStepsOnceThereIsSomethingToStep(): void {
         const engine = this.layoutEngine;
         if (!this.preStepsOwed || !engine) {

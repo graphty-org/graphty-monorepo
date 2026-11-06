@@ -854,12 +854,21 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /**
      * Submits one batch and waits for it, which the pre-step loop and the tests need.
+     *
+     * SIZES THAT CHANGED SINCE THE COLLISION WAS LAST SET ARE TAKEN IN FIRST. A frame's `step()` takes them at the
+     * publish that follows it, but the pre-steps publish only once they are all spent, so they ran with whatever
+     * radii were measured last -- part-way through the repaint when a frame had happened to measure them then. The
+     * same seed then drew a different graph built before the nodes were drawn than after.
      * @param iterations - Iterations this batch computes.
      * @returns A promise that resolves when the batch has landed, or rejects with its failure.
      */
     async stepAsync(iterations: number): Promise<void> {
         if (this.#simulation === null || this.#failed) {
             return;
+        }
+
+        if (this.#radiiStale && this.#snapshot !== null) {
+            this.#applyCollision(this.#snapshot.nodeCount);
         }
 
         this.#iterationsDone += iterations;

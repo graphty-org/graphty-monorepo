@@ -219,7 +219,9 @@ export interface LayerProblem {
     readonly candidates?: readonly string[];
     /**
      * A refused shader use, as a code and its values: `shader.place-unsupported`
-     * `{ shader, place, allowed }` or `shader.target-mismatch` `{ expected, found }`.
+     * `{ shader, place, allowed }`, `shader.target-mismatch` `{ expected, found }`, or
+     * `shader.uses-not-a-list` `{ channel, found }` for a shader list written as something else
+     * (`found` is the `typeof` it was written as, or `"null"`).
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
@@ -1686,6 +1688,10 @@ function checkShaderValue(
             code: "E_BAD_LAYER",
             message: `${descriptor.plainName} takes a list of shader uses, such as [{ shader: "lock-on-reticle" }].`,
             path,
+            fact: {
+                code: "shader.uses-not-a-list",
+                params: { channel: descriptor.channel, found: value === null ? "null" : typeof value },
+            },
         });
 
         return;

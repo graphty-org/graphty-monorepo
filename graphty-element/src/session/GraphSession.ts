@@ -3629,6 +3629,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
+        onRefused: (refusal) => {
+            publish(watchers, "style:refused", refusal);
+        },
         onBatch: (batch) => {
             publish(watchers, "style:batch-changed", batch);
         },

@@ -110,7 +110,7 @@ import type {
     SourcePreviewOptions,
     SourceRefreshReport,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
@@ -2972,6 +2972,12 @@ export interface SessionEventMap {
      * consumer undoes, records and mirrors.
      */
     "style:changed": StyleChange;
+    /**
+     * A layer was refused for what it says about shaders: published as well as rejected, for a
+     * `styles.add()` nobody awaits, whose refusal otherwise leaves no trace.
+     * @since 3.46.0
+     */
+    "style:refused": StyleRefusal;
     /**
      * Once per repaint, after the last `style:changed` it published: how many edits it told and
      * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,

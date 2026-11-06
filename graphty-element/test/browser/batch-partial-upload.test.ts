@@ -5,17 +5,20 @@
  */
 import "../../src/graphty-element";
 
-import { ArcRotateCamera, Buffer, Engine, Mesh, MeshBuilder, Scene, Vector3 } from "@babylonjs/core";
+import { ArcRotateCamera, Buffer, Engine, Logger, Mesh, MeshBuilder, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
+import { operationQueueOf } from "../../src/Graph";
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
+import { useBundledStandardShaders } from "../../src/meshes/bundledStandardShaders";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import { EDGE_STATIC_FLOATS, JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
 import { EdgeLineBatch, forceExpandedLines, isEdgeLineBatchMesh } from "../../src/meshes/EdgeLineBatch";
 import { batchUploadFrames } from "../../src/meshes/FrameRoster";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 // The timeline is an experiment: the element tests below switch it on or off themselves.
 beforeAll(() => {
@@ -47,6 +50,12 @@ interface Writes {
     mirrors(): readonly Mirror[];
 }
 
+/** How much of a row of the picture is line and how much is cap, in pixels. */
+interface Ink {
+    line: number;
+    head: number;
+}
+
 const cleanups: (() => void)[] = [];
 let mounted: Graphty | null = null;
 
@@ -71,6 +80,9 @@ function webgl2Scene(): Scene {
     const engine = new Engine(canvas, false);
     assert.strictEqual(engine.webGLVersion, 2);
     const scene = new Scene(engine);
+    // As the element's own scene does: a lazy import still on its way when the context goes compiles
+    // an empty shader on the way back.
+    useBundledStandardShaders(scene);
     scene.activeCamera = new ArcRotateCamera("camera", 0, 0, 10, Vector3.Zero(), scene);
     cleanups.push(() => {
         engine.dispose();
@@ -333,13 +345,18 @@ describe("ranged uploads on a real GPU buffer", () => {
             it("a lost context after a dirty run at slot 0 is restored at full size", async () => {
                 const scene = webgl2Scene();
                 const batch = settled(scene, make);
+                const logged = vi.spyOn(Logger, "Error");
+                await scene.whenReadyAsync();
 
                 // Alone: a later run's upload would clear what a run at slot 0 left in the buffer.
                 batch.place(0, 3);
                 scene.render();
                 await loseAndRestore(scene);
                 scene.render();
+                await scene.whenReadyAsync();
 
+                assert.isTrue(batch.mesh.isReady(true), "the mesh compiled again");
+                assert.deepEqual(logged.mock.calls, [], "and nothing failed to");
                 const gl = (scene.getEngine() as Engine)._gl;
                 for (const { buffer, width, spread } of batch.mirrors()) {
                     (scene.getEngine() as Engine).bindArrayBuffer(buffer.getBuffer());
@@ -357,6 +374,16 @@ describe("ranged uploads on a real GPU buffer", () => {
         });
     }
 });
+
+/**
+ * Wait for what a step asked for to reach the picture.
+ * @param element - The element.
+ */
+async function drawn(element: Graphty): Promise<void> {
+    await element.waitForSettled();
+    await element.waitForStableFrame();
+    await drawnFrames(element.graph.getScene(), 2);
+}
 
 describe("the element's switch", () => {
     /**
@@ -391,12 +418,6 @@ describe("the element's switch", () => {
         };
         await element.waitForSettled();
         return element;
-    }
-
-    async function drawn(element: Graphty): Promise<void> {
-        await element.waitForSettled();
-        await element.waitForStableFrame();
-        await drawnFrames(element.graph.getScene(), 2);
     }
 
     it("is on only while a window is in force, and a step then sends runs of the edge buffers", async () => {
@@ -450,5 +471,142 @@ describe("the element's switch", () => {
         await drawn(element);
 
         assert.isFalse(batchUploadFrames.rangedUploads(element.graph.getScene()).on);
+    });
+});
+
+describe("a context lost while a window is in force", () => {
+    /**
+     * The height of each edge. The first takes slot 0 and sits between the others, so that framing
+     * the graph without it frames the same area.
+     */
+    const ROWS = [1, 3, -1, -3];
+    const LINE = "#0000ff";
+    const HEAD = "#ff0000";
+
+    /**
+     * Count the line's and the head's pixels in a band of the canvas.
+     * @param canvas - The element's canvas.
+     * @param from - One end of the band, in CSS pixels.
+     * @param from.x - Across.
+     * @param from.y - Down.
+     * @param to - The other end.
+     * @param to.x - Across.
+     * @returns How many pixels are mostly blue and how many mostly red.
+     */
+    function inkAlong(canvas: HTMLCanvasElement, from: { x: number; y: number }, to: { x: number }): Ink {
+        const scale = canvas.width / canvas.clientWidth;
+        const copy = document.createElement("canvas");
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const context = copy.getContext("2d");
+        assert.isNotNull(context);
+        context.drawImage(canvas, 0, 0);
+        const left = Math.round(Math.min(from.x, to.x) * scale);
+        const width = Math.round(Math.abs(from.x - to.x) * scale);
+        const reach = Math.round(10 * scale);
+        const { data } = context.getImageData(left, Math.round(from.y * scale) - reach, width, reach * 2);
+        const ink = { line: 0, head: 0 };
+        for (let i = 0; i < data.length; i += 4) {
+            ink.line += Number(data[i + 2] > 150 && data[i] < 100 && data[i + 1] < 100);
+            ink.head += Number(data[i] > 150 && data[i + 1] < 100 && data[i + 2] < 100);
+        }
+
+        return ink;
+    }
+
+    /**
+     * Read every row's ink.
+     * @param element - The element.
+     * @returns Each row's, in {@link ROWS} order.
+     */
+    function inkOfRows(element: Graphty): Ink[] {
+        const canvas = element.graph.getScene().getEngine().getRenderingCanvas();
+        assert.isNotNull(canvas);
+        return ROWS.map((_, row) => {
+            const src = element.nodeScreenPosition(`src${String(row)}`);
+            const dst = element.nodeScreenPosition(`dst${String(row)}`);
+            assert.exists(src);
+            assert.exists(dst);
+            return inkAlong(canvas, src, dst);
+        });
+    }
+
+    it("draws every line and cap again after a dirty run at slot 0", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.setAttribute("edge-time-path", "t");
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.session.data.addNodes(
+            ROWS.flatMap((y, row) => [
+                { id: `src${String(row)}`, position: { x: -4, y, z: 0 } },
+                { id: `dst${String(row)}`, position: { x: 4, y, z: 0 } },
+            ]),
+        );
+        await element.session.data.addEdges(
+            ROWS.map((_, row) => ({ src: `src${String(row)}`, dst: `dst${String(row)}`, t: row === 0 ? 15 : 28 })),
+        );
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await styleEveryNode(element.graph, { "node.color": "#808080", "node.size": 0.5 });
+        await styleEveryEdge(element.graph, {
+            "edge.color": LINE,
+            "edge.arrowHead": "normal",
+            "edge.arrowHeadSize": 3,
+            "edge.arrowHeadColor": HEAD,
+        });
+        await element.session.time.setField({ edges: { start: "t" } });
+        await element.session.time.ready;
+        await element.session.time.window({ from: 0, to: 20, step: 5, nodes: "ends" });
+        await element.session.time.seek(20, { commit: false });
+        await drawn(element);
+        const scene = element.graph.getScene();
+        const buffers = (kind: string): Set<Buffer | undefined> =>
+            new Set(scene.meshes.map((mesh) => mesh.getVertexBuffer(kind)?.getWrapperBuffer()));
+        const lines = buffers("pA");
+        lines.delete(undefined);
+        assert.isAbove(lines.size, 0, "the edges are drawn as a batch");
+        const update = vi.spyOn(Buffer.prototype, "updateDirectly");
+        const matrices = vi.spyOn(Mesh.prototype, "thinInstanceBufferUpdated");
+
+        // The first edge comes back, and nothing else changes.
+        await element.session.time.seek(10, { commit: false });
+        await drawn(element);
+
+        const updated = update.mock.contexts as Buffer[];
+        const runAtSlotZero = update.mock.calls.some(
+            ([data, at], call) =>
+                lines.has(updated[call]) &&
+                at === 0 &&
+                data instanceof Float32Array &&
+                data.length * 4 < data.buffer.byteLength,
+        );
+        assert.isTrue(runAtSlotZero, "the step sent a line's slot 0 as a run");
+        assert.isTrue(
+            (matrices.mock.contexts as Mesh[]).some((mesh) => mesh.getVertexBuffer("arrowColor") !== null),
+            "and a cap's slot 0, whose matrices go whole",
+        );
+        const before = inkOfRows(element);
+        for (const [row, { line, head }] of before.entries()) {
+            assert.isAbove(line, 0, `row ${String(row)} has its line to start with`);
+            assert.isAbove(head, 0, `row ${String(row)} has its cap to start with`);
+        }
+
+        const logged = vi.spyOn(Logger, "Error");
+        const canvas = scene.getEngine().getRenderingCanvas();
+        assert.isNotNull(canvas);
+        canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+        canvas.dispatchEvent(new Event("webglcontextrestored"));
+        await scene.whenReadyAsync();
+        await drawnFrames(scene, 5);
+
+        assert.deepEqual(logged.mock.calls, [], "every shader compiled again");
+        for (const [row, { line, head }] of inkOfRows(element).entries()) {
+            assert.isAbove(line, 0, `row ${String(row)} has its line again`);
+            assert.isAbove(head, 0, `row ${String(row)} has its cap again`);
+        }
     });
 });

@@ -267,6 +267,53 @@ describe("partial uploads", () => {
         });
     });
 
+    describe("an expanded batch repeats only the slots written", () => {
+        const WRITTEN = 10;
+        const UNTOUCHED = 20;
+
+        /**
+         * Mark two slots' rows of a per-vertex copy with a value no write leaves there.
+         * @param copy - The copy.
+         * @param width - Floats in a row.
+         * @returns Reads each slot's rows back: whether they still hold the mark.
+         */
+        function poison(copy: Float32Array, width: number): (slot: number) => boolean {
+            const rows = (slot: number): Float32Array =>
+                copy.subarray(slot * VERTICES * width, (slot + 1) * VERTICES * width);
+            rows(WRITTEN).fill(-1);
+            rows(UNTOUCHED).fill(-1);
+            return (slot) => rows(slot).every((value) => value === -1);
+        }
+
+        function copies(batch: EdgeLineBatch): { slots: Float32Array; statics: Float32Array } {
+            return (batch as unknown as { expanded: { slots: Float32Array; statics: Float32Array } }).expanded;
+        }
+
+        it("in its slots", () => {
+            const batch = lines({ expanded: true }, 64);
+            settle();
+            const poisoned = poison(copies(batch).slots, JOIN_FLOATS_PER_PIECE);
+
+            batch.setDrawn(WRITTEN, false);
+            frame();
+
+            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
+            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
+        });
+
+        it("in its static values", () => {
+            const batch = lines({ expanded: true, widened: true }, 64);
+            settle();
+            const poisoned = poison(copies(batch).statics, EDGE_STATIC_FLOATS);
+
+            batch.writeStatic(WRITTEN, new Float32Array(EDGE_STATIC_FLOATS).fill(5));
+            frame();
+
+            assert.isFalse(poisoned(WRITTEN), "the slot written is copied");
+            assert.isTrue(poisoned(UNTOUCHED), "the slot not written is left alone");
+        });
+    });
+
     describe("a write the runs cannot answer for", () => {
         for (const [name, make, floats] of [
             ["lines", () => lines({}), JOIN_FLOATS_PER_PIECE],

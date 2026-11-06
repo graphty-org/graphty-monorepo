@@ -82,6 +82,11 @@ export function watchWaiting(element: GraphtyElement, store: WorkspaceStore): vo
         const away = isAway(store);
         if (away !== wasAway) {
             wasAway = away;
+            // A failure the reader saw is old news once they leave the panel.
+            const ended = store.get().assistantEnded;
+            if (away && ended?.news === true) {
+                store.set({ assistantEnded: { ...ended, news: false } });
+            }
             sync();
         }
     });

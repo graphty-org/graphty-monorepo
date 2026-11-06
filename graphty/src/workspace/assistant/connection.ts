@@ -223,7 +223,8 @@ async function follow(
     const lines = changeLines(element.session, changes);
     const said = [...lines, words?.line ?? WORDS["assistant.status.ready"]].join(". ");
     store.set((state) => ({
-        assistantEnded: words === null ? null : { code: ended.code, params: ended.params },
+        assistantEnded:
+            words === null ? null : { code: ended.code, params: ended.params, news: words.failed && !isAway(store) },
         assistantDraft: (words === null && !replaced) || state.assistantDraft !== "" ? state.assistantDraft : text,
         // A notice speaks its own words, so away from the panel they are said once.
         ...(words?.failed === true || isAway(store) ? {} : { announcement: said }),

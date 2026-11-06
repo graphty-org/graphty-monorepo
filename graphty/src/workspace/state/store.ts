@@ -107,6 +107,11 @@ export interface WorkspaceState {
     readonly assistantEnded: {
         readonly code: AiResultCode;
         readonly params: AiResultParams;
+        /**
+         * It failed while the panel was open: the newest turn's row is the alert until the reader
+         * leaves the panel, so a reopened log never says an old failure again.
+         */
+        readonly news?: boolean;
     } | null;
     readonly rightWidth: number;
     readonly dockHeight: number;

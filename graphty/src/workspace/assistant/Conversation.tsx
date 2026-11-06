@@ -1,6 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import { Button, Collapse, Group, Text } from "@mantine/core";
+import { Button, Collapse, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { AssistantChoice } from "../assistant-door/provider";
@@ -177,25 +177,28 @@ interface EndRowProps {
     /** Whether the turn left the graph as it was. */
     readonly unchanged: boolean;
     readonly onAgain: (() => void) | null;
-    /** Whether the row is on the newest turn, where a failure can be arriving. */
-    readonly newest: boolean;
+    /** Whether a failure is news: it ended while the log was open, so a reopened log never repeats it. */
+    readonly alert: boolean;
 }
 
 /**
- * How a turn ended, in words from its code, with its buttons. A failure is the alert. The buttons
- * stay out of the alert, so the one going away on the next send changes nothing
- * it says, and a space keeps its two lines two sentences when read as one.
+ * How a turn ended, in words from its code, with its buttons under it, so the words get the
+ * panel's width. A new failure is the alert. The buttons stay out of the alert, so the one going
+ * away on the next send changes nothing it says, and a space keeps its two lines two sentences when
+ * read as one.
  * @param props - Component props
  * @param props.words - the words
  * @param props.unchanged - whether nothing changed
  * @param props.onAgain - sends the message again, on the newest turn
+ * @param props.alert - whether a failure is news
  * @returns The row
  */
-function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX.Element {
+function EndRow({ words, unchanged, onAgain, alert }: Readonly<EndRowProps>): React.JSX.Element {
     const { run } = useWorkspace();
     return (
-        <Group justify="space-between" align="flex-end" gap={4} wrap="nowrap">
-            <div role={words.failed ? "alert" : undefined}>
+        <Stack gap={4} align="flex-start">
+            {/* Keyed, so a failure becoming news mounts with its role and is said. */}
+            <div key={String(alert)} role={words.failed && alert ? "alert" : undefined}>
                 <Text size="sm">{words.line}</Text>{" "}
                 {words.failed && words.action !== null && unchanged ? (
                     <Text size="sm">{WORDS["assistant.nothing-changed"]}</Text>
@@ -219,7 +222,7 @@ function EndRow({ words, unchanged, onAgain }: Readonly<EndRowProps>): React.JSX
                     </Button>
                 ) : null}
             </Group>
-        </Group>
+        </Stack>
     );
 }
 
@@ -274,13 +277,16 @@ interface TurnViewProps {
 /**
  * What a turn's reply says: what was saved, with what streams while it runs (a continued message
  * streams only what it adds, and a hold saved mid-run holds the start of what streams), and what
- * streamed for a run that ended before its words were saved.
+ * streamed for a run that ended before its words were saved. Words said while a request waited
+ * on the reader go once the reader has answered it.
  * @param turn - the turn.
  * @param status - the status, on the newest turn.
  * @returns the text.
  */
 function proseOf(turn: Turn, status: AiStatus | null): string {
+    // Words about a wait the reader has since ended no longer stand: the decision's reply says what happened.
     const said = turn.replies
+        .filter((reply) => reply.saidWhileHeld !== true)
         .map((reply) => reply.text)
         .filter((text) => text !== "")
         .join("\n");
@@ -358,6 +364,7 @@ function ReplyRows({
     onHold,
 }: Readonly<TurnViewProps>): React.JSX.Element | null {
     const lastEnded = useWorkspaceState((state) => state.assistantEnded);
+    const news = useWorkspaceState((state) => state.assistantEnded?.news === true);
     const [stepsOpen, setStepsOpen] = useState(false);
     const running = isRunning(status);
     const prose = proseOf(turn, status);
@@ -390,7 +397,7 @@ function ReplyRows({
             {words === null ? null : (
                 <EndRow
                     words={words}
-                    newest={status !== null}
+                    alert={status !== null && news}
                     unchanged={!effects.some(isChange)}
                     onAgain={
                         onAgain === null || reader === null
@@ -461,6 +468,8 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
         following.current = true;
         setBehind(false);
     };
+    // How the last run ended draws the newest turn's ending row, with no status change.
+    const ended = useWorkspaceState((state) => state.assistantEnded);
     // Every streamed word can lengthen the log.
     useLayoutEffect(() => {
         if (following.current) {
@@ -468,7 +477,7 @@ export function Conversation({ conversation, status, choice }: Readonly<Conversa
         } else {
             setBehind(true);
         }
-    }, [turns.length, status?.streamedText, status?.toolCalls?.length, status?.state, late]);
+    }, [turns.length, status?.streamedText, status?.toolCalls?.length, status?.state, late, ended]);
     // Rows that draw later (a chip row waits for its count) lengthen the log with no status change,
     // and the composer growing shortens it.
     useEffect(() => {

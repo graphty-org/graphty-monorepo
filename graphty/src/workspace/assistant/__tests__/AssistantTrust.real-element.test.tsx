@@ -595,27 +595,29 @@ describe("checking what the Assistant says", () => {
         await within(log()).findByText(/Odd it is\./);
     });
 
-    it("keeps the reply beside a request while the decision runs, and after it", async () => {
+    it("shows the reply beside a request while it waits, and reads once after Remove", async () => {
         await openOn(12);
         model.turns = [
             calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
-            { text: "All twelve would go.", toolCalls: [] },
-            { text: "Gone.", toolCalls: [] },
+            { text: "Removing them waits for your approval.", toolCalls: [] },
+            { text: "Removed all twelve.", toolCalls: [] },
         ];
         model.holdTurn = 2;
         await say("Remove them");
         const section = await screen.findByRole("region", { name: "Waiting for you" });
-        await within(log()).findByText("All twelve would go.");
+        await within(log()).findByText("Removing them waits for your approval.");
 
+        // The wait is over once the reader decides: its words go while the decision runs, and after it.
         await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        assert.isDefined(within(log()).getByText(/All twelve would go\./));
+        assert.isNull(within(log()).queryByText(/waits for your approval/));
 
         model.release();
-        await within(log()).findByText(/Gone\./);
-        assert.isDefined(within(log()).getByText(/All twelve would go\./));
+        await within(log()).findByText("Removed all twelve.");
+        await within(log()).findByText("Removed 12 nodes");
+        assert.isNull(within(log()).queryByText(/waits for your approval/));
     });
 
     it("reads Selection with 42 selected, and x sends scope graph for one message", async () => {
@@ -968,12 +970,42 @@ describe("checking what the Assistant says", () => {
                 }
             },
         );
-        await openOn(3);
-        await userEvent.click(await screen.findByRole("button", { name: "Talk" }));
+        const { store } = await openOn(3);
+        const said: string[] = [];
+        store.subscribe(() => {
+            said.push(store.get().announcement);
+        });
+        const rowAt = (): DOMRect => screen.getByRole("button", { name: "Send" }).getBoundingClientRect();
+        await screen.findByRole("button", { name: "Talk" });
+        const before = rowAt();
+        await userEvent.click(screen.getByRole("button", { name: "Talk" }));
         await userEvent.click(await screen.findByRole("button", { name: "Stop talking" }));
         finish();
-        await screen.findByText("Heard nothing.");
+        // The status line says it too, so the drawn line is looked for in the panel.
+        await within(screen.getByRole("region", { name: "Assistant" })).findByText("Heard nothing.");
         await screen.findByRole("button", { name: "Talk" });
+        assert.deepEqual(rowAt().toJSON(), before.toJSON(), "the line leaves the composer row where it was");
+        assert.include(said, "Heard nothing.");
+    });
+
+    it("keeps Send's place and width while it reads Stop, so Talk never moves", async () => {
+        fakeSpeech();
+        await openOn(3);
+        const talk = await screen.findByRole("button", { name: "Talk" });
+        const send = screen.getByRole("button", { name: "Send" });
+        const before = { talk: talk.getBoundingClientRect().toJSON(), send: send.getBoundingClientRect().toJSON() };
+        model.holdTurn = 0;
+        await say("Take your time");
+        const stop = await screen.findByRole("button", { name: "Stop Esc" });
+        assert.strictEqual(stop, send, "one button, so focus survives the change");
+        assert.deepEqual(stop.getBoundingClientRect().toJSON(), before.send);
+        assert.deepEqual(screen.getByRole("button", { name: "Talk" }).getBoundingClientRect().toJSON(), before.talk);
+        // A release before the model reaches its hold is lost.
+        await waitFor(() => {
+            assert.isTrue(model.held);
+        });
+        model.release();
+        await finished();
     });
 
     it("Talk lands the words in the composer without sending, and the sent message reads You (spoken)", async () => {

@@ -483,6 +483,12 @@ describe("talking to the Assistant", () => {
         assert.include(row.textContent, "Could not reach Google: the service is unavailable.");
         assert.include(row.textContent, "Nothing changed.");
         const log = screen.getByRole("region", { name: "Chat" });
+        // The buttons sit under the words, so the words get the log's width.
+        const words = row.getBoundingClientRect();
+        assert.isAtLeast(
+            within(log).getByRole("button", { name: "Send again" }).getBoundingClientRect().top,
+            words.bottom,
+        );
         assert.notInclude(log.textContent, "exploded");
         assert.strictEqual((await composer()).value, "Please answer");
 
@@ -878,6 +884,9 @@ describe("talking to the Assistant", () => {
         });
         await userEvent.keyboard(" now");
         assert.strictEqual(again.value, "Please answer now");
+        // The reopened log shows the failure, but says it only once: it is no alert now.
+        await within(screen.getByRole("region", { name: "Chat" })).findByText("Nothing changed.");
+        assert.isNull(screen.queryByRole("alert"));
     });
 
     it("follows a failure and its Send again to the foot of a long log", async () => {
@@ -942,7 +951,9 @@ describe("talking to the Assistant", () => {
             await userEvent.click(screen.getByRole("button", { name: "Send again" }));
             await waitFor(() => {
                 assert.strictEqual(model.asked, sent + 1);
-                assert.lengthOf(screen.getAllByRole("alert"), sent + 1);
+                assert.lengthOf(screen.getAllByText("Nothing changed."), sent + 1);
+                // Only the newest failure is news.
+                assert.lengthOf(screen.getAllByRole("alert"), 1);
             });
             await screen.findByRole("button", { name: "Send" });
             await waitFor(() => {

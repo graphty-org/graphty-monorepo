@@ -249,8 +249,8 @@ describe("the table dock", () => {
         await within(dock).findByText("13 edges");
         assert.lengthOf(drawnRows("Edges"), 13);
 
-        // The card turned on from its box: the table lists the 6 edges it keeps.
-        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        // The card ("weight min 7") turned on from its box: the table lists the 6 edges it keeps.
+        await userEvent.click(await screen.findByRole("checkbox", { name: /^Use weight/ }));
         await within(dock).findByText("6 of 13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 6);
@@ -258,7 +258,7 @@ describe("the table dock", () => {
         assert.equal(live.visibility.summary.visibleEdges, 6);
 
         // Off again: every edge, and the count says only that.
-        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        await userEvent.click(screen.getByRole("checkbox", { name: /^Use weight/ }));
         await within(dock).findByText("13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 13);

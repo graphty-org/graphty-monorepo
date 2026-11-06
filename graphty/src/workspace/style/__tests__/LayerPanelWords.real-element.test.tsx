@@ -79,7 +79,7 @@ describe("the layer panel's words", () => {
         assert.isNull(screen.queryByText(/^The first style you set/), "said only before the layer is made");
     });
 
-    it("keeps the shape's value in its name, and reads the Which row as a heading", async () => {
+    it("keeps the shape's value in its name, and reads Which nodes as a tree named for it", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Boxes",
@@ -91,7 +91,8 @@ describe("the layer panel's words", () => {
         await clickRow("Boxes");
         const shape = await screen.findByRole("combobox", { name: /^Node shape, / });
         assert.notInclude(shape.getAttribute("aria-label") ?? "", "default", "a set value is not the default");
-        assert.isNotNull(await screen.findByRole("heading", { name: /^Which nodes/ }));
+        // The selection outline is a tree named Which nodes, its title row first.
+        assert.isNotNull(await screen.findByRole("tree", { name: /^Which nodes/ }));
     });
 
     it("names an edge color's step as the edge's", async () => {

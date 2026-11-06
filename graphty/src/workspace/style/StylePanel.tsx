@@ -7,15 +7,9 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import {
-    findTreeRow,
-    isBaseRow,
-    isHidden,
-    isLocked,
-    paintedTarget,
-    rowLayers as treeRowLayers,
-} from "../graph-place/rows";
+import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
 import { errorWords } from "../project/words";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
@@ -186,7 +180,6 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
-                base={isBaseRow(session, rowId)}
                 {...elsewhere}
             />
         ),
@@ -570,7 +563,7 @@ export function RowStyle({
                             key={side}
                             value={side}
                             rightSection={
-                                paints(side) ? undefined : (
+                                paints(side) || selectionWorkspaceOn(session) ? undefined : (
                                     // The words the kind's own line uses: the layer styles none of this kind.
                                     <Text span size="xs" c="var(--cm-text-secondary)">
                                         not styled

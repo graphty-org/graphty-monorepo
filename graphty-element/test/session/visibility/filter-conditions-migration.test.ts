@@ -187,6 +187,18 @@ describe("saved filter conditions", () => {
         session.dispose();
     });
 
+    it("open a file with conditions and no steps list (tier 4's) with no problem", async () => {
+        const saved = await withConditions();
+        const doc = JSON.parse((await saved.project.save()).text) as Doc;
+        delete sessionMember(doc).steps;
+
+        const { session, problems } = await opened(doc);
+        assert.deepStrictEqual(problems, []);
+        assert.deepStrictEqual(session.visibility.conditions, saved.visibility.conditions);
+        saved.dispose();
+        session.dispose();
+    });
+
     it("clear the previous project's conditions, select ones included, when another opens", async () => {
         const session = await withConditions();
         const plain = JSON.parse(JSON.stringify(PROJECT)) as Doc;

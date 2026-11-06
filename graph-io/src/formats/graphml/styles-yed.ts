@@ -757,8 +757,16 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
  * @param put - receives the values
  * @param at - the sites
  * @param geometry - a node label's node `y:Geometry`, which places the label inside or outside the node
+ * @param uml - whether the node is a UML class
  */
-function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at: SiteOf, geometry?: unknown): void {
+function readLabels(
+    labels: readonly unknown[],
+    node: boolean,
+    put: PutValue,
+    at: SiteOf,
+    geometry?: unknown,
+    uml = false,
+): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
@@ -782,6 +790,9 @@ function readLabels(labels: readonly unknown[], node: boolean, put: PutValue, at
     }
     put("label", canonText(text, at("label")));
     readLabelLook(label, node, put, at, geometry);
+    if (node && !uml) {
+        readSmartPlace(label, geometry, put);
+    }
 }
 
 /**
@@ -827,6 +838,38 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
         readLabelBoxSize(label, position, put);
         readOutsideOffset(label, geometry, position, put);
     }
+}
+
+/**
+ * Reads where a SmartNodeLabelModel pins a label over its node: yEd puts the point `labelRatio` of the label's box on
+ * the screen (-0.5..0.5 of its size from its middle) on the point `nodeRatio` of the node, moved by the offsets, and
+ * places it by these on load, not by the box's stored place. Its stored size is the size yEd drew it. A UML class draws
+ * its stereotype above the label, so there the stored place is the true one, and a box beside the node has its side.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the values
+ */
+function readSmartPlace(label: unknown, geometry: unknown, put: PutValue): void {
+    const smart = treeChild(treeChild(label, "ModelParameter"), "SmartNodeLabelModelParameter");
+    if (smart === undefined || sizedLabelPosition(label, boxPosition(label, geometry)) !== "center") {
+        return;
+    }
+    const num = (o: unknown, k: string): number => {
+        const n = Number(treeAttr(o, k));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const turn = (num(label, "rotationAngle") * Math.PI) / 180;
+    const [cos, sin] = [Math.abs(Math.cos(turn)), Math.abs(Math.sin(turn))];
+    const [w, h] = [num(label, "width"), num(label, "height")];
+    const point = (axis: "X" | "Y", extent: string, drawn: number): number =>
+        Math.round(
+            1000 *
+                (num(smart, `nodeRatio${axis}`) * num(geometry, extent) +
+                    num(smart, `offset${axis}`) -
+                    num(smart, `labelRatio${axis}`) * drawn),
+        ) / 1000;
+    put("labelOffsetX", point("X", "width", w * cos + h * sin));
+    put("labelOffsetY", point("Y", "height", w * sin + h * cos));
 }
 
 /**
@@ -1027,7 +1070,7 @@ function customPosition(label: unknown, outside: string | null, at: SiteOf): str
         noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, "custom");
         return outside;
     }
-    // the stored box is where yEd drew the label; the ratios place it only when the file stores no box
+    // with a stored box over the node, `readSmartPlace` pins the label; the ratios name a side only when none is stored
     return outside ?? smartPosition(smart);
 }
 
@@ -1552,7 +1595,7 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
     if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
         readPicture(real, resources, put);
     }
-    readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
+    readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry, treeChild(r, "UML") !== undefined);
 }
 
 /**

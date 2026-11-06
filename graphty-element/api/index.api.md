@@ -194,6 +194,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -2750,6 +2751,8 @@ export class Graph implements GraphContext {
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     readonly eventManager: EventManager;
     exitXR(): Promise<void>;
+    // @internal
+    expectRenderer(): void;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
@@ -6950,6 +6953,8 @@ export class RenderManager implements Manager {
     drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
+    // @internal
+    frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;

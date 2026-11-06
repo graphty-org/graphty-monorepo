@@ -77,6 +77,7 @@ import {
     type Run,
     type RunBody,
     type RunDefinition,
+    type RunExecutionContext,
     type RunOptions,
     type RunQueueContext,
     type RunSurroundings,
@@ -124,6 +125,7 @@ import {
 } from "./filter";
 import { bytesOf, type FilterBytes, slideCounters, type SlideCounts, type SlideTarget, WindowSlider } from "./slide";
 import { assertSteps } from "./steps";
+import { WindowCounter } from "./windowCount";
 
 // ---------------------------------------------------------------------------------------------
 // What visibility answers with
@@ -522,6 +524,20 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
     /**
+     * A run that moves windows of its own, so nothing on screen, in the project or in history moves. It describes the graph and the filter as they stand when `work` opens the walk.
+     * @param algorithm - What the run is.
+     * @param params - What it was asked for.
+     * @param options - A signal, and a progress handler.
+     * @param work - The work: opens the walk when it is ready to, and returns the result.
+     * @returns The run; never in the runs list.
+     */
+    windowRun<T>(
+        algorithm: string,
+        params: Readonly<Record<string, unknown>>,
+        options: Pick<RunOptions, "signal" | "onProgress">,
+        work: (open: () => WindowWalk, context: RunExecutionContext) => Promise<T>,
+    ): Run<T>;
+    /**
      * What the filter alone keeps, with no window: the same object until the filter or the data
      * changes, so a reader can key a cache on it.
      * @returns Each kind's bytes, read on first use, null for a kind the filter says nothing of.
@@ -754,6 +770,22 @@ const IMMEDIATE: RunQueueContext = {
 /** An edit's run has nothing on a queue to cancel. */
 const NO_TICKET: RunTicket = { cancel: () => undefined };
 
+/** Windows moved one after another, later each time, away from what is on screen. */
+export interface WindowWalk {
+    /** Whether the graph walked is directed. */
+    readonly directed: boolean;
+    /**
+     * Move to a window no earlier than the last. The first move compares with nothing showing.
+     * @param window - The window.
+     * @returns What it shows, and what came and went.
+     */
+    move(window: TimeWindow): {
+        readonly visible: Readonly<{ nodes: number; edges: number }>;
+        readonly entered: Readonly<{ nodes: number; edges: number }>;
+        readonly left: Readonly<{ nodes: number; edges: number }>;
+    };
+}
+
 /** The snapshot, and the two identity spaces every mask over it reads ids through. */
 interface VisibilityFrame {
     /** The snapshot this frame describes. */
@@ -948,6 +980,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let lastDurationMs = 0;
     /** The time window a cursor slid through the masks, which the masks hold until the next pass. */
     const slider = new WindowSlider();
+    let recordsRead: { readonly key: readonly unknown[]; readonly reads: boolean } | null = null;
     let slid = false;
     /** What the last slide wrote the masks from, so recording that window can adopt them. */
     let slidTo: (MaskTag & { readonly snapshot: GraphSnapshot; readonly window: TimeWindow }) | null = null;
@@ -2030,6 +2063,104 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * Whether a window reads records, kept while the index stands: asking scans every record of a
+     * kind the field does not time, and any change to the data drops the index.
+     * @param graph - The snapshot.
+     * @param window - The window.
+     * @param instants - The designated field's index.
+     * @returns True when an index alone cannot say what the window keeps.
+     */
+    const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
+        const key = [graph, window.attribute, instants?.node, instants?.edge];
+        if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
+            recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
+        }
+
+        return recordsRead.reads;
+    };
+
+    /**
+     * What a slide moves.
+     * @param graph - The snapshot.
+     * @param rule - The filter's rule.
+     * @param nodes - The node mask.
+     * @param edges - The edge mask.
+     * @param instants - The designated field's index.
+     * @param evaluateWindow - Write the masks in one full pass.
+     * @returns The target.
+     */
+    const slideTarget = (
+        graph: GraphSnapshot,
+        rule: RuleTree | null,
+        nodes: ElementMask<NodeId>,
+        edges: ElementMask<EdgeId>,
+        instants: SlideTarget["instants"],
+        evaluateWindow: SlideTarget["evaluate"],
+    ): SlideTarget => ({
+        graph,
+        filter: [dispatcher.state.visibility.filter, rule, graph, ...inputsFor(rule, null)],
+        nodes,
+        edges,
+        filterBytes: () => filterBytesOf(graph),
+        bounds: (moved) => windowBounds(moved, sources),
+        evaluate: evaluateWindow,
+        readsRecords: (moved) => readsRecords(graph, moved, instants),
+        instants,
+    });
+
+    /**
+     * Windows counted away from what is on screen, from the graph and the filter as they stand: by
+     * the index alone when it says what a window keeps, else by a full pass over masks of their own.
+     * The index is read at the first move and kept, so a graph that changes under a walk does not
+     * reach it.
+     * @returns The walk.
+     */
+    const openWalk = (): WindowWalk => {
+        const active = upToDate();
+        const { graph } = active;
+        const rule = ruleNow();
+        const nodes = new ElementMask<NodeId>(() => active.nodeSpace, Math.max(1, graph.nodeCount));
+        const edges = new ElementMask<EdgeId>(() => active.edgeSpace, Math.max(1, graph.edgeCount));
+        nodes.grow(graph.nodeCount);
+        edges.grow(graph.edgeCount);
+        const walker = new WindowSlider();
+        let target: SlideTarget | null = null;
+        let counter: WindowCounter | null | undefined;
+
+        return {
+            directed: graph.directed,
+            move(window) {
+                target ??= slideTarget(
+                    graph,
+                    rule,
+                    nodes,
+                    edges,
+                    sources.instants?.(window.attribute) ?? null,
+                    (moved) => {
+                        slideCounters.full++;
+                        nodes.clear();
+                        edges.clear();
+                        const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                        runPass({ compiled, edges, graph, nodes });
+                    },
+                );
+                counter = counter === undefined ? WindowCounter.open(target, window) : counter;
+                if (counter !== null) {
+                    return counter.move(window, target);
+                }
+
+                const { entered, left } = walker.move(target, window);
+
+                return {
+                    visible: Object.freeze({ nodes: nodes.size, edges: edges.size }),
+                    entered: Object.freeze({ nodes: entered.nodes, edges: entered.edges }),
+                    left: Object.freeze({ nodes: left.nodes, edges: left.edges }),
+                };
+            },
+        };
+    };
+
+    /**
      * An edit's run is never queued: the command is dispatched as the run starts.
      * @param label - What to call it.
      * @returns The surroundings a run asks of whoever holds it.
@@ -2048,6 +2179,35 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             return NO_TICKET;
         },
+    });
+
+    /**
+     * What every run here shares.
+     * @param algorithm - Its name.
+     * @param params - What it was asked for.
+     * @param caveats - What qualifies its numbers.
+     * @returns The common part of its definition.
+     */
+    const factRun = (
+        algorithm: string,
+        params: Readonly<Record<string, unknown>>,
+        caveats: Caveats,
+    ): Omit<RunDefinition<never>, "execute"> => ({
+        algorithm,
+        caveats,
+        engine,
+        exact: null,
+        fields: NO_FIELDS,
+        id: deriveRunId({ algorithm, exact: null, params, sample: null, scope: WHOLE_GRAPH, seed: null }),
+        params,
+        sample: null,
+        seed: null,
+        // "fact" rather than "node-set": an edit publishes two counts about the graph, not a set of
+        // elements to paint. Calling it a node-set would make it eligible to become an exclusive
+        // highlight layer, and hiding something is not highlighting it.
+        shape: "fact",
+        style: false,
+        timeBoxMs: null,
     });
 
     /**
@@ -2082,30 +2242,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         const label = labelFor(filter, window);
-        const params = Object.freeze({ filter, window });
         const definition: RunDefinition<FilterResult & TExtra> = {
-            algorithm: VISIBILITY_ALGORITHM,
-            caveats: caveatsFor(filter, window),
-            engine,
-            exact: null,
-            fields: NO_FIELDS,
-            id: deriveRunId({
-                algorithm: VISIBILITY_ALGORITHM,
-                exact: null,
-                params,
-                sample: null,
-                scope: WHOLE_GRAPH,
-                seed: null,
-            }),
-            params,
-            sample: null,
-            seed: null,
-            // "fact" rather than "node-set": an edit publishes two counts about the graph, not a
-            // set of elements to paint. Calling it a node-set would make it eligible to become an
-            // exclusive highlight layer, and hiding something is not highlighting it.
-            shape: "fact",
-            style: false,
-            timeBoxMs: null,
+            ...factRun(VISIBILITY_ALGORITHM, Object.freeze({ filter, window }), caveatsFor(filter, window)),
             // A cancel settles the run with the edit applied rather than rejecting it.
             publishOnCancel: true,
             execute: async (context) => {
@@ -2361,7 +2499,6 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             assertVisibility(null, window);
             const active = upToDate();
-            const { filter } = dispatcher.state.visibility;
             const rule = ruleNow();
             slid = true;
             slidTo = {
@@ -2376,20 +2513,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             const instants = sources.instants?.(window.attribute) ?? null;
             let passed = false;
             const counts = slider.move(
-                {
-                    graph: active.graph,
-                    filter: [filter, rule, active.graph, ...inputsFor(rule, null)],
-                    nodes: nodeMaskValue,
-                    edges: edgeMaskValue,
-                    filterBytes: () => filterBytesOf(active.graph),
-                    bounds: (moved) => windowBounds(moved, sources),
-                    evaluate: (moved) => {
-                        passed = true;
-                        evaluate(active.graph, rule, moved);
-                    },
-                    readsRecords: (moved) => windowReadsRecords(active.graph, moved, sources),
-                    instants,
-                },
+                slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {
+                    passed = true;
+                    evaluate(active.graph, rule, moved);
+                }),
                 window,
             );
             lastDurationMs = Math.round(performance.now() - startedAt);
@@ -2400,6 +2527,24 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             sources.onSlide?.();
 
             return { ...counts, graph: active.graph };
+        },
+
+        windowRun<T>(
+            algorithm: string,
+            params: Readonly<Record<string, unknown>>,
+            options: Pick<RunOptions, "signal" | "onProgress">,
+            work: (open: () => WindowWalk, context: RunExecutionContext) => Promise<T>,
+        ): Run<T> {
+            const definition: RunDefinition<T> = {
+                ...factRun(algorithm, Object.freeze(params), caveatsFor(ruleNow(), null)),
+                execute: async (context) => ({ result: await work(openWalk, context) }),
+                ...(options.signal === undefined ? {} : { signal: options.signal }),
+                ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+            };
+            const run = new ManagedRun<T>(definition, surroundingsFor(algorithm));
+            run.start();
+
+            return run;
         },
 
         filterBytes(): FilterBytes {

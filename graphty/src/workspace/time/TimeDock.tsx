@@ -30,13 +30,14 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     announceWindow,
     jumpToSelection,
+    playAt,
     reportTimeError,
     selectionSpan,
     stepWindow,
     togglePlay,
     unitOf,
 } from "./timeActions";
-import { countWords, instantWords, intervalOf, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
+import { countWords, instantWords, rangeWords, readoutRange, SPEEDS, windowWords } from "./timeWords";
 import { useTimeVersion } from "./useTimeVersion";
 import { useTimeZoom } from "./useTimeZoom";
 
@@ -547,7 +548,7 @@ export function TimeDock(): React.JSX.Element | null {
                             // A play in progress goes on at the new speed.
                             if (time.playing) {
                                 time.pause();
-                                time.play({ interval: intervalOf(nextSpeed) });
+                                playAt(session, nextSpeed);
                             }
                         }}
                     >

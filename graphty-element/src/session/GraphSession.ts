@@ -435,6 +435,8 @@ interface SessionInternals {
     readonly scheduler?: Scheduler;
     /** Open the baseline window: what the page declared at construction is not undoable. */
     readonly baselineWindow?: boolean;
+    /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
+    readonly renderedFrame?: () => Promise<void>;
 }
 
 /**
@@ -3225,6 +3227,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         emit: (event, detail) => {
             publish(watchers, event, detail);
         },
+        ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
     });
     timeInternals = time.internals;
 

@@ -6377,6 +6377,7 @@ export interface TimeApi {
     seek(instant: number | "start" | "end", options?: {
         readonly commit?: boolean;
     }): Promise<TimeStepEvent>;
+    series(options?: TimeSeriesOptions): Run<TimeSeries>;
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     setSettings(settings: Partial<TimeSettings>): Promise<void>;
     readonly settings: TimeSettings;
@@ -6504,6 +6505,9 @@ export interface TimeIds {
 }
 
 // @beta
+export type TimeMeasure = "nodes" | "edges" | "density";
+
+// @beta
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
 
 // @beta
@@ -6527,10 +6531,44 @@ export interface TimePlayOptions {
     readonly motion?: "smooth" | "steps";
     readonly step?: TimeStep;
     readonly timeZone?: string;
+    readonly waitForRender?: boolean;
 }
 
 // @beta
 export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+// @beta
+export interface TimeSeries {
+    // (undocumented)
+    readonly rows: readonly TimeSeriesRow[];
+}
+
+// @beta
+export interface TimeSeriesOptions {
+    readonly from?: number;
+    readonly measures?: readonly TimeMeasure[];
+    readonly mode?: TimePlayMode;
+    readonly onProgress?: (progress: Progress) => void;
+    readonly signal?: AbortSignal;
+    readonly step?: TimeStep;
+    readonly timeZone?: string;
+    readonly to?: number;
+}
+
+// @beta
+export interface TimeSeriesRow {
+    // (undocumented)
+    readonly entered: TimeCountPair;
+    // (undocumented)
+    readonly from: number;
+    // (undocumented)
+    readonly left: TimeCountPair;
+    // (undocumented)
+    readonly to: number;
+    readonly values: Readonly<Record<string, number | null>>;
+    // (undocumented)
+    readonly visible: TimeCountPair;
+}
 
 // @beta
 export interface TimeSettings {

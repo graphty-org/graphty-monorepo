@@ -1215,7 +1215,26 @@ const NODE_LABEL_MODELS: ReadonlyMap<string, "outside" | "inside"> = new Map([
     ["InteriorNodeLabelModelParameter", "inside"],
     ["InteriorStretchLabelModelParameter", "inside"],
     ["StretchNodeLabelModelParameter", "inside"],
+    ["GroupNodeLabelModelParameter", "inside"],
 ]);
+
+/** The models that hang a label's top left corner from the node's by a `LayoutOffset`. */
+const FREE_NODE_LABEL_MODELS: ReadonlySet<string> = new Set([
+    "FreeNodeLabelModelParameter",
+    "RatioAnchoredLabelModelParameter",
+]);
+
+/**
+ * How far right of a free label's corner yEd Live draws its words: it centers them in a box it measures a little wider
+ * than it draws them (0.2 to 1.1 px, most 0.8, on `graphml-yfiles-html-stag-flowchart`'s 35 labels; none down).
+ */
+const FREE_LABEL_WORDS_INSET = 0.8;
+
+/** The attributes a node label model states its label's distance from the node's side in. */
+const MODEL_GAP_ATTRIBUTES = ["Padding", "Insets", "Margins", "YOffset"];
+
+/** How far down a group's top a yFiles group label's middle is: the middle of the tab and the frame round it. */
+const GROUP_LABEL_MIDDLE = (18 + GROUP_FRAME) / 2;
 
 /** A `{x:Static y:SomeLabelModel.Position}` markup extension: the model's local name and the member. */
 const STATIC_PARAMETER = /^\{\s*[\w.-]*:?Static\s+(?:[\w.-]+:)?(\w+)\.(\w+)\s*\}$/;
@@ -1237,13 +1256,21 @@ function layoutParameter(refs: References, label: unknown): StyleObject | null {
         }
     }
     const p = refs.deref(attr ?? treeChild(label, "Label.LayoutParameter"));
-    return p === null || p === NULL || typeof p !== "object" ? null : p;
+    if (p === null || p === NULL || typeof p !== "object") {
+        return null;
+    }
+    if (p.tag !== "CompositeLabelModelParameter") {
+        return p;
+    }
+    // a composite model places its label by the parameter of the model it holds
+    const inner = refs.deref(treeChild(p.e, "CompositeLabelModelParameter.Parameter"));
+    return inner === null || inner === NULL || typeof inner !== "object" ? null : inner;
 }
 
 /**
  * Where yFiles draws a node label, from its layout parameter's model and `Position`: outside the node for the
- * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models, and the center for a
- * centered position or any other model (the free and ratio-anchored models' offsets have no neutral property). A
+ * exterior and sandwich models, inside it (`inside-*`) for the interior and stretch models and on a group's top, and
+ * the center for a centered position or any other model (`readLabelPlace` moves a free model's label from there). A
  * label with no layout parameter at all sits below the node, as yEd Live 8.5.16 draws every such label on its sheets;
  * no file saved by yEd Live in the corpus leaves one out.
  * @param refs - the references
@@ -1258,6 +1285,9 @@ function labelPositionOf(refs: References, label: unknown): string {
     const model = parameter === null ? undefined : NODE_LABEL_MODELS.get(parameter.tag);
     if (parameter === null || model === undefined) {
         return "center";
+    }
+    if (parameter.tag === "GroupNodeLabelModelParameter") {
+        return "inside-top";
     }
     const raw = treeAttr(parameter.e, "Position") ?? "";
     const side = SIDES.get(raw.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase().replaceAll("_", ""));
@@ -1282,6 +1312,95 @@ function labelBoxOf(refs: References, label: unknown, position: string): string 
         return null;
     }
     return tag.includes("Stretch") && !/left|right/.test(position) ? "target-width" : "words-at-side";
+}
+
+/**
+ * The distance from the node's side its label model states, for a shared model that says one.
+ * @param refs - the references
+ * @param parameter - the label's layout parameter
+ * @returns the distance, or 0
+ */
+function modelGap(refs: References, parameter: StyleObject): number {
+    const model = refs.deref(treeAttr(parameter.e, "Model"));
+    if (model === null || model === NULL || typeof model !== "object") {
+        return 0;
+    }
+    const name = MODEL_GAP_ATTRIBUTES.find((a) => treeAttr(model.e, a) !== undefined);
+    const gap = name === undefined ? Number.NaN : Number(treeAttr(model.e, name));
+    return Number.isFinite(gap) ? gap : 0;
+}
+
+/**
+ * Reads how far from where its position puts it a node label is drawn: a free model's label by its top left corner, a
+ * group's label on the middle of its tab, and any other model's by the distance the model states, in from the side of
+ * a label inside the node and out from it otherwise.
+ * @param refs - the references
+ * @param label - the `y:Label` element
+ * @param position - where the label is placed
+ * @param size - the node's size
+ * @param put - receives the values
+ * @returns whether the label's place is set, so the words' alignment in its box must leave it
+ */
+function readLabelPlace(refs: References, label: unknown, position: string, size: Size | null, put: PutValue): boolean {
+    const parameter = layoutParameter(refs, label);
+    if (parameter === null) {
+        return false;
+    }
+    if (parameter.tag === "GroupNodeLabelModelParameter") {
+        put("labelOffsetY", GROUP_LABEL_MIDDLE);
+        put("labelShiftY", -0.5);
+        return true;
+    }
+    const offset = treeAttr(parameter.e, "LayoutOffset")?.split(",").map(Number) ?? [];
+    if (
+        FREE_NODE_LABEL_MODELS.has(parameter.tag) &&
+        size !== null &&
+        offset.length === 2 &&
+        offset.every(Number.isFinite)
+    ) {
+        put("labelOffsetX", offset[0] - size.width / 2 + FREE_LABEL_WORDS_INSET);
+        put("labelOffsetY", offset[1] - size.height / 2);
+        put("labelShiftX", 0.5);
+        put("labelShiftY", 0.5);
+        return true;
+    }
+    const inside = position.startsWith("inside-");
+    const gap = modelGap(refs, parameter) * (inside ? 1 : -1);
+    const toward = (low: string, high: string): number =>
+        Number(position.includes(low)) - Number(position.includes(high));
+    const [x, y] = [toward("left", "right"), toward("top", "bottom")];
+    if (gap !== 0 && inside && size !== null && !parameter.tag.includes("Stretch")) {
+        // the model's distance is the words', and a box here stands off them: pin the words themselves
+        put("labelPosition", "center");
+        put("labelOffsetX", x * (gap - size.width / 2) || null);
+        put("labelOffsetY", y * (gap - size.height / 2) || null);
+        put("labelShiftX", x / 2 || null);
+        put("labelShiftY", y / 2 || null);
+        return true;
+    }
+    put("labelOffsetX", x * gap || null);
+    put("labelOffsetY", y * gap || null);
+    return false;
+}
+
+/**
+ * Reads where a label's words stand in a box larger than them: a style's `minimumSize` makes the label's box, and
+ * its text alignments hold the words against that box's sides. Read for a label in its node's middle, the box's.
+ * @param ls - the label style
+ * @param put - receives the values
+ */
+function readWordsInBox(ls: StyleObject, put: PutValue): void {
+    const box = (treeAttr(ls.e, "minimumSize") ?? "").split(",").map(Number);
+    if (box.length !== 2 || !box.every(Number.isFinite)) {
+        return;
+    }
+    const side = (name: string, low: string, high: string): number =>
+        Number(treeAttr(ls.e, name) === high) - Number(treeAttr(ls.e, name) === low);
+    const [x, y] = [side("horizontalTextAlignment", "LEFT", "RIGHT"), side("verticalTextAlignment", "TOP", "BOTTOM")];
+    put("labelOffsetX", (x * box[0]) / 2 || null);
+    put("labelShiftX", -x / 2 || null);
+    put("labelOffsetY", (y * box[1]) / 2 || null);
+    put("labelShiftY", -y / 2 || null);
 }
 
 /** yFiles' edge label sides (`SideOfEdge`, and the nine-position model's middle row), as neutral positions. */
@@ -1328,8 +1447,9 @@ function edgeLabelPositionOf(refs: References, label: unknown): string | null {
  * @param data - the `<data>` content of the NodeLabels or EdgeLabels key
  * @param put - receives the values
  * @param at - the sites
+ * @param size - a node's size
  */
-function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf): void {
+function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf, size: Size | null): void {
     let label: unknown = undefined;
     let text = "";
     let extra = 0;
@@ -1352,10 +1472,12 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     put("label", canonText(text, at("label")));
+    let inBox = false;
     if (at("label").target === "node") {
         const position = labelPositionOf(refs, label);
         put("labelPosition", position);
         put("labelBox", labelBoxOf(refs, label, position));
+        inBox = !readLabelPlace(refs, label, position, size, put) && position === "center";
     } else {
         put("labelPosition", edgeLabelPositionOf(refs, label));
     }
@@ -1364,8 +1486,26 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
         return;
     }
     putPaint(paintOf(refs, prop(ls, "textFill"), null), "labelColor", null, put, at);
+    if (inBox) {
+        readWordsInBox(ls, put);
+    }
     readLabelBox(refs, ls, put, at);
     readLabelFont(refs.deref(prop(ls, "font")), put, at);
+}
+
+/**
+ * What a BPMN label style fills its box with: an annotation's `background`, and a message's `initiatingColor`, or its
+ * `responseColor` when `isInitiating` is false, as yEd Live 8.5.16 draws `yed-live-graphml-specimen-labels-p5`.
+ * @param ls - the label style
+ * @returns the fill
+ */
+function bpmnLabelFill(ls: StyleObject): unknown {
+    if (ls.tag === "AnnotationLabelStyle") {
+        return prop(ls, "background") ?? "#FFFFFFFF";
+    }
+    return treeAttr(ls.e, "isInitiating") === "false"
+        ? (prop(ls, "responseColor") ?? "#FF808080")
+        : (prop(ls, "initiatingColor") ?? "#FFFFFFFF");
 }
 
 /**
@@ -1377,8 +1517,10 @@ function readLabels(refs: References, data: unknown, put: PutValue, at: SiteOf):
  * @param at - the sites
  */
 function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: SiteOf): void {
-    const fill = prop(ls, "backgroundFill");
-    const stroke = strokeOf(refs, prop(ls, "backgroundStroke"));
+    const bpmn = ls.tag === "AnnotationLabelStyle" || ls.tag === "MessageLabelStyle";
+    const fill = bpmn ? bpmnLabelFill(ls) : prop(ls, "backgroundFill");
+    // an annotation's `outline` is its bracket, no box round the words
+    const stroke = strokeOf(refs, prop(ls, ls.tag === "MessageLabelStyle" ? "outline" : "backgroundStroke"));
     if (fill === undefined && (stroke === null || stroke === NULL)) {
         return;
     }
@@ -1387,7 +1529,10 @@ function readLabelBox(refs: References, ls: StyleObject, put: PutValue, at: Site
         putPaint(stroke.color, "labelBorderColor", "labelBorderOpacity", put, at);
         put("labelBorderWidth", canonNumber(stroke.width, at("labelBorderWidth")));
     }
-    put("labelPadding", canonNumber(prop(ls, "padding") ?? prop(ls, "insets") ?? "0", at("labelPadding")));
+    const padding = prop(ls, "padding") ?? prop(ls, "insets") ?? (ls.tag === "AnnotationLabelStyle" ? "5" : "0");
+    put("labelPadding", canonNumber(padding, at("labelPadding")));
+    // the 3.0 styles' box is the words' own line, 12 tall at 10 px; the 2.6 style's is 14
+    put("labelLineHeight", ls.tag === "DefaultLabelStyle" ? null : 1);
 }
 
 /**
@@ -1468,7 +1613,7 @@ function readYfiles3Target(
             readEdgeStyle(refs, cell(style, i), put, at);
         }
         if (labels !== undefined) {
-            readLabels(refs, cell(labels, i), put, at);
+            readLabels(refs, cell(labels, i), put, at, size);
         }
     }
     return out.values;

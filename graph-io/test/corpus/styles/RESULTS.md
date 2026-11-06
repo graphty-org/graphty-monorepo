@@ -265,13 +265,13 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 41 | 0 |  |
 | graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 154 | 56% | 3% | 0 | 224 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 45 | 58% | 0% | 0 | 52 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 7 | 5 | 444 | 76% | 3% | 0 | 942 | 0 |  |
+| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 942 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 4 | 1 | 80 | 63% | 0% | 0 | 181 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2338 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 7 | 3 | 736 | 93% | 5% | 0 | 1472 | 0 |  |
+| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 1472 | 0 |  |
 | graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 89 | 0 |  |
-| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 7 | 3 | 19 | 74% | 37% | 0 | 60 | 0 |  |
-| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 8 | 4 | 35 | 29% | 3% | 0 | 76 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 19 | 74% | 37% | 0 | 60 | 0 |  |
+| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 4 | 35 | 29% | 3% | 0 | 76 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 6 | 33 | 73% | 0% | 0 | 47 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | 6 | 3 | 23 | 35% | 26% | 0 | 50 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 7 | 4 | 122 | 45% | 2% | 0 | 195 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
@@ -283,9 +283,9 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 23 | 100% | 26% | 0 | 53 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 117 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 61 | 100% | 0% | 0 | 141 | 0 |  |
-| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 5 | 3 | 71 | 32% | 4% | 0 | 222 | 0 | W_STYLE_GRADIENT |
-| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 8 | 6 | 264 | 93% | 26% | 0 | 1598 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 3 | 2 | 27 | 44% | 0% | 0 | 90 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 71 | 32% | 4% | 27 | 222 | 0 | W_STYLE_GRADIENT, W_STYLE_RAMP_ROUNDED |
+| graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 7 | 6 | 264 | 96% | 26% | 0 | 1598 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/yfiles-html/OmniOneID__did-doc-architecture__genKey_iOS.graphml | ok | 14 | 7 | 4 | 2 | 27 | 44% | 0% | 0 | 90 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_UNKNOWN_VALUE |
 | graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 3 | 44 | 48% | 11% | 0 | 45 | 0 |  |
 | graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 184 | 0 |  |
 | graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 13 | 100% | 0% | 0 | 69 | 0 |  |

@@ -151,6 +151,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -159,6 +160,7 @@ export interface AcceleratorRegistration {
     readonly backend?: "webgpu" | (string & {});
     readonly factory: AcceleratorFactory;
     readonly name: string;
+    readonly sharesDevice?: (adapter: unknown) => boolean;
 }
 
 // @public

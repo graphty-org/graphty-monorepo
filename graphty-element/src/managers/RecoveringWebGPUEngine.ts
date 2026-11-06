@@ -12,13 +12,45 @@ import { Mesh, WebGPUEngine } from "@babylonjs/core";
 export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Told when no new device could be had, so nothing will be drawn again. */
     onRestoreFailed: ((error: unknown) => void) | null = null;
+    /** Whether this engine's device was opened to be shared with the layout's accelerator. */
+    sharesDevice = false;
     /** True from a loss until the new device is ready: Babylon's own rebuild is skipped meanwhile. */
     private awaitingDevice = false;
     /** Counts losses, so a device lost while it opens leaves the rebuild to the later loss. */
     private losses = 0;
+    /** Why {@link drawingDevice} has no device to give: the restore failed or the engine was disposed. */
+    private noDevice: { error: unknown } | null = null;
+    /** Those told of the new device by {@link drawingDevice}. */
+    private readonly waiting: { resolve: (device: GPUDevice) => void; reject: (error: unknown) => void }[] = [];
+
+    /**
+     * The device drawn on, waiting for the new one during a loss. The wait is already set when a
+     * consumer of the same device hears of the loss: Babylon's `device.lost` handler was attached
+     * when the device opened, before anyone could be handed it, so it runs first.
+     * @returns The device; rejects once a restore has failed or the engine is disposed, since
+     * nothing would ever answer.
+     */
+    drawingDevice(): Promise<GPUDevice> {
+        if (this.noDevice !== null) {
+            return Promise.reject(this.noDevice.error);
+        }
+
+        return this.awaitingDevice
+            ? new Promise((resolve, reject) => {
+                  this.waiting.push({ resolve, reject });
+              })
+            : Promise.resolve(this._device);
+    }
+
+    /** Disposes the engine and refuses whoever waits for its device. */
+    override dispose(): void {
+        super.dispose();
+        this.giveUp(new Error("the WebGPU engine was disposed"));
+    }
 
     protected override _restoreEngineAfterContextLost(initEngine: () => void): void {
         this.awaitingDevice = true;
+        this.noDevice = null;
         const loss = ++this.losses;
         this.tellCanvas("webglcontextlost");
         super._restoreEngineAfterContextLost(() => {
@@ -34,6 +66,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
                 (error: unknown) => {
                     if (loss === this.losses && !this.isDisposed) {
                         this.onRestoreFailed?.(error);
+                        this.giveUp(error);
                     }
                 },
             );
@@ -86,6 +119,20 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
         this._rebuildGraphicsResources();
         this._flagContextRestored();
         this.tellCanvas("webglcontextrestored");
+        for (const { resolve } of this.waiting.splice(0)) {
+            resolve(this._device);
+        }
+    }
+
+    /**
+     * Answers whoever waits for a device, and whoever asks from now on, with a refusal.
+     * @param error - Why there is no device.
+     */
+    private giveUp(error: unknown): void {
+        this.noDevice = { error };
+        for (const { reject } of this.waiting.splice(0)) {
+            reject(error);
+        }
     }
 
     /**

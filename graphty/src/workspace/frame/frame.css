@@ -211,6 +211,21 @@
     }
 }
 
+/* A short window (400% zoom, a phone on its side): the fixed height leaves the chosen page a few
+   pixels, or none under the one-column section list. The dialog's height follows its content
+   instead and the modal body is the only scroller, so every control can be scrolled to. */
+@media (max-height: 480px) {
+    .ws-dialog-columns,
+    .ws-dialog-columns.ws-export-body {
+        height: auto;
+    }
+
+    .ws-dialog-page,
+    .ws-export-main {
+        overflow: visible;
+    }
+}
+
 .ws-shortcuts {
     display: flex;
     flex-direction: column;

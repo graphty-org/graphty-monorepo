@@ -51,7 +51,14 @@ import {
     TIME_UNITS,
     type TimeUnit,
 } from "./parse";
-import { assertMeasures, type TimeSeries, type TimeSeriesOptions, walkSeries, windowsUntil } from "./series";
+import {
+    assertMeasures,
+    assertSeriesBounds,
+    type TimeSeries,
+    type TimeSeriesOptions,
+    walkSeries,
+    windowsUntil,
+} from "./series";
 import {
     buildField,
     countBins,
@@ -493,12 +500,12 @@ export interface TimeApi {
      * Every window of a step at once, for a chart over time: each one step wide (cumulative: growing
      * a step at a time), whatever the width of the window in force, as stepping from the first window
      * of that step shows them. They are counted under the same filter, without moving what is on
-     * screen or touching history. Each option left out comes from the window in force, else the
-     * settings.
+     * screen or touching history. Step, mode and zone left out come from the window in force, else
+     * the settings; `from` and `to` default to the start and end of the data.
      * @param options - Step, mode, range, zone and measures.
      * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
-     *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows, and
-     *     `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
+     *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
+     *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
      * @throws `E_FEATURE_OFF` with the experiment off.
      */
     series(options?: TimeSeriesOptions): Run<TimeSeries>;
@@ -2364,6 +2371,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @returns The windows; none when nothing has a time.
      */
     const seriesWindows = (options: TimeSeriesOptions): readonly TimeWindow[] => {
+        assertSeriesBounds(options);
         const current = visibility.window;
         const step = stepFor(options.step ?? current?.step);
         const mode = options.mode ?? current?.mode ?? settingsNow().mode;

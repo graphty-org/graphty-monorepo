@@ -310,22 +310,28 @@ describe("time.series", () => {
 
     for (const directed of [true, false]) {
         for (const missing of ["inside", "outside"] as const) {
-            for (const [field, mode] of [
-                ["edges", "sliding"],
-                ["nodes", "sliding"],
-                ["both", "sliding"],
-                ["edges", "cumulative"],
-                ["nodes", "cumulative"],
-                ["both", "cumulative"],
+            // `carried`: the kind the field does not time holds the column too, so the index alone
+            // cannot say what a window keeps and the series falls back to full passes.
+            for (const [field, mode, carried] of [
+                ["edges", "sliding", false],
+                ["nodes", "sliding", false],
+                ["both", "sliding", false],
+                ["edges", "cumulative", false],
+                ["nodes", "cumulative", false],
+                ["both", "cumulative", false],
+                ["edges", "sliding", true],
+                ["nodes", "sliding", true],
+                ["edges", "cumulative", true],
+                ["nodes", "cumulative", true],
             ] as const) {
-                it(`counts as a full pass does (${directed ? "directed" : "undirected"}, ${field}, ${mode}, missing ${missing}, self-loops)`, async () => {
+                it(`counts as a full pass does (${directed ? "directed" : "undirected"}, ${field}, ${mode}, missing ${missing}, self-loops${carried ? ", the other kind carrying the column" : ""})`, async () => {
                     const next = random(29);
                     const span = 600;
                     const timed = (): { w?: number } => (next() < 0.15 ? {} : { w: Math.floor(next() * span) });
                     const nodes = Array.from({ length: 40 }, (_, at) => ({
                         id: `n${String(at)}`,
                         kind: at % 4 === 0 ? "hub" : "leaf",
-                        ...(field === "edges" ? {} : timed()),
+                        ...(field === "edges" && !carried ? {} : timed()),
                     }));
                     const edges = Array.from({ length: 160 }, (_, at) => {
                         const src = Math.floor(next() * 40);
@@ -334,7 +340,7 @@ describe("time.series", () => {
                             // Every eighth edge is a self-loop.
                             dst: `n${String(at % 8 === 0 ? src : Math.floor(next() * 40))}`,
                             kind: at % 5 === 0 ? "weak" : "strong",
-                            ...(field === "nodes" ? {} : timed()),
+                            ...(field === "nodes" && !carried ? {} : timed()),
                         };
                     });
                     const harness = makeSession({ directed });
@@ -353,7 +359,9 @@ describe("time.series", () => {
                     ]);
                     // A window sets what a series reads of `missing`; the step is narrower than a burst of rows.
                     await session.time.window({ from: 0, to: 70, step: 70, missing, mode });
+                    const passes = slideCounters.full;
                     const { rows } = await session.time.series({ step: 70, measures: ["nodes"] });
+                    assert.strictEqual(slideCounters.full > passes, carried);
 
                     let was = { nodes: new Array<number>(40).fill(0), edges: new Array<number>(160).fill(0) };
                     const gone = (now: readonly number[], then: readonly number[]): number =>
@@ -494,7 +502,7 @@ describe("time.series", () => {
         assert.isEmpty(rows);
     });
 
-    it("refuses a measure it does not have, no field, and more windows than it can hold", async () => {
+    it("refuses a measure it does not have, no field, more windows than it can hold, and a bad bound", async () => {
         const { session } = await daily(4);
         const refusal = async (start: () => PromiseLike<unknown>): Promise<unknown> => {
             try {
@@ -511,6 +519,15 @@ describe("time.series", () => {
         assert.isTrue(isGraphtyError(many) && many.code === "E_OPTION_RANGE");
         const none = await refusal(() => makeSession().session.time.series());
         assert.isTrue(isGraphtyError(none) && none.code === "E_NO_TIME_FIELD");
+        for (const option of ["from", "to"] as const) {
+            for (const value of [Number.NaN, Infinity, -Infinity]) {
+                const bound = await refusal(() => session.time.series({ step: DAY, [option]: value }));
+                assert.deepEqual(isGraphtyError(bound) ? [bound.code, bound.details] : bound, [
+                    "E_OPTION_RANGE",
+                    { option, value },
+                ]);
+            }
+        }
     });
 
     it("throws E_FEATURE_OFF with the experiment off", () => {
@@ -632,9 +649,14 @@ describe("a stepped play with waitForRender", () => {
         const frames = heldFrames();
         setDefaultFeatures([]);
         const { session } = makeSession({ internals: { renderedFrame: frames.renderedFrame } });
-        assert.throws(() => {
+        let refused: unknown = null;
+        try {
             session.time.play({ motion: "steps", waitForRender: true });
-        });
+        } catch (error) {
+            refused = error;
+        }
+
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
         assert.strictEqual(frames.asked(), 0);
     });
 });

@@ -3,9 +3,11 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { isGraphtyError } from "../../src/errors";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { EventManager } from "../../src/managers/EventManager";
 import { RenderManager } from "../../src/managers/RenderManager";
+import { takeCaughtErrors } from "../helpers/caught-errors";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -28,12 +30,15 @@ describe("waiting for a drawn frame", () => {
         manager = undefined;
     });
 
-    const started = (config?: ConstructorParameters<typeof RenderManager>[2]): RenderManager => {
+    const started = (
+        config?: ConstructorParameters<typeof RenderManager>[2],
+        update: () => void = () => undefined,
+    ): RenderManager => {
         const canvas = document.createElement("canvas");
         document.body.appendChild(canvas);
         const made = new RenderManager(canvas, new EventManager(), config);
         manager = made;
-        made.startRenderLoop(() => undefined);
+        made.startRenderLoop(update);
         return made;
     };
 
@@ -85,6 +90,17 @@ describe("waiting for a drawn frame", () => {
         await made.frameDrawn();
     });
 
+    it("ends when every frame throws", async () => {
+        const made = started(undefined, () => {
+            throw new Error("a frame that always throws");
+        });
+        await made.frameDrawn();
+        await made.frameDrawn();
+        made.stopRenderLoop();
+        // The loop's catch reported them: this test asks that they do not stop the wait.
+        assert.isNotEmpty(takeCaughtErrors());
+    });
+
     it("ends when the render loop stops, and with none running", async () => {
         const made = started();
         const wait = made.frameDrawn();
@@ -118,17 +134,20 @@ describe("a play waiting for frames on a real element", () => {
 
     afterEach(() => {
         Reflect.deleteProperty(document, "hidden");
-        mounted?.session.time.pause();
+        setDefaultFeatures(["timeline"]);
+        if (mounted?.session.time.playing === true) {
+            mounted.session.time.pause();
+        }
+
         mounted?.remove();
         mounted = null;
     });
 
     /**
-     * An element with an edge on the first and the last of 30 days: the days between show the same
-     * nothing, so a step there leaves a finished picture finished.
+     * An element holding an edge on the first and the last of 30 days.
      * @returns The element and its render manager.
      */
-    async function element(): Promise<{ element: Graphty; manager: RenderManager }> {
+    async function loaded(): Promise<{ element: Graphty; manager: RenderManager }> {
         const made = document.createElement("graphty-element");
         made.style.width = "300px";
         made.style.height = "200px";
@@ -152,10 +171,21 @@ describe("a play waiting for frames on a real element", () => {
             }),
         };
         await made.waitForSettled();
-        await made.session.time.ready;
-        await made.session.time.window({ from: T0 + DAY, to: T0 + 2 * DAY, step: "day" });
 
         return { element: made, manager: Reflect.get(made.graph, "renderManager") as RenderManager };
+    }
+
+    /**
+     * An element on a window between its two edges: the days there show the same nothing, so a step
+     * leaves a finished picture finished.
+     * @returns The element and its render manager.
+     */
+    async function element(): Promise<{ element: Graphty; manager: RenderManager }> {
+        const made = await loaded();
+        await made.element.session.time.ready;
+        await made.element.session.time.window({ from: T0 + DAY, to: T0 + 2 * DAY, step: "day" });
+
+        return made;
     }
 
     /**
@@ -183,6 +213,28 @@ describe("a play waiting for frames on a real element", () => {
             });
         });
     }
+
+    it("adds no listener to the render loop with the experiment off", async () => {
+        setDefaultFeatures([]);
+        const { element: made, manager } = await loaded();
+        const asked = vi.spyOn(manager, "frameDrawn");
+        const listening = (): number =>
+            manager.scene.onAfterRenderObservable.observers.length +
+            manager.engine.onEndFrameObservable.observers.length;
+        const before = listening();
+
+        let refused: unknown = null;
+        try {
+            play(made);
+        } catch (error) {
+            refused = error;
+        }
+
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
+        await new Promise(requestAnimationFrame);
+        assert.strictEqual(asked.mock.calls.length, 0);
+        assert.strictEqual(listening(), before);
+    });
 
     it("asks the element's renderer for a frame before each step", async () => {
         const { element: made, manager } = await element();

@@ -1244,6 +1244,8 @@ export class RenderManager implements Manager {
      * @param error - What it threw.
      */
     private reportFrameError(error: unknown): void {
+        // A frame that threw draws nothing, and the next one is likely to throw too.
+        this.endFrameWaits();
         const err = error instanceof Error ? error : new Error(String(error));
         this.eventManager.emitGraphError(null, err, "other", {
             component: "RenderManager",
@@ -1704,7 +1706,7 @@ export class RenderManager implements Manager {
 
     /**
      * Settles once the next frame is drawn, or as soon as none is coming: a hold, a load holding the
-     * draw, a hidden page, a lost context or a stopped loop. A loop resting on a finished picture
+     * draw, a hidden page, a lost context, a stopped loop or a frame that threw. A loop resting on a finished picture
      * draws for it: a new frame observer is a frame someone waits for. It listens
      * only while someone waits.
      * @returns Settles as above; never rejects.

@@ -114,8 +114,9 @@ the row before (in the first row, everything it shows entered), and a value for 
 
 Each window is one step wide, or in `"cumulative"` mode grows by a step, whatever the width of the
 window in force: the windows stepping shows from the first window of that step, under the same
-filter. It takes `step`, `mode`, `timeZone`, and `from` and `to` to cover part of the data. Each one
-left out comes from the window in force, else the settings. A series holds at most 10,000 windows.
+filter. `step`, `mode` and `timeZone` left out come from the window in force, else the settings.
+`from` and `to` cover part of the data, and default to its start and end whatever the window in
+force. A series holds at most 10,000 windows.
 
 `series` returns a run: `run.progress` says how many windows are done and `run.cancel()` stops it.
 You can also pass `signal` and `onProgress`.

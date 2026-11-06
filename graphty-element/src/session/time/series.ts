@@ -29,7 +29,8 @@ const MEASURES: ReadonlySet<string> = new Set<TimeMeasure>(["nodes", "edges", "d
 export type TimeMeasure = "nodes" | "edges" | "density";
 
 /**
- * What `time.series` takes. Each one left out comes from the window in force, else the settings.
+ * What `time.series` takes. `step`, `mode` and `timeZone` left out come from the window in force,
+ * else the settings.
  * @experimental timeline
  * @beta
  */
@@ -91,6 +92,29 @@ export function assertMeasures(measures: readonly string[]): void {
             source: "data",
             details: { field: "measures", reason: "measure", value: unknown },
         });
+    }
+}
+
+/**
+ * Refuse a series bound that is not a finite number, as a window does.
+ * @param options - What the series asked for.
+ * @param options.from - Where it starts.
+ * @param options.to - Where it ends.
+ * @throws `E_OPTION_RANGE` naming the bound.
+ */
+export function assertSeriesBounds({ from, to }: Pick<TimeSeriesOptions, "from" | "to">): void {
+    for (const [option, value] of [
+        ["from", from],
+        ["to", to],
+    ] as const) {
+        if (value !== undefined && !Number.isFinite(value)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `A series' ${option} must be a finite number.`,
+                source: "data",
+                details: { option, value },
+            });
+        }
     }
 }
 

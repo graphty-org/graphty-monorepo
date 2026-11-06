@@ -1559,6 +1559,7 @@ export class Graph implements GraphContext {
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
             timeline: () => this.session.features.enabled.includes("timeline"),
+            timeWindow: () => this.session.time.current !== null,
         };
         this.updateManager.bindViewMasks(viewMasks);
 

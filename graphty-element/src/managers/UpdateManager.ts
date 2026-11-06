@@ -25,6 +25,7 @@ import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { batchUploadFrames } from "../meshes/FrameRoster";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
@@ -294,6 +295,12 @@ export interface ViewMasks {
      * @returns True while the experiment is on.
      */
     readonly timeline?: () => boolean;
+    /**
+     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
+     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * @returns True while a window is in force.
+     */
+    readonly timeWindow?: () => boolean;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -423,6 +430,8 @@ export class UpdateManager implements Manager {
 
     /** Where the two masks are read from, or null while nothing has been bound. */
     private viewMasks: ViewMasks | null = null;
+    /** Whether the scene's batches are uploading only what they wrote. */
+    private rangedUploads = false;
 
     /** The mask versions the meshes on screen were last brought into line with. */
     private appliedNodeSelection = NO_MASK_VERSION;
@@ -710,6 +719,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Switch the scene's batches to uploading only what they wrote while a time window is in force.
+     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * @param masks - What the renderer reads.
+     */
+    private followTimeWindow(masks: ViewMasks): void {
+        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        if (ranged !== this.rangedUploads) {
+            this.rangedUploads = ranged;
+            batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
+        }
+    }
+
+    /**
      * Bring the meshes into line with the two masks.
      *
      * THE WHOLE POINT IS THE DELTA. A pass costs one integer comparison when nothing has moved,
@@ -744,6 +766,7 @@ export class UpdateManager implements Manager {
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
         this.followElementSets();
+        this.followTimeWindow(masks);
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;

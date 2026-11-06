@@ -20,12 +20,13 @@
 import { type F32, maskTest } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
 import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
-import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
 
@@ -1104,6 +1105,42 @@ describe("the simulation layout bridge", () => {
         assert.closeTo(written.x, simulation.x, 1e-3, "a scene-unit write arrives in the simulation's units");
         assert.closeTo(written.y, simulation.y, 1e-3);
         assert.closeTo(written.z, simulation.z, 1e-3);
+    });
+
+    it("publishes a column to the floats the per-node map writes, with no per-node write", async () => {
+        // The map below is the per-node loop this publish replaced, in the same double arithmetic,
+        // so a rounding moved by the column shows up as an inequality rather than a closeness.
+        const graph = await pathGraph(8);
+        const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 50 });
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "forceatlas2", { scalingFactor: 100, seed: 42 });
+        for (let frame = 0; frame < 3; frame += 1) {
+            rig.step();
+            await drain(fake);
+        }
+
+        rig.engine.publishPositions();
+        const held = rig.row("n3");
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        graph.getNode("n3")?.pin();
+        const heldBefore = [...lane.view(8).subarray(3 * held, 3 * held + 3)];
+        rig.step();
+        await drain(fake);
+
+        const write = vi.spyOn(rig.engine as unknown as { writeNodePosition: () => boolean }, "writeNodePosition");
+        rig.engine.publishPositions();
+        assert.strictEqual(write.mock.calls.length, 0, "no row went through the per-node write");
+
+        const raw = fake.simulations[0].positions as F32;
+        const { scale, centre } = measureEnvelope(raw, 8, 100, (row) => row === held);
+        const published = lane.view(8);
+        for (let row = 0; row < 8; row += 1) {
+            for (let axis = 0; axis < 3; axis += 1) {
+                const expected =
+                    row === held ? heldBefore[axis] : Math.fround((raw[3 * row + axis] - centre[axis]) * scale);
+                assert.strictEqual(published[3 * row + axis], expected, `row ${String(row)}, axis ${String(axis)}`);
+            }
+        }
     });
 
     it("a freeze re-adopts the arrangement in the simulation's units and leaves it where it was", async () => {

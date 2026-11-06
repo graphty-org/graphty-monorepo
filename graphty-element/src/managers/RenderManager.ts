@@ -29,6 +29,7 @@ import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
+import { isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
@@ -47,6 +48,7 @@ import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
 import { minimumWorkPerFrame } from "./minimumWork";
 import { pendingWorkOf, trackOnScene } from "./PendingWork";
+import { RecoveringWebGPUEngine } from "./RecoveringWebGPUEngine";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -183,16 +185,22 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * renderer once a frame has been drawn.
  * @param canvas - A canvas that has no context yet; a canvas holding a WebGL context cannot give
  *     out a WebGPU one.
+ * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
+ *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @returns The initialised engine, or the reason there is none.
  */
-export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGPUEngine | string> {
+export async function openWebGPUEngine(
+    canvas: HTMLCanvasElement,
+    sharesDevice: (adapter: unknown) => boolean = () => false,
+): Promise<RecoveringWebGPUEngine | string> {
     if (typeof navigator === "undefined" || !("gpu" in navigator) || navigator.gpu === undefined) {
         return "this browser has no WebGPU (navigator.gpu is undefined)";
     }
 
     // Asked first, and apart from the engine: an engine that fails to open is half built, and it
     // has already registered itself as Babylon's last created engine.
-    if ((await navigator.gpu.requestAdapter()) === null) {
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    if (adapter === null || adapter === undefined) {
         return "this browser has WebGPU but no adapter (navigator.gpu.requestAdapter() returned null)";
     }
 
@@ -211,7 +219,12 @@ export async function openWebGPUEngine(canvas: HTMLCanvasElement): Promise<WebGP
         );
     }
 
-    const engine = new WebGPUEngine(canvas, { antialias: true });
+    const shared = sharesDevice(adapter);
+    const engine = new RecoveringWebGPUEngine(canvas, {
+        antialias: true,
+        ...(shared && { setMaximumLimits: true, enableAllFeatures: true, powerPreference: "high-performance" }),
+    });
+    engine.sharesDevice = shared;
     try {
         // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
         // is given, though its type and its docs ask for the instance itself.
@@ -393,6 +406,17 @@ const OUTLINE_EVENTS = [
 ] as const satisfies readonly (keyof SessionEventMap)[];
 
 /**
+ * End a pass's load quietly when the graph was disposed under it: nobody awaits that load, so the
+ * rejection would reach the page as unhandled. Any other failure is a real one and goes on.
+ * @param error - What the load threw.
+ */
+function rethrowUnlessDisposed(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_DISPOSED") {
+        throw error;
+    }
+}
+
+/**
  * The scene-level shader passes of one graph: the background shader, the group outlines and
  * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
  * that names no shader loads none of them.
@@ -531,6 +555,8 @@ class ShaderScene {
         this.backgroundLoads++;
         try {
             await this.loadBackground();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.backgroundLoads--;
         }
@@ -650,6 +676,8 @@ class ShaderScene {
             );
             // Asked again now it exists: the stack may have changed while it loaded.
             this.sync();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.outlineLoading = false;
         }

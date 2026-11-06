@@ -26,9 +26,15 @@
  * (vitest.wait-guard-setup.ts) gives `vi.waitFor` and `vi.waitUntil` the wait guard. Testing
  * Library keeps its default per copy of the library, so each setup file or Storybook preview that
  * loads one calls `configure({ asyncUtilTimeout: WAIT_GUARD_MS })`.
+ *
+ * A real `userEvent` action is a wait too: Playwright retries until the target can take it. With no
+ * `actionTimeout`, vitest gives the action what is left of the test's time, so a click on something
+ * that never shows (a hidden radio, issue #5845) ran the full test guard and ended as a bare "Test
+ * timed out". `withTestGuards` gives every Playwright provider the wait guard, so the action fails
+ * first and says what it was waiting for.
  */
 
-/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element) may run. */
+/** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element, a real action) may run. */
 export const WAIT_GUARD_MS = 900_000;
 
 /** How long one test, hook or teardown may run. */
@@ -46,6 +52,20 @@ function guardSetup() {
 }
 
 /**
+ * Gives every Playwright provider of a `browser` block the wait guard as its action deadline: the
+ * block's own and any an instance carries, which wins over it. In place, because the provider reads
+ * the object `playwright()` was handed, and a copy of it would change nothing.
+ * @param browser - the `browser` block of a `test` block
+ */
+function guardActions(browser) {
+    for (const provider of [browser.provider, ...(browser.instances ?? []).map((i) => i.provider)]) {
+        if (provider?.name === "playwright") {
+            provider.options.actionTimeout = WAIT_GUARD_MS;
+        }
+    }
+}
+
+/**
  * Sets the guards on one vitest `test` block, over anything it set itself.
  * @param test - a `test` block of a config or of one of its inline projects
  * @returns the block with the guards and the guard setup file
@@ -57,6 +77,9 @@ function guardTest(test) {
     }
     const guard = guardSetup();
     const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== guard);
+    if (test.browser) {
+        guardActions(test.browser);
+    }
     return {
         ...test,
         testTimeout: TEST_GUARD_MS,

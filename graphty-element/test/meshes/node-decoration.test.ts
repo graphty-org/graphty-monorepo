@@ -13,6 +13,7 @@ import {
     imageBox,
     pieSlices,
     pointLists,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
@@ -401,5 +402,27 @@ describe("a chart", () => {
         assert.lengthOf(chartPieces(undefined, 60, 60), 0);
         assert.lengthOf(chartPieces({ values: "1 2" }, 60, 60), 0);
         assert.lengthOf(chartPieces({ colors: "#ff0000" }, 60, 60), 0);
+    });
+});
+
+describe("raisedStrips", () => {
+    const raised = { width: 1, lightColor: "#ffff00", darkColor: "#b28e00" };
+
+    test("lays strips along the box's inside as Java's fill3DRect does, light left and top, dark bottom and right", () => {
+        const [left, top, bottom, right] = raisedStrips(raised, 10, 6);
+        assert.deepEqual(left.box, { x0: -5, y0: -3, x1: -4, y1: 3 });
+        assert.deepEqual(top.box, { x0: -4, y0: 2, x1: 4, y1: 3 });
+        assert.deepEqual(bottom.box, { x0: -4, y0: -3, x1: 5, y1: -2 });
+        assert.deepEqual(right.box, { x0: 4, y0: -2, x1: 5, y1: 3 });
+        assert.deepEqual(left.rgb, [1, 1, 0]);
+        assert.deepEqual(top.rgb, [1, 1, 0]);
+        assert.deepEqual(bottom.rgb, right.rgb);
+        assert.notDeepEqual(bottom.rgb, left.rgb);
+    });
+
+    test("scales its width and draws nothing with none", () => {
+        assert.strictEqual(raisedStrips(raised, 10, 6, 2)[0].box.x1, -3);
+        assert.lengthOf(raisedStrips({ ...raised, width: 0 }, 10, 6), 0);
+        assert.lengthOf(raisedStrips(undefined, 10, 6), 0);
     });
 });

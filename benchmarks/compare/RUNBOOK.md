@@ -10,6 +10,7 @@ reaches a published package. Install it once with `pnpm install --frozen-lockfil
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `BENCH_URL`, `BENCH_RESULTS` | The page, and the file a run appends its row to                                                                                                                          | Required                                                     |
 | `BENCH_RENDER_PATH`          | graphty-element's `renderPath` option, recorded in the row as `renderPath`. A build without the option ends the run with a failure instead of measuring its default path | Unset: the element's default                                 |
+| `BENCH_RENDERER`             | graphty-element's `renderer` option, recorded in the row as `rendererRequest`                                                                                            | Unset: WebGL                                                 |
 | `BENCH_TOOLS`                | The checkout whose Playwright and `tools/with-browser.sh` run the browser                                                                                                | This checkout                                                |
 | `BENCH_EGL`                  | The directory of the extracted libEGL                                                                                                                                    | `tmp/egl/root/usr/lib/x86_64-linux-gnu` in the main checkout |
 | `BENCH_DEADLINE_S`           | Seconds before a run ends as `did not finish`                                                                                                                            | 570                                                          |
@@ -117,8 +118,8 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 ## What a row holds
 
 `results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `floor` (the
-cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `memory`, `hover`,
-`layoutFps`, `layoutSteps`, and `failure` when it ended early. The order of the stages is fixed: still, moving,
+cost of the measurement itself), `load`, `canvas`, `still`, `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
+`layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
 memory, hover, layout. Hover comes before the layout so both libraries hover the same scene.
 
 Screenshots of the last run of each configuration are in `../results/<label>/shots/`, which git ignores.

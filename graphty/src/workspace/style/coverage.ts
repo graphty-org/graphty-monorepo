@@ -152,6 +152,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.labelShiftY": NOT_PLACED,
     "node.labelShiftOf": NOT_PLACED,
     "node.labelGapOf": NOT_PLACED,
+    "node.labelBox": NOT_PLACED,
     "node.borderScreenWidth": NOT_PLACED,
     "node.borderOpacity": NOT_PLACED,
     "node.borderPosition": NOT_PLACED,
@@ -163,6 +164,9 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.outerBorderStyle": NOT_PLACED,
     "node.outerBorderOffset": NOT_PLACED,
     "node.outerBorderCount": NOT_PLACED,
+    "node.raisedBorderWidth": NOT_PLACED,
+    "node.raisedBorderLightColor": NOT_PLACED,
+    "node.raisedBorderDarkColor": NOT_PLACED,
     "node.underlayColor": NOT_PLACED,
     "node.underlayOpacity": NOT_PLACED,
     "node.underlayPadding": NOT_PLACED,
@@ -355,6 +359,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelShiftY": NOT_PLACED,
     "edge.labelShiftOf": NOT_PLACED,
     "edge.labelGapOf": NOT_PLACED,
+    "edge.labelBox": NOT_PLACED,
     "node.groupPadding": NOT_PLACED,
     "node.groupPaddingRatio": NOT_PLACED,
     "node.groupPaddingOf": NOT_PLACED,
@@ -464,6 +469,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     shiftY: NOT_PLACED,
     shiftOf: NOT_PLACED,
     gapOf: NOT_PLACED,
+    box: NOT_PLACED,
     outlineOpacity: NOT_PLACED,
 };
 

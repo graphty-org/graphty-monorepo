@@ -614,7 +614,9 @@ void main() {
 
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
-        const breadth = options.breadth ?? 1;
+        // a stem is as wide as its line: `outline`'s scene units over its length
+        const breadth =
+            options.type === "stem" ? Math.round((options.width / 40 / length) * 1000) / 1000 : (options.breadth ?? 1);
         const { side } = options;
         // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
         const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
@@ -1226,6 +1228,10 @@ void main() {
                     lineStop: EdgeMesh.veeLineStop(cap),
                 };
 
+            // A slash lies across its line, which runs on under it to the end
+            case "slash":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0 };
+
             // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
             // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
             // meets it 0.4 of the cap back from the tip, the half barb's stroke its own length back
@@ -1256,6 +1262,7 @@ void main() {
             case "circle-triangle":
             case "open-box":
             case "open-inverted":
+            case "stem":
             case "image":
                 return {
                     positioningMode: "tip",

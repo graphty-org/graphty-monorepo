@@ -1,6 +1,3 @@
-// Installs scene.pickWithRay; see test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Culling/ray.js";
-
 import {
     Quaternion,
     Ray,
@@ -11,7 +8,8 @@ import {
 } from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
-import { alongRay, type NodeDragHandler } from "../NodeBehavior";
+import type { NodeDragHandler } from "../NodeBehavior";
+import { pickRayAsDrawn } from "../render/PickService";
 import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 
@@ -811,25 +809,20 @@ export class XRInputHandler {
 
         // Pick meshes in the scene
         // Only pick node meshes (they have dragHandler in metadata or on the node)
-        const pickInfo = this.scene.pickWithRay(
-            ray,
-            alongRay(this.scene, ray, (mesh) => mesh.isPickable && mesh.isEnabled()),
-        );
-
-        if (!pickInfo?.hit || !pickInfo.pickedMesh) {
+        const { mesh: picked, point: pickedPoint } = pickRayAsDrawn(this.scene, ray);
+        if (picked === null) {
             return;
         }
 
         // Try to find the NodeDragHandler for this mesh
-        const dragHandler = this.findDragHandlerForMesh(pickInfo.pickedMesh);
+        const dragHandler = this.findDragHandlerForMesh(picked);
         if (!dragHandler) {
             return;
         }
 
         // Get the node's current position for debugging
         const node = dragHandler.getNode();
-        const nodeMeshPosition = node.mesh.position;
-        const { pickedPoint } = pickInfo;
+        const nodeMeshPosition = node.drawnPosition;
 
         logger.debug("Drag start", {
             handedness,
@@ -890,7 +883,7 @@ export class XRInputHandler {
 
             // NOW call onDragStart since user has committed to dragging
             const node = this.draggedNodeHandler.getNode();
-            this.draggedNodeHandler.onDragStart(node.mesh.position.clone());
+            this.draggedNodeHandler.onDragStart(node.drawnPosition.clone());
 
             // Reset lastDragHandPosition to current so first delta is from threshold point
             this.lastDragHandPosition = currentHandPosition.clone();
@@ -937,7 +930,7 @@ export class XRInputHandler {
 
         // Get current node position and add delta
         const node = this.draggedNodeHandler.getNode();
-        const currentNodePos = node.mesh.position.clone();
+        const currentNodePos = node.drawnPosition.clone();
         const newPosition = currentNodePos.add(finalDelta);
 
         // Log only first 5 updates to catch initial movement issues

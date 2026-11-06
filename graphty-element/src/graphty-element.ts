@@ -757,6 +757,8 @@ export class Graphty extends LitElement {
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
+            // The first update calls init, and on a shared device the accelerator waits for it.
+            this.#graph.expectRenderer();
             void controller.start();
         }
 

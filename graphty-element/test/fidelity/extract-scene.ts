@@ -116,9 +116,32 @@ export function polygonClassOf(points: string | undefined): ShapeClass {
         }
         return onBox === 0 ? "diamond" : "other";
     }
+    if (corners.length > 8 && fillsBoxRounded(corners)) {
+        return "roundrect";
+    }
     return (
         ({ 3: "triangle", 6: "hexagon", 8: "octagon" } as Partial<Record<number, ShapeClass>>)[corners.length] ??
         "other"
+    );
+}
+
+/**
+ * Whether a polygon of many points is a curve as the oracle's outlines read as a rounded rectangle (associate.ts,
+ * `curvedShapeOf`): it fills most of its box and has no corner on the box's.
+ * @param points - its points
+ * @returns whether it is
+ */
+function fillsBoxRounded(points: readonly (readonly number[])[]): boolean {
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const on = (v: number, a: number, b: number): boolean => Math.abs(v - a) < 1e-3 || Math.abs(v - b) < 1e-3;
+    const area = points.reduce((sum, [x, y], i) => {
+        const [nx, ny] = points[(i + 1) % points.length];
+        return sum + x * ny - nx * y;
+    }, 0);
+    return (
+        Math.abs(area / 2) > 0.86 * (x1 - x0) * (y1 - y0) && !points.some(([x, y]) => on(x, x0, x1) && on(y, y0, y1))
     );
 }
 

@@ -160,6 +160,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     "half-open": "half",
     // half-open's arm as one thin stroke (Cytoscape's HALF_TOP and HALF_BOTTOM)
     "half-barb": "half",
+    // one slanted stroke, read as the oracle reads yEd's skewed_dash
+    slash: "half",
     "half-circle": "half-circle",
     "open-half-circle": "half-circle",
     // the round side of a half circle alone, bulging toward the node (vis-network's curve), drawn as a stroke
@@ -232,9 +234,10 @@ const CAP_PLACE_PX = 2;
  * @param c - the cap
  * @param line - the line as drawn, source end first, before any cap carries it on
  * @param lineEnds - where the line itself ends, source end first, short of its caps' tips; undefined where not read
+ * @param standing - whether a stem stands it back from the line's end, so how far back is judged against the program's
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt]): PArrow {
+function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt], standing = false): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -265,8 +268,15 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, P
     if (end !== "middle" && position > 0 && position < 1) {
         return { ...arrow, partWay: true };
     }
+    if (standing) {
+        return { ...arrow, standing };
+    }
     // a half arrow lies to one side of its line by its make
-    const misplaced = end === "middle" ? 0 : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
+    // and a slash lies back from its line's end behind its stem
+    const misplaced =
+        end === "middle" || (shape === "half" && c.name.includes("slash"))
+            ? 0
+            : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
     return misplaced > 0 ? { ...arrow, misplaced } : arrow;
 }
 
@@ -307,7 +317,7 @@ export function capPlaceMiss(
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 
 /** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc; the half barb). */
-const STROKED_NAMES: readonly string[] = ["curve", "half-barb"];
+const STROKED_NAMES: readonly string[] = ["curve", "half-barb", "slash"];
 
 /**
  * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.
@@ -644,9 +654,14 @@ export function drawnPrimitives(
             return [];
         }
         // a cap drawn at no opacity or no size draws nothing
-        const arrows: PArrow[] = d.caps
-            .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => drawnArrow(c, d.points, d.lineEnds));
+        const isStem = (c: DrawnCap): boolean => c.name.includes("stem");
+        // a slash's middle is off a bent line, where it is read off the bend, so how far back it stands is not judged
+        const standsBack = (c: DrawnCap, k: number): boolean =>
+            !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
+        // a stem is a length of the line, no arrow: what stands behind it is
+        const arrows: PArrow[] = d.caps.flatMap((c, k) =>
+            c.opacity > 0 && c.sizePx > 0 && !isStem(c) ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k))] : [],
+        );
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's

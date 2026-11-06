@@ -21,5 +21,5 @@
         }
     },
     "include": ["**/*.ts", ".storybook/**/*.ts"],
-    "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts"]
+    "exclude": ["tmp/**/*", "dist/**/*", "vitest.config.ts", "vite.config.ts"]
 }

@@ -1,7 +1,8 @@
 /**
  * @file What adding one edge repaints on a real element (issue #5893): under layers that paint
  * each element from that element alone it is the new edge and nothing else, whatever the graph's
- * size; a layer reading a node's degree still reaches the new edge's ends, and a layer can still take back paint from rows the narrowed pass did not visit. Counted in calls to
+ * size; a layer reading a node's degree still reaches the new edge's ends and nothing else while
+ * its domain stands (issue #5897), and a layer can still take back paint from rows the narrowed pass did not visit. Counted in calls to
  * `applySessionPaint`, never timed.
  *
  * The render loop is stopped, so `graph.update()` is the one frame that applies the paint.
@@ -117,6 +118,26 @@ describe("adding one edge", () => {
         const untouched = drawnSize(element, "n3") ?? 0;
         assert.isAbove(drawnSize(element, "n1") ?? 0, untouched, "the source outgrew a node the edge missed");
         assert.isAbove(drawnSize(element, "n5") ?? 0, untouched, "the target outgrew a node the edge missed");
+    });
+
+    it("repaints only what the edge reached under encodings whose domain it leaves alone (#5897)", async () => {
+        const element = await mount(20);
+        const session = element.graph.getSession();
+        await session.styles.add({
+            name: "By degree",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "graphty.degree", scale: "linear", range: [1, 3] } },
+        });
+        await session.styles.add({
+            name: "Hubs",
+            selector: { match: "expression", where: "graphty.degree >= `3`" },
+            set: { "node.opacity": 0.5 },
+        });
+        await repaintedBy(element, { source: "n1", target: "n5" });
+
+        const counted = await repaintedBy(element, { source: "n2", target: "n8" });
+
+        assert.deepEqual(counted, { nodes: 2, edges: 1 }, "the two ends and the edge, of 20 nodes");
     });
 
     it("still reaches the ends of the edge when a selector tests their degree", async () => {

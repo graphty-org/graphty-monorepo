@@ -14,8 +14,14 @@ const MS_PER_DAY = 86_400_000;
 /** The furthest instant a `Date` holds, either side of 1970. */
 const MAX_INSTANT = 8.64e15;
 
+/** How many days of one zone {@link steadyOffset} keeps. */
+const MAX_HELD_DAYS = 100_000;
+
 /** One formatter per zone: building one costs far more than using it. */
 const formats = new Map<string, Intl.DateTimeFormat>();
+
+/** Each zone's answers to {@link steadyOffset}, by day: a column's values share a few days. */
+const heldDays = new Map<string, Map<number, number | null>>();
 
 /**
  * The formatter that reads an instant's fields in a zone. It asks for the era, so a BCE year does
@@ -100,6 +106,34 @@ export function wallClock(at: number, zone: string): number {
 }
 
 /**
+ * A zone's offset around a wall clock, asked of `Intl` once a day rather than once a value.
+ * @param wall - The wall clock.
+ * @param zone - The zone.
+ * @returns The offset, or null when it changes in the days either side of the wall clock.
+ */
+function steadyOffset(wall: number, zone: string): number | null {
+    let days = heldDays.get(zone);
+    if (days === undefined) {
+        days = new Map();
+        heldDays.set(zone, days);
+    }
+
+    const day = Math.floor(wall / MS_PER_DAY);
+    let offset = days.get(day);
+    if (offset === undefined) {
+        if (days.size >= MAX_HELD_DAYS) {
+            days.clear();
+        }
+
+        const before = offsetAt((day - 1) * MS_PER_DAY, zone);
+        offset = before === offsetAt((day + 2) * MS_PER_DAY, zone) ? before : null;
+        days.set(day, offset);
+    }
+
+    return offset;
+}
+
+/**
  * The instant a zone's clock shows a wall clock. A time a change skipped reads in the offset before
  * it, which lands as far past the gap as the time was into it, so a removed midnight is the day's
  * first moment. A time a change repeated reads as the first of the two.
@@ -112,8 +146,11 @@ export function instantOfWall(wall: number, zone: string): number {
         return wall;
     }
 
-    // ponytail: two `Intl` reads a value, about 9 us against 0.6 us in UTC, so a million text values
-    // in a named zone parse in about 9 s; cache offsets per day if that build matters.
+    const steady = steadyOffset(wall, zone);
+    if (steady !== null) {
+        return wall - steady;
+    }
+
     const before = offsetAt(wall - MS_PER_DAY, zone);
     const after = offsetAt(wall + MS_PER_DAY, zone);
     if (before === after) {

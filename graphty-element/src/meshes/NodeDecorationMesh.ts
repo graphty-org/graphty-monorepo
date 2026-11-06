@@ -30,6 +30,7 @@ import {
     imageBox,
     type PieceBox,
     pieSlices,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
@@ -75,6 +76,7 @@ export interface NodeDecorationOptions {
     readonly border?: NodeStyleConfig["border"];
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
+    readonly raisedBorder?: NodeStyleConfig["raisedBorder"];
     readonly chart?: NodeStyleConfig["chart"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
@@ -98,6 +100,7 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
+        (o.raisedBorder?.width ?? 0) > 0 ||
         o.chart?.values !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
@@ -359,6 +362,10 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         ...chartPieces(o.chart, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
         ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
+        ...raisedStrips(o.raisedBorder, face.width, face.height, scale).flatMap((s) => {
+            const outline = clipToBox(face.outline, s.box);
+            return outline.length < 3 ? [] : [{ ...s, outline }];
+        }),
     ];
 }
 

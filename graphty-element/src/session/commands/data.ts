@@ -516,6 +516,11 @@ export function declarationKey(column: { readonly kind: string; readonly name: s
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
     /**
+     * The loads under way, for a reader that waits for the rows to stop arriving.
+     * @returns Settles once every load running or waiting has; null when none is.
+     */
+    loading?(): Promise<void> | null;
+    /**
      * Apply one mutation, writing through the graph primitives in `draft`.
      * @param mutation - The mutation.
      * @param draft - The command's draft.

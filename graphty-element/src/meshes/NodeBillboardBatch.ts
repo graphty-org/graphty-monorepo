@@ -9,7 +9,6 @@ import {
     Mesh,
     type Scene,
     ShaderMaterial,
-    ShaderStore,
     Vector2,
     Vector3,
     VertexData,
@@ -176,7 +175,7 @@ export class NodeBillboardBatch {
 
     /**
      * Build and configure one material of this batch's program from a body.
-     * @param name - Its name in Babylon's shader store.
+     * @param name - Its name.
      * @param glsl - The body.
      * @returns The material.
      */
@@ -184,12 +183,13 @@ export class NodeBillboardBatch {
         const scene = this.mesh.getScene();
         const { descriptor } = this.shader.registration;
         const program = batchProgram(this.role, descriptor, glsl);
-        ShaderStore.ShadersStore[`${name}VertexShader`] = program.vertex;
-        ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
+        // Inline, never through a shader store: the engine compiles this, and this module loads
+        // lazily, so on a page where that gave it a second copy of Babylon, its store is not the
+        // engine's (issue #5894).
         const material = new ShaderMaterial(
             name,
             scene,
-            { vertex: name, fragment: name },
+            { vertexSource: program.vertex, fragmentSource: program.fragment, spectorName: name },
             {
                 attributes: [...program.attributes],
                 uniforms: [...program.uniforms],
@@ -465,7 +465,8 @@ export class NodeBillboardBatch {
             this.slotsChanged ||= written;
             if (this.sortBackToFront(camera) || written) {
                 this.pack();
-                this.buffer?.update(this.drawn);
+                // Up to the high-water mark: past it the array holds nothing to draw.
+                this.buffer?.updateDirectly(this.drawn, 0, this.highWater);
             }
         }
 
@@ -533,10 +534,6 @@ export class NodeBillboardBatch {
 
         this.buffer?.dispose();
         this.buffer = null;
-        for (const name of [this.name, `${this.name}low`]) {
-            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}VertexShader`);
-            Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}FragmentShader`);
-        }
     }
 
     /**

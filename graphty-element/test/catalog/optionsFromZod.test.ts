@@ -288,6 +288,7 @@ describe("optionsFromZod", () => {
                     "effect",
                     "border",
                     "outerBorder",
+                    "raisedBorder",
                     "underlay",
                     "overlay",
                     "image",

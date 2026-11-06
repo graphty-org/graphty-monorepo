@@ -124,6 +124,10 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "sourceArrowParts",
+        "targetArrowParts",
+        "sourceArrowSide",
+        "targetArrowSide",
         "sourceArrowColor",
         "targetArrowColor",
         "arrowSize",
@@ -2362,6 +2366,12 @@ export function readEdgeArrow(end: "target" | "source", raw: string | null, on: 
     }
 }
 
+/** The shapes of Graphviz's arrow grammar (arrows.c), as a regular expression's alternatives. */
+const GRAPHVIZ_ARROW_SHAPES = "normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve";
+
+/** The first shape of an arrow name, with its modifiers. */
+const GRAPHVIZ_ARROW_SHAPE = new RegExp(`^([olr]{0,3})(${GRAPHVIZ_ARROW_SHAPES})`);
+
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
 
@@ -2430,7 +2440,7 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
     const shapes: GraphvizArrowShape[] = [];
     // arrows.c reads at most NUMB_OF_ARROWHEADS (4) shapes, a `none` among them, and ignores the rest
     for (let slot = 0; rest.length > 0 && slot < 4; slot++) {
-        const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
+        const m = GRAPHVIZ_ARROW_SHAPE.exec(rest);
         if (m === null) {
             return shapes.length === 0 ? null : shapes;
         }
@@ -2825,6 +2835,26 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:open-square", "obox"],
     ["other:open-inverted", "oinv"],
 ]);
+
+/**
+ * The Graphviz arrows a name is made of: every neutral arrow that has one. A shape outside this table would make the
+ * whole name one Graphviz does not know. The element draws `icurve` as its open half circle.
+ */
+const ARROW_NAME_SHAPES: ReadonlyMap<string, string> = new Map([
+    ...ARROWS,
+    ["other:curve", "curve"],
+    ["other:inv-curve", "icurve"],
+    ["other:open-half-circle", "icurve"],
+]);
+
+/** The most shapes a Graphviz arrow name holds (arrows.c's NUMB_OF_ARROWHEADS). */
+const MAX_ARROW_NAME_SHAPES = 4;
+
+/**
+ * An `other:` arrow whose name Graphviz reads: its shapes and modifiers in any order, the deprecated `e`, `half`, `empty`
+ * and `open` included (`ebox`, `halfbox`, `emptydot`). No word here is made of others, so a long name cannot backtrack.
+ */
+const GRAPHVIZ_OTHER_ARROW_NAME = new RegExp(`^other:((?:o|l|r|e|half|empty|open|${GRAPHVIZ_ARROW_SHAPES})+)$`);
 
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
 const STROKES: ReadonlyMap<string, string> = new Map([
@@ -3279,7 +3309,9 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const target = get("targetArrow");
     const tail = typeof source === "string" && source !== "none";
     const head = typeof target === "string" && target !== "none";
-    const plain = directed ? head && !tail && target === "triangle" && get("targetArrowSide") === null : !head && !tail;
+    const plain = directed
+        ? head && !tail && target === "triangle" && get("targetArrowParts") === null && get("targetArrowSide") === null
+        : !head && !tail;
     if (plain || (source === null && target === null)) {
         return;
     }
@@ -3292,23 +3324,71 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
         dir = "back";
     }
     out.set("dir", dir);
-    // a one-sided arrow is its shape with an `l` or `r` before it; the neutral half arrow, one barb, is nearest to the
-    // left half of Graphviz's triangle, which reads back as that
-    const arrow = (value: string, side: StyleValue | null, property: string): string => {
+    // the neutral half arrow, one barb, is nearest to the left half of Graphviz's triangle, which reads back as that
+    const arrow = (value: string, property: string): string => {
+        const parts = get(`${property}Parts`);
+        const side = sideSuffix(get(`${property}Side`));
+        if (typeof parts === "string") {
+            return arrowName(`${value}${side} ${parts}`, property, approximate);
+        }
         if (value === "half") {
             approximate(property, value);
             approximate(`${property}Side`, value);
             return "lnormal";
         }
-        const name = spelled(ARROWS, value, "normal", property, approximate);
-        return side === "left" || side === "right" ? `${side[0]}${name}` : name;
+        // an `other:` name Graphviz reads, though no neutral arrow has it, is written as it is, with no side
+        const kept = ARROW_NAME_SHAPES.has(value) ? undefined : GRAPHVIZ_OTHER_ARROW_NAME.exec(value)?.[1];
+        if (kept === undefined) {
+            return arrowName(`${value}${side}`, property, approximate);
+        }
+        if (side !== "") {
+            approximate(`${property}Side`, value);
+        }
+        return kept;
     };
     if (head) {
-        out.set("arrowhead", arrow(target, get("targetArrowSide"), "targetArrow"));
+        out.set("arrowhead", arrow(target, "targetArrow"));
     }
     if (tail) {
-        out.set("arrowtail", arrow(source, get("sourceArrowSide"), "sourceArrow"));
+        out.set("arrowtail", arrow(source, "sourceArrow"));
     }
+}
+
+/**
+ * A side as an arrow word writes it after its shape.
+ * @param side - the side, or null for the whole shape
+ * @returns the suffix
+ */
+function sideSuffix(side: StyleValue | null): string {
+    return side === "left" || side === "right" ? `:${side}` : "";
+}
+
+/**
+ * The Graphviz name of an arrow of one shape or several, nearest the node first, each with an `l` or `r` before it for
+ * the side it keeps: the inverse of graphvizArrows(). A shape Graphviz has no name for and any past the fourth are left
+ * out, so the name stays one Graphviz reads, and a name with no shape left is its plain arrow.
+ * @param shapes - the shapes as `targetArrowParts` writes them, separated by spaces
+ * @param property - the property, for the approximation note
+ * @param approximate - records approximations
+ * @returns the name
+ */
+function arrowName(shapes: string, property: string, approximate: Approximate): string {
+    const names = shapes
+        .trim()
+        .split(/\s+/)
+        .flatMap((word) => {
+            const side = /:(left|right)$/.exec(word)?.[1];
+            const name = ARROW_NAME_SHAPES.get(word.replace(/:(left|right)$/, ""));
+            if (name === undefined) {
+                approximate(property, word);
+                return [];
+            }
+            return [side === undefined ? name : name.replace(/^o?/, `$&${side[0]}`)];
+        });
+    for (const dropped of names.slice(MAX_ARROW_NAME_SHAPES)) {
+        approximate(property, dropped);
+    }
+    return names.slice(0, MAX_ARROW_NAME_SHAPES).join("") || "normal";
 }
 
 /**

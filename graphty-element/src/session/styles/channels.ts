@@ -267,6 +267,9 @@ export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
  */
 export type LabelShiftOfValue = "box" | "words";
 
+/** What a label's box is sized to (`labelBox`): its words, its words held at a side, or its target's width. */
+export type LabelBoxValue = "words" | "words-at-side" | "target-width";
+
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
@@ -385,6 +388,7 @@ export interface ChannelValues {
     "node.labelShiftY": number;
     "node.labelShiftOf": LabelShiftOfValue;
     "node.labelGapOf": LabelShiftOfValue;
+    "node.labelBox": LabelBoxValue;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -421,6 +425,9 @@ export interface ChannelValues {
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
     "node.outerBorderCount": number;
+    "node.raisedBorderWidth": number;
+    "node.raisedBorderLightColor": ColorValue;
+    "node.raisedBorderDarkColor": ColorValue;
     "node.cornerRadius": number;
     "node.exactCornerRadius": boolean;
     "node.cornerFraction": number;
@@ -684,6 +691,7 @@ export interface ChannelValues {
     "edge.labelShiftY": number;
     "edge.labelShiftOf": LabelShiftOfValue;
     "edge.labelGapOf": LabelShiftOfValue;
+    "edge.labelBox": LabelBoxValue;
     "node.xlabel": string;
     "node.xlabelStyle": LabelStyle;
     "node.xlabelLocation": LabelLocation;
@@ -715,6 +723,8 @@ export type ColorChannel =
     | "node.tooltipBackground"
     | "node.gradientColor"
     | "node.outerBorderColor"
+    | "node.raisedBorderLightColor"
+    | "node.raisedBorderDarkColor"
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
@@ -1112,6 +1122,11 @@ const NODE_OUTER_BORDER_CAVEAT =
     "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
     "It is not `node.outline`, which is a highlight drawn over the node's rim.";
 
+const NODE_RAISED_BORDER_CAVEAT =
+    "Strips along the inside of the node's edge that make it look raised: `node.raisedBorderLightColor` on its left " +
+    "and top, `node.raisedBorderDarkColor` on its bottom and right, cut to the node's outline. Drawn only with a " +
+    "`node.raisedBorderWidth` above 0, in the units of `node.borderWidth`.";
+
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
     'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
@@ -1476,7 +1491,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1513,6 +1528,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     ShiftY: "shiftY",
     ShiftOf: "shiftOf",
     GapOf: "gapOf",
+    Box: "box",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -1798,6 +1814,15 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'the margins round its words, or "words", its words\' own font box, as Cytoscape.js puts a label ' +
                 'outside its node. Unset, "box".',
         }),
+        row("Box", "Box", {
+            accepts: "enum",
+            values: LABEL_BOX_VALUES,
+            caveat:
+                'What the label\'s box is sized to: "words", round its words, an inside label too large for its ' +
+                'node being centered; "words-at-side", round its words, an inside label staying against the side ' +
+                'it names however large it is; "target-width", as "words-at-side" and at least as wide as its ' +
+                'node, a band across it. Unset, "words".',
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -1841,6 +1866,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     ShiftY: "shiftY",
     ShiftOf: "shiftOf",
     GapOf: "gapOf",
+    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1851,6 +1877,9 @@ const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hang
 
 /** Every value the `labelShiftOf` channels take. */
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
+
+/** Every box the `labelBox` channels take. */
+const LABEL_BOX_VALUES: readonly LabelBoxValue[] = ["words", "words-at-side", "target-width"];
 
 /**
  * A node label field channel: an edge label belongs to no node, so an
@@ -1897,7 +1926,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -2793,6 +2822,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "outerBorder.count",
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.raisedBorderWidth": {
+        channel: "node.raisedBorderWidth",
+        target: "node",
+        plainName: "Node Raised Border Width",
+        shortName: "Raised border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "raisedBorder.width",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
+    },
+    "node.raisedBorderLightColor": {
+        channel: "node.raisedBorderLightColor",
+        target: "node",
+        plainName: "Node Raised Border Light Color",
+        shortName: "Raised border light color",
+        group: "shape",
+        default: "#FFFFFF",
+        accepts: "color",
+        stylePath: "raisedBorder.lightColor",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
+    },
+    "node.raisedBorderDarkColor": {
+        channel: "node.raisedBorderDarkColor",
+        target: "node",
+        plainName: "Node Raised Border Dark Color",
+        shortName: "Raised border dark color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "raisedBorder.darkColor",
+        renderable: true,
+        caveat: NODE_RAISED_BORDER_CAVEAT,
     },
     ...haloRows("node", "underlay"),
     ...haloRows("node", "overlay"),

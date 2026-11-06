@@ -7,8 +7,10 @@
 import { AbstractEngine } from '@babylonjs/core';
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
+import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
 import { BaseTexture } from '@babylonjs/core';
+import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -74,11 +76,13 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PhotoDome } from '@babylonjs/core';
+import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
@@ -190,6 +194,7 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
 // @public
 export interface AcceleratorFactoryOptions {
     readonly acceptSoftware?: boolean;
+    readonly device?: unknown;
     readonly exactMaxNodes?: number;
 }
 
@@ -875,6 +880,8 @@ export class DataManager implements Manager {
     get lastImport(): LoadReport | null;
     // (undocumented)
     meshCache: MeshCache;
+    // @internal
+    nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
@@ -1104,6 +1111,8 @@ export class Edge {
     supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
+    // @internal
+    get trimInput(): EdgeTrimInput;
     update(): void;
     // @deprecated
     static updateRays(_g: Graph | GraphContext): void;
@@ -1232,6 +1241,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1376,6 +1387,11 @@ export const EdgeStyle: z.ZodObject<{
             gapOf: z.ZodOptional<z.ZodEnum<{
                 box: "box";
                 words: "words";
+            }>>;
+            box: z.ZodOptional<z.ZodEnum<{
+                words: "words";
+                "words-at-side": "words-at-side";
+                "target-width": "target-width";
             }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
@@ -1499,6 +1515,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1644,6 +1662,11 @@ export const EdgeStyle: z.ZodObject<{
                 box: "box";
                 words: "words";
             }>>;
+            box: z.ZodOptional<z.ZodEnum<{
+                words: "words";
+                "words-at-side": "words-at-side";
+                "target-width": "target-width";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1766,6 +1789,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1814,6 +1839,8 @@ export const EdgeStyle: z.ZodObject<{
             kite: "kite";
             deltoid: "deltoid";
             "open-vee": "open-vee";
+            slash: "slash";
+            stem: "stem";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -2058,6 +2085,11 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -2273,6 +2305,11 @@ export const EdgeStyle: z.ZodObject<{
         gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
+        }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -2714,6 +2751,8 @@ export class Graph implements GraphContext {
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     readonly eventManager: EventManager;
     exitXR(): Promise<void>;
+    // @internal
+    expectRenderer(): void;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
@@ -2745,6 +2784,8 @@ export class Graph implements GraphContext {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    // @internal
+    getRowTable(): RowTable | null;
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -2822,6 +2863,8 @@ export class Graph implements GraphContext {
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
+    // @internal
+    openRowTable(): RowTable;
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
@@ -2995,6 +3038,8 @@ export interface GraphContext {
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
+    getRowTable?(): RowTable | null;
     getScene(): Scene;
     getSelectionManager?(): SelectionManager | undefined;
     getSession?(): GraphSession;
@@ -4682,7 +4727,6 @@ export abstract class LayoutEngine {
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
-    // (undocumented)
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
@@ -4718,8 +4762,15 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    // @internal
+    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
+    // @internal
+    protected publishScratch(count: number): {
+        rows: Float64Array;
+        coords: Float64Array;
+    };
     readNodePosition(n: Node_2, out: {
         x: number;
         y: number;
@@ -4960,13 +5011,52 @@ class Node_2 implements ModelUser {
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
+    get drawnBoundingBox(): BoundingBox;
+    // @internal
+    get drawnBoundingRadius(): number;
+    // @internal
+    get drawnByRowScan(): boolean;
     get drawnFill(): string | null;
+    // @internal
+    get drawnGeneration(): number;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
         z: number;
     }>;
+    // @internal
+    get drawnInBatch(): boolean;
+    // @internal
+    get drawnPickMesh(): AbstractMesh;
+    // @internal
+    get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
+    // @internal
+    get drawnRootScale(): number;
+    // @internal
+    get drawnScale(): number;
+    set drawnScale(scale: number);
+    // @internal
+    get drawnScaling(): Readonly<Vector3>;
+    // @internal
+    get drawnScene(): Scene;
+    // @internal
+    get drawnSourceMesh(): AbstractMesh;
+    // @internal
+    drawnWorldMatrix(force?: boolean): Matrix;
+    // @internal
+    get drawnWorldPosition(): Vector3;
+    // @internal
+    get drawnWorldRadius(): number;
+    // @internal
+    get drawnWorldScaling(): Vector3;
+    // @internal
+    drawShrunk(scale: number, whole: number): void;
     // @internal
     framingBounds(): {
         min: Vector3;
@@ -4987,13 +5077,19 @@ class Node_2 implements ModelUser {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    // @internal
+    get isDrawn(): boolean;
     get isDrawnAsGroup(): boolean;
+    // @internal
+    isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
+    // @internal
+    makeDrawnPickable(actions: ActionManager): void;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -5047,7 +5143,11 @@ class Node_2 implements ModelUser {
     // @internal
     get surfaceIsBox(): boolean;
     // @internal
+    get surfaceIsClosedForm(): boolean;
+    // @internal
     syncXlabelPlace(): void;
+    // @internal
+    get teardownMesh(): AbstractMesh;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -5222,6 +5322,8 @@ export const NodeShapes: z.ZodEnum<{
     polygon: "polygon";
     "round-polygon": "round-polygon";
     "round-rectangle": "round-rectangle";
+    "top-round-rectangle": "top-round-rectangle";
+    "bottom-round-rectangle": "bottom-round-rectangle";
     barrel: "barrel";
     database: "database";
     cylinder: "cylinder";
@@ -5298,6 +5400,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";
@@ -5462,6 +5566,11 @@ export const NodeStyle: z.ZodObject<{
         offset: z.ZodOptional<z.ZodNumber>;
         count: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
+    raisedBorder: z.ZodOptional<z.ZodObject<{
+        width: z.ZodOptional<z.ZodNumber>;
+        lightColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
     underlay: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
@@ -5493,6 +5602,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";
@@ -5552,6 +5663,8 @@ export const NodeStyle: z.ZodObject<{
             polygon: "polygon";
             "round-polygon": "round-polygon";
             "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
             barrel: "barrel";
             database: "database";
             cylinder: "cylinder";
@@ -5813,6 +5926,11 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6029,6 +6147,11 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6244,6 +6367,11 @@ export const NodeStyle: z.ZodObject<{
         gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
+        }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -7018,6 +7146,11 @@ export const RichTextStyle: z.ZodObject<{
     gapOf: z.ZodOptional<z.ZodEnum<{
         box: "box";
         words: "words";
+    }>>;
+    box: z.ZodOptional<z.ZodEnum<{
+        words: "words";
+        "words-at-side": "words-at-side";
+        "target-width": "target-width";
     }>>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";

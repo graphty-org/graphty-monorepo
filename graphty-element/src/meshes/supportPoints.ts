@@ -604,6 +604,14 @@ export class SupportPoints<E> {
     private lastEnds = new Float64Array(0);
 
     /**
+     * Whether any edge is drawn through a support point, as of the last call that read them.
+     * @returns True when one is.
+     */
+    get hasEdges(): boolean {
+        return this.edges.length > 0;
+    }
+
+    /**
      * Step the support points after the nodes have moved (or while they still settle).
      * @param nodes - Every node's center, asked for only when there is work to do.
      * @param edges - Every edge.

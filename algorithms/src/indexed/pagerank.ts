@@ -1,4 +1,4 @@
-import type { F32, F64, GraphSnapshot, NumericVector, ReverseView } from "@graphty/graph-format";
+import type { F32, F64, GraphSnapshot, NumericVector, ReverseView, U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
 
@@ -65,37 +65,61 @@ export function personalizedPageRank(
     return run(s, distribution(personalization, s.nodeCount, "personalization"), o);
 }
 
-/** What one power-iteration step reads, built once per call. */
-interface PowerStep {
-    readonly n: number;
-    readonly d: number;
-    readonly p: F64 | null;
-    readonly useMax: boolean;
-    readonly rev: ReverseView;
-    readonly revW: NumericVector | null;
+/**
+ * The arrays one power-iteration step reads, gathered once per call. Only always-present arrays go in here: with
+ * the scalars and the nullable `p` and `revW` bundled too, PageRank measured 1.14x slower (issue #5821), so those
+ * are `powerStep` parameters instead.
+ */
+interface PowerArrays {
+    /** The reverse view's row offsets. */
+    readonly revPtr: U32;
+    /** The reverse view's arc sources. */
+    readonly revIdx: U32;
+    /** The out-weight of every node. */
     readonly outW: NumericVector;
 }
 
 /**
- * The arc weights the walk follows (null when unweighted) and each node's out-weight. Reads the
- * f64 shadow toSnapshot keeps when a weight is not f32-exact, else the f32 arc weights.
+ * The f64 shadow of the edge weights that toSnapshot keeps when a weight is not f32-exact, or null.
  * @param s - The snapshot
- * @param rev - The reverse view
- * @param o - Algorithm options
- * @returns The reverse-arc weights and the out-weights
+ * @returns One f64 weight per logical edge, or null to read the f32 arc weights
  */
-function walkWeights(
-    s: GraphSnapshot,
-    rev: ReverseView,
-    o: PageRankOptions,
-): { revW: NumericVector | null; outW: NumericVector } {
-    const weighted = o.weighted === true && rev.weights !== null;
-    const shadow = weighted ? s.edges.byRole("weight") : null;
-    const exact = shadow?.dtype === "f64" ? shadow.data : null;
+function exactWeights(s: GraphSnapshot): F64 | null {
+    const shadow = s.edges.byRole("weight");
+    return shadow?.dtype === "f64" ? shadow.data : null;
+}
+
+/*
+ * The walk's weights come from two functions returning one array each, not one returning an object holding both:
+ * reading them back out of a returned object slowed every power-iteration step 1.15x (issue #5821).
+ */
+
+/**
+ * The weights of the reverse arcs the walk follows.
+ * @param rev - The reverse view
+ * @param weighted - Whether the walk is weighted
+ * @param exact - The f64 edge weights, or null
+ * @returns One weight per reverse arc, or null when unweighted
+ */
+function reverseWeights(rev: ReverseView, weighted: boolean, exact: F64 | null): NumericVector | null {
     if (exact !== null) {
-        return { revW: gather(exact, rev.arcToEdge), outW: rowSums(s, gather(exact, s.arcToEdge)) };
+        return gather(exact, rev.arcToEdge);
     }
-    return weighted ? { revW: rev.weights, outW: s.weightedOutDegree() } : { revW: null, outW: s.outDegree() };
+    return weighted ? rev.weights : null;
+}
+
+/**
+ * Each node's out-weight: its out-degree when unweighted.
+ * @param s - The snapshot
+ * @param weighted - Whether the walk is weighted
+ * @param exact - The f64 edge weights, or null
+ * @returns One out-weight per node
+ */
+function outWeights(s: GraphSnapshot, weighted: boolean, exact: F64 | null): NumericVector {
+    if (exact !== null) {
+        return rowSums(s, gather(exact, s.arcToEdge));
+    }
+    return weighted ? s.weightedOutDegree() : s.outDegree();
 }
 
 /**
@@ -117,15 +141,22 @@ function danglingMass(rank: F64, outW: NumericVector, n: number): number {
 
 /**
  * The rank flowing into `v` along its in-arcs, before damping.
- * @param rev - The reverse view
+ * @param rowPtr - The reverse view's row offsets
+ * @param colIdx - The reverse view's arc sources
  * @param revW - The reverse-arc weights, or null when unweighted
  * @param outW - The out-weight of every node
  * @param rank - The current ranks
  * @param v - The node
  * @returns The undamped inflow
  */
-function inflow(rev: ReverseView, revW: NumericVector | null, outW: NumericVector, rank: F64, v: number): number {
-    const { rowPtr, colIdx } = rev;
+function inflow(
+    rowPtr: U32,
+    colIdx: U32,
+    revW: NumericVector | null,
+    outW: NumericVector,
+    rank: F64,
+    v: number,
+): number {
     let acc = 0;
     const end = rowPtr[v + 1];
     for (let a = rowPtr[v]; a < end; a++) {
@@ -141,19 +172,32 @@ function inflow(rev: ReverseView, revW: NumericVector | null, outW: NumericVecto
 /**
  * One power-iteration step from `rank` into `next`.
  * @returns The change, by the chosen norm
- * @param ps - The iteration inputs
+ * @param arrays - The adjacency and out-weights
+ * @param revW - The reverse-arc weights, or null when unweighted
+ * @param p - The normalised personalization, or null for the uniform teleport
+ * @param d - The damping factor
+ * @param useMax - Measure the change by the max norm rather than L1
  * @param rank - The current ranks
  * @param next - Where the new ranks go
  */
-function powerStep(ps: PowerStep, rank: F64, next: F64): number {
-    const { n, d, p, useMax, rev, revW, outW } = ps;
+function powerStep(
+    arrays: PowerArrays,
+    revW: NumericVector | null,
+    p: F64 | null,
+    d: number,
+    useMax: boolean,
+    rank: F64,
+    next: F64,
+): number {
+    const { revPtr, revIdx, outW } = arrays;
+    const n = rank.length;
     const dangling = danglingMass(rank, outW, n);
     // Teleport (1 - d) spread by p or uniformly; the dangling mass d * dangling spread uniformly,
     // and with p scaled by p[v] on top of the uniform 1 / n, as the legacy function does.
     const spread = 1 - d + d * dangling * (p === null ? 1 : 1 / n);
     let delta = 0;
     for (let v = 0; v < n; v++) {
-        next[v] = spread * (p === null ? 1 / n : p[v]) + d * inflow(rev, revW, outW, rank, v);
+        next[v] = spread * (p === null ? 1 / n : p[v]) + d * inflow(revPtr, revIdx, revW, outW, rank, v);
         const change = Math.abs(next[v] - rank[v]);
         delta = useMax ? Math.max(delta, change) : delta + change;
     }
@@ -175,8 +219,13 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
         return { scores: new Float64Array(0), iterations: 0, converged: true };
     }
     const rev = s.reverse();
-    const { revW, outW } = walkWeights(s, rev, o);
-    const ps: PowerStep = { n, d: o.dampingFactor ?? 0.85, p, useMax: o.convergenceNorm === "max", rev, revW, outW };
+    const weighted = o.weighted === true && rev.weights !== null;
+    const exact = weighted ? exactWeights(s) : null;
+    const revW = reverseWeights(rev, weighted, exact);
+    const outW = outWeights(s, weighted, exact);
+    const arrays: PowerArrays = { revPtr: rev.rowPtr, revIdx: rev.colIdx, outW };
+    const d = o.dampingFactor ?? 0.85;
+    const useMax = o.convergenceNorm === "max";
     let rank =
         (o.initialRanks === undefined ? null : distribution(o.initialRanks, n, "initialRanks")) ??
         new Float64Array(n).fill(o.initialRanks === undefined ? 1 / n : 0);
@@ -184,7 +233,7 @@ function run(s: GraphSnapshot, p: F64 | null, o: PageRankOptions): PageRankResul
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        const delta = powerStep(ps, rank, next);
+        const delta = powerStep(arrays, revW, p, d, useMax, rank, next);
         [rank, next] = [next, rank];
         converged = delta < tol;
     }

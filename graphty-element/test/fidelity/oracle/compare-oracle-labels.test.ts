@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, mergeTexts, outerRingOf, stackedTexts, underlaysOf } from "./associate";
+import { associate, bandsGroup, mergeTexts, outerRingOf, stackedTexts, underlaysOf } from "./associate";
 import {
     browserFace,
     browserFontClass,
@@ -298,6 +298,34 @@ describe("label checks", () => {
             failures(scene("oracle", {}, { a: at(117.6) }), scene("graphty", {}, { a: at(g) }));
         assert.deepEqual(pair(117.3), {});
         assert.deepEqual(pair(114)["label.anchor"], ["a"]);
+    });
+
+    it("places a label by its font's line, not the browser's rounded reading of it, and fails one truly elsewhere", () => {
+        // yed-graphml-specimen-labels two-labels: the browser reads yEd's 10 px line 0.96 px under where it stands, past
+        // the line between inside-at-the-start and centered
+        const read = (over: Partial<PText>): PText => text("A", 100, 98, over);
+        const box = { x0: 80, y0: 80, x1: 120, y1: 120 };
+        assert.strictEqual(labelAnchor(read({}), box), "center/center");
+        assert.strictEqual(labelAnchor(read({ lineDrop: 1 }), box), "center/start");
+        const pair = (o: PText, y: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: o }), scene("graphty", {}, { a: text("A", 100, y) }));
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 96.5)["label.anchor"], undefined);
+        assert.deepEqual(pair(read({}), 96.5)["label.anchor"], ["a"]);
+        // the defect planted: graphty's label at the node's other end
+        assert.deepEqual(pair(read({ lineDrop: 1 }), 110)["label.anchor"], ["a"]);
+    });
+
+    it("places words in another face by the end nearest the program's, and fails one where no end is in place", () => {
+        // gml-synthetic-coverage 9: yEd's left edge, in Courier New where yEd drew Dialog: narrower, so the middles part
+        const span = (x0: number, w: number, family: string): PText => text("A", x0 + w / 2, 100, { family }, w);
+        const pair = (g: PText): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: span(83, 30, "Dialog") }), scene("graphty", {}, { a: g }));
+        const courier = "Courier New, DejaVu Sans, sans-serif";
+        assert.deepEqual(pair(span(83, 27, courier))["label.anchor"], undefined);
+        // the same narrower box in the program's own class of face is out of place: its width is no other font's doing
+        assert.deepEqual(pair(span(83, 27, "DejaVu Sans, sans-serif"))["label.anchor"], ["a"]);
+        // the defect planted: another face, and neither end nor the middle where the program's are
+        assert.deepEqual(pair(span(95, 27, courier))["label.anchor"], ["a"]);
     });
 
     it("reads a tiny label within a pixel of its node's middle as centered, and fails one a few pixels off", () => {
@@ -798,6 +826,24 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.strictEqual(a?.label?.background?.shape, "rect");
         assert.lengthOf(o.strays, 0);
         assert.deepEqual(compareOracle("t", o, guide).failures, { "label.background": ["a"] });
+    });
+
+    it("reads the band a group's label is drawn on as the label's background, and nothing else", () => {
+        const words = text("Title", 300, 70);
+        const box = { x0: 100, y0: 60, x1: 500, y1: 300 };
+        const band = (x0: number, y0: number, x1: number, y1: number, over: Partial<Prim> = {}): boolean =>
+            bandsGroup(
+                prim({ tag: "rect", corners: 4, points: rect(x0, y0, x1, y1), fill: fill("#00b050"), ...over }),
+                words,
+                box,
+            );
+        // yEd's node_width label: a strip the group's whole width, stopping short of its rounded corners
+        assert.isTrue(band(102, 60, 498, 80));
+        // the group's own body, a strip elsewhere in it, a short box and an outline with no fill are not
+        assert.isFalse(band(100, 60, 500, 300));
+        assert.isFalse(band(100, 200, 500, 220));
+        assert.isFalse(band(240, 60, 360, 80));
+        assert.isFalse(band(100, 60, 500, 80, { fill: null, stroke: stroke("#000000") }));
     });
 
     it("reads a whole circle on a node's outline as that node's self-loop where graphty draws one, run as graphty's", () => {

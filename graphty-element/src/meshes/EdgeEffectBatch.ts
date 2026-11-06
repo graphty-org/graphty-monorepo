@@ -1,4 +1,4 @@
-import { type Matrix, type Mesh, type Scene, type ShaderMaterial, ShaderStore, Vector3 } from "@babylonjs/core";
+import { type Matrix, type Mesh, type Scene, type ShaderMaterial, Vector3 } from "@babylonjs/core";
 
 import { motionOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
@@ -71,7 +71,6 @@ export function shadedLineMesh(
     const { descriptor, glsl } = shader.registration;
     const name = `graphtyEdge${role}${shader.hash.slice(0, 24)}`;
     const program = edgeShaderProgram(role, descriptor, glsl);
-    ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
     let blend: "combine" | "premultiplied" | "add" = "combine";
     if (role === "along") {
         blend = descriptor.blend === "add" ? "add" : "premultiplied";
@@ -83,7 +82,7 @@ export function shadedLineMesh(
             color: line.color,
             opacity: line.opacity,
             worldWidth: line.worldWidth,
-            program: { ...program, fragment: name },
+            program: { ...program, name },
             blend,
             fade: line.fade,
             opaque: line.opaque,

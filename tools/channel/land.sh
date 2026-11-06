@@ -9,8 +9,9 @@
 # (comma-separated), DIST_TAG (latest or next), HELD, TESTED, RELEASE_BUNDLE (the kept version commit's bundle,
 # default $RUNNER_TEMP/release/release.bundle), GITHUB_OUTPUT (gets pushed=true once master holds the release).
 set -euo pipefail
-git config user.name "github-actions[bot]"
-git config user.email "github-actions[bot]@users.noreply.github.com"
+# In the environment, not git config: run from a worktree, that writes the .git/config every worktree shares (#5974).
+export GIT_AUTHOR_NAME="github-actions[bot]" GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com"
+export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
 refs=()
 # A nightly's merge has its own subject, so deploy-pages.yml (which deploys graphty.app from a
 # "chore(release): publish ... onto master" merge) never takes a nightly for a production release.

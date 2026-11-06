@@ -114,6 +114,17 @@ function textOf(value: unknown): string {
 }
 
 /**
+ * Whether a template reads a whole column, so what one element shows depends on the others.
+ * @param template - The lines, as authored.
+ * @returns True when a placeholder asks for `count` or `rank`.
+ */
+export function readsWholeColumn(template: unknown): boolean {
+    return parseTemplate(template).lines.some((line) =>
+        line.some((part) => typeof part !== "string" && part.op !== "value"),
+    );
+}
+
+/**
  * The distinct values of one column, sorted, so a rank is an index and a count a length.
  * @param column - The values.
  * @returns The sorted keys, and each key's 1-based place.

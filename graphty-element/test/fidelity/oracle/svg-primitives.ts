@@ -12,6 +12,7 @@ import { pictureGradient, type Pixels } from "./picture-gradient";
 import {
     boxOfPoints,
     crossedStrokes,
+    dashAsDrawn,
     dashClassOf,
     dented,
     isLettering,
@@ -24,6 +25,7 @@ import {
     type PStroke,
     type Pt,
     type PText,
+    solidOuter,
 } from "./primitives";
 
 const GEOMETRY = new Set(["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"]);
@@ -284,7 +286,7 @@ function strokeOf(
         color: flat.hex,
         opacity: r3(alpha),
         width: r3(width),
-        dash: solid ? null : dash,
+        dash: solid ? null : dashAsDrawn(dash, width, cs.strokeLinecap),
         dashClass: dashClassOf(solid ? null : dash, width, cs.strokeLinecap),
         gradient,
     };
@@ -322,8 +324,9 @@ function cornersOf(el: SVGElement): number {
         if (/[CcSsQqTtAa]/.test(d)) {
             return roundedPolygonSides(d);
         }
-        // vertices of the first subpath
-        const first = d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "";
+        // vertices of the first subpath, up to its close: lines drawn on from there (yEd's BPMN envelope, its flap after
+        // its box) are no sides of it
+        const first = (d.split(/[Mm]/).find((s) => s.trim() !== "") ?? "").replace(/[Zz].*$/s, "");
         const n = (first.match(/[LlHhVv]/g)?.length ?? 0) + 1;
         const coords = first
             .replace(/[A-Za-z]/g, " ")
@@ -378,11 +381,48 @@ function roundedPolygonSides(d: string): number {
     return straight >= 3 && straight !== 4 && curved === straight ? straight : 0;
 }
 
+/**
+ * Whether a path draws some corners of its box square and rounds others: a segment ends on the box's corner, as none
+ * of a rectangle with rounded corners does, and all four do where a rounding of 0 draws a plain box. Nothing is known of
+ * a path with relative commands.
+ * @param d - the path data
+ * @param box - the path's box, in the path's own space
+ * @param box.x - its left
+ * @param box.y - its top
+ * @param box.width - its width
+ * @param box.height - its height
+ * @returns whether it does
+ */
+export function hasSquareCorner(d: string, box: { x: number; y: number; width: number; height: number }): boolean {
+    if (/[a-y]/.test(d)) {
+        return false;
+    }
+    const side = (v: number, a: number, b: number): number | null => {
+        if (Math.abs(v - a) < 0.01) {
+            return 0;
+        }
+        return Math.abs(v - b) < 0.01 ? 1 : null;
+    };
+    const corners = new Set<string>();
+    for (const m of d.matchAll(/[MLCSQTA]([^A-Z]*)/g)) {
+        const [x, y] = m[1]
+            .trim()
+            .split(/[\s,]+/)
+            .map(Number)
+            .slice(-2);
+        const [sx, sy] = [side(x, box.x, box.x + box.width), side(y, box.y, box.y + box.height)];
+        if (sx !== null && sy !== null) {
+            corners.add(`${String(sx)}${String(sy)}`);
+        }
+    }
+    return corners.size > 0 && corners.size < 4;
+}
+
 function isClosed(el: SVGElement, pts: readonly Pt[]): boolean {
     if (CLOSED.has(el.localName)) {
         return true;
     }
-    if (el.localName === "path" && /[Zz]\s*$/.test(el.getAttribute("d") ?? "")) {
+    if (el.localName === "path" && /[Zz]\s*([LlHhVv]|$)/.test(el.getAttribute("d") ?? "")) {
         return true;
     }
     const a = pts[0];
@@ -706,6 +746,8 @@ function measureInJavaFace(el: SVGTextElement, first: string): () => void {
 const SMALL_TEXT_PX = 6;
 /** How much larger. */
 const SMALL_TEXT_SCALE = 100;
+/** The font size a text is laid out again at for `lineDropOf`. */
+const LINE_DROP_PX = 1000;
 
 /**
  * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
@@ -746,6 +788,30 @@ function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect 
         : new DOMRect(x + (big.x - x) / SMALL_TEXT_SCALE, top, big.width / SMALL_TEXT_SCALE, height);
 }
 
+/**
+ * How far a text's box stands under its font's line, in user units. The browser rounds a font's ascent and descent to
+ * whole pixels at the size it lays the text out, and where that leaves the descent short it moves a pixel from the
+ * ascent to the descent: a 10 px DejaVu Sans line, 9.28 up and 2.36 down, reads 8 up and 3 down, its middle 0.96 px under
+ * the line's (yed-graphml-specimen-labels two-labels, whose line stands exactly 2 px inside yEd's box). Read from the
+ * text laid out again much larger, where the rounding is nothing.
+ * @param el - the text
+ * @param size - its font size in user units
+ * @param box - its box
+ * @returns the distance, down being positive; 0 for a text whose lines place themselves
+ */
+function lineDropOf(el: SVGTextElement, size: number, box: DOMRect): number {
+    if ([...el.children].some((c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")))) {
+        return 0;
+    }
+    const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
+    const before = el.style.fontSize;
+    el.style.fontSize = `${String(LINE_DROP_PX)}px`;
+    const big = el.getBBox();
+    el.style.fontSize = before;
+    const middle = y + ((big.y + big.height / 2 - y) * size) / LINE_DROP_PX;
+    return big.height > 0 ? box.y + box.height / 2 - middle : 0;
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
@@ -784,6 +850,7 @@ function textOf(
     const restore = measureInJavaFace(el, first);
     const size = Number.parseFloat(cs.fontSize) || 12;
     const bb = lineBoxOf(el, size, size * scale);
+    const lineDrop = bb.width > 0 && bb.height > 0 ? lineDropOf(el, size, bb) * m.d : 0;
     const w = 0.55 * size * content.length;
     let x0 = x;
     if (anchor === "middle") {
@@ -809,6 +876,7 @@ function textOf(
         x: ax,
         y: ay,
         box,
+        ...(lineDrop === 0 ? {} : { lineDrop }),
         sizePx: r3(Number.parseFloat(cs.fontSize) * scale),
         family,
         weight: Math.max(
@@ -1257,8 +1325,13 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
             const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
             const lettering = pieces !== null && isLettering(pieces);
+            const nonzero = cs.fillRule !== "evenodd";
             const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
-            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
+            const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths, nonzero) : null;
+            const solid = subpaths !== null && nonzero ? solidOuter(subpaths) : null;
+            if (solid !== null) {
+                points = [...solid];
+            }
             if (fill !== null && painted !== null) {
                 stroke = {
                     color: fill.color,
@@ -1286,6 +1359,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                 ...(fine === undefined ? {} : { fine }),
                 closed,
                 corners: painted === null ? cornersOf(el) : 0,
+                ...(el.localName === "path" && hasSquareCorner(el.getAttribute("d") ?? "", el.getBBox())
+                    ? { squareCorner: true }
+                    : {}),
                 fill: closed ? fill : null,
                 stroke,
                 text: null,

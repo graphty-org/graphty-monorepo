@@ -81,6 +81,9 @@ Consumer guide: `docs/guide/undo.md`; design: `design/undo/undo-design.md`.
 
 - `default` (happy-dom, unit), `browser` and `storybook` (Playwright, 5 CI shards each), `interactions`,
   `minimum-work` and `xr` (in the CI browser shards): run on pull requests when affected.
+- `gpu-loss` (the WebGPU device destroyed and the GPU process crashed, on the full Chromium build, because the
+  headless shell dies with its GPU process; SwiftShader unless `GRAPHTY_BROWSER_GPU` says otherwise): its own shard,
+  `graphty-element-gpu-loss`. A Babylon upgrade reruns it.
 - `lifecycle` (autosave across reload, close, crash and kill; needs `npm run build`): its own shard,
   `graphty-element-lifecycle`, full run only.
 - `llm-regression` (real, paid LLM calls): only in release.yml candidate runs, never on a pull request or master

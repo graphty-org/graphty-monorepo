@@ -116,6 +116,11 @@ export interface PText {
     x: number;
     y: number;
     box: PBox;
+    /**
+     * The oracle's side only: how far `box`, the browser's reading, stands under the line the font lays out, in pixels.
+     * The browser rounds a font's ascent and descent to whole pixels.
+     */
+    lineDrop?: number;
     /** Font size in the side's pixels. */
     sizePx: number;
     family: string;
@@ -193,6 +198,8 @@ export interface Prim {
      * edge, a dotted border) is read from. Absent for everything else.
      */
     subpaths?: Pt[][];
+    /** Whether an outline with curves has a corner on a corner of its box. */
+    squareCorner?: boolean;
     /**
      * A closed path that is a row of letters drawn as outlines (`isLettering`): words, filled or stroked as a halo,
      * that are no arrowhead, band or body. Absent for everything else.
@@ -239,6 +246,11 @@ export interface PNode {
      * only the image a node with no body draws as itself. Absent for none.
      */
     pictures?: PBox[];
+    /**
+     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     */
+    faces?: PBox[];
     label: PText | null;
     /**
      * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
@@ -325,6 +337,8 @@ export interface PArrow {
      * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
      */
     partWay?: boolean;
+    /** graphty's cap stood back from its line's end by a stem: how far back is judged against the program's. */
+    standing?: boolean;
     /**
      * An end's arrowhead: the break between where its line stops and where the head itself first meets the line, as a
      * share of the head's length (0 where they meet). Cytoscape desktop runs the line on under its half arrows to where
@@ -437,8 +451,23 @@ export const shapeId = (tag: string, box: PBox): string =>
     `${tag}@${[box.x0, box.y0, box.x1, box.y1].map((v) => String(Math.round(v) || 0)).join(",")}`;
 
 /**
- * The dash class of a dash array, from its dashes and its gaps relative to the line's width. A round or square line
- * cap draws each dash half a width longer at either end, so into its gaps; gaps that add to a tenth of the pattern or
+ * A dash array as it is seen: a round or square line cap draws each dash half a width longer at either end, so into its
+ * gaps (yEd's dotted line is `0,4` under round caps: dots one width long, not nothing). An odd-length array repeats to
+ * an even one.
+ * @param dash - the dash array
+ * @param width - the line width
+ * @param cap - the line cap (`butt`, `round` or `square`)
+ * @returns the dashes and gaps as drawn
+ */
+export function dashAsDrawn(dash: readonly number[], width: number, cap = "butt"): number[] {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
+    const grow = cap === "butt" ? 0 : width;
+    return pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + grow : Math.max(0, d - grow)));
+}
+
+/**
+ * The dash class of a dash array, from its dashes and its gaps relative to the line's width, as drawn
+ * (`dashAsDrawn`): gaps that add to a tenth of the pattern or
  * less read as a solid line. Dashes no longer than one and a half widths (or pixels, for a hairline) are dots; long
  * dashes and short ones, one at least twice the other, are a dash-dot.
  * @param dash - the dash array, or null
@@ -450,11 +479,9 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     if (dash === null || dash.length === 0 || dash.every((d) => d <= 0)) {
         return "solid";
     }
-    // an odd-length dash array repeats to an even one
-    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
-    const grow = cap === "butt" ? 0 : width;
-    const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
-    const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const drawn = dashAsDrawn(dash, width, cap);
+    const on = drawn.filter((_, i) => i % 2 === 0);
+    const off = drawn.filter((_, i) => i % 2 === 1);
     const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
     // a gap under a tenth of the pattern reads as no gap; one of a tenth still shows (vis-network's [5, 5] dashes at
     // width 4 under round caps: gaps of 1 px in a 10 px pattern, drawn and visible), and a drawing measured at a scale
@@ -930,15 +957,39 @@ function crossedWave(subpaths: readonly (readonly Pt[])[], [a, b]: readonly PBox
 }
 
 /**
+ * What two plain nested subpaths wound the same way fill under the nonzero rule: all the outer one holds. A zigzag's
+ * outlines cross themselves, so what their areas say of their winding says nothing.
+ * @param subpaths - the path's subpaths
+ * @returns the outer subpath, or null for anything else
+ */
+export function solidOuter(subpaths: readonly (readonly Pt[])[]): readonly Pt[] | null {
+    if (subpaths.length !== 2 || signedArea(subpaths[0]) * signedArea(subpaths[1]) <= 0) {
+        return null;
+    }
+    const [a, b] = subpaths.map((q) => boxOfPoints(q));
+    if (!holds(a, b) && !holds(b, a)) {
+        return null;
+    }
+    const outer = holds(a, b) ? subpaths[0] : subpaths[1];
+    return continuousPattern(outer) === "solid" ? outer : null;
+}
+
+/**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
  * stroke's own outline, filled: a ring of two subpaths, or many pieces round the node. Read as a fill, it is larger
  * than the node's body and takes its place.
+ * Two subpaths wound the same way under the nonzero rule fill all the inner one holds: a disc, no ring (yEd's
+ * intermediate BPMN event and transaction write their body's two outlines in one path).
  * @param subpaths - the path's subpaths, each sampled evenly by arc length in the side's frame
+ * @param nonzero - whether the path is filled by the nonzero rule, where unset nothing is known of its rule
  * @returns the outline, or null when the path is no such outline
  */
-export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): PaintedOutline | null {
+export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[], nonzero = false): PaintedOutline | null {
     if (subpaths.length < 2 || subpaths.some((q) => q.length < 3)) {
+        return null;
+    }
+    if (nonzero && solidOuter(subpaths) !== null) {
         return null;
     }
     const box = boxOfPoints(subpaths.flat());

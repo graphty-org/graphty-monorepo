@@ -220,7 +220,7 @@ async function hideEnds(graph: Graph): Promise<void> {
 const CASES: readonly Case[] = [
     {
         // A frame on a graph at rest walks no edge; what it still visits is every node, to find
-        // out whether one moved (`anyNodeMoved`), which is the floor the code documents.
+        // out whether one moved (`nodesMoved`), which is the floor the code documents.
         methods: ["Graph.update", "UpdateManager.update"],
         prepare: (element) =>
             Promise.resolve(

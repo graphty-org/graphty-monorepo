@@ -22,6 +22,7 @@ import {
 } from "./compare-oracle";
 import {
     boxOfPoints,
+    dashAsDrawn,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
     type PFill,
@@ -1757,6 +1758,31 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.deepEqual(r.failures["stray.extra"], ["graphty:annotation-shape#0"]);
     });
 
+    it("finds a stripe graphty draws on a node's face among the oracle's pieces of that face, and only there", () => {
+        const stripeAt = (y0: number, y1: number): ReturnType<typeof compareOracle> => {
+            const o = sceneOf("oracle", 600, 400, grid());
+            o.nodes[0].faces = [
+                { x0: 80, y0: 80, x1: 120, y1: 90 },
+                { x0: 80, y0: 90, x1: 120, y1: 120 },
+            ];
+            const g = sceneOf("graphty", 600, 400, grid());
+            g.strays = [
+                {
+                    index: 0,
+                    tag: "annotation-shape",
+                    kind: "shape",
+                    box: { x0: 80, y0, x1: 120, y1 },
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                },
+            ];
+            return compareOracle("t", o, g);
+        };
+        assert.notInclude(failing(stripeAt(80, 90)), "stray.extra");
+        assert.deepEqual(stripeAt(300, 330).failures["stray.extra"], ["graphty:annotation-shape#0"]);
+    });
+
     it("fails words graphty draws that the program draws nowhere near, a body-less node's label among them", () => {
         const o = sceneOf("oracle", 600, 400, grid());
         o.texts = [text("kept words", 300, 200)];
@@ -1873,6 +1899,20 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.strictEqual(
             r(dashedWith("oracle", [5, 2], 1), dashedWith("graphty", [5.5, 2.1], 1))["edge.dashPeriod"].passRate,
             1,
+        );
+        // yEd's dotted line, 0,12 under round caps at width 3: dots a width long, not nothing, so a line of those passes
+        // and graphty's denser dots still fail
+        const dots = dashAsDrawn([0, 12], 3, "round");
+        assert.deepEqual(dots, [3, 9]);
+        assert.deepEqual(dashAsDrawn([0, 12], 3, "butt"), [0, 12]);
+        assert.deepEqual(dashAsDrawn([4], 1, "square"), [5, 3]);
+        assert.strictEqual(
+            r(dashedWith("oracle", dots, 1), dashedWith("graphty", [3, 9], 1))["edge.dashPeriod"].passRate,
+            1,
+        );
+        assert.strictEqual(
+            r(dashedWith("oracle", dots, 1), dashedWith("graphty", [2.4, 1.2], 1))["edge.dashPeriod"].passRate,
+            0,
         );
         // Graphviz's normalnormal, two heads in a row, drawn as one
         assert.strictEqual(

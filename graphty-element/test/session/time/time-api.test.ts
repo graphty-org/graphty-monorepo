@@ -346,7 +346,7 @@ describe("session.time: bins", () => {
         harness.session.dispose();
     });
 
-    it("count only the given elements, or only what is visible", async () => {
+    it("count only the given elements, or only what passes the filter", async () => {
         const harness = emails();
         const { time } = harness.session;
         await time.setField({ edges: { start: "sent" } });
@@ -372,7 +372,8 @@ describe("session.time: bins", () => {
         const visible = time.bins({ step: "day", scope: "visible" }) ?? [];
         assert.deepStrictEqual(
             visible.map((bin) => bin.edges),
-            [1, 1, 0, 0],
+            [1, 1, 1, 1],
+            "the window does not narrow it",
         );
         harness.session.dispose();
     });

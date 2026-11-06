@@ -318,6 +318,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         noticeFileStyles(store, session);
         // A time field marked at import says what its values held, as Set as time does.
         if (session.time.field !== null) {
+            await session.time.ready;
             showNotices(session, store, session.time.notices());
         }
         // The status line, written once the place is showing and the header has its name: the

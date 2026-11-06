@@ -3,6 +3,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { CustomLineRenderer } from "../src/meshes/CustomLineRenderer";
 import {
+    EDGE_STATIC_FLOATS,
     JOIN_FLOATS_PER_PIECE,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
@@ -293,7 +294,7 @@ describe("EdgeLineBatch", () => {
 
         test("upload once for a frame however many pieces moved", () => {
             const drawn = joined();
-            const update = vi.spyOn(Buffer.prototype, "update");
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
             for (let i = 0; i < 10; i++) {
                 drawn.placeRun([drawn.acquire(), drawn.acquire()], [0, 0, 0, i, 0, 0, i, 1, 0]);
             }
@@ -312,7 +313,7 @@ describe("EdgeLineBatch", () => {
          */
         test("placing n bent edges writes n runs of slots and uploads once", async () => {
             const writes = vi.spyOn(EdgeLineBatch.prototype as unknown as { writeFlat: () => void }, "writeFlat");
-            const update = vi.spyOn(Buffer.prototype, "update");
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
             await assertScalesLinearly(
                 (n) => {
                     writes.mockClear();
@@ -366,7 +367,7 @@ describe("EdgeLineBatch", () => {
             const values = Float32Array.from({ length: 20 }, (_, i) => i);
             drawn.writeStatic(slot, values);
             const uploaded: number[] = [];
-            vi.spyOn(Buffer.prototype, "update").mockImplementation(function (this: Buffer, data) {
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, data) {
                 uploaded.push((data as Float32Array).length);
             });
 
@@ -389,8 +390,8 @@ describe("EdgeLineBatch", () => {
         test("10,000 plain edges upload fourteen floats a slot in one buffer, as before", () => {
             const drawn = joined();
             const uploaded: number[] = [];
-            vi.spyOn(Buffer.prototype, "update").mockImplementation(function (this: Buffer, data) {
-                uploaded.push((data as Float32Array).byteLength);
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, _data, _at, count) {
+                uploaded.push((count ?? 0) * this.byteStride);
             });
             for (let i = 0; i < 10_000; i++) {
                 drawn.place(drawn.acquire(), new Vector3(i, 0, 0), new Vector3(i, 1, 0));
@@ -402,8 +403,8 @@ describe("EdgeLineBatch", () => {
             assert.isNull(drawn.staticOf(0), "a plain batch keeps no static values");
             assert.notExists(drawn.mesh.getVertexBuffer("runTotal"));
             assert.lengthOf(uploaded, 1, "one buffer a frame");
-            // The slots double from 32, so 10,000 edges sit in 16,384 slots.
-            assert.strictEqual(uploaded[0], 16_384 * JOIN_FLOATS_PER_PIECE * 4);
+            // The slots double from 32, so 10,000 edges sit in 16,384 slots; only the 10,000 go up.
+            assert.strictEqual(uploaded[0], 10_000 * JOIN_FLOATS_PER_PIECE * 4);
         });
 
         function joined(): EdgeLineBatch {
@@ -455,14 +456,41 @@ describe("EdgeLineBatch", () => {
             return drawn;
         }
 
+        /**
+         * An upload of part of a buffer leaves Babylon no copy to read back, and NullEngine has no
+         * GPU to read: keep the array each upload came from, so a test can read what went up.
+         */
+        function keepUploads(): void {
+            const upload = Buffer.prototype.updateDirectly;
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (
+                this: Buffer,
+                ...args: Parameters<Buffer["updateDirectly"]>
+            ) {
+                upload.apply(this, args);
+                (this as unknown as { _data: unknown })._data = args[0];
+            });
+        }
+
         function attribute(drawn: EdgeLineBatch, kind: string, count: number): number[] {
             const buffer = drawn.mesh.getVertexBuffer(kind);
             assert.isNotNull(buffer, kind);
             return [...(buffer.getFloatData(count) ?? [])];
         }
 
+        test("upload only the vertices of the pieces handed out, not the arrays' whole capacity", () => {
+            const uploaded: number[] = [];
+            vi.spyOn(Buffer.prototype, "updateDirectly").mockImplementation(function (this: Buffer, _data, _at, count) {
+                uploaded.push((count ?? 0) * this.byteStride);
+            });
+            const drawn = build(true, true);
+            const bytes = (floats: number): number => drawn.drawnCount * VERTICES * floats * 4;
+
+            assert.sameMembers(uploaded, [bytes(WIDENED_FLOATS_PER_PIECE), bytes(EDGE_STATIC_FLOATS)]);
+        });
+
         for (const widened of [false, true]) {
             test(`every vertex reads its piece's values, as an instance would${widened ? " (widened)" : ""}`, () => {
+                keepUploads();
                 const instanced = build(false, widened);
                 const expanded = build(true, widened);
                 const pieces = instanced.drawnCount;
@@ -513,7 +541,7 @@ describe("EdgeLineBatch", () => {
         test("upload once for a frame however many pieces moved", () => {
             forceExpandedLines(true);
             const drawn = joinedLine();
-            const update = vi.spyOn(Buffer.prototype, "update");
+            const update = vi.spyOn(Buffer.prototype, "updateDirectly");
             for (let i = 0; i < 10; i++) {
                 drawn.placeRun([drawn.acquire(), drawn.acquire()], [0, 0, 0, i, 0, 0, i, 1, 0]);
             }

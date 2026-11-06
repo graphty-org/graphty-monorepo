@@ -137,14 +137,19 @@ interface Vec {
 
 /** A node the runner can move, recording where it was drawn. */
 class FakeNode implements TransitionSubject {
-    readonly mesh: {
-        position: { x: number; y: number; z: number };
-        scaling: { x: number; setAll: (value: number) => void };
-        computeWorldMatrix: () => void;
-    };
+    drawnPosition: { x: number; y: number; z: number };
+    drawnScale = 1;
     readonly drawnRadius = 1;
     readonly paintedColor = null;
     writes = 0;
+
+    /**
+     * Stand in for the shrink.
+     * @param scale - The scale.
+     */
+    drawShrunk(scale: number): void {
+        this.drawnScale = scale;
+    }
 
     /**
      * A node at a place.
@@ -157,18 +162,16 @@ class FakeNode implements TransitionSubject {
         x: number,
         y: number,
     ) {
-        const scaling = {
-            x: 1,
-            setAll: (value: number): void => {
-                scaling.x = value;
-            },
-        };
-        this.mesh = { position: { x, y, z: 0 }, scaling, computeWorldMatrix: () => undefined };
+        this.drawnPosition = { x, y, z: 0 };
+    }
+
+    drawnWorldMatrix(): void {
+        // A fake node has no world.
     }
 
     setMeshPosition(x: number, y: number, z: number): void {
         this.writes++;
-        this.mesh.position = { x, y, z };
+        this.drawnPosition = { x, y, z };
     }
 }
 
@@ -194,8 +197,8 @@ describe("LayoutTransitionRunner", () => {
             [b, 10],
             [c, 20],
         ] as const) {
-            node.mesh.position = { x, y: 0, z: 0 };
-            node.mesh.scaling.x = 1;
+            node.drawnPosition = { x, y: 0, z: 0 };
+            node.drawnScale = 1;
         }
 
         registerTransition(LINEAR);
@@ -225,7 +228,7 @@ describe("LayoutTransitionRunner", () => {
     function frame(subject: LayoutTransitionRunner, targets: [FakeNode, number][]): number[] {
         subject.beginPass();
         const drawn = targets.map(([node, y]) => {
-            const at = subject.place(node, { x: node.mesh.position.x, y, z: 0 });
+            const at = subject.place(node, { x: node.drawnPosition.x, y, z: 0 });
             node.setMeshPosition(at.x, at.y, at.z ?? 0);
             return at.y;
         });
@@ -283,10 +286,10 @@ describe("LayoutTransitionRunner", () => {
         frame(subject, [[a, 10]]);
         now += 500;
         frame(subject, [[a, 10]]);
-        assert.strictEqual(a.mesh.position.y, 5);
-        const seen = subject.atLayout(() => a.mesh.position.y);
+        assert.strictEqual(a.drawnPosition.y, 5);
+        const seen = subject.atLayout(() => a.drawnPosition.y);
         assert.strictEqual(seen, 10, "the pick sees the layout's place");
-        assert.strictEqual(a.mesh.position.y, 5, "the picture is put back");
+        assert.strictEqual(a.drawnPosition.y, 5, "the picture is put back");
     });
 
     it("tells move each node's seed, hops from the selection and distance from the middle", () => {
@@ -330,20 +333,20 @@ describe("LayoutTransitionRunner", () => {
         vi.spyOn(subject as unknown as { startDrawable: () => null }, "startDrawable").mockReturnValue(null);
         subject.begin(subject.snapshot());
         frame(subject, [[a, 10]]);
-        assert.closeTo(a.mesh.scaling.x, 1, 1e-9, "whole where it leaves");
+        assert.closeTo(a.drawnScale, 1, 1e-9, "whole where it leaves");
         now += 500;
         frame(subject, [[a, 10]]);
-        assert.isBelow(a.mesh.scaling.x, 0.01, "gone half way, at the height of the burst");
+        assert.isBelow(a.drawnScale, 0.01, "gone half way, at the height of the burst");
         assert.strictEqual(
-            subject.atLayout(() => a.mesh.scaling.x),
+            subject.atLayout(() => a.drawnScale),
             1,
             "picked at its whole size",
         );
-        assert.isBelow(a.mesh.scaling.x, 0.01, "and shrunk again after the pick");
+        assert.isBelow(a.drawnScale, 0.01, "and shrunk again after the pick");
         now += 500;
         frame(subject, [[a, 10]]);
         assert.isFalse(subject.active);
-        assert.strictEqual(a.mesh.scaling.x, 1, "whole once it lands");
+        assert.strictEqual(a.drawnScale, 1, "whole once it lands");
     });
 
     it("leaves a node's scale alone under a transition with no cloud", () => {
@@ -352,7 +355,7 @@ describe("LayoutTransitionRunner", () => {
         frame(subject, [[a, 10]]);
         now += 500;
         frame(subject, [[a, 10]]);
-        assert.strictEqual(a.mesh.scaling.x, 1);
+        assert.strictEqual(a.drawnScale, 1);
     });
 
     it("frames the old layout's box eased into the new one's, never less than the picture", () => {
@@ -366,7 +369,7 @@ describe("LayoutTransitionRunner", () => {
         ];
         frame(subject, targets());
         const measured = (): { min: Vec; max: Vec } => {
-            const nodes = [a, b, c].map((node) => node.mesh.position);
+            const nodes = [a, b, c].map((node) => node.drawnPosition);
             const low = (axis: "x" | "y" | "z"): number => Math.min(...nodes.map((at) => at[axis]));
             const high = (axis: "x" | "y" | "z"): number => Math.max(...nodes.map((at) => at[axis]));
             return {
@@ -381,7 +384,7 @@ describe("LayoutTransitionRunner", () => {
         now += 500;
         subject.beginPass();
         for (const [node, y] of targets()) {
-            const at = node === c ? { x: 20, y: 0, z: 0 } : subject.place(node, { x: node.mesh.position.x, y, z: 0 });
+            const at = node === c ? { x: 20, y: 0, z: 0 } : subject.place(node, { x: node.drawnPosition.x, y, z: 0 });
             node.setMeshPosition(at.x, at.y, at.z ?? 0);
         }
 

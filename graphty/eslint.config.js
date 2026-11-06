@@ -13,6 +13,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
+import noSpecialLayers from "./eslint-rules/no-special-layers.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -23,6 +24,9 @@ const ELEMENT_EXPORTS = Object.keys(
 )
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
+/** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
+const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {
@@ -120,8 +124,19 @@ export default tseslint.config(
         files: ["src/**/*.ts", "src/**/*.tsx"],
         // Stories are linted without type information (root eslint.config.js), and the rule needs it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
-        plugins: { graphty: { rules: { "no-element-mutation": noElementMutation } } },
+        plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-element-mutation": "error" },
+    },
+
+    // ============================================
+    // NO STYLE LAYER IS SPECIAL (issue #5905)
+    // ============================================
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // The same files tools/check-special-layers.mjs judges.
+        ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
+        plugins: { graphty: graphtyPlugin },
+        rules: { "graphty/no-special-layers": "error" },
     },
 
     // ============================================

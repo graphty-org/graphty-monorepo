@@ -150,6 +150,29 @@ describe("an end caption placed on the line", () => {
     });
 });
 
+describe("a node's raised border", () => {
+    test("draws four strips along the inside of its box through a style layer, and none without a width", async () => {
+        const strips = async (width: number): Promise<number> => {
+            graph?.dispose();
+            container?.remove();
+            await oneEdge(
+                {},
+                {
+                    "node.raisedBorderWidth": width,
+                    "node.raisedBorderLightColor": "#ffff00",
+                    "node.raisedBorderDarkColor": "#b28e00",
+                },
+            );
+            assert(graph);
+            const node = graph.getDataManager().nodes.get("A");
+            assert(node);
+            return node.decorationPieces.filter((p) => p.kind === "shape").length;
+        };
+        assert.strictEqual(await strips(0.1), 4);
+        assert.strictEqual(await strips(0), 0);
+    });
+});
+
 describe("a node's outer border", () => {
     test("is a ring outside the border, its offset beyond it, in its own color", async () => {
         await oneEdge(

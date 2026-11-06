@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { yedDrawnWidth } from "../../src/formats/graphml/styles-yed.js";
 import { createRegistry } from "../../src/registry.js";
 import { type ToolArrowhead, toolDefaults } from "../../src/styles/defaults.js";
 import { resolveStyles } from "../../src/styles/internal.js";
@@ -182,6 +183,41 @@ describe("yEd's line widths", () => {
             expect(widths.has(1)).toBe(true);
             expect(widths.has(3)).toBe(true);
         }
+    });
+});
+
+describe("yEd's fractional widths", () => {
+    it.each([
+        [0.2, 1],
+        [0.5, 1],
+        [1, 1],
+        [1.5, 1],
+        [1.9, 1],
+        [2, 2],
+        [2.5, 2],
+        [2.9, 2],
+        [3.5, 3],
+        [7.5, 7],
+    ])("draws a width of %d %d wide, as yEd's SVG export of each width shows", (width, drawnWidth) => {
+        expect(yedDrawnWidth(width)).toBe(drawnWidth);
+    });
+
+    it("leaves no width and a width of 0 as written", () => {
+        expect(yedDrawnWidth(null)).toBeNull();
+        expect(yedDrawnWidth(0)).toBe(0);
+    });
+
+    it("draws a node's border of 0.5 one wide", async () => {
+        const graphml = await specimen("graphml", "yed-graphml/specimen-node-fills-borders.graphml");
+        expect(graphml.nodes("borderWidth")).not.toContain(0.5);
+        expect(graphml.nodes("borderWidth")).toContain(8);
+    });
+});
+
+describe("yEd's skewed dash", () => {
+    it("reads as its own stroke, not a square, 12 long on its line in GraphML", async () => {
+        const graphml = await specimen("graphml", "yed-graphml/specimen-arrows.graphml");
+        expect(graphml.edge("targetArrow", "target-skewed-dash")).toBe("other:skewed-dash");
     });
 });
 

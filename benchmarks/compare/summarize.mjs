@@ -44,24 +44,29 @@ const batched = (r) => (r.layoutSteps?.perStepBatched50 ?? r.layoutSteps?.perSte
 const METRICS = [
     ["First frame", (r) => r.load?.firstFrameMs && r.load.firstFrameMs / 1000, null, "s"],
     ["Ready", (r) => r.load?.readyMs && r.load.readyMs / 1000, null, "s"],
-    ["Still frame", (r) => r.still?.serial?.median, (r) => r.still?.serial?.p95, "ms"],
-    ["Moving frame", (r) => r.orbit?.median, (r) => r.orbit?.p95, "ms"],
+    ["Still frame", (r) => r.still?.serial?.median, (r) => r.still?.serial?.p95, "ms", (r) => r.still?.serial?.p99],
+    ["Moving frame", (r) => r.orbit?.median, (r) => r.orbit?.p95, "ms", (r) => r.orbit?.p99],
     ["Hover", hoverMed, null, "ms"],
     ["JavaScript heap", (r) => r.memory?.usedMB, null, "MB"],
     ["Renderer and GPU processes", rss, null, "MB"],
     ["Card memory growth", (r) => r.memory?.gpuMBDelta, null, "MB"],
-    ["Frame while the layout runs", (r) => r.layoutFps?.median, (r) => r.layoutFps?.p95, "ms"],
+    ["Frame while the layout runs", (r) => r.layoutFps?.median, (r) => r.layoutFps?.p95, "ms", (r) => r.layoutFps?.p99],
     ["One layout step plus readback", stepRead, null, "ms"],
     ["Layout step in a batch", batched, null, "ms"],
+    // Last, because `OLD` is read by position and has no figure for it.
+    ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
 ];
 const values = (rs, f) => rs.map(f).filter((v) => typeof v === "number");
-const cell = (cfg, [, f, p95, unit]) => {
+const cell = (cfg, [, f, p95, unit, p99]) => {
     const rs = pick(cfg),
         v = values(rs, f);
     if (!v.length) return "-";
     const p = p95 ? values(rs, p95) : [];
     const p95Text = p.length ? " / " + nice(med(p)) : "";
-    return `${nice(med(v))}${p95Text} ${unit} (${nice(Math.min(...v))}-${nice(Math.max(...v))}, ${v.length} runs)`;
+    // A row written before the harness reported p99 has none, so its cell keeps the p95 alone.
+    const q = p99 ? values(rs, p99) : [];
+    const p99Text = q.length ? " / " + nice(med(q)) : "";
+    return `${nice(med(v))}${p95Text}${p99Text} ${unit} (${nice(Math.min(...v))}-${nice(Math.max(...v))}, ${v.length} runs)`;
 };
 const table = (title, cols) => {
     console.log(
@@ -79,7 +84,7 @@ console.log(
     `- Commit: ${shas.join(", ")} (working tree ${rows.some((r) => r.dirty) ? "DIRTY" : "clean"})\n- Source: ${[...new Set(rows.map((r) => r.source))].join(", ")}\n- Render path: ${[...new Set(rows.filter((r) => r.lib === "graphty").map((r) => r.renderPath ?? "default"))].join(", ")}\n- WebGL renderer: ${rend.join(" | ")}\n- Browser: ${first.info?.ua.match(/HeadlessChrome\/[\d.]+/)?.[0]}\n- Rows: ${all.length} (${all.length - rows.length} void), ${rows[0].at} to ${rows.at(-1).at}\n- Load average when a run began: ${nice(Math.min(...rows.map((r) => r.loadavgBefore ?? 99)))}-${nice(Math.max(...rows.map((r) => r.loadavgBefore ?? 0)))}\n`,
 );
 console.log(
-    "A cell is the median across runs of each run's median, then the median of each run's 95th percentile after the slash where the row has one, then the range of the run medians and how many runs reached that stage.\n\n## Results at device pixel ratio 1",
+    "A cell is the median across runs of each run's median, then the medians of each run's 95th and 99th percentiles after slashes where the row has them, then the range of the run medians and how many runs reached that stage.\n\n## Results at device pixel ratio 1",
 );
 const three = (size, dpr) => [
     ["cosmos.gl", { ...COSMOS, size, dpr }],
@@ -116,7 +121,7 @@ for (const [name, c] of [
         `| ${name} | ${cell(c, METRICS[8])} | ${cell(c, ["", (r) => r.layoutSteps?.stepCpu?.median, null, "ms"])} |`,
     );
 console.log(
-    "\n## Every run\n\n| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure |\n|---|---|---|---|---|---|---|---|---|",
+    "\n## Every run\n\n| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure | Runs | Load when each began |\n|---|---|---|---|---|---|---|---|---|---|---|",
 );
 const stages = ["load", "still", "orbit", "memory", "hover", "layoutFps", "layoutSteps"];
 const groups = new Map();
@@ -135,9 +140,10 @@ for (const r of all) {
             .split("\n")[0]
             .slice(0, 90),
     ].join(" | ");
-    groups.set(k, (groups.get(k) ?? 0) + 1);
+    groups.set(k, [...(groups.get(k) ?? []), r.loadavgBefore]);
 }
-for (const [k, c] of groups) console.log(`| ${k} |${c > 1 ? " x" + c : ""}`);
+for (const [k, loads] of groups)
+    console.log(`| ${k} | ${loads.length} | ${loads.map((l) => nice(l ?? 0)).join(", ")} |`);
 // The figures of section 8.3 (cosmos.gl: middle of its range; hover for graphty-element: the "on golden" row).
 const OLD = {
     "cosmos.gl": {
@@ -189,7 +195,7 @@ for (const [size, key, cfgs] of [
                 .map(([name, c]) => {
                     const v = values(pick({ ...c, size: sz }), m[1]),
                         o = OLD[name][key][i];
-                    if (!v.length) return "-";
+                    if (!v.length || o === undefined) return "-";
                     const x = med(v);
                     return `${nice(o)} -> ${nice(x)} ${m[3]} (${(x / o).toFixed(2)})`;
                 })

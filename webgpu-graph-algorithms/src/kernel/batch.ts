@@ -67,6 +67,8 @@ export interface BatchHost {
     readonly readback: Readback;
     readonly profiler: Profiler | null;
     readonly allocator: AllocationTracker;
+    /** True when no uncaptured-error sink feeds takePendingError, so submit() scopes its own commands. */
+    readonly scopesBatches?: boolean;
     assertReady(): void;
     takePendingError(): WebGpuGraphError | null;
     nextBatchId(): number;
@@ -255,14 +257,23 @@ export class CommandBatch {
                 );
             }
         }
+        const { device, scopesBatches } = this.host;
+        // pushed and popped in one turn, so nothing a renderer does on the same device can fall inside it
+        if (scopesBatches === true) {
+            device.pushErrorScope("validation");
+        }
         const commandBuffer = this.encoder.finish({ label: `batch/${this.label}#${this.id}` });
-        this.host.device.queue.submit([commandBuffer]);
+        device.queue.submit([commandBuffer]);
+        const scope = scopesBatches === true ? device.popErrorScope() : null;
         // the slot is drained a second time so a finish() / submit() error raised by a command buffer the first error
         // already invalidated never leaks to the next public call; the FIRST error is the one reported
         const pendingAfter = this.host.takePendingError();
         const pending = pendingBefore ?? pendingAfter;
         const state: DiscardState = { discarded: false };
-        const readback = pending === null ? this.awaitReadback(slot, state) : this.rejectReadback(pending);
+        let readback = pending === null ? this.awaitReadback(slot, state) : this.rejectReadback(pending);
+        if (scope !== null) {
+            readback = this.landAfterScope(scope, readback);
+        }
         return {
             id: this.id,
             generation: this.generation,
@@ -271,6 +282,27 @@ export class CommandBatch {
                 state.discarded = true;
             },
         };
+    }
+
+    /**
+     * The readback, unless the batch's error scope caught something: a bad batch must not land. The two run side by
+     * side, so the scope adds nothing to a landing. A pop that rejects is a lost device, which the readback reports.
+     * @param scope - the pop of the batch's error scope
+     * @param readback - the batch's readback
+     * @returns the readback's bytes
+     */
+    private async landAfterScope(
+        scope: Promise<GPUError | null>,
+        readback: Promise<ArrayBuffer>,
+    ): Promise<ArrayBuffer> {
+        const [error] = await Promise.all([scope.catch(() => null), readback.catch(() => undefined)]);
+        if (error !== null) {
+            const { message } = error;
+            throw this.attribute(
+                new WebGpuGraphError("E_VALIDATION", `${this.label}: ${message}`, { label: this.label, message }),
+            );
+        }
+        return readback;
     }
 
     private rejectReadback(pending: WebGpuGraphError): Promise<ArrayBuffer> {

@@ -502,6 +502,41 @@ function browserLaunchEnv(): Record<string, string> | undefined {
 }
 
 /** One Playwright Chromium entry for a browser project's `instances`. */
+/** What `test/gpu-loss/` asks of the browser from outside the page. */
+const gpuLossCommands: {
+    crashGpuProcess: BrowserCommand<[]>;
+    canvasPicture: BrowserCommand<[]>;
+} = {
+    /**
+     * Crashes this browser's GPU process, the real thing a driver reset does to a page.
+     * @param ctx - the browser command context.
+     */
+    async crashGpuProcess(ctx) {
+        const browser = ctx.context.browser();
+        if (browser === null) {
+            throw new Error("the page has no browser to crash");
+        }
+
+        const session = await browser.newBrowserCDPSession();
+        const { processInfo } = await session.send("SystemInfo.getProcessInfo");
+        await session.detach();
+        const gpu = processInfo.find(({ type }) => type === "GPU");
+        if (gpu === undefined) {
+            throw new Error(`no GPU process among ${processInfo.map(({ type }) => type).join(", ")}`);
+        }
+
+        process.kill(gpu.id, "SIGKILL");
+    },
+    /**
+     * The graph's canvas as the page shows it, read past the element so reading draws nothing.
+     * @param ctx - the browser command context.
+     * @returns The picture, as base64 PNG.
+     */
+    async canvasPicture(ctx) {
+        return (await ctx.iframe.locator("canvas").last().screenshot()).toString("base64");
+    },
+};
+
 interface ChromiumInstance {
     /** The browser to launch. */
     browser: "chromium";
@@ -675,6 +710,8 @@ const config = defineConfig({
                         "test/ai/llm-regression/**/*.test.ts",
                         // Lifecycle tests launch their own browsers: see the "lifecycle" project
                         "test/lifecycle/**",
+                        // These lose the GPU device: see the "gpu-loss" project
+                        "test/gpu-loss/**",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -957,6 +994,42 @@ const config = defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // The WebGPU device lost and given back. Its own project because it needs the full
+                // Chromium build, where every other browser project runs the headless shell, and
+                // the shell dies with its GPU process. SwiftShader unless GRAPHTY_BROWSER_GPU names
+                // another flag set. A run crashes the GPU process several times: Chromium stops
+                // restarting it after a few, and after a second crash refuses the page an adapter.
+                define: { ...define },
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "gpu-loss",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/gpu-loss/**/*.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: gpuLossCommands,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright({
+                            launchOptions: {
+                                args: [
+                                    ...BROWSER_GPU_FLAGS[browserGpu === "" ? "swiftshader" : browserGpu],
+                                    "--disable-gpu-process-crash-limit",
+                                    "--disable-domain-blocking-for-3d-apis",
+                                ],
+                                channel: "chromium",
+                                env: browserLaunchEnv(),
+                            },
+                        }),
+                        instances: [{ browser: "chromium" }],
                     },
                 },
             },

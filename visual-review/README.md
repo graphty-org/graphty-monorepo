@@ -1177,8 +1177,8 @@ It is complete only when every shard is there once, the shards between them ran 
 the project (a run of some files, or a file that failed to load, leaves it incomplete) and each
 reported every story test it ran; a baseline no story drew is reported removed.
 A story test fails when its play fails, when the project's `waitFor` console rule matches, or when
-two renders of it draw different pictures (unstable); a changed or new picture passes and waits for
-review. A second run of the same commit into the same directory (a retry of the failed story files)
+two renders of it draw different pictures (unstable, or flaky: a first render that differs from the
+baseline and a second that matches it); a changed or new picture passes and waits for review. A second run of the same commit into the same directory (a retry of the failed story files)
 keeps the first run's items and replaces only the stories it shoots again, so a story that was
 unstable and then settled reads as one capture; a new run needs an empty directory.
 

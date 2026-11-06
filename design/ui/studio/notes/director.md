@@ -5,7 +5,7 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-11-05 (tier 6 round 1 closed on walks alone; the studio stops for the request cap).
+Last updated: 2026-11-05 (tier 6 report drafted; round 1 closed on walks alone; the studio stops for the request cap).
 Summarized on 2026-10-17 to 2026-10-21, 2026-10-29, 2026-10-30 and twice on 2026-11-05; the full earlier text is in this file's git
 history.
 
@@ -14,9 +14,10 @@ history.
 - (2026-11-05) TIER 6 ROUND 1 CLOSED WITH NO READER: all 24 sessions were refused at the start, the request cap spent
   (3,000 of 3,000, 2,892 before the expert walks, 0 by sessions). Everything in `insights.md` is walks and source: what
   is on screen, never what a reader paid. Bars 1 to 7 and 11 have nothing to count. It is not a result about the Assistant.
-- (2026-11-05) THE STUDIO STOPS for one owner item: raise the cap to 4,000 or drop sessions. About 680 requests, near
-  $3.40 of the $150 monthly budget. Spending, so his alone. The open entry in `owner-decisions.md` is stale (says 145
-  left). It holds sessions and model walks only, not the fixes or `repro/`.
+- (2026-11-05) THE STUDIO STOPS for one owner item: the cap. With 0 left, keeping it means NO sessions, not fewer. I
+  recommend 4,500 (about $7.50 of the $150 monthly budget): 680 at best, about 1,100 at worst. Spending, so his alone.
+  The open entry in `owner-decisions.md` is stale (145 left, "drop sessions"). The stop holds sessions and model walks
+  only, not the fixes or `repro/`.
 - (2026-11-05) Budget a tier's dry runs against its sessions BEFORE the first pilot: reserve the sessions' requests so
   dry runs cannot spend them. Three dry-run passes ate the tier. "The cap is far above need" was never computed.
 - (2026-11-05) Next, needing no request: `repro/` for the 400% Settings page (`frame.css`, not the modal; a short narrow
@@ -42,7 +43,8 @@ history.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Two skeptics settle scores.
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those. A docs-only
   commit never refreezes.
-- Owner items open: the request cap, plus eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
+- Owner items open: the request cap, plus ten older entries (eleven questions), all breaking, defaults or a saved-file
+  format (`owner-decisions.md`). None comes from tier 6. Near the line: two selector fixes, recorded as fixes.
 
 ## Priorities and values
 
@@ -83,6 +85,13 @@ history.
 
 ## Decisions and reasons
 
+- **2026-11-05, tier 6 report.** Say first that no reader saw the Assistant, and keep the bars in three classes rather
+  than one row of "did not hold". Recommend 4,500, not the entry's 4,000. Reasons: the 200 for 26 gate walks was never
+  computed; 2,822 requests over 151 pilot walks is at most 19 a walk (re-walks are not in that denominator), so up to
+  about 490, and with 480 for sessions and about 110 for fix walks 4,000 covers the best case only. Running short twice
+  costs more than $2.50. The cap stays his: nothing in the owner's words or the history settles it, though $150 a month
+  would hold it. Named the two selector fixes as near the line, as tier 4's report did for the weight role: they change
+  what an expression returns, and the team's reason is the 2026-10-28 rule on bringing an API to its written contract.
 - **2026-11-05, tier 6 round 1 close.** Take `insights.md` as settled, and as walks only. Reasons: 0 sessions ran, so no
   bar that reads "in every session" can pass or fail; bar 8 fails narrower and bar 10 did not hold on its state list.
   The stop stands: spending is the owner's, so nobody uses `REAL_GEMINI_COUNT` to get past the cap. Dropping sessions
@@ -134,6 +143,11 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (tier 6 report) -- Worked: running `--gate` again and reading the count file rather than quoting `scores.md`
+  (13 `FAIL` lines, 3,000 bytes). Worked: counting pilot walks to test the 200 estimate. Worked: `git diff` between
+  builds for the by-package table. Worked: issue #1727's table to clear stale "for the owner" entries (histogram and
+  edge band are decided there). Did not work: Write of `tier6/report.md` from a subagent, again; the harness refuses it,
+  so the text goes back in the reply and the launching session saves it. Do not route around that with a shell write.
 - 2026-11-05 (tier 6 round 1) -- Worked: two skeptics again, and settling a disagreement at its source (route log,
   `decided.md`, CSS arithmetic) rather than splitting it. Worked: expert walks and source reading still found nine
   problems with no session. Did not work: three dry-run passes with no reserve for the sessions, so the gate
@@ -173,6 +187,10 @@ history.
 
 ## Thinking
 
+- **2026-11-05, tier 6 report:** a stale decision entry is worse than none, because its options change as the numbers
+  move: "drop sessions" stopped being an option at 0 left. Restate an owner item's options whenever its figures change.
+  The last five fixes have no written acceptance record beyond the engineer's notes; next tier, each fix's acceptance
+  result goes in a file the report can cite.
 - **2026-11-05, tier 6 round 1:** an instrument's budget is part of the study design, and the dry runs that protect a
   round can consume it: each pass was right on its own, and together they left no round. The Assistant's faults share a
   shape: the state that decides a message (scope, focus, a rolled-back selection) moves without a line, while the words
@@ -205,7 +223,7 @@ history.
 
 ## Sources
 
-- Tier 6: round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
+- Tier 6: `tier6/report.md`; round 1 `tier6/rounds/round-1/{insights,scores,plan}.md` and `expert/`; `tier6/{criteria,tasks,answers,roster,decided,design,backlog,rejected-fixes,dry-run-r1-1,dry-run-r1-2}.md`; pilots
   `tier6/rounds/r1/pilot/<task>/report.md`, screenshots under the main checkout's
   `tmp/design-studio/tier6/r1/pilot/`; generators `tmp/director-dryrun-t6/`, `-2/` and `-3/` in the studio worktree.
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`, `tier4/rounds/round-1/`, dry runs

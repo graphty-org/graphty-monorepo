@@ -1735,6 +1735,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getRowTable: READ,
             openRowTable: RENDER,
             getNodeBatches: READ,
+            getNodeIdTarget: READ,
             renderPath: READ,
             setRenderPath: MACHINE,
             rowCounts: READ,
@@ -2422,6 +2423,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "NodeBatches",
         file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "NodeIdTarget",
+        file: "src/render/NodeIdTarget.ts",
         half: "renderer",
         whole: RENDER,
     },

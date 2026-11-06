@@ -15,6 +15,7 @@ import {
 import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
+import { dispatcherOf } from "../session/GraphSession";
 import type { GraphSession } from "../session/types";
 import {
     type AiAgentRole,
@@ -162,18 +163,50 @@ function undoneStepOf(session: GraphSession, message: string): boolean {
  * is: reverting under it could clobber it, so the message's older steps stay, undoable in order.
  * @param session - The session.
  * @param message - The message's number.
- * @returns How many of the message's steps remain applied: zero when it was taken back whole.
+ * @returns How many of the message's steps were taken back, and how many remain applied.
  */
-async function revertMessage(session: GraphSession, message: string): Promise<number> {
-    for (;;) {
+async function revertMessage(session: GraphSession, message: string): Promise<{ taken: number; remaining: number }> {
+    for (let taken = 0; ; taken++) {
         const next = session.history.nextUndo;
         if (next?.kind !== "undo" || next.step.provenance.message !== message) {
             const { steps, position } = session.history;
-            return steps.slice(0, position).filter((step) => step.provenance.message === message).length;
+            const remaining = steps.slice(0, position).filter((step) => step.provenance.message === message).length;
+            return { taken, remaining };
         }
 
         await session.undo();
     }
+}
+
+/** The selection a message found, which it leaves behind if it is taken back. */
+type FoundSelection = Pick<GraphSession["selection"], "nodes" | "edges" | "origin">;
+
+/**
+ * Read what a message finds selected.
+ * @param session - The session.
+ * @returns A copy that later selections leave alone.
+ */
+function foundSelection(session: GraphSession): FoundSelection {
+    const { nodes, edges, origin } = session.selection;
+    return { nodes, edges, origin };
+}
+
+/**
+ * Leave no trace of a message taken back, which did not happen: Redo holds none of its steps, so
+ * nothing the reader was asked about comes back with no request, and the selection is the one it
+ * found, not what its revert touched.
+ * @param session - The session.
+ * @param found - The selection it found.
+ * @param taken - How many of its steps were taken back; with none, what Redo holds is not its own.
+ */
+async function leaveNoTrace(session: GraphSession, found: FoundSelection, taken: number): Promise<void> {
+    if (taken > 0) {
+        dispatcherOf(session).history.dropUndone();
+    }
+
+    // ponytail: a selection the reader made while the message ran goes too; read `cause` if it matters.
+    const { nodes, edges, origin } = found;
+    await session.selection.apply(origin ?? { nodes, edges });
 }
 
 /**
@@ -207,6 +240,8 @@ interface PendingApproval {
     readonly helper?: { readonly agent: string; readonly callId: string };
     /** The selection the message was bound to when it was sent. */
     readonly bound?: BoundSelection;
+    /** The selection the message found; after a reload, absent, and read when it goes on. */
+    readonly found?: FoundSelection;
 }
 
 /**
@@ -229,6 +264,8 @@ interface PendingQuestion {
     readonly request: AiQuestionRequest;
     /** The selection the message was bound to when it was sent. */
     readonly bound?: BoundSelection;
+    /** The selection the message found; after a reload, absent, and read when it goes on. */
+    readonly found?: FoundSelection;
 }
 
 /** Whatever waits on the reader: an approval request or a question. */
@@ -378,6 +415,10 @@ interface MessageRun {
     readonly input: string;
     readonly message: string;
     readonly abortController: AbortController;
+    /** How many of its steps its revert took back, once it was reverted. */
+    takenBack?: number;
+    /** The selection it found: read as it starts, unless a hold or a question carried it here. */
+    found?: FoundSelection;
     readonly conversation: (session: GraphSession) => Conversation;
     /** The saved conversation it belongs to, with history. */
     readonly conversationId: string | undefined;
@@ -1199,6 +1240,7 @@ export class AiController {
         let base = 0;
         try {
             const session = this.graph.getSession();
+            run.found ??= foundSelection(session);
             if (hasAssistantTools(this.commandRegistry)) {
                 // A plugin registered since the last message reaches the model now.
                 installAssistantTools(this.commandRegistry, session);
@@ -1298,6 +1340,7 @@ export class AiController {
             session,
             conversation: running,
             conversationId: run.conversationId,
+            found: run.found,
         };
         // What a hold or a question keeps is the binding as it stands then: it may have ended.
         const stillBound = (): { bound?: BoundSelection } =>
@@ -1371,7 +1414,14 @@ export class AiController {
      * @throws The error, unless the loop rolled the message back itself.
      */
     private async rolledBack(error: unknown, session: GraphSession, run: MessageRun): Promise<ExecutionResult> {
-        const remaining = await revertMessage(session, run.message);
+        // The reader's own Undo ended it: that stays an Undo, with its Redo and its selection.
+        const byReader = undoneStepOf(session, run.message);
+        const { taken, remaining } = await revertMessage(session, run.message);
+        run.takenBack = taken;
+        if (!byReader && run.found !== undefined) {
+            await leaveNoTrace(session, run.found, taken);
+        }
+
         if (!(error instanceof MessageRolledBack)) {
             throw error;
         }
@@ -1646,6 +1696,7 @@ export class AiController {
      * @param hold.helper.agent - The helper's name.
      * @param hold.helper.callId - The `delegate` call it answers.
      * @param hold.bound - The selection the message was bound to when it was sent.
+     * @param hold.found - The selection the message found.
      * @returns The request's id, once the conversation holding it is saved and the host told.
      */
     private async hold(hold: {
@@ -1659,8 +1710,9 @@ export class AiController {
         plan?: PlanSteps;
         helper?: { readonly agent: string; readonly callId: string };
         bound?: BoundSelection;
+        found?: FoundSelection;
     }): Promise<string> {
-        const { held, message, session, conversationId, plan, helper, bound } = hold;
+        const { held, message, session, conversationId, plan, helper, bound, found } = hold;
         const id = uniqueId("approval_");
         const changed = { value: false };
         const stopWatching = session.on("history:changed", ({ reason }) => {
@@ -1709,6 +1761,7 @@ export class AiController {
             ...(planStep === undefined ? {} : { planStep: planStep.id }),
             ...(helper === undefined ? {} : { helper }),
             ...(bound === undefined ? {} : { bound }),
+            ...(found === undefined ? {} : { found }),
         });
         this.updatePending();
         // The message holding the calls and the request are saved together, before the host hears
@@ -1748,6 +1801,7 @@ export class AiController {
      * @param ask.messageId - The conversation message holding the call.
      * @param ask.conversationId - The saved conversation, with history.
      * @param ask.bound - The selection the message was bound to when it was sent.
+     * @param ask.found - The selection the message found.
      * @returns The question's id, once the conversation holding it is saved and the host told.
      */
     private async ask(ask: {
@@ -1759,8 +1813,9 @@ export class AiController {
         messageId: string;
         conversationId: string | undefined;
         bound?: BoundSelection;
+        found?: FoundSelection;
     }): Promise<string> {
-        const { question, message, session, conversationId, bound } = ask;
+        const { question, message, session, conversationId, bound, found } = ask;
         const id = uniqueId("question_");
         const stopWatching = session.on("history:changed", () => {
             if (undoneStepOf(session, message)) {
@@ -1793,6 +1848,7 @@ export class AiController {
             stopWatching,
             request,
             ...(bound === undefined ? {} : { bound }),
+            ...(found === undefined ? {} : { found }),
         });
         this.updatePending();
         // Saved before the host hears of it: a reload after the event always finds the question.
@@ -2160,6 +2216,7 @@ export class AiController {
             request: id,
             ...(pending.plan === undefined ? {} : { plan: pending.plan }),
             ...(pending.bound === undefined ? {} : { bound: pending.bound }),
+            ...(pending.found === undefined ? {} : { found: pending.found }),
         });
     }
 
@@ -2229,6 +2286,7 @@ export class AiController {
             request: id,
             answer: { call: pending.call, values },
             ...(pending.bound === undefined ? {} : { bound: pending.bound }),
+            ...(pending.found === undefined ? {} : { found: pending.found }),
         });
     }
 

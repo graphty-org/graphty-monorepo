@@ -361,7 +361,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
         runs: { list: () => [] },
         catalog: SESSION_CATALOG_TABLES,
-        selection: { size: 0 },
+        selection: { size: 0, nodes: [], edges: [], origin: null, apply: () => Promise.resolve() },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.

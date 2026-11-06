@@ -422,7 +422,7 @@ describe("talking to the Assistant", () => {
         await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+        await userEvent.click(screen.getByRole("button", { name: "Start new conversation" }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         assert.isNull(screen.queryByRole("alert"));
     });
@@ -490,7 +490,7 @@ describe("talking to the Assistant", () => {
         await openPanel();
         await say("First talk");
         await screen.findByText("The reply.");
-        await userEvent.click(screen.getByRole("button", { name: "New conversation" }));
+        await userEvent.click(screen.getByRole("button", { name: "Start new conversation" }));
         await screen.findByRole("button", { name: "Which nodes matter most?" });
         await say("Second talk");
         await waitFor(() => {

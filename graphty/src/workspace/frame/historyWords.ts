@@ -328,7 +328,8 @@ function nextStep(session: GraphSession, undo: boolean): Step | null {
 }
 
 /**
- * The Undo or Redo tooltip's name: "Undo Size by PageRank", or just the verb with nothing to do.
+ * The Undo or Redo tooltip's name: "Undo Size by PageRank", or just the verb with nothing to do. Long
+ * words (a typed message that labels its step) end in "..." after about 60 characters.
  * @param session - the element's session, or null.
  * @param undo - true for Undo, false for Redo.
  * @returns the words.
@@ -336,7 +337,24 @@ function nextStep(session: GraphSession, undo: boolean): Step | null {
 export function historyTip(session: GraphSession | null, undo: boolean): string {
     const verb = undo ? "Undo" : "Redo";
     const step = session === null ? null : nextStep(session, undo);
-    return step === null || session === null ? verb : `${verb} ${historyWords(session, step)}`;
+    return step === null || session === null ? verb : `${verb} ${capWords(historyWords(session, step))}`;
+}
+
+/** The most characters of a step's words a button's name holds; a typed message can be a page. */
+const NAME_CHARS = 60;
+
+/**
+ * Words cut at the last whole word within the cap, ending in "...".
+ * @param words - the words.
+ * @returns them, or their start.
+ */
+function capWords(words: string): string {
+    if (words.length <= NAME_CHARS) {
+        return words;
+    }
+    const cut = words.slice(0, NAME_CHARS);
+    const space = cut.lastIndexOf(" ");
+    return `${(space > 0 ? cut.slice(0, space) : cut).replace(/[,.;:]$/, "")}...`;
 }
 
 /**

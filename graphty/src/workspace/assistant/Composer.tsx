@@ -12,7 +12,7 @@ import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { answerQuestion, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
-import { hiddenWords, WORDS } from "./words";
+import { hiddenWords, modelName, WORDS } from "./words";
 
 /** The scope a message goes with. */
 interface Scope {
@@ -190,6 +190,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
                         variant="subtle"
                         color="gray"
                         size="compact-xs"
+                        aria-label={modelName(model)}
                         onClick={() => {
                             run("settings.assistant");
                         }}

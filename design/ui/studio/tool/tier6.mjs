@@ -11,6 +11,13 @@ export const TIER6_LIVE = 4;
 export const TIER6_SESSION_CALLS = 40;
 export const GEMINI_ROUTE = "https://generativelanguage.googleapis.com/**";
 
+// The browser's own report of a cross-origin call it refused (a remote service that answers a refused
+// key with no CORS header): no reader sees it, only the app's words for the failure, so the tool keeps
+// it in the session's log and out of what a participant reads.
+export const browserNoise = (line) =>
+    /^console error: .*blocked by CORS policy/.test(line) ||
+    line === "console error: Failed to load resource: net::ERR_FAILED" ||
+    /^failed request: https?:\/\/\S+ \(net::ERR_FAILED\)$/.test(line);
 export const usesAssistant = (tier) => tier === "6";
 
 // The gate's cap for a session of this tier. A session never takes a warm browser and a plain GPU

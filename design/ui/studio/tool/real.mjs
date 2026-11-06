@@ -123,6 +123,7 @@ import {
     workUnread,
 } from "./measure.mjs";
 import {
+    browserNoise,
     callsShort,
     capLine,
     countFileOf,
@@ -527,8 +528,24 @@ function transcriptsFor(own) {
             return dirs.some((d) => names(p, d)) && PARTICIPANT_PROMPT.test(p);
         });
 }
-const stringsIn = (v) =>
-    typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(stringsIn) : [];
+// Text a tool call writes, never opens: a file's new content, an edit's strings, a call's description
+const WRITTEN = new Set(["content", "old_string", "new_string", "description"]);
+// The body of a heredoc that cat or tee writes to a file is text, not something opened (a participant
+// appending notes to its transcript); a heredoc fed to anything else is still read, since a script can
+// open files
+const HEREDOC = /([^\n]*<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\s*\3[ \t]*(?=\n|$)/g;
+const writesText = (cmd) =>
+    cmd.replace(HEREDOC, (all, head) =>
+        /^\s*(?:cat\b[^|;&]*>|tee\b)|[|]\s*tee\b/.test(head.replace(/^.*(?:&&|;)\s*/, "")) ? head : all,
+    );
+const stringsIn = (v, key) =>
+    typeof v === "string"
+        ? WRITTEN.has(key)
+            ? []
+            : [key === "command" ? writesText(v) : v]
+        : v && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => stringsIn(x, Array.isArray(v) ? key : k))
+          : [];
 // why one string a tool call was given opens something the participant may not
 function leaksIn(s, allowed) {
     const out = [];
@@ -2921,6 +2938,11 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
         for (const line of await Promise.all(s.downloads.splice(0))) out.push(line);
     }
     for (const e of s.errors.splice(0)) {
+        // the browser's own words for a refused cross-origin call reach no reader: the log keeps them
+        if (browserNoise(e)) {
+            console.log(e);
+            continue;
+        }
         out.push(e);
         // a blocked remote picture on the start page is logged, and is not this step's failure
         if (!e.startsWith("failed request: ") || (requestsFail && !e.includes("ERR_BLOCKED_BY_ORB"))) code = 1;

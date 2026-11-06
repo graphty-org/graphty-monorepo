@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+    browserNoise,
     callsShort,
     geminiKey,
     geminiRouter,
@@ -167,4 +168,67 @@ test("the route swaps in the key and counts; a preflight is neither; at the cap 
     assert.equal(over.did.fulfilled.status, 429);
     assert.equal(over.did.continued, undefined);
     assert.equal(refused, 1);
+});
+
+test("the browser's report of a refused cross-origin call is noise, and the app's own failures are not", () => {
+    const cors =
+        "console error: Access to fetch at 'https://api.openai.com/v1/responses' from origin 'http://127.0.0.1:39151' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.";
+    for (const l of [
+        cors,
+        "failed request: https://api.openai.com/v1/responses (net::ERR_FAILED)",
+        "console error: Failed to load resource: net::ERR_FAILED",
+    ])
+        assert.ok(browserNoise(l), l);
+    for (const l of [
+        "script error: x is undefined",
+        "console error: Uncaught TypeError: a is null",
+        "failed request: 429 https://generativelanguage.googleapis.com/v1beta/models",
+        "failed request: /data/x.json (net::ERR_FAILED)",
+        "failed request: https://upload.wikimedia.org/a.png (net::ERR_BLOCKED_BY_ORB)",
+    ])
+        assert.ok(!browserNoise(l), l);
+});
+
+test("--leaks reads a path a participant writes into its notes as text, and a path it opens as a leak", () => {
+    const own = scratch();
+    const tasks = resolve(here, "../tier6/tasks.md");
+    const log = (calls) => {
+        const f = join(own, `${calls.length}-${Math.random().toString(36).slice(2)}.jsonl`);
+        const lines = [
+            { type: "user", message: { content: `YOU ARE A STUDY PARTICIPANT. Read only ${own}/briefing.md.` } },
+            ...calls.map(([name, input]) => ({
+                type: "assistant",
+                message: { content: [{ type: "tool_use", name, input }] },
+            })),
+        ];
+        writeFileSync(f, lines.map((x) => JSON.stringify(x)).join("\n") + "\n");
+        return f;
+    };
+    const leaks = (f) => spawnSync(process.execPath, [join(here, "real.mjs"), "--leaks", own, f], { encoding: "utf8" });
+    const notes = `I wondered whether ${tasks} or criteria.md held the answer, and did not look.`;
+    const clean = log([
+        ["Write", { file_path: join(own, "transcript.md"), content: notes }],
+        ["Edit", { file_path: join(own, "transcript.md"), old_string: "x", new_string: notes }],
+        ["Bash", { command: `cat >> ${own}/transcript.md <<'EOF'\n${notes}\nEOF`, description: notes }],
+    ]);
+    let r = leaks(clean);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /none opened a file outside the session folder/);
+    for (const [name, input] of [
+        ["Read", { file_path: tasks }],
+        ["Bash", { command: `python3 - <<'EOF'\nprint(open('${tasks}').read())\nEOF` }],
+        ["Bash", { command: `cat ${tasks} >> ${own}/transcript.md <<'EOF'\nnotes\nEOF` }],
+    ]) {
+        r = leaks(log([[name, input]]));
+        assert.equal(r.status, 1, `${name} ${JSON.stringify(input)}: ${r.stdout}${r.stderr}`);
+        assert.match(r.stdout, /VOID: .*tasks\.md/);
+    }
+});
+
+test("the participant prompt leaves the reader's history to the briefing", () => {
+    const wf = readFileSync(resolve(here, "../../../../.claude/workflows/design-studio.js"), "utf8");
+    const participate = wf.slice(wf.indexOf("const participate ="), wf.indexOf("const attempts ="));
+    assert.ok(participate.includes("YOU ARE A STUDY PARTICIPANT: ${who}"));
+    assert.ok(participate.includes("const who = `the person ${brief} describes."));
+    assert.doesNotMatch(participate.replace(/^\s*\/\/.*$/gm, ""), /RETURNING|FIRST-TIME|USERS/i);
 });

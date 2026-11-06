@@ -198,7 +198,10 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
 - `stopped after "--click Layer": the rest of this step (--click --type) did not run` when a batch
   met a miss or a failed check before its end.
 - Every script error, `console.error` and failed request since the last step. In the real app
-  each is a defect worth a bug report. They make the command exit 1.
+  each is a defect worth a bug report. They make the command exit 1. The browser's own report of a
+  cross-origin call it refused (a remote service that answers a refused key with no CORS header: the
+  CORS line, its `net::ERR_FAILED` request and resource lines) goes to `session.log` only, since no
+  reader sees it; the reader sees the app's words for the failure.
 
 ## Screen-reader mode
 
@@ -353,6 +356,10 @@ A session is void, and is re-run rather than graded, if any call opened:
 - anything else under the studio's files, except its own copied folder, `tool/real.mjs` (run, not
   read) and the data files in `tool/files/`
 - a path with `..`, or a Grep or Glob with no folder (it searches wherever the agent runs)
+
+Text a call writes is not read as opened: a Write's content, an Edit's strings, a call's description,
+and the body of a heredoc that `cat` or `tee` writes to a file (a participant appending its notes).
+A heredoc fed to anything else, such as a script, is still read.
 
 It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
 and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript

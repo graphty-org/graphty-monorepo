@@ -395,3 +395,5 @@ nothing (r2-s03), and pink among oranges.
 - Screens I viewed: `r2-s01/18`, `r2-s02/29`, `r2-s04/06`, `r2-s05/05`, `r2-s07/05`, `r2-s10/05`, `r2-s11/07`,
   `r2-s12/08`, `repro/r2-s09/walk-undone/05`, `walk-kept/04`. Every other citation rests on its grader.
 - A route log holds control names, not prose, so it proves a control's presence, never a sentence's absence.
+- A hover count is only the hovers a participant asked for: the tool's pointer jumps to each target, where a hand
+  would cross other controls on the way, so "nobody hovered" means nobody chose to, not that no tooltip showed.

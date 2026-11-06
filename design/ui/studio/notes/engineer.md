@@ -12,11 +12,7 @@ Summarized 2026-11-05 (26 KB), long working facts 0 to 2 shortened: `git show 4c
 Summarized again 2026-11-05 (29 KB), tier 6 dry run 1 decisions shortened and old open defects moved under Working facts: `git show 48879618c4:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (27 KB); every tier 3 and 4 Top of mind item, decision and tried entry: `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
 Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
-Summarized 2026-10-17 from 44 KB. Every dated entry of today's dry-run fixes (table, Analyze run,
-filter steps, style panel polish, page and selection, undo, inspector targets, condition lists,
-yes and no, find box, names and words, focus, number card, spoken messages, color box, drawing and
-camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.md`. Older entries
-(2026-10-06 to 10-17): `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
+Older: 2026-10-17 dry-run fixes `git show 54c009f84:design/ui/studio/notes/engineer.md`; 2026-10-06 to 10-17 `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
 
 ## Top of mind
 
@@ -151,9 +147,8 @@ Walk craft:
   Delete a route's Jump to newest step in advance: it shows only on overflow, and a miss stops the step.
 - Walks live in the main checkout: tmp/design-studio/tier6/r1d1/pilot (dry runs, latest) and r1/pilot
   (older, same folder names; check the numbering). Worktree round folders hold only report.md.
-- Cheap probes that paid: a two-removal message proves a second large removal is still held; a
-  "those" message proves the widening line keeps references to earlier turns. Re-walks of three
-  fixes cost about 270 Gemini calls.
+- A two-removal message proves a second large removal is still held; a "those" message proves the
+  widening line keeps references to earlier turns.
 
 Seen on the re-walks, not caused by these fixes, not yet acted on:
 
@@ -224,9 +219,6 @@ Worked:
 - real.mjs prints "a file was saved: ..." on the step. A spy on `URL.createObjectURL` and
   `HTMLAnchorElement.prototype.click` in a real-element test captures blob and name.
 - Reading panels: a PIL montage (crop 0,40 to 336,900) reads four or five steps in one image.
-- One background script chaining lint, tsc, tests and build, then a second walking after it.
-  A short hand walk beats replaying an old detour route full of unrelated steps.
-- Reading dist for a minified gate when nx reports a local-cache hit.
 - A `--replay` stays open after a divergence so a route can be finished by hand; pass
   `--end-on-diverge` when that is not wanted.
 - A surprising "No matches.": ask the model to quote its rules, then compare the pilot's same step.
@@ -259,8 +251,7 @@ Did not work, or traps:
 
 ## Working facts and open defects
 
-Summarized again 2026-10-29 (27 KB): full copy `git show b14af76f0e:design/ui/studio/notes/engineer.md`. Earlier summary 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
-audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
+Earlier copies: `git show b14af76f0e:design/ui/studio/notes/engineer.md`, `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
 0. (2026-10-29) Runs read weight from `data.loadedWeight()`, which follows the weight role; a
    designated column that is not the stored one is read as a column, and a role taken away reads
@@ -338,8 +329,6 @@ Older open defects, from Top of mind:
 
 ## Round 1 close (2026-10-30)
 
-- Decided: when work resumes, fix in this order -- join preview truthful (sev 2, most severe),
-  joined source row layout (bar 6), table Tabs aria-controls (bar 5), the time column's kind glyph,
-  the study tool's popover reporting. Reason: bars 5 and 6 are single mechanical fixes; the join
-  preview is the costliest core task (about 12 inputs against a path of 7).
-- Learned: bars 2 and 3 failed partly on the answer key and on the tool's `tooltip: null`.
+- Fix order when work resumes: join preview truthful (sev 2, about 12 inputs against a path of 7), joined
+  source row layout, table Tabs aria-controls, the time column's kind glyph, the tool's popover reporting.
+- Bars 2 and 3 failed partly on the answer key and on the tool's `tooltip: null`.

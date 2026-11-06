@@ -52,6 +52,14 @@ import {
     type TimeUnit,
 } from "./parse";
 import {
+    assertMeasures,
+    assertSeriesBounds,
+    type TimeSeries,
+    type TimeSeriesOptions,
+    walkSeries,
+    windowsUntil,
+} from "./series";
+import {
     buildField,
     countBins,
     drain,
@@ -67,6 +75,7 @@ import {
 import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
 export type { TimeUnit } from "./parse";
+export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "./series";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer reads and passes
@@ -307,6 +316,12 @@ export interface TimePlayOptions {
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
     readonly timeZone?: string;
+    /**
+     * With stepped motion, wait for a drawn frame before timing the next step, so steps never
+     * outrun the renderer. Default false: steps keep to the timer. No frame coming (a hidden page,
+     * a stopped render loop, no renderer) does not hold a play up. Smooth motion never needs it.
+     */
+    readonly waitForRender?: boolean;
 }
 
 /**
@@ -482,6 +497,19 @@ export interface TimeApi {
     /** Stop advancing, and record where the window stopped. */
     pause(): void;
     /**
+     * Every window of a step at once, for a chart over time: each one step wide (cumulative: growing
+     * a step at a time), whatever the width of the window in force, as stepping from the first window
+     * of that step shows them. They are counted under the same filter, without moving what is on
+     * screen or touching history. Step, mode and zone left out come from the window in force, else
+     * the settings; `from` and `to` default to the start and end of the data.
+     * @param options - Step, mode, range, zone and measures.
+     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
+     *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
+     * @throws `E_FEATURE_OFF` with the experiment off.
+     */
+    series(options?: TimeSeriesOptions): Run<TimeSeries>;
+    /**
      * Move the window by whole steps (negative goes back), stopping at the first and the last
      * window. With no window, a step forward opens the first window and a step back the last.
      * Undoable; window moves made in quick succession merge into one step, as a drag does.
@@ -547,6 +575,11 @@ export interface TimeSources {
     readonly runs: () => readonly Run[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
+    /**
+     * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
+     * Asked only by a stepped play with `waitForRender`.
+     */
+    readonly renderedFrame?: () => Promise<void>;
 }
 
 /** The `data.knownFields` keys that hold the designation. */
@@ -1109,6 +1142,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let playing = false;
     let interval = DEFAULT_INTERVAL;
     let loop = false;
+    let waitForRender = false;
+    /** How many plays have started, so a frame an earlier play waited on starts no timer. */
+    let plays = 0;
     /** The history step this play's moves merge into. */
     let playStep: HistoryStepId | null = null;
     /** How many times the window has slid, so a move can tell a newer slide took the cursor. */
@@ -1704,7 +1740,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? first : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -1725,7 +1761,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? (extent?.from ?? start) : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -2055,6 +2091,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         frame = requestAnimationFrame(glide);
     };
 
+    /** Time the next playback step, past a drawn frame when the play waits for one. */
+    const nextStep = (): void => {
+        if (!waitForRender || sources.renderedFrame === undefined) {
+            timer = setTimeout(() => void tick(), interval);
+            return;
+        }
+
+        const play = plays;
+        void sources.renderedFrame().then(() => {
+            if (play === plays && playing && !disposed) {
+                timer = setTimeout(() => void tick(), interval);
+            }
+        });
+    };
+
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
@@ -2093,7 +2144,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         if (playing && !disposed) {
-            timer = setTimeout(() => void tick(), interval);
+            nextStep();
         }
     };
 
@@ -2311,6 +2362,44 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             ...(options.mode === undefined ? {} : { mode: options.mode }),
             ...zoned(options.timeZone),
         });
+    };
+
+    /**
+     * The windows of a series: each one step wide (cumulative: growing a step at a time), as a play
+     * from the first window of that step shows them, up to the series' end.
+     * @param options - What the series asked for.
+     * @returns The windows; none when nothing has a time.
+     */
+    const seriesWindows = (options: TimeSeriesOptions): readonly TimeWindow[] => {
+        assertSeriesBounds(options);
+        const current = visibility.window;
+        const step = stepFor(options.step ?? current?.step);
+        const mode = options.mode ?? current?.mode ?? settingsNow().mode;
+        const timeZone = options.timeZone ?? current?.timeZone;
+        const opening = firstWindow({ step, mode, ...zoned(timeZone) });
+        const extent = extentNow();
+        if (extent === null) {
+            return [];
+        }
+
+        const zone = zoneOf(timeZone);
+        const begin = options.from ?? extent.from;
+        const start = alignAt(begin, step, zone);
+        const cumulative = mode === "cumulative";
+        const first: TimeWindow = Object.freeze({
+            ...opening,
+            from: cumulative ? begin : start,
+            to: addSteps(start, step, 1, zone),
+            ...(current?.nodes === undefined ? {} : { nodes: current.nodes }),
+            ...(current?.missing === undefined ? {} : { missing: current.missing }),
+        });
+        // A cumulative window grows from where it was told, which can lie before the data.
+        const next = (window: TimeWindow): TimeWindow =>
+            cumulative
+                ? Object.freeze({ ...window, to: addSteps(boundOf(window, "to"), step, 1, zone) })
+                : advanced(window, 1);
+
+        return windowsUntil(first, options.to ?? extent.to, next, (window) => boundOf(window, "to"));
     };
 
     /**
@@ -2648,6 +2737,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             zoneOf(options.timeZone);
             interval = options.interval ?? interval;
             loop = options.loop ?? loop;
+            waitForRender = options.waitForRender ?? false;
+            plays++;
             smooth = (options.motion ?? (smooth ? "smooth" : "steps")) === "smooth";
             const current = cursor ?? visibility.window;
             playing = true;
@@ -2666,7 +2757,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 void move(start, "play")
                     .then(() => {
                         if (playing) {
-                            timer = setTimeout(() => void tick(), interval);
+                            nextStep();
                         }
                     })
                     .catch(() => {
@@ -2676,6 +2767,28 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             timer = setTimeout(() => void tick(), interval);
+        },
+
+        series(options: TimeSeriesOptions = {}): Run<TimeSeries> {
+            const { signal, onProgress, ...asked } = options;
+            const measures = asked.measures ?? [];
+
+            return visibility.windowRun(
+                "time.series",
+                asked,
+                { ...(signal === undefined ? {} : { signal }), ...(onProgress === undefined ? {} : { onProgress }) },
+                async (open, context) => {
+                    assertMeasures(measures);
+                    await follow();
+                    const windows = seriesWindows(asked);
+                    const bounds = (window: TimeWindow): readonly [number, number] => [
+                        boundOf(window, "from"),
+                        boundOf(window, "to"),
+                    ];
+
+                    return walkSeries(windows, open(), measures, bounds, context);
+                },
+            );
         },
 
         pause(): void {

@@ -6953,6 +6953,8 @@ export class RenderManager implements Manager {
     drawNow(): void;
     // (undocumented)
     engine: Engine | WebGPUEngine;
+    // @internal
+    frameDrawn(): Promise<void>;
     getRenderStats(): {
         fps: number;
         activeMeshes: number;

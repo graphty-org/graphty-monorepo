@@ -339,6 +339,21 @@ export class NodeBatches {
     }
 
     /**
+     * Whether some object rows are drawn by something other than their own mesh (a shader
+     * surface hides its source), so a picture of what is drawn does not show them.
+     * @returns True when one is.
+     */
+    hiddenRows(): boolean {
+        for (const group of this.groups.values()) {
+            if (!group.batched && group.members.size > 0 && group.source.visibility === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * A node was painted: put it where it now belongs.
      * @param node - The node.
      */

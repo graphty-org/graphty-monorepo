@@ -19,7 +19,7 @@ import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
-import { filterPointerPicks, pickNodeId } from "./render/PickService";
+import { filterPointerPicks, hoverNodeId, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
@@ -97,6 +97,8 @@ export interface NodePointerRoster {
     readonly engaged: Set<NodeDragHandler>;
     /** Handlers whose node the pointer is over: they hear the move that leaves it. */
     readonly hovered: Set<NodeDragHandler>;
+    /** Pointer moves so far, so a hover answered late is dropped once a newer move came. */
+    moves: number;
 }
 
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
@@ -142,15 +144,18 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             }
 
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
-            // are now.
-            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
-            for (const handler of roster.hovered) {
-                handler.onHover(pickedId);
-            }
-
-            const target = pickedId === undefined ? undefined : roster.byId.get(pickedId);
-            if (target && !roster.hovered.has(target)) {
-                target.onHover(pickedId);
+            // are now. On the batched path the answer is read from the node ID target and comes
+            // later; only the latest move's answer is heard.
+            const move = ++roster.moves;
+            const pickedId = hoverNodeId(scene, scene.pointerX, scene.pointerY);
+            if (pickedId instanceof Promise) {
+                void pickedId.then((id) => {
+                    if (move === roster.moves) {
+                        deliverHover(roster, id);
+                    }
+                });
+            } else {
+                deliverHover(roster, pickedId);
             }
 
             break;
@@ -168,6 +173,22 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 }
 
 /**
+ * Tell the hovered nodes and the node under the pointer where the pointer is.
+ * @param roster - The scene's nodes.
+ * @param pickedId - The node under the pointer, if any.
+ */
+function deliverHover(roster: NodePointerRoster, pickedId: NodeIdType | undefined): void {
+    for (const handler of roster.hovered) {
+        handler.onHover(pickedId);
+    }
+
+    const target = pickedId === undefined ? undefined : roster.byId.get(pickedId);
+    if (target && !roster.hovered.has(target)) {
+        target.onHover(pickedId);
+    }
+}
+
+/**
  * The roster of a scene's nodes, created with its one `onPrePointerObservable` observer on first
  * use. The graph creates it when it sets up its scene, so the shared observer sits where the
  * first node's own observers used to.
@@ -177,7 +198,7 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
     let roster = nodePointerRosters.get(scene);
     if (!roster) {
-        const created: NodePointerRoster = { byId: new Map(), engaged: new Set(), hovered: new Set() };
+        const created: NodePointerRoster = { byId: new Map(), engaged: new Set(), hovered: new Set(), moves: 0 };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
         });

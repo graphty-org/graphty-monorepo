@@ -169,7 +169,7 @@ try {
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
-    if (RENDER_PATH === "batched") {
+    if (lib === "graphty" && RENDER_PATH === "batched") {
         // A row that quietly left the fast path would be measured as if it were on it.
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
         log("rowCounts", rows);

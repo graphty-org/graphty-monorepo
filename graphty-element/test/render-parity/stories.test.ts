@@ -47,17 +47,19 @@ const ANNOTATIONS = {
     renderToCanvas: (context: { storyFn: () => unknown; showMain: () => void }, canvas: HTMLElement): void => {
         context.showMain();
         const drawn = context.storyFn();
+        // Built off the page, because the element opens its renderer when it connects.
+        const built = document.createDocumentFragment();
         if (drawn instanceof Node) {
-            for (const element of [drawn, ...((drawn as Element).querySelectorAll?.("graphty-element") ?? [])]) {
-                if (element instanceof HTMLElement && element.localName === "graphty-element") {
-                    (element as Graphty).renderer = RENDERER;
-                }
-            }
-
-            canvas.replaceChildren(drawn);
+            built.append(drawn);
         } else {
-            render(drawn, canvas);
+            render(drawn, built);
         }
+
+        for (const element of built.querySelectorAll<Graphty>("graphty-element")) {
+            element.renderer = RENDERER;
+        }
+
+        canvas.replaceChildren(built);
     },
 };
 
@@ -91,6 +93,7 @@ async function picture(story: Composed, path: "objects" | "batched"): Promise<Ca
 
     const frame = await readCanvas(element.graph);
     assert.equal(element.graph.renderPath, path);
+    assert.equal(element.graph.engine.isWebGPU, RENDERER === "webgpu", "the story drew on the other engine");
     host.remove();
     return frame;
 }

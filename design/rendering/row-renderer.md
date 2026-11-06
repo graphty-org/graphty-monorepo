@@ -396,7 +396,7 @@ As built (stage 8): `test/render-parity/stories.test.ts` loads each captured sto
 in the browser with a one-function renderer, on the URL a capture uses. WebGPU's canvas holds nothing once a frame ends, so every read
 happens inside a frame, by `engine.readPixels` (`test/helpers/whole-canvas.ts`). `test/render-parity/unstable.json` names each story left out
 and why; most fail on `"objects"` here because their play needs Storybook itself. `unstable-webgpu.json` adds the stories that fail only on WebGPU,
-all with no batch involved, so WebGL keeps them; `SWAP_REJECTS` leaves out the two scene shader files there, which reject on either path. `VITE_PARITY_RENDERER` picks the engine.
+all with no batch involved, so WebGL keeps them; `SWAP_REJECTS` leaves out the two scene shader files there, which reject on either path. `VITE_PARITY_RENDERER` picks the engine: the story is built off the page so it is set before the element connects, and each load asserts the engine that drew.
 
 A missed millisecond target does not block a parity-clean stage: the Proof file states it and stage 38 reports it. Counts (uploads, walks,
 `Node`s built, draws) are tests.

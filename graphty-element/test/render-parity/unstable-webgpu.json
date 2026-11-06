@@ -27,5 +27,6 @@
     "../../stories/Lighting.stories.ts UnshadedBelowRightBehind": "Fails on objects on WebGPU: its camera is set on the first scene, which opening WebGPU replaces",
     "../../stories/Lighting.stories.ts UnshadedBottom": "Fails on objects on WebGPU: its camera is set on the first scene, which opening WebGPU replaces",
     "../../stories/Lighting.stories.ts UnshadedFront": "Fails on objects on WebGPU: its camera is set on the first scene, which opening WebGPU replaces",
-    "../../stories/Lighting.stories.ts UnshadedOverhead": "Fails on objects on WebGPU: its camera is set on the first scene, which opening WebGPU replaces"
+    "../../stories/Lighting.stories.ts UnshadedOverhead": "Fails on objects on WebGPU: its camera is set on the first scene, which opening WebGPU replaces",
+    "../../stories/AiControl.stories.ts Default": "Differs between two objects loads on WebGPU: a layout step sometimes lands between the add of nodes and the add of edges, and the story passes no seed"
 }

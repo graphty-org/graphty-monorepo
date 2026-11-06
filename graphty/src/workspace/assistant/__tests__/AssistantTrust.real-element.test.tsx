@@ -516,9 +516,8 @@ describe("checking what the Assistant says", () => {
         within(section).getByRole("button", { name: "Keep them" });
 
         await userEvent.click(within(section).getByRole("button", { name: "Remove" }));
-        await waitFor(() => {
-            assert.strictEqual(session.data.statistics().nodeCount, 0);
-        });
+        await within(log()).findByText(/^Removed 12 nodes/);
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
     });
 
     it("Change this declines and focuses the composer; a sent message supersedes and the turn says so", async () => {

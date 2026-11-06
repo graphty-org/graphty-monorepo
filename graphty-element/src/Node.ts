@@ -1548,7 +1548,8 @@ export class Node implements ModelUser {
         return (
             style !== null &&
             !this.#meshHeld &&
-            this.#mesh instanceof InstancedMesh &&
+            // A row the batch draws gave up its instance: only an instance can leave its mesh.
+            (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&
             this.drawnImage === null &&

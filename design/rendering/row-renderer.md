@@ -176,7 +176,11 @@ the instance; `drawInBatch(null)` rebuilds the instance from the last mesh key a
 the mesh was built, and releases the row only when it is not batched. Reading `Node.mesh` gives a batched row its mesh
 back at once. `drawnPickMesh` is null for a batched row; a row pick answers with `drawnAnchor`, which carries the
 metadata, so `pickAsDrawn` and `DrawnHit.mesh` return a `TransformNode`. Bounds of a meshless row come from the source's
-local box at the anchor's world matrix (`drawnBoundingInfo`).
+local box at the anchor's world matrix (`drawnBoundingInfo`). A meshless row is still batchable (`batchableIn` accepts a
+null mesh), and `RowTable.hide` leaves a shrinking row's W alone when it was and stays drawn, so rebuilding a row's
+instance mid-shrink does not draw it whole. Open: Babylon's XR laser (`WebXRControllerPointerSelection`) finds its hit
+with `scene.pickWithRay`, which sees no meshless row, so the laser passes through batched rows; XRInputHandler's own
+tap and drag already pick rows through `pickRayAsDrawn`.
 
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
 shader surfaces and effects, rowless nodes, and before stage 31 labels and tooltips. Stage 14 widens the batch (see its row), with a mirror

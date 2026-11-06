@@ -344,6 +344,11 @@ export class RowTable {
 
         const flags = this.flags[row] ?? 0;
         this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
+        if (!hidden && (flags & (HIDDEN | SHRUNK)) === SHRUNK) {
+            // Still drawn, part of the way through a shrink: its W is the shrink's.
+            return;
+        }
+
         this.writeW(row, !hidden && ((flags & HELD) !== 0 || this.lane().isPlaced(row)) ? 1 : 0);
     }
 

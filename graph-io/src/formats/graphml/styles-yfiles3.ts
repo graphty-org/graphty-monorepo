@@ -36,7 +36,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import { bpmnPicture, type PortEvent, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -633,9 +633,17 @@ const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?:
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  * @returns true when the style is one of these
  */
-function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
+function readBpmnStyle(
+    refs: References,
+    style: StyleObject,
+    size: Size | null,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): boolean {
     const look = BPMN_STYLES.get(style.tag);
     const background = prop(style, "background");
     const outline = prop(style, "outline");
@@ -667,28 +675,106 @@ function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, 
         put("cornerRadius", look.cornerRadius);
     }
     if (size !== null) {
-        putBpmnPicture(refs, style, size, put, at);
+        putBpmnPicture(refs, style, size, put, at, ports);
     }
     return true;
 }
 
 /**
- * Writes the picture of a BPMN node's symbols, in its `iconColor` (black unset), where it has any.
+ * A style's attributes and colors, as a node picture reads them: a color as `#rrggbb`, undefined where it has none.
+ * @param refs - the references
+ * @param style - the style
+ * @param at - the sites
+ * @returns the readers
+ */
+function styleReader(refs: References, style: StyleObject, at: SiteOf): Pick<PortEvent, "attr" | "color"> {
+    return {
+        attr: (name) => treeAttr(style.e, name),
+        color: (name) => {
+            const paint = paintOf(refs, prop(style, name), null);
+            return paint === null || paint === NULL
+                ? undefined
+                : canonColor(paint.raw, paint.dialect, at("image"))?.color;
+        },
+    };
+}
+
+/** The attributes yEd Live 8.5.16 reads on an EventPortStyle: it draws no port whose style has another. */
+const PORT_EVENT_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "type",
+    "characteristic",
+    "background",
+    "outline",
+    "iconColor",
+    "renderSize",
+]);
+
+/**
+ * The BPMN events on a node's ports: each port drawn with an EventPortStyle and placed by a
+ * FreeNodePortLocationModelParameter (its `Ratio` of the node's box, then its `Offset`). yEd Live draws nothing for a
+ * port whose style has an attribute it does not read (`checked` on `yed-live-graphml-specimen-node-shapes-p6`).
+ * ponytail: the free model only, the one yEd Live writes; another location model's port is not drawn.
+ * @param refs - the references
+ * @param ports - the node's ports, as the ports column holds them
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns the events
+ */
+function portEvents(refs: References, ports: unknown, size: Size, at: SiteOf): PortEvent[] {
+    return (Array.isArray(ports) ? ports : []).flatMap((entry: unknown): PortEvent[] => {
+        const style = isTree(entry) ? refs.first(entry.PortStyle) : null;
+        const where = isTree(entry)
+            ? treeChild(entry.PortLocationParameter, "FreeNodePortLocationModelParameter")
+            : null;
+        if (style?.tag !== "EventPortStyle" || !isTree(where) || !isTree(style.e)) {
+            return [];
+        }
+        const unread = Object.keys(style.e).some(
+            (k) => k.startsWith("@_") && !k.includes(":") && !PORT_EVENT_ATTRIBUTES.has(k.slice(2)),
+        );
+        const pair = (name: string, unset: string): number[] => (treeAttr(where, name) ?? unset).split(",").map(Number);
+        const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
+        const x = rx * size.width + ox;
+        const y = ry * size.height + oy;
+        return unread || !Number.isFinite(x) || !Number.isFinite(y) ? [] : [{ x, y, ...styleReader(refs, style, at) }];
+    });
+}
+
+/**
+ * Writes the picture of a BPMN node's symbols, its messages and the events on its ports, where it has any. A picture
+ * reaching past the node (a port's event, a message) is drawn at its own size, as far off the node's middle as it
+ * reaches further on one side than the other.
  * @param refs - the references
  * @param style - the style
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  */
-function putBpmnPicture(refs: References, style: StyleObject, size: Size, put: PutValue, at: SiteOf): void {
-    const paint = paintOf(refs, prop(style, "iconColor") ?? BLACK, null);
-    const color = paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("image"));
-    const picture = bpmnPicture(style.tag, (name) => treeAttr(style.e, name), size, color?.color ?? "#000000");
-    if (picture !== null) {
-        put("image", picture);
-        put("imageFit", "fill");
-        put("imageClip", "none");
+function putBpmnPicture(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): void {
+    const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
+    if (drawing === null) {
+        return;
     }
+    put("image", drawing.picture);
+    put("imageClip", "none");
+    const { left, top, right, bottom } = drawing.reach;
+    if (left + top + right + bottom === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", drawing.width);
+    put("imageHeight", drawing.height);
+    put("imageOffsetX", (right - left) / 2);
+    put("imageOffsetY", (bottom - top) / 2);
 }
 
 /** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */
@@ -870,6 +956,7 @@ function putStyleOutline(style: StyleObject, size: Size | null, put: PutValue, a
  * @param at - the sites
  * @param size - the node's size, for a PILL's half-circle ends
  * @param collapsed - whether a group is collapsed
+ * @param ports - the node's ports, as the ports column holds them
  */
 function readNodeStyle(
     refs: References,
@@ -878,6 +965,7 @@ function readNodeStyle(
     at: SiteOf,
     size: Size | null,
     collapsed: boolean,
+    ports: unknown,
 ): void {
     const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
@@ -887,7 +975,7 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at)) {
+    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {
@@ -909,6 +997,14 @@ function readNodeStyle(
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
+    const aspect = INTRINSIC_ASPECTS.get(shape ?? "");
+    const keep = !refs.yfiles26 && treeAttr(style.e, "keepIntrinsicAspectRatio") === "true";
+    if (aspect !== undefined && size !== null && keep) {
+        // the shape is drawn at its own proportions, as large as fits the box, about its center; a yFiles for HTML
+        // 2.6 file's is drawn to the whole box (yed-live-graphml-specimen-node-shapes-p2)
+        put("width", Math.min(size.width, size.height * aspect));
+        put("height", Math.min(size.height, size.width / aspect));
+    }
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
@@ -918,6 +1014,15 @@ function readNodeStyle(
         readGroupPanel(refs, style, size, collapsed, put, at);
     }
 }
+
+/**
+ * The width over the height of the ShapeNodeStyle shapes that have proportions of their own, which yEd Live keeps
+ * under `keepIntrinsicAspectRatio`: a regular five-pointed star, measured from yEd Live 8.5.16's drawing of
+ * `yed-live-graphml-specimen-node-shapes` (31.54 by 30); yFiles for HTML 2.6 files draw it to the box. ponytail: the star only, the one shape a sheet measures.
+ */
+const INTRINSIC_ASPECTS: ReadonlyMap<string, number> = new Map([
+    ["star5", (2 * Math.sin((2 * Math.PI) / 5)) / (1 + Math.cos(Math.PI / 5))],
+]);
 
 /**
  * A ShapeNodeStyle `shape` as a lookup key: lowercase, underscores as hyphens.
@@ -1690,6 +1795,10 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
+    const ports = isNode
+        ? [...table].find((col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port")?.meta
+              .name
+        : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -1705,7 +1814,7 @@ function readYfiles3Target(
             size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
-            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false);
+            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
         } else if (style !== undefined) {
             readEdgeStyle(refs, cell(style, i), put, at);
         }

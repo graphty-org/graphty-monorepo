@@ -77,3 +77,52 @@ describe("yEd Live's BPMN symbols", () => {
         expect(svgOf(activities("image", "bpmn-activity-sub-state-expanded"))).not.toContain("M50,20V80");
     });
 });
+
+describe("yEd Live's BPMN events on ports and choreography messages", () => {
+    it("draws a port's event past the node's bottom, the picture sized and moved to reach it", async () => {
+        const read = await sheet("specimen-node-shapes-p6");
+        const id = "bpmn-event-port-type-message";
+        // the node is 60 x 40 and its port sits on the bottom at a quarter across: a 20 x 20 event reaches 10 below
+        expect([read("imageFit", id), read("imageClip", id)]).toEqual(["none", "none"]);
+        expect([read("imageWidth", id), read("imageHeight", id)]).toEqual([59, 49]);
+        expect([read("imageOffsetX", id), read("imageOffsetY", id)]).toEqual([0, 5]);
+        const svg = svgOf(read("image", id));
+        expect(svg).toContain('viewBox="0.5 0.5 59 49"');
+        // two rings in the port's colors, centered on the port
+        expect(svg.match(/<ellipse fill="#c8c8c8" stroke="#505050"[^>]* cx="15" cy="40"/g)).toHaveLength(2);
+    });
+
+    it("draws one ring for a starting event and a thick one for an ending event, and nothing for a port yEd Live rejects", async () => {
+        const read = await sheet("specimen-node-shapes-p6");
+        expect(svgOf(read("image", "bpmn-event-port-characteristic-start")).match(/<ellipse/g)).toHaveLength(1);
+        expect(svgOf(read("image", "bpmn-event-port-characteristic-end"))).toContain('stroke-width="3"');
+        expect(svgOf(read("image", "bpmn-event-port-characteristic-boundary-non-interrupting"))).toContain(
+            'stroke-dasharray="2,2"',
+        );
+        expect(read("image", "bpmn-event-port-checked")).toBeNull();
+    });
+
+    it("draws a choreography's initiating message above it and its response below it", async () => {
+        const read = await sheet("specimen-node-shapes-p6");
+        // a 70 x 50 node: the envelope and its line reach 29 past its top or bottom
+        expect([
+            read("imageHeight", "bpmn-choreography-initiating-message"),
+            read("imageOffsetY", "bpmn-choreography-initiating-message"),
+        ]).toEqual([78, -14.5]);
+        expect([
+            read("imageHeight", "bpmn-choreography-response-message"),
+            read("imageOffsetY", "bpmn-choreography-response-message"),
+        ]).toEqual([78, 14.5]);
+        expect(svgOf(read("image", "bpmn-choreography-response-message"))).toContain('fill="#808080"');
+        expect(read("imageFit", "bpmn-choreography-type-task")).toBeNull();
+    });
+});
+
+describe("yEd Live's keepIntrinsicAspectRatio", () => {
+    it("draws a five-pointed star at its own proportions, as large as fits its box", async () => {
+        const read = await sheet("specimen-node-shapes");
+        // stored 60 x 30; yEd Live draws the star 31.54 x 30
+        expect(read("width", "shape-keep-aspect")).toBeCloseTo(31.54, 2);
+        expect(read("height", "shape-keep-aspect")).toBe(30);
+    });
+});

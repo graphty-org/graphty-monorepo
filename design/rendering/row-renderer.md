@@ -253,8 +253,9 @@ run, and any consumer action turns it back on.
 As built (stage 5): every pick lives in `render/PickService.ts`. The twelve sites are `pickAsDrawn`, `pickNodeId`, `alongRay`, the pointer
 predicates, the close-label hover, `screenToWorld`, the edge pick, the XR drag start, and their callers on press, release, background click
 and `elementAt`. `groupOutlineAt` is a 2D test in `RenderManager` and stays there; `Edge.ts`'s own ray waits for stage 7. `RowScan` exists once
-`Graph.openRowTable` runs, so `"objects"` graphs take the old path unchanged. With a table open, a press runs the scan in shadow beside
-`scene.pick` and counts differences (`shadow.differ`); a pick during a transition and an XR ray take the merged answer. `screenToWorld`
+`Graph.openRowTable` runs, so `"objects"` graphs take the old path unchanged. With a table open, a press answers from the scan (stage 10
+removed the shadow `scene.pick` and its `shadow.differ` counter; `row-scan-parity.test.ts` compares with `scene.pick` directly); a pick
+during a transition and an XR ray take the merged answer. `screenToWorld`
 stays on `scene.pick` until a row has no mesh. The narrow phase places rows under `graph-root`: the walk takes the ray into the root's space,
 and each candidate's matrix is multiplied by the root's, so an XR gesture changes nothing. Four things differ from the text above:
 
@@ -279,6 +280,26 @@ cursor. The shared `ActionManager` is built at scene setup only under `"objects"
 makes it, which while proxies exist is the first node. Two corrections to the stage 9 row: `XRInputHandler` was
 already on the merged ray pick (`pickRayAsDrawn`, stage 5), and the one XR laser proxy moves to stage 11, since with
 hidden proxies the predicate alone serves and nothing could prove the proxy before the meshes go.
+
+As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"batched"` path. Six things differ from the text above:
+
+- A node read is one pixel, not a window. On WebGL it is synchronous: a stale target is drawn on the spot and read with
+  `_readTexturePixelsSync`. On WebGPU the next frame draws it and the read follows asynchronously. `NodeBehavior` drops an asynchronous
+  answer from an older move. While reads keep coming the target is redrawn once in each frame; `counts = {draws, reads}`.
+- What the target draws is the scene's own active-mesh list, copied in `onAfterActiveMeshesEvaluationObservable` (between frames
+  `scene.getActiveMeshes()` is empty). Batches write row + 1; every other pickable mesh writes white, which means "ask the mesh pick".
+  Shader-surface rows, whose proxies are hidden, read empty and fall back to the mesh pick through `NodeBatches.hiddenRows()`.
+- Babylon draws `customRenderTargets` before it evaluates the frame's active meshes, so the in-frame drawing uses the last frame's list.
+  It is kept only while the new list is the same; any change makes the target stale.
+- `RenderTargetTexture.isReadyForRendering()` notifies every observer a drawing does (before bind, before and after render, after unbind)
+  and draws nothing, so no observer can mark a drawing. A small subclass overrides `render()` to say when it really drew.
+- Against `shapeRayHit`, the target differs at same-depth overlaps and at pixel centers within an eighth of a pixel of a triangle's
+  edge, where the rasterizer's rule and the ray test may keep opposite sides. `node-id-target.test.ts` lists both and bounds the second at
+  2% of sampled points.
+- A row under 1.5 device pixels in radius is drawn 1.5 px in radius around its center in the target (the batch's largest half-extent
+  sets the measure). Drawn as it is, a row smaller than a pixel covers no pixel center, so hover read nothing over it while the scan
+  named it: at 100,000 nodes in the benchmark (radius 0.32 px) no hover ever came. Hover over such a row may therefore name it, or a
+  neighbor drawn later, up to 1.5 px from its center, where the scan names nothing.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

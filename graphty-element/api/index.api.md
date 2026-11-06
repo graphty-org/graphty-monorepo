@@ -2791,6 +2791,8 @@ export class Graph implements GraphContext {
     // @internal
     getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    // @internal
+    getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     // @internal

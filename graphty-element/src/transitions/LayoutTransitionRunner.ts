@@ -128,6 +128,15 @@ export function pickAtLayout<T>(scene: Scene, pick: (moving: boolean) => T): T {
 }
 
 /**
+ * Whether a layout transition is under way in a scene, without moving anything to ask.
+ * @param scene - The scene.
+ * @returns True while one is.
+ */
+export function transitionUnderWay(scene: Scene): boolean {
+    return runners.get(scene)?.active === true;
+}
+
+/**
  * A stable number in 0..1 for an index.
  * @param index - The index.
  * @returns The number.

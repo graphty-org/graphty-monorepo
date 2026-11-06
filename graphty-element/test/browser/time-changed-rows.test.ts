@@ -22,6 +22,8 @@ const NODES = 300;
 const EDGES = 1_500;
 /** The size a Ghost step is counted at. */
 const LARGE = { nodes: 2_000, edges: 10_000 };
+/** An edge drawn through a support point. */
+const BOWED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
 
 let mounted: Graphty | null = null;
 
@@ -158,6 +160,23 @@ function edgeEndsOnChangedNodes(element: Graphty, before: ReadonlyMap<Edge["srcN
     }
 
     return ends;
+}
+
+/**
+ * Assert the support points hold exactly the edges whose style draws them through one.
+ * @param element - The element.
+ * @param when - What just happened, for the message.
+ */
+function assertSupportPointsMatchStyle(element: Graphty, when: string): void {
+    const { edges, supportPoints } = element.graph.getDataManager();
+    let bowed = 0;
+    for (const edge of edges.values()) {
+        const wanted = edge.supportEdge() !== null;
+        bowed += Number(wanted);
+        assert.strictEqual(supportPoints.pointOf(edge) !== null, wanted, `${when}: edge ${edge.id}`);
+    }
+
+    assert.isAbove(bowed, 0, `${when}: some edge has a support point`);
 }
 
 describe("changed rows on real nodes and edges", () => {
@@ -302,7 +321,7 @@ describe("changed rows on real nodes and edges", () => {
                 name: "Bowed",
                 target: "edge",
                 selector: { match: "everything" },
-                set: { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 },
+                set: BOWED,
             });
         });
         const { graph } = element;
@@ -330,6 +349,91 @@ describe("changed rows on real nodes and edges", () => {
                 const bow = Math.hypot(line.centre.x - (src.x + dst.x) / 2, line.centre.y - (src.y + dst.y) / 2);
                 assert.isAbove(bow, 0.01, `edge ${edge.id} is drawn bowed`);
             }
+        }
+    });
+
+    it("settles the support points the rest still push on when a step hides a bowed edge", async () => {
+        const element = await slidingElement(async ({ session }) => {
+            await session.styles.add({
+                name: "Bowed",
+                target: "edge",
+                selector: { match: "expression", where: "data.t < `100`" },
+                set: BOWED,
+            });
+        });
+        const { supportPoints } = element.graph.getDataManager();
+        const edges = [...element.graph.getDataManager().edges.values()];
+        const kept = edges.filter((edge) => supportPoints.pointOf(edge) !== null);
+        assert.isAbove(kept.length, 0, "bowed edges in the window");
+        const before = new Map(kept.map((edge) => [edge, supportPoints.pointOf(edge)]));
+
+        // The window goes from 5 to 25: bowed edges 5 to 24 leave, and only plain ones enter.
+        const step = await element.session.time.seek(25, { commit: false });
+        await drawn(element);
+
+        assert.isAbove(step.left.edges, 0);
+        const { visibility } = element.session;
+        const gone = kept.filter((edge) => !visibility.isVisible(edge.id));
+        const stayed = kept.filter((edge) => visibility.isVisible(edge.id));
+        assert.isNotEmpty(gone);
+        assert.isNotEmpty(stayed);
+        for (const edge of gone) {
+            assert.isNull(supportPoints.pointOf(edge), `edge ${edge.id} left the support points`);
+        }
+
+        const moved = stayed.filter((edge) => {
+            const was = before.get(edge) ?? null;
+            const now = supportPoints.pointOf(edge);
+            return was !== null && now !== null && Math.hypot(now.x - was.x, now.y - was.y) > 1e-6;
+        });
+        assert.isNotEmpty(moved, "a point the hidden edges pushed on settled again");
+    });
+
+    it("drops an edge from the support points when a Ghost step straightens it", async () => {
+        const element = await slidingElement(async (mountedElement) => {
+            await drawGhosts(mountedElement);
+            await mountedElement.session.styles.add({
+                name: "Bowed",
+                target: "edge",
+                selector: { match: "everything" },
+                set: BOWED,
+            });
+            await mountedElement.session.styles.add({
+                name: "Straight ghosts",
+                target: "edge",
+                selector: { match: "state", state: "ghosted" },
+                set: { "edge.curvature": false },
+            });
+        });
+
+        for (const from of [15, 35]) {
+            await element.session.time.seek(from, { commit: false });
+            await drawn(element);
+            assertSupportPointsMatchStyle(element, `at ${String(from)}`);
+        }
+    });
+
+    it("gives an edge a support point when a Ghost step sets one on it", async () => {
+        const element = await slidingElement(async (mountedElement) => {
+            await drawGhosts(mountedElement);
+            await mountedElement.session.styles.add({
+                name: "Curved",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.curvature": true },
+            });
+            await mountedElement.session.styles.add({
+                name: "Ghosts on support points",
+                target: "edge",
+                selector: { match: "state", state: "ghosted" },
+                set: { "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 },
+            });
+        });
+
+        for (const from of [15, 35]) {
+            await element.session.time.seek(from, { commit: false });
+            await drawn(element);
+            assertSupportPointsMatchStyle(element, `at ${String(from)}`);
         }
     });
 });

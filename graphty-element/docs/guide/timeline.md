@@ -100,8 +100,9 @@ and the project file hold. `await time.commit()` records where a `seek` left it.
 history step, so `time.committed` follows every step.
 
 A move of the window redraws only what entered and left it. The exception is an edge drawn through a
-support point (`edge.supportModel`): support points settle together, so a move that reveals one
-visits every edge.
+support point (`edge.supportModel`): support points settle together, so a move that reveals, hides or
+repaints one visits every edge. Repainting includes `outside: "ghost"` turning such an edge into a
+ghost or back.
 
 ## Every window at once
 

@@ -583,8 +583,8 @@ three separate pieces instead:
 
 The mask version records the changed rows, which the renderer and the style repaint consume. A
 filter change recomputes (1) and then visible in full, as today. An edge with a support point
-(`edge.supportModel`) is outside the per-step budget when a step reveals it: support points settle
-together, so that step walks every edge.
+(`edge.supportModel`) is outside the per-step budget when a step reveals, hides or repaints it,
+Ghost steps included: support points settle together, so that step walks every edge.
 
 **Step cost and its fallback.** With edge time, a step touches the changed edges plus their
 endpoints. With node time, hiding a node re-tests all its incident edges, so the cost is the sum

@@ -880,7 +880,7 @@ export class UpdateManager implements Manager {
     /**
      * Show and hide only the edges on some rows. A revealed edge is placed by its own update this
      * frame (see {@link UpdateManager.applyEdgeMasks} for why it needs one), with no walk of every
-     * edge, except one bowed by a support point: only a walk tells the support points of it.
+     * edge, unless {@link UpdateManager.hasSupportPoint} says a support point is involved.
      * @param rows - The rows a slide moved.
      * @param edgeVisibility - The visible edges.
      */
@@ -891,13 +891,27 @@ export class UpdateManager implements Manager {
             const edge = edgesByIndex[row];
             const visible = edgeVisibility?.has(row) === true;
 
-            if (edge?.setRenderVisible(visible) === true && visible) {
-                this.edgesToPlace.push(edge);
-                if (edge.supportEdge() !== null) {
+            if (edge?.setRenderVisible(visible) === true) {
+                if (visible) {
+                    this.edgesToPlace.push(edge);
+                }
+
+                if (this.hasSupportPoint(edge)) {
                     this.forceEdgeWalk();
                 }
             }
         }
+    }
+
+    /**
+     * Whether an edge wants a support point or the support points still hold one for it. Support
+     * points push on each other, and only a walk of every edge tells them who is in the model and
+     * under what forces, so a change to such an edge reaches more than the edge.
+     * @param edge - The edge, after the change.
+     * @returns True when the change needs a walk.
+     */
+    private hasSupportPoint(edge: Edge): boolean {
+        return edge.supportEdge() !== null || this.dataManager.supportPoints.pointOf(edge) !== null;
     }
 
     /**
@@ -1167,6 +1181,9 @@ export class UpdateManager implements Manager {
     /** The edges a repaint touched since the last edge pass, which that pass places. */
     private edgesToPlace: Edge[] = [];
 
+    /** Whether the repaint under way has painted an edge with a support point. */
+    private paintedSupportPoint = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
@@ -1195,6 +1212,7 @@ export class UpdateManager implements Manager {
                 if (edge !== undefined && paint !== null) {
                     edge.applySessionPaint(paint);
                     this.edgesToPlace.push(edge);
+                    this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 }
             }
         } while (painter.hasPendingEdges && performance.now() < deadline);
@@ -1203,9 +1221,14 @@ export class UpdateManager implements Manager {
         // the frame that finishes the repaint visits every edge. Visiting every edge on each frame
         // made a repaint cost its frames times the edges: a million edges take about a thousand
         // frames, and those walks were most of a 100,000-node load. A time window's slide changes
-        // nothing but the rows it painted, so what this frame places is all of it.
-        if (!painter.hasPendingEdges && !painter.takeEdgesRowsOnly()) {
-            this.forceEdgeWalk();
+        // nothing but the rows it painted, so what this frame places is all of it, unless it painted
+        // an edge with a support point: a layer can change who has one and the forces on it.
+        if (!painter.hasPendingEdges) {
+            if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
+                this.forceEdgeWalk();
+            }
+
+            this.paintedSupportPoint = false;
         }
     }
 

@@ -74,7 +74,7 @@ class CountingEdge {
     }
 
     supportEdge(): object | null {
-        return this.bowed ? {} : null;
+        return this.bowed && this.visible ? {} : null;
     }
 
     update(): void {
@@ -124,7 +124,11 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         nodeVersion: 0,
         edgeVersion: 0,
         drawHeld: false,
-        supportPoints: { update: () => false, hasEdges: false },
+        supportPoints: {
+            update: () => false,
+            hasEdges: false,
+            pointOf: (edge: CountingEdge) => (edge.bowed ? {} : null),
+        },
     } as unknown as DataManager;
     const observable = { add: () => null, remove: () => true };
     const babylon = {
@@ -340,10 +344,23 @@ describe("changed rows reach the renderer", () => {
         scene.assertDrawnAsMasks("after a bowed reveal");
     });
 
-    it("does not walk for a support point on an edge the step only hid", async () => {
+    it("walks every edge for a hidden edge the support points still hold", async () => {
         const scene = await sliding();
         const walk = vi.spyOn(scene.manager, "forceEdgeWalk");
+        // The window is at 10 to 2,010, so a move of 20 takes out the edges 10 to 29.
         scene.edges[15].bowed = true;
+        await scene.session.time.seek(30, { commit: false });
+        const work = scene.frame();
+
+        assert.strictEqual(walk.mock.calls.length, 1);
+        assert.strictEqual(work.edgeWrites, 40, "the writes still follow the rows");
+        assert.strictEqual(work.updates, EDGES);
+    });
+
+    it("does not walk for a hidden or revealed edge with no support point", async () => {
+        const scene = await sliding();
+        const walk = vi.spyOn(scene.manager, "forceEdgeWalk");
+        scene.edges[100].bowed = true;
         const step = await scene.session.time.seek(30, { commit: false });
         const work = scene.frame();
 

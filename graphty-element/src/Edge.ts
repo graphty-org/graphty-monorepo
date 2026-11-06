@@ -60,6 +60,7 @@ import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } 
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
@@ -115,6 +116,31 @@ const ARROW_CAPTION_OFFSET = 0.3;
  * the globe in a thick halo.
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
+
+/** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
+const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+
+/** Line keys a pulled line draws exactly as the plain line does. */
+const PULLED_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * Whether every key set on a style block is one of the keys named.
+ * @param block - The block.
+ * @param keys - The keys it may set.
+ * @returns False when it sets any other.
+ */
+function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
+    return Object.entries(block).every(([key, value]) => value === undefined || value === false || keys.has(key));
+}
+
+/**
+ * Whether an end draws no cap and no words.
+ * @param cap - The end's style.
+ * @returns True for none.
+ */
+function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
+    return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
+}
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
 /**
@@ -485,6 +511,13 @@ export class Edge {
     private lineBatch: EdgeLineBatch | null = null;
 
     /**
+     * The piece this edge's line is pulled into instead ({@link Edge.pullsLine}), with the rows last
+     * written to it: -1 while hidden. Null for every other line.
+     */
+    private pulled: { batch: PulledLineBatch; piece: number; source: number; target: number; drawn: boolean } | null =
+        null;
+
+    /**
      * Which slots of {@link Edge.lineBatch} draw this edge: one for a straight line, and one per
      * segment of a curve, which is a run of straight segments. Empty when there is no batch.
      */
@@ -746,6 +779,18 @@ export class Edge {
      *     {@link Edge.drawnPattern}.
      */
     get drawnLine(): { name: string; length: number; width: number; visibility: number; centre: Vector3 } | null {
+        if (this.pulled) {
+            const src = this.srcNode.drawnPosition;
+            const dst = this.dstNode.drawnPosition;
+            return {
+                name: this.pulled.batch.mesh.name,
+                length: Vector3.Distance(src, dst),
+                width: this.drawnStyle?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                visibility: this.pulled.batch.mesh.visibility,
+                centre: Vector3.Center(src, dst),
+            };
+        }
+
         if (this.lineBatch === null) {
             return null;
         }
@@ -1081,6 +1126,9 @@ export class Edge {
         if (!this.isRenderVisible()) {
             return;
         }
+
+        // A renumbering freeze moves rows; a pulled piece follows by its nodes' rows, not their places.
+        this.pullRows();
 
         // DIRTY TRACKING FIRST, BEFORE ANYTHING THAT COSTS. On a still graph this comparison is
         // the whole of an edge's frame, and the update pass walks every edge in the graph on
@@ -2030,6 +2078,15 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
+        const pulled = options.width > 0 && this.pullsLine(style) ? this.pullLine(options, style) : null;
+        if (pulled) {
+            this.lineBatch = null;
+            this.lineSlots = [];
+            this.lineBuilt = "plain";
+            this.readRoute(style);
+            return pulled;
+        }
+
         this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
         // A surface that cannot draw yet leaves a taper's or a fade's batch here, or nothing; which
         // of them was built is what wakes the edge once the surface can.
@@ -2062,6 +2119,90 @@ export class Edge {
         // a patterned line is laid along its bends too (issue #3102)
         this.readRoute(style);
         return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table (`PulledLineBatch`, behind the internal
+     * switch `pulledEdgesDefault`): a plain solid straight line between two node centres -- no
+     * cap, gap, group, bend, loop, label, band or any other line key -- in 3D. Read when the line is
+     * built.
+     * @param style - The resolved style.
+     * @returns True when it is pulled.
+     */
+    private pullsLine(style: EdgeStyleConfig): boolean {
+        const line = style.line ?? {};
+        return (
+            pulledEdgesDefault.value &&
+            this.srcNode !== this.dstNode &&
+            !this.srcNode.isDrawnAsGroup &&
+            !this.dstNode.isDrawnAsGroup &&
+            !EdgeMesh.drawsFlat(this.context.getScene()) &&
+            setsOnly(style, PULLED_STYLE_KEYS) &&
+            setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.type ?? "solid") === "solid" &&
+            !line.animationSpeed &&
+            drawnText(style.label) === undefined &&
+            noCap(style.arrowHead) &&
+            noCap(style.arrowTail) &&
+            style.band?.color === undefined &&
+            this.route === "straight"
+        );
+    }
+
+    /**
+     * Take a piece of the pulled batch of this line's look.
+     * @param options - The line's look.
+     * @param options.styleId - The look's key.
+     * @param options.width - Its width.
+     * @param options.color - Its color.
+     * @param style - The resolved style.
+     * @returns The batch's mesh, or null when the graph keeps no row table.
+     */
+    private pullLine(
+        options: { styleId: string; width: number; color: string },
+        style: EdgeStyleConfig,
+    ): AbstractMesh | null {
+        const rows = this.context.getRowTable?.() ?? null;
+        if (rows === null) {
+            return null;
+        }
+
+        const scene = this.context.getScene();
+        const batch = EdgeMesh.pulledBatch(
+            this.context.getMeshCache(),
+            options,
+            style,
+            scene,
+            () => rows.positionTexture,
+        );
+        this.pulled = { batch, piece: batch.acquire(), source: -1, target: -1, drawn: true };
+        this.pullRows();
+        return batch.mesh;
+    }
+
+    /** Write this edge's rows to its pulled piece when they changed: its nodes', or none while hidden. */
+    private pullRows(): void {
+        const { pulled } = this;
+        if (pulled === null) {
+            return;
+        }
+
+        const source = pulled.drawn ? this.srcNode.index : -1;
+        const target = pulled.drawn ? this.dstNode.index : -1;
+        if (source !== pulled.source || target !== pulled.target) {
+            pulled.batch.setRows(pulled.piece, source, target);
+            pulled.source = source;
+            pulled.target = target;
+        }
+    }
+
+    /**
+     * Whether this edge's line is pulled from the row table rather than placed.
+     * @returns True for a pulled line.
+     * @internal
+     */
+    get isPulled(): boolean {
+        return this.pulled !== null;
     }
 
     /**
@@ -2127,6 +2268,12 @@ export class Edge {
      * appearance off the screen with it.
      */
     private releaseLine(): void {
+        if (this.pulled) {
+            this.pulled.batch.release(this.pulled.piece);
+            this.pulled = null;
+            return;
+        }
+
         for (const { batch, slot } of this.gradientPieces) {
             batch.release(slot);
         }
@@ -2678,7 +2825,10 @@ export class Edge {
      * @param drawn - Whether it is drawn.
      */
     private setLineDrawn(drawn: boolean): void {
-        if (this.lineBatch) {
+        if (this.pulled) {
+            this.pulled.drawn = drawn;
+            this.pullRows();
+        } else if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.setDrawn(slot, drawn);
             }

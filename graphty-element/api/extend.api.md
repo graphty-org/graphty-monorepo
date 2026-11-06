@@ -8,6 +8,7 @@ import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { ActionManager } from '@babylonjs/core';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BaseTexture } from '@babylonjs/core';
 import { BoundingBox } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
@@ -811,6 +812,8 @@ export class Edge {
     get index(): number;
     invalidatePositionCache(): void;
     isDisposed(): boolean;
+    // @internal
+    get isPulled(): boolean;
     isRenderVisible(): boolean;
     isSelected(): boolean;
     // (undocumented)

@@ -5,75 +5,37 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-11-05 (tier 6 round 2 critique). Summarized on 2026-10-21 and 2026-11-05: the tier 2
-rounds, the bulk-edit iterations and the tier 3 iterations are condensed below; the full text is
-Last updated: 2026-11-03 (tier 5 round 1 closed). Summarized on 2026-10-21: the tier 2
-rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
-in git history of this file.
+Last updated: 2026-11-06 (tier 6 round 2 closed). Summarized on 2026-10-21, 2026-11-05 and
+2026-11-06; the full text is in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-05) Tier 6 round 2 closed with readers: 11 of 12 succeeded, no confirmed sev 3. My critique
-   proposes: `position: relative` on the log, the question at body size, a blank line between a turn's
-   replies, the composer's words agreeing with the scope line, a selected count in the table.
-2. Two scrollbars and the reply's hidden end are probably one defect: a chip's absolute hidden span
-   escapes the log (no `position` on `.ws-assistant-log`), `.ws-panel-body` overflows, its bar narrows
-   the log after it reached the foot, the whole log rewraps, and `following` stays true so no Jump shows.
-   Traced in source and on `r2-s01/18.png`, not measured. Check `.ws-panel-body` scrollHeight first.
-3. My "scope line at 9 px" size fix would not have saved Dev: he read the line at step 2 and asked
-   anyway. Size is still design 8, but the words are what failed, and the placeholder contradicts it.
-4. A reader paying changes what a fix must do: ask of every old proposal whether it would have changed
-   that reader's path, not only whether the rule asks for it.
-5. Chip-hover evidence is void: hovering is a deliberate tool command, so "nobody hovered" measures the
-   tool. The same goes for "no reader saw the tooltip": a true tooltip fixes the promise, not r2-s09.
-6. The question card is traced: `Radio.Group label` draws `.cm-field-label`, 9/14 secondary. Fix in
-   `Waiting.tsx` with `<Text span size="sm" fw={600}>` as the label; never touch the locked token.
-7. Keep the failure row's warning glyph proposal small: no reader paid for its look; it rides on the
-   rewrite the row needs anyway.
-8. One result, two names is confirmed by readers (Closeness over Reach, Louvain over Communities). The
-   line's name is not in `words.ts`; it comes from the catalog. Content and engineer own the fix.
-9. Name the cause only after tracing it to the rendered CSS. A prop already set did nothing in round 1.
-10. A visual finding needs a reader who paid or a scripted repro to hold sev 3; mark "watch" otherwise.
-11. Check previews and approved surfaces against the outcome first: tier 4's worst problems were there.
-12. compact-mantine is Figma-locked: no finding here touches it. `DataTable` already has `scrollToRow`;
-    what I could not find is an element fact giving a selected row's place in the table's order.
-13. Read `decided.md` before rating, every clause. Unfinished decisions are not new findings.
-14. Open from earlier tiers: the join preview's tags, the clipped join ratio, focus visibility,
-    `colorWord` hue names, the purple "Layer" token.
+1. (2026-11-06) Round 2 closed: 11 of 12 succeeded, 0 confirmed sev 3, 15 units for round 3. The shape
+   of what is left: the screen says less than the graph did, or says it where the reader is not looking.
+2. Round 3 rule: one change per problem, so each fix can be credited. Do not propose a second form of a
+   fix already chosen; riders on a line under measurement are refused.
+3. Words at rest do not rise: no new row per turn, no new panel sentence. A fact joins an existing line.
+4. Watch `reply-end-in-view`: step (a) is `position: relative` on `.ws-assistant-log` alone, then measure
+   `.ws-panel-body`. Only if the log still stops short does the ResizeObserver step follow. Verify one
+   scrollbar, the reply's foot in view, Jump to newest when scrolled up.
+5. Watch `question-at-body-size`: `<Text span size="sm" fw={600}>` as the Radio/Checkbox group label,
+   text ink, like the approval title; never `size` on the group, never CSS over the locked class.
+6. Watch `composer-says-its-scope`: placeholder "Ask about this selection" keyed on `scope.kind`; the
+   x makes it Whole graph. Check the placeholder and scope line never disagree.
+7. Watch `disabled-looks-disabled`: Send and Answer get `data-disabled` beside `aria-disabled` so the
+   shared compact-mantine disabled look shows. No bespoke style.
+8. Refused and not to re-raise without new evidence: `size="sm"` on the scope words, a warning glyph on
+   the failure row, the blank line between replies, a separate Colored row, pointer cursor on chips.
+9. A reader paying changes what a fix must do: ask whether a fix would have changed that reader's path.
+10. Name a cause only after tracing it to the rendered CSS; a visual finding needs a paying reader or a
+    scripted repro to hold sev 3.
+11. Chip-hover and tooltip evidence is void when hovering is a tool command.
+12. compact-mantine is Figma-locked; nothing in round 3 touches it.
+13. Read `decided.md` and the round's refused list before rating. Unfinished decisions are not findings.
+14. Open from earlier tiers: join preview tags, clipped join ratio, focus visibility, `colorWord` hue
+    names, the purple "Layer" token.
 15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with PIL in `tmp/<task>/`; `--hover-at`
-    on the name text itself; check a point still holds its control after the log grew.
-1. (2026-11-03, round 1 close) Tier 5 stopped at the 1-round cap with bars 1, 3, 4, 8 and 9
-   failing. Every severity 3 was behavior (speech from a hidden panel, a picker entry bound to a
-   different run), never pure look. Visual weight alone did not move a bar.
-2. The visual findings that counted were legibility of meaning: an untouched range drawn full while
-   it reads "0 so far" (Or group first state), By position's box with no direction or unit and a
-   9 px "of all nodes", an empty Fill color box with no cue. Rule: an empty or default state must
-   look empty and say what it wants.
-3. A control's drawing must never contradict its count or its text (full range bar vs 0 so far; the
-   "highest 10" error vs 24 of 24). Check drawn state against the count on every first state.
-4. Small helper text carrying the unit is a defect source: if the unit decides the answer, it is
-   not 9 px caption text.
-5. Bar 9 counts elements named by two sessions on different halves; the editor's Or group, the
-   Condition.../Or... words and By position's box are my share. Re-walk each on the next frozen
-   build.
-6. Skeptic checks weaken findings the fixture or task wording causes (orange in an orange ramp,
-   "top N" sending everyone to one box). Before rating, ask whether the fixture made it.
-7. compact-mantine's swatches and color input are Figma-locked: "no orange" was dropped; an
-   empty-box click bug in the shared color input goes to compact-mantine, not a local fix.
-8. Bar 7 consistency still open at sev 2: value picker jumping over its field and Done
-   (`decided.md` 734), Clear renaming a card "a selection" (631-632), a two-step card resting as
-   one row with no caret.
-9. 900 x 700: the preview is a 44 px sliver and the title loses the rule name; propose the
-   small-width rule rather than rate a gap as 3.
-10. Measure, then rate; cite a `decided.md` line or name the gap. Hover fakes theme defects.
-11. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
-12. Same frozen build: replay old routes (`real.mjs --replay`) instead of re-walking.
-13. Known and still open: Table "on" and Done share green (Figma lock), blank band under the
-    preview, key over a node, 1 px focus ring, Except column 1226 vs 1247.
-14. Open from tiers 3 and 4: `colorWord` hue names, the purple "Layer" token, the link glyph doing
-    two jobs.
-15. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; a diverged replay stays open:
-    look, `--step`, then `--end`.
+    on the name text; check a point still holds its control after the log grew.
 
 ## Priorities and values
 
@@ -96,6 +58,16 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-11-06 (tier 6 round 2 closed):** Accepted the Director's one-change-per-problem rule and the
+  refusals of my own riders (`size="sm"` on the scope words, the failure-row glyph, the reply gap).
+  Reason: round 3 must credit each fix; a rider on a line under measurement makes neither creditable,
+  and no reader paid for the looks. My scrollbar trace became unit `reply-end-in-view` with a
+  measure-first gate, and my question-card trace became `question-at-body-size` unchanged.
+- **2026-11-06 (summary of the tier 5 close list):** Every tier 5 sev 3 was behavior, never pure look;
+  what counted visually was legibility of meaning: an empty or default state must look empty and say
+  what it wants; a drawing never contradicts its count or text; a unit that decides the answer is not
+  9 px caption text; ask whether the fixture or task wording caused a finding before rating.
 
 - **2026-11-05 (tier 6 round 2 critique):** Merged insights 7's two halves. Reason: the insights call the
   scrollbars cosmetic and the cut reply a separate cost, but `r2-s01/18.png` shows the log about 75 px
@@ -230,6 +202,9 @@ in git history of this file.
   the designated kind. Reason: the settled insights, after two skeptic checks.
 
 ## Tried: worked / did not work
+
+- 2026-11-06 worked: tracing the overflow and the 9 px label to source and CSS; both became units as
+  written. Did not work: proposing several forms of one fix; only one survives, so lead with the one.
 
 - 2026-11-05 worked: reading a cited screen for what is absent (no Jump to newest) and the scrollbar thumb
   for what is below the fold; it joined two findings the insights kept apart.

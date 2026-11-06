@@ -501,6 +501,10 @@ await element.aiCommand("How many clusters are there?", { scope: "graph" });
 
 The reader's message reports it, as `message.scope`: `{ kind, nodes, edges, hiddenNodes, hiddenEdges }`.
 
+A message is limited to its selection only while that selection holds something. Once it is empty,
+whether the model or the reader cleared it, the message is about the whole graph for the rest of its
+run, an answer to a question included, and a later selection does not limit it again.
+
 ## Helpers and plans
 
 Helpers are smaller assistants of your own that the assistant hands parts of a message to: one

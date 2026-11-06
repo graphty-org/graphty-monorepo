@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided by the team: a message's scope ends with its selection (graphty-element)
+
+**What.** A message sent with `scope: "selection"` is limited to that selection only while the
+selection holds something. Once it is empty the message is about the whole graph for the rest of its
+run, an answer included, and the `select` result that emptied it carries `messageScope: "whole-graph"`
+for the model. A batch the reader approved stays limited to what its request named. No public type
+changed.
+
+**Why.** `tier6/decided.md`, "A message is limited to its selection only while that selection holds
+something". `scope` is `@experimental` and has not reached master, so no published consumer changes.
+
 ## 2026-11-05 -- Decided by the team: what a conversation snapshot's text holds (graphty-element)
 
 **What.** An assistant message's `text` in `AiConversationSnapshot` now holds a question the model

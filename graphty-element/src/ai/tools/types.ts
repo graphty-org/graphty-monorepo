@@ -269,8 +269,12 @@ export interface MessageState {
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
     /** Record what calls did (`AiEffect`) and what a held batch names (the assistant experiment). */
     readonly evidence?: boolean;
-    /** The selection every target of this message is limited to, when it was sent with one. */
-    readonly bound?: BoundSelection;
+    /**
+     * The selection every target of this message is limited to, when it was sent with one, until
+     * that selection is empty: one holder, shared by every copy of the state, so the end is the
+     * message's.
+     */
+    readonly binding?: { selection: BoundSelection | undefined };
 }
 
 /**

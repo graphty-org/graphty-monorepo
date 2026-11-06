@@ -17,6 +17,7 @@ import { cleanup, render, screen, waitFor, within } from "../../../test/test-uti
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { effectLine } from "../words";
 
 /** The experiment on, as a site.json that lists it. */
 const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
@@ -256,6 +257,47 @@ describe("checking what the Assistant says", () => {
         ];
         await say("Any none?");
         await screen.findByText("No matches for data.group == 'none'.");
+    });
+
+    it("a selection of nothing draws no line and leaves the chips; the row is what was found", async () => {
+        await openOn(6);
+        model.turns = [
+            calling("query", FIND),
+            calling("query", { action: "count", where: "data.group == 'none'" }),
+            calling("select", { action: "clear" }),
+            { text: "Three are even.", toolCalls: [] },
+        ];
+        await say("Which are even?");
+        await screen.findByRole("button", { name: "3 nodes, select" });
+        screen.getByRole("button", { name: "Show in table" });
+        assert.isNull(screen.queryByText(/^Selected/));
+        assert.isNull(screen.queryByText(/^No matches/));
+    });
+
+    it("a selection keeps its line beside the turn's chips", async () => {
+        await openOn(6);
+        model.turns = [
+            calling("select", { action: "set", where: "data.group == 'odd'" }),
+            calling("query", FIND),
+            { text: "Three are even.", toolCalls: [] },
+        ];
+        await say("Which are even?");
+        await screen.findByText("Selected 3 nodes");
+        await screen.findByRole("button", { name: "3 nodes, select" });
+    });
+
+    it("a selection of edges alone says so", () => {
+        const effect = { code: "AI_EFFECT_SELECTION", params: { nodes: 0, edges: 1 } } as const;
+        assert.strictEqual(effectLine(null, effect), "Selected 1 edge");
+    });
+
+    it("a turn that changed the graph keeps its change line alone", async () => {
+        await openOn(4);
+        model.turns = [calling("query", FIND), calling("style", COLOR), { text: "Red.", toolCalls: [] }];
+        await say("Color them");
+        await screen.findByText("Colored 4 nodes");
+        await finished();
+        assert.isNull(screen.queryByRole("group", { name: "Results" }));
     });
 
     it("makes each turn's chips one Tab stop, with arrows inside", async () => {

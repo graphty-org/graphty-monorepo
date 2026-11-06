@@ -31,6 +31,7 @@ import { type AssistantTool, type CheckedCall, isAssistantTool } from "./tools/t
 import {
     type ActionResult,
     type AiToolCallFacts,
+    type BoundSelection,
     gated,
     GateHold,
     type GateKind,
@@ -297,6 +298,7 @@ function finished(batch: ToolBatch, request: ToolCallRequest, result: CallResult
  * @throws {BatchThrew} When a command threw; the batch's transaction is rolled back.
  */
 export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
+    const selected = settleBinding(batch);
     if (batch.commands === true) {
         return runCommandBatch(batch);
     }
@@ -385,10 +387,42 @@ export async function runToolBatch(batch: ToolBatch): Promise<BatchOutcome> {
         return settled;
     } catch (error) {
         if (error instanceof RollBack) {
+            await reselect(batch, selected);
             return error.outcome;
         }
 
         throw error;
+    }
+}
+
+/**
+ * End a message's binding when its selection is empty as a batch starts: the reader or a committed
+ * removal emptied it (`select` ends it as it runs). An approved batch stays bound: the reader
+ * approved what its request named.
+ * @param batch - The batch.
+ * @returns What is selected while the message is bound.
+ */
+function settleBinding(batch: ToolBatch): BoundSelection | undefined {
+    const { binding, approved } = batch.message;
+    const { selection } = batch.session;
+    if (binding !== undefined && approved === undefined && selection.size === 0) {
+        binding.selection = undefined;
+    }
+
+    return binding?.selection === undefined ? undefined : { nodes: selection.nodes, edges: selection.edges };
+}
+
+/**
+ * Select again what a rolled back batch's removal dropped: the nodes come back but the selection
+ * does not follow them, and an empty one would end the binding of a message that changed nothing.
+ * @param batch - The batch.
+ * @param selected - What was selected as it started.
+ */
+async function reselect(batch: ToolBatch, selected: BoundSelection | undefined): Promise<void> {
+    const { binding } = batch.message;
+    const { selection } = batch.session;
+    if (selected !== undefined && binding?.selection !== undefined && selection.size === 0) {
+        await selection.apply(selected);
     }
 }
 
@@ -947,7 +981,7 @@ async function runChecked(
     last: boolean,
 ): Promise<CallResult> {
     const { graph, abort, session } = batch;
-    const { bound } = batch.message;
+    const bound = batch.message.binding?.selection;
     const named = bound === undefined ? checked : { ...checked, args: { ...checked.args, [BOUND_SELECTION]: bound } };
     try {
         let outcome = await checked.tool.run(named, {

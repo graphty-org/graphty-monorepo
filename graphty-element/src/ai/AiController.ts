@@ -521,8 +521,9 @@ export interface AiCommandOptions {
     /**
      * What the message is about, read when it is sent: `"selection"` limits every element a tool
      * call names, styles or edits to the whole selection, however large, hidden elements included,
-     * and refuses a call that can only reach the whole graph; `"graph"` is the whole graph,
-     * whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
+     * and refuses a call that can only reach the whole graph, for as long as the selection holds
+     * something: once it is empty the message is about the whole graph for the rest of its run,
+     * an answer included. `"graph"` is the whole graph, whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
      * message then reports it (`AiConversationMessage.scope`). Needs `toolset: "generated"`
      * (otherwise `AI_CONFIG_INVALID`) and the `assistant` experiment (otherwise it rejects with
      * `E_FEATURE_OFF`).
@@ -1290,15 +1291,17 @@ export class AiController {
         const emit = (event: AiEvent): void => {
             this.emitAiEvent(event);
         };
-        const { bound } = run;
+        const binding = run.bound === undefined ? undefined : { selection: run.bound };
         const saved = {
             message,
             label: input,
             session,
             conversation: running,
             conversationId: run.conversationId,
-            ...(bound === undefined ? {} : { bound }),
         };
+        // What a hold or a question keeps is the binding as it stands then: it may have ended.
+        const stillBound = (): { bound?: BoundSelection } =>
+            binding?.selection === undefined ? {} : { bound: binding.selection };
         return {
             conversation: running,
             engine: run.live?.engine ?? this.engine,
@@ -1321,7 +1324,7 @@ export class AiController {
                 hostedUses: {},
                 totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
                 ...(this.recordsEvidence(session) ? { evidence: true } : {}),
-                ...(bound === undefined ? {} : { bound }),
+                ...(binding === undefined ? {} : { binding }),
             },
             host: {
                 emit,
@@ -1332,6 +1335,7 @@ export class AiController {
                 this.hold({
                     held,
                     ...saved,
+                    ...stillBound(),
                     messageId,
                     ...(plan === undefined ? {} : { plan }),
                     ...(helper === undefined ? {} : { helper }),
@@ -1343,7 +1347,8 @@ export class AiController {
                 : { questions: { tool: questions.ASK_READER_TOOL, parse: questions.askedQuestion } }),
             ...(this.asks
                 ? {
-                      ask: (question: AskedQuestion, messageId: string) => this.ask({ question, ...saved, messageId }),
+                      ask: (question: AskedQuestion, messageId: string) =>
+                          this.ask({ question, ...saved, ...stillBound(), messageId }),
                   }
                 : {}),
             ...(answer === undefined ? {} : { answer: { callId: answer.call.id, values: answer.values } }),

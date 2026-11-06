@@ -8,8 +8,24 @@ import { z } from "zod";
 import type { AiEffect, AiTarget } from "../../../catalog/ai";
 import { effectTarget } from "../effects";
 import { MAX_STRING, requireTarget, settleTarget, targetFields, text } from "../fields";
-import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
+import { type ActionContext, type ActionSpec, type JsonObject, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
+
+/**
+ * End the message's binding when this call emptied the selection: the facts line was written when
+ * the message was sent, so the result tells the model.
+ * @param context - The action's context.
+ * @returns What the result adds.
+ */
+function endBinding(context: ActionContext): JsonObject {
+    const { binding } = context.message;
+    if (binding?.selection === undefined || context.tx.selection.size > 0) {
+        return {};
+    }
+
+    binding.selection = undefined;
+    return { messageScope: "whole-graph" };
+}
 
 /**
  * Apply a target to the selection.
@@ -36,6 +52,7 @@ async function apply(
                 added: delta.added.length,
                 removed: delta.removed.length,
                 ...(tx.selection.truncated ? { truncated: true } : {}),
+                ...endBinding(context),
             },
         ),
         affectedNodes: tx.selection.nodes.slice(0, 50).map(String),
@@ -105,10 +122,11 @@ export const selectTool: ToolDefinition = {
             fields: {},
             effect: "exempt",
             reaches: [{ door: "SelectionApi.clear" }],
-            run: ({ tx }) => {
+            run: (context) => {
+                const { tx } = context;
                 const delta = tx.selection.clear();
                 return Promise.resolve({
-                    ...ok(undefined, { removed: delta.removed.length }),
+                    ...ok(undefined, { removed: delta.removed.length, ...endBinding(context) }),
                     effects: () => selectionEffects({ tx }),
                 });
             },
@@ -131,7 +149,10 @@ export const selectTool: ToolDefinition = {
                     tx.selection.apply(seeds === undefined ? { depth } : { neighborsOf: seeds, depth }, "replace"),
                 );
                 return {
-                    ...ok({ nodes: tx.selection.nodes.length }, { ...notes, added: delta.added.length }),
+                    ...ok(
+                        { nodes: tx.selection.nodes.length },
+                        { ...notes, added: delta.added.length, ...endBinding(context) },
+                    ),
                     effects: () => selectionEffects({ tx }),
                 };
             },

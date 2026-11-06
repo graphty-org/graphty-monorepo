@@ -23,6 +23,7 @@ import annotationSessionUrl from "../../../graph-io/test/corpus/styles/cys/cytos
 import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { forgetShaderCompilers, type RenderManager } from "../../src/managers/RenderManager";
+import { shadersControllerOf } from "../../src/session/shaders";
 import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
 import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
@@ -552,6 +553,10 @@ describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () =
 
     it("draws a background shader asked for while WebGPU opens", async () => {
         const { graph, finish } = await holdWebGPUOpening();
+        // Nebula is heavy, and the frame guard rightly turns a heavy shader off after one long frame,
+        // which a software GPU on a loaded machine draws. This is about the swap, not the guard.
+        const shaders = shadersControllerOf(graph.getSession());
+        shaders?.configure({ ...shaders.settings, guard: false });
         graph.setBackground({ backgroundType: "color", color: "#000000", shader: { id: "nebula" } });
         await finish();
         await graph.waitForStableFrame();

@@ -2732,20 +2732,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (rowsStill && node.drawnInBatch) {
-                continue;
-            }
-
-            const position = node.drawnPosition;
-
-            if (
-                this.lastNodePositions[at] !== position.x ||
-                this.lastNodePositions[at + 1] !== position.y ||
-                this.lastNodePositions[at + 2] !== position.z
-            ) {
-                this.lastNodePositions[at] = position.x;
-                this.lastNodePositions[at + 1] = position.y;
-                this.lastNodePositions[at + 2] = position.z;
+            if (!(rowsStill && node.drawnInBatch) && this.noteMoved(node, at)) {
                 moved.push(node);
             }
         }
@@ -2760,6 +2747,25 @@ export class UpdateManager implements Manager {
         }
 
         return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Note where a node is drawn now.
+     * @param node - The node.
+     * @param at - Its first float in the positions noted at the last walk.
+     * @returns True when it sits somewhere other than it did then.
+     */
+    private noteMoved(node: Node, at: number): boolean {
+        const position = node.drawnPosition;
+        const last = this.lastNodePositions;
+        if (last[at] === position.x && last[at + 1] === position.y && last[at + 2] === position.z) {
+            return false;
+        }
+
+        last[at] = position.x;
+        last[at + 1] = position.y;
+        last[at + 2] = position.z;
+        return true;
     }
 
     /**

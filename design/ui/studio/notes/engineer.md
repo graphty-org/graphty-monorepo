@@ -8,6 +8,7 @@ Words: "the app" is the graphty app; "the element" is graphty-element; "the stud
 `.worktrees/feat-tanstack-ai` (branch `feat/tanstack-ai`). "Frozen build" is a copy of
 `graphty/dist` under `.study-builds/`, named on the first line of `tier6/criteria.md`.
 
+Summarized 2026-11-05 (27 KB), tier 4 round 1 close, the shard-death note, test traps, the ScriptedAssistant probe and older decision pointers: `git show 899ecf2f6a:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (26 KB), long working facts 0 to 2 shortened: `git show 4c7676a1dd:design/ui/studio/notes/engineer.md`.
 Summarized again 2026-11-05 (29 KB), tier 6 dry run 1 decisions shortened and old open defects moved under Working facts: `git show 48879618c4:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (27 KB); every tier 3 and 4 Top of mind item, decision and tried entry: `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
@@ -16,46 +17,46 @@ Older: 2026-10-17 dry-run fixes `git show 54c009f84:design/ui/studio/notes/engin
 
 ## Top of mind
 
-1. (2026-11-05) chip-row is refixed in graphty-element (bfeb7ef81c: a message's scope ends when its
+1. (2026-11-05) The tier's Gemini cap of 3,000 was reached during the round 1 screenshot audit: every
+   later call is a 429 and the 12 sessions cannot run until it is raised. Check the count file before
+   a walk, spend calls on states only a model can reach, and never pass the cap with a private count.
+2. (2026-11-05) chip-row is refixed in graphty-element (bfeb7ef81c: a message's scope ends when its
    selection empties) and its re-walk was not rejected. The first fix, in the app, was rejected;
    its lesson stands: trace a symptom to the turn's real calls before fixing the layer that shows it.
-2. (2026-11-05) Walk the exact route a fix's acceptance names, with its state carried in, and read
+3. (2026-11-05) Walk the exact route a fix's acceptance names, with its state carried in, and read
    acceptance from the walked result, not the tests. Skipping T92 A's s20 click before the x leaves
    the 14 selected and changes the reads; export-scope passed every test and gave a one-row file.
-3. (2026-11-05) `--replay` matches pre-model steps and diverges at the first model reply: use it for
+4. (2026-11-05) `--replay` matches pre-model steps and diverges at the first model reply: use it for
    setup and keyboard stretches and to show where a fix bites, then `--step` by hand and judge the
    screenshots. A "match" can hit a same-named control. route.jsonl line N+1 is replay step N.
-4. (2026-11-05) A fixed `--wait` is not enough: a `--type` then Enter during a run leaves text in the
+5. (2026-11-05) A fixed `--wait` is not enough: a `--type` then Enter during a run leaves text in the
    composer and the next `--type` garbles it. Poll `--read` for "Stop Esc" gone before the next
    message; allow 75 s for a message under a selection.
-5. (2026-11-05) Long steps: start with nohup into a log and use `tmp/agent-wait.sh` on a grep of it.
+6. (2026-11-05) Long steps: start with nohup into a log and use `tmp/agent-wait.sh` on a grep of it.
    A client killed by `timeout` does not lose the step. `tail -f`, sleep loops and Monitor loops are
    refused. Slow tests (test/ai/tools/coverage, actions.contract) also go in a log.
-6. (2026-11-05) Trust a dist only by grepping the bundle for a string literal from the commit (a tool
+7. (2026-11-05) Trust a dist only by grepping the bundle for a string literal from the commit (a tool
    description; minified code can miss). Stamps can lag or lead what a build holds. Copy the dist
    into the walk's tmp folder: a neighbor's rebuild 404s lazy chunks mid-session.
-7. (2026-11-05) Shared worktree: check `git status` and `git diff` first, commit a tested fix before
+8. (2026-11-05) Shared worktree: check `git status` and `git diff` first, commit a tested fix before
    the long walk, commit by path. See "Committing beside a sibling" below. commitlint: lowercase
    subject, every body line 100 characters or fewer, and a -m paragraph is one line, so use -F.
-8. (2026-11-05) A live model's optional arguments vary per run, so a default that makes a reply false
+9. (2026-11-05) A live model's optional arguments vary per run, so a default that makes a reply false
    belongs in the tool, not in description wording. Models often answer instead of asking: force a
    question by wording ("Select the top five", "Ask me which file type I want").
-9. (2026-11-05) A tier 6 walk on a folder outside tier6/ needs REAL_TIER=6 as well as REAL_DIST;
-   without it the setup fails with 'nothing on screen is called "Assistant"'. real.mjs takes its
-   own browser slot, so with-browser.sh is not needed around it.
-10. (2026-11-05) Element assistant facts: the element reopens a conversation on load, matches typed
+10. (2026-11-05) A tier 6 walk on a folder outside tier6/ needs REAL_TIER=6 as well as REAL_DIST;
+    without it the setup fails with 'nothing on screen is called "Assistant"'. real.mjs takes its
+    own browser slot, so with-browser.sh is not needed around it.
+11. (2026-11-05) Element assistant facts: the element reopens a conversation on load, matches typed
     answers, forgets keys and clears history with no assistant up, moves keys between storages,
     reports `undone`, and names a call's algorithm (`calledAlgorithm`). The app holds none of that.
     Regenerate the saved-format schema with `GRAPHTY_WRITE_FORMAT_SCHEMA=1` on
     `test/ai/conversation/formats.test.ts`. A raw `style.encode` layer with `by` paints nothing: a
     bound message encodes through `styles.encode`, then narrows the selector.
-11. (2026-11-05) Only the newest facts block is sent (test/ai/AiController.history.test.ts), so the
+12. (2026-11-05) Only the newest facts block is sent (test/ai/AiController.history.test.ts), so the
     model cannot know earlier turns were scoped: their scope lines never reach it.
-12. (2026-11-05) `main.tsx` is StrictMode: an effect cleanup that clears store state must check the
+13. (2026-11-05) `main.tsx` is StrictMode: an effect cleanup that clears store state must check the
     state really left, because the dev double effect runs cleanups on mount.
-13. (2026-11-05) Under heavy load, browser test shards died with no failed assertion ("error when
-    mocking a module", then "rpc is closed"). Suspected mechanism, not proven: `test/setup.ts`'s
-    `@babylonjs/core` factory runs on a dead connection and vitest's route handler rejects unhandled.
 14. (2026-10-30) Show a choice before the act; one fact drawn two ways sends readers to a second
     menu. Every participant is the same model: a failure is strong evidence, a pass weak. A tool line
     is a claim; check the screenshot and a failing bar's evidence before fixing.
@@ -126,14 +127,6 @@ file; `GIT_INDEX_FILE=tmp/<task>/index`, `read-tree HEAD`, `git apply --cached <
 --cacheinfo` (--add for new files) on the shared index for those paths, or a neighbor's commit undoes
 yours. A commit by path after a sibling's commit may be enough when the file then holds only my hunks.
 
-Test traps:
-
-- After a held batch the message spends one more model turn on closing text: let `say` end at the
-  hold, then `engine.push` the later turns. Passing all to `say` swallows the second batch.
-- A question's leftover scripted text turn is consumed by the answer, so push no closing turn after a
-  question. A rollback test must assert `rolledBack` on the first result: an invalid call fails at
-  prepare, nothing runs, and the test is vacuous. selection.size counts nodes plus edges.
-
 Walk craft:
 
 - `--key Control+i` opens the Assistant and focuses the composer. Keyboard route: Tabs to the
@@ -179,9 +172,6 @@ None of these was rejected by the re-walk. Decisions and reasons:
 
 Traps:
 
-- `pgrep -f 'real.mjs --serve'` also counts the with-browser.sh bash wrappers, doubling the count and
-  adding queued starts (it read 10). Match only the node process:
-  '^[^ ]*node [^ ]*real\.mjs --(serve|warm)'.
 - warmKey includes real.mjs's mtime, so do not reformat real.mjs while --prove runs.
 - graphty's src tests run in the vitest project "browser", not "node".
 - To plant a failure without touching shared source, copy words.ts and the test to *.tmp files beside
@@ -206,9 +196,6 @@ Worked:
   file, press Send again (the count is read per request). The "cap is reached" line keeps printing
   and means nothing; those calls do not count toward the tier's shared cap. A failed message's text
   stays in the composer until Send again clears it.
-- A small ScriptedAssistant test or probe (with `session.data.prepare`, config `{ data, format }`)
-  settles a question in seconds; a call per turn reproduces a failure, and `lastResults()` shows the
-  code the model read. `run.scope` is resolved: assert on `scope.spec` and `scope.nodeCount`.
 - To see a model's rule, ask it in the same conversation to quote its steps' rules. Word a message
   explicitly to force a path ("Use your tools: first count ... then clear the selection"). For
   scoped calls, asking for the selected people as their own network reliably sent one.
@@ -248,6 +235,30 @@ Did not work, or traps:
 - `git -C ../..` from design/ui/studio points at design/, so path-limited diffs come back empty.
 - Settings' section list is a PageList: its items are role gridcell, not button. Start-page node
   clicks miss while the drawing turns: pause it or take the node by label.
+
+## Tier 6 round 1 screenshot audit (2026-11-05)
+
+Report: `tier6/rounds/round-1/expert/engineer.md`. One severity 3 (Done drops a typed key), ten
+severity 2, eight severity 1; nothing is fixed yet.
+
+Decisions: at the cap I stopped live messages and listed what was not reached, rather than use a
+private count file; a filled private file is only for a refusal with no paid call. Severity 3 for
+Done, because a reader handed a key cannot tell why it failed.
+
+Worked:
+
+- `REAL_VIEWPORT=<w>x<h>` with REAL_TIER and REAL_DIST in one wrapper script (tmp/tier6-audit/r.sh).
+  `--start` works in `expert/` folders with the gate unmet. A PIL side-by-side crop of the panel and a
+  three-across contact sheet read many screens at once.
+- At the cap, a message still reaches every failure state free: 429 mid-message after an approved
+  Remove gave the "failed during a change" screen.
+- An abs-positioned hidden span escapes an `overflow: auto` box with no `position`: suspect this for
+  any scrollbar on an outer box (`.cm-visually-hidden` in EntityChip, `.ws-assistant-log`). Unproven
+  in the page; check it first when fixing.
+- The hairline rows of a screenshot (dark pixels at the same y in three columns) measure a frame shift.
+
+Did not work: `--click "Open run"` is ambiguous once two turns have one; use `#n`. Six messages cost
+17 calls at 1200 x 900, about three per message.
 
 ## Working facts and open defects
 
@@ -296,14 +307,6 @@ Older open defects, from Top of mind:
   value nodes already have; the folder chain icon paints every cluster one color; the F6 stop
   has no focus ring. Full earlier list: the git pointer at the top of this file.
 
-## Decisions and reasons
-
-- Decisions dated 2026-10-29 (time role drawing, Sources row layout, date conditions, typed cards,
-  dropped values marked in graph-io): `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
-- Decisions dated 2026-10-19 to 10-21 (screenshot audit bars, Escape and tooltips, focus after a
-  redraw, select all, layer kinds, replacing loads, renamed channels): in full in
-  `git show d3302b379c:design/ui/studio/notes/engineer.md` (trimmed 2026-10-29 for size).
-
 ## Thinking
 
 - (2026-10-17) Any per-frame input needs a "pressed since the last frame" record: polling hid taps.
@@ -326,9 +329,3 @@ Older open defects, from Top of mind:
 
 - Digests in `design/ui/studio/digests/`; repository `CLAUDE.md`; `design/ui/studio/tool/README.md`;
   `design/ui/studio/owner-decisions.md`; `design/ui/studio/tier6/`.
-
-## Round 1 close (2026-10-30)
-
-- Fix order when work resumes: join preview truthful (sev 2, about 12 inputs against a path of 7), joined
-  source row layout, table Tabs aria-controls, the time column's kind glyph, the tool's popover reporting.
-- Bars 2 and 3 failed partly on the answer key and on the tool's `tooltip: null`.

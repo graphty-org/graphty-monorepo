@@ -62,7 +62,7 @@ A row is an object row for one of two reasons. _Paint or view_: `batchableOf(pai
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
-New option `renderPath` (attribute `render-path`), additive:
+New option `renderPath` (attribute `render-path`, read but not reflected, so an element on the default gains no attribute), additive:
 
 - `"objects"`, the default: every node and edge is today's object. No picture, event or Babylon object changes.
 - `"batched"`: eligible rows are batched and eligible edges pulled. Reading `Node.mesh` makes that one row an object row; `getScene()`
@@ -135,7 +135,8 @@ That is why `raySelectionPredicate` needs no change while proxies exist: Babylon
 `node-batch-xr.test.ts` shows both eyes equal, laser included. A read of `mesh.visibility` answers 0 until stage 11. `RowPullPlugin` is
 attached when a batch is built, not when the material is made, thawing a frozen material for the moment: `render-path` can change live and
 materials then already exist, and with the proxies kept, neither direction rebuilds a row. A row whose number the table does not hold yet
-keeps its whole source on the object path until the freeze brings it in. `batchableOf` is an allow list of style keys, so a new style option
+keeps its whole source on the object path until the freeze brings it in; a group measures its highest row at the flush, not at the freeze, since a
+node the freeze removed has lost its row but stays a member until it disposes. `batchableOf` is an allow list of style keys, so a new style option
 stays an object row until a batch is proven to draw it.
 
 Stays an object row: models, decorations, tables, group regions, glow, flat outline, outline ring, halo, borders, underlays, overlays,
@@ -394,7 +395,8 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
 As built (stage 8): `test/render-parity/stories.test.ts` loads each captured story twice on `"objects"` and once on `"batched"`, composing it
 in the browser with a one-function renderer, on the URL a capture uses. WebGPU's canvas holds nothing once a frame ends, so every read
 happens inside a frame, by `engine.readPixels` (`test/helpers/whole-canvas.ts`). `test/render-parity/unstable.json` names each story left out
-and why; most fail on `"objects"` here because their play needs Storybook itself. `VITE_PARITY_RENDERER` picks the engine.
+and why; most fail on `"objects"` here because their play needs Storybook itself. `unstable-webgpu.json` adds the stories that fail only on WebGPU,
+all with no batch involved, so WebGL keeps them; `SWAP_REJECTS` leaves out the two scene shader files there, which reject on either path. `VITE_PARITY_RENDERER` picks the engine.
 
 A missed millisecond target does not block a parity-clean stage: the Proof file states it and stage 38 reports it. Counts (uploads, walks,
 `Node`s built, draws) are tests.

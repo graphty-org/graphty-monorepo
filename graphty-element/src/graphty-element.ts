@@ -5970,7 +5970,7 @@ export class Graphty extends LitElement {
      * <graphty-element render-path="batched"></graphty-element>
      * ```
      */
-    @property({ attribute: "render-path", reflect: true })
+    @property({ attribute: "render-path" })
     get renderPath(): RenderPath {
         return this.#graph.renderPath;
     }

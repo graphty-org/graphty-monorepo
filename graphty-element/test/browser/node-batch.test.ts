@@ -17,7 +17,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
-import { drag } from "../helpers/real-input";
+import { drag, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -74,6 +74,8 @@ const NODES = Array.from({ length: 12 }, (_, id) => ({
     position: { x: (id % 4) * 1.1 - 2, y: Math.floor(id / 4) * 1.1 - 1, z: (id % 3) * 0.4 },
     tone: ["red", "green", "blue"][id % 3],
     big: id % 2 === 0,
+    latitude: 30 + id * 2,
+    longitude: -120 + id * 4,
 }));
 
 const TONES = { red: "#e11d48", green: "#16a34a", blue: "#000000" };
@@ -287,6 +289,65 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
 
         assert.equal(overBar(objects, await readFrame(graph)), 0);
+    });
+
+    it("keep the rest of a look on the batch when one of its rows is removed", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        await element.session.data.removeNodes([5, 11]);
+        await operationQueueOf(graph).waitForCompletion();
+        const batched = await readFrame(graph);
+
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 2);
+        assert.equal(graph.rowCounts.objectNodes, 0);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
+    it.each(["2d", "3d"] as const)("leave a screen-scaled map's rows as objects through a zoom in %s", async (view) => {
+        const element = await mounted(renderer);
+        await loaded(element, view);
+        const { graph } = element;
+        await graph.setLayout("location-map", {
+            nodeScale: "screen",
+            mapDimension: view,
+            map: { source: "natural-earth-gray" },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        await frameOn(graph, "batched");
+        const scale = graph.getNode(0)?.drawnScale;
+        await wheel(element, { x: 200, y: 150 }, -300);
+        await element.waitForStableFrame();
+        const batched = await readFrame(graph);
+
+        assert.notEqual(graph.getNode(0)?.drawnScale, scale, "the zoom scaled the nodes");
+        assert.equal(graph.rowCounts.batchedNodes, 0);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
+    it("leave the batch for depth independent size, and come back when it goes", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        element.layoutBehavior = { node: { depthIndependentSize: true } };
+        await element.waitForStableFrame();
+        const batched = await readFrame(graph);
+        assert.equal(graph.rowCounts.batchedNodes, 0);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+
+        graph.setRenderPath("batched");
+        element.layoutBehavior = { node: { depthIndependentSize: false } };
+        await element.waitForStableFrame();
+        await readFrame(graph);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+    });
+
+    it("add no attribute to an element on the default path", async () => {
+        const element = await mounted(renderer);
+        assert.isFalse(element.hasAttribute("render-path"));
     });
 
     it("keep a live batch's material through a prune", async () => {

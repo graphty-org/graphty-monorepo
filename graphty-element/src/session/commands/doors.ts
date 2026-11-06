@@ -1894,6 +1894,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnWorldPosition: READ,
             drawnWorldMatrix: READ,
             drawnSourceMesh: RENDER,
+            drawnInstanceColor: READ,
+            batchableIn: READ,
             drawnBoundingBox: READ,
             drawnWorldRadius: READ,
             drawnWorldScaling: READ,
@@ -2378,6 +2380,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "PatternedLineMesh",
         file: "src/meshes/PatternedLineMesh.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "NodeBatch",
+        file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "NodeBatches",
+        file: "src/meshes/NodeBatch.ts",
         half: "renderer",
         whole: RENDER,
     },

@@ -1,3 +1,5 @@
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
+
 import { Mesh, type RawTexture, type TransformNode } from "@babylonjs/core";
 
 import type { Rgba } from "../catalog/types";
@@ -394,11 +396,6 @@ export class NodeBatches {
     rowsMoved(): void {
         for (const group of this.groups.values()) {
             group.stale = true;
-            group.highest = -1;
-            for (const node of group.members) {
-                group.highest = Math.max(group.highest, node.index);
-            }
-
             this.dirty.add(group);
         }
     }
@@ -429,6 +426,10 @@ export class NodeBatches {
                 continue;
             }
 
+            if (group.stale) {
+                this.measure(group);
+            }
+
             const batched = group.objects === 0 && group.members.size > 0 && group.highest < this.host.places.rows;
             changed = this.settle(group, batched) || changed;
             changed = (group.batch?.flush() ?? false) || changed;
@@ -437,6 +438,18 @@ export class NodeBatches {
         this.dirty.clear();
         if (changed) {
             this.host.meshesChanged();
+        }
+    }
+
+    /**
+     * Find a group's highest row. Not at the freeze: a node it removed has lost its row by then,
+     * and stays a member until it disposes.
+     * @param group - The group.
+     */
+    private measure(group: RowGroup): void {
+        group.highest = -1;
+        for (const node of group.members) {
+            group.highest = Math.max(group.highest, node.index);
         }
     }
 

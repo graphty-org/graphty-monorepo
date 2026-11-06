@@ -1,4 +1,12 @@
 [
     { "file": "test/browser/node-batch.test.ts", "reason": "Starts each check on the objects path by hand" },
-    { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" }
+    {
+        "file": "test/browser/render-budget.test.ts",
+        "reason": "Its baseline is the objects path: the row tables add two textures"
+    },
+    { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" },
+    {
+        "file": "test/browser/time-ghost.test.ts",
+        "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
+    }
 ]

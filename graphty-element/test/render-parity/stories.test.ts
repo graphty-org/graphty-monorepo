@@ -3,7 +3,7 @@
  *
  * Each story loads under `"objects"` twice and under `"batched"` once, in one run. Two object
  * loads that differ mean the story is not stable, so comparing it says nothing: it goes in
- * `unstable.json` with its reason. The bar is section 7 of design/rendering/row-renderer.md.
+ * `unstable.json` with its reason, or in `unstable-webgpu.json` when only WebGPU is. The bar is section 7 of design/rendering/row-renderer.md.
  *
  * `VITE_PARITY_STORIES` narrows a run to files whose name matches it, and `VITE_PARITY_RENDERER`
  * says which engine draws: `webgl` unless it says `webgpu`.
@@ -22,6 +22,7 @@ import type { Graphty } from "../../index.js";
 import { renderPathDefault } from "../../src/meshes/NodeBatch";
 import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 import unstable from "./unstable.json";
+import unstableWebgpu from "./unstable-webgpu.json";
 
 // The page the visual capture loads, so a story runs its capture steps.
 history.replaceState(null, "", `${location.pathname}${location.search || "?"}&chromatic=true`);
@@ -31,7 +32,8 @@ const narrowed = (import.meta.env as Record<string, string | undefined>).VITE_PA
 /** Which engine this run draws on. */
 const RENDERER = ((import.meta.env as Record<string, string | undefined>).VITE_PARITY_RENDERER ?? "webgl") as
     "webgl" | "webgpu";
-const UNSTABLE: Readonly<Record<string, string>> = unstable;
+const UNSTABLE: Readonly<Record<string, string>> =
+    RENDERER === "webgpu" ? { ...unstable, ...unstableWebgpu } : unstable;
 
 /** One composed story. */
 interface Composed {
@@ -94,8 +96,14 @@ async function picture(story: Composed, path: "objects" | "batched"): Promise<Ca
 
 // Its first story never finishes its objects load here, so it says nothing about a batch.
 const HANGS = /LabelStyles/;
+// Opening WebGPU swaps the first scene for its own (#5971), and any shader these stories were loading on
+// the first one rejects with "The graph was disposed", on either path.
+const SWAP_REJECTS = /shaders\/Scene(Drawing|Presets)/;
 const files = Object.keys(modules).filter(
-    (file) => !HANGS.test(file) && (narrowed === "" || new RegExp(narrowed).test(file)),
+    (file) =>
+        !HANGS.test(file) &&
+        !(RENDERER === "webgpu" && SWAP_REJECTS.test(file)) &&
+        (narrowed === "" || new RegExp(narrowed).test(file)),
 );
 
 describe.each(files)("%s", async (file) => {

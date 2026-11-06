@@ -8,6 +8,7 @@ Words: "the app" is the graphty app; "the element" is graphty-element; "the stud
 `.worktrees/feat-tanstack-ai` (branch `feat/tanstack-ai`). "Frozen build" is a copy of
 `graphty/dist` under `.study-builds/`, named on the first line of `tier6/criteria.md`.
 
+Summarized again 2026-11-05 (29 KB), tier 6 dry run 1 decisions shortened and old open defects moved under Working facts: `git show 48879618c4:design/ui/studio/notes/engineer.md`.
 Summarized 2026-11-05 (27 KB); every tier 3 and 4 Top of mind item, decision and tried entry: `git show a9bb2a7d4a:design/ui/studio/notes/engineer.md`.
 Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
 Summarized 2026-10-17 from 44 KB. Every dated entry of today's dry-run fixes (table, Analyze run,
@@ -18,107 +19,152 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-1. (2026-11-05) chip-row is OPEN: the fix was rejected and reverted (`tier6/rejected-fixes.md`). Refix
-   it in graphty-element, not in Conversation.tsx: a message's bound selection lasts the whole turn,
-   so `all` and every where stay inside it after the model clears the selection, and reads come
-   back as a bare "No matches." (`src/ai/tools/fields.ts` settleTarget, `effects.ts` searchedIn).
-2. (2026-11-05) Walk the exact route a fix's acceptance names, with its state carried in. The
-   chip-row author's walk had no selection on, so only the replayed route showed the failure.
-3. (2026-11-05) Live-model `--replay` proves little. It diverges at the first reply or step count, a
-   "match" can hit a same-named control, and a clean replay can be luck. Use it for setup and
-   non-model steps, carry on by hand with `--step`, and judge the screenshots.
-4. (2026-11-05) A tier 6 walk on a folder outside tier6/ needs REAL_TIER=6 as well as REAL_DIST;
-   without it the setup fails with 'nothing on screen is called "Assistant"'.
-5. (2026-11-05) Trust a dist only after checking it: copy it into the walk's tmp folder, grep the
-   bundle for a string from the commit, and run `git status`. Stamps name HEAD even with
-   uncommitted code in the build, can lag a build, and sibling agents rebuild mid-walk. Tool
-   checkouts move with HEAD too, so the replay header's "tool checkout" can differ from the build.
-6. (2026-11-05) Shared worktree: check `git status` and `git diff` before committing or re-walking (a
-   unit with no commit may exist only as edits), commit by path, and never leave temporary or
-   swapped source files in the tree. commitlint wants a lowercase subject and body lines of 100
-   characters or fewer; a failed hook leaves files staged, so recommit at once.
-7. (2026-11-05) Waiting: `tmp/agent-wait.sh` is the way. `tail -f`, `tail --pid`, sleep loops and
-   Monitor loops are refused, so start tests and builds early and do the fix meanwhile. Test slots
-   can stay full for many minutes.
-8. (2026-11-05) Element assistant facts: the element reopens a conversation on load, matches typed
-   answers, forgets keys and clears history with no assistant up, moves keys between storages,
-   reports `undone`, and names a call's algorithm (`calledAlgorithm`). The app holds none of that.
-   Regenerate the saved-format schema with `GRAPHTY_WRITE_FORMAT_SCHEMA=1` on
-   `test/ai/conversation/formats.test.ts`. A raw `style.encode` layer with `by` paints nothing: a
-   bound message encodes through `styles.encode`, then narrows the selector.
-9. (2026-11-05) `main.tsx` is StrictMode: an effect cleanup that clears store state must check the
-   state really left, because the dev double effect runs cleanups on mount.
-10. (2026-11-05) Under heavy load, browser test shards died with no failed assertion ("error when
+1. (2026-11-05) chip-row is refixed in graphty-element (bfeb7ef81c: a message's scope ends when its
+   selection empties) and its re-walk was not rejected. The first fix, in the app, was rejected;
+   its lesson stands: trace a symptom to the turn's real calls before fixing the layer that shows it.
+2. (2026-11-05) Walk the exact route a fix's acceptance names, with its state carried in, and read
+   acceptance from the walked result, not the tests. Skipping T92 A's s20 click before the x leaves
+   the 14 selected and changes the reads; export-scope passed every test and gave a one-row file.
+3. (2026-11-05) `--replay` matches pre-model steps and diverges at the first model reply: use it for
+   setup and keyboard stretches and to show where a fix bites, then `--step` by hand and judge the
+   screenshots. A "match" can hit a same-named control. route.jsonl line N+1 is replay step N.
+4. (2026-11-05) A fixed `--wait` is not enough: a `--type` then Enter during a run leaves text in the
+   composer and the next `--type` garbles it. Poll `--read` for "Stop Esc" gone before the next
+   message; allow 75 s for a message under a selection.
+5. (2026-11-05) Long steps: start with nohup into a log and use `tmp/agent-wait.sh` on a grep of it.
+   A client killed by `timeout` does not lose the step. `tail -f`, sleep loops and Monitor loops are
+   refused. Slow tests (test/ai/tools/coverage, actions.contract) also go in a log.
+6. (2026-11-05) Trust a dist only by grepping the bundle for a string literal from the commit (a tool
+   description; minified code can miss). Stamps can lag or lead what a build holds. Copy the dist
+   into the walk's tmp folder: a neighbor's rebuild 404s lazy chunks mid-session.
+7. (2026-11-05) Shared worktree: check `git status` and `git diff` first, commit a tested fix before
+   the long walk, commit by path. See "Committing beside a sibling" below. commitlint: lowercase
+   subject, every body line 100 characters or fewer, and a -m paragraph is one line, so use -F.
+8. (2026-11-05) A live model's optional arguments vary per run, so a default that makes a reply false
+   belongs in the tool, not in description wording. Models often answer instead of asking: force a
+   question by wording ("Select the top five", "Ask me which file type I want").
+9. (2026-11-05) A tier 6 walk on a folder outside tier6/ needs REAL_TIER=6 as well as REAL_DIST;
+   without it the setup fails with 'nothing on screen is called "Assistant"'. real.mjs takes its
+   own browser slot, so with-browser.sh is not needed around it.
+10. (2026-11-05) Element assistant facts: the element reopens a conversation on load, matches typed
+    answers, forgets keys and clears history with no assistant up, moves keys between storages,
+    reports `undone`, and names a call's algorithm (`calledAlgorithm`). The app holds none of that.
+    Regenerate the saved-format schema with `GRAPHTY_WRITE_FORMAT_SCHEMA=1` on
+    `test/ai/conversation/formats.test.ts`. A raw `style.encode` layer with `by` paints nothing: a
+    bound message encodes through `styles.encode`, then narrows the selector.
+11. (2026-11-05) Only the newest facts block is sent (test/ai/AiController.history.test.ts), so the
+    model cannot know earlier turns were scoped: their scope lines never reach it.
+12. (2026-11-05) `main.tsx` is StrictMode: an effect cleanup that clears store state must check the
+    state really left, because the dev double effect runs cleanups on mount.
+13. (2026-11-05) Under heavy load, browser test shards died with no failed assertion ("error when
     mocking a module", then "rpc is closed"). Suspected mechanism, not proven: `test/setup.ts`'s
     `@babylonjs/core` factory runs on a dead connection and vitest's route handler rejects unhandled.
-11. (2026-10-30) Choices that act before the reader decides cost the most; show the choice before
+14. (2026-10-30) Choices that act before the reader decides cost the most; show the choice before
     the act. One fact drawn two ways sends readers to a second menu.
-12. (2026-10-30) Every participant is the same model: a failure is strong evidence, a pass weak.
+15. (2026-10-30) Every participant is the same model: a failure is strong evidence, a pass weak.
     A tool line is a claim; check the screenshot. Check a failing bar's evidence before fixing.
-13. (2026-10-30) Open from tier 4: the join preview tags the wrong rows (sev 2; it must show exactly
-    what Join will do), table dock header overflow at 900 px, Nodes tab `aria-controls` names an
-    unrendered panel, one glyph map (`TypeGlyph` has no "mixed"), export column count.
-14. (2026-10-29) Open: changing a `DateCard` match clears the box but keeps the old bounds (a card
-    with no bound must write no condition); unticking every load in a Data source card leaves the
-    last rule.
-15. (2026-10-21) Open from tier 3: the node's own Fill "+" makes a one-node layer and starts at the
-    value nodes already have; the folder chain icon paints every cluster one color; the F6 stop
-    has no focus ring. Full earlier list: the git pointer at the top of this file.
 
 ## Tier 6 dry run 1 fixes (2026-11-05)
 
-Decisions and reasons, per fix. All stand except chip-row.
+Full reasons per fix: the git pointer at the top of this file. All stand except chip-row.
 
-- undone-reopen: the undone mark is written at two moments. At change time on saved conversations,
-  because a later edit erases the evidence; at open time on the conversation opening, which also
-  clears the mark of a message redone meanwhile. The saved pass runs only while
-  position < steps.length, so an ordinary edit lists no store. A mark on a closed conversation must
-  not bump updatedAt: newestFirst decides which one reopens. `mergeRecords` keeps stored messages, so
-  a save at a stale revision silently loses a mark: always save the copy just listed or loaded.
-- lone-words: fixed at the tokenizer, so parsePath, renamePaths, checkRule and rule leaves all see
-  the literal from one place. The value words stay out of isUnquotedName: that would change
-  quotePath's output and break the column rename's unquoted match; only rulePath's bare form needs
-  the guard. `batch.writes` is false for undo failures and policy denials too, so it does not mean
-  "a read": check the failure code and each result's writes flag.
-- edge-half: `answers` alone cannot decide a half; the gate is `answers(path, kind)` or some element
-  of that kind having the value. My first version (`answers` plus a `data.` retry) emptied
-  `results.pr.score > 0`, because a run need not declare its fields
-  (test/session/sets/cache-inputs.test.ts caught it). The `has` scan runs only for unanswered paths
-  and stops at the first hit.
-- run-scope: reuse `requireTarget` with `{ ...args, where }`; the spread carries BOUND_SELECTION, so
-  no helper was needed. `scopeOf` maps target to Scope; the type is `Scope`, not `ScopeInput`,
-  since algo.run takes the canonical form. Bound scopes become `{ nodes: ids }`, not the live
-  "selection" keyword, because a message's scope is what was selected when it was sent.
-- words-stay: the held reply is a separate message after the calls, because `saveInto` is append-only
-  by id and text added to a saved message is silently lost. It is folded into the calls message for
-  the model: a request ending in an assistant message broke seven tests that need it to end in tool
-  results. A failed message's words stay in the record but are dropped in `sentMessage`. A running
-  answer has neither a pending entry (`endPending` removes it at once) nor a result, so the
-  snapshot treats "no result, no entry" as shown and marks unasked questions not run explicitly.
-- group-count: `groupCount` is optional like `groups`, since a required field breaks anyone building
-  a `ResultSummary`; readers keep `summary.groupCount ?? groups.length`. Read it everywhere that
-  counted the capped list. Changing `reading.groups` params is a fix: the contract is "how many
-  groups". The Largest heading tests `groups.length < groupCount`; the old `> TOP` could never hold.
-- chip-row (REJECTED, reverted by baeb532d60): the selection-of-nothing rule went in `isChange`
-  rather than TurnEffects, so connection.ts's announcement and notice and EndRow's "Nothing changed"
-  follow one guard; that forced a separate `isResult`. The re-walk failed on T92B fact 2: the
-  turn had no found result, so the diagnosis was wrong. Before accepting "X hides Y", look at the
-  pilot's opened steps: if no chip appears there, nothing was hidden. A bare "No matches." with no
-  "for ..." means an ids target, which on a bound message means the selection. Noted, not settled:
-  Escape on a focused chip clears the selection and flips the next scope to Whole graph silently.
-- send-again: the x lives in the store, not a lifted prop: Send again reads it at click time, so
-  Conversation needs no subscription. Clearing it sits in `send()`, one place for both callers. The
-  effect cleanup clears it on unmount; StrictMode's double effect is harmless as it is off at mount.
-- export: listen in `link`, not `useAssistantView`: that hook is mounted only with the panel, and a
-  run finishing while the reader is away would lose its file (same reason as `watchWaiting`). `link`
-  can run twice on one element, so it needs the WeakSet guard. Picture and video formats are not
-  catalog entries, so the format id doubles as the extension.
-- privacy: went past the two named lines because no line may be false: "Nothing is sent" and "No
-  file contents ever leave" contradicted the provider line. "We will never see the data you
-  analyze" stays: Google sees it, we do not. Words shared with the lazy assistant chunk go in
-  assistant-door/provider.ts, never imported from assistant/words.ts into Settings, or the main
-  chunk pulls the catalog and "off means no chunk" breaks. The hook has its own file because
-  assistant-door/commands.ts already imports provider.ts.
+- undone-reopen: the mark is written at change time on saved conversations and at open time on the
+  one opening. It must not bump updatedAt. `mergeRecords` keeps stored messages, so a save at a stale
+  revision loses a mark: always save the copy just listed or loaded.
+- lone-words: fixed at the tokenizer. `batch.writes` is false for undo failures and denials too, so
+  it does not mean "a read": check the failure code and each result's writes flag.
+- edge-half: the gate is `answers(path, kind)` or some element of that kind having the value, because
+  a run need not declare its fields (test/session/sets/cache-inputs.test.ts).
+- run-scope: reuse `requireTarget` with `{ ...args, where }`. Bound scopes become `{ nodes: ids }`,
+  since a message's scope is what was selected when it was sent.
+- words-stay: `saveInto` is append-only by id, so the held reply is its own message, folded into the
+  calls message for the model: a request must end in tool results.
+- group-count: optional, readers keep `summary.groupCount ?? groups.length`.
+- chip-row (REJECTED, reverted by baeb532d60): the selection-of-nothing rule went in `isChange`. The
+  re-walk failed on T92B fact 2: the turn had no found result, so the diagnosis was wrong. Before
+  accepting "X hides Y", look at the pilot's opened steps: if no chip appears there, nothing was
+  hidden. A bare "No matches." with no "for ..." means an ids target, which on a bound message means
+  the selection. Noted, not settled: Escape on a focused chip clears the selection and flips the
+  next scope to Whole graph silently.
+- send-again: the x lives in the store and Send again reads it at click time; `send()` clears it.
+- export: listen in `link`, not `useAssistantView`, or a run finishing with the panel closed loses
+  its file. `link` can run twice on one element, so it needs the WeakSet guard.
+- privacy: no line may be false. Words shared with the lazy assistant chunk go in
+  assistant-door/provider.ts, or the main chunk pulls the catalog and "off means no chunk" breaks.
+
+## Tier 6 dry run 2 fixes (2026-11-05)
+
+Decisions and reasons, per fix.
+
+- approved-count: restart the totals on any approval (`approved !== undefined`), not only a large
+  hold. After an approved delete_all or replacing import the graph is tiny, so a leftover total
+  passes the share limit and holds a read, the same bug again. A failed approved batch rolls back
+  before the restart, so its totals stay. Known ceiling: a slow approval also clears earlier
+  removals, so 40 + slow approval + 40 passes unheld. That matches decided.md; revisit only if a
+  slow run and removals ever share a message.
+- scope-change: the controller works out afterSelection from the saved scope and passes a boolean, so
+  prompt.ts stays a pure text builder and delegate.ts and live sessions are unaffected. The line stays
+  on every later whole-graph message, because the earlier narrowed answers stay in what is sent.
+- chip-row: the holder is shared, not a field, because MessageState is copied in at least four places
+  (same pattern as undo.calls). A batch the reader approved stays bound even if the selection emptied
+  while the card was open, or "Remove 42 nodes?" would remove everything. End the binding at batch
+  start and inside select, never after an arbitrary call in a transaction: a removal there empties the
+  selection and a rollback may discard it ("the selection as sent still binds a held change after a
+  reload" caught this: 0 nodes left instead of 18).
+- export-scope: "exportProject ignores scope" was wrong: resolveOptionValues([], options) refuses it,
+  so a test was enough. It counts Object.keys, so leave the key out on the whole-graph path, never
+  `scope: undefined`. RuleTree leaves carry optional `nodes`, so test `kind` to tell a rule from a
+  list. settleTarget with required = (boundIds(args, "node") !== undefined) gives "bound: the
+  selection; unbound: optional target". { nodes: ["1", 2] } matches integer ids through the
+  resolver's other-spelling lookup, so idsOf's string ids need no mapping back.
+- last-read: the line goes in the shared lines array, so a helper with an `only` tool list gets it
+  too; harmless, and a branch would be code for nothing. It held 3 of 3 on T91 A and on T92 A's
+  acceptance routes, against 1 of 2 wrong before.
+
+Committing beside a sibling editing the same file: save the patch before the sibling touches the
+file; `GIT_INDEX_FILE=tmp/<task>/index`, `read-tree HEAD`, `git apply --cached <patch>`,
+`update-index --cacheinfo` for whole files, commit with the real hooks. Then run `update-index
+--cacheinfo` (--add for new files) on the shared index for those paths, or a neighbor's commit undoes
+yours. A commit by path after a sibling's commit may be enough when the file then holds only my hunks.
+
+Test traps:
+
+- After a held batch the message spends one more model turn on closing text: let `say` end at the
+  hold, then `engine.push` the later turns. Passing all to `say` swallows the second batch.
+- A question's leftover scripted text turn is consumed by the answer, so push no closing turn after a
+  question. A rollback test must assert `rolledBack` on the first result: an invalid call fails at
+  prepare, nothing runs, and the test is vacuous. selection.size counts nodes plus edges.
+
+Walk craft:
+
+- `--key Control+i` opens the Assistant and focuses the composer. Keyboard route: Tabs to the
+  composer, Shift+Tab until focus reads "Remove". Shift+Tab then Enter on the x leaves focus in the
+  composer, so --type works next. In --keys mode Shift+Tab goes x, a disabled Answer, then the last
+  radio, and Enter there presses the x: step one key at a time.
+- Hand walks: --wait 20000 under timeout 28, then a --wait --read step. Chain --start, --step and --end
+  in one Bash call, with --read at the end, for reply and row as text with no screenshot read.
+- A route's click on a question's answer may not exist on a rerun, a run may need one more --wait
+  step, and a fixed-point edge right-click misses when the layout differs (check the scope line).
+  Delete a route's Jump to newest step in advance: it shows only on overflow, and a miss stops the step.
+- Walks live in the main checkout: tmp/design-studio/tier6/r1d1/pilot (dry runs, latest) and r1/pilot
+  (older, same folder names; check the numbering). Worktree round folders hold only report.md.
+- Cheap probes that paid: a two-removal message proves a second large removal is still held; a
+  "those" message proves the widening line keeps references to earlier turns. Re-walks of three
+  fixes cost about 270 Gemini calls.
+
+Seen on the re-walks, not caused by these fixes, not yet acted on:
+
+1. Keep them on a second card: closing prose says the 79 are "held for your approval" with no card on
+   screen (t93b-sr3/16.png). Look again if T93 participants reach it.
+2. A step's chip reads "Not in this graph" and stays so after Undo restores the nodes (t93b-sr3/08.png).
+3. Chip beside a different count: 6 beside "There are 7" (t92a-t13/03.png), 3 beside "7 out of 12"
+   (t92a-keys/25.png). These predate the last-read build; check them on the next dist.
+4. Fact 1 answers Victor Szabo (s10) or Ines Moreau (s11) in the selection-scoped message, not the
+   key's Silverline s20 (t92a-keys/19.png, t92a-success/04.png): the model narrows to people or to
+   the selection, before any widening.
+5. Escape on a focused scope x clears the selection (polite "Selection cleared: 1 node").
+6. After Undo a model-made selection of 82 survives and binds the next message (t93b-sr3/08.png). The
+   answer key keeps this.
 
 ## Tier 6 walk and test craft (2026-11-05)
 
@@ -157,7 +203,6 @@ Worked:
 - A surprising "No matches.": ask the model to quote its rules, then compare the pilot's same step.
   One such read traced to a message bound to a stray one-edge selection, not to an edge-half
   regression, and the query engine was fine.
-- Foreground checks: `timeout 25` stays under the 30 s refusal.
 
 Did not work, or traps:
 
@@ -171,11 +216,9 @@ Did not work, or traps:
   composer. `--wait 45000` under `timeout 150` printed nothing and took no screenshot (cause not
   confirmed): use shorter waits. After expanding steps focus sits on that button and `--type`
   refuses; click "Message the assistant" first.
-- A console line with a per-run count (OpenAI CORS errors) reports a divergence with nothing wrong.
 - Study walks record no tool arguments, so a failed step's call cannot be recovered afterwards.
 - Words beside a failure, once the failure is fixed, have no natural route: Stop, a connection
   failure and "Not run" are reachable; the rest needs the unit test.
-- Restarting a walk script while the first is alive: use new folder names and check it is gone.
 - A failed-setup replay leaves its session running; deleting its folder makes `--end` fail with
   ENOENT, so recreate the empty folder and `--end`. `kill` is denied; TaskStop stops a background run.
 - Do not chain a queued low-lane test with temporary source files: they sit there during the queue.
@@ -220,19 +263,29 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
    Fix idea: `onKeyDownCapture` for `leaveGrid`.
 7. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls pink E68FAC "red".
 8. Open owner questions live in `owner-decisions.md` ("For the owner").
-9. Shared worktree: stage only my files; never `git stash`; commit headers <= 100 characters,
-   scope from commitlint's list (`workspace` for studio notes).
-10. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
-    output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
-11. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
+9. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
+   output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
+10. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
     (low-priority), then `real.mjs --replay <old walk> <new folder> --keep`, `--step`, `--end`.
-12. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
     default or a renamed or removed member goes "for the owner". A new element member needs
     `doors.ts`, `test/cost-coverage/method-classes.ts` and `npm run api:report`.
-13. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
+12. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
     `data.histogram` takes data columns only; a bound label size wins over a label style's size.
-14. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
+13. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
     will not match; step N lands in screenshot N+1; always `--end`.
+
+Older open defects, from Top of mind:
+
+- (2026-10-30) Open from tier 4: the join preview tags the wrong rows (sev 2; it must show exactly
+  what Join will do), table dock header overflow at 900 px, Nodes tab `aria-controls` names an
+  unrendered panel, one glyph map (`TypeGlyph` has no "mixed"), export column count.
+- (2026-10-29) Open: changing a `DateCard` match clears the box but keeps the old bounds (a card
+  with no bound must write no condition); unticking every load in a Data source card leaves the
+  last rule.
+- (2026-10-21) Open from tier 3: the node's own Fill "+" makes a one-node layer and starts at the
+  value nodes already have; the folder chain icon paints every cluster one color; the F6 stop
+  has no focus ring. Full earlier list: the git pointer at the top of this file.
 
 ## Decisions and reasons
 
@@ -244,16 +297,8 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Thinking
 
-- (2026-10-17) Tooltips on focus keep costing keys: they cover the next control and (until today)
-  ate Escape. If another tooltip defect comes up, ask whether an icon button with a visible
-  pop-out title needs a focus tooltip at all.
-- (2026-10-18) If the reserved key column reads as wasted room on a graph with no key, reserve it
-  only while the key has entries and frame once when it first appears; never fit on its growth.
-- (2026-10-17) "Keys polled per frame" hid taps; any per-frame input needs a "pressed since the
-  last frame" record.
-- (2026-10-10) The dry run must walk what participants do; pilot each task on the candidate build
-  and keyboard-press every control before freeze. A finding that traces to the prompt's own words
-  is fixed in the prompt.
+- (2026-10-17) Any per-frame input needs a "pressed since the last frame" record: polling hid taps.
+- (2026-10-10) A finding that traces to the prompt's own words is fixed in the prompt.
 
 ## Tried: worked / did not work (before tier 6)
 
@@ -270,21 +315,8 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Sources
 
-- Digests in `design/ui/studio/digests/`; repository `CLAUDE.md`; `design/ui/studio/tool/README.md`.
-- Tier 3: `design/ui/studio/tier3/` (`design.md`, `dry-run-r1-1.md`, `criteria.md`,
-  `rounds/r1/pilot/`), `design/ui/studio/owner-decisions.md`.
-- Full notes before this summary: `git show 54c009f84:design/ui/studio/notes/engineer.md`; before
-  the first summary: `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) Re-asks after a restart (truthful counts, the key) were already landed: check
-  `git log` for a task's title and a pilot folder's `session.json` `commit` before rebuilding.
-  Details: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.
-
-## Dated decision records (2026-10-29)
-
-Weight given in Data read by analyses (element only, `loadedWeight` follows the weight role);
-Add data... and the canvas drop open the join screen (`chooseAndOpenFile`, `openFiles`); a Data
-source filter card writes `side: "nodes"` and the Filter chip names edges when any are hidden.
-Full reasons, tests and walks: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.
+- Digests in `design/ui/studio/digests/`; repository `CLAUDE.md`; `design/ui/studio/tool/README.md`;
+  `design/ui/studio/owner-decisions.md`; `design/ui/studio/tier6/`.
 
 ## Round 1 close (2026-10-30)
 
@@ -292,6 +324,4 @@ Full reasons, tests and walks: `git show b14af76f0e:design/ui/studio/notes/engin
   joined source row layout (bar 6), table Tabs aria-controls (bar 5), the time column's kind glyph,
   the study tool's popover reporting. Reason: bars 5 and 6 are single mechanical fixes; the join
   preview is the costliest core task (about 12 inputs against a path of 7).
-- Learned: bars 2 and 3 failed partly on the answer key's definition and on the tool's
-  `tooltip: null`, not on the design. Check a failing bar's evidence before building a fix for it.
-- Learned: every participant is the same model, so a failure is strong evidence and a pass weak.
+- Learned: bars 2 and 3 failed partly on the answer key and on the tool's `tooltip: null`.

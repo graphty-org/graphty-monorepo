@@ -11,7 +11,7 @@ in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-05) Tier 6 round 1 walk done on 3b2a7f0649: 23 findings, 0 at sev 3 or 4, 10 at sev 2, all
+1. (2026-11-05) Tier 6 round 1 walk done on 3b2a7f0649: 23 findings, 0 at sev 3 or 4, 10 at sev 2, all but one
    owned by the app. Report: `tier6/rounds/round-1/expert/visual.md`.
 2. The Assistant's three marks collapse into one on screen: change lines, failures and the working
    line are all 11 px body ink under the model's prose. Fix the marks first (change-line chip as

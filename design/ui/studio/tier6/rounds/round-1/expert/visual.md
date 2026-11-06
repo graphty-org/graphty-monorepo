@@ -19,7 +19,7 @@ that could rise are marked "watch" with the task that would show it. Evidence pa
 ## Summary
 
 - 0 findings at severity 3 or 4, 10 at severity 2, 13 at severity 1.
-- Every finding is owned by the graphty app. None needs graphty-element or a change to
+- All but one finding are owned by the graphty app; the peek on small nodes is graphty-element's. None needs a change to
   compact-mantine, so none touches the Figma lock.
 - The strongest theme: **the reply's three marks are really one.** The design separates the model's
   words, computed results and what happened. On screen, a change line, a failure and the working line
@@ -161,7 +161,7 @@ compact-mantine does not change.
 only slightly larger, darker dots. It can be seen, but only by comparing. On the volunteers and sources
 it reads at once, on orange and over the selection's gold ring, which answers the design's question
 about the light canvas under dark chrome. Evidence: `v3-yeast-900/05.png` against `v3-yeast-900/04.png`;
-`v1-light/33.png`, `v2-sources-dark/07.png`. Owner: graphty app, where the peek's layer is written.
+`v1-light/33.png`, `v2-sources-dark/07.png`. Owner: graphty-element, which draws `selection.peek`.
 
 **19. Severity 1 (watch: T92). Show in table leaves the rows scattered.** The six selected rows stay in
 load order among 24, the last below the fold, and the header still says "24 nodes". The half-height

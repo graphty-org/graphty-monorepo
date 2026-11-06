@@ -10,6 +10,12 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-11-05) `answers.md` now holds decided words for a build that does not exist: "the fixed build". Round 3's
+  dry run must check every such line; the unit's acceptance cannot be met before then. The key's header says so.
+- (2026-11-05) Round 2 critique: "Ask about this graph" stays in the composer under "Selection 14" on 3 viewed
+  screens. No grade or insight named it. Fix it before any warning sentence on the scope line.
+- (2026-11-05) The fold finding is probably a follow bug, not a long reply: the log stopped short with no jump button
+  on 2 screens, and the follow effect has no dependency for rows landing late. Read from source, not reproduced.
 - (2026-11-05) Round 2 settled in `round-2/insights.md`: 11 of 12 succeeded, 0 false done, no confirmed 3. After the
   skeptics: 11 at 2, 6 at 1, 5 unconfirmed, 1 dropped. Bars: 6 hold, 2 fail (7 as worded, 8), 2 did not hold, 2 open.
 - (2026-11-05) Lead finding: the Autosave tooltip's "comes back when you reopen graphty" is false for a clean opened
@@ -22,8 +28,7 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
 - (2026-11-05) Bar 5's pass is suspect: Dev, written to trust, doubted twice. One model plays every persona.
 - (2026-11-05) "RETURNING" was in 12 of 12 first prompts, still unfixed: 9 sessions mislabeled. CORS lines also
   reached T90's participants. Persona histories teach behavior: two of six insights died of it.
-- (2026-11-05) Still open: three rulings (rollback, the x on close, a Colored row for a painting run: sessions lean
-  yes); `answers.md` unmatched; restart unlogged in `criteria.md`; whether the conversation returns with a key.
+- (2026-11-05) Still open: restart unlogged in `criteria.md`; whether the conversation returns with a key.
 - (2026-11-05) A `False done: no` on a session that never opened is not a pass. Same for "no leak".
 - (2026-11-05) The main risk is false passes: a bar counted over sessions where its trap never fired,
   a recovery the prompt supplied, a report right after a reflex.
@@ -31,8 +36,6 @@ made and evidence comes in. Summarized 2026-11-05 (older entries folded; full te
   second participant: the key states what the reader must conclude, never the model's words.
 - (2026-10-30) A severity 3 needs its cost: a reader blocked, or a wrong belief left standing. Graders
   over-rate on one half; expert counts are not user evidence; an expert-only 3 needs a repro.
-- (2026-10-30) First check of any pilot finding: the build in its walk's session.json, then tool lines
-  against images: simulated participants believe a tool line over the screenshot.
 
 ## Priorities and values
 
@@ -66,6 +69,21 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-11-05 (key matched for round 3):** This step runs before the fixes are built, so no walk of the new build
+  exists. Wrote the decided words as "the fixed build", said so in the header and the log, and left the check to the
+  dry run rather than claim it. Matched 3b2a7f0649 too, which nobody had: `decisions.md` asked for the new words only,
+  but stale lines would have marked sessions `Build decided` for fixed defects. Kept a `Build decided` line only as
+  "if it returns" where the fix rests on the model (six after the x, "at least 6", the chip of 15), since a prompt
+  line cannot promise. Dropped it for a right fact 2 with only the reply's words: nothing in the build forces that.
+  Counted repeating the row's "or" as `Failure read: key` by the existing "I cannot tell" line, no new rule.
+
+- **2026-11-05 (tier 6 round 2 critique):** Proposed nine small fixes, all in the app but one. Tooltip word change over
+  a file handle at open: "Your changes are kept..." is true for every case, and `showOpenFilePicker` would dodge the
+  tool's file chooser and add a permission prompt. Keep the catalog's plainName and name the line with `wordsFor`: an
+  app may replace it by id, and a rename is breaking. Table scroll through the existing `scrollToRow`, so no
+  compact-mantine change. Refused key: "key" only for a provider with `requiresKey`. Against the insights: finding 1
+  leads on severity, not on reach; the tooltip fix would not have changed Ruth's session.
 
 - **2026-11-05 (tier 6 round 2 insights):** Applied the verdicts from each skeptic's rows, not their summary lines:
   both summaries disagree with their own rows, and skeptic 2's "10 at 2, 12 at 1" counts 11 and 11. Took row 1 to 2:
@@ -136,6 +154,16 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-11-05 (key for round 3) -- Worked: viewing `T92A/success/07.png` and `detour-1/03.png`, which showed the x
+  reaching seven on 2 of 2, and that Open run on a line for 14 nodes opens a 14-node run (s11 at 4), so the key's "covers
+  all 24" was wrong for that case; `wc` on a download for the narrowed file. Did not work: searching `route.jsonl` for
+  quoted replies: it holds control names, not prose, so a 0 hit there proves nothing; multi-line asserted anchors twice.
+
+- 2026-11-05 (round 2 critique) -- Worked: reading a screen for what it says beside the finding, not only the finding
+  (the placeholder under Selection 14); estimating a log's position from its scrollbar thumb; grepping for an existing
+  API before proposing a shared-component change (`scrollToRow`). Did not work: `grep "selected"` in `TableDock.tsx`
+  to find row shading; the selection reaches the table some other way.
+
 - 2026-11-05 (round 2 insights) -- Worked: recounting each skeptic's rows against their summaries; counting Show in
   table from the `steps` field; viewing all six cited screens before citing. Did not work: grep on `route.jsonl`, which
   matches the `screen` list too and gave r2-s01 two false hits. My scoring's "a different door" came from reading the
@@ -184,6 +212,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-11-05 -- Graders score what the task targets, so a fixed string that contradicts a moving one goes unseen: every
+  grade read the scope line and none read the placeholder under it. An audit should compare neighbors on a screen.
+- 2026-11-05 -- "The reader never scrolled" can hide a product fault: ask first whether the app should have scrolled.
+
 - 2026-11-05 -- A bar counted at the session's end can fail on what a persona's rule does after the task is over.
   Read a persona rule like a prompt: it can force the very act that fails a bar.
 - 2026-11-05 -- An insight about what readers did not do needs the tool to make not-doing cheap and doing free. A
@@ -226,20 +258,10 @@ logged). Their reasons, in short:
 - 2026-10-17 -- "Focus never falls to the page" is too weak for creation flows: focus on the
   wrong control (a menu, a swatch) makes typing go nowhere and passes the bar. Test that typing
   lands.
-- 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
-  showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
-  tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
-- 2026-10-30 (round 1 scoring, folded) -- Worked: running the scripts first; parsing grade tables with an
-  assert on the row count. Did not work: a multi-line `old` string in an asserted replace.
-- 2026-10-30 (plan) -- Worked: diffing roster.md and tasks.md since the plan commit before
-  regenerating; briefing all 28 and tallying `REAL_DIST` and `setup:` lines.
-- 2026-10-21 (tier 3) -- Worked: two skeptics per insight; re-tallying every grade from plan.md and
-  each `^Grade:` line; a key-and-drawing script over last states; one screenshot per owner insight.
-  Did not work: bars requiring "no open severity 3" while no task reaches the backlog 3s; counting
-  one defect in three lists (count each once, at its highest list).
-- 2026-09-28 to 10-11 (tiers 1 and 2) -- Worked: `git status`, `git log` and round listings after
-  any stop; viewing every cited screenshot; a browser gate. Did not work: launching every agent at
-  once; editing a script while it runs.
+- 2026-09-28 to 10-30 (tiers 1 to 4, folded) -- Worked: two skeptics per insight; viewing each cited screenshot;
+  re-tallying grades from each `^Grade:` line; `git status` and round listings after any stop; a browser gate. Did not
+  work: trusting `tooltip: null` and grader wrong-turn counts; bars needing "no open severity 3" no task reaches;
+  counting one defect in three lists; launching every agent at once; editing a script while it runs.
 
 ## Thinking
 

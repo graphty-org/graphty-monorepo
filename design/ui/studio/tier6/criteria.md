@@ -278,3 +278,23 @@ dry run twice. The owner is told why, once.
 - 2026-11-05: the study moves from build 48879618c4 (`.study-builds/tier6-r1d1-48879618c4`) to build
   3b2a7f0649 (`.study-builds/tier6-r1d2-3b2a7f0649`), which holds the dry run's fixes and the latest
   master. No bar changed.
+- 2026-11-05: `answers.md` now follows the words decided for the build after 3b2a7f0649, and the walks of
+  3b2a7f0649 itself, which it had not been matched to. No bar and no prompt changed; `tasks.md` is
+  untouched, and T90's prompt keeps its second key because bar 3 reads a real answer. That build does not
+  exist yet, so lines given for it are decided words, and its dry run checks them against the screen.
+    - T90: the failure row names the key and offers AI provider...; that button is `Way out: other`, and
+      repeating the row's words is `Failure read: key`, by the existing line on "I cannot tell"; Enter and
+      Done save a typed key.
+    - T91: identical lines fold, so "Sized 9 nodes" no longer repeats; "Style failed." can carry a reason.
+    - T92 A: the field names the selection; the x alone reached seven on 2 of 2 walks of 3b2a7f0649, so
+      `Build decided: yes` on a report of 6 now means that fix did not hold; Open run on a line for 14
+      nodes opens a run counted inside the selection, where the key had said all 24.
+    - T92 B: "at least 6" did not return, and its `Build decided` note applies only if it does; a turn
+      that selected its answer keeps its chip, and "Selected 0 nodes" is gone, so a right fact 2 with
+      only the reply's words behind it is F with no `Build decided`.
+    - T92 and T95: the Computed lines use the name the key card uses and say when a run painted; on T95
+      a removed run reads "Removed Degree" with no Open run, and a run that painted nothing opens on Values.
+    - T95: the Assistant's file holds what the message is about; `Build decided` stays for one that holds
+      more.
+    - "Seen while writing this key": each kept item now says what the sessions on 3b2a7f0649 showed and
+      what the fixed build does; the refused key is down to 2, as round 2 scored it.

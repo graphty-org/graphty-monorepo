@@ -38,7 +38,7 @@ import {
 } from "../catalog/shaders";
 import { formatShaderText, parseShaderText, SHADER_TEXT_MAGIC, type ShaderTextOptions } from "../catalog/shaderText";
 import type { LayerId, LayerSpec } from "../catalog/types";
-import { GraphtyError } from "../errors/GraphtyError";
+import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { sha256Hex } from "../utils/sha256";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { ProjectState } from "./project/state";
@@ -811,6 +811,26 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     });
 
     /**
+     * Run work on a host, and again on the host that replaced it when the replacing cut it off:
+     * opening WebGPU swaps the host under whatever was started on the first scene. A host disposed
+     * with nothing after it is the graph going away, and that answer stands.
+     * @param from - The host to start on.
+     * @param work - The work.
+     * @returns What the work resolves with.
+     */
+    const onHost = async <T>(from: ShaderHost, work: (on: ShaderHost) => Promise<T>): Promise<T> => {
+        try {
+            return await work(from);
+        } catch (error) {
+            if (host === null || host === from || !isGraphtyError(error) || error.code !== "E_DISPOSED") {
+                throw error;
+            }
+
+            return onHost(host, work);
+        }
+    };
+
+    /**
      * Compile and test one shader on the host, once per hash.
      * @param shader - The shader.
      * @returns Null when it passes, else the problem; null with no host.
@@ -825,7 +845,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return Promise.resolve(null);
         }
 
-        const running = host.check(shader).then(
+        const running = onHost(host, (on) => on.check(shader)).then(
             (problem) => {
                 compiled.set(shader.hash, problem);
                 refresh();
@@ -1614,10 +1634,12 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         const time = descriptor.preview?.time ?? THUMBNAIL_TIME;
         const key = [drawn.hash, SHADER_THUMBNAIL_SIZE, drawer.theme ?? "", time, stableJson(values)].join("\u0000");
         return cached(key, () =>
-            drawer.thumbnail(
-                { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
-                values,
-                time,
+            onHost(drawer, (on) =>
+                on.thumbnail(
+                    { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
+                    values,
+                    time,
+                ),
             ),
         ) as Promise<Blob>;
     };

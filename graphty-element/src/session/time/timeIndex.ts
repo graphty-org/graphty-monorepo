@@ -441,6 +441,39 @@ function isBareNumber(value: unknown): boolean {
 }
 
 /**
+ * The earliest and latest instant a designation with no unit reads from a column.
+ * @param raw - Every value of the column.
+ * @param zone - The zone text with no offset reads in.
+ * @returns The span, or undefined when the column reads as plain steps or holds no instant.
+ */
+export function columnSpan(
+    raw: readonly unknown[],
+    zone: string,
+): { readonly from: number; readonly to: number } | undefined {
+    const tally = newTally();
+    for (const value of raw) {
+        tallyValue(tally, value);
+    }
+
+    const { unit, datesOnly } = readingOf(tally, undefined);
+    if (unit === "ordinal") {
+        return undefined;
+    }
+
+    let from = Infinity;
+    let to = -Infinity;
+    for (const value of raw) {
+        const { at } = datesOnly && isBareNumber(value) ? { at: Number.NaN } : readInstant(value, unit, zone);
+        if (!Number.isNaN(at)) {
+            from = Math.min(from, at);
+            to = Math.max(to, at);
+        }
+    }
+
+    return from > to ? undefined : { from, to };
+}
+
+/**
  * Parse raw values into the rows from `start` on.
  * @param rows - Each row's instant.
  * @param start - The first row.

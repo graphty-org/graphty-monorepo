@@ -323,17 +323,15 @@ function isStrictDate(value: unknown): boolean {
  * from the name alone.
  * @param name - The column's name.
  * @param samples - Its sampled values.
- * @returns The unit its values read in (a date's is `"ms"`, which text ignores), or undefined when
- *     the column does not look like time.
+ * @returns True when the column looks like time.
  */
-export function looksLikeTime(name: string, samples: readonly unknown[]): TimeUnit | undefined {
+export function looksLikeTime(name: string, samples: readonly unknown[]): boolean {
     const unit = inferUnit(samples);
     if (unit !== undefined) {
-        const named = TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
-        return named && unit !== "ordinal" ? unit : undefined;
+        return unit !== "ordinal" && TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
     }
 
-    return samples.length > 0 && samples.every(isStrictDate) ? "ms" : undefined;
+    return samples.length > 0 && samples.every(isStrictDate);
 }
 
 /** What the present values of a column have looked like so far, for {@link unitOfTally}. */

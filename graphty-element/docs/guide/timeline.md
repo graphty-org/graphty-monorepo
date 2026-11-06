@@ -67,9 +67,11 @@ if (found) {
 }
 ```
 
-`from` and `to` are epoch milliseconds. Each such column also has `looksLike: "time"` in
-`draft.tables`. A column the element already gave a role is not reported, and a load with no `time`
-role designates nothing.
+`from` and `to` are epoch milliseconds, the earliest and latest instant the column reads as once
+designated. Each such column also has `looksLike: "time"` in `draft.tables`. A column the element
+already gave a role is not reported, and a load with no `time` role designates nothing. The mapping
+works the same on a file whose format sets its roles, such as JSON or GraphML: on those tables it
+takes `time` and `timeUnit` and nothing else.
 
 ## Reading the data's time
 

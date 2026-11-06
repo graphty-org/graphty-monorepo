@@ -3023,7 +3023,7 @@ export interface LoadChoices extends ImportOptions {
 export interface LoadDraft {
     dispose(): void;
     // @beta
-    readonly findings: readonly CodedFact<"time.found">[];
+    readonly findings: readonly TimeFound[];
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
@@ -6482,6 +6482,16 @@ export interface TimeFieldResult {
     // (undocumented)
     readonly nodes?: TimeCounts;
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
+}
+
+// @beta
+export interface TimeFound extends CodedFact<"time.found"> {
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
 }
 
 // @beta

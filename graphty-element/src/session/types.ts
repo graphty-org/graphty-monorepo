@@ -1813,6 +1813,25 @@ export interface DatasetLoadOptions extends ImportOptions {
 }
 
 /**
+ * A column of a {@link LoadDraft} that looks like time.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFound extends CodedFact<"time.found"> {
+    /**
+     * `table` is the table's id and `column` the column's name, ready for a load's mapping. `from`
+     * and `to` are the earliest and latest instant a designation reads from it, as epoch
+     * milliseconds.
+     */
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
+}
+
+/**
  * A source read by `data.prepare`, held until `load()` or `dispose()`. After either, every method
  * rejects with `E_DISPOSED`.
  */
@@ -1831,14 +1850,12 @@ export interface LoadDraft {
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
     /**
-     * What the element noticed in the file and applied nowhere. `time.found` is one column that
-     * {@link DraftColumn.looksLike} time; `params` holds `table` (the table's id), `column`, and
-     * `from` and `to`, the earliest and latest instant in it as epoch milliseconds. Empty with the
-     * timeline experiment off.
+     * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
+     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
      * @experimental timeline
      * @beta
      */
-    readonly findings: readonly CodedFact<"time.found">[];
+    readonly findings: readonly TimeFound[];
     /**
      * Every table's roles as a load with these choices reads them: the reader's mapping over the
      * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
@@ -1941,7 +1958,10 @@ export interface DraftTable {
     readonly name: string;
     /** How many rows it holds. */
     readonly rowCount: number;
-    /** True when the format sets the roles (every format but CSV). A mapping for it is refused with `E_BAD_COMMAND`. */
+    /**
+     * True when the format sets the roles (every format but CSV). A mapping for it is refused with
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];

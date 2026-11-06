@@ -25,9 +25,10 @@ import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join"
 import { historyMark } from "./loadLine";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
-import type { CodedFact } from "./shared";
 import { HELD_READERS } from "./styles/fileStyles/apply";
-import { looksLikeTime, readInstant } from "./time/parse";
+import { looksLikeTime } from "./time/parse";
+import { columnSpan } from "./time/timeIndex";
+import { isTimeZone, UTC_ZONE } from "./time/zone";
 import type {
     ColumnRole,
     DraftColumn,
@@ -50,6 +51,7 @@ import type {
     SessionDataConfig,
     TableMapping,
     TableMappingRead,
+    TimeFound,
 } from "./types";
 
 /** Dispatches a command as the session's next step. */
@@ -906,13 +908,13 @@ export class Draft implements LoadDraft {
 
         const tables = Object.fromEntries(read.tables.map((held, at) => [held.table.id, Object.freeze(guesses[at])]));
         this.mapping = Object.freeze({ tables: Object.freeze(tables) });
-        const findings: CodedFact<"time.found">[] = [];
+        const findings: TimeFound[] = [];
         this.tables = Object.freeze(
             read.tables.map((held) => {
                 const roles = suggestedRoles(this.mapping.tables[held.table.id]);
-                const found = host.timeline() ? timeFindings(held, roles) : [];
-                findings.push(...found);
                 const own = this.mapping.tables[held.table.id];
+                const found = host.timeline() ? timeFindings(held, roles, parseZone(host.config(), own.rowsAre)) : [];
+                findings.push(...found);
                 const weightCandidate = weightCandidateOf(
                     held,
                     own.rowsAre === "edges" ? own : guessTable(held, "edges", read.source.config ?? {}, config),
@@ -923,13 +925,12 @@ export class Draft implements LoadDraft {
                     columns: Object.freeze(
                         held.table.columns.map((column) => {
                             const suggested = roles.get(column.name);
-                            return Object.freeze({
-                                ...column,
-                                ...(suggested === undefined ? {} : { suggested }),
-                                ...(found.some((fact) => fact.params.column === column.name)
-                                    ? { looksLike: "time" as const }
-                                    : {}),
-                            });
+                            const plain = suggested === undefined ? column : { ...column, suggested };
+                            return Object.freeze(
+                                found.some((fact) => fact.params.column === column.name)
+                                    ? { ...plain, looksLike: "time" as const }
+                                    : plain,
+                            );
                         }),
                     ),
                 });
@@ -1222,7 +1223,7 @@ export class Draft implements LoadDraft {
         const tables: Record<string, TableMappingRead> = { ...this.mapping.tables };
         for (const [id, choice] of Object.entries(given)) {
             const held = this.table(read, id);
-            if (held.table.fixed) {
+            if (held.table.fixed && !(this.host.timeline() && namesOnlyTime(choice))) {
                 throw badCommand(`The format sets the roles of table ${JSON.stringify(id)}.`, { table: id });
             }
 
@@ -1495,39 +1496,57 @@ function suggestedRoles(roles: TableMappingRead): Map<string, NonNullable<DraftC
 }
 
 /**
- * The columns of a table that look like time, with the span of their values. A column the element
- * already gave a role is not offered as anything else.
+ * The zone a designation of a table's time column reads text with no offset in.
+ * @param config - The data configuration.
+ * @param rowsAre - What the table's rows become.
+ * @returns The configured zone, else UTC.
+ */
+function parseZone(config: SessionDataConfig, rowsAre: "nodes" | "edges"): string {
+    const { nodeTimeParseZone, edgeTimeParseZone } = config.knownFields;
+    const zone = rowsAre === "nodes" ? nodeTimeParseZone : edgeTimeParseZone;
+
+    return typeof zone === "string" && isTimeZone(zone) ? zone : UTC_ZONE;
+}
+
+/**
+ * The columns of a table that look like time, with the span a designation would read from them. A
+ * column the element already gave a role is not offered as anything else.
  * @param held - The table.
  * @param roles - The role of each column.
- * @returns One finding per column; only a look at the sample, and a walk of the rows that pass.
+ * @param zone - The zone text with no offset reads in.
+ * @returns One finding per column: the sample decides whether to look, and every row the span.
  */
-function timeFindings(held: HeldTable, roles: ReadonlyMap<string, unknown>): readonly CodedFact<"time.found">[] {
-    const found: CodedFact<"time.found">[] = [];
+function timeFindings(held: HeldTable, roles: ReadonlyMap<string, unknown>, zone: string): readonly TimeFound[] {
+    const found: TimeFound[] = [];
     for (const { name, sampleValues } of held.table.columns) {
-        const unit = roles.has(name) ? undefined : looksLikeTime(name, sampleValues);
-        if (unit === undefined) {
-            continue;
+        const span =
+            !roles.has(name) && looksLikeTime(name, sampleValues)
+                ? columnSpan(
+                      held.rows.map((row) => row[name]),
+                      zone,
+                  )
+                : undefined;
+        if (span !== undefined) {
+            found.push(
+                Object.freeze({
+                    code: "time.found",
+                    params: Object.freeze({ table: held.table.id, column: name, ...span }),
+                }),
+            );
         }
-
-        let from = Infinity;
-        let to = -Infinity;
-        for (const row of held.rows) {
-            const { at } = readInstant(row[name], unit);
-            if (!Number.isNaN(at)) {
-                from = Math.min(from, at);
-                to = Math.max(to, at);
-            }
-        }
-
-        found.push(
-            Object.freeze({
-                code: "time.found",
-                params: Object.freeze({ table: held.table.id, column: name, from, to }),
-            }),
-        );
     }
 
     return found;
+}
+
+/**
+ * Whether a choice names a time column and nothing else, all a table whose format sets its roles
+ * takes: the format says what a file's columns are, and no format says which one is its time.
+ * @param choice - The reader's choice.
+ * @returns True when it does.
+ */
+function namesOnlyTime(choice: TableMapping): boolean {
+    return Object.keys(choice).every((role) => role === "time" || role === "timeUnit");
 }
 
 /**

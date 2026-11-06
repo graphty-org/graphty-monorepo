@@ -164,6 +164,12 @@ interface AccelerationControllerOptions {
      * through {@link AccelerationController.beginWork}, never opens one: it needs the frames.
      */
     readonly whileRunning?: () => () => void;
+    /**
+     * Answers each build with the device to pass the factory, or undefined for a device of its
+     * own. It waits for the renderer: the first build for the engine to open, a build after a
+     * loss for the engine's new device, so recovery never starts on the old one.
+     */
+    readonly sharedDevice?: () => Promise<unknown>;
 }
 
 /** One attached accelerator, whether this controller built it, and whether it has finished with it. */
@@ -278,6 +284,7 @@ export class AccelerationController {
     readonly #recoverOnDeviceLoss: boolean;
     readonly #maxRecoveryAttempts: number;
     readonly #whileRunning: (() => () => void) | undefined;
+    readonly #sharedDevice: (() => Promise<unknown>) | undefined;
 
     #policy: AccelerationPolicy;
     #minNodes: number;
@@ -320,6 +327,7 @@ export class AccelerationController {
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
         this.#whileRunning = options.whileRunning;
+        this.#sharedDevice = options.sharedDevice;
         this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
         this.#explicitMinNodes = options.minNodes !== undefined;
@@ -494,6 +502,30 @@ export class AccelerationController {
         this.#probeSettled = true;
         this.#recoveryAttempts = 0;
         this.#attach(accelerator, false);
+    }
+
+    /**
+     * Whether a registered backend would run on the device a renderer opens on this adapter.
+     * @param adapter - The `GPUAdapter`, opaque here.
+     * @returns True when the renderer should open a device fit for both. A registration that throws
+     * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
+     */
+    sharesDevice(adapter: unknown): boolean {
+        if (this.#policy === "off") {
+            return false;
+        }
+
+        return this.#registry.list().some((entry) => {
+            try {
+                return entry.sharesDevice?.(adapter) === true;
+            } catch (error) {
+                logger.warn("A registered accelerator could not say whether it shares the device", {
+                    name: entry.name,
+                    reason: error instanceof Error ? error.message : String(error),
+                });
+                return false;
+            }
+        });
     }
 
     /**
@@ -901,17 +933,19 @@ export class AccelerationController {
      * @throws Whatever the factory or the self-check threw.
      */
     async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+        const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
+        const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
         let built: { accelerator: GraphAccelerator | null; software: boolean };
 
         try {
-            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
+            built = { accelerator: await factory({ ...asked, acceptSoftware: false }), software: false };
         } catch (error) {
             if (this.#policy !== "required" || this.#disposed || !isSoftwareOnly(error)) {
                 throw error;
             }
 
-            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
+            built = { accelerator: await factory({ ...asked, acceptSoftware: true }), software: true };
         }
 
         if (built.accelerator !== null) {

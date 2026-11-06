@@ -1594,6 +1594,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRenderer: MACHINE,
             rendererRequest: READ,
             rendererStatus: READ,
+            expectRenderer: LIFECYCLE,
             eventManager: READ,
             nodeLabelCounts: READ,
             labelOf: READ,

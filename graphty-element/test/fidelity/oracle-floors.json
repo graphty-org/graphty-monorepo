@@ -12576,7 +12576,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.976,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -12637,7 +12637,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.976,
+            "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -27652,7 +27652,7 @@
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.938,
+            "label.anchor": 0.963,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -27728,7 +27728,7 @@
             "label.opacity": 1,
             "label.family": 0.562,
             "label.lines": 1,
-            "label.anchor": 0.938,
+            "label.anchor": 0.963,
             "label.alongLine": 0.5,
             "label.offLine": 0.429,
             "label.outline": 1,
@@ -28821,7 +28821,7 @@
             "label.family": 0,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.925,
+            "label.anchor": 0.944,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28893,7 +28893,7 @@
             "label.family": 0,
             "label.lines": 1,
             "label.align": 1,
-            "label.anchor": 0.925,
+            "label.anchor": 0.944,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -29082,7 +29082,7 @@
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.941,
+            "label.anchor": 0.971,
             "label.outline": 1,
             "label.background": 0.971,
             "label.backgroundBox": 0.875,
@@ -29154,7 +29154,7 @@
             "label.opacity": 1,
             "label.family": 0.882,
             "label.lines": 1,
-            "label.anchor": 0.941,
+            "label.anchor": 0.971,
             "label.outline": 1,
             "label.background": 0.971,
             "label.backgroundBox": 0.875,
@@ -56587,22 +56587,6 @@
                 "to": 0.75,
                 "reason": "first judgment of this sheet after the yEd references changed (2026-11-04, #3109): yEd refuses the file, so these are draw.io's stand-in drawing judged by the corrected comparator, not yEd's; followed up in #5792",
                 "date": "2026-11-04"
-            }
-        },
-        "yed-graphml-specimen-labels": {
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
-                "date": "2026-11-05"
-            }
-        },
-        "yed-graphml-specimen-labels@matched": {
-            "label.anchor": {
-                "floor": 1,
-                "to": 0.977,
-                "reason": "drawing: with yEd's own label box these two labels sit on the line between two label.anchor places, not off where yEd drew them: gml-synthetic-coverage 9 has yEd's left edge to 0.1 px but narrower words (Courier New where yEd drew Dialog), and yed-graphml-specimen-labels two-labels has yEd's box while yEd draws a line's words about 0.7 px below its box's middle (graph-io/test/fidelity/oracles/ISSUES.md, #4247)",
-                "date": "2026-11-05"
             }
         }
     }

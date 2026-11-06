@@ -28,6 +28,12 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import {
+    YED_INSIDE_INSET,
+    YED_OUTSIDE_DISTANCE,
+    yedLabelBox,
+    yedLabelFillsNodeHeight,
+} from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
@@ -943,14 +949,62 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
-    if (node && lg.anchor !== undefined) {
+    if (node) {
+        readLabelPlace(lg, writer.tool === "yed", put, at);
+    }
+}
+
+/**
+ * Reads where a node's label is drawn: its `anchor`, and for yEd where its label box puts the words. A label as tall
+ * as its node (`autoSizePolicy`) fills the node, with the words at the box's top; a label inside against a side is its
+ * model's inset in from that side, and stays there however large it is; a label beside a side is its model's distance
+ * out from it, and a label at a corner that distance out to the side alone. GML stores no label box to read these from,
+ * unlike yEd's GraphML (`readInsideInset`, `readOutsideOffset`).
+ * @param lg - the label record
+ * @param yed - whether yEd wrote the file
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelPlace(lg: Rec, yed: boolean, put: Put, at: At): void {
+    let place: string | null | undefined;
+    if (lg.anchor !== undefined) {
         const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
-        const known = GML_ANCHORS.get(anchor);
-        if (known === undefined) {
+        place = GML_ANCHORS.get(anchor) ?? null;
+        if (place === null) {
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
-        put("labelPosition", known ?? null);
+        put("labelPosition", place);
     }
+    if (!yed) {
+        return;
+    }
+    const policy = scalarText(lg.autoSizePolicy, at("labelPosition"))?.trim();
+    if ((place === undefined || place === "center") && yedLabelFillsNodeHeight(policy)) {
+        place = "inside-top";
+        put("labelPosition", place);
+    } else if (place?.startsWith("inside-") === true) {
+        put("labelOffsetX", sideSign(place, "left", "right") * YED_INSIDE_INSET || null);
+        put("labelOffsetY", sideSign(place, "top", "bottom") * YED_INSIDE_INSET || null);
+    } else if (place !== undefined && place !== null && place !== "center") {
+        const across = sideSign(place, "right", "left");
+        put("labelOffsetX", across * YED_OUTSIDE_DISTANCE || null);
+        put("labelOffsetY", across === 0 ? sideSign(place, "bottom", "top") * YED_OUTSIDE_DISTANCE : null);
+    }
+    put("labelBox", yedLabelBox(policy, place));
+}
+
+/**
+ * Which way a label is moved along an axis, right or down being positive.
+ * @param place - its position
+ * @param low - the side that moves it along the axis
+ * @param high - the side that moves it the other way
+ * @returns 1 for the low side, -1 for the high one, or 0 where it names neither
+ */
+function sideSign(place: string, low: string, high: string): number {
+    if (place.includes(low)) {
+        return 1;
+    }
+    return place.includes(high) ? -1 : 0;
 }
 
 /**

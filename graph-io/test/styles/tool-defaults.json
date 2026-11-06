@@ -215,6 +215,8 @@
             "labelSize": 12,
             "labelWeight": "normal",
             "labelPosition": "center",
+            "labelPadding": 2,
+            "labelLineHeight": 1,
             "borderPosition": "center"
         },
         "edge": {

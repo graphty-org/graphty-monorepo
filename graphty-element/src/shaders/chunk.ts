@@ -12,6 +12,7 @@
 import type { Scene } from "@babylonjs/core";
 
 import type { ShaderParams, ShaderProblem } from "../catalog/shaders";
+import { GraphtyError } from "../errors/GraphtyError";
 import { trackOnScene } from "../managers/PendingWork";
 import { QUALITY_LEVELS, ShaderGuard } from "../managers/ShaderGuard";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -36,11 +37,20 @@ export function lendSceneShaders(
     SCENE_SHADERS.set(scene, reader);
 }
 
+/**
+ * What a disposed graph answers for a runtime it will now never have.
+ * @returns The error.
+ */
+export function disposedError(): GraphtyError {
+    return new GraphtyError({ code: "E_DISPOSED", message: "The graph was disposed.", source: "style" });
+}
+
 /** A host whose runtime may not be loaded yet, with what the node and edge batches reach. */
 export interface LazyShaderHost extends ShaderHost {
     /**
      * The runtime, loading it when it is not yet.
-     * @returns The runtime.
+     * @returns The runtime; rejects with `E_DISPOSED` once the graph is disposed, also when the
+     *     dispose came while it was loading, so a caller is never left waiting.
      */
     runtime(): Promise<ShaderRuntime>;
     /** The runtime when it is already loaded, else null. */
@@ -92,7 +102,7 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
 
     const runtime = (): Promise<ShaderRuntime> => {
         if (disposed) {
-            return Promise.reject(new Error("The graph was disposed."));
+            return Promise.reject(disposedError());
         }
 
         loading ??= trackOnScene(
@@ -100,12 +110,11 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
             "shader",
             "a shader's runtime is still loading",
             import("./runtime").then(({ ShaderRuntime }) => {
-                const built = new ShaderRuntime(scene);
                 if (disposed) {
-                    built.dispose();
-                    throw new Error("The graph was disposed.");
+                    throw disposedError();
                 }
 
+                const built = new ShaderRuntime(scene);
                 built.onLost((hashes) => {
                     for (const listener of listeners) {
                         listener(hashes);

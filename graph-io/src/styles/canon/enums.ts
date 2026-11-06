@@ -22,6 +22,7 @@ export type StyleEnumKind =
     | "weight"
     | "position"
     | "labelFit"
+    | "labelBox"
     | "textAlign";
 
 type Aliases = Readonly<Record<string, readonly string[]>>;
@@ -195,6 +196,12 @@ const LABEL_FITS: Aliases = {
     bounds: ["bounds"],
 };
 
+const LABEL_BOXES: Aliases = {
+    words: ["words"],
+    "words-at-side": ["words-at-side"],
+    "target-width": ["target-width"],
+};
+
 /** vis-network draws these spellings differently from the common reading. */
 const VIS: Partial<Record<StyleEnumKind, Aliases>> = {
     shape: {
@@ -296,6 +303,7 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["weight", lookup(WEIGHTS)],
     ["position", lookup(POSITIONS)],
     ["labelFit", lookup(LABEL_FITS)],
+    ["labelBox", lookup(LABEL_BOXES)],
     ["borderPosition", lookup(BORDER_POSITIONS)],
     ["textAlign", lookup(TEXT_ALIGNS)],
 ]);

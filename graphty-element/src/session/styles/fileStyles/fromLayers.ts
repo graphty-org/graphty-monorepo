@@ -221,8 +221,8 @@ const plan = (toNeutral: PropertyPlan["toNeutral"], ...properties: string[]): Pr
 });
 
 /**
- * What DOT's writer needs beyond the end cap to spell a Graphviz arrow of several shapes: each channel's neutral
- * property, its end cap, and its value there. A lone cap's side stays `graphty:<channel>`, as in every other format.
+ * What DOT's writer needs beyond the end cap to spell a Graphviz arrow's whole name: each channel's neutral property,
+ * its end cap, and its value there. In every other format a cap's side stays `graphty:<channel>`.
  */
 const ARROW_NAME_CHANNELS: ReadonlyMap<
     string,
@@ -693,7 +693,7 @@ class KindExport {
         const values = drawn.map((value, row) => {
             const stack = this.#merged[row]?.[`${end.cap}Stack`];
             const yed = ARROW_ROWS.has(`${String(this.#merged[row]?.[end.cap])} ${stackShape(String(stack))}`);
-            return value === null || stackParts(stack) === null || yed ? null : end.toNeutral(value);
+            return value === null || yed ? null : end.toNeutral(value);
         });
         return values.some((value) => value !== null) ? { property: end.property, values } : null;
     }

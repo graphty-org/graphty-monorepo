@@ -47,7 +47,9 @@ import {
 } from "@babylonjs/core";
 
 import { drawingOf, type ShaderParamDescriptor, type ShaderParams, type ShaderProblem } from "../../catalog/shaders";
+import type { GraphtyError } from "../../errors/GraphtyError";
 import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
+import { disposedError } from "../chunk";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
 import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
@@ -113,6 +115,11 @@ export class ShaderRuntime {
     /** Until when the page counts as having been hidden recently. */
     private hiddenUntil = 0;
     private disposed = false;
+    private abandon: (reason: GraphtyError) => void = () => undefined;
+    /** Rejected by dispose: an engine that is gone may never call back, and the queue must answer. */
+    private readonly abandoned = new Promise<never>((_resolve, reject) => {
+        this.abandon = reject;
+    });
     private readonly onVisibility = (): void => {
         this.hiddenUntil = performance.now() + VISIBLE_WINDOW_MS;
     };
@@ -228,6 +235,9 @@ export class ShaderRuntime {
         }
 
         this.disposed = true;
+        // A runtime with nothing queued has nobody listening, and that is not an unhandled failure.
+        this.abandoned.catch(() => undefined);
+        this.abandon(disposedError());
         this.engine.onContextLostObservable.remove(this.lostObserver);
         globalThis.document?.removeEventListener("visibilitychange", this.onVisibility);
         globalThis.removeEventListener?.("pagehide", this.onPageHide);
@@ -254,15 +264,15 @@ export class ShaderRuntime {
     /**
      * Run work after everything queued before it.
      * @param work - The work.
-     * @returns What it resolves with.
+     * @returns What it resolves with; rejects with `E_DISPOSED` when a dispose comes first.
      */
     private enqueue<T>(work: () => Promise<T>): Promise<T> {
         const run = this.queue.then(async () => {
             if (this.disposed) {
-                throw new Error("The shader runtime was disposed.");
+                throw disposedError();
             }
 
-            return work();
+            return Promise.race([work(), this.abandoned]);
         });
         this.queue = run.catch(() => undefined);
         return run;

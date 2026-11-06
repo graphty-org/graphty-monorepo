@@ -202,6 +202,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelShiftY",
                         "node.labelShiftOf",
                         "node.labelGapOf",
+                        "node.labelBox",
                         "node.labelDeclutter",
                         "node.labelMinNodeScreenSize",
                         "node.labelTextAlign",

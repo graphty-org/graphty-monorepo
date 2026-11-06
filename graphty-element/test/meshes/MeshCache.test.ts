@@ -67,4 +67,16 @@ describe("MeshCache", () => {
         );
         assert.include(scene.textures, shared, "a texture other materials may hold survives");
     });
+
+    it("sourceFor makes the source with no instance, and get then instances that same source", () => {
+        const source = cache.sourceFor("shape", () => MeshBuilder.CreateBox("box", {}, scene));
+
+        assert.lengthOf(source.instances, 0);
+        assert.strictEqual(
+            cache.sourceFor("shape", () => assert.fail("built twice")),
+            source,
+        );
+        const instance = cache.get("shape", () => assert.fail("built twice"));
+        assert.strictEqual(instance.sourceMesh, source);
+    });
 });

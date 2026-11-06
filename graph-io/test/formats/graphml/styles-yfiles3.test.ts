@@ -112,6 +112,9 @@ describe("yEd Live GraphML: label model parameters", () => {
         expect(node("labelPosition", "v2-model-exterior-south-east")).toBe("bottom-right");
         expect(node("labelPosition", "v2-model-stretch-north")).toBe("inside-top");
         expect(node("labelPosition", "v2-model-sandwich-south")).toBe("bottom");
+        expect(node("labelBox", "v2-model-interior-north-west")).toBe("words-at-side");
+        expect(node("labelBox", "v2-model-stretch-north")).toBe("target-width");
+        expect(node("labelBox", "v2-model-exterior-south-east")).toBeNull();
     });
 });
 

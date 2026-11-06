@@ -177,4 +177,15 @@ describe("an export of Graphviz's arrows of several shapes through the layers (#
         assert.deepEqual(namesIn(text, "arrowhead"), ["crow", "odot"]);
         assert.notInclude(text, "ArrowParts");
     });
+
+    it("writes a lone arrow's side, and keeps it when another program strips the style block (#5947)", async () => {
+        const lone = ["lbox", "rbox", "olbox", "lnormal", "rcrow", "licurve", "icurve"];
+        const doc = `digraph { ${lone.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} y -> z [dir=both, arrowtail=lbox]; }`;
+        const first = await rewritten(doc, "dot", "dot");
+        assert.deepEqual(namesIn(first, "arrowhead"), [...lone, "normal"]);
+        assert.deepEqual(namesIn(first, "arrowtail"), ["lbox"]);
+        assert.strictEqual(await rewritten(first, "dot", "dot"), first);
+        const plain = first.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "");
+        assert.deepEqual(namesIn(await rewritten(plain, "dot", "dot"), "arrowhead"), [...lone, "normal"]);
+    });
 });

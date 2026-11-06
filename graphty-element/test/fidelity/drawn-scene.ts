@@ -629,7 +629,8 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const [leadAbove, leadBelow] = known ? leadingOf(label, opt) : [0, 0];
     const textBox = known
         ? onScreen(
-              inner.contentArea.x + (opt.marginLeft ?? 0) + pad,
+              // where the words start: a box wider than they are holds them to one side or its middle
+              label.textBounds.left * dims.width,
               inner.contentArea.y + (opt.marginTop ?? 0) + pad + leadAbove,
               inner.textSize.width,
               inner.textSize.height - leadAbove - leadBelow,

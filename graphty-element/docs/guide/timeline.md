@@ -70,6 +70,11 @@ the index of what is there now. A window set in the meantime is applied at once,
 `spanOf()` finish the build to answer, which holds the page for as long as the rest of it takes. Rows
 added later are merged into the index without reading the rest of the column again.
 
+`time.bins({ count: 50, scope: "visible" })` counts only what passes your filters. The window does
+not narrow it, so a bar outside the window keeps its filtered count: draw the two kinds of bar
+differently from the window's bounds. The counts are kept until the filter, the data or the bins
+change, so reading them on every step costs nothing.
+
 ## Moving the window
 
 ```js

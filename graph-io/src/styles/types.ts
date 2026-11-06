@@ -129,6 +129,13 @@ export type StyleLabelPosition =
 export type StyleLabelTextAlign = "left" | "center" | "right";
 
 /**
+ * What a node label's box is sized to: its words, its words held against the side it is placed at however large they
+ * are, or its node's width.
+ * @category Styles
+ */
+export type StyleLabelBox = "words" | "words-at-side" | "target-width";
+
+/**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
  * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
  * `labelPaddingY` added on each side, decides the rest.
@@ -484,6 +491,13 @@ export interface NodeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
+     * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
+     * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
+     * `labelTextAlign` lining the words up in it. Unset, `words`.
+     */
+    readonly labelBox: StyleLabelBox;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**

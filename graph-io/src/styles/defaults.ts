@@ -4,6 +4,7 @@
  * does in the program that made it. Only values a primary source states are here; every value names its source.
  */
 
+import { YED_LABEL_PADDING } from "./canon/yed-label.js";
 import type { EdgeStyleValues, GraphStyleValues, NodeStyleValues, StyleArrowShape, StyleTool } from "./types.js";
 
 /**
@@ -283,6 +284,15 @@ const YED_ARROWHEAD: ToolArrowhead = {
     },
     source: `${MEASURED}yed-graphml-specimen-arrows.svg, yed-graphml-specimen-edges-lines.svg: widths 1, 2, 3, 5 and 8 draw the standard head 12, 13.5, 15, 18 and 22.5 long, 10, 11.25, 12.5, 15 and 18.75 wide)`,
 };
+
+/** yEd's label box reaches 2 px past its words on every side. */
+const YED_LABEL_BOX_PADDING = v(
+    YED_LABEL_PADDING,
+    `${MEASURED}yed-graphml-specimen-labels.svg: a 10 px label's box is 15.64 tall, its 11.64 px line and 2 on each side)`,
+);
+
+/** yEd's line is its font's ascent plus descent, with no leading. */
+const YED_LABEL_LINE_HEIGHT = v(1, `${MEASURED}yed-graphml-specimen-labels.svg: as above)`);
 
 /** yEd Live draws its default head 8 long and 6 wide whatever the line width. */
 const YED_LIVE_ARROWHEAD: ToolArrowhead = {
@@ -644,6 +654,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(12, `${YED_CORPUS} of y:NodeLabel`),
                     labelWeight: v("normal", `${YED_CORPUS} of y:NodeLabel`),
                     labelPosition: v("center", `${YED_CORPUS} of y:NodeLabel`),
+                    labelPadding: YED_LABEL_BOX_PADDING,
+                    labelLineHeight: YED_LABEL_LINE_HEIGHT,
                 },
                 edge: {
                     color: v("#000000", `${YED_EDGE} (line color defaults to Color.black)`),

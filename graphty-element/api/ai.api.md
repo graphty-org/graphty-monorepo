@@ -52,6 +52,7 @@ import { Plane } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
+import { RawTexture } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import type { RetryOptions } from '@graphty/graph-io';
 import { Scene } from '@babylonjs/core';

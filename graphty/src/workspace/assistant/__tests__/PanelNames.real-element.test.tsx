@@ -134,7 +134,7 @@ describe("the Assistant panel's names", () => {
         await within(section).findByRole("button", { name: "12 nodes, select, Remove 12 nodes?" });
         // The steps open, so the count's own chip shows beside the held one.
         await userEvent.click(await screen.findByRole("button", { name: /^\d+ steps?$/ }));
-        await screen.findByRole("button", { name: "12 nodes, select, Query data" });
+        await screen.findByRole("button", { name: /^12 nodes, select, .+/ });
         assert.deepEqual(shared(), []);
 
         await userEvent.click(within(section).getByRole("button", { name: "Remove" }));

@@ -28,9 +28,10 @@
  * because every edge that crosses the window is restyled into another batch (#6026); every move
  * re-evaluates every active mesh, 35 to 62 ms on 100,000 nodes against 6 ms on 10,000 (#6027).
  *
- * TEMPORARY: each graph has its own test file, so each loads into a page of its own, because about
- * 2.4 GB of heap stays held after a removed element (#6028) and a second graph in the same page ran
- * out of memory. Merge the two files back into one when #6028 is fixed.
+ * TEMPORARY: each graph has its own test file, run by a vitest run of its own, because about 2.4 GB
+ * of heap stays held after a removed element (#6028) and a second graph in the same browser runs out
+ * of memory. Both files in one run share that browser, so the second file's page crashes. Merge the
+ * two files back into one when #6028 is fixed.
  * `timeline-frame.bench.test.ts` runs 100,000 nodes and `timeline-frame-few-nodes.bench.test.ts`
  * 10,000.
  *
@@ -39,11 +40,13 @@
  * (and ghosted or not) as a brute-force test of its `t` against the window says, and the slots read
  * back from the GPU buffers are empty exactly for the edges that are not drawn. The suites run only
  * when `GRAPHTY_BROWSER_GPU` is set: on the software renderer the numbers mean nothing and one frame
- * of 100,000 nodes takes about a second. Run it alone, with the extracted libEGL tree when the
+ * of 100,000 nodes takes about a second. Run each file alone, with the extracted libEGL tree when the
  * machine has no system one:
  *
  * GRAPHTY_BROWSER_GPU=nvidia GRAPHTY_EGL_LIB_DIR=<tree> npx vitest run --project=browser-bench
- * test/browser/timeline-frame
+ * test/browser/timeline-frame.bench.test.ts
+ *
+ * and again with `test/browser/timeline-frame-few-nodes.bench.test.ts`.
  */
 import "../../src/graphty-element";
 

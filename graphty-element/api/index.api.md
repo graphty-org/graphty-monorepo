@@ -1387,6 +1387,11 @@ export const EdgeStyle: z.ZodObject<{
                 box: "box";
                 words: "words";
             }>>;
+            box: z.ZodOptional<z.ZodEnum<{
+                words: "words";
+                "words-at-side": "words-at-side";
+                "target-width": "target-width";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1655,6 +1660,11 @@ export const EdgeStyle: z.ZodObject<{
             gapOf: z.ZodOptional<z.ZodEnum<{
                 box: "box";
                 words: "words";
+            }>>;
+            box: z.ZodOptional<z.ZodEnum<{
+                words: "words";
+                "words-at-side": "words-at-side";
+                "target-width": "target-width";
             }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
@@ -2074,6 +2084,11 @@ export const EdgeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -2289,6 +2304,11 @@ export const EdgeStyle: z.ZodObject<{
         gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
+        }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -4989,6 +5009,8 @@ class Node_2 implements ModelUser {
     // (undocumented)
     dragHandler?: NodeDragHandler;
     // @internal
+    drawInBatch(source: AbstractMesh | null): void;
+    // @internal
     get drawnBoundingBox(): BoundingBox;
     // @internal
     get drawnBoundingRadius(): number;
@@ -5003,10 +5025,14 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnInBatch(): boolean;
+    // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
     get drawnPosition(): Readonly<Vector3>;
     get drawnRadius(): number;
+    // @internal
+    drawnRayHit(ray: Ray): Vector3 | null;
     // @internal
     get drawnRootScale(): number;
     // @internal
@@ -5897,6 +5923,11 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6113,6 +6144,11 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             words: "words";
         }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6328,6 +6364,11 @@ export const NodeStyle: z.ZodObject<{
         gapOf: z.ZodOptional<z.ZodEnum<{
             box: "box";
             words: "words";
+        }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -7102,6 +7143,11 @@ export const RichTextStyle: z.ZodObject<{
     gapOf: z.ZodOptional<z.ZodEnum<{
         box: "box";
         words: "words";
+    }>>;
+    box: z.ZodOptional<z.ZodEnum<{
+        words: "words";
+        "words-at-side": "words-at-side";
+        "target-width": "target-width";
     }>>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";

@@ -281,6 +281,15 @@ export interface LabelStyle {
      */
     gapOf?: "box" | "words";
     /**
+     * What the label's box is sized to, and what becomes of a box larger than its target. `"words"`: the box is round
+     * its words, and an `inside-*` label too large for its target is centered on that axis. `"words-at-side"`: the box
+     * is round its words, and an `inside-*` label stays against the side it names however large it is, its far end
+     * reaching past the target. `"target-width"`: as `"words-at-side"`, and the box is at least as wide as its target,
+     * a band across it, with `textAlign` lining the words up inside it. A label with no box of a target to measure (on
+     * an edge, or at a point) keeps the box round its words. Unset, `"words"`.
+     */
+    box?: "words" | "words-at-side" | "target-width";
+    /**
      * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
      * the other side of its node (right to left, top to bottom), then is moved in if it still
      * does not fit. Off by default.
@@ -456,6 +465,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     shiftY: 0,
     shiftOf: 0,
     gapOf: 0,
+    box: 0,
     keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
@@ -548,6 +558,7 @@ export const RICH_TEXT_KEYS = {
     shiftY: "shiftY",
     shiftOf: "shiftOf",
     gapOf: "gapOf",
+    box: "box",
     keepInView: "keepInView",
     marginTop: "marginTop",
     marginBottom: "marginBottom",

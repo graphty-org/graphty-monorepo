@@ -144,6 +144,14 @@ class FakeNode implements TransitionSubject {
     writes = 0;
 
     /**
+     * Stand in for the shrink.
+     * @param scale - The scale.
+     */
+    drawShrunk(scale: number): void {
+        this.drawnScale = scale;
+    }
+
+    /**
      * A node at a place.
      * @param index - Its index.
      * @param x - X.

@@ -25,6 +25,13 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import {
+    YED_INSIDE_INSET,
+    YED_LABEL_PADDING,
+    yedLabelBox,
+    yedLabelFillsNodeHeight,
+    yedLabelFillsNodeWidth,
+} from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
@@ -803,9 +810,11 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
     }
     readRotation(label, put, at);
     if (node) {
-        const position = nodeLabelPosition(label, geometry, at);
+        const position = sizedLabelPosition(label, nodeLabelPosition(label, geometry, at));
         put("labelPosition", position);
         readInsideInset(label, geometry, position, put);
+        readCroppedWrap(label, geometry, put);
+        readLabelBoxSize(label, position, put);
         readOutsideOffset(label, geometry, position, put);
     }
 }
@@ -868,6 +877,59 @@ function readOutsideOffset(label: unknown, geometry: unknown, position: string |
 }
 
 /**
+ * Where a label as tall as its node is drawn: yEd centers the label's box, which then fills the node, and writes the
+ * words at the top of that box, so a label in the middle is drawn inside the node's top.
+ * @param label - the label element
+ * @param position - where its model and box place it
+ * @returns the position
+ */
+function sizedLabelPosition(label: unknown, position: string | null): string | null {
+    return position === "center" && yedLabelFillsNodeHeight(treeAttr(label, "autoSizePolicy"))
+        ? "inside-top"
+        : position;
+}
+
+/**
+ * Whether yEd sized a label's box: it writes every box it drew; graphty's own GraphML writer stores none, and what it
+ * means is in the file's style block.
+ * @param label - the label element
+ * @returns true when the label has a stored width
+ */
+function hasStoredBox(label: unknown): boolean {
+    return Number.isFinite(Number(treeAttr(label, "width") ?? Number.NaN));
+}
+
+/**
+ * Reads what a label's box is sized to; a box as wide as its node lines its words up by the label's `alignment`.
+ * @param label - the label element
+ * @param position - where the label is placed
+ * @param put - receives the values
+ */
+function readLabelBoxSize(label: unknown, position: string | null, put: PutValue): void {
+    if (!hasStoredBox(label)) {
+        return;
+    }
+    const policy = treeAttr(label, "autoSizePolicy");
+    put("labelBox", yedLabelBox(policy, position));
+    if (yedLabelFillsNodeWidth(policy)) {
+        put("labelTextAlign", treeAttr(label, "alignment") ?? null);
+    }
+}
+
+/**
+ * The width a `CroppingLabel` breaks its words at: yEd lines them up inside a label box sized to its node.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the value
+ */
+function readCroppedWrap(label: unknown, geometry: unknown, put: PutValue): void {
+    const width = Number(treeAttr(geometry, "width"));
+    if (treeAttr(label, "configuration") === "CroppingLabel" && Number.isFinite(width)) {
+        put("labelWrapWidth", width - 2 * YED_LABEL_PADDING);
+    }
+}
+
+/**
  * How far in from the sides it is drawn against yEd puts a label inside its node (its internal model's insets, 4 by
  * default), from the label's stored box, for a label sized to its words: the label is moved that far right of a left side, left of a right side, down
  * from the top and up from the bottom.
@@ -877,25 +939,31 @@ function readOutsideOffset(label: unknown, geometry: unknown, position: string |
  * @param put - receives the values
  */
 function readInsideInset(label: unknown, geometry: unknown, position: string | null, put: PutValue): void {
-    // a label sized to its node (a group's header band) has a box that is not its words'
-    const sized = treeAttr(label, "autoSizePolicy")?.startsWith("node_") === true;
-    if (position?.startsWith("inside-") !== true || sized) {
+    if (position?.startsWith("inside-") !== true || !hasStoredBox(label)) {
         return;
     }
+    // a label sized to its node (a group's header band) has no inset along the side its box fills
+    const policy = treeAttr(label, "autoSizePolicy");
+    const [across, down] = [!yedLabelFillsNodeWidth(policy), !yedLabelFillsNodeHeight(policy)];
     const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
     const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
     const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
-    const inset = (value: number): number | null =>
-        Number.isFinite(value) && value > 0 ? Math.round(value * 1000) / 1000 : null;
-    if (position.includes("left")) {
+    // a box stored without its place has the model's own inset
+    const inset = (value: number): number | null => {
+        if (Number.isNaN(value)) {
+            return YED_INSIDE_INSET;
+        }
+        return value > 0 ? Math.round(value * 1000) / 1000 : null;
+    };
+    if (across && position.includes("left")) {
         put("labelOffsetX", inset(x));
-    } else if (position.includes("right")) {
+    } else if (across && position.includes("right")) {
         const gap = inset(nw - x - w);
         put("labelOffsetX", gap === null ? null : -gap);
     }
-    if (position.includes("top")) {
+    if (down && position.includes("top")) {
         put("labelOffsetY", inset(y));
-    } else if (position.includes("bottom")) {
+    } else if (down && position.includes("bottom")) {
         const gap = inset(nh - y - h);
         put("labelOffsetY", gap === null ? null : -gap);
     }
@@ -1169,7 +1237,18 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
             number,
             string,
         ][]
-    ).filter(([size]) => size > 0);
+    )
+        .filter(([size]) => size > 0)
+        // yEd paints neighbouring lanes of one color as one band
+        .reduce<[number, string][]>((merged, [size, color]) => {
+            const last = merged.at(-1);
+            if (last?.[1] === color) {
+                last[0] += size;
+            } else {
+                merged.push([size, color]);
+            }
+            return merged;
+        }, []);
     put("stripeColors", bands.map(([, color]) => color).join(" "));
     put("stripeSizes", bands.map(([size]) => String(Number((size / total).toFixed(6)))).join(" "));
     if (across) {

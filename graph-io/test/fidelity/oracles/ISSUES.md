@@ -2663,9 +2663,9 @@ Rows still open, each with what stops it:
   `cytoscapejs-specimen-arrows-p2` judges every arrow fill as passing. Its remaining rows are the route and curve of
   segments, taxi, loop and unbundled-bezier edges (`edge-curve-styles`, another batch), the haystack arrow and the
   mid-arrow compound shapes.
-- `cytoscapejs-specimen-node-shapes`: Cytoscape.js's `bottom-round-rectangle` (rounded bottom corners only),
-  `concave-hexagon` (sides bent in), the fatter `star` and `cut-rectangle` with a set `corner-radius` are still drawn
-  as the nearest neutral shape (round-rectangle, hexagon, star, octagon). The comparator passes them (same class),
+- `cytoscapejs-specimen-node-shapes`: Cytoscape.js's `concave-hexagon` (sides bent in), the fatter `star` and
+  `cut-rectangle` with a set `corner-radius` are still drawn as the nearest neutral shape (hexagon, star, octagon;
+  `bottom-round-rectangle` has its own shape now). The comparator passes them (same class),
   the drawings differ. graph-io work: polygons with `shapePoints` as for the other Cytoscape.js polygons. The
   reader classes graphty's `polygon` as `other` whatever its corners, so `shape-polygon` (Cytoscape.js's default
   square) fails `node.shape` against the oracle's `rect`: comparator work.
@@ -5016,3 +5016,49 @@ Open:
   through its center. Pajek draws the man unevenly about his vertex (64.7 up, 62.2 down at this size) and graphty
   centers the figure, so the box the label is judged against sits 1.24 px lower in Pajek's drawing. Needs a figure
   drawn off its node's center (graphty-element-render).
+
+Measured by source file against yEd's own drawings (#4247, `fix/4247-label-anchor-causes`):
+
+- A yEd label as tall as its node (`autoSizePolicy` `node_size`, `node_height`), GML and GraphML. Fixed: yEd centers the
+  label's box, which then fills the node, and writes the words at the box's top (about 2 px down, on every such label in
+  the real and specimen drawings), so graph-io reads it as `inside-top`. `gml-yed-pmodel` label.anchor 0/36 ->
+  36/36.
+- A `CroppingLabel` breaks its words at its node's width. Fixed: `labelWrapWidth` from the node's width, less the
+  label's padding. `graphml-libcitygml-mapping` label.lines passes on all six such labels; n2, n4, n14, n48, n49 and n50
+  still fail label.anchor, because yEd draws these words smaller (font 6 to 7 px against graphty's 7.5) and graphty's
+  lines overflow the node.
+- A yEd GML label inside against the left or right side is 4 in from it (the internal model's inset), which GML stores
+  no box to read. Fixed for labels that fit (`gml-synthetic-coverage` 9, 17, 35, 69, 77).
+
+Open:
+
+- A label wider than its node, inside against a side: yEd keeps it against that side, graphty-element centers it
+  (`inward` in `RichTextLabel.ts`, documented behavior). `gml-synthetic-coverage` 43, 49, 61, 67 and
+  `graphml-synthetic-nodes` shape-parallelogram, -parallelogram2, -hexagon, -hexagon2, -fatarrow2. Needs an additive
+  label option, and with it the top and bottom inset GML leaves out today (`gml-synthetic-coverage` 33, 34, 58): an
+  offset from the center carries a label too tall for its node past the middle.
+
+## A label's box apart from its words: yEd's bands and labels larger than their nodes (#4247, #5809, 2026-11-05)
+
+graphty-element's label takes a new `box` (channel `labelBox`), and graph-io sets it for yEd and yEd Live files.
+
+- yEd's group header is a band as wide as its group (`autoSizePolicy` `node_width`, yEd Live's stretch models):
+  `target-width`, its words lined up in it by the label's `alignment`.
+- A label inside its node that is wider or taller than the node keeps the side it names, its far end past the node;
+  graphty-element centered it: `words-at-side`. That lets a yEd GML label inside against the top or bottom take its
+  model's inset of 4 as well.
+- yEd's box is its line, the font's ascent plus descent, with 2 px round it (a 10 px label's box is 15.64 tall): the
+  tool defaults `labelPadding` 2 and `labelLineHeight` 1, node labels only. Edge labels keep graphty's own box: their
+  places along and off the line are not read from the file, and three that passed on the wider box fail on yEd's.
+- With the box the right size, GML labels beside their nodes need the distance the wider box stood in for: 4 out from
+  a side, and at a corner 4 out to the side alone, as `gml-synthetic-coverage` measures it.
+- A label sized to its node has no inset along the side it fills, and keeps the one down it: a header band stored at
+  `y="4"` is drawn 4 down (`yed-graphml-specimen-groups`, `configuration-er-labels`).
+
+Two labels are newly listed, both on the line between two label.anchor places, not moved from where yEd drew them:
+
+- `gml-synthetic-coverage` node 9 (v7): its left edge is yEd's to 0.1 px, but its words are Courier New where yEd drew
+  Dialog, 1.3 px narrower, so its middle falls past a quarter of the font size from the node's.
+- `yed-graphml-specimen-labels` `two-labels`: yEd draws a line's words about 0.7 px below the middle of its box
+  (`rect@510` to `525.6` round `text@513` to `524` on `specimen-groups`); graphty centers them, so the label's middle
+  is 3.3 px above the node's where yEd's is 2.2 and the quarter is 2.5.

@@ -241,6 +241,11 @@ export interface PNode {
      * only the image a node with no body draws as itself. Absent for none.
      */
     pictures?: PBox[];
+    /**
+     * The oracle's side only: the boxes of a fill drawn in pieces (a yEd table's header and lanes, Graphviz's stripes),
+     * which graphty draws as pieces over the node's face. Absent for a fill in one piece.
+     */
+    faces?: PBox[];
     label: PText | null;
     /**
      * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
@@ -441,8 +446,23 @@ export const shapeId = (tag: string, box: PBox): string =>
     `${tag}@${[box.x0, box.y0, box.x1, box.y1].map((v) => String(Math.round(v) || 0)).join(",")}`;
 
 /**
- * The dash class of a dash array, from its dashes and its gaps relative to the line's width. A round or square line
- * cap draws each dash half a width longer at either end, so into its gaps; gaps that add to a tenth of the pattern or
+ * A dash array as it is seen: a round or square line cap draws each dash half a width longer at either end, so into its
+ * gaps (yEd's dotted line is `0,4` under round caps: dots one width long, not nothing). An odd-length array repeats to
+ * an even one.
+ * @param dash - the dash array
+ * @param width - the line width
+ * @param cap - the line cap (`butt`, `round` or `square`)
+ * @returns the dashes and gaps as drawn
+ */
+export function dashAsDrawn(dash: readonly number[], width: number, cap = "butt"): number[] {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
+    const grow = cap === "butt" ? 0 : width;
+    return pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + grow : Math.max(0, d - grow)));
+}
+
+/**
+ * The dash class of a dash array, from its dashes and its gaps relative to the line's width, as drawn
+ * (`dashAsDrawn`): gaps that add to a tenth of the pattern or
  * less read as a solid line. Dashes no longer than one and a half widths (or pixels, for a hairline) are dots; long
  * dashes and short ones, one at least twice the other, are a dash-dot.
  * @param dash - the dash array, or null
@@ -454,11 +474,9 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     if (dash === null || dash.length === 0 || dash.every((d) => d <= 0)) {
         return "solid";
     }
-    // an odd-length dash array repeats to an even one
-    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
-    const grow = cap === "butt" ? 0 : width;
-    const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
-    const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const drawn = dashAsDrawn(dash, width, cap);
+    const on = drawn.filter((_, i) => i % 2 === 0);
+    const off = drawn.filter((_, i) => i % 2 === 1);
     const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
     // a gap under a tenth of the pattern reads as no gap; one of a tenth still shows (vis-network's [5, 5] dashes at
     // width 4 under round caps: gaps of 1 px in a 10 px pattern, drawn and visible), and a drawing measured at a scale

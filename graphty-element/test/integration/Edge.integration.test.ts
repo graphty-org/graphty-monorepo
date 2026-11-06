@@ -164,6 +164,9 @@ function createMockNode(scene: Scene, id: string, position: Vector3): Node {
         id,
         mesh,
         data: { id },
+        get drawnPosition() {
+            return mesh.position;
+        },
     } as unknown as Node;
 
     return mockNode;

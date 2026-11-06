@@ -29,6 +29,7 @@ import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
+import { isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
@@ -405,6 +406,17 @@ const OUTLINE_EVENTS = [
 ] as const satisfies readonly (keyof SessionEventMap)[];
 
 /**
+ * End a pass's load quietly when the graph was disposed under it: nobody awaits that load, so the
+ * rejection would reach the page as unhandled. Any other failure is a real one and goes on.
+ * @param error - What the load threw.
+ */
+function rethrowUnlessDisposed(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_DISPOSED") {
+        throw error;
+    }
+}
+
+/**
  * The scene-level shader passes of one graph: the background shader, the group outlines and
  * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
  * that names no shader loads none of them.
@@ -543,6 +555,8 @@ class ShaderScene {
         this.backgroundLoads++;
         try {
             await this.loadBackground();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.backgroundLoads--;
         }
@@ -662,6 +676,8 @@ class ShaderScene {
             );
             // Asked again now it exists: the stack may have changed while it loaded.
             this.sync();
+        } catch (error) {
+            rethrowUnlessDisposed(error);
         } finally {
             this.outlineLoading = false;
         }

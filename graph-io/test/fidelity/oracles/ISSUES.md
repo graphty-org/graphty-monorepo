@@ -5073,3 +5073,8 @@ Open: every other property still takes the rounded box. Moving `box` itself to t
 ids hold their boxes) and fails `yed-live-graphml-specimen-labels-p4` v2-model-exterior-north-east and -north-west
 label.offset and `gml-synthetic-coverage` edge 4->15 label.alongLine, three labels truly off that passed by under
 0.2 px.
+
+- yEd Live's UML sections and BPMN symbols (#5789, `yed-live-graphml-specimen-node-shapes-p4` to `-p7`) are one SVG
+  picture over the node; the comparison reads its pieces like the program's own SVG. Left: a BPMN event on a port and a
+  choreography's messages lie outside their node's box and are not drawn (`-p6`); the oracle's open lines (the loop and
+  script symbols) are no strays, so neither side's are judged.

@@ -25,6 +25,7 @@ import {
     type PFill,
     type PGradient,
     type PGroup,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PStray,
@@ -1050,12 +1051,15 @@ export function shownPart(pts: readonly Pt[], start: PNode | undefined, end: PNo
  * How far one route is from another: where its two ends are, and its shape, each route seen in its own chord's frame
  * (its start at the origin, its end at (1, 0), across in chord lengths), so the shape is judged relative to its own
  * ends: an arc against a sine wave between the same two nodes is as far apart as the arc's height and the wave's
- * together. A loop's chord is next to nothing; it is judged as drawn, against its length instead.
+ * together. A loop's chord is next to nothing, or only as long as its arrowhead leaves between its ends, and a share of
+ * that says nothing of the loop (dot-synth-edges-clusters f3 -> f3: the same loop read 1.6 chords apart); it is judged
+ * as drawn, where it sits on its node, against its length instead.
  * @param o - the oracle's route
  * @param g - graphty's, in the oracle's frame and direction
  * @param shift - how far graphty's source and target nodes sit from the oracle's, each end's own: an end is judged
  *     where it sits on its node, and where the node sits is node.position's to judge (dot-synth-nodes n_alpha ->
  *     n_hsv: two straight lines, 10 px apart because their nodes are)
+ * @param loop - whether the route runs from a node back to it
  * @returns the larger of the ends' distance and the shapes' Frechet distance over `pathSamples` samples, as a share
  *     of `unit` oracle pixels
  */
@@ -1066,6 +1070,7 @@ export function routeShape(
         [0, 0],
         [0, 0],
     ],
+    loop = false,
 ): { gap: number; unit: number } {
     const N = ORACLE_TOLERANCES.pathSamples;
     const length = pathLength(o);
@@ -1080,6 +1085,12 @@ export function routeShape(
         return Math.hypot(b[0] - pts[0][0], b[1] - pts[0][1]);
     };
     const chord = chordOf(o);
+    if (loop) {
+        const unit = Math.max(length, 1e-9);
+        const [sx, sy] = shift[0];
+        const onNode = g.map(([x, y]): Pt => [x - sx, y - sy]);
+        return { gap: frechet(resample(o, N), resample(onNode, N)) / unit, unit };
+    }
     if (o.length < 2 || g.length < 2 || chord < 0.25 * length || chordOf(g) < 1e-9) {
         const unit = Math.max(length, 1e-9);
         return { gap: frechet(resample(o, N), resample(g, N)) / unit, unit };
@@ -2360,7 +2371,7 @@ export function compareOracle(
             meet(o.points[0], whole[0], shifts[0]) &&
             meet(o.points.at(-1), whole.at(-1), shifts[1]);
         const [vo, vg] = sliver ? [[...o.points], whole] : visible(o, g);
-        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]]);
+        const { gap, unit } = routeShape(vo, vg, [shifts[0], shifts[1]], o.source === o.target);
         // a share of a long chord is more than a node: a line sent through another node on the way passed
         // (dot-synth-nodes n_html3 -> n_unfilled, 1044 px long, through the middle of a 33 x 22 node). The allowance
         // is no more than the smaller side of the smaller of its two end nodes
@@ -2635,8 +2646,13 @@ export function compareOracle(
             j.add("edge.route", "edge", id, Math.max(0, gap / near - 1), R(near), R(gap));
         }
         // how far each route bends between its own nodes, a ratio no frame changes
-        const oc = curvatureOf(vo);
-        const gc = curvatureOf(vg);
+        // a loop bends or it does not: its chord is what its arrowhead leaves open, and the route judges its shape
+        const bendOf = (pts: readonly Pt[]): number => {
+            const c = curvatureOf(pts);
+            return o.source === o.target ? Number(c > T.curvature) : c;
+        };
+        const oc = bendOf(vo);
+        const gc = bendOf(vg);
         // and no difference under a pixel deep over the shorter of the two chords, which no reader sees: a line
         // between two nodes that nearly touch (gexf-sigma-ediaspora's 63 -> 66, 9 px long, bent under a pixel off
         // straight; 141 -> 112, a squiggle under a pixel long). A loop's chord is next to nothing: judged as it is.
@@ -3169,6 +3185,7 @@ export function compareOracle(
     for (const s of oracle.nodesOnly === true ? [] : [...graphty.strays].sort((a, b) => a.index - b.index)) {
         const box = toO(s.box);
         const drawn =
+            s.tag === PICTURE_WHOLE ||
             shapesDrawn.has(s.index) ||
             oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));

@@ -1452,6 +1452,22 @@ function offPath(q: Pt, pts: readonly Pt[]): number {
     return best;
 }
 
+/** How far apart, in px, two lines between one pair of nodes are drawn to be one line to a reader (`oneRoute`). */
+const ONE_ROUTE_PX = 1;
+
+/**
+ * Whether two lines of one pair of nodes are drawn over one another: one lies along the other, either way round.
+ * yEd stops a line at the back of its arrowhead, so two drawn together may differ in length by a head's length, which
+ * `sameRoute` reads as lines apart (graphml-synthetic-edges n13 -> n14: 6.5 px longer, 0.03 px off).
+ * @param a - one line
+ * @param b - the other
+ * @returns true when they share a route
+ */
+function oneRoute(a: PEdge, b: PEdge): boolean {
+    const along = (x: PEdge, y: PEdge): boolean => x.points.every((q) => offPath(q, y.points) <= ONE_ROUTE_PX);
+    return along(a, b) || along(b, a);
+}
+
 const endOf = (e: PEdge, end: "source" | "target"): Pt =>
     end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
 
@@ -1847,6 +1863,7 @@ function openStroke(p: Prim): boolean {
  * @param edges - the edges of the drawing
  * @param nodes - its nodes
  * @param centerLines - whether its lines run on to the nodes' centers
+ * @param drawnAt - where in the drawing each edge found by geometry was drawn
  * @returns each head, its strokes and its outline as one primitive
  */
 function strokedHeads(
@@ -1854,6 +1871,7 @@ function strokedHeads(
     edges: readonly PEdge[],
     nodes: readonly PNode[],
     centerLines: boolean,
+    drawnAt: ReadonlyMap<PEdge, number>,
 ): { e: PEdge; end: "source" | "target"; outline: Prim; parts: readonly Prim[] }[] {
     const ends = (p: Prim): [Pt, Pt] => [p.points[0], p.points.at(-1) ?? p.points[0]];
     const meet = (a: Prim, b: Prim): Pt | null =>
@@ -1871,8 +1889,22 @@ function strokedHeads(
         const lines = edges.filter((e) => e.stroke?.color === p.stroke?.color);
         const at = arrowheadEdge(p, lines, nodes, centerLines);
         if (at !== null && at.end !== "middle") {
-            const key = `${at.e.id}\u0000${at.end}`;
-            const held = byEnd.get(key) ?? { e: at.e, end: at.end, parts: [] };
+            // of lines drawn over one another, the last drawn before it: a bar stood back from one line's end sits at
+            // the end of the line stopped short for another's head (graphml-synthetic-edges n16 -> n17)
+            const before = (o: PEdge): number => drawnAt.get(o) ?? p.index;
+            const e =
+                lines
+                    .filter(
+                        (o) =>
+                            o.source === at.e.source &&
+                            o.target === at.e.target &&
+                            before(o) < p.index &&
+                            oneRoute(o, at.e),
+                    )
+                    .sort((x, y) => before(x) - before(y))
+                    .at(-1) ?? at.e;
+            const key = `${e.id}\u0000${at.end}`;
+            const held = byEnd.get(key) ?? { e, end: at.end, parts: [] };
             held.parts.push(p);
             byEnd.set(key, held);
         }
@@ -3297,6 +3329,7 @@ export function associate(
         edges,
         nodeList,
         centerLines,
+        drawnAt,
     );
     const headPieces = new Set(stroked.flatMap((h) => h.parts).map((p) => strokes.get(p)));
     const capped = withPieces.filter((e) => !headPieces.has(e));
@@ -3547,6 +3580,11 @@ export function associate(
     // another between the same nodes (json-cyjs-tokyo's lines of two companies between stacked stations) each carry
     // their own words, and each of the oracle's lines there takes one of them.
     const pairWords = wordsByPair(guide.edges);
+    const pairLines = new Map<string, PEdge[]>();
+    for (const e of edges) {
+        const k = unorderedPair(e.source, e.target);
+        pairLines.set(k, [...(pairLines.get(k) ?? []), e]);
+    }
     const edgeCandidates = edges.flatMap((e, ei) => {
         const wants = pairWords.get(unorderedPair(e.source, e.target));
         if (e.label !== null || wants === undefined) {
@@ -3554,8 +3592,12 @@ export function associate(
         }
         // the whole label near the edge's middle, halfway along it: a straight line drawn as one segment has two
         // points, the middle one of which is its target end (cytoscapejs-specimen-edge-labels: each source label went
-        // to the edge whose target end it sat next to)
-        const mid = pointAlong(e.points, 0.5);
+        // to the edge whose target end it sat next to). Lines drawn over one another share one middle: where a line
+        // stops short of its arrowhead says nothing about the words, which `edgeCandidates` then give by paint order
+        const mid = pointAlong(
+            (pairLines.get(unorderedPair(e.source, e.target))?.find((o) => oneRoute(o, e)) ?? e).points,
+            0.5,
+        );
         // graphty's words for this very edge go before others within a pixel of as near: two lines drawn one over
         // the other between the same nodes, each label on the same spot, were told apart by sub-pixel noise
         // (json-cyjs-tokyo's 7634 -> 7635 and 7635 -> 7634, #5506)
@@ -3564,10 +3606,17 @@ export function associate(
             .filter((p) => wants.has(norm(p.text?.content ?? "")))
             .map((p) => {
                 const d = Math.hypot(cx(p.box) - mid[0], cy(p.box) - mid[1]);
-                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1) };
+                // how far back in the drawing the line lies, none before the text counting as farthest
+                const at = drawnAt.get(e) ?? p.index;
+                const back = at < p.index ? p.index - at : Number.MAX_SAFE_INTEGER;
+                return { ei, p, d, rank: d + (norm(p.text?.content ?? "") === own ? 0 : 1), back };
             });
     });
-    edgeCandidates.sort((a, b) => a.rank - b.rank || a.p.index - b.p.index || a.ei - b.ei);
+    // Of lines drawn over one another, words go to the last drawn before them: nothing on the page tells two such lines
+    // apart, but a program that draws each edge whole draws an edge's label straight after its line and head
+    // (graphml-synthetic-edges: yEd's "label 0" on n4 -> n5, 0.02 px from either line, follows the line with the
+    // standard head that the file gives it, not the one with the diamond)
+    edgeCandidates.sort((a, b) => a.rank - b.rank || a.back - b.back || a.p.index - b.p.index || a.ei - b.ei);
     for (const c of edgeCandidates) {
         const e = edges[c.ei];
         const parts = runParts.get(c.p) ?? [c.p];

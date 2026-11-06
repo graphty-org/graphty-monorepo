@@ -1,114 +1,133 @@
 # T91A targeted re-pilot: making the untrained volunteers stand out
 
-Build 3549e11129, frozen build tier6-r1d1-3549e11129, start `setup:connected-volunteers-sized.txt`
+Build 48879618c4, frozen build tier6-r1d1-48879618c4, start `setup:connected-volunteers-sized.txt`
 (PageRank run, dots colored and sized by it, Assistant connected, panel closed). The live model was
 Gemini 3.8 Flash. Screenshots are under
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/r1d1/pilot/T91A/ (written below as
-`<walk>/<n>.png`).
+`<walk>/<n>.png`). The walks of the previous build, 3549e11129, moved to
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/r1d1-build3549e11129/pilot/T91A/,
+so the same folder names could hold this build's walks.
 
-This pass walks the success path by pointer and the three T91A routes the fixes touched: keyboard,
-detour-1 (Find and Quick actions), and detour-2 (a question, then make them stand out). The other
-routes on the list belong to other tasks.
+This pass walks the success path by pointer and the three T91A routes on the list of touched routes:
+keyboard, detour-1 (Find and Quick actions) and detour-2 (a question, then make them stand out). The
+list's other routes belong to other tasks. Detour-2 was walked twice, because its first run went
+somewhere new.
 
 ## Result
 
-The task can be finished on all three walks that asked for the change. Each ended with the right nine
-people (v04, v06, v08, v12, v13, v15, v19, v22, v24), a layer whose Which nodes reads "trained: no, 9
-nodes", and the key card reading "9 of 24 nodes". The ranking layer stayed. The data stayed the task's
-own throughout: 24 nodes and 63 edges, one source. Nothing crashed, nothing blocked the task, and
-nothing gave a wrong number. No script error appeared on any walk.
+The task can be finished on every walk. Each walk that kept its change ended with the right nine people, a
+layer whose Which nodes reads "trained: no, 9 nodes", and the key card reading "9 of 24 nodes". The
+ranking layer stayed. The data stayed the task's own throughout: 24 nodes, 63 edges, one source.
+Nothing crashed and no script error appeared.
+
+One thing can spoil a grade. In one of two runs of the question "How many people have not finished
+their training?", the reply said 9 and the chip under it read 15, and Show in table selected the 15
+people who HAVE finished (detour-2/03.png, 05.png). See Defects.
 
 ## Success path by pointer (walk: success)
 
 | Step | What happened | Screenshot |
 | ---- | ------------- | ---------- |
 | Assistant on the rail | Panel opens, composer focused, three starters | success/02.png |
-| Type "Make everyone who has not finished their training stand out from everyone else", Enter | 8 steps; the reply finds 9 people and asks how to show them: color, size or filter. Chip reads 9 nodes, Show in table beside it. No failed row, no Send again | success/05.png |
-| Hover the chip | The nine dots get a ring on the canvas (nine rings counted), nothing is selected | success/06.png |
-| "Highlight them with a distinct color", Enter | 1 step; "Colored 9 nodes", Open layer, Undo. Nine dots cyan (key.json counts 9 drawn in #00e5ff), key card "Color: Untrained, 9 of 24 nodes" | success/08.png |
-| Open layer | Inspector shows Untrained; Which nodes reads "trained: no, 9 nodes" | success/09.png |
-| Show in table | Table opens on Nodes, the nine rows highlighted, inspector "9 nodes selected" with trained No (9), scope line "Selection 9" | success/11.png |
+| Type "Make everyone who has not finished their training stand out from everyone else", Enter | The first message did it, with no question: nine dots cyan and larger while the reply was still coming | success/05.png |
+| Reply | 7 steps; "Found 9 people ... out of 24"; "Colored 9 nodes", "Sized 9 nodes", Open layer, Undo. Key card "Color: Untrained, 9 of 24 nodes". No chip, no failed row | success/06.png |
+| Open the steps | Query data, Style, Catalog, Style, Catalog, Style, Style, with times only | success/07.png |
+| Open layer | Inspector shows Untrained; Which nodes reads "trained: no, 9 nodes", 9 of 24 nodes; Size 4.5, color 00E5FF | success/08.png |
 
-`styles.json` lists one layer added (`untrained_1`), nothing gone or changed. In this walk the model
-asked one question first, which the key puts on the path ("Answering is on the path").
-
-The tool's `--expect selected=9` printed "7 rows are selected" on success/11.png. The app's own
-records read 9: `data.json` has selectedNodes 9 and the inspector says 9. The table scrolls, and the
-check counts the rows it finds, which is the likely reason for 7; no participant sees that line.
+`styles.json` lists one layer added (`untrained_1`), nothing gone or changed. `key.json` counts 9
+dots drawn in #00e5ff. Eight show on the canvas; the key card covers the ninth, as decided.
 
 ## detour-1: Find and Quick actions
 
-Replayed from the earlier walk: Main menu, the canvas right-click, Find "training", `trained = false`,
-Keyboard shortcuts, Settings and Control+K all matched the screens recorded before.
-
-- `trained == false` in Find now offers "Select the 9 nodes (trained: no)" (detour-1/13.png); Enter
-  selects nine, inspector "9 nodes selected", trained No (9) (detour-1/16.png).
-- `hours >= 27` still offers "Select the 8 nodes (hours 27 or more)" (detour-1/14.png).
-- Control+I with those nine selected: panel opens, scope line "Selection 9" (detour-1/17.png).
-- Control+K "assistant" lists Assistant with its key (detour-1/18.png). With nothing to paint selected
-  "Select what it paints" is grayed and AI provider... is highlighted (detour-1/19.png).
-- Still as before, and on the backlog: `trained = false` with one equals sign is a plain no match
-  (detour-1/05.png), and Control+K "AI" then Enter on a layer selects all 24 (detour-1/11.png, 12.png).
+All 19 steps replayed and every check point matched the previous build, so that walk's findings
+stand: Main menu, the canvas right-click, Find "training", `trained = false` (no match), Keyboard
+shortcuts, Settings, Control+K "AI" then Enter (selects all 24), `trained == false` offering and
+selecting the nine, `hours >= 27` offering eight, Control+I with scope line "Selection 9", Control+K
+"assistant". Checked by eye: `trained == false` then Enter, inspector "9 nodes selected", trained No
+(9) (detour-1/16.png).
 
 ## detour-2: a starter, a question, then a follow-up
 
-Clicking a starter fills the composer and does not send (detour-2/02.png). "How many people have not
-finished their training?" answers "There are 9 people ...", 1 step, no chip and no failed row
-(detour-2/03.png). "Make them stand out" worked on the first try: 7 steps, "Sized 9 nodes", "Colored 9
-nodes", Open layer, Undo, key card "9 of 24 nodes" (detour-2/07.png). Open layer shows "trained: no, 9
-nodes" (detour-2/08.png). Undo took both back, the row reads Undone and the layer left the list
-(detour-2/09.png, 10.png); `styles.json` lists no change at the end. Graph and back to Assistant kept
-the conversation (detour-2/11.png).
+Clicking a starter fills the composer and does not send (detour-2/02.png).
+
+**First run (walk: detour-2).**
+
+- The question: 2 steps, "There are 9 people who have not finished their training.", chip 15
+  (detour-2/03.png). The steps show two Query data rows, chip 9 then chip 15 (detour-2/04.png).
+- Show in table: Nodes tab, 15 rows highlighted, inspector "15 nodes selected", trained Yes (15),
+  scope line "Selection 15" (detour-2/05.png).
+- "Make them stand out" under that scope: 8 steps, "I found 15 nodes currently selected. The styling
+  update failed, so nothing was changed; how would you like them to stand out ...", "Style failed.",
+  "Nothing changed.", Send again, the message back in the composer (detour-2/07.png). The open steps
+  show names and times only, so the cause of the failure is not on screen or in the session's
+  records (detour-2/08.png).
+- Scope x, then Send again: the line read Whole graph (detour-2/10.png), the reply "I styled the 9
+  people ... to enlarge their size", 1 step, "Sized 9 nodes", and the scope line returned to
+  "Selection 15", as decided for the x (detour-2/11.png).
+- Open layer: "trained: no, 9 nodes", Size 3, no Fill (detour-2/12.png). Undo: row reads Undone,
+  notice "Undid Make them stand out.", layer gone (detour-2/13.png). Graph and back kept the
+  conversation (detour-2/15.png). `styles.json` lists no change at the end; 15 nodes stay selected.
+
+**Second run (walk: detour-2-plain), no click on Show in table.**
+
+- The same question: 2 steps, "There are 9 people ...", chip 9 (detour-2-plain/03.png).
+- "Make them stand out": 6 steps, "Sized 9 nodes" twice, "Colored 9 nodes", Open layer, Undo, key card
+  "9 of 24 nodes" (detour-2-plain/06.png).
+- Open layer: "trained: no, 9 nodes", Size 2.5, color EF4444 (detour-2-plain/07.png). Undo took it all
+  back; Graph and back kept the conversation (detour-2-plain/10.png). `styles.json` lists no change.
 
 ## Keyboard (walk: keyboard, keys and screen-reader lines)
 
 The whole path was walked by keys and reached the end. Focus never fell to the page body after the
 start, where nothing has focus by design.
 
-- Replay matched the earlier walk through the tab order, the rail, and Enter, Tab and Escape in the
-  composer: Main menu, Project: volunteers, Undo, Redo, Graph, Graph volunteers.graphml, Find, Add a
-  layer or a folder; ArrowDown on the rail to Assistant, Enter into textbox "Message the assistant";
-  Tab through Gemini 3.8 Flash, Talk, Send, Resize left panel, Graph drawing. Escape with no run keeps
-  the text.
-- The first message did it: 2 steps, "Colored 9 nodes", polite news "Working", then "Colored 9 nodes.
-  Answer ready", focus still in the composer (keyboard/20.png). Key card "9 of 24 nodes".
-- Shift+Tab from the composer: Undo, Open layer, "2 steps", region "Conversation", all named.
-- Enter on Undo took it back, focus moved to the composer, news "Undid ...", row reads Undone
-  (keyboard/28.png). The request was then sent again: "Colored 9 nodes" (keyboard/31.png).
+- Replay matched the previous build through the tab order, the rail, and Enter, Tab and Escape in the
+  composer (18 steps): Main menu, Project: volunteers, Undo, Redo, Graph, Graph volunteers.graphml,
+  Find, Add a layer or a folder; ArrowDown on the rail to Assistant, Enter into textbox "Message the
+  assistant"; Tab through Gemini 3.8 Flash, Talk, Send, Resize left panel, Graph drawing. Escape with
+  no run keeps the text.
+- The first message did it: 3 steps, "Colored 9 nodes", polite news "Working", then "Colored 9 nodes.
+  Answer ready", focus still in the composer (keyboard/20.png). Here the layer is named Untrained.
+- Shift+Tab from the composer: Undo, Open layer, "3 steps", region "Conversation", all named. The
+  first press after a `--read` printed the composer again and the next went to Undo; straight after
+  a send, with no `--read`, the first press went to Undo, so this follows the tool's read.
+- Enter on Undo took it back, focus moved to the composer, news "Undid ...", row reads Undone. The
+  request sent again: "Colored 9 nodes".
 - Enter on Open layer: inspector shows "trained: no, 9 nodes", focus stays on the button
   (keyboard/36.png).
 - Escape in a run stopped it, put the message back and said "Stopped. Changes taken back."; the layer
-  stayed, and this time the stop is on screen (keyboard/38.png). A second send and stop did the same
-  (keyboard/42.png). The cancelled Gemini request is the intended stop.
+  stayed. A second send and stop did the same (keyboard/42.png). The cancelled Gemini request is the
+  intended stop.
 - Control+I in the composer closes the panel with focus on Graph drawing; again returns with the draft
   kept.
 
 ## Mismatches with the answer key
 
-The key's T91 text still describes build 8fa33aa786. On this build:
+- Key: on A the reply may have a chip reading 9, with Show in table selecting the nine on the Nodes
+  tab, or no chip. Screen: a chip reading 15 under a reply saying 9, and Show in table selecting the
+  15 others (detour-2/03.png, 05.png). The key does not cover this.
 
-- Key: the first request changes nothing, a step reads "No matches for data.trained == false.", and it
-  can end in "Query data failed." Screen: none of that appeared. By pointer the model asked one
-  question and painted on the second message (success/05.png, 08.png); by keyboard the first message
-  painted (keyboard/20.png).
-- Key: the reply's chip reads 63 edges or 24 nodes and does not back the number, and Show in table
-  selects those. Screen: the chip reads 9 nodes and Show in table selects the nine (success/05.png,
-  11.png). Detour-2's and the keyboard walk's replies have no chip.
-- Key: a selector of nine ids reading "Picked by hand: 9 nodes". Screen: "trained: no, 9 nodes" on all
-  three walks (success/09.png, detour-2/08.png, keyboard/36.png).
+The success path itself has no mismatch: the first message painted, which the key allows, and the
+reply has no chip, which the key allows.
 
 ## Defects
 
-None that crashes, blocks the task or spoils its grading.
+1. **The chip and Show in table can back the opposite group** (would spoil grading). The model read
+   both groups, 9 and then 15, and the chip row keeps the turn's last read, so the reply says 9 over a
+   chip reading 15, and Show in table selects the people who have finished. It happened in one of two
+   runs. decided.md settles that the row is the last read and that the model is told to make that the
+   read it counts; this shows that telling it does not always hold. A reader asked "how do you know"
+   sees 9 and 15 side by side. detour-2/03.png, 04.png, 05.png; the good run is detour-2-plain/03.png.
+2. **That selection then blocks the change** (follows from 1). Show in table leaves "Selection 15", so
+   "Make them stand out" is about the wrong 15 and ended in "Style failed. Nothing changed." with no
+   reason anywhere the reader can look. Nothing was painted on the wrong people. The way out was the
+   scope x and Send again. detour-2/07.png, 08.png, 11.png.
 
 ## Seen, not spoiling
 
-- One Shift+Tab from the composer printed the composer again, right after a reply and a `--read`; the
-  next press went to Undo (keyboard, the steps after 21). Two later tries went straight to Undo, so it
-  did not repeat.
-- The key card can read "Color: assistant node style" when the model gives the layer no name of its
-  own (keyboard/20.png).
-- The chip inside the open steps and the chip under the reply share the name "9 nodes, select"
-  (success/05.png).
-- Eight of the nine dots show until the canvas is reframed, as decided: the key card covers one
-  (success/08.png, detour-2/07.png).
+- After that recovery the model only resized the nine, to 3, the top of the ranking's own 1 to 3, with
+  no color of their own, so they barely read apart from the ranking (detour-2/11.png, 12.png). A reader
+  who stopped there would be graded on whether they look different.
+- "Sized 9 nodes" can appear twice in one change line block, when the model writes size twice
+  (detour-2-plain/06.png).
+- The stray 15-node selection stays after Undo, as decided (detour-2/15.png).

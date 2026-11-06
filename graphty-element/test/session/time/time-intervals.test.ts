@@ -291,6 +291,34 @@ describe("a field naming several ends", () => {
         assert.deepEqual([...harness.session.visibility.edgeMask()], [1]);
     });
 
+    it("reads its own end on nodes and its own spells on edges, and slides without a full pass", async () => {
+        const harness = makeSession();
+        harness.add(
+            [
+                { id: "a", t: 1, b: 100 },
+                { id: "b", t: 50 },
+            ],
+            [
+                { src: "a", dst: "b", t: 5 },
+                { src: "b", dst: "a", s: [[45, 55]] },
+            ],
+        );
+        const { time, visibility } = harness.session;
+        await time.setField({
+            nodes: { start: "t", end: "b", unit: "ordinal" },
+            edges: { start: "t", spells: "s", unit: "ordinal" },
+        });
+        await time.window({ from: 40, to: 60, step: 20, nodes: "all" });
+        assert.deepEqual([...visibility.nodeMask()], [1, 1]);
+        assert.deepEqual([...visibility.edgeMask()], [0, 1], "the edge at 5 is an instant, not open-ended");
+
+        const { full } = slideCounters;
+        await time.seek(0);
+        assert.deepEqual([...visibility.nodeMask()], [1, 0]);
+        assert.deepEqual([...visibility.edgeMask()], [0, 0]);
+        assert.strictEqual(slideCounters.full, full, "the index answers the move");
+    });
+
     it("clears the window when only the end changes, and writes the end on a new window", async () => {
         const harness = nodesOf([{ a: 1, b: 5, c: 9 }]);
         const { time, visibility } = harness.session;
@@ -665,6 +693,26 @@ describe("against a brute force over intervals and spells", () => {
         assert.isAbove(slideCounters.jumps, jumps);
     });
 
+    it("reads only the spans near either window on a jump, not every span", async () => {
+        const COUNT = 2000;
+        const spanOf = (at: number): Span => [at * 10, at * 10 + (at % 2 === 0 ? 50 : 5)];
+        const harness = nodesOf(Array.from({ length: COUNT }, (_, at) => ({ a: spanOf(at)[0], b: spanOf(at)[1] })));
+        const { time } = harness.session;
+        await time.setField({ nodes: { start: "a", end: "b", unit: "ordinal" } });
+        await time.window({ from: 0, to: 20, step: 20 });
+        const brute = (from: number, to: number): number[] =>
+            Array.from({ length: COUNT }, (_, at) => at).filter((at) => spanOf(at)[0] < to && spanOf(at)[1] > from);
+
+        for (const at of [15_000, 3000, 18_000, 500]) {
+            const { jumps, full, spans } = slideCounters;
+            const event = await time.seek(at);
+            assert.deepEqual(shown(harness), brute(event.from, event.to), `a jump to ${String(at)}`);
+            assert.isAbove(slideCounters.jumps, jumps, "a jump");
+            assert.strictEqual(slideCounters.full, full, "no full pass");
+            assert.isBelow(slideCounters.spans - spans, COUNT / 20, "the spans near the two windows");
+        }
+    });
+
     it("rewrites only the edges a jump crossed", async () => {
         const NODE_COUNT = 200;
         const EDGE_COUNT = 400;
@@ -816,6 +864,25 @@ describe("with the timeline off", () => {
         const again = await session.project.save();
         assert.include(again.text, '"edgeTimeEndPath"');
     });
+
+    for (const [key, value] of [
+        ["end", "data.stop"],
+        ["spells", "data.spells"],
+    ] as const) {
+        it(`gives a saved window naming \`${key}\` over a column that is not designated its start alone`, async () => {
+            const csv = 'source,target,start,stop,spells\nA,B,1000,5000,"[[1000,5000]]"\n';
+            const saved = createGraphSession(ON);
+            await saved.data.import({ type: "csv", config: { data: csv } });
+            await saved.visibility.setWindow({ attribute: "data.start", [key]: value, from: 2000, to: 3000 });
+            assert.strictEqual(saved.visibility.summary.visibleEdges, 1);
+            const { text } = await saved.project.save();
+
+            const session = createGraphSession(OFF);
+            await session.project.open(text);
+            assert.strictEqual(session.visibility.window?.[key], value);
+            assert.strictEqual(session.visibility.summary.visibleEdges, 0, "only the start is read");
+        });
+    }
 
     it("refuses a window naming an end", () => {
         const session = createGraphSession(OFF);

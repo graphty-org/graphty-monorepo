@@ -2515,13 +2515,16 @@ export function windowInstants(window: TimeWindow, sources: FilterSources): Retu
         return indexed;
     }
 
-    // A kind of spans reads the same end and spells as the window, so a window naming none reads
-    // instants; a kind of instants takes any window some kind's spans read.
+    // A kind of spans reads the window's end and spells for each key it names, so a window naming
+    // none reads instants; nodes may name only an end and edges only spells. A kind of instants
+    // takes any window some kind's spans read.
     const kinds = [indexed.node?.spans, indexed.edge?.spans];
     const names = (key: "end" | "spells"): boolean =>
         window[key] === undefined || kinds.some((spans) => spans?.[key] === window[key]);
     const reads = (spans: TimeSpans | null | undefined): boolean =>
-        spans === null || spans === undefined || (spans.end === window.end && spans.spells === window.spells);
+        spans === null ||
+        spans === undefined ||
+        ((spans.end ?? window.end) === window.end && (spans.spells ?? window.spells) === window.spells);
 
     return names("end") && names("spells") && kinds.every(reads) ? indexed : null;
 }
@@ -2641,11 +2644,17 @@ function compileWindow(window: TimeWindow, context: CompileContext, filterEdge: 
             return null;
         }
 
-        if (paths.length > 1) {
+        // Each kind reads only the end and spells it carries, so one kind's columns never time the other.
+        const own = (path: Path | undefined): Path | undefined =>
+            path !== undefined && paths.includes(path) && carries(count, (index) => read(index, path))
+                ? path
+                : undefined;
+        const kindWindow: TimeWindow = { ...window, end: own(window.end), spells: own(window.spells) };
+        if (kindWindow.end !== undefined || kindWindow.spells !== undefined) {
             const noted = (index: number, path: Path): unknown => readValue(read, index, path, mark);
 
             return (index) => {
-                const held = recordSpans(window, index, noted);
+                const held = recordSpans(kindWindow, index, noted);
                 return held.length === 0 ? missingInside : held.some(([start, end]) => start < to && end > from);
             };
         }

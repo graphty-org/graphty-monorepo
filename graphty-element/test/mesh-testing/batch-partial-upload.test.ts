@@ -179,20 +179,34 @@ describe("partial uploads", () => {
             assert.deepEqual(frame(), [3 * JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
         });
 
-        it("keeps the limit's worth of runs, and one more is a single whole upload", () => {
+        it("keeps the limit's worth of runs, and past it joins the runs nearest each other", () => {
             const batch = lines({});
             settle();
             const spaced = (count: number): void => {
                 for (let i = 1; i <= count; i++) {
-                    batch.setDrawn(i * 2, false);
+                    batch.setDrawn(i * 10, false);
                 }
             };
 
             spaced(MAX_RUNS);
             assert.lengthOf(frame(), MAX_RUNS);
 
-            spaced(MAX_RUNS + 1);
-            assert.deepEqual(frame(), [SLOTS * JOIN_FLOATS_PER_PIECE]);
+            // Slot 12 sits one slot from slot 10's run and seven from slot 20's: it joins 10's.
+            spaced(MAX_RUNS);
+            batch.setDrawn(12, false);
+            const runs = frame();
+            assert.lengthOf(runs, MAX_RUNS);
+            assert.strictEqual(runs[0], 3 * JOIN_FLOATS_PER_PIECE);
+            assert.strictEqual(sum(runs), (MAX_RUNS + 2) * JOIN_FLOATS_PER_PIECE);
+
+            // Every gap the same: the first ones close.
+            for (let i = 1; i <= MAX_RUNS + 1; i++) {
+                batch.setDrawn(i * 2, false);
+            }
+
+            const even = frame();
+            assert.lengthOf(even, MAX_RUNS);
+            assert.strictEqual(even[0], 3 * JOIN_FLOATS_PER_PIECE);
         });
 
         it("uploads whole past half the slots", () => {

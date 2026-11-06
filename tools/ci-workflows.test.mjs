@@ -3993,7 +3993,9 @@ describe("release.yml", () => {
             );
             // a group keeps one pending job and cancels the rest: a third lane's filing would be dropped
             assert.equal(red.concurrency, undefined);
-            assert.deepEqual(red.permissions, { contents: "read", issues: "write" });
+            // the T4 filer reads its job's failed steps: a runner refused by machine.dev is an owner item
+            const reads = lane === "t4" ? { actions: "read" } : {};
+            assert.deepEqual(red.permissions, { ...reads, contents: "read", issues: "write" });
             const step = red.steps.at(-1);
             assert.equal(step.run, "node tools/full-run.mjs lane-red");
             assert.equal(step.env.LANE, lane);

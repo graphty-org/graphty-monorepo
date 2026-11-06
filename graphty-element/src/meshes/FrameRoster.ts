@@ -3,6 +3,11 @@ import type { Scene } from "@babylonjs/core";
 /** Work one element does before every frame of its scene. */
 export type FrameCallback = () => void;
 
+/** The switch a scene's batches read; see {@link FrameRoster.rangedUploads}. */
+export interface RangedUploads {
+    on: boolean;
+}
+
 /**
  * The per-frame callbacks of one kind of element (a label's depth fade, a label's animation, an
  * edge's moving texture), behind ONE `onBeforeRenderObservable` observer per scene.
@@ -19,6 +24,25 @@ export class FrameRoster {
     private readonly rosters = new WeakMap<Scene, Set<FrameCallback>>();
     /** Scenes whose GL context has just come back, until their next frame has run its callbacks. */
     private readonly restored = new WeakSet<Scene>();
+    /** Each scene's switch; see {@link FrameRoster.rangedUploads}. */
+    private readonly ranged = new WeakMap<Scene, RangedUploads>();
+
+    /**
+     * Whether a scene's batches upload only the slots written rather than whole buffers. Off by
+     * default. A batch holds this object and reads `on` at every write, so it stays one property
+     * read on the path every edge of a settling layout takes.
+     * @param scene - The scene.
+     * @returns Its switch.
+     */
+    rangedUploads(scene: Scene): RangedUploads {
+        let uploads = this.ranged.get(scene);
+        if (!uploads) {
+            uploads = { on: false };
+            this.ranged.set(scene, uploads);
+        }
+
+        return uploads;
+    }
 
     /**
      * Say that a scene's GL context was lost and given back, so this frame's callbacks must redo

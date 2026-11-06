@@ -6849,7 +6849,9 @@ export interface TimeSettings {
 
 // @beta
 export interface TimeSource {
+    readonly end?: Path;
     readonly parseZone?: string;
+    readonly spells?: Path;
     readonly start: Path;
     readonly unit?: TimeUnit;
 }
@@ -6882,6 +6884,8 @@ export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 // @public
 export interface TimeWindow {
     readonly attribute: Path;
+    // @beta
+    readonly end?: Path;
     readonly from: number | string;
     // @beta
     readonly missing?: "inside" | "outside";
@@ -6889,6 +6893,8 @@ export interface TimeWindow {
     readonly mode?: "sliding" | "cumulative";
     // @beta
     readonly nodes?: "all" | "ends";
+    // @beta
+    readonly spells?: Path;
     readonly step?: TimeStep;
     // @beta
     readonly timeZone?: string;

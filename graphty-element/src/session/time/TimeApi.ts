@@ -68,10 +68,13 @@ import {
     type FieldPlan,
     type IndexWork,
     inSlices,
+    kindBounds,
     type KindPlan,
     mergeField,
     noticesOf,
+    rowBounds,
     SLICED_ROWS,
+    type SpanColumn,
 } from "./timeIndex";
 import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
@@ -90,6 +93,19 @@ export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "
 export interface TimeSource {
     /** The column holding the instant, such as `sent` or `data.sent`. */
     readonly start: Path;
+    /**
+     * The column holding where each element ends, such as `left`: the element then exists for a
+     * span, and a window holds it when it starts before the window's `to` and ends after its
+     * `from`. A missing end is open; a missing start is open when an end is present. An end at or
+     * before its start reads as an instant at the start.
+     */
+    readonly end?: Path;
+    /**
+     * The column holding each element's list of `{ start, end }`, `[start, end]` or bare instants.
+     * An element with a non-empty list is timed by it alone, whatever `start` and `end` hold, and
+     * is inside while any of them overlaps the window; `start` may then name a column that is absent.
+     */
+    readonly spells?: Path;
     /**
      * How numbers in it are read. Strings and dates ignore it. Left out, the values decide: whole
      * numbers from 1000 to 2999 read as years, epochs in seconds as `"s"`, epochs in milliseconds
@@ -157,7 +173,8 @@ export interface TimeFieldResult {
 }
 
 /**
- * The span of the data's time, half-open: `to` is just past the last instant.
+ * The span of the data's time, half-open: `to` is just past the last instant. Open ends do not
+ * stretch it: it runs over the finite bounds.
  * @experimental timeline
  * @beta
  */
@@ -169,7 +186,8 @@ export interface TimeExtent {
 }
 
 /**
- * One histogram bar: elements whose instant is in `[start, end)`.
+ * One histogram bar: elements whose instant is in `[start, end)`, or, for spans, the spans that
+ * overlap it, so an element can count in many bars and twice in one.
  * @experimental timeline
  * @beta
  */
@@ -377,10 +395,12 @@ export interface TimeApi {
      * Designate the time field, or clear it with null: one undoable step, saved in the project.
      * The column's measurement becomes `"time"`. Clearing or changing the field, or its unit,
      * clears the window. A column designated again without a unit takes the unit it had before.
-     * @param field - Nodes, edges or both; both must name the same column.
+     * @param field - Nodes, edges or both; both must name the same column, and when both name an
+     *     `end` or `spells`, the same one. A kind naming neither keeps instants.
      * @returns What the values held.
-     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"`, `"unit"`,
-     *     `"time-zone"`, `"no-times"` for a column whose values hold no time at all).
+     * @throws `E_BAD_COMMAND` (`reason`: `"declared-not-time"`, `"time-paths-differ"` with `field`
+     *     naming `start`, `end` or `spells`, `"unit"`, `"time-zone"`, `"no-times"` for a column whose
+     *     values hold no time at all).
      */
     setField(field: TimeField | null): Promise<TimeFieldResult>;
     /**
@@ -439,7 +459,8 @@ export interface TimeApi {
      * @param of.nodes - The nodes.
      * @param of.edges - The edges.
      * @param of.incident - Whether the edges at the given nodes count too.
-     * @returns The span, `to` just past the last instant; null when none of them has a time.
+     * @returns The span of all their spans, `to` just past the last bound and an open bound held to
+     *     {@link TimeApi.extent}'s, so it is always a usable window; null when none has a time.
      * @throws `E_FEATURE_OFF` with the experiment off.
      */
     spanOf(of: {
@@ -593,9 +614,13 @@ export interface KnownTimeFields {
     readonly nodeTimePath: string | null;
     readonly nodeTimeUnit: TimeUnit | null;
     readonly nodeTimeParseZone: string | null;
+    readonly nodeTimeEndPath: string | null;
+    readonly nodeTimeSpellsPath: string | null;
     readonly edgeTimePath: string | null;
     readonly edgeTimeUnit: TimeUnit | null;
     readonly edgeTimeParseZone: string | null;
+    readonly edgeTimeEndPath: string | null;
+    readonly edgeTimeSpellsPath: string | null;
 }
 
 /** What the rest of the session reads back from the timeline. */
@@ -738,6 +763,24 @@ function columnOf(path: string): string {
 }
 
 /**
+ * The end and spells columns of the designated field, when a window reads that field's start.
+ * @param field - The designated field, if any.
+ * @param attribute - The column the window reads.
+ * @returns The field's end and spells columns, or neither for another column.
+ */
+function fieldBoundsOf(
+    field: TimeField | null,
+    attribute: string,
+): { readonly end: TimeSource["end"]; readonly spells: TimeSource["spells"] } {
+    const designated = field?.edges ?? field?.nodes;
+    if (designated === undefined || columnOf(attribute) !== columnOf(designated.start)) {
+        return { end: undefined, spells: undefined };
+    }
+
+    return { end: field?.edges?.end ?? field?.nodes?.end, spells: field?.edges?.spells ?? field?.nodes?.spells };
+}
+
+/**
  * The refusal for a malformed timeline call.
  * @param message - What is wrong.
  * @param details - The offending values, with a `reason` code.
@@ -786,10 +829,26 @@ function assertTimeSource(source: TimeSource): void {
     if (source.parseZone !== undefined && !isTimeZone(source.parseZone)) {
         throw badZone("parseZone", source.parseZone);
     }
+
+    for (const field of ["end", "spells"] as const) {
+        const path = source[field];
+        if (path !== undefined && (typeof path !== "string" || path.length === 0)) {
+            throw badCommand(`A time source's \`${field}\` names a column.`, { field, reason: field, source });
+        }
+    }
 }
 
 /**
- * Whether two sources read the same timeline: the same column, unit and zone.
+ * A column a source may name, read the same whichever way it was written.
+ * @param path - The path, or undefined.
+ * @returns The column, or undefined.
+ */
+function optionalColumn(path: Path | undefined): string | undefined {
+    return path === undefined ? undefined : columnOf(path);
+}
+
+/**
+ * Whether two sources read the same timeline: the same columns, unit and zone.
  * @param a - One, or undefined for none.
  * @param b - The other.
  * @returns True when each reads as the other does.
@@ -797,6 +856,8 @@ function assertTimeSource(source: TimeSource): void {
 function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): boolean {
     return (
         a?.start === b?.start &&
+        optionalColumn(a?.end) === optionalColumn(b?.end) &&
+        optionalColumn(a?.spells) === optionalColumn(b?.spells) &&
         (a?.unit ?? "ms") === (b?.unit ?? "ms") &&
         (a?.parseZone ?? UTC_ZONE) === (b?.parseZone ?? UTC_ZONE)
     );
@@ -808,7 +869,13 @@ function sameReading(a: TimeSource | undefined, b: TimeSource | undefined): bool
  * @returns The key.
  */
 function readingOf(field: TimeField): string {
-    return `${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.nodes?.parseZone ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}|${field.edges?.parseZone ?? ""}`;
+    return [field.nodes, field.edges]
+        .map((source) =>
+            [source?.start, source?.unit, source?.parseZone, source?.end, source?.spells]
+                .map((part) => part ?? "")
+                .join("|"),
+        )
+        .join("|");
 }
 
 /**
@@ -842,6 +909,19 @@ function assertOneColumn(asked: { readonly nodes?: TimeSource; readonly edges?: 
             nodes: asked.nodes.start,
             edges: asked.edges.start,
         });
+    }
+
+    for (const field of ["end", "spells"] as const) {
+        const nodes = optionalColumn(asked.nodes?.[field]);
+        const edges = optionalColumn(asked.edges?.[field]);
+        if (nodes !== undefined && edges !== undefined && nodes !== edges) {
+            throw badCommand(`Nodes and edges name the same \`${field}\` column.`, {
+                field,
+                reason: "time-paths-differ",
+                nodes,
+                edges,
+            });
+        }
     }
 }
 
@@ -1113,6 +1193,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             path: string | null,
             unit: TimeUnit | null,
             parseZone: string | null,
+            end: string | null,
+            spells: string | null,
         ): TimeSource | undefined =>
             path === null
                 ? undefined
@@ -1120,9 +1202,24 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                       start: path,
                       ...(unit === null ? {} : { unit }),
                       ...(parseZone === null ? {} : { parseZone }),
+                      // With the timeline off they stay saved and are not read.
+                      ...(end === null || sources.timeline?.() === false ? {} : { end }),
+                      ...(spells === null || sources.timeline?.() === false ? {} : { spells }),
                   });
-        const nodes = sourceOf(known.nodeTimePath, known.nodeTimeUnit, known.nodeTimeParseZone);
-        const edges = sourceOf(known.edgeTimePath, known.edgeTimeUnit, known.edgeTimeParseZone);
+        const nodes = sourceOf(
+            known.nodeTimePath,
+            known.nodeTimeUnit,
+            known.nodeTimeParseZone,
+            known.nodeTimeEndPath,
+            known.nodeTimeSpellsPath,
+        );
+        const edges = sourceOf(
+            known.edgeTimePath,
+            known.edgeTimeUnit,
+            known.edgeTimeParseZone,
+            known.edgeTimeEndPath,
+            known.edgeTimeSpellsPath,
+        );
 
         return nodes === undefined && edges === undefined
             ? null
@@ -1165,14 +1262,35 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const zoneFor = (source: TimeSource): string | undefined =>
             sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
         // With the timeline off the values are read as they always were.
-        const columnReader = (kind: "node" | "edge"): KindPlan["read"] | null =>
-            sources.timeline?.() === false ? null : (sources.column?.(kind, path) ?? null);
-        const kindOf = (source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => ({
-            count,
-            read,
-            unit: source.unit,
-            zone: zoneFor(source),
-        });
+        const columnReader = (kind: "node" | "edge", column: string): KindPlan["read"] | null =>
+            sources.timeline?.() === false ? null : (sources.column?.(kind, column) ?? null);
+        const beside = (kind: "node" | "edge", path: Path | undefined): SpanColumn | undefined => {
+            if (path === undefined) {
+                return undefined;
+            }
+
+            const column = columnOf(path);
+            const named = `${ATTRIBUTE_PREFIX}${column}`;
+            const read =
+                columnReader(kind, column) ??
+                ((row: number) =>
+                    kind === "node" ? sources.values.nodeValue(row, named) : sources.values.edgeValue(row, named));
+
+            return { column, read };
+        };
+        const kindOf = (kind: "node" | "edge", source: TimeSource, count: number, read: KindPlan["read"]): KindPlan => {
+            const end = beside(kind, source.end);
+            const spells = beside(kind, source.spells);
+
+            return {
+                count,
+                read,
+                unit: source.unit,
+                zone: zoneFor(source),
+                ...(end === undefined ? {} : { end }),
+                ...(spells === undefined ? {} : { spells }),
+            };
+        };
 
         return {
             key: keyOf(field),
@@ -1184,17 +1302,19 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 field.nodes === undefined
                     ? null
                     : kindOf(
+                          "node",
                           field.nodes,
                           graph.nodeCount,
-                          columnReader("node") ?? ((row) => sources.values.nodeValue(row, attribute)),
+                          columnReader("node", path) ?? ((row) => sources.values.nodeValue(row, attribute)),
                       ),
             edge:
                 field.edges === undefined
                     ? null
                     : kindOf(
+                          "edge",
                           field.edges,
                           graph.edgeCount,
-                          columnReader("edge") ?? ((row) => sources.values.edgeValue(row, attribute)),
+                          columnReader("edge", path) ?? ((row) => sources.values.edgeValue(row, attribute)),
                       ),
         };
     };
@@ -1457,9 +1577,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         let from = Number.POSITIVE_INFINITY;
         let last = Number.NEGATIVE_INFINITY;
         for (const kind of [built.node, built.edge]) {
-            if (kind !== null && kind.sorted.length > 0) {
-                from = Math.min(from, kind.sorted[0]);
-                last = Math.max(last, kind.sorted[kind.sorted.length - 1]); // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
+            const bounds = kind === null ? null : kindBounds(kind);
+            if (bounds !== null) {
+                from = Math.min(from, bounds[0]);
+                last = Math.max(last, bounds[1]);
             }
         }
 
@@ -1643,6 +1764,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             field.nodes === undefined &&
             columnOf(attribute) === columnOf(field.edges.start);
         const nodes = input.nodes ?? (followsEdges ? "ends" : undefined);
+        const own = fieldBoundsOf(field, attribute);
+        const end = input.end ?? own.end;
+        const spells = input.spells ?? own.spells;
         const missing = input.missing ?? (settings.missing === "inside" ? undefined : settings.missing);
         const mode = input.mode ?? (settings.mode === "sliding" ? undefined : settings.mode);
         const timeZone = zoneOf(input.timeZone);
@@ -1654,6 +1778,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: numericBound(input.from, parseZone),
             to: numericBound(input.to, parseZone),
             step: input.step ?? stepFor(),
+            ...(end === undefined ? {} : { end: `${ATTRIBUTE_PREFIX}${columnOf(end)}` }),
+            ...(spells === undefined ? {} : { spells: `${ATTRIBUTE_PREFIX}${columnOf(spells)}` }),
             ...(nodes === undefined ? {} : { nodes }),
             ...(missing === undefined ? {} : { missing }),
             ...(mode === undefined ? {} : { mode }),
@@ -2388,9 +2514,13 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                                 nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
                                 nodeTimeUnit: nodes?.unit ?? null,
                                 nodeTimeParseZone: nodes?.parseZone ?? null,
+                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
                                 edgeTimePath: edges === undefined ? null : columnOf(edges.start),
                                 edgeTimeUnit: edges?.unit ?? null,
                                 edgeTimeParseZone: edges?.parseZone ?? null,
+                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
                             },
                         },
                     },
@@ -2557,16 +2687,26 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 const parsed = built?.[kind];
                 if (parsed !== null && parsed !== undefined) {
                     for (const row of rowsOf(kind, of)) {
-                        const at = parsed.rows[row];
-                        if (!Number.isNaN(at)) {
-                            from = Math.min(from, at);
-                            last = Math.max(last, at);
+                        const bounds = rowBounds(parsed, row);
+                        if (bounds !== null) {
+                            from = Math.min(from, bounds[0]);
+                            last = Math.max(last, bounds[1]);
                         }
                     }
                 }
             }
 
-            return from > last ? null : Object.freeze({ from, to: last + 1 });
+            if (from > last) {
+                return null;
+            }
+
+            // An open bound is infinite: hold it to the data, so the span is a window.
+            const extent = extentOf(built);
+
+            return Object.freeze({
+                from: Math.max(from, extent?.from ?? from),
+                to: Math.min(last + 1, extent?.to ?? last + 1),
+            });
         },
 
         changes(): TimeChanges {

@@ -31,7 +31,7 @@ import {
     type SessionStylesApi,
 } from "../../src/session/styles/index";
 import type { SelectorSource } from "../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
+import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "../../src/session/styles/repaint";
 
 /** One element's columns, keyed by the path a selector or a binding names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -591,6 +591,104 @@ describe("StylePainter dirty set", () => {
 
         assert.deepStrictEqual([...painter.takeNodes()].sort(), [0, 1, 2, 3]);
         assert.deepStrictEqual([...painter.takeEdges()].sort(), [0, 1]);
+    });
+});
+
+/**
+ * A painter over a pass that announces whatever it is told to.
+ * @returns The painter and the announcement.
+ */
+function announcing(): {
+    painter: StylePainter;
+    announce(rows: { node?: number[]; edge?: number[] }, rowsOnly: boolean): void;
+} {
+    let last: { rows: { node?: number[]; edge?: number[] }; rowsOnly: boolean } = { rows: {}, rowsOnly: false };
+    const painter = new StylePainter();
+    const paint: Partial<ElementPaint> = {
+        onPainted: () => () => undefined,
+        lastPainted: (target) => last.rows[target] ?? [],
+        lastPaintRowsOnly: () => last.rowsOnly,
+    };
+    painter.bind(paint as ElementPaint);
+
+    return {
+        painter,
+        announce(rows, rowsOnly) {
+            last = { rows, rowsOnly };
+            painter.markPainted();
+        },
+    };
+}
+
+describe("StylePainter rows-only passes", () => {
+    it("says so once, for what a rows-only pass painted", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isTrue(painter.takeEdgesRowsOnly());
+        assert.isFalse(painter.takeNodesRowsOnly(), "asked again");
+        assert.isFalse(painter.takeEdgesRowsOnly(), "asked again");
+    });
+
+    it("says no for a pass that is not rows-only, and with nothing painted", () => {
+        const { painter, announce } = announcing();
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, false);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no when a plain pass is pending beside a rows-only one, in either order", () => {
+        const after = announcing();
+        after.announce({ node: [0], edge: [1] }, true);
+        after.announce({ node: [2], edge: [3] }, false);
+        assert.isFalse(after.painter.takeNodesRowsOnly());
+        assert.isFalse(after.painter.takeEdgesRowsOnly());
+
+        const before = announcing();
+        before.announce({ node: [2], edge: [3] }, false);
+        before.announce({ node: [0], edge: [1] }, true);
+        assert.isFalse(before.painter.takeNodesRowsOnly());
+        assert.isFalse(before.painter.takeEdgesRowsOnly());
+    });
+
+    it("leaves one kind alone when a plain pass paints only the other", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        announce({ edge: [3] }, false);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no for a row queued after a rows-only pass, of that kind only", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("edge", 5);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("node", 5);
+        assert.isFalse(painter.takeNodesRowsOnly());
+    });
+
+    it("says no once every element is put back", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.invalidate(4, 2);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("forgets a rows-only pass when it is bound again", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.bind(null);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
     });
 });
 

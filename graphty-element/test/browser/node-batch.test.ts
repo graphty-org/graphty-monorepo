@@ -386,8 +386,13 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await loaded(element, "3d");
         const { graph } = element;
         await frameOn(graph, "batched");
+        const removed = graph.getNode(5);
+        assert.isDefined(removed);
         await element.session.data.removeNodes([5, 11]);
         await operationQueueOf(graph).waitForCompletion();
+        const meshes = graph.getScene().meshes.length;
+        assert.isTrue(removed.mesh.isDisposed(), "a removed row's mesh reads as disposed");
+        assert.equal(graph.getScene().meshes.length, meshes, "reading it put no mesh in the scene");
         const batched = await readFrame(graph);
 
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 2);

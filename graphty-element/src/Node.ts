@@ -478,7 +478,17 @@ export class Node implements ModelUser {
             this.drawInBatch(null);
         }
 
-        return this.#mesh ?? this.build(this.#fit.meshKey, this.#fit.style);
+        if (this.#mesh !== null) {
+            return this.#mesh;
+        }
+
+        const mesh = this.build(this.#fit.meshKey, this.#fit.style);
+        // A row removed while batched had no mesh to dispose: it answers with a disposed one, as an object row does.
+        if (this.disposed) {
+            mesh.dispose();
+        }
+
+        return mesh;
     }
 
     /**
@@ -3391,15 +3401,12 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The source mesh this node's own mesh is an instance of, or the mesh itself.
+     * The source mesh this node is drawn from, whether its own mesh or a batch draws it.
      * @returns The mesh whose geometry the node is drawn with.
      */
     private nodeSourceMesh(): Mesh | null {
-        if (this.#mesh instanceof InstancedMesh) {
-            return this.#mesh.sourceMesh;
-        }
-
-        return this.#mesh instanceof Mesh ? this.#mesh : null;
+        // #source, not #mesh: a row a batch draws has no mesh, and its halo still takes its shape
+        return this.#source instanceof Mesh ? this.#source : null;
     }
 
     /**
@@ -3769,6 +3776,20 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The mesh a label hangs from. A row a batch draws has none, and a label makes it an object row, so the batch is
+     * told first: a paint that keeps its mesh labels the node before it re-sorts it, which left the label hanging from
+     * nothing, at its own position.
+     * @returns The mesh, or undefined when the node is still drawn in a batch.
+     */
+    private labelTarget(): AbstractMesh | undefined {
+        if (this.#mesh === null && !this.disposed) {
+            this.context.getNodeBatches?.()?.sync(this);
+        }
+
+        return this.#mesh ?? undefined;
+    }
+
+    /**
      * The words this node's tooltip draws, or undefined when no layer gave it one.
      * @returns The tooltip text.
      */
@@ -3875,7 +3896,7 @@ export class Node implements ModelUser {
             ...labelStyle,
             // Override with computed values
             text: labelText,
-            attachTo: this.#mesh ?? undefined,
+            attachTo: this.labelTarget(),
             attachPosition,
             attachOffset,
             ...(this.shapeType === "polygon" && { centerAtOrigin: true }),

@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
+import { selectionWorkspaceOn } from "../features";
 import { Workspace } from "../Workspace";
 import { AUTH_LOG_CSV, GRAPH_FILE_GML, HOSTS_CSV, PLAIN_JSON } from "./fixtures";
 
@@ -206,6 +207,31 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
+ * With the selection workspace on, a new card opens in a modal over the whole app, whose scrim
+ * takes every click until it closes: Done closes it, as a reader would, before the next "Add filter".
+ * Off, the card opens in the Data place and there is nothing to close.
+ * @param element - the element.
+ */
+async function done(element: GraphtyElement): Promise<void> {
+    if (!selectionWorkspaceOn(element.session)) {
+        return;
+    }
+    const modal = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        if (found === null) {
+            throw new Error("waiting for the selection workspace");
+        }
+        return found;
+    });
+    await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+        if (document.querySelector(".sel-ws") !== null) {
+            throw new Error("waiting for the selection workspace to close");
+        }
+    });
+}
+
+/**
  * Filter cards, each added by clicks: a card on group, a card on the largest component, a
  * Neighbors card on the selected node, and an old filter step, each read as what stays (All, then
  * Keep or Except; design/ui/selection-groups/spec.md section 3.3).
@@ -219,15 +245,16 @@ export const FilterCards: Story = {
 
         // Group 2 or more, typed in its From box and committed.
         await addFilter(canvasElement, "group");
-        // The new card opens in the selection workspace, beside the Data place.
         const from = await within(document.body).findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
+        await done(element);
 
         // The largest component.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
+        await done(element);
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -236,6 +263,7 @@ export const FilterCards: Story = {
         }
         await addFilter(canvasElement, "Neighbors of selection");
         await holds(element, 3);
+        await done(element);
 
         // An old filter step, as a saved project opens it: All, then Except.
         await session.visibility.addCondition({

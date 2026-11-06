@@ -819,6 +819,19 @@ describe("a streaming load", () => {
         assert.strictEqual(timeIndexCounters.parsed - before, 2);
     });
 
+    it("reads the zone without starting a build", async () => {
+        const session = await nodesSession(10);
+        await session.time.setField(SECONDS);
+        const { load, open } = await heldLoad(session);
+        const { parsed: before } = timeIndexCounters;
+
+        assert.strictEqual(session.time.timeZone, "UTC");
+        assert.strictEqual(timeIndexCounters.parsed, before);
+
+        open();
+        await load;
+    });
+
     it("a setField during it waits, and reads the column once", async () => {
         const session = await nodesSession(10);
         const { load, open } = await heldLoad(session);

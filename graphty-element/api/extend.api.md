@@ -126,6 +126,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -614,8 +615,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -1871,6 +1876,8 @@ export { ImportError }
 export interface ImporterSourceOptions<Opts> {
     readonly importOptions?: Partial<Opts & CommonImportOptions>;
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImporterReport) => string | null;
+    // @beta
+    readonly time?: (snapshot: GraphSnapshot, report: ImporterReport) => TimeField | null;
 }
 
 export { ImportInput }
@@ -2114,6 +2121,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -2121,8 +2130,8 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
     drawInBatch(source: AbstractMesh | null): void;
     // @internal
@@ -2141,6 +2150,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
     // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
@@ -2202,8 +2213,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;
@@ -3104,6 +3115,26 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @beta
+export interface TimeField {
+    // (undocumented)
+    readonly edges?: TimeSource;
+    // (undocumented)
+    readonly nodes?: TimeSource;
+}
+
+// @beta
+export interface TimeSource {
+    readonly end?: Path;
+    readonly parseZone?: string;
+    readonly spells?: Path;
+    readonly start: Path;
+    readonly unit?: TimeUnit;
+}
+
+// @beta
+export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 // @public
 export interface TransitionDescriptor {

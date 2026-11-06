@@ -3,6 +3,33 @@ import type { Scene } from "@babylonjs/core";
 /** Work one element does before every frame of its scene. */
 export type FrameCallback = () => void;
 
+/** The switch a scene's batches read; see {@link FrameRoster.rangedUploads}. */
+export interface RangedUploads {
+    on: boolean;
+}
+
+/**
+ * A scene's fade by age, which its joined line batches read; see {@link FrameRoster.edgeAges}.
+ * Times are normalized over the data's extent.
+ */
+export interface EdgeAgeState {
+    /**
+     * Whether the timeline is on, so batches record which edge each slot draws. Off by default,
+     * and a batch then takes and hands back slots exactly as it does without the timeline.
+     */
+    track: boolean;
+    /** Whether lines fade by age. Off until the timeline's `ageFade` setting asks for it. */
+    on: boolean;
+    /** Each edge row's start, or null while off. A new array means every slot's age is rewritten. */
+    ages: Float32Array | null;
+    /** The window's start, its end and the opacity at its start, which the uniform carries. */
+    readonly window: [from: number, to: number, fade: number];
+    /** Called when a batch's lines have switched program, so the next frame re-reads what it draws. */
+    switched: () => void;
+    /** How many batches are compiling the look they switch to; the old look draws meanwhile. */
+    warming: number;
+}
+
 /**
  * The per-frame callbacks of one kind of element (a label's depth fade, a label's animation, an
  * edge's moving texture), behind ONE `onBeforeRenderObservable` observer per scene.
@@ -19,6 +46,50 @@ export class FrameRoster {
     private readonly rosters = new WeakMap<Scene, Set<FrameCallback>>();
     /** Scenes whose GL context has just come back, until their next frame has run its callbacks. */
     private readonly restored = new WeakSet<Scene>();
+    /** Each scene's switch; see {@link FrameRoster.rangedUploads}. */
+    private readonly ranged = new WeakMap<Scene, RangedUploads>();
+    /** Each scene's fade by age; see {@link FrameRoster.edgeAges}. */
+    private readonly aged = new WeakMap<Scene, EdgeAgeState>();
+
+    /**
+     * A scene's fade by age: off by default, so a line is built and drawn as it always was. A
+     * batch holds this object and reads it once a frame.
+     * @param scene - The scene.
+     * @returns Its state.
+     */
+    edgeAges(scene: Scene): EdgeAgeState {
+        let state = this.aged.get(scene);
+        if (!state) {
+            state = {
+                track: false,
+                on: false,
+                ages: null,
+                window: [0, 1, 1],
+                switched: (): void => undefined,
+                warming: 0,
+            };
+            this.aged.set(scene, state);
+        }
+
+        return state;
+    }
+
+    /**
+     * Whether a scene's batches upload only the slots written rather than whole buffers. Off by
+     * default. A batch holds this object and reads `on` at every write, so it stays one property
+     * read on the path every edge of a settling layout takes.
+     * @param scene - The scene.
+     * @returns Its switch.
+     */
+    rangedUploads(scene: Scene): RangedUploads {
+        let uploads = this.ranged.get(scene);
+        if (!uploads) {
+            uploads = { on: false };
+            this.ranged.set(scene, uploads);
+        }
+
+        return uploads;
+    }
 
     /**
      * Say that a scene's GL context was lost and given back, so this frame's callbacks must redo

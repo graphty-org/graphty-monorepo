@@ -728,8 +728,8 @@ interface TablePlanContext {
 }
 
 /**
- * Whether a column is not written as a key of its own (a yfiles graphics column, a parents
- * column, a structural, dropped or slot role column), noting what it loses.
+ * Whether a column is not written as a key of its own (a yfiles graphics column, a ports column, a
+ * parents column, a structural, dropped or slot role column), noting what it loses.
  * @param column - the column
  * @param ctx - the table context
  * @returns true when the column is skipped
@@ -748,6 +748,15 @@ function skipColumn(column: Column, ctx: TablePlanContext): boolean {
                 stale,
             );
         }
+        return true;
+    }
+    if (meta.dtype === "json" && meta.origin?.namespace === "yfiles" && meta.origin.type === "port") {
+        note(
+            GRAPHML_LOSS.PORTS_DROPPED,
+            `${domain} column "${name}" (the yFiles data of ports) is not written back as <port> elements`,
+            name,
+            column.length - column.nullCount,
+        );
         return true;
     }
     if (role === "parents") {

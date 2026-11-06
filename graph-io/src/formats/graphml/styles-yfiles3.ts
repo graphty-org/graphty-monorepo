@@ -10,7 +10,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber } from "../../styles/canon/number.js";
+import { canonNumber, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -41,7 +41,7 @@ import {
     type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
-import { bpmnPicture, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
+import { bpmnPicture, type PortEvent, type UmlClass, umlDrawing } from "./styles-yed-live-drawing.js";
 
 /** How deep a chain of shared references is followed. */
 const MAX_REFERENCE_DEPTH = 16;
@@ -254,14 +254,14 @@ function prop(st: StyleObject, name: string): unknown {
 
 /**
  * A paint: a color constant or `#AARRGGBB` in the yFiles 3 dialect, a CSS color, the first stop of a gradient
- * (with a note), or `{x:Null}`.
+ * (handed to `gradient`), or `{x:Null}`.
  * @param refs - the references
  * @param v - the property value
- * @param gradient - called when the paint is a gradient
+ * @param gradient - called with the gradient when the paint is one
  * @param depth - the walk's depth
  * @returns the paint
  */
-function paintOf(refs: References, v: unknown, gradient: (() => void) | null, depth = 0): Paint {
+function paintOf(refs: References, v: unknown, gradient: ((g: StyleObject) => void) | null, depth = 0): Paint {
     if (refs.tooDeep(depth)) {
         return null;
     }
@@ -284,16 +284,79 @@ function paintOf(refs: References, v: unknown, gradient: (() => void) | null, de
         return css === undefined ? null : { raw: css, dialect: "css" };
     }
     if (tag.endsWith("Gradient")) {
-        gradient?.();
-        const stop =
-            treeChildren(x.e, "GradientStop")[0] ??
-            treeChildren(treeChild(x.e, `${tag}.GradientStops`), "GradientStop")[0];
+        gradient?.(x);
+        const stop = gradientStops(x)[0];
         return stop === undefined ? null : paintOf(refs, treeAttr(stop, "color"), null, depth + 1);
     }
     if (tag === "Stroke") {
         return paintOf(refs, prop(x, "fill"), gradient, depth + 1);
     }
     return null;
+}
+
+/**
+ * A gradient's GradientStop elements, as written.
+ * @param g - the gradient
+ * @returns its stops
+ */
+function gradientStops(g: StyleObject): unknown[] {
+    const own = treeChildren(g.e, "GradientStop");
+    return own.length > 0 ? own : treeChildren(treeChild(g.e, `${g.tag}.GradientStops`), "GradientStop");
+}
+
+/**
+ * A point of a LinearGradient: `x,y` fractions of the node's box.
+ * @param g - the gradient
+ * @param name - `startPoint` or `endPoint`
+ * @param fallback - its default
+ * @returns the point
+ */
+function gradientPoint(g: StyleObject, name: string, fallback: readonly [number, number]): readonly [number, number] {
+    const [x, y] = (treeAttr(g.e, name) ?? "").split(",").map(Number);
+    return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : fallback;
+}
+
+/**
+ * Reads a node's gradient fill. A yFiles 3 LinearGradient's startPoint and endPoint are fractions of the node's box
+ * (yEd Live draws it as an SVG gradient in objectBoundingBox units), so one whose ramp spans the box -- from side to
+ * side, or from corner to corner -- is `fillGradientAngle` at the angle from start to end in those fractions, with
+ * its stops as written. Any other gradient is noted, and the node is filled in its first stop.
+ * ponytail: a ramp that starts or ends inside the box (a REFLECT or REPEAT one's mirrored bands) and a RadialGradient
+ * are noted, not drawn, and a stop's alpha is dropped; reading those needs the ramp unrolled across the box.
+ * @param refs - the references
+ * @param g - the gradient
+ * @param owner - the style's tag, for the note
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function putGradient(refs: References, g: StyleObject, owner: string, put: PutValue, at: SiteOf): void {
+    const [sx, sy] = gradientPoint(g, "startPoint", [0, 0]);
+    const [ex, ey] = gradientPoint(g, "endPoint", [1, 0]);
+    const [dx, dy] = [ex - sx, ey - sy];
+    const len2 = dx * dx + dy * dy;
+    // where the box's corners sit along the ramp: its farthest ones at 0 and 1 when the ramp spans the box
+    const along = [0, 1].flatMap((x) => [0, 1].map((y) => ((x - sx) * dx + (y - sy) * dy) / len2));
+    const spans = len2 > 0 && Math.abs(Math.min(...along)) < 1e-6 && Math.abs(Math.max(...along) - 1) < 1e-6;
+    const stops = gradientStops(g)
+        .map((st) => {
+            const paint = paintOf(refs, treeAttr(st, "color"), null);
+            const c =
+                paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("fillGradient"));
+            return { offset: Number(treeAttr(st, "offset") ?? 0), color: c?.color ?? null };
+        })
+        .sort((a, b) => a.offset - b.offset);
+    const colors = stops.flatMap((st) => (typeof st.color === "string" ? [st.color] : []));
+    if (g.tag !== "LinearGradient" || !spans || colors.length < 2 || colors.length !== stops.length) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
+        return;
+    }
+    put("fillGradient", colors.at(-1) ?? null);
+    put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));
+    const offsets = stops.map((st) => num6(st.offset));
+    if (colors.length > 2 || offsets[0] !== 0 || offsets[1] !== 1) {
+        put("fillGradientColors", colors.join(" "));
+        put("fillGradientStops", offsets.join(" "));
+    }
 }
 
 /** A stroke's color, width and line style. */
@@ -523,8 +586,8 @@ function readPanelStyle(color: string | null, put: PutValue): void {
  */
 function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): string | null => {
-        const gradient = (): void => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        const gradient = (g: StyleObject): void => {
+            putGradient(refs, g, style.tag, put, at);
         };
         const paint = paintOf(refs, v, gradient);
         putPaint(paint, "fill", "fillOpacity", put, at);
@@ -638,9 +701,17 @@ const BPMN_LINES: ReadonlyMap<string, { readonly width?: number; readonly line?:
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  * @returns true when the style is one of these
  */
-function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, put: PutValue, at: SiteOf): boolean {
+function readBpmnStyle(
+    refs: References,
+    style: StyleObject,
+    size: Size | null,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): boolean {
     const look = BPMN_STYLES.get(style.tag);
     const background = prop(style, "background");
     const outline = prop(style, "outline");
@@ -672,28 +743,106 @@ function readBpmnStyle(refs: References, style: StyleObject, size: Size | null, 
         put("cornerRadius", look.cornerRadius);
     }
     if (size !== null) {
-        putBpmnPicture(refs, style, size, put, at);
+        putBpmnPicture(refs, style, size, put, at, ports);
     }
     return true;
 }
 
 /**
- * Writes the picture of a BPMN node's symbols, in its `iconColor` (black unset), where it has any.
+ * A style's attributes and colors, as a node picture reads them: a color as `#rrggbb`, undefined where it has none.
+ * @param refs - the references
+ * @param style - the style
+ * @param at - the sites
+ * @returns the readers
+ */
+function styleReader(refs: References, style: StyleObject, at: SiteOf): Pick<PortEvent, "attr" | "color"> {
+    return {
+        attr: (name) => treeAttr(style.e, name),
+        color: (name) => {
+            const paint = paintOf(refs, prop(style, name), null);
+            return paint === null || paint === NULL
+                ? undefined
+                : canonColor(paint.raw, paint.dialect, at("image"))?.color;
+        },
+    };
+}
+
+/** The attributes yEd Live 8.5.16 reads on an EventPortStyle: it draws no port whose style has another. */
+const PORT_EVENT_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "type",
+    "characteristic",
+    "background",
+    "outline",
+    "iconColor",
+    "renderSize",
+]);
+
+/**
+ * The BPMN events on a node's ports: each port drawn with an EventPortStyle and placed by a
+ * FreeNodePortLocationModelParameter (its `Ratio` of the node's box, then its `Offset`). yEd Live draws nothing for a
+ * port whose style has an attribute it does not read (`checked` on `yed-live-graphml-specimen-node-shapes-p6`).
+ * ponytail: the free model only, the one yEd Live writes; another location model's port is not drawn.
+ * @param refs - the references
+ * @param ports - the node's ports, as the ports column holds them
+ * @param size - the node's size
+ * @param at - the sites
+ * @returns the events
+ */
+function portEvents(refs: References, ports: unknown, size: Size, at: SiteOf): PortEvent[] {
+    return (Array.isArray(ports) ? ports : []).flatMap((entry: unknown): PortEvent[] => {
+        const style = isTree(entry) ? refs.first(entry.PortStyle) : null;
+        const where = isTree(entry)
+            ? treeChild(entry.PortLocationParameter, "FreeNodePortLocationModelParameter")
+            : null;
+        if (style?.tag !== "EventPortStyle" || !isTree(where) || !isTree(style.e)) {
+            return [];
+        }
+        const unread = Object.keys(style.e).some(
+            (k) => k.startsWith("@_") && !k.includes(":") && !PORT_EVENT_ATTRIBUTES.has(k.slice(2)),
+        );
+        const pair = (name: string, unset: string): number[] => (treeAttr(where, name) ?? unset).split(",").map(Number);
+        const [[rx, ry], [ox, oy]] = [pair("Ratio", "0.5,0.5"), pair("Offset", "0,0")];
+        const x = rx * size.width + ox;
+        const y = ry * size.height + oy;
+        return unread || !Number.isFinite(x) || !Number.isFinite(y) ? [] : [{ x, y, ...styleReader(refs, style, at) }];
+    });
+}
+
+/**
+ * Writes the picture of a BPMN node's symbols, its messages and the events on its ports, where it has any. A picture
+ * reaching past the node (a port's event, a message) is drawn at its own size, as far off the node's middle as it
+ * reaches further on one side than the other.
  * @param refs - the references
  * @param style - the style
  * @param size - the node's size
  * @param put - receives the values
  * @param at - the sites
+ * @param ports - the node's ports, as the ports column holds them
  */
-function putBpmnPicture(refs: References, style: StyleObject, size: Size, put: PutValue, at: SiteOf): void {
-    const paint = paintOf(refs, prop(style, "iconColor") ?? BLACK, null);
-    const color = paint === null || paint === NULL ? null : canonColor(paint.raw, paint.dialect, at("image"));
-    const picture = bpmnPicture(style.tag, (name) => treeAttr(style.e, name), size, color?.color ?? "#000000");
-    if (picture !== null) {
-        put("image", picture);
-        put("imageFit", "fill");
-        put("imageClip", "none");
+function putBpmnPicture(
+    refs: References,
+    style: StyleObject,
+    size: Size,
+    put: PutValue,
+    at: SiteOf,
+    ports: unknown,
+): void {
+    const drawing = bpmnPicture(style.tag, styleReader(refs, style, at), size, portEvents(refs, ports, size, at));
+    if (drawing === null) {
+        return;
     }
+    put("image", drawing.picture);
+    put("imageClip", "none");
+    const { left, top, right, bottom } = drawing.reach;
+    if (left + top + right + bottom === 0) {
+        put("imageFit", "fill");
+        return;
+    }
+    put("imageFit", "none");
+    put("imageWidth", drawing.width);
+    put("imageHeight", drawing.height);
+    put("imageOffsetX", (right - left) / 2);
+    put("imageOffsetY", (bottom - top) / 2);
 }
 
 /** How far under the top of a UMLNodeStyle yEd Live writes its class's name, past where `inside-top` puts it. */
@@ -875,6 +1024,7 @@ function putStyleOutline(style: StyleObject, size: Size | null, put: PutValue, a
  * @param at - the sites
  * @param size - the node's size, for a PILL's half-circle ends
  * @param collapsed - whether a group is collapsed
+ * @param ports - the node's ports, as the ports column holds them
  */
 function readNodeStyle(
     refs: References,
@@ -883,6 +1033,7 @@ function readNodeStyle(
     at: SiteOf,
     size: Size | null,
     collapsed: boolean,
+    ports: unknown,
 ): void {
     const st = unwrapped(refs, refs.first(data));
     if (st === null || typeof st !== "object") {
@@ -892,7 +1043,7 @@ function readNodeStyle(
         return;
     }
     const style = st;
-    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at)) {
+    if (readStyle26(refs, style, put, at) || readBpmnStyle(refs, style, size, put, at, ports)) {
         return;
     }
     if (style.tag === "UMLNodeStyle") {
@@ -903,8 +1054,8 @@ function readNodeStyle(
         return;
     }
     putPaint(
-        paintOf(refs, prop(style, "fill"), () => {
-            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        paintOf(refs, prop(style, "fill"), (g) => {
+            putGradient(refs, g, style.tag, put, at);
         }),
         "fill",
         "fillOpacity",
@@ -914,6 +1065,7 @@ function readNodeStyle(
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     putStyleOutline(style, size, put, at);
     const shape = style.tag === "ShapeNodeStyle" ? shapeKey(treeAttr(style.e, "shape")) : null;
+    putIntrinsicSize(refs, style, shape, size, put);
     if (shape === "round-rectangle") {
         put("cornerRadius", ROUND_RECTANGLE_CORNER);
     } else if (shape === "pill" && size !== null) {
@@ -921,6 +1073,42 @@ function readNodeStyle(
     }
     if (style.tag === "GroupNodeStyle" && size !== null) {
         readGroupPanel(refs, style, size, collapsed, put, at);
+    }
+}
+
+/**
+ * The width over the height of the ShapeNodeStyle shapes that have proportions of their own, which yEd Live keeps
+ * under `keepIntrinsicAspectRatio`: a regular five-pointed star, measured from yEd Live 8.5.16's drawing of
+ * `yed-live-graphml-specimen-node-shapes` (31.54 by 30); yFiles for HTML 2.6 files draw it to the box. ponytail: the star only, the one shape a sheet measures.
+ */
+const INTRINSIC_ASPECTS: ReadonlyMap<string, number> = new Map([
+    ["star5", (2 * Math.sin((2 * Math.PI) / 5)) / (1 + Math.cos(Math.PI / 5))],
+]);
+
+/**
+ * Sizes a ShapeNodeStyle whose shape has proportions of its own and keeps them (`keepIntrinsicAspectRatio`): as large
+ * as fits its box, about its center. A yFiles for HTML 2.6 file's is drawn to the whole box
+ * (yed-live-graphml-specimen-node-shapes-p2).
+ * @param refs - the references
+ * @param style - the style
+ * @param shape - its shape's lookup key
+ * @param size - the node's size
+ * @param put - receives the values
+ */
+function putIntrinsicSize(
+    refs: References,
+    style: StyleObject,
+    shape: string | null,
+    size: Size | null,
+    put: PutValue,
+): void {
+    const aspect = INTRINSIC_ASPECTS.get(shape ?? "");
+    if (aspect === undefined || size === null || refs.yfiles26) {
+        return;
+    }
+    if (treeAttr(style.e, "keepIntrinsicAspectRatio") === "true") {
+        put("width", Math.min(size.width, size.height * aspect));
+        put("height", Math.min(size.height, size.width / aspect));
     }
 }
 
@@ -1981,6 +2169,10 @@ function readYfiles3Target(
     const cell = (name: string | undefined, i: number): unknown =>
         name === undefined ? undefined : plainCell(table.value(name, i));
     const expanded = isNode ? [...table].find((col) => col.meta.name === "Expanded")?.meta.name : undefined;
+    const ports = isNode
+        ? [...table].find((col) => col.meta.origin?.namespace === "yfiles" && col.meta.origin.type === "port")?.meta
+              .name
+        : undefined;
     for (let i = 0; i < n; i++) {
         budget.spend(target, 1);
         const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
@@ -1996,7 +2188,7 @@ function readYfiles3Target(
             size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
         }
         if (style !== undefined && isNode) {
-            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false);
+            readNodeStyle(refs, cell(style, i), put, at, size, cell(expanded, i) === false, cell(ports, i));
         } else if (style !== undefined) {
             readEdgeStyle(refs, cell(style, i), put, at);
         }

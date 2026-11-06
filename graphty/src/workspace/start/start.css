@@ -218,6 +218,73 @@ html.ws-land-page #root {
     inset: 0 0 var(--ws-land-strip-h) 0;
 }
 
+/* Over the graph's box until the element has drawn the nodes: the page's own canvas color and a
+   quiet indicator where the graph will be, right of the words. */
+.ws-land-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding-left: calc(clamp(24px, 4vw, 72px) + min(540px, 42%));
+    background: var(--ws-land-canvas);
+    color: var(--ws-land-faint);
+    font-size: 14px;
+    transition:
+        opacity 0.4s ease,
+        visibility 0s linear 0.4s;
+}
+
+.ws-land-loading[data-done] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.ws-land-loading-dots {
+    display: flex;
+    gap: 8px;
+}
+
+.ws-land-loading-dots > span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ws-land-line-strong);
+    animation: ws-land-loading-pulse 1.4s ease-in-out infinite;
+}
+
+.ws-land-loading-dots > span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.ws-land-loading-dots > span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes ws-land-loading-pulse {
+    0%,
+    80%,
+    100% {
+        background: var(--ws-land-line-strong);
+    }
+    40% {
+        background: var(--ws-land-ring);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ws-land-loading {
+        transition: none;
+    }
+
+    .ws-land-loading-dots > span {
+        animation: none;
+    }
+}
+
 /* The canvas fades out under the words. */
 .ws-land-hero::before {
     content: "";
@@ -1160,6 +1227,10 @@ html.ws-land-page #root {
 }
 
 @media (max-width: 820px) {
+    .ws-land-loading {
+        padding-left: 0;
+    }
+
     /* The words above the graph, and the graph taking the room left in the first view, so the bar
        of facts still ends it (an iPad held upright). */
     .ws-land-hero {

@@ -885,6 +885,8 @@ export class DataManager implements Manager {
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
     get nodes(): ReadonlyMap<string | number, Node_2>;
+    // @internal
+    get nodesByIndex(): readonly (Node_2 | undefined)[];
     nodeVersion: number;
     // @internal
     notePaintDrawn(): void;
@@ -927,8 +929,12 @@ export abstract class DataSource {
     get declaredFileLayout(): FileLayout | null;
     get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    // @beta
+    get declaredTime(): TimeField | null;
     protected declareFileLayout(layout: FileLayout | null): void;
     protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
+    // @beta
+    protected declareTime(field: TimeField): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -1338,6 +1344,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1612,6 +1619,7 @@ export const EdgeStyle: z.ZodObject<{
                 color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
                 spacing: z.ZodNumber;
             }, z.core.$strict>>>;
+            table: z.ZodOptional<z.ZodString>;
             marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2035,6 +2043,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2256,6 +2265,7 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -2782,7 +2792,11 @@ export class Graph implements GraphContext {
     getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
+    // @internal
+    getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    // @internal
+    getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
     // @internal
@@ -2818,6 +2832,8 @@ export class Graph implements GraphContext {
     isARSupported(): Promise<boolean>;
     isCameraPlaced(): boolean;
     get isFrameStable(): boolean;
+    // @beta
+    get isGraphDrawn(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isRunning(): boolean;
     isVoiceActive(): boolean;
@@ -2876,6 +2892,7 @@ export class Graph implements GraphContext {
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
+    get renderPath(): RenderPath;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
@@ -2885,6 +2902,7 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -2943,6 +2961,7 @@ export class Graph implements GraphContext {
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
+    setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
@@ -3042,6 +3061,8 @@ export interface GraphContext {
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
     // @internal
+    getNodeBatches?(): NodeBatches | null;
+    // @internal
     getRowTable?(): RowTable | null;
     getScene(): Scene;
     getSelectionManager?(): SelectionManager | undefined;
@@ -3129,7 +3150,7 @@ export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
     // (undocumented)
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public (undocumented)
@@ -3245,6 +3266,9 @@ export class Graphty extends LitElement {
     get edgeSrcIdPath(): string | undefined;
     set edgeSrcIdPath(value: string | undefined);
     // @beta
+    get edgeTimeEndPath(): string | undefined;
+    set edgeTimeEndPath(value: string | undefined);
+    // @beta
     get edgeTimePath(): string | undefined;
     set edgeTimePath(value: string | undefined);
     // @beta
@@ -3313,6 +3337,8 @@ export class Graphty extends LitElement {
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     get isFrameStable(): boolean;
+    // @beta
+    get isGraphDrawn(): boolean;
     isNodeSelected(nodeId: string | number): boolean;
     isPinned(id: string | number): boolean;
     isRunning(): boolean;
@@ -3384,6 +3410,9 @@ export class Graphty extends LitElement {
     }): (string | number)[];
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     // @beta
+    get nodeTimeEndPath(): string | undefined;
+    set nodeTimeEndPath(value: string | undefined);
+    // @beta
     get nodeTimePath(): string | undefined;
     set nodeTimePath(value: string | undefined);
     // @beta
@@ -3411,6 +3440,8 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderPath(): RenderPath;
+    set renderPath(value: RenderPath);
     get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
@@ -3421,6 +3452,7 @@ export class Graphty extends LitElement {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -5010,6 +5042,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5017,8 +5051,8 @@ class Node_2 implements ModelUser {
     dispose(): void;
     // (undocumented)
     dragging: boolean;
-    // (undocumented)
-    dragHandler?: NodeDragHandler;
+    get dragHandler(): NodeDragHandler | undefined;
+    set dragHandler(handler: NodeDragHandler | undefined);
     // @internal
     drawInBatch(source: AbstractMesh | null): void;
     // @internal
@@ -5037,6 +5071,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
     // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
@@ -5098,8 +5134,8 @@ class Node_2 implements ModelUser {
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;
-    // (undocumented)
-    mesh: AbstractMesh;
+    get mesh(): AbstractMesh;
+    set mesh(value: AbstractMesh);
     // @internal
     modelDrawn(): {
         readonly template: ModelTemplate | null;
@@ -5312,28 +5348,6 @@ export const NodeShapes: z.ZodEnum<{
     star: "star";
     sphere: "sphere";
     ellipse: "ellipse";
-    rectangle: "rectangle";
-    triangle: "triangle";
-    pentagon: "pentagon";
-    hexagon: "hexagon";
-    octagon: "octagon";
-    parallelogram: "parallelogram";
-    trapezoid: "trapezoid";
-    house: "house";
-    man: "man";
-    woman: "woman";
-    "round-triangle": "round-triangle";
-    "round-diamond": "round-diamond";
-    "round-pentagon": "round-pentagon";
-    "round-hexagon": "round-hexagon";
-    "round-octagon": "round-octagon";
-    polygon: "polygon";
-    "round-polygon": "round-polygon";
-    "round-rectangle": "round-rectangle";
-    "top-round-rectangle": "top-round-rectangle";
-    "bottom-round-rectangle": "bottom-round-rectangle";
-    barrel: "barrel";
-    database: "database";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -5357,6 +5371,28 @@ export const NodeShapes: z.ZodEnum<{
     goldberg: "goldberg";
     icosphere: "icosphere";
     geodesic: "geodesic";
+    rectangle: "rectangle";
+    "round-rectangle": "round-rectangle";
+    "top-round-rectangle": "top-round-rectangle";
+    "bottom-round-rectangle": "bottom-round-rectangle";
+    triangle: "triangle";
+    pentagon: "pentagon";
+    hexagon: "hexagon";
+    octagon: "octagon";
+    parallelogram: "parallelogram";
+    trapezoid: "trapezoid";
+    polygon: "polygon";
+    house: "house";
+    man: "man";
+    woman: "woman";
+    "round-triangle": "round-triangle";
+    "round-diamond": "round-diamond";
+    "round-pentagon": "round-pentagon";
+    "round-hexagon": "round-hexagon";
+    "round-octagon": "round-octagon";
+    "round-polygon": "round-polygon";
+    barrel: "barrel";
+    database: "database";
 }>;
 
 // @public
@@ -5374,8 +5410,8 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            diameter: "diameter";
             uniform: "uniform";
+            diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             low: "low";
@@ -5390,28 +5426,6 @@ export const NodeStyle: z.ZodObject<{
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5435,6 +5449,28 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
@@ -5477,8 +5513,8 @@ export const NodeStyle: z.ZodObject<{
         modelTurn: z.ZodOptional<z.ZodNumber>;
         modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
         modelFit: z.ZodOptional<z.ZodEnum<{
-            stretch: "stretch";
             contain: "contain";
+            stretch: "stretch";
         }>>;
         modelCenter: z.ZodOptional<z.ZodEnum<{
             bounds: "bounds";
@@ -5592,28 +5628,6 @@ export const NodeStyle: z.ZodObject<{
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5637,6 +5651,28 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5653,28 +5689,6 @@ export const NodeStyle: z.ZodObject<{
             star: "star";
             sphere: "sphere";
             ellipse: "ellipse";
-            rectangle: "rectangle";
-            triangle: "triangle";
-            pentagon: "pentagon";
-            hexagon: "hexagon";
-            octagon: "octagon";
-            parallelogram: "parallelogram";
-            trapezoid: "trapezoid";
-            house: "house";
-            man: "man";
-            woman: "woman";
-            "round-triangle": "round-triangle";
-            "round-diamond": "round-diamond";
-            "round-pentagon": "round-pentagon";
-            "round-hexagon": "round-hexagon";
-            "round-octagon": "round-octagon";
-            polygon: "polygon";
-            "round-polygon": "round-polygon";
-            "round-rectangle": "round-rectangle";
-            "top-round-rectangle": "top-round-rectangle";
-            "bottom-round-rectangle": "bottom-round-rectangle";
-            barrel: "barrel";
-            database: "database";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5698,6 +5712,28 @@ export const NodeStyle: z.ZodObject<{
             goldberg: "goldberg";
             icosphere: "icosphere";
             geodesic: "geodesic";
+            rectangle: "rectangle";
+            "round-rectangle": "round-rectangle";
+            "top-round-rectangle": "top-round-rectangle";
+            "bottom-round-rectangle": "bottom-round-rectangle";
+            triangle: "triangle";
+            pentagon: "pentagon";
+            hexagon: "hexagon";
+            octagon: "octagon";
+            parallelogram: "parallelogram";
+            trapezoid: "trapezoid";
+            polygon: "polygon";
+            house: "house";
+            man: "man";
+            woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
@@ -5884,6 +5920,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6105,6 +6142,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6326,6 +6364,7 @@ export const NodeStyle: z.ZodObject<{
             color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
             spacing: z.ZodNumber;
         }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
         marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -6994,6 +7033,9 @@ export class RenderManager implements Manager {
 }
 
 // @public
+export type RenderPath = "objects" | "batched";
+
+// @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
     readonly heavy: "on" | "off";
@@ -7107,6 +7149,7 @@ export const RichTextStyle: z.ZodObject<{
         color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
         spacing: z.ZodNumber;
     }, z.core.$strict>>>;
+    table: z.ZodOptional<z.ZodString>;
     marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -7250,6 +7293,14 @@ export const RichTextStyle: z.ZodObject<{
 
 // @public (undocumented)
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
+
+// @public
+export interface RowCounts {
+    readonly batchedNodes: number;
+    readonly objectEdges: number;
+    readonly objectNodes: number;
+    readonly pulledEdges: number;
+}
 
 // @public (undocumented)
 export interface RunAlgorithmOptions extends QueueableOptions {
@@ -7879,12 +7930,14 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
+    get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

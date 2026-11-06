@@ -193,14 +193,25 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
-import { openRowScan, pickAsDrawn, pickCloseLabel, pickEdgeAt, pickNodeId, pickWorldPoint } from "./render/PickService";
+import { NodeIdTarget } from "./render/NodeIdTarget";
+import {
+    openRowScan,
+    pickAsDrawn,
+    pickCloseLabel,
+    pickEdgeAt,
+    pickNodeId,
+    pickWorldPoint,
+    useNodeIdTarget,
+} from "./render/PickService";
 import { RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -386,9 +397,13 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.nodeTimePath",
         "data.knownFields.nodeTimeUnit",
         "data.knownFields.nodeTimeParseZone",
+        "data.knownFields.nodeTimeEndPath",
+        "data.knownFields.nodeTimeSpellsPath",
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
         "data.knownFields.edgeTimeParseZone",
+        "data.knownFields.edgeTimeEndPath",
+        "data.knownFields.edgeTimeSpellsPath",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -781,6 +796,14 @@ export class Graph implements GraphContext {
     #resident: GraphSnapshot | null = null;
     /** The row tables, once something has opened them; see {@link Graph.openRowTable}. */
     #rowTable: RowTable | null = null;
+    /** How nodes are drawn; see {@link Graph.setRenderPath}. */
+    #renderPath: RenderPath = renderPathDefault.value;
+    /** The node batches, once the renderer is open on the `"batched"` path. */
+    #nodeBatches: NodeBatches | null = null;
+    /** What hover reads on the `"batched"` path. */
+    #nodeIds: NodeIdTarget | null = null;
+    /** The scene is the one that stays, so batches may be built on it. */
+    #renderPathOpen = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -1340,6 +1363,7 @@ export class Graph implements GraphContext {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, this.dataManager.nodes.values());
+                this.#nodeBatches?.rowsMoved();
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -1532,6 +1556,9 @@ export class Graph implements GraphContext {
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
+            timeline: () => this.session.features.enabled.includes("timeline"),
+            timeWindow: () => this.session.time.current !== null,
+            ageFade: () => this.session.edgeAges(),
         };
         this.updateManager.bindViewMasks(viewMasks);
 
@@ -2360,6 +2387,9 @@ export class Graph implements GraphContext {
             if (this.#teardown.signal.aborted) {
                 return;
             }
+
+            this.#renderPathOpen = true;
+            this.#applyRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -4548,8 +4578,110 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Start keeping the row tables, or get them if they are kept already. Nothing draws from them
-     * yet, so nothing opens them but tests and the benchmark harness.
+     * The node batches, on the `"batched"` path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches(): NodeBatches | null {
+        return this.#nodeBatches;
+    }
+
+    /**
+     * The node ID target hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getNodeIdTarget(): NodeIdTarget | null {
+        return this.#nodeIds;
+    }
+
+    /**
+     * How nodes are drawn.
+     * @returns The path asked for.
+     */
+    get renderPath(): RenderPath {
+        return this.#renderPath;
+    }
+
+    /**
+     * Choose how nodes are drawn, at any time: `"objects"`, a mesh each, or `"batched"`, eligible
+     * rows in one draw per look. Under NullEngine every row stays an object row.
+     * @param path - The path.
+     */
+    setRenderPath(path: RenderPath): void {
+        if (path !== "objects" && path !== "batched") {
+            throw new Error(`unknown render path "${String(path)}"`);
+        }
+
+        this.#renderPath = path;
+        if (this.#renderPathOpen) {
+            this.#applyRenderPath();
+        }
+    }
+
+    /**
+     * How many rows each path is drawing, so a row that quietly left the fast path can be seen.
+     * @returns The counts as of the last frame.
+     */
+    get rowCounts(): RowCounts {
+        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        return {
+            batchedNodes,
+            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            pulledEdges: 0,
+            objectEdges: this.dataManager.edges.size,
+        };
+    }
+
+    /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
+    #applyRenderPath(): void {
+        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        if (batched && this.#nodeBatches === null) {
+            const places = this.openRowTable();
+            this.#nodeBatches = new NodeBatches(
+                {
+                    cache: this.dataManager.meshCache,
+                    places,
+                    root: () => this.scene.getTransformNodeByName("graph-root"),
+                    view: () => ({
+                        scaled: this.updateManager.nodesScaledByView,
+                        flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
+                    }),
+                    nodes: () => this.dataManager.nodes.values(),
+                    meshesChanged: () => {
+                        this.updateManager.thawActiveMeshes();
+                        this.updateManager.meshesShownOrHidden();
+                    },
+                },
+                this.scene,
+            );
+            const batches = this.#nodeBatches;
+            const target = new NodeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            this.#nodeIds = target;
+            useNodeIdTarget(this.scene, {
+                target,
+                nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
+                hiddenRows: () => batches.hiddenRows(),
+            });
+        } else if (!batched && this.#nodeBatches !== null) {
+            useNodeIdTarget(this.scene, null);
+            this.#nodeIds?.dispose();
+            this.#nodeIds = null;
+            this.#nodeBatches.dispose();
+            this.#nodeBatches = null;
+        }
+
+        this.renderManager.requestFrame();
+    }
+
+    /**
+     * Start keeping the row tables, or get them if they are kept already. The `"batched"` path
+     * draws from them; otherwise only tests and the benchmark harness open them.
      * @returns The tables.
      * @internal
      */
@@ -4775,8 +4907,12 @@ export class Graph implements GraphContext {
         // The nodes' shared observer goes in right after this one, where the first node's own
         // observers used to be, so a node's handlers still hear an event after the background does.
         // Their shared action manager is made here too, so it belongs to the scene from the start.
+        // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
+        // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         nodePointerRosterOf(this.scene);
-        nodeActionManagerOf(this.scene);
+        if (this.#renderPath !== "batched") {
+            nodeActionManagerOf(this.scene);
+        }
 
         // The pointer says a line can be clicked, as Babylon already says it over a node (each
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
@@ -5179,6 +5315,12 @@ export class Graph implements GraphContext {
         if (mapped) {
             for (const node of this.dataManager.nodes.values()) {
                 this.#nodeMeshes.add(node.drawnSourceMesh);
+            }
+        }
+
+        if (mapped) {
+            for (const batch of this.dataManager.meshCache.nodeBatchMap.values()) {
+                this.#nodeMeshes.add(batch.mesh);
             }
         }
 
@@ -6124,6 +6266,19 @@ export class Graph implements GraphContext {
      */
     get isFrameStable(): boolean {
         return this.updateManager.frameIsStable;
+    }
+
+    /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true. A page uses it to take a loading placeholder away.
+     * @returns True once the nodes are on screen.
+     * @beta
+     */
+    get isGraphDrawn(): boolean {
+        return this.updateManager.graphIsDrawn;
     }
 
     /**

@@ -34,7 +34,7 @@ export async function designateDeclaredTime(field: TimeField | null | undefined,
     }
 
     const known = ctx.services.config?.().data.knownFields;
-    if (known === undefined || known.nodeTimePath !== null || known.edgeTimePath !== null) {
+    if (known?.nodeTimePath !== null || known.edgeTimePath !== null) {
         return;
     }
 

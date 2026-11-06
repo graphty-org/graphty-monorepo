@@ -13,6 +13,14 @@
 //   - each exported file in downloads/: its node and edge rows against the network when it was
 //     written (downloads.jsonl), which must match the whole network, what was drawn or one source.
 //     A file whose rows cannot be counted (an image, a project file) is listed, not checked.
+//   - each style layer (styles.json, tier 5): the count the layer says it selects (its counts,
+//     less the members with no value) against the members graphty-element paints, counted element by
+//     element through explain at --end (layerMembers in measure.mjs), and each channel's topmost
+//     count against the elements it is topmost on; a layer that was in the start's stack unchanged
+//     and no longer paints what it selects is styling lost after the session. A branches view (the
+//     selection editor's preview, which suspends every layer) still drawn when no workspace is
+//     open is a preview that never ended. With the workspace still open at --end the stack is
+//     drawn under the preview, so the layers are listed, not counted.
 // A mismatch is a severity 4 candidate the script itself confirms. A session with no data.json,
 // or a run that reads zero items, fails: a check over nothing does not hold.
 //
@@ -24,6 +32,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "no
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const num = (t) => (t === undefined || t === null ? null : Number(String(t).split(" of ")[0].replaceAll(",", "")));
 const HALF = {
@@ -176,6 +185,52 @@ function exportProblems(dir, end) {
     return { out, notes, items };
 }
 
+// each style layer's count against what graphty-element paints (styles.json, from real.mjs --end)
+export function layerProblems(styles) {
+    const out = [];
+    const notes = [];
+    const end = styles?.end;
+    const painted = end?.painted;
+    if (!end?.layers || !painted || painted.error)
+        return { out, notes: styles ? ["styles.json holds no painted members: layers not checked"] : [], items: 0 };
+    if (painted.showingBranches && !painted.workspaceOpen)
+        out.push("a selection preview is still drawn with no workspace open: every layer is suspended (styling lost)");
+    if (painted.showingBranches && painted.workspaceOpen) {
+        notes.push("the session ended with the selection workspace open: its preview suspends the layers, not counted");
+        return { out, notes, items: 1 };
+    }
+    if (painted.unreadable) out.push(`explain could not read ${painted.unreadable} elements`);
+    const unchanged = new Set(
+        (styles.start?.layers ?? [])
+            .map((l) => l.id)
+            .filter(
+                (id) => !(styles.changes?.changed ?? []).includes(id) && !(styles.changes?.gone ?? []).includes(id),
+            ),
+    );
+    let items = 0;
+    for (const l of end.layers) {
+        const c = l.counts;
+        if (l.kind === "base" || !l.enabled || !c || l.selector?.match === "state") continue;
+        const channels = Object.keys(c.painted ?? {});
+        if (!channels.length) continue; // a layer that writes nothing paints nothing to count
+        items++;
+        const name = `layer "${l.name}" (${l.id}${unchanged.has(l.id) ? ", as at the start" : ""})`;
+        const got = painted.layers[l.id] ?? { members: 0, wins: {} };
+        const says = c.matched - (c.noValue ?? 0);
+        if (got.members !== says)
+            out.push(
+                `${name}: it says it selects ${says} ${l.target}s with a value, but the element paints ${got.members}` +
+                    (unchanged.has(l.id) && got.members < says ? " (styling lost after the session)" : ""),
+            );
+        for (const ch of channels)
+            if ((got.wins[ch] ?? 0) !== c.painted[ch])
+                out.push(
+                    `${name}: it says it is topmost on ${ch} for ${c.painted[ch]}, the drawing shows ${got.wins[ch] ?? 0}`,
+                );
+    }
+    return { out, notes, items };
+}
+
 // one session folder: its problems, its notes, and how many items were checked
 export function checkSession(dir) {
     const f = join(dir, "data.json");
@@ -197,13 +252,24 @@ export function checkSession(dir) {
     ];
     const ex = exportProblems(dir, data);
     problems.push(...ex.out);
+    const sf = join(dir, "styles.json");
+    let styles = null;
+    try {
+        styles = existsSync(sf) ? JSON.parse(readFileSync(sf, "utf8")) : null;
+    } catch (e) {
+        problems.push(`unreadable styles.json in ${dir}: ${e.message}`);
+    }
+    const ly = layerProblems(styles);
+    problems.push(...ly.out);
     return {
         problems,
         notes: [
             ...(quiet ? ["a time window or another filter is on: Hide cards checked by their upper bound only"] : []),
             ...ex.notes,
+            ...ly.notes,
         ],
-        items: data.filters.length + data.sources.length + ex.items,
+        items: data.filters.length + data.sources.length + ex.items + ly.items,
+        layers: ly.items,
     };
 }
 
@@ -270,10 +336,42 @@ async function selfTest() {
         join: null,
     };
     const good = { counts, sources: [src], columns: [], filters: [hide, sel], filter: null, window: null };
-    const session = async (name, data, files = {}, net = null) => {
+    // a style layer (tier 5): Layer 1 selects 4 nodes and paints them orange; PageRank colors 24, 4 under Layer 1
+    const layer = (id, name, matched, painted, extra = {}) => ({
+        id,
+        name,
+        kind: "custom",
+        enabled: true,
+        target: "node",
+        selector: { match: "rule" },
+        counts: { matched, noValue: 0, painted },
+        ...extra,
+    });
+    const stack = [
+        layer("pagerank_1", "PageRank", 24, { "node.color": 20 }),
+        layer("layer-1", "Layer 1", 4, { "node.color": 4 }),
+        layer("base", "Node defaults", 24, { "node.color": 0 }, { kind: "base" }),
+    ];
+    const paint = (over = {}) => ({
+        showingBranches: false,
+        workspaceOpen: false,
+        unreadable: 0,
+        layers: {
+            pagerank_1: { members: 24, wins: { "node.color": 20 } },
+            "layer-1": { members: 4, wins: { "node.color": 4 } },
+        },
+        ...over,
+    });
+    const styles = (end, start = { layers: [stack[0]] }) => ({
+        changes: { gone: [], added: ["layer-1"], changed: [] },
+        start,
+        end,
+    });
+    const session = async (name, data, files = {}, net = null, st = styles({ layers: stack, painted: paint() })) => {
         const d = join(base, name);
         await mkdir(join(d, "downloads"), { recursive: true });
         await writeFile(join(d, "data.json"), JSON.stringify(data));
+        if (st) await writeFile(join(d, "styles.json"), JSON.stringify(st));
         for (const [f, t] of Object.entries(files)) {
             await writeFile(join(d, "downloads", f), t);
             if (net)
@@ -308,7 +406,8 @@ async function selfTest() {
         );
         let r = checkSession(d);
         assert.deepEqual(r.problems, [], `the clean session was refused: ${r.problems}`);
-        assert.equal(r.items, 2 + 1 + 3, "the clean session's items");
+        assert.equal(r.items, 2 + 1 + 3 + 2, "the clean session's items");
+        assert.equal(r.layers, 2, "the clean session's two style layers were not counted");
         console.log(`a clean session passes: ${r.items} items, notes ${JSON.stringify(r.notes)}`);
         caught(
             await session("hides-more", { ...good, counts: { ...counts, visibleNodes: 12 } }),
@@ -345,6 +444,76 @@ async function selfTest() {
             /export g\.graphml: 13 nodes rows/,
             "a GraphML export that drops nodes",
         );
+        caught(
+            await session(
+                "layer-holds-more",
+                good,
+                {},
+                null,
+                styles({
+                    layers: stack,
+                    painted: paint({
+                        layers: { ...paint().layers, "layer-1": { members: 6, wins: { "node.color": 6 } } },
+                    }),
+                }),
+            ),
+            /layer "Layer 1" \(layer-1\): it says it selects 4 nodes with a value, but the element paints 6/,
+            "a layer that paints more nodes than its count says",
+        );
+        caught(
+            await session(
+                "layer-topmost",
+                good,
+                {},
+                null,
+                styles({
+                    layers: stack,
+                    painted: paint({
+                        layers: { ...paint().layers, pagerank_1: { members: 24, wins: { "node.color": 24 } } },
+                    }),
+                }),
+            ),
+            /layer "PageRank" \(pagerank_1, as at the start\): it says it is topmost on node.color for 20, the drawing shows 24/,
+            "a layer whose topmost count is not what is drawn",
+        );
+        caught(
+            await session(
+                "suspended",
+                good,
+                {},
+                null,
+                styles({ layers: stack, painted: paint({ showingBranches: true, layers: {} }) }),
+            ),
+            /a selection preview is still drawn with no workspace open/,
+            "a preview left on after the workspace closed (every layer suspended)",
+        );
+        caught(
+            await session(
+                "lost",
+                good,
+                {},
+                null,
+                styles({
+                    layers: stack,
+                    painted: paint({ layers: { ...paint().layers, pagerank_1: { members: 0, wins: {} } } }),
+                }),
+            ),
+            /PageRank.*as at the start.*paints 0 \(styling lost after the session\)/,
+            "styling lost under a layer the session did not change",
+        );
+        d = await session(
+            "open-workspace",
+            good,
+            {},
+            null,
+            styles({ layers: stack, painted: paint({ showingBranches: true, workspaceOpen: true, layers: {} }) }),
+        );
+        r = checkSession(d);
+        assert.deepEqual(r.problems, [], "a session ended with the workspace open was held to the suspended stack");
+        assert.ok(
+            r.notes.some((n) => /workspace open/.test(n)),
+            "the open workspace was not noted",
+        );
         // a card that is off, and a time window, do not bind what is drawn
         d = await session("off", {
             ...good,
@@ -371,7 +540,10 @@ async function selfTest() {
 }
 
 const args = process.argv.slice(2);
-if (args[0] === "--self-test") await selfTest();
+// imported (real.mjs --gate runs checkSession on a pilot's folder), it runs nothing
+const main = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (!main);
+else if (args[0] === "--self-test") await selfTest();
 else if (!args.length) {
     console.error("usage: endstate.mjs <session dir | round dir> ... | --self-test");
     process.exit(2);

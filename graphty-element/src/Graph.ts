@@ -4361,6 +4361,20 @@ export class Graph implements GraphContext {
         this.updateManager.enableZoomToFit(true);
     }
 
+    /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that puts the camera back later frames again instead.
+     * @returns True while the element's own framing is under way.
+     */
+    get framing(): boolean {
+        return (
+            this.#autoFrame &&
+            !this.#cameraPlaced &&
+            !(this.updateManager.zoomToFitCompleted && this.layoutManager.isSettled)
+        );
+    }
+
     // GraphContext implementation methods
 
     /**
@@ -6221,6 +6235,39 @@ export class Graph implements GraphContext {
             wait.gaveUp = true;
             wait.stop?.();
         }
+    }
+
+    /**
+     * Resolve once every style change made so far is drawn on the canvas: the repaint passes have
+     * ended (`styles.settled()`) and the renderer has applied their last batch. A large graph's
+     * repaint is spread over many frames, so `styles.settled()` alone resolves while the canvas
+     * still shows the old colors (ws-polish 3). It does not wait for the layout or the camera, as
+     * {@link Graph.waitForStableFrame} does, and it never rejects: a graph shut down ends the wait.
+     * @returns Promise that resolves once the last repaint batch has been applied.
+     * @beta
+     */
+    async waitForPainted(): Promise<void> {
+        await this.getSession().styles.settled();
+        const painter = this.getStylePainter();
+        const teardown = this.#teardown.signal;
+
+        if (!painter.hasPending || teardown.aborted) {
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            const done = (): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                teardown.removeEventListener("abort", done);
+                resolve();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (!painter.hasPending) {
+                    done();
+                }
+            });
+            teardown.addEventListener("abort", done, { once: true });
+        });
     }
 
     /**

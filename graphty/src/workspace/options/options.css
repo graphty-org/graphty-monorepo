@@ -1,0 +1,77 @@
+/* The `selection-workspace` forms: one line per option, its name at the left and its control filling
+   the rest, as Figma's property rows and the approved prototype's settings. Every control ends at
+   the form's right edge and starts its value at one x. */
+.ws-options-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ws-option-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+}
+
+.ws-option-name,
+.ws-options-rows .mantine-InputWrapper-label,
+.ws-options-rows .cm-caption {
+    flex: 0 0 96px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--cm-text-secondary);
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-option-value {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-options-rows .mantine-InputWrapper-root {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: center;
+}
+
+.ws-options-rows .mantine-InputWrapper-label {
+    grid-area: 1 / 1;
+}
+
+.ws-options-rows .mantine-Input-wrapper {
+    grid-area: 1 / 2;
+}
+
+.ws-options-rows .mantine-InputWrapper-description {
+    grid-area: 2 / 2;
+}
+
+/* A row's own field fills its line: the row already draws its name. */
+.ws-options-rows .ws-option-value .mantine-InputWrapper-root {
+    display: block;
+}
+
+/* A number box inside a row keeps the value at the selects' x: it has no glyph to clear. */
+.ws-option-value .mantine-Input-wrapper[data-with-left-section] {
+    --input-padding-inline-start: 8px;
+}
+
+/* A row's own named control (a card's Test, Computed on, Edges). */
+.ws-options-rows .sel-captioned {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.ws-options-rows .sel-captioned > :last-child {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-options-more {
+    margin-top: 4px;
+}

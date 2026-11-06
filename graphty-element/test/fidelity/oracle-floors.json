@@ -29493,7 +29493,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.541,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -29554,7 +29554,7 @@
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
-            "node.gradient": 0.541,
+            "node.gradient": 1,
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
@@ -56317,6 +56317,22 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
+            }
+        },
+        "dot-synth-nodes": {
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "Graphviz runs gradientangle to its box's corner (315 on a 59.5 x 36 box changes color along 31.2 degrees on screen); graphty reads it as a 45-degree ramp stretched over the box, so its color changes along 58.5. Exposed when the comparator began reading graphty's ramp as stretched (#5809)",
+                "date": "2026-11-06"
+            }
+        },
+        "dot-synth-nodes@matched": {
+            "node.gradient": {
+                "floor": 1,
+                "to": 0.99,
+                "reason": "Graphviz runs gradientangle to its box's corner (315 on a 59.5 x 36 box changes color along 31.2 degrees on screen); graphty reads it as a 45-degree ramp stretched over the box, so its color changes along 58.5. Exposed when the comparator began reading graphty's ramp as stretched (#5809)",
+                "date": "2026-11-06"
             }
         },
         "gexf-hsk-chars": {

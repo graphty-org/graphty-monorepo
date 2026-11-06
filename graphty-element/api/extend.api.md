@@ -126,6 +126,7 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
@@ -2114,6 +2115,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -2141,6 +2144,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
     // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal

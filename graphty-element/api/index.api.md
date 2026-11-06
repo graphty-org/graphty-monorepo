@@ -2782,6 +2782,8 @@ export class Graph implements GraphContext {
     getLighting(): Lighting;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
+    // @internal
+    getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
@@ -2876,6 +2878,7 @@ export class Graph implements GraphContext {
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
+    get renderPath(): RenderPath;
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
@@ -2885,6 +2888,7 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -2943,6 +2947,7 @@ export class Graph implements GraphContext {
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
     setRenderer(request: RendererRequest): void;
+    setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
@@ -3041,6 +3046,8 @@ export interface GraphContext {
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
+    // @internal
+    getNodeBatches?(): NodeBatches | null;
     // @internal
     getRowTable?(): RowTable | null;
     getScene(): Scene;
@@ -3411,6 +3418,8 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderPath(): RenderPath;
+    set renderPath(value: RenderPath);
     get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
@@ -3421,6 +3430,7 @@ export class Graphty extends LitElement {
         extent?: CameraViewExtent;
     }): CameraState;
     retryLastAiCommand(): Promise<ExecutionResult>;
+    get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
     // @deprecated
     runAlgorithm(namespace: string, type: string, options?: RunAlgorithmOptions): Promise<void>;
@@ -5010,6 +5020,8 @@ class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
+    batchableIn(view: BatchView): boolean;
+    // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
     // @internal
@@ -5037,6 +5049,8 @@ class Node_2 implements ModelUser {
     }>;
     // @internal
     get drawnInBatch(): boolean;
+    // @internal
+    get drawnInstanceColor(): Rgba | null;
     // @internal
     get drawnPickMesh(): AbstractMesh;
     // @internal
@@ -5374,8 +5388,8 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             scale: "scale";
-            diameter: "diameter";
             uniform: "uniform";
+            diameter: "diameter";
         }>>;
         detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
             low: "low";
@@ -6994,6 +7008,9 @@ export class RenderManager implements Manager {
 }
 
 // @public
+export type RenderPath = "objects" | "batched";
+
+// @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
     readonly heavy: "on" | "off";
@@ -7250,6 +7267,14 @@ export const RichTextStyle: z.ZodObject<{
 
 // @public (undocumented)
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
+
+// @public
+export interface RowCounts {
+    readonly batchedNodes: number;
+    readonly objectEdges: number;
+    readonly objectNodes: number;
+    readonly pulledEdges: number;
+}
 
 // @public (undocumented)
 export interface RunAlgorithmOptions extends QueueableOptions {
@@ -7885,6 +7910,7 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    get nodesScaledByView(): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

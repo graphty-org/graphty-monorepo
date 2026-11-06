@@ -705,8 +705,10 @@ export class EdgeLineBatch {
             this.bindAges();
         }
 
+        this.ageState.warming++;
         CustomLineRenderer.warmAged(this.mesh, on).then(
             () => {
+                this.ageState.warming--;
                 if (this.gone || turn !== this.ageSwitches) {
                     return;
                 }
@@ -727,6 +729,7 @@ export class EdgeLineBatch {
                 this.ageState.switched();
             },
             () => {
+                this.ageState.warming--;
                 // ponytail: a program that fails to compile leaves the lines in the old look, and
                 // the batch does not try again until the setting changes twice.
             },

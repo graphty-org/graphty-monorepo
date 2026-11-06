@@ -21,6 +21,8 @@ export interface EdgeAgeState {
     readonly window: [from: number, to: number, fade: number];
     /** Called when a batch's lines have switched program, so the next frame re-reads what it draws. */
     switched: () => void;
+    /** How many batches are compiling the look they switch to; the old look draws meanwhile. */
+    warming: number;
 }
 
 /**
@@ -53,7 +55,7 @@ export class FrameRoster {
     edgeAges(scene: Scene): EdgeAgeState {
         let state = this.aged.get(scene);
         if (!state) {
-            state = { on: false, ages: null, window: [0, 1, 1], switched: (): void => undefined };
+            state = { on: false, ages: null, window: [0, 1, 1], switched: (): void => undefined, warming: 0 };
             this.aged.set(scene, state);
         }
 

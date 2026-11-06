@@ -781,13 +781,16 @@ export class UpdateManager implements Manager {
      * @param masks - What the renderer reads.
      */
     private followAgeFade(masks: ViewMasks): void {
-        const fade = masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+        if (!this.ageFadeOwed(masks)) {
+            return;
+        }
+
+        // Nothing else asks a graph drawn on demand for a frame: no mask moves.
+        this.pending.changed();
+        const fade = UpdateManager.ageFadeOf(masks);
         const state = batchUploadFrames.edgeAges(this.graphContext.getScene());
         if (fade === null) {
-            if (state.on) {
-                state.on = false;
-            }
-
+            state.on = false;
             return;
         }
 
@@ -800,11 +803,36 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The fade by age the session asks for.
+     * @param masks - What the renderer reads.
+     * @returns The fade, or null for none.
+     */
+    private static ageFadeOf(masks: ViewMasks): EdgeAgeFade | null {
+        return masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+    }
+
+    /**
+     * Whether the fade by age the session asks for differs from the one the lines draw with.
+     * @param masks - What the renderer reads.
+     * @returns True when the next pass has a fade to hand the lines.
+     */
+    private ageFadeOwed(masks: ViewMasks): boolean {
+        const fade = UpdateManager.ageFadeOf(masks);
+        const { on, ages, window } = batchUploadFrames.edgeAges(this.graphContext.getScene());
+        if (fade === null) {
+            return on;
+        }
+
+        return !on || ages !== fade.ages || window[0] !== fade.from || window[1] !== fade.to || window[2] !== fade.fade;
+    }
+
+    /**
      * A line switched to or from fading by age, and so between the opaque and the transparent
      * pass, which a frozen list of what is drawn would never see: no mask moved.
      */
     private readonly ageSwitched = (): void => {
         this.forceEdgeWalk();
+        this.pending.changed();
     };
 
     /**
@@ -1915,6 +1943,11 @@ export class UpdateManager implements Manager {
         );
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
+        work.watch(
+            "view",
+            "a fade by age has not been drawn yet",
+            () => this.ageFadeOwed(this.viewMasks ?? EMPTY_MASKS) || batchUploadFrames.edgeAges(scene()).warming > 0,
+        );
         work.watch(
             "curves",
             "the curves through their support points are still settling",

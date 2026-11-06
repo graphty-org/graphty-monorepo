@@ -3070,20 +3070,32 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return null;
             }
 
-            const built = indexIfReady();
-            const extent = extentOf(built);
-            const kind = built?.edge ?? null;
-            if (kind === null || extent === null || ageFadeInactive(fieldNow()?.edges, outside) !== null) {
+            if (ageFadeInactive(fieldNow()?.edges, outside) !== null) {
                 return null;
             }
 
-            if (ageCache?.kind !== kind || ageCache.from !== extent.from || ageCache.to !== extent.to) {
-                ageCache = {
-                    kind,
-                    from: extent.from,
-                    to: extent.to,
-                    ages: normalizedStarts(kind, extent.from, extent.to),
-                };
+            // While a load or a merge rebuilds the index, the last ages stand: the fade stays on,
+            // and an edge added since reads past their end as untimed until the index lands.
+            const built = indexIfReady();
+            if (built !== null) {
+                const extent = extentOf(built);
+                const kind = built.edge ?? null;
+                if (kind === null || extent === null) {
+                    return null;
+                }
+
+                if (ageCache?.kind !== kind || ageCache.from !== extent.from || ageCache.to !== extent.to) {
+                    ageCache = {
+                        kind,
+                        from: extent.from,
+                        to: extent.to,
+                        ages: normalizedStarts(kind, extent.from, extent.to),
+                    };
+                }
+            }
+
+            if (ageCache === null) {
+                return null;
             }
 
             const window = cursor ?? visibility.window;
@@ -3091,11 +3103,11 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return { ages: ageCache.ages, from: 0, to: 1, fade: 1 };
             }
 
-            const span = extent.to > extent.from ? extent.to - extent.from : 1;
+            const span = ageCache.to > ageCache.from ? ageCache.to - ageCache.from : 1;
             return {
                 ages: ageCache.ages,
-                from: (boundOf(window, "from") - extent.from) / span,
-                to: (boundOf(window, "to") - extent.from) / span,
+                from: (boundOf(window, "from") - ageCache.from) / span,
+                to: (boundOf(window, "to") - ageCache.from) / span,
                 fade: ageFade,
             };
         },

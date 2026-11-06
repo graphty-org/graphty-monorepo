@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
+import { SLICED_ROWS } from "../../../src/session/time/timeIndex";
 import type { ElementSession } from "../../../src/session/types";
 
 const ON = { features: ["timeline"] };
@@ -134,5 +135,43 @@ describe("fade by age", () => {
         await off.project.open(text);
         assert.isNull(off.edgeAges());
         assert.include((await off.project.save()).text, '"ageFade":0.3');
+
+        // A value the flag would refuse is not checked while it is off: it stays as it came.
+        const odd = text.replace('"ageFade":0.3', '"ageFade":2');
+        const offOdd = createGraphSession({ features: [] }) as ElementSession;
+        await offOdd.project.open(odd);
+        const kept = (await offOdd.project.save()).text;
+        assert.include(kept, '"ageFade":2');
+        assert.include(kept, '"playback"');
+    });
+
+    it("keeps fading while new edges are merged in", async () => {
+        // Enough rows that the index merges new edges a slice at a time, after the add returns.
+        const session = createGraphSession(ON) as ElementSession;
+        await session.data.addNodes(Array.from({ length: 6 }, (_, i) => ({ id: `n${String(i)}` })));
+        await session.data.addEdges(
+            Array.from({ length: SLICED_ROWS }, (_, i) => ({
+                src: `n${String(i % 5)}`,
+                dst: `n${String((i % 5) + 1)}`,
+                t: i % 41,
+            })),
+        );
+        await session.time.setField({ edges: { start: "t", unit: "ordinal" } });
+        await session.time.setSettings({ ageFade: 0.2 });
+        await session.time.window({ from: 10, to: 30 });
+        await session.time.ready;
+        const before = session.edgeAges();
+        assert.isNotNull(before);
+
+        const adding = session.data.addEdges([{ src: "n0", dst: "n5", t: 50 }]);
+        assert.isNotNull(session.edgeAges(), "while the edges arrive");
+        await adding;
+        assert.isNotNull(session.edgeAges(), "while the index merges them");
+        await session.time.ready;
+
+        const after = session.edgeAges();
+        assert.isNotNull(after);
+        assert.notStrictEqual(after.ages, before.ages, "the merge rewrites the ages");
+        assert.strictEqual(after.ages.length, SLICED_ROWS + 1);
     });
 });

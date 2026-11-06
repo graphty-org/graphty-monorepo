@@ -216,6 +216,26 @@ describe("fade by age", () => {
         }
     });
 
+    it("draws the fade on a graph drawn on demand once the frame is stable", async () => {
+        const graphty = await element(["timeline"]);
+        await graphty.setRenderSettings({ onDemand: true });
+        await windowed(graphty);
+        await graphty.session.time.window({ from: OLD - 1, to: NEW + 1, step: 1 });
+        await operationQueueOf(graphty.graph).waitForCompletion();
+        await graphty.waitForStableFrame();
+
+        // Only the stable frame is waited for: nothing here asks the graph for a frame.
+        await graphty.session.time.setSettings({ ageFade: 0.2 });
+        await graphty.waitForStableFrame();
+        const faded = await alphaAt(graphty, screen(graphty, 0, 5));
+        assert.isBelow(faded, 0.5, "the oldest edge faded");
+
+        // The same two edges stay inside: only the uniform moves.
+        await graphty.session.time.seek(OLD - 0.5, { commit: false });
+        await graphty.waitForStableFrame();
+        assert.isBelow(await alphaAt(graphty, screen(graphty, 0, 5)), faded - 0.02, "a step that hides nothing");
+    });
+
     it("keeps the lines drawn through the switch", async () => {
         const graphty = await element(["timeline"]);
         await windowed(graphty);

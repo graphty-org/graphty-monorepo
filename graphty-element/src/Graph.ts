@@ -4870,8 +4870,12 @@ export class Graph implements GraphContext {
         // The nodes' shared observer goes in right after this one, where the first node's own
         // observers used to be, so a node's handlers still hear an event after the background does.
         // Their shared action manager is made here too, so it belongs to the scene from the start.
+        // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
+        // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         nodePointerRosterOf(this.scene);
-        nodeActionManagerOf(this.scene);
+        if (this.#renderPath !== "batched") {
+            nodeActionManagerOf(this.scene);
+        }
 
         // The pointer says a line can be clicked, as Babylon already says it over a node (each
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin

@@ -11,6 +11,7 @@ import {
     Mesh,
     MeshBuilder,
     type Plane,
+    type Ray,
     type Scene,
     StandardMaterial,
     TransformNode,
@@ -61,6 +62,7 @@ import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from
 import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -435,6 +437,8 @@ export class Node implements ModelUser {
     /** The record, as the graph last handed it over. */
     #record: AdHocData<string | number>;
     mesh: AbstractMesh;
+    /** The shared mesh a batch draws this node from, or null while it has its own. */
+    private batchSource: AbstractMesh | null = null;
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -775,6 +779,11 @@ export class Node implements ModelUser {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            return batched.extentOf(this.row).round;
+        }
+
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
         // camera turns, and its edges must stop at the surface it is drawn with.
         if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
@@ -1174,7 +1183,7 @@ export class Node implements ModelUser {
         const before = stretch.clone();
         stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
-        this.rowTable?.measure(this);
+        this.measureRow();
         if (
             this.border !== this.groupBorder ||
             !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
@@ -1282,7 +1291,7 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnPosition(): Readonly<Vector3> {
-        return this.mesh.position;
+        return this.batchTable?.centerOf(this.row) ?? this.mesh.position;
     }
 
     /**
@@ -1291,7 +1300,59 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnWorldPosition(): Vector3 {
+        if (this.batchSource !== null) {
+            const center = rowScanOf(this.context.getScene())?.worldCenter(this.row);
+            if (center !== undefined) {
+                return center;
+            }
+        }
+
         return this.mesh.getAbsolutePosition();
+    }
+
+    /**
+     * Whether a batch draws this node, so its ends, scale and size come from its row and never its mesh.
+     * @returns True when one does.
+     * @internal
+     */
+    get drawnInBatch(): boolean {
+        return this.batchSource !== null;
+    }
+
+    /**
+     * Say a batch draws this node, or that it no longer does. Call it again when the row's source changes.
+     * @param source - The shared mesh the batch draws from, or null.
+     * @internal
+     */
+    drawInBatch(source: AbstractMesh | null): void {
+        this.batchSource = source;
+    }
+
+    /**
+     * Where a world ray meets this node's own shape, whatever else it crosses.
+     * @param ray - The ray.
+     * @returns The point in the world, or null for a miss.
+     * @internal
+     */
+    drawnRayHit(ray: Ray): Vector3 | null {
+        if (this.batchSource !== null) {
+            return rowScanOf(this.context.getScene())?.rowRayHitOn(this.row, ray) ?? null;
+        }
+
+        return ray.intersectsMeshes([this.mesh])[0]?.pickedPoint ?? null;
+    }
+
+    /**
+     * Write this node's `rowExtent` row. The mesh is what is measured, even under a batch.
+     *
+     * ponytail: a batched row reads its mesh here, the one read left; stage 11 takes the mesh away
+     * and has to measure from the source mesh and the style.
+     */
+    private measureRow(): void {
+        const held = this.batchSource;
+        this.batchSource = null;
+        this.rowTable?.measure(this);
+        this.batchSource = held;
     }
 
     /**
@@ -1338,8 +1399,32 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnSourceMesh(): AbstractMesh {
+        if (this.batchSource !== null) {
+            return this.batchSource;
+        }
+
         const { mesh } = this;
         return "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+    }
+
+    /**
+     * The mesh a pick answers with for this node. Stage 9 of the row renderer gives a press an
+     * answer without one.
+     * @returns The mesh.
+     * @internal
+     */
+    get drawnPickMesh(): AbstractMesh {
+        return this.mesh;
+    }
+
+    /**
+     * Whether the row scan answers for this node. A model is picked by its whole bounding box
+     * (`NodeMesh.createModelInstance`), not by its source's triangles, so it stays on Babylon's pick.
+     * @returns True when it does.
+     * @internal
+     */
+    get drawnByRowScan(): boolean {
+        return this.drawnModel === null;
     }
 
     /**
@@ -1370,12 +1455,27 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The node's own scale on each axis: a group's box is stretched, a model may be.
+     * @returns The scale.
+     * @internal
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            const { scale } = batched.extentOf(this.row);
+            return new Vector3(scale, scale, scale);
+        }
+
+        return this.mesh.scaling;
+    }
+
+    /**
      * The node's own scale, the same on every axis.
      * @returns The scale.
      * @internal
      */
     get drawnScale(): number {
-        return this.mesh.scaling.x;
+        return this.batchTable?.extentOf(this.row).scale ?? this.mesh.scaling.x;
     }
 
     /**
@@ -1385,7 +1485,7 @@ export class Node implements ModelUser {
      */
     set drawnScale(scale: number) {
         this.mesh.scaling.setAll(scale);
-        this.rowTable?.measure(this);
+        this.measureRow();
     }
 
     /**
@@ -1423,6 +1523,14 @@ export class Node implements ModelUser {
      */
     private get rowTable(): RowTable | null {
         return this.context.getRowTable?.() ?? null;
+    }
+
+    /**
+     * The graph's row table when a batch draws this node.
+     * @returns The table, or null when the node's mesh answers for it.
+     */
+    private get batchTable(): RowTable | null {
+        return this.batchSource === null ? null : this.rowTable;
     }
 
     /**
@@ -1510,7 +1618,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
-        this.rowTable?.measure(this);
+        this.measureRow();
     }
 
     /**
@@ -1594,7 +1702,7 @@ export class Node implements ModelUser {
 
         this.sessionPaint = paint;
         this.paintFrom(paint.meshKey, paint.style, paint.color);
-        this.rowTable?.measure(this);
+        this.measureRow();
     }
 
     /**
@@ -2844,6 +2952,11 @@ export class Node implements ModelUser {
      * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
      */
     get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const batched = this.batchTable;
+        if (batched !== null) {
+            return batched.extentOf(this.row).half;
+        }
+
         const own = this.mesh.scaling;
         const seen = this.halfExtentsScale;
         const value = this.halfExtentsValue;
@@ -2909,7 +3022,8 @@ export class Node implements ModelUser {
      */
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
         const built = this.reachOutlineBuilt;
-        if (built?.mesh === this.mesh && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
+        const source = this.drawnSourceMesh;
+        if (built?.mesh === source && built.style === this.drawnStyle && built.fit === this.fittedExtent) {
             return built.value;
         }
 
@@ -2925,11 +3039,11 @@ export class Node implements ModelUser {
                           border: style?.border,
                       },
                       this.size,
-                      this.mesh,
+                      source,
                   ).outline,
               )
             : null;
-        this.reachOutlineBuilt = { mesh: this.mesh, style, fit: this.fittedExtent, value };
+        this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value };
         return value;
     }
 

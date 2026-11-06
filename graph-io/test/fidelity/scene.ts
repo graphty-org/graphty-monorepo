@@ -156,7 +156,13 @@ export interface Scene {
     edges: SceneEdge[];
     groups: SceneGroup[];
     /** An arrow's `heads` are each drawn head's box. */
-    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string; heads?: Box[] }[];
+    annotations?: {
+        kind: "text" | "shape" | "arrow" | "image";
+        bbox: Box;
+        text?: string;
+        heads?: Box[];
+        fill?: string;
+    }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */
     gaps: { property: Property; reason: string }[];

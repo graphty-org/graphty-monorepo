@@ -78,6 +78,12 @@ time a WebGPU graph opens on the page, about 1 MB together. The element fetches 
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
 says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
 
+## One device for drawing and layout
+
+With [acceleration](./acceleration) on, the graph draws on WebGPU and the adapter is real hardware, the renderer and the accelerator
+run on one device. The element decides this before the renderer opens, and needs nothing from you. On a software adapter they stay on two.
+If the device is lost, both stop, the renderer comes back on a new device, and the layout carries on there.
+
 ## Is WebGPU faster?
 
 Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are in the

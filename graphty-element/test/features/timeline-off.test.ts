@@ -15,6 +15,7 @@ import { featuresFromUrl, setDefaultFeatures } from "../../src/features/resolve"
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import { slideCounters } from "../../src/session/visibility/slide";
 import { FakeClock, FakeLocks } from "../autosave/fakes";
 
 const GHOST = "graphty:timeline-ghost";
@@ -120,7 +121,7 @@ describe("the timeline's switch", () => {
 
     it("turns on by id, by all, by the page default and from a link", () => {
         assert.deepEqual(createGraphSession(ON).features.enabled, ["timeline"]);
-        assert.deepEqual(createGraphSession({ features: ["all"] }).features.enabled, ["timeline"]);
+        assert.include(createGraphSession({ features: ["all"] }).features.enabled, "timeline");
         assert.deepEqual(
             createGraphSession({ features: featuresFromUrl("https://x.test/?features=timeline") }).features.enabled,
             ["timeline"],
@@ -375,6 +376,64 @@ describe("a project saved with the timeline on, opened with it off", () => {
         for (const each of [saved, plain, session]) {
             each.dispose();
         }
+    });
+
+    it('gives a saved `nodes: "ends"` window under a filter the masks of its bounds alone', async () => {
+        const saved = await loaded(ON);
+        await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
+        await saved.time.window({ from: FIRST_DAYS.from, to: FIRST_DAYS.to });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open(text);
+        assert.strictEqual(session.visibility.window?.nodes, "ends");
+
+        await session.visibility.setSteps([{ id: "first", on: true, rule: { kind: "edges", where: "source == 'A'" } }]);
+        assert.strictEqual(session.visibility.summary.visibleEdges, 1);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 4, "the option stays saved and is not applied");
+    });
+
+    it("moves a window under a filter by plain passes, with no slide and no kept filter", async () => {
+        const saved = await loaded(ON);
+        await saved.time.setField({ edges: { start: "sent", unit: "ms" } });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open(text);
+        await session.visibility.setSteps([{ id: "first", on: true, rule: { kind: "edges", where: "source == 'A'" } }]);
+
+        const { jumps, rows, scans, filterReads } = slideCounters;
+        for (const days of [1, 2, 3]) {
+            const { full } = slideCounters;
+            await session.visibility.setWindow({ ...FIRST_DAYS, to: FIRST_DAYS.from + days * DAY });
+            assert.strictEqual(slideCounters.full, full + 1, "one full pass");
+        }
+
+        // Undo brings the masks back as they were, with no pass.
+        await session.undo();
+        assert.deepEqual(
+            { ...slideCounters, full: 0 },
+            { full: 0, jumps, rows, scans, filterReads },
+            "nothing slid, jumped or kept the filter's tests",
+        );
+    });
+
+    it("reads a saved window's column on a kind the field does not time", async () => {
+        const saved = createGraphSession({ ...ON, runs: { execute } });
+        await saved.data.addNodes([
+            { id: "a", at: 1000 },
+            { id: "b", at: 1000 },
+            { id: "c", at: 9000 },
+            { id: "d", at: 9000 },
+        ]);
+        await saved.data.addEdges([
+            { source: "a", target: "b", at: 1000 },
+            { source: "c", target: "d", at: 9000 },
+        ]);
+        await saved.time.setField({ edges: { start: "at", unit: "ms" } });
+        await saved.time.window({ from: 0, to: 5000, nodes: "all" });
+        const { text } = await saved.project.save();
+        const session = createGraphSession({ ...OFF, runs: { execute } });
+        await session.project.open(text);
+        assert.strictEqual(session.visibility.summary.visibleNodes, 2);
     });
 
     it("keeps its time field, its settings and its Ghost row, and draws no ghosts", async () => {

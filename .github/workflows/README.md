@@ -94,6 +94,10 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
   re-run once on the same commit (`release-rerun.yml`) before anything is filed.
+- **Owner item**: a lane that failed on an account, not on code, so no code change fixes it: the LLM lane's refused
+  key or balance, or the T4 job refused by machine.dev before it ran (a failed step named `Machine: <why>`, such as
+  out of credit). Nothing is re-run, bisected or filed as red; the owner hears why through `Release status`. Once
+  the account is restored, `gh run rerun <run id> --failed` tests the lane again, and passing is not filed as flaky.
 - **Red**: one "Full run red: <lane> on <sha>" issue (`bug`, `priority:critical`) and one `bisect.yml` run,
   which names the merge to revert or fix forward. A merge whose message says `Fixes #N` for that issue starts a
   restart at once (`mode: restart`, from ci.yml's `release-due`) and closes it; `Refs #N` lets the red run finish

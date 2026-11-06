@@ -2,6 +2,7 @@ import {
     AbstractMesh,
     type Camera,
     Color3,
+    CreatePlaneVertexData,
     DynamicTexture,
     InstancedMesh,
     Mesh,
@@ -250,6 +251,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "shiftY"
     | "shiftOf"
     | "gapOf"
+    | "box"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -319,14 +321,15 @@ const INSIDE: Record<InsidePosition, { x: Side; y: Side }> = {
 /**
  * Where a label inside its target's bounds sits, measured from their centre: against the side
  * `side` names, the label's half and the offset in from it, or at the centre along an axis it names
- * no side of (and at the centre when the label is larger than the bounds).
+ * no side of (and at the centre when the label is larger than the bounds, unless it keeps its side).
  * @param side - The side.
  * @param half - Half the bounds' extent on this axis, in the label's units.
  * @param gap - The label's half extent on this axis plus the offset.
+ * @param keepSide - Whether a label larger than the bounds stays against the side, its far end past them.
  * @returns The coordinate from the centre.
  */
-function inward(side: Side, half: number, gap: number): number {
-    return side * Math.max(0, half - gap);
+function inward(side: Side, half: number, gap: number, keepSide: boolean): number {
+    return side * (keepSide ? half - gap : Math.max(0, half - gap));
 }
 
 /**
@@ -344,18 +347,30 @@ function inward(side: Side, half: number, gap: number): number {
  * @param label.width - Its width.
  * @param label.height - Its height.
  * @param label.offset - Its gap from the side.
+ * @param label.keepSide - Whether it stays against the side when it is larger than the bounds.
  */
 function placeInFront(
     at: Vector3,
     bounds: { min: Vector3; max: Vector3 },
     drawn: Vector3,
     inside: { x: Side; y: Side } | null,
-    label: { width: number; height: number; offset: number },
+    label: { width: number; height: number; offset: number; keepSide: boolean },
 ): void {
     at.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
     if (inside !== null) {
-        at.x = inward(inside.x, ((bounds.max.x - bounds.min.x) * drawn.x) / 2, label.width / 2 + label.offset);
-        at.y = inward(inside.y, ((bounds.max.y - bounds.min.y) * drawn.y) / 2, label.height / 2 + label.offset);
+        const { keepSide } = label;
+        at.x = inward(
+            inside.x,
+            ((bounds.max.x - bounds.min.x) * drawn.x) / 2,
+            label.width / 2 + label.offset,
+            keepSide,
+        );
+        at.y = inward(
+            inside.y,
+            ((bounds.max.y - bounds.min.y) * drawn.y) / 2,
+            label.height / 2 + label.offset,
+            keepSide,
+        );
     }
 }
 
@@ -457,6 +472,8 @@ export class RichTextLabel {
     /** One line's canvas height (the line, its margins, padding and borders), as `heightInLines` measures it. */
     private oneLinePx = 0;
     private totalBorderWidth = 0;
+    /** The width in canvas pixels a `box` of `"target-width"` holds the label's panel to, at the least. */
+    private spanWidth = 0;
     /** The room around the panel its drop shadow is drawn in, on every side; zero without one. */
     private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
@@ -888,7 +905,10 @@ export class RichTextLabel {
 
         this.totalBorderWidth = this._sumBorderWidth();
 
-        const contentWidth = maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding;
+        const contentWidth = Math.max(
+            maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding,
+            this.spanWidth - this.totalBorderWidth * 2,
+        );
         const contentHeight = totalHeight + this.options.marginTop + this.options.marginBottom + bgPadding;
 
         this.contentArea = {
@@ -1130,10 +1150,48 @@ export class RichTextLabel {
         }
 
         this.captureScale = scale;
+        this.replaceTexture();
+    }
+
+    /** Draw the label on a new texture, of the size its canvas is now. */
+    private replaceTexture(): void {
         const old = this.texture;
         this._createTexture();
-        this.material.diffuseTexture = this.texture;
+        if (this.material !== null) {
+            this.material.diffuseTexture = this.texture;
+        }
         old?.dispose();
+    }
+
+    /**
+     * Hold a label whose `box` is `"target-width"` to its target's drawn width, when that has changed, and redraw it
+     * on a plane of that width. The letters keep their size.
+     * ponytail: a new texture each time the target's width changes; a group's box only tells its label when it has
+     * changed by a step (`Node.drawAsGroup`), so paint the band with a nine-slice if one ever follows every frame.
+     * @param target - What the label is attached to; a point has no width to reach across.
+     * @param bounds - The target's bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     */
+    private spanTarget(target: RichTextLabelOptions["attachTo"], bounds: { min: Vector3; max: Vector3 }): void {
+        const { mesh } = this;
+        const planeHeight = this.lineHeightInWorld() * this.heightInLines;
+        const spans = this.options.box === "target-width" && target instanceof AbstractMesh;
+        if (!spans || mesh === null || planeHeight <= 0) {
+            return;
+        }
+
+        const canvasPerWorld = this.actualDimensions.height / planeHeight;
+        const width = (bounds.max.x - bounds.min.x) * (target.scaling.x || 1) * canvasPerWorld;
+        if (Math.abs(width - this.spanWidth) < 0.5) {
+            return;
+        }
+
+        this.spanWidth = width;
+        this._calculateDimensions();
+        this.replaceTexture();
+        const planeWidth = (this.actualDimensions.width / this.actualDimensions.height) * planeHeight;
+        CreatePlaneVertexData({ width: planeWidth, height: planeHeight }).applyToMesh(mesh);
     }
 
     /**
@@ -1148,7 +1206,8 @@ export class RichTextLabel {
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
         const density = this.texelsPerFontPx() * this.captureScale;
-        const round = (px: number): number => Math.pow(2, Math.ceil(Math.log2(px)));
+        // At least a pixel: WebGPU refuses a texture of no size, which a label of no size would ask for.
+        const round = (px: number): number => Math.max(1, Math.pow(2, Math.ceil(Math.log2(px))));
         let textureWidth = this.options.autoSize
             ? round(this.actualDimensions.width * density)
             : this.options.resolution;
@@ -1968,6 +2027,8 @@ export class RichTextLabel {
             return;
         }
 
+        this.spanTarget(target, bounds);
+
         // Measured before a pointer is re-aimed below, as it always has been.
         const labelHeight = this.lineHeightInWorld() * this.heightInLines;
         const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
@@ -1987,6 +2048,7 @@ export class RichTextLabel {
                 width: labelWidth,
                 height: labelHeight,
                 offset: this.options.attachOffset,
+                keepSide: this.options.box === "words-at-side" || this.options.box === "target-width",
             });
             // What a screen fit places it beside: the bounds in the pivot's frame, whose origin is
             // the node's centre.

@@ -48,7 +48,10 @@ person watching would have read it.
   setup ends, nothing has focus and the pointer is off the page, as when a saved project is
   reopened: the participant does not arrive to a focus ring or a hover on the control the setup
   used last, and the first Tab goes to the top of the page (Main menu), not to the control after
-  the setup's last click.
+  the setup's last click. Nor does it arrive to an undo history: once pending work has finished
+  (up to 30 seconds), the setup's end empties the history through graphty-element's
+  `session.history.clear()`, so Undo starts off ("Nothing to undo") and the setup's steps cannot
+  be undone; history that cannot be emptied fails the start with `SETUP FAILED`.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json`, `session.log` (the session process's
@@ -68,6 +71,17 @@ person watching would have read it.
   audit at 1200x900 or 900x700); studies keep the default 1440 x 900. `session.json` records it.
 - `REAL_SCHEME=light` (or `dark`) on the `--start` command opens the app in that color scheme, for
   the scripted walk of both themes (`bars.mjs --tier 3 --scheme`); studies leave it unset.
+- Each step's line in `route.jsonl` times how soon the app answered its first pointer press or
+  key: `ms.input` (when the page took it) and `ms.firstFrame` (from the input to the next frame
+  the browser drew, the frame that shows whether the app said it is working before it got busy).
+  `REAL_GLANCE_MS=<ms>` on the `--start` (or `--replay`) command, with `REAL_WARM_POOL=0`, also
+  saves `NN-glance.png`, the last frame the browser drew by that long after the input (from its
+  screencast, so a busy page cannot delay it): the screen a person looks at while the step works.
+  `ms.glance` is when that frame was drawn, from the input (negative: nothing new was drawn by
+  then); the line names the file as `glance`. `REAL_GLANCE_EVERY_MS=<ms>` with it also saves
+  `NN-glance-<ms>.png` every that long after the input until the screen stopped changing, to see
+  a sign of work hold through a long wait. `REAL_PROFILE=1` saves `NN.cpuprofile`, a CPU
+  profile of the step, for DevTools.
 - Scrollbars are drawn as a person's desktop Chrome draws them: Playwright's headless Chromium
   hides them by default (`--hide-scrollbars`), and the tool turns that off, so a pane that
   scrolls shows its scrollbar in the screenshot. A report quotes a control's name up to 80
@@ -87,23 +101,23 @@ miss or failed `--expect`, and says which steps did not run: the rest was meant 
 did not come. An `--expect` between steps is a guard: `--click Layer --expect "Which nodes" --click
 "Which nodes"`.
 
-| Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones, and a control before a container whose words include the name (a dialog, a heading the app focuses, a filter card: an element focusable only by a negative tabindex). `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share is refused: the step does nothing and prints `ambiguous`, with each candidate as `"<name>#n"` and what it is. `#n` picks by position, which a person never sees, so among different kinds of control (a panel row and an open list's option) it is refused too: name the one meant by its kind, `"role=option:weight"`. |
-| `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `--hover-icon <n>`                                                                  | Hovers the nth control that has a name but no visible text, and prints its tooltip.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `--drag x1,y1 x2,y2`                                                                | Presses at the first point, moves to the second, releases (pan, or move a node).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `--key <Key>`                                                                       | A key or chord: `Enter`, `Escape`, `ArrowDown`, `Control+o`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `--type "<text>"`                                                                   | Types into what has focus. With nothing that takes text focused, types nothing and fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `--drop <file>`                                                                     | Drags the file in from outside the window and drops it on the middle, through the browser itself, as a person would. Prints `the page took it`, or `the drop was not delivered` when nothing there takes a dropped file (a real browser would then open the file itself in place of the app).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen within 2 seconds. Also `role=<role>`, `role=<role>:<name>`, `selected=N` and `described=<text>` (the focused control's accessible description holds the text).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Step                                                                                | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones, and a control before a container whose words include the name (a dialog, a heading the app focuses, a filter card: an element focusable only by a negative tabindex). `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share is refused (looked at again for up to a second first, so a second control of the name the page holds only while a list closes is not taken for a shared name): the step does nothing and prints `ambiguous`, with each candidate as `"<name>#n"` and what it is. `#n` picks by position, which a person never sees, so among different kinds of control (a panel row and an open list's option) it is refused too: name the one meant by its kind, `"role=option:weight"`. |
+| `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `--hover-icon <n>`                                                                  | Hovers the nth control that has a name but no visible text, and prints its tooltip.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--drag x1,y1 x2,y2`                                                                | Presses at the first point, moves to the second, releases (pan, or move a node).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--key <Key>`                                                                       | A key or chord: `Enter`, `Escape`, `ArrowDown`, `Control+o`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--type "<text>"`                                                                   | Types into what has focus. With nothing that takes text focused, types nothing and fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--drop <file>`                                                                     | Drags the file in from outside the window and drops it on the middle, through the browser itself, as a person would. Prints `the page took it`, or `the drop was not delivered` when nothing there takes a dropped file (a real browser would then open the file itself in place of the app).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen within 2 seconds. Also `role=<role>`, `role=<role>:<name>`, `selected=N` and `described=<text>` (the focused control's accessible description holds the text).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 A file is a path, or a name from `files/`:
 
@@ -304,7 +318,12 @@ What the tool keeps in every session folder for the graders (the participant nev
 - For the look of the drawing, `styles-start.json` holds the whole style tree at the start
   (`styles.tree()` and every layer's spec and counts, read through graphty-element's public API)
   and `--end` writes `styles.json`: the start, the end, and `changes` -- the layers gone, added and
-  changed by id (a changed count alone is no change). `styles-steps.jsonl` has one line per
+  changed by id (a changed count alone is no change). Both also hold `painted`: each layer's
+  members as graphty-element paints them, counted node by node and edge by edge through its public
+  `explain` (how many it paints anything on, and on how many it is the topmost writer of each
+  channel), whether a selection preview (`styles.showingBranches`) is drawn, and whether the
+  selection workspace is open; `endstate.mjs` holds each layer's own counts against them. A
+  `session.json` started from a setup also says `setupOk`. `styles-steps.jsonl` has one line per
   screenshot: whether a graph was open, a hash of what its layers look like (ids and counts
   left out) and `colors`, the distinct node colors drawn, from which `score.mjs` reads the time to
   the first styled graph (every node in one new color).
@@ -346,6 +365,10 @@ A session is void, and is re-run rather than graded, if any call opened:
 - anything else under the studio's files, except its own copied folder, `tool/real.mjs` (run, not
   read) and the data files in `tool/files/`
 - a path with `..`, or a Grep or Glob with no folder (it searches wherever the agent runs)
+
+Only what a call opens is read: a Write's or Edit's target, never its content, and a shell command
+without its heredoc bodies (unless the shell would run a `$(...)` or a backtick in one). A
+participant who quotes a tool message naming `plan.md` into its own transcript opened nothing.
 
 It prints one `VOID: the participant opened <what>, <path> (<tool>, <transcript>)` line per call
 and exits 1; with none, one `leak check:` line with the counts and exit 0; with no transcript
@@ -391,7 +414,22 @@ tier's `criteria.md`:
   `measure.mjs`) and wrote a `spoken.json` that is not empty. For tier 4 the same two folders, each
   a `--tier 4` run (`bars` with `--scheme dark`, `bars-light` with `--scheme light`) that reached
   every data screen of bar 5 at both sizes (`BAR5_TIER4` in `measure.mjs`), caught its planted
-  cases there, and wrote a `spoken.json` and a `vocabulary.json` that are not empty.
+  cases there, and wrote a `spoken.json` and a `vocabulary.json` that are not empty. For tier 5
+  the same two folders, each a `--tier 5` run that reached every screen of item 5 at both sizes
+  (`BAR5_TIER5` in `measure.mjs`), caught its planted cases there (the large-list check's too) and
+  wrote both files;
+- for tier 5 also the rest of `../tier5/criteria.md`'s "Before the first session": `answers.md`
+  holds no "the dry run reads" and no "Build notes (<sha>)" heading for a build other than the
+  frozen one (item 2); every setup the plan starts from started a walk on the frozen build with
+  every setup step working (item 3: `setupOk` in `session.json`, no failed line in `setup.log`); at
+  least one success walk recorded each layer's painted members, and `endstate.mjs`'s check finds no
+  mismatch on any that did (item 4); every core task half has a "Path steps" number (item 6);
+  `decided.md` has a "Reference screenshots" section listing the approved surfaces' new screenshots
+  as `` `<file>.png` ``, each on disk (item 7); and the rating check ran (item 9): a walk named
+  `rating-rejected` under `pilot/T70A/` and `pilot/T70B/` on the rejected build the criteria
+  names, one named `rating-frozen` on the frozen build, and the calm-first check on the rejected
+  build written up as `<round folder>/calm-first-rejected.md`. A walk whose name holds `rating` is
+  never counted as a success, detours or keyboard walk.
 
 It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
 evidence" section at the end of `plan.md` listing each file, and exits 0.
@@ -403,7 +441,7 @@ frozen build. So no runner, continuation script or start by hand can run a sessi
 passed. Pilots (`<round>/pilot/`) and expert walkthroughs (`<round>/expert/`) are not sessions of
 the round and start without it.
 
-The round runner (`../tier2/rounds/workflow-tier2.js`) runs the bars and the gate after the plan
+The round runner (`.claude/workflows/design-studio.js`) runs the gate after the plan and the tool dry run
 and stops the round on a failure, and runs the round's leak check before scoring.
 
 ## Browsers
@@ -433,7 +471,10 @@ the card's memory (2026-10-21). Every command that launches a browser for the st
 (`real.mjs`, `bars.mjs`, a private walk) goes through `with-browser.sh`. `real.mjs --start` takes its own
 slot (it runs its session process through the gate), `--prove` runs the gate itself for each browser
 it starts, `--replay` and `--rewalk` start their sessions as `--start` does, and `--step`, `--end` and
-`--brief` launch no browser, so all of them are called directly;
+`--brief` launch no browser, so all of them are called directly; a self-test that plants a pool of
+its own (`BROWSER_SLOT_DIR`) and starts real browsers in it sets `BROWSER_SLOT_ALSO=<the machine's
+pool>`, so each of its browsers also takes a machine slot and the machine never runs a ninth
+(`--prove`'s warm-pool and bounded-start checks do);
 wrapped in the gate by mistake, they run at once instead of holding one slot while waiting for a
 second. `bars.mjs` is the same: its walks are `real.mjs` sessions that each take a slot, and its tier
 1 screens run as `bars.mjs --inner`, which it puts through the gate itself, so the gate passes a
@@ -453,11 +494,18 @@ color scheme (and the same `real.mjs`) takes one over and starts in about 2 seco
 says `took over warm browser`. A start still waiting in the queue takes one the moment one is ready.
 Every `--start`, and every `--end` that names its build with `REAL_DIST`, tops the pool up to
 `REAL_WARM_POOL` (default 2; 0 turns the pool off, and then nothing takes a warm browser either).
+A warm browser is taken over only by the tool it was started with: a change to `real.mjs`,
+`measure.mjs` or `match.mjs` starts new ones (a warm browser serves the session, so before
+2026-11-02 a `measure.mjs` change was not used until the old warm browsers had gone).
 A warm browser takes its slot through the gate's try mode (`BROWSER_SLOT_TRY=1`): only a spare slot
 above 4, at once or not at all, and never while a start waits in the queue, so it never stands
 between a start or a test shard and a slot. One that waits `REAL_WARM_SECONDS` (default 600)
 unclaimed, or sees starts queue for a slot for 6 seconds, closes and frees its slot. Warm browsers
 wait in `/tmp/graphty-real-warm/`, with their log there.
+`--prove`'s warm-pool check sets `REAL_WARM_HOLD=1`: its warm browser waits in the queue for a slot
+and stays up while starts queue, and the check waits until it is ready, so the verdict is whether a
+warm browser is taken over, not whether the machine had a spare slot at that moment (in try mode the
+check failed while 8 study browsers held every spare slot for minutes).
 
 **A start that must not wait in the background.** A start that waits longer than the caller's
 shell call allows is moved to the background, and an agent whose turn then ends never comes back
@@ -500,7 +548,7 @@ walk, a keyboard walk or a re-walk is therefore already a script.
 ```bash
 D=<main checkout>/tmp/design-studio/tier3
 node $T/real.mjs --replay $D/r1d1/pilot/T38A/success $D/r1d2/pilot/T38A/success
-node $T/real.mjs --rewalk $D/r1d1/pilot/T38A $D/r1d2/pilot/T38A [--only success,detours]
+node $T/real.mjs --rewalk $D/r1d1/pilot/T38A $D/r1d2/pilot/T38A [--only success,detour-1]
 ```
 
 `--replay <walk folder | route.jsonl> <new session folder>` starts the new session the way the
@@ -511,9 +559,12 @@ error), or the screen it ends on differs from the recorded one by more than a co
 (`REAL_REPLAY_TOLERANCE`, default 2 or 5% of the screen). A refusal of a shared name is compared by
 what was refused and the candidates offered, never by the tool's wording of it, and a name the route
 recorded as refused that the matcher now resolves (its rival was a container) is checked by name and
-not done, as the recording did nothing (`match.mjs`). Lines that differ from run to run on
+not done, as the recording did nothing (`match.mjs`); so is one a route recorded by an earlier replay holds as that replay's own note ("was refused when recorded; it names ... now; not done"). Lines that differ from run to run on
 the same screen are not compared: a slow click that landed, a drawing still moving, a notice gone
-before the screenshot. At the first divergence it stops (exit 5), prints how the step differed, and
+before the screenshot. A control with no name is left out of the screen comparison on both sides,
+and the screen record leaves out what `visibility: hidden` keeps in place but does not draw (the
+data table behind an open workspace, whose 21 nameless header buttons and rows a route recorded
+before 2026-11-02 still holds). At the first divergence it stops (exit 5), prints how the step differed, and
 leaves the session open on that screen: whoever replayed it looks at the screenshot and carries on
 by hand with `--step`, then `--end`, and the new folder's own `route.jsonl` becomes the route to
 replay next time. A route that matched to the end is ended (exit 0; `--keep` leaves it open to
@@ -613,13 +664,15 @@ node design/ui/studio/tool/real.mjs --prove
 Runs real sessions against the build: a start, clicks by control name and by a node's drawn
 label, a click at a point, a hover tooltip (and one right after another, while the first fades
 out), a click on a disabled control that must print its reason, a planted click that lands but whose wait
-after it runs past the limit (reported landed, not missed), a hover over a planted dismissed,
+after it runs past the limit (reported landed, not missed), a planted control the page draws again
+right after the matcher found it (clicked by its name again, not missed), a planted control hidden
+with `visibility: hidden` (left out of the screen a route records), a hover over a planted dismissed,
 hidden tooltip (reported `null`), a hover over a planted mark that opens a card (reported as the
 card, not `null`), a client killed mid-step that must
 leave the session running, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, typing into an open popover
-whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
+whose box keeps repainting over a still drawing, which must not be, setup starts (one that works and leaves Undo off,
 one whose step names nothing, one whose click never becomes clickable), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog, the first Tab after a setup landing on Main menu), a
@@ -651,6 +704,37 @@ control names) and `spoken.json` (what each screen says out loud: its controls' 
 what has focus, the live regions' text and the notices shown during the move), both for the
 wording check. `--only <walk>[,<walk>]` and `--size <WxH>` run part of it, for writing a walk.
 
+For tier 5, `bars.mjs <round folder>/bars --tier 5 --scheme dark --dist <frozen build>` (and
+`<round folder>/bars-light --tier 5 --scheme light`) is the scripted walk of the tier 5 screens
+(item 5 of `../tier5/criteria.md`'s "Before the first session"), from three setups: on
+volunteers, in a style layer's Which nodes and again in a Data place filter card, the workspace on a
+new rule with its picker open, a step pane, the Except switch on, an Or group, the reference picker
+closed, open, typed and with a result chosen, Advanced with Edges where, No match, the matches
+strip's Group column and the read-only outline at rest; and on the 50,000-person staff network
+(Control+A on the canvas first, so Selected (N) is not 0) the checklist, Check N, the outline of a
+step with many values, the reference picker closed, open, typed and chosen, Selected (N), Hovered
+or selected and the outline at rest. Every screen at 1440 x 900 and 900 x 700 gets axe (bar 5: a
+serious or critical finding fails the run). Every list on a 50,000-node screen is held to "Large
+graphs" (`largeLists` in `measure.mjs`): a listbox, menu, tree, table or checklist that renders
+more than 200 items, or shows only part of what it holds ("32 more", a grid's `aria-rowcount`), or
+renders 20 or more, needs to render at most 200, show a count beside it (or an "N of M" in its
+workspace's header) and have a search box in its pane; one that does not fails the run, printed as
+`FAILS <screen>: <list>`. `vocabulary.json` also gets an entry "the catalog's search keywords"
+(every algorithm's keywords, technical name and field names, from graphty-element's
+`catalog.algorithms()`), so `wording.mjs` catches a prompt word that finds a picker entry by its
+alias. The axe, shared-name, focus and large-list checks (a planted list of 2,000 with no count and
+no search) are proven at each size first, and a run that read no list on a 50,000-node screen, or no
+keyword, is not trusted. The large-list check must also flag the real case the owner rejected: the
+rejected build's "While has nodes" step on the 50,000-person network (its kept copy in the main
+checkout's `tmp/design-studio/tier5/prep/build-7ca4cae647`, or `--rejected <build dir>`), walked
+at 1440 x 900; passed, or the build missing, the run is not trusted. Words at rest are counted on
+the screens at rest (the graph at the start, each read-only outline: 50 app words at most) and on
+the workspace open on a step (a step pane, the Except switch, the outline of a step with many
+values: the workspace's own words, 40 at most), and every heading's app words (3 at most); each over
+is printed `OVER` as a severity 2 candidate for the calm-first check, not a failure. Sixty planted
+words and a five-word heading must be counted at each size first, and a screen where the count read
+no words is not trusted. Needs `python3 design/ui/studio/tool/files/big-50k.py` once.
+
 For tier 4, `bars.mjs <round folder>/bars --tier 4 --scheme dark --dist <frozen build>` (and
 `<round folder>/bars-light --tier 4 --scheme light`) walks bar 5's data screens of
 `../tier4/criteria.md` from the empty start page: the web address box (from the start screen and
@@ -662,15 +746,34 @@ screen not reached (a `MISS` line). It writes `vocabulary.json` and `spoken.json
 check, as tier 3's does.
 
 ```bash
+node design/ui/studio/tool/waits.mjs <walks folder | route.jsonl>... [--build <sha>]   # waits over 10 s
+node design/ui/studio/tool/waits.mjs --self-test                               # planted waits caught
+```
+
+`waits.mjs` reads every step's timings in the routes under the folders given (T79's pilot walks, a
+round's T79 sessions, the 50,000-node scripted walk), `--build` keeping the routes walked on that
+build, and lists each step whose wait passed 10 s (`--over <seconds>`) with its screenshot: the
+step's actions plus the time until the page stopped changing after them (`ms.act + ms.settleDom`;
+a busy page answers no script, so a block shows up there), marked when it sums several actions, with
+the input delay (`ms.firstFrame`). Whether the screen showed work under way during the wait is for a
+person to read from the screenshot (and the glance screenshot, when the session took one). Exit 1
+when a wait passed the limit or when no timed step was read.
+
+```bash
 node design/ui/studio/tool/endstate.mjs <round folder | session folder> ...   # bar 4's end-state check
 node design/ui/studio/tool/endstate.mjs --self-test                            # planted mismatches caught
-node design/ui/studio/tool/steps.mjs <round folder> [--answers <answers.md>]   # bar 7, steps per core task
+node design/ui/studio/tool/steps.mjs <round folder> [--answers <answers.md>] [--tier 4|5]   # steps per core task
 node design/ui/studio/tool/steps.mjs --self-test                               # planted cases caught
 node --test design/ui/studio/tool/tier4.test.mjs                               # tier 4 gate, bar 5 list
 ```
 
-`endstate.mjs` reads each session's `data.json` and exported files and writes `endstate.json`
-beside them. It reports a filter card whose chips differ from graphty-element's count; a Hide card
+`endstate.mjs` reads each session's `data.json`, `styles.json` and exported files and writes
+`endstate.json` beside them. For each enabled style layer that writes something it holds the count
+the layer says it selects (less its members with no value) against the members graphty-element
+paints (`painted` in `styles.json`), and each channel's topmost count against the drawing; a layer
+in the start's stack, unchanged, that no longer paints what it selects is "styling lost after the
+session"; a selection preview still drawn with no workspace open (every layer suspended) is a
+mismatch. A session that ended with the workspace open has its layers listed, not counted. It reports a filter card whose chips differ from graphty-element's count; a Hide card
 on alone whose count is not what is drawn (one that hides more than it says), or, with several,
 what is drawn outside the cards' bounds (with a time window on, only the upper bound); a Select
 card on alone whose count is not what is selected (with several, outside the largest and their
@@ -678,7 +781,8 @@ sum); a source whose counts differ from its recount or its row chips; and an exp
 GraphML, GEXF, JSON) whose node or edge rows match neither the whole network, what was drawn nor
 one source when it was written (`downloads.jsonl`). An image or a project file is listed, not
 counted. Exit 1 on any mismatch, on a session with no `data.json`, and on a run that read no item.
-`steps.mjs` counts each core task session's inputs in its `route.jsonl` (clicks, keys, typed text,
+`steps.mjs` knows each tier's core tasks (`CORE_BY_TIER`: tier 4's T61, T62, T65, T67; tier 5's
+T70, T71, T73, T74, T78), read from the round folder's path or `--tier`, and counts each core task session's inputs in its `route.jsonl` (clicks, keys, typed text,
 files chosen or dropped, drags; hovering, reading and `--expect` are not steps) against the answer
 key's "Path steps" for its half, and fails a core task whose median is more than 3 over its path,
 that has no path count, or that has no graded session to count; a VOID session gives way to its
@@ -689,7 +793,8 @@ node design/ui/studio/tool/wording.mjs <tasks.md> <out dir>/vocabulary.json   # 
 node design/ui/studio/tool/wording.mjs --self-test                             # each planted echo caught
 node design/ui/studio/tool/keydraw.mjs <round folder | session folder> ...     # key and drawing agree
 node design/ui/studio/tool/keydraw.mjs --self-test                             # planted disagreements
-node design/ui/studio/tool/score.mjs <round folder> [--task T39]                # bars 1 to 4 (bar 4 limit: 10)
+node design/ui/studio/tool/score.mjs <round folder> [--task T39]                # tier 3: bars 1 to 4 (bar 4 limit: 10)
+node design/ui/studio/tool/score.mjs <tier 5 round folder> [--rating-gates]     # tier 5: bars 1 to 3, 9's ratings, Sam
 node design/ui/studio/tool/score.mjs --self-test                               # planted failures caught
 node --test design/ui/studio/tool/tier3.test.mjs                               # tier wiring, style dump
 ```
@@ -706,7 +811,17 @@ sections, each row's chip color, and how many nodes and edges are drawn in each 
 color, and a "N of M nodes" the layer of that name or the drawing does not bear out; it fails on a
 session with no `key.json` and on a run that read no key row. `score.mjs` reads the round's `plan.md`, each session's `grade.md` (its first three lines:
 `Grade:`, `False done:`, `Wrong turns:`, plus `Route:` on a T47 success and `Scripted exit: yes`
-on a scripted give-up) and `styles-steps.jsonl`, and writes `score.json`.
+on a scripted give-up) and `styles-steps.jsonl`, and writes `score.json`. For a tier 5 round (its
+path, or `--tier 5`) it scores `../tier5/criteria.md` instead: bar 1, each task's S or SD at least
+75% of its valid pointer sessions with no half at 0 (2 of 2 on T72, T75, T77, T79; 3 of 4 on the
+core tasks), a planned session with no valid grade failing it; bar 2; bar 3 per task; Sam's
+keyboard-only sessions (a start with `--keys`) left out of all three and reported as bar 5's "S or
+SD". And bar 9's scripted half, from each valid pointer session's line
+`Overwhelm: <1-7> -- <screen element> -- <the reason, in the participant's words>` (`none` for the
+element when the reason names none; a session without the line is a problem): no screen element
+named for a rating of 4 or more in two sessions on different task halves, and the median rating
+(at most 2, no half above 3), which gates only with `--rating-gates` (once the rating check held)
+and is otherwise printed as a measure.
 
 Measures the scripted bars of `criteria.md` and `../tier2/criteria.md` on a production build, in
 about 15 minutes, and writes `<out dir>/bars.json`; it exits 1 when a bar fails or a screen was not

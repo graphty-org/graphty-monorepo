@@ -34,6 +34,7 @@ import type {
     VisibilityChange,
 } from "../visibility";
 import type { TimeInstants, TimePlayback, TimeResultsPolicy } from "../visibility/filter";
+import { diffCounts, type FilterBytes, type SlideCounts } from "../visibility/slide";
 import {
     addSteps,
     alignTo,
@@ -51,7 +52,16 @@ import {
     type TimeUnit,
 } from "./parse";
 import {
+    assertMeasures,
+    assertSeriesBounds,
+    type TimeSeries,
+    type TimeSeriesOptions,
+    walkSeries,
+    windowsUntil,
+} from "./series";
+import {
     buildField,
+    countBins,
     drain,
     type FieldIndex,
     type FieldPlan,
@@ -65,6 +75,7 @@ import {
 import { isTimeZone, UTC_ZONE, wallClock } from "./zone";
 
 export type { TimeUnit } from "./parse";
+export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "./series";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer reads and passes
@@ -190,7 +201,10 @@ export interface TimeBinsOptions {
     readonly from?: number;
     /** Where the bins end; default the extent's end. */
     readonly to?: number;
-    /** `"visible"` counts only elements visible now (every filter and the window). Default `"all"`. */
+    /**
+     * `"visible"` counts only elements that pass every filter, the window aside, so a bar outside
+     * the window still holds its filtered count. Default `"all"`.
+     */
     readonly scope?: "all" | "visible";
     /**
      * Count only these elements: the selection's activity over the histogram. With `incident`, the
@@ -302,6 +316,12 @@ export interface TimePlayOptions {
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
     readonly timeZone?: string;
+    /**
+     * With stepped motion, wait for a drawn frame before timing the next step, so steps never
+     * outrun the renderer. Default false: steps keep to the timer. No frame coming (a hidden page,
+     * a stopped render loop, no renderer) does not hold a play up. Smooth motion never needs it.
+     */
+    readonly waitForRender?: boolean;
 }
 
 /**
@@ -477,6 +497,19 @@ export interface TimeApi {
     /** Stop advancing, and record where the window stopped. */
     pause(): void;
     /**
+     * Every window of a step at once, for a chart over time: each one step wide (cumulative: growing
+     * a step at a time), whatever the width of the window in force, as stepping from the first window
+     * of that step shows them. They are counted under the same filter, without moving what is on
+     * screen or touching history. Step, mode and zone left out come from the window in force, else
+     * the settings; `from` and `to` default to the start and end of the data.
+     * @param options - Step, mode, range, zone and measures.
+     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
+     *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
+     * @throws `E_FEATURE_OFF` with the experiment off.
+     */
+    series(options?: TimeSeriesOptions): Run<TimeSeries>;
+    /**
      * Move the window by whole steps (negative goes back), stopping at the first and the last
      * window. With no window, a step forward opens the first window and a step back the last.
      * Undoable; window moves made in quick succession merge into one step, as a drag does.
@@ -542,6 +575,11 @@ export interface TimeSources {
     readonly runs: () => readonly Run[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
+    /**
+     * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
+     * Asked only by a stepped play with `waitForRender`.
+     */
+    readonly renderedFrame?: () => Promise<void>;
 }
 
 /** The `data.knownFields` keys that hold the designation. */
@@ -694,27 +732,6 @@ const HAS_YEAR = /\d{4}/;
  */
 function columnOf(path: string): string {
     return path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-}
-
-/**
- * The first position in a sorted array holding a value at or above `at`.
- * @param sorted - Ascending values.
- * @param at - The value.
- * @returns The position, `sorted.length` when every value is below.
- */
-function lowerBound(sorted: ArrayLike<number>, at: number): number {
-    let lo = 0;
-    let hi = sorted.length;
-    while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        if (sorted[mid] < at) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-
-    return lo;
 }
 
 /**
@@ -904,27 +921,6 @@ function present(field: { readonly nodes?: TimeSource; readonly edges?: TimeSour
  */
 function zoned(timeZone: string | undefined): { readonly timeZone?: string } {
     return timeZone === undefined ? {} : { timeZone };
-}
-
-/**
- * The first position in a sorted array holding a value above `at`.
- * @param sorted - Ascending values.
- * @param at - The value.
- * @returns The position.
- */
-function upperBound(sorted: ArrayLike<number>, at: number): number {
-    let lo = 0;
-    let hi = sorted.length;
-    while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        if (sorted[mid] <= at) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-
-    return lo;
 }
 
 /**
@@ -1146,6 +1142,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let playing = false;
     let interval = DEFAULT_INTERVAL;
     let loop = false;
+    let waitForRender = false;
+    /** How many plays have started, so a frame an earlier play waited on starts no timer. */
+    let plays = 0;
     /** The history step this play's moves merge into. */
     let playStep: HistoryStepId | null = null;
     /** How many times the window has slid, so a move can tell a newer slide took the cursor. */
@@ -1157,6 +1156,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let reruns: Promise<unknown> = Promise.resolve();
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
+    /** The last `bins({ scope: "visible" })` counts, and what they were counted from. */
+    let filteredBins: {
+        readonly filter: FilterBytes;
+        readonly built: FieldIndex;
+        readonly bounds: string;
+        readonly nodes: readonly number[];
+        readonly edges: readonly number[];
+    } | null = null;
     /** `candidates()` for the data revision, by the columns it looked through. */
     const candidateCache = new RevisionCache<readonly TimeCandidate[]>(() => sources.dataRevision?.(), 1);
 
@@ -1733,7 +1740,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? first : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -1754,7 +1761,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             from: mode === "cumulative" ? (extent?.from ?? start) : start,
             to: addSteps(start, step, 1, zone),
             step,
-            ...(mode === "cumulative" ? { mode } : {}),
+            ...(mode === settingsNow().mode ? {} : { mode }),
             ...zoned(options.timeZone),
         });
     };
@@ -1866,78 +1873,50 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Compare the visible masks before and after a move, and publish `time:step`.
-     * @param before - The masks before.
-     * @param before.nodes - The node mask before.
-     * @param before.edges - The edge mask before.
+     * Keep what a move changed for `time.changes()`, and publish `time:step`.
+     * @param counts - What the move changed, null when it wrote nothing.
      * @param window - The window now.
      * @param cause - What moved it.
      * @returns The event.
      */
-    const afterMove = (
-        before: { readonly nodes: Uint8Array; readonly edges: Uint8Array },
+    const published = (
+        counts: SlideCounts | null,
         window: TimeWindow | null,
         cause: TimeStepEvent["cause"],
     ): TimeStepEvent => {
-        const nodes = visibility.nodeMask();
-        const edges = visibility.edgeMask();
-        const graph = sources.snapshot();
-        // ponytail: a full diff of both masks per move, O(n + m); the design's incremental step
-        // touches only the rows that changed.
-        const diff = (after: Uint8Array, was: Uint8Array): { entered: number; left: number; visible: number } => {
-            let entered = 0;
-            let left = 0;
-            let visible = 0;
-            for (let row = 0; row < after.length; row++) {
-                const now = after[row] === 1;
-                const then = row < was.length && was[row] === 1;
-                visible += now ? 1 : 0;
-                entered += now && !then ? 1 : 0;
-                left += then && !now ? 1 : 0;
-            }
-
-            return { entered, left, visible };
-        };
-        const n = diff(nodes, before.nodes);
-        const e = diff(edges, before.edges);
+        // The rows belong to the snapshot the slide wrote them on, which a removal may have replaced.
+        const graph = counts?.graph ?? sources.snapshot();
+        const rows = counts?.rows;
         let cached: TimeChanges | null = null;
         lastChanges = () => {
-            if (cached !== null) {
-                return cached;
+            if (cached !== null || rows === undefined) {
+                return cached ?? NO_CHANGES;
             }
 
             const space = edgeSpaceOf(graph);
-            const rowsWhere = (after: Uint8Array, was: Uint8Array, entering: boolean): number[] => {
-                const out: number[] = [];
-                for (let row = 0; row < after.length; row++) {
-                    const now = after[row] === 1;
-                    const then = row < was.length && was[row] === 1;
-                    if (entering ? now && !then : then && !now) {
-                        out.push(row);
-                    }
-                }
-
-                return out;
-            };
-            const idsOf = (entering: boolean): TimeIds =>
+            const idsOf = (nodeRows: ArrayLike<number>, edgeRows: ArrayLike<number>): TimeIds =>
                 Object.freeze({
-                    nodes: Object.freeze(rowsWhere(nodes, before.nodes, entering).map((row) => graph.ids.idOf(row))),
-                    edges: Object.freeze(rowsWhere(edges, before.edges, entering).map((row) => space.idOf(row))),
+                    nodes: Object.freeze(Array.from(nodeRows, (row) => graph.ids.idOf(row))),
+                    edges: Object.freeze(Array.from(edgeRows, (row) => space.idOf(row))),
                 });
-            cached = Object.freeze({ entered: idsOf(true), left: idsOf(false) });
+            cached = Object.freeze({
+                entered: idsOf(rows.enteredNodes, rows.enteredEdges),
+                left: idsOf(rows.leftNodes, rows.leftEdges),
+            });
 
             return cached;
         };
         const extent = extentNow();
-        const untimedOf = (counts: TimeCounts | undefined): number =>
-            counts === undefined ? 0 : counts.untimed + counts.unparsed;
+        const untimedOf = (kind: TimeCounts | undefined): number =>
+            kind === undefined ? 0 : kind.untimed + kind.unparsed;
+        const { summary } = visibility;
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
             from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window, "from"),
             to: window === null ? Number.POSITIVE_INFINITY : boundOf(window, "to"),
-            visible: Object.freeze({ nodes: n.visible, edges: e.visible }),
-            entered: Object.freeze({ nodes: n.entered, edges: e.entered }),
-            left: Object.freeze({ nodes: n.left, edges: e.left }),
+            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
+            entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
+            left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
             untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
             atStart: window !== null && isFirst(window),
             atEnd: window !== null && isLast(window),
@@ -1951,15 +1930,39 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Move the window: as its own step, or merged into this play's step.
+     * The masks as they stand, for a move that does not go through a slide.
+     * @returns Both masks.
+     */
+    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => ({
+        nodes: visibility.nodeMask(),
+        edges: visibility.edgeMask(),
+    });
+
+    /**
+     * Publish a move that did not go through a slide, from the masks before it.
+     * @param before - The masks before.
+     * @param before.nodes - The node mask before.
+     * @param before.edges - The edge mask before.
+     * @param window - The window now.
+     * @param cause - What moved it.
+     * @returns The event.
+     */
+    const afterMove = (
+        before: { readonly nodes: Uint8Array; readonly edges: Uint8Array },
+        window: TimeWindow | null,
+        cause: TimeStepEvent["cause"],
+    ): TimeStepEvent => {
+        const now = masksNow();
+        return published(diffCounts(before.nodes, now.nodes, before.edges, now.edges), window, cause);
+    };
+
+    /**
+     * Record a window: as its own step, or merged into this play's step.
      * @param next - The window.
      * @param cause - What moved it.
      * @param ownStep - Record it as its own step, never merged into the window step before it.
-     * @returns The event, once the masks and any re-runs the results setting started have settled.
      */
-    const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
-        const slide = slides;
-        const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
+    const record = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep: boolean): Promise<void> => {
         if (cause === "play") {
             await dispatcher.transaction("time.play", (tx) => tx.dispatch({ op: "visibility.window", window: next }), {
                 fact: { code: "visibility.window", params: {} },
@@ -1972,13 +1975,32 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         } else {
             await visibility.setWindow(next);
         }
+    };
+
+    /**
+     * Move the window: as its own step, or merged into this play's step.
+     * @param next - The window.
+     * @param cause - What moved it.
+     * @param ownStep - Record it as its own step, never merged into the window step before it.
+     * @returns The event, once the masks and any re-runs the results setting started have settled.
+     */
+    const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
+        const slide = slides;
+        // The masks move first, by the rows that change; recording the window adopts them.
+        const counts = visibility.slideWindow(next);
+        try {
+            await record(next, cause, ownStep);
+        } catch (error) {
+            visibility.slideWindow(null);
+            throw error;
+        }
 
         // A play that began while this was recording owns the cursor now.
         if (slide === slides) {
             cursor = null;
         }
 
-        const event = afterMove(before, next, cause);
+        const event = published(counts, next, cause);
         await reruns;
 
         return event;
@@ -2018,46 +2040,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const counts = visibility.slideWindow(next);
         cursor = next;
         slides++;
-        const graph = sources.snapshot();
-        const rows = counts?.rows;
-        let cached: TimeChanges | null = null;
-        lastChanges = () => {
-            if (cached !== null || rows === undefined) {
-                return cached ?? NO_CHANGES;
-            }
 
-            const space = edgeSpaceOf(graph);
-            const idsOf = (nodeRows: readonly number[], edgeRows: readonly number[]): TimeIds =>
-                Object.freeze({
-                    nodes: Object.freeze(nodeRows.map((row) => graph.ids.idOf(row))),
-                    edges: Object.freeze(edgeRows.map((row) => space.idOf(row))),
-                });
-            cached = Object.freeze({
-                entered: idsOf(rows.enteredNodes, rows.enteredEdges),
-                left: idsOf(rows.leftNodes, rows.leftEdges),
-            });
-
-            return cached;
-        };
-        const extent = extentNow();
-        const untimedOf = (counts: TimeCounts | undefined): number =>
-            counts === undefined ? 0 : counts.untimed + counts.unparsed;
-        const { summary } = visibility;
-        const event: TimeStepEvent = Object.freeze({
-            index: stepIndexOf(next),
-            from: boundOf(next, "from"),
-            to: boundOf(next, "to"),
-            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
-            entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
-            left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
-            untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
-            atStart: isFirst(next),
-            atEnd: isLast(next),
-            cause,
-        });
-        sources.emit("time:step", event);
-
-        return event;
+        return published(counts, next, cause);
     };
 
     /**
@@ -2107,6 +2091,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         frame = requestAnimationFrame(glide);
     };
 
+    /** Time the next playback step, past a drawn frame when the play waits for one. */
+    const nextStep = (): void => {
+        if (!waitForRender || sources.renderedFrame === undefined) {
+            timer = setTimeout(() => void tick(), interval);
+            return;
+        }
+
+        const play = plays;
+        void sources.renderedFrame().then(() => {
+            if (play === plays && playing && !disposed) {
+                timer = setTimeout(() => void tick(), interval);
+            }
+        });
+    };
+
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
@@ -2145,7 +2144,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         if (playing && !disposed) {
-            timer = setTimeout(() => void tick(), interval);
+            nextStep();
         }
     };
 
@@ -2189,20 +2188,25 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Which rows a histogram counts: the given elements, the visible ones, or all (null).
+     * Which rows a histogram counts: the given elements, the ones passing the filter, or all.
      * @param kind - Nodes or edges.
      * @param options - The histogram's options.
-     * @returns The test, or null to count every row.
+     * @returns One byte per row, or null to count every row.
      */
-    const rowFilter = (kind: "node" | "edge", options: TimeBinsOptions): ((row: number) => boolean) | null => {
-        const visibleMask = (): Uint8Array => (kind === "node" ? visibility.nodeMask() : visibility.edgeMask());
-        const mask = options.scope === "visible" ? visibleMask() : null;
+    const rowBytes = (kind: "node" | "edge", options: TimeBinsOptions): Uint8Array | null => {
+        const key = kind === "node" ? "nodes" : "edges";
+        const passing = options.scope === "visible" ? visibility.passingBytes()[key] : null;
         if (options.of === undefined) {
-            return mask === null ? null : (row) => mask[row] === 1;
+            return passing;
         }
 
-        const rows = rowsOf(kind, options.of);
-        return (row) => rows.has(row) && (mask === null || mask[row] === 1);
+        const graph = sources.snapshot();
+        const out = new Uint8Array(kind === "node" ? graph.nodeCount : graph.edgeCount);
+        for (const row of rowsOf(kind, options.of)) {
+            out[row] = passing === null ? 1 : passing[row];
+        }
+
+        return out;
     };
 
     /**
@@ -2358,6 +2362,44 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             ...(options.mode === undefined ? {} : { mode: options.mode }),
             ...zoned(options.timeZone),
         });
+    };
+
+    /**
+     * The windows of a series: each one step wide (cumulative: growing a step at a time), as a play
+     * from the first window of that step shows them, up to the series' end.
+     * @param options - What the series asked for.
+     * @returns The windows; none when nothing has a time.
+     */
+    const seriesWindows = (options: TimeSeriesOptions): readonly TimeWindow[] => {
+        assertSeriesBounds(options);
+        const current = visibility.window;
+        const step = stepFor(options.step ?? current?.step);
+        const mode = options.mode ?? current?.mode ?? settingsNow().mode;
+        const timeZone = options.timeZone ?? current?.timeZone;
+        const opening = firstWindow({ step, mode, ...zoned(timeZone) });
+        const extent = extentNow();
+        if (extent === null) {
+            return [];
+        }
+
+        const zone = zoneOf(timeZone);
+        const begin = options.from ?? extent.from;
+        const start = alignAt(begin, step, zone);
+        const cumulative = mode === "cumulative";
+        const first: TimeWindow = Object.freeze({
+            ...opening,
+            from: cumulative ? begin : start,
+            to: addSteps(start, step, 1, zone),
+            ...(current?.nodes === undefined ? {} : { nodes: current.nodes }),
+            ...(current?.missing === undefined ? {} : { missing: current.missing }),
+        });
+        // A cumulative window grows from where it was told, which can lie before the data.
+        const next = (window: TimeWindow): TimeWindow =>
+            cumulative
+                ? Object.freeze({ ...window, to: addSteps(boundOf(window, "to"), step, 1, zone) })
+                : advanced(window, 1);
+
+        return windowsUntil(first, options.to ?? extent.to, next, (window) => boundOf(window, "to"));
     };
 
     /**
@@ -2535,35 +2577,25 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             const bounds = binBounds(from, to, asked, built.unit === "ordinal", zone);
             const countOf = (kind: "node" | "edge"): number[] => {
                 const parsed = built[kind];
-                const into = new Array<number>(bounds.length - 1).fill(0);
-                if (parsed === null) {
-                    return into;
-                }
-
-                const keep = rowFilter(kind, options);
-                if (keep === null) {
-                    for (let bin = 0; bin < into.length; bin++) {
-                        into[bin] = lowerBound(parsed.sorted, bounds[bin + 1]) - lowerBound(parsed.sorted, bounds[bin]);
-                    }
-
-                    return into;
-                }
-
-                const last = bounds[bounds.length - 1]; // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
-                for (
-                    let at = lowerBound(parsed.sorted, bounds[0]);
-                    at < parsed.sorted.length && parsed.sorted[at] < last;
-                    at++
-                ) {
-                    if (keep(parsed.perm[at])) {
-                        into[upperBound(bounds, parsed.sorted[at]) - 1]++;
-                    }
-                }
-
-                return into;
+                return parsed === null
+                    ? new Array<number>(bounds.length - 1).fill(0)
+                    : countBins(parsed, bounds, rowBytes(kind, options));
             };
-            const nodes = countOf("node");
-            const edges = countOf("edge");
+            // What passes the filter moves with the filter and the data, never with the window.
+            const filter = options.scope === "visible" && options.of === undefined ? visibility.filterBytes() : null;
+            const edgesOfBins = bounds.join();
+            const held =
+                filter !== null &&
+                filteredBins?.filter === filter &&
+                filteredBins.built === built &&
+                filteredBins.bounds === edgesOfBins
+                    ? filteredBins
+                    : null;
+            const nodes = held?.nodes ?? countOf("node");
+            const edges = held?.edges ?? countOf("edge");
+            if (filter !== null && held === null) {
+                filteredBins = { filter, built, bounds: edgesOfBins, nodes, edges };
+            }
 
             return Object.freeze(
                 nodes.map((count, bin) =>
@@ -2637,7 +2669,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
             const current = visibility.window;
             const moved = current !== null && extentNow() !== null ? windowUnder(current, next, patch.timeZone) : null;
-            const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
+            const before = masksNow();
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
                     Object.entries(next).filter(
@@ -2672,7 +2704,18 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         window(input: TimeWindowInput | null): Run<FilterResult> {
             cursor = null;
             const next = input === null ? null : complete(filled(input));
-            const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
+            if (next !== null && internals.instants(next.attribute) !== null) {
+                const counts = visibility.slideWindow(next);
+                const run = visibility.setWindow(next);
+                run.then(
+                    () => published(counts, next, "window"),
+                    () => visibility.slideWindow(null),
+                );
+
+                return run;
+            }
+
+            const before = masksNow();
             const run = visibility.setWindow(next);
             run.then(
                 () => afterMove(before, next, "window"),
@@ -2694,6 +2737,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             zoneOf(options.timeZone);
             interval = options.interval ?? interval;
             loop = options.loop ?? loop;
+            waitForRender = options.waitForRender ?? false;
+            plays++;
             smooth = (options.motion ?? (smooth ? "smooth" : "steps")) === "smooth";
             const current = cursor ?? visibility.window;
             playing = true;
@@ -2712,7 +2757,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 void move(start, "play")
                     .then(() => {
                         if (playing) {
-                            timer = setTimeout(() => void tick(), interval);
+                            nextStep();
                         }
                     })
                     .catch(() => {
@@ -2722,6 +2767,28 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             timer = setTimeout(() => void tick(), interval);
+        },
+
+        series(options: TimeSeriesOptions = {}): Run<TimeSeries> {
+            const { signal, onProgress, ...asked } = options;
+            const measures = asked.measures ?? [];
+
+            return visibility.windowRun(
+                "time.series",
+                asked,
+                { ...(signal === undefined ? {} : { signal }), ...(onProgress === undefined ? {} : { onProgress }) },
+                async (open, context) => {
+                    assertMeasures(measures);
+                    await follow();
+                    const windows = seriesWindows(asked);
+                    const bounds = (window: TimeWindow): readonly [number, number] => [
+                        boundOf(window, "from"),
+                        boundOf(window, "to"),
+                    ];
+
+                    return walkSeries(windows, open(), measures, bounds, context);
+                },
+            );
         },
 
         pause(): void {

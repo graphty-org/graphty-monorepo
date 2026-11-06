@@ -758,6 +758,8 @@ export class Graphty extends LitElement {
         const controller = this.#ensureAcceleration();
 
         if (!controller.disposed) {
+            // The first update calls init, and on a shared device the accelerator waits for it.
+            this.#graph.expectRenderer();
             void controller.start();
         }
 
@@ -4946,6 +4948,28 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that borrows the view and hands it back calls
+     * `zoomToFit()` instead of restoring what it read.
+     * @returns True while the element's own framing is under way.
+     * @example
+     * ```typescript
+     * const framing = element.framing;
+     * const camera = element.getCameraState();
+     * // ... the canvas is used for something else, then:
+     * if (framing) {
+     *     element.zoomToFit();
+     * } else {
+     *     await element.setCameraState(camera);
+     * }
+     * ```
+     */
+    get framing(): boolean {
+        return this.#graph.framing;
+    }
+
+    /**
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
@@ -5010,6 +5034,27 @@ export class Graphty extends LitElement {
         timeoutMs?: number;
     }): Promise<void> {
         return this.#graph.waitForStableFrame(options);
+    }
+
+    /**
+     * Resolve once every style change made so far is drawn on the canvas.
+     *
+     * `session.styles.settled()` resolves when the repaint passes have ended, but on a large graph
+     * the renderer applies their paint over many frames, so the canvas can show the old colors for
+     * seconds after it. This waits for the last batch too. Unlike {@link Graphty.waitForStableFrame}
+     * it does not wait for the layout or the camera, so a running layout never holds it, and it
+     * never rejects: an element removed from the page ends the wait.
+     * @returns Promise that resolves once the canvas shows every style change made so far.
+     * @beta
+     * @since 3.34.0
+     * @example
+     * ```typescript
+     * await element.session.styles.add(layer);
+     * await element.waitForPainted();
+     * ```
+     */
+    async waitForPainted(): Promise<void> {
+        return this.#graph.waitForPainted();
     }
 
     /**

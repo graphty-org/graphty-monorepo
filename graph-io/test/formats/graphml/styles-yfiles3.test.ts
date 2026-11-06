@@ -39,6 +39,74 @@ async function sheet(sheet: string) {
     return { node, edges, edge };
 }
 
+/**
+ * The ids of the nodes of a sheet that hold a group label model's label.
+ * @param name - the sheet's file name
+ * @returns the ids
+ */
+function groupIds(name: string): string[] {
+    const text = readFileSync(join(SHEETS, name), "utf8");
+    return [...text.matchAll(/<node id="([^"]+)"(?:(?!<\/data>)[\s\S])*?GroupNodeLabelModelParameter/g)].map(
+        (m) => m[1],
+    );
+}
+
+describe("yEd Live GraphML: where a node label's model puts it", () => {
+    it("places a composite model's label by the parameter it holds", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        expect(node("labelPosition", "model-composite")).toBe("top");
+    });
+
+    it("hangs a free label's top left corner from the node's by its LayoutOffset", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        // a 40 x 26 node: 30,-18 from its corner is 10.8,-31 from its middle, with the 0.8 yEd Live's words stand in
+        expect(node("labelPosition", "model-free-offset")).toBe("center");
+        expect(node("labelOffsetX", "model-free-offset")).toBeCloseTo(10.8);
+        expect(node("labelOffsetY", "model-free-offset")).toBeCloseTo(-31);
+        expect(node("labelShiftX", "model-free-offset")).toBe(0.5);
+        expect(node("labelShiftY", "model-free-offset")).toBe(0.5);
+    });
+
+    it("keeps the distance a shared model states", async () => {
+        const { node } = await sheet("specimen-labels-p2.graphml");
+        expect(node("labelOffsetY", "model-exterior-margins")).toBe(-15);
+        expect(node("labelOffsetY", "model-stretch-padding")).toBe(6);
+        // the words themselves stand 8 in from the node's top left corner
+        expect(node("labelPosition", "model-interior-padding")).toBe("center");
+        expect(node("labelOffsetX", "model-interior-padding")).toBe(-12);
+        expect(node("labelOffsetY", "model-interior-padding")).toBe(-5);
+        expect(node("labelShiftX", "model-interior-padding")).toBe(0.5);
+    });
+
+    it("draws a group's label on the middle of its tab", async () => {
+        const { node } = await sheet("specimen-groups-p4.graphml");
+        const group = groupIds("specimen-groups-p4.graphml")[0];
+        expect(node("labelPosition", group)).toBe("inside-top");
+        expect(node("labelOffsetY", group)).toBe(11);
+        expect(node("labelShiftY", group)).toBe(-0.5);
+    });
+
+    it("holds the words against the sides of a box larger than them", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("labelOffsetY", "v-align-top")).toBe(-13);
+        expect(node("labelShiftY", "v-align-top")).toBe(0.5);
+        expect(node("labelOffsetY", "v-align-bottom")).toBe(13);
+        expect(node("labelShiftY", "v-align-bottom")).toBe(-0.5);
+    });
+
+    it("draws a BPMN label's box in the style's own colors", async () => {
+        const { node } = await sheet("specimen-labels-p5.graphml");
+        expect(node("labelBackground", "bpmn-annotation-label-background")).toBe("#ff0000");
+        expect(node("labelBorderWidth", "bpmn-annotation-label-background")).toBeNull();
+        expect(node("labelBorderColor", "bpmn-message-label-outline")).toBe("#ff0000");
+        expect(node("labelPadding", "bpmn-annotation-label-background")).toBe(5);
+        expect(node("labelPadding", "bpmn-annotation-label-insets")).toBe(8);
+        expect(node("labelBackground", "bpmn-message-label-outline")).toBe("#ffffff");
+        expect(node("labelBackground", "bpmn-message-label-is-initiating")).toBe("#808080");
+        expect(node("labelBackground", "bpmn-message-label-initiating-color")).toBe("#ff0000");
+    });
+});
+
 describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
     it("draws BevelNodeStyle and ShinyPlateNodeStyle as rounded boxes in their color, PanelNodeStyle as a box", async () => {
         const { node } = await sheet("specimen-node-shapes-p2.graphml");
@@ -52,8 +120,65 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(node("cornerRadius", "shiny-plate")).toBe(5);
         expect(node("fill", "shiny-plate-fill")).toBe("#3366ff");
         expect(node("borderWidth", "shiny-plate")).toBe(0);
-        expect(node("fill", "panel-color")).toBe("#3366ff");
         expect(node("shape", "panel-color")).toBe("rectangle");
+    });
+
+    it("paints a BevelNodeStyle as yEd Live does: a ramp over its upper half, a line inside its edge", async () => {
+        const { node } = await sheet("specimen-node-shapes-p2.graphml");
+        expect(node("fillGradientColors", "bevel-color")).toBe("#ccd9ff #5c85ff #3366ff #3366ff");
+        expect(node("fillGradientStops", "bevel-color")).toBe("0 0.5 0.5 1");
+        expect(node("fillGradientAngle", "bevel-color")).toBe(90);
+        expect(node("borderColor", "bevel-color")).toBe("#3366ff");
+        expect(node("shapeLineWidth", "bevel")).toBe(1);
+        expect(String(node("shapeLines", "bevel")).split(" ")[0]).toBe("-1+3.000,1-10.000");
+        expect(String(node("shapeLines", "bevel-inset-8")).split(" ")[0]).toBe("-1+8.000,1-10.000");
+        // no corner left to round: one point a corner
+        expect(String(node("shapeLines", "bevel-radius-0")).split(" ")).toHaveLength(5);
+    });
+
+    it("paints a PanelNodeStyle as a ramp into its color, lined in its color at 0.8", async () => {
+        const { node } = await sheet("specimen-node-shapes-p2.graphml");
+        expect(node("fill", "panel-color")).toBe("#ccd9ff");
+        expect(node("fillGradient", "panel-color")).toBe("#3366ff");
+        expect(node("fillGradientAngle", "panel-color")).toBe(90);
+        expect(node("borderColor", "panel-color")).toBe("#2952cc");
+        expect(node("borderWidth", "panel-color")).toBe(1);
+    });
+
+    it("draws yFiles 3's standing and pointing ShapeNodeStyle shapes as their corners", async () => {
+        const { node } = await sheet("specimen-node-shapes.graphml");
+        expect(node("shapePoints", "shape-hexagon-standing")).toBe("0,1 1,0.5 1,-0.5 0,-1 -1,-0.5 -1,0.5");
+        expect(node("shapePoints", "shape-triangle-pointing-left")).toBe("-1,0 1,1 1,-1");
+        expect(node("shape", "shape-squircle")).toBe("polygon");
+        expect(String(node("shapePoints", "shape-squircle")).split(" ")).toHaveLength(32);
+    });
+
+    it("rounds a RectangleNodeStyle by 10 unset, by a share under scaleCornerSize, and cuts a CUT one", async () => {
+        const { node } = await sheet("specimen-node-shapes.graphml");
+        expect(node("shape", "rectangle-style")).toBe("round-rectangle");
+        expect(node("cornerRadius", "rectangle-style")).toBe(10);
+        expect(node("cornerRadius", "scale-corner-size")).toBeCloseTo(10.8);
+        // 48 x 36, corners of 10: 0.5833 of the half width and 0.4444 of the half height stay
+        expect(node("shape", "corner-style-cut")).toBe("polygon");
+        expect(node("shapePoints", "corner-style-cut")).toBe(
+            "-1,0.4444 -0.5833,1 0.5833,1 1,0.4444 1,-0.4444 0.5833,-1 -0.5833,-1 -1,-0.4444",
+        );
+    });
+
+    it("draws an ArrowNodeStyle's outline from its shape, direction, angle and shaftRatio", async () => {
+        const { node } = await sheet("specimen-node-shapes.graphml");
+        // 56 x 32: the head reaches back 16, the shaft is 5.33 to each side
+        expect(node("shapePoints", "arrow-node-arrow")).toBe(
+            "0.4286,0.3333 0.4286,1 1,0 0.4286,-1 0.4286,-0.3333 -1,-0.3333 -1,0.3333",
+        );
+        expect(node("shapePoints", "arrow-node-shaft-ratio")).toContain("0.4286,0.8");
+        expect(node("shapePoints", "arrow-node-angle")).toContain("0.6091,1");
+        expect(node("shapePoints", "arrow-node-notched-arrow")).toContain("-0.8095,0");
+        // turned, it runs along the height: the head reaches back 28 of 32, half the width across
+        expect(node("shapePoints", "arrow-node-direction-down")).toContain("0,-1");
+        expect(node("shapePoints", "arrow-node-direction-down")).toContain("1,0.75");
+        // a trapezoid narrowed to a point has three corners
+        expect(node("shapePoints", "arrow-node-trapezoid")).toBe("0,1 1,-1 -1,-1");
     });
 
     it("reads the 2.6 ShapeNodeShape names and ROUND_RECTANGLE's corner of 10", async () => {
@@ -112,6 +237,9 @@ describe("yEd Live GraphML: label model parameters", () => {
         expect(node("labelPosition", "v2-model-exterior-south-east")).toBe("bottom-right");
         expect(node("labelPosition", "v2-model-stretch-north")).toBe("inside-top");
         expect(node("labelPosition", "v2-model-sandwich-south")).toBe("bottom");
+        expect(node("labelBox", "v2-model-interior-north-west")).toBe("words-at-side");
+        expect(node("labelBox", "v2-model-stretch-north")).toBe("target-width");
+        expect(node("labelBox", "v2-model-exterior-south-east")).toBeNull();
     });
 });
 

@@ -49,6 +49,8 @@ export const slideCounters = {
     jumps: 0,
     /** Rows a small move visited, one by one as it visits them. */
     rows: 0,
+    /** Edges a rewrite re-tested in a flat loop or from a jump's crossed rows. */
+    rewritten: 0,
     /** Small moves that scanned the window's edges rather than a moved node's. */
     scans: 0,
     /** Times a filter's tests were kept or read for a slide, which only `session.time` reaches. */
@@ -695,6 +697,7 @@ function rewriteEdges(
     diff: RowDiff,
 ): void {
     const [start, end] = stretch;
+    slideCounters.rewritten += end - start;
     const { src, dst } = graph.edgeList();
     const { filterEdges } = state;
     const inside = state.edge?.inside ?? null;

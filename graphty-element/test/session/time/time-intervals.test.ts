@@ -111,9 +111,20 @@ describe("open ends", () => {
         await harness.session.time.ready;
 
         const extent = harness.session.time.extent();
-        assert.strictEqual(extent?.from, 2);
+        assert.strictEqual(extent?.from, 1, "an open start ending at 2 reaches the tick before it");
         assert.strictEqual(extent?.to, 10);
         assert.deepEqual(extent?.nodes, { timed: 3, untimed: 0, unparsed: 0 });
+        assert.deepEqual(await showing(harness, { from: extent?.from ?? 0, to: extent?.to ?? 0 }), [0, 1, 2]);
+    });
+
+    it("gives an open-start row ending at the first bound a spanOf window that shows it", async () => {
+        const harness = nodesOf([{ b: 2 }, { a: 3, b: 9 }]);
+        await harness.session.time.setField({ nodes: { start: "a", end: "b", unit: "ordinal" } });
+        await harness.session.time.ready;
+
+        const span = harness.session.time.spanOf({ nodes: ["n0"] });
+        assert.deepEqual(span, { from: 1, to: 3 });
+        assert.include(await showing(harness, { from: span?.from ?? 0, to: span?.to ?? 0 }), 0);
     });
 });
 
@@ -317,6 +328,14 @@ describe("a window naming its own end", () => {
         assert.deepEqual(shown(harness), [0]);
     });
 
+    it("reads instants when it names no end, over a designated column that has one", async () => {
+        const harness = nodesOf([{ a: 1, b: 50 }]);
+        await harness.session.time.setField({ nodes: { start: "a", end: "b", unit: "ordinal" } });
+        await harness.session.visibility.setWindow({ attribute: "data.a", from: 10, to: 20 });
+
+        assert.deepEqual(shown(harness), [], "the same as with nothing designated");
+    });
+
     it("reads its own end over a designated column that has another", async () => {
         const harness = nodesOf([{ a: 1, b: 5, c: 9 }]);
         await harness.session.time.setField({ nodes: { start: "a", end: "b", unit: "ordinal" } });
@@ -435,6 +454,63 @@ function expected(
     return { nodes: nodeBytes, edges: edgeBytes };
 }
 
+/** A window's bounds. */
+interface Bounds {
+    readonly from: number;
+    readonly to: number;
+}
+
+/**
+ * The most rows a small move may visit: each span with a bound it passed, each crossing edge once
+ * more to re-test it, and every edge of a node such a span or edge touches.
+ * @param nodes - Each node's spans.
+ * @param edges - Each edge's ends and spans.
+ * @param was - The window before.
+ * @param now - The window after.
+ * @returns The bound.
+ */
+function stepWork(
+    nodes: readonly (readonly Span[] | null)[],
+    edges: readonly { readonly src: number; readonly dst: number; readonly spans: readonly Span[] | null }[],
+    was: Bounds,
+    now: Bounds,
+): number {
+    // Inclusive with room above, so an instant's end one float past it still counts.
+    const between = (at: number, a: number, b: number): boolean => at >= Math.min(a, b) && at <= Math.max(a, b) + 1e-6;
+    const crossing = (spans: readonly Span[] | null): number =>
+        (spans ?? []).filter(([start, end]) => between(end, was.from, now.from) || between(start, was.to, now.to))
+            .length;
+    const degree = new Map<number, number>();
+    for (const { src, dst } of edges) {
+        degree.set(src, (degree.get(src) ?? 0) + 1);
+        degree.set(dst, (degree.get(dst) ?? 0) + 1);
+    }
+
+    const touched = new Set<number>();
+    let work = 0;
+    nodes.forEach((spans, row) => {
+        const count = spans === ALWAYS ? 0 : crossing(spans);
+        work += count;
+        if (count > 0) {
+            touched.add(row);
+        }
+    });
+    for (const { src, dst, spans } of edges) {
+        const count = crossing(spans);
+        work += 2 * count;
+        if (count > 0) {
+            touched.add(src);
+            touched.add(dst);
+        }
+    }
+
+    for (const row of touched) {
+        work += degree.get(row) ?? 0;
+    }
+
+    return work;
+}
+
 describe("against a brute force over intervals and spells", () => {
     const NODES = 40;
     const EDGES = 120;
@@ -529,17 +605,29 @@ describe("against a brute force over intervals and spells", () => {
                     await time.setSettings({ missing });
                     await time.window({ from: 10, to: 30, step: 20 });
                     check(10, 30, "the first window");
+                    const { full } = slideCounters;
+                    let was = { from: 10, to: 30 };
                     for (let move = 0; move < 8; move++) {
+                        const { rows } = slideCounters;
                         const event = await time.stepBy(1);
                         check(event.from, event.to, `step ${String(move)}`);
+                        assert.isAtMost(
+                            slideCounters.rows - rows,
+                            stepWork(nodes, edges, was, event),
+                            `step ${String(move)} visits only the spans it crossed and their elements`,
+                        );
+                        was = event;
                     }
 
+                    assert.strictEqual(slideCounters.full, full, "a step takes no full pass");
                     const next = random(5);
                     for (let move = 0; move < 20; move++) {
                         const at = Math.floor(next() * SPAN_DATA);
                         const event = await time.seek(at, { commit: move % 2 === 0 });
                         check(event.from, event.to, `a jump to ${String(at)}`);
                     }
+
+                    assert.strictEqual(slideCounters.full, full, "a seek takes no full pass");
 
                     await time.commit();
                     const before = masks(harness);
@@ -575,6 +663,42 @@ describe("against a brute force over intervals and spells", () => {
         }
 
         assert.isAbove(slideCounters.jumps, jumps);
+    });
+
+    it("rewrites only the edges a jump crossed", async () => {
+        const NODE_COUNT = 200;
+        const EDGE_COUNT = 400;
+        const spanOfEdge = (at: number): Span => [at % 100, (at % 100) + (at % 3 === 0 ? 60 : 2)];
+        const harness = makeSession();
+        harness.add(
+            Array.from({ length: NODE_COUNT }, (_, at) => ({ id: `n${String(at)}` })),
+            Array.from({ length: EDGE_COUNT }, (_, at) => ({
+                src: `n${String(at % NODE_COUNT)}`,
+                dst: `n${String((at * 7 + 1) % NODE_COUNT)}`,
+                a: spanOfEdge(at)[0],
+                b: spanOfEdge(at)[1],
+            })),
+        );
+        const { time } = harness.session;
+        await time.setField({ edges: { start: "a", end: "b", unit: "ordinal" } });
+        await time.window({ from: 0, to: 5, step: 5, nodes: "all" });
+        const edgeShows = (row: number, { from, to }: Bounds): boolean => {
+            const [start, end] = spanOfEdge(row);
+            return start < to && end > from;
+        };
+        let was: Bounds = { from: 0, to: 5 };
+        for (const at of [70, 10, 95, 40]) {
+            const { jumps, rewritten, full } = slideCounters;
+            const event = await time.seek(at);
+            const crossed = Array.from({ length: EDGE_COUNT }, (_, row) => row).filter(
+                (row) => edgeShows(row, was) !== edgeShows(row, event),
+            );
+            assert.isAbove(slideCounters.jumps, jumps, `a jump to ${String(at)}`);
+            assert.strictEqual(slideCounters.full, full, "no full pass");
+            assert.strictEqual(slideCounters.rewritten - rewritten, crossed.length, "only the crossed edges");
+            assert.isBelow(crossed.length, EDGE_COUNT);
+            was = event;
+        }
     });
 
     it("counts time.series as the windows it walks show them", async () => {
@@ -666,6 +790,7 @@ describe("against a brute force over intervals and spells", () => {
             const last = Math.min(Math.max(...spans.map(([, end]) => Math.floor(end))), (extent?.to ?? 0) - 1);
             assert.isTrue(Number.isFinite(got?.from) && Number.isFinite(got?.to), `row ${String(row)}`);
             assert.deepEqual(got, { from: first, to: last + 1 }, `row ${String(row)}`);
+            assert.isTrue(holds(spans, got?.from ?? 0, got?.to ?? 0, false), `row ${String(row)}'s window holds it`);
         });
     });
 });

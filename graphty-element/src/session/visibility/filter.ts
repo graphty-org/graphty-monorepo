@@ -2503,8 +2503,8 @@ function windowPaths(window: TimeWindow, timeline: boolean): readonly Path[] {
 }
 
 /**
- * The index a window can read: the designated column's, unless the window names an end or spells
- * the field does not read, which only its records can answer.
+ * The index a window can read: the designated column's, unless the window's end and spells differ
+ * from the field's, which only its records can answer.
  * @param window - The window.
  * @param sources - Where the index is read.
  * @returns Each kind's instants, or null.
@@ -2515,11 +2515,15 @@ export function windowInstants(window: TimeWindow, sources: FilterSources): Retu
         return indexed;
     }
 
+    // A kind of spans reads the same end and spells as the window, so a window naming none reads
+    // instants; a kind of instants takes any window some kind's spans read.
     const kinds = [indexed.node?.spans, indexed.edge?.spans];
     const names = (key: "end" | "spells"): boolean =>
         window[key] === undefined || kinds.some((spans) => spans?.[key] === window[key]);
+    const reads = (spans: TimeSpans | null | undefined): boolean =>
+        spans === null || spans === undefined || (spans.end === window.end && spans.spells === window.spells);
 
-    return names("end") && names("spells") ? indexed : null;
+    return names("end") && names("spells") && kinds.every(reads) ? indexed : null;
 }
 
 /** What reads a designated column's index. */

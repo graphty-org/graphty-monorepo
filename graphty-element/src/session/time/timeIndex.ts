@@ -657,7 +657,8 @@ function addSpan(list: SpanList, row: number, start: number, end: number): void 
     list.ends[list.size] = to;
     list.owner[list.size++] = row;
     const last = Number.isFinite(end) && end > from ? end : from;
-    list.low = Math.min(list.low, Number.isFinite(from) ? from : end);
+    // An open start reaches below its end: the tick before it, so a window from the extent holds it.
+    list.low = Math.min(list.low, Number.isFinite(from) ? from : end - 1);
     list.high = Math.max(list.high, last);
 }
 

@@ -96,7 +96,8 @@ When nodes and edges both name an `end`, or both name `spells`, they must name t
 `setField` refuses with `reason: "time-paths-differ"` and `field` naming which. A kind naming neither
 keeps instants.
 
-`extent()` covers the finite bounds, and open ones do not stretch it. A bar of `bins()` counts the
+`extent()` covers the finite bounds, and open ones do not stretch it; an element with only an end
+starts the extent one unit before that end, so the extent as a window shows it. A bar of `bins()` counts the
 spans overlapping it, so a long element counts in every bar it crosses, and an element with two spells
 in one bar counts twice there.
 

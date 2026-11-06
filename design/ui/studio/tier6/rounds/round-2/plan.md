@@ -75,3 +75,20 @@ All 12 briefings write, but nothing below held on 2026-11-05, and the first item
 6. **The restart is not logged in `../../criteria.md`.** Its change log has no line saying these 12
    sessions replace round 1's with no re-run spent. This plan assumes that reading; it is the
    Director's to log, before the first session, since nothing there changes after it.
+
+## Gate evidence
+
+Checked by `real.mjs --gate` on 2026-11-06, build 3b2a7f0649:
+
+- pilot T90A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T90A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T90A/detour-1/
+- pilot T90B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T90B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T90B/detour-1/, keyboard /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T90B/keyboard/
+- pilot T91A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T91A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T91A/detour-1/
+- pilot T91B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T91B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T91B/detour-1/
+- pilot T92A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T92A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T92A/detour-1/
+- pilot T92B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T92B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T92B/detour-1/
+- pilot T93A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T93A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T93A/detour-1/
+- pilot T93B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T93B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T93B/detour-1/, keyboard /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T93B/keyboard/
+- pilot T94A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T94A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T94A/detour-1/
+- pilot T94B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T94B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T94B/detour-1/
+- pilot T95A: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T95A/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T95A/detour-1/
+- pilot T95B: success /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T95B/success/, detours /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier6/round-2/pilot/T95B/detour-1/

@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { sortedBars } from "../../web/src/charts.js";
+import { cellHtml } from "../../web/src/render.js";
 import { refText, sentence, stateChip } from "../../web/src/text.js";
 
 describe("refText", () => {
@@ -696,5 +698,17 @@ describe("the Issues page", () => {
         expect(sentence({ code: "issues.github_open", params: { stored: 512, github: 510 } })).toContain(
             "no longer in the repository",
         );
+    });
+});
+
+describe("tags stripped from cells", () => {
+    it("links a state cell around the chip's words, with no nested tags", () => {
+        const html = cellHtml({ t: "state", state: "info", link: "/data-sources/not-set-up" });
+        expect(html).toContain(">for information</a>");
+    });
+
+    it("keeps only the words of a label in the hidden table of a bar chart", () => {
+        const html = sortedBars([{ label: { t: "name", v: "ab", bold: true }, n: 1, unit: "count" }], cellHtml, "cap");
+        expect(html).toContain("<td>ab</td>");
     });
 });

@@ -1,0 +1,31 @@
+{
+ "counts": {
+  "totalEdges": 0,
+  "totalNodes": 0,
+  "visibleEdges": 0,
+  "visibleNodes": 0,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

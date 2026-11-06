@@ -1,0 +1,18 @@
+{
+ "commit": "3b2a7f06496ee3f3b5a6d36b0a681bfd20c840df",
+ "toolCommit": "bf3ca180c38254a6f0a1cc59047f901c11cefd18",
+ "uncommittedChanges": false,
+ "buildStamp": "3b2a7f06496e graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 320,
+  "height": 256
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-06T07:30:41.780Z",
+ "setup": [],
+ "task": null,
+ "followUp": "none"
+}

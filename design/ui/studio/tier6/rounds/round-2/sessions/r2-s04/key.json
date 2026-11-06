@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: gal4RGexp below -1 9 of 331 nodes",
+   "rows": [
+    {
+     "text": "Color: gal4RGexp below -1",
+     "color": "#ff0055"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 322,
+   "#ff0055": 9
+  },
+  "edges": {
+   "#a9a9a9": 361
+  }
+ }
+}

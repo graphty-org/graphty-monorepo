@@ -1,0 +1,29 @@
+{
+ "commit": "3b2a7f06496ee3f3b5a6d36b0a681bfd20c840df",
+ "toolCommit": "cd66fd7c48a8e423dc3deaf0755862bd81f8b30b",
+ "uncommittedChanges": false,
+ "buildStamp": "3b2a7f06496e graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-06T07:05:23.483Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/feat-tanstack-ai/design/ui/studio/tool/files/lesmis-poster.graphty.json",
+  "--click Assistant",
+  "--click AI provider...",
+  "--expect API key",
+  "--click API key",
+  "--type study-access-4471",
+  "--click Save",
+  "--expect-not Get a key from Google",
+  "--click role=button:Graph"
+ ],
+ "task": null,
+ "followUp": "none"
+}

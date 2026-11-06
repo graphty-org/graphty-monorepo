@@ -817,6 +817,8 @@ export { defineSource }
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
+    // @beta
+    readonly looksLike?: "time";
     readonly suggested?: ColumnRole;
 }
 
@@ -3101,6 +3103,8 @@ export interface LoadChoices extends ImportOptions {
 // @public
 export interface LoadDraft {
     dispose(): void;
+    // @beta
+    readonly findings: readonly TimeFound[];
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
@@ -6653,6 +6657,7 @@ export interface TimeApi {
         readonly to: number;
     } | null;
     stepBy(count: number): Promise<TimeStepEvent>;
+    readonly timeZone: string;
     window(window: TimeWindowInput | null): Run<FilterResult>;
 }
 
@@ -6746,6 +6751,16 @@ export interface TimeFieldResult {
     // (undocumented)
     readonly nodes?: TimeCounts;
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
+}
+
+// @beta
+export interface TimeFound extends CodedFact<"time.found"> {
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
 }
 
 // @beta

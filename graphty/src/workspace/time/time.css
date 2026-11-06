@@ -9,6 +9,8 @@
     padding: 4px 8px 6px;
     border-top: 1px solid var(--mantine-color-default-border);
     background: var(--mantine-color-body);
+    /* Two fingers on the dock zoom its histogram, not the page. */
+    touch-action: none;
 }
 
 /* On a narrow dock the readout and counts wrap under the transport rather than being cut off. */

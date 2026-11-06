@@ -185,3 +185,46 @@ export async function tap(element: Element): Promise<void> {
     await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
+
+/**
+ * Spreads two fingers apart over an element, or brings them together with a negative distance, as
+ * on a touch screen.
+ * @param element - What the fingers land on, either side of its middle.
+ * @param spread - How far each finger moves away from the middle, in CSS pixels.
+ */
+export async function pinchOver(element: Element, spread: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const gap = 80;
+    const fingers = (apart: number): { id: number; x: number; y: number }[] => [
+        { id: 0, x: x - apart, y },
+        { id: 1, x: x + apart, y },
+    ];
+    const steps = 6;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(gap) });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: fingers(gap + (spread * step) / steps),
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/**
+ * Sets the browser's own time zone for what `run` does, and puts it back after.
+ * @param zone - An IANA zone name.
+ * @param run - What to do in it.
+ * @returns settles once the zone is back.
+ */
+export async function inBrowserZone(zone: string, run: () => Promise<void>): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    await session.send("Emulation.setTimezoneOverride", { timezoneId: zone });
+    try {
+        await run();
+    } finally {
+        await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
+    }
+}

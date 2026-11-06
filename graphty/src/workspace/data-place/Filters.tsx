@@ -32,7 +32,7 @@ import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
 import { AddCondition, CardBody, type ExtraItem } from "../style/WhichPicker";
-import { reportTimeError, timelineOn, unitOf } from "../time/timeActions";
+import { reportTimeError, timelineOn, unitOf, zoneOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
     conditionWords,
@@ -908,7 +908,7 @@ function FieldRow({
 function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
     const { time } = session;
     const window = time.current;
-    const words = window === null ? null : windowWords(window, unitOf(session));
+    const words = window === null ? null : windowWords(window, unitOf(session), zoneOf(session));
     const side = time.field?.edges === undefined ? "nodes" : "edges";
     const extent = time.extent();
     // The element's own counts: the window's one bin, of every timed element on the field's side.
@@ -1061,7 +1061,7 @@ export function FilterChip(): React.JSX.Element | null {
     const window = session.time.field === null ? null : session.time.current;
     const on = [
         ...hiding.map((c) => conditionWords(session, c.rule)),
-        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session))}`]),
+        ...(window === null ? [] : [`Time ${windowWords(window, unitOf(session), zoneOf(session))}`]),
         ...(savedWindow ? ["Time window"] : []),
     ];
     const name = chipName(words, on);

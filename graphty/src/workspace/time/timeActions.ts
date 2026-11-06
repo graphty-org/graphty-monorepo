@@ -5,6 +5,7 @@
 
 import type { CodedFact, GraphSession, TimeField, TimeNoticeCode, TimeUnit } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel, windowWords } from "./timeWords";
 
@@ -28,7 +29,18 @@ export function unitOf(session: GraphSession): TimeUnit {
 }
 
 /**
- * Says where the window is on the status line, for a step and a pause (never every playback frame).
+ * The zone the timeline reads in, the one the element lines up its calendar in.
+ * @param session - the element's session.
+ * @returns the zone's IANA name.
+ */
+export function zoneOf(session: GraphSession): string {
+    const { current, settings } = session.time;
+    return current?.timeZone ?? settings.timeZone;
+}
+
+/**
+ * Says where the window is and what entered and left it on the status line, for a step and a pause
+ * (never every playback frame).
  * @param session - the element's session.
  * @param store - the chrome store.
  */
@@ -38,8 +50,10 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore): vo
         return;
     }
     const { visibleNodes, visibleEdges } = session.visibility.summary;
+    const { entered, left } = session.time.changes();
+    const moved = `${formatCount(entered.nodes.length + entered.edges.length)} entered, ${formatCount(left.nodes.length + left.edges.length)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session))}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}`,
+        announcement: `${windowWords(window, unitOf(session), zoneOf(session))}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}, ${moved}`,
     });
 }
 
@@ -194,6 +208,33 @@ export function seekEdge(session: GraphSession, store: WorkspaceStore, end: "sta
     );
 }
 
+/**
+ * The time span of the selection, with the edges at its nodes.
+ * @param session - the element's session.
+ * @returns the span; null with nothing selected or nothing in it timed.
+ */
+export function selectionSpan(session: GraphSession): { readonly from: number; readonly to: number } | null {
+    const { nodes, edges } = session.selection;
+    return nodes.length + edges.length === 0 ? null : session.time.spanOf({ nodes, edges, incident: true });
+}
+
+/**
+ * Sets the window to the selection's span, and says where it went. With no span it does nothing:
+ * `window(null)` would clear the reader's window.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+export function jumpToSelection(session: GraphSession, store: WorkspaceStore): void {
+    const span = selectionSpan(session);
+    if (span === null) {
+        return;
+    }
+    session.time.pause();
+    session.time.window(span).then(() => {
+        announceWindow(session, store);
+    }, reportTimeError(store));
+}
+
 /** Puts focus on the dock's brush, at the window's start. */
 export function focusBrush(): void {
     document.querySelector<HTMLElement>('.tl-dock [role="slider"][aria-label="Window start"]')?.focus();
@@ -234,5 +275,5 @@ export function timeValue(session: GraphSession, value: unknown, date: boolean):
     } else if (typeof value === "string" || typeof value === "number") {
         at = session.time.parse(String(value));
     }
-    return at === null ? value : instantWords(at, "ms");
+    return at === null ? value : instantWords(at, "ms", undefined, zoneOf(session));
 }

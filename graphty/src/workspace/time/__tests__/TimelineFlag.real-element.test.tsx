@@ -188,6 +188,7 @@ const TIME_COMMANDS = [
     "Step time forward",
     "Jump time to the start",
     "Jump time to the end",
+    "Jump time to the selection",
     "Play or pause time",
 ];
 

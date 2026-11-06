@@ -7,7 +7,8 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import type { AbstractMesh } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
@@ -46,8 +47,42 @@ async function wholeFrame(): Promise<Uint8ClampedArray> {
     });
 }
 
+/**
+ * Count the bytes of each eye that differ by more than a level.
+ * @param first - One frame.
+ * @param second - The other frame.
+ * @returns The count in each eye.
+ */
+function differing(first: Uint8ClampedArray, second: Uint8ClampedArray): { left: number; right: number } {
+    const line = element.graph.getScene().getEngine().getRenderingCanvas()?.width ?? 0;
+    const counts = { left: 0, right: 0 };
+    for (let i = 0; i < first.length; i++) {
+        if (Math.abs((first[i] ?? 0) - (second[i] ?? 0)) > 1) {
+            counts[(i >> 2) % line < line / 2 ? "left" : "right"]++;
+        }
+    }
+
+    return counts;
+}
+
+/**
+ * Wait for a laser to land on a node. Babylon casts from one controller, whichever attached first.
+ * @returns The mesh it landed on.
+ */
+async function laserOnANode(): Promise<AbstractMesh> {
+    const helper = element.graph.getXRSessionManager()?.getXRHelper();
+    return vi.waitFor(() => {
+        const landed = helper?.input.controllers
+            .map((controller) => helper.pointerSelection.getMeshUnderPointer(controller.uniqueId))
+            .find((mesh) => mesh !== null && mesh !== undefined);
+        assert.exists(landed, "no laser landed");
+        assert.match(landed.name, /^node-style/, "a laser landed on something else");
+        return landed;
+    });
+}
+
 describe("node batches in XR", () => {
-    it("draw each eye's whole frame as the object rows do", async () => {
+    it("draw each eye's whole frame as the object rows do, laser on a row", async () => {
         element = document.createElement("graphty-element");
         element.style.width = "400px";
         element.style.height = "300px";
@@ -55,10 +90,11 @@ describe("node batches in XR", () => {
         element.xr = { enabled: true, ui: { enabled: true, showAvailabilityWarning: false } };
         document.body.append(element);
         await element.updateComplete;
+        // In front of the headset, which stands at eye height and looks along +z in Babylon's space.
         await element.session.data.addNodes(
             Array.from({ length: 24 }, (_, id) => ({
                 id,
-                position: { x: (id % 6) - 2.5, y: Math.floor(id / 6) - 1.5, z: -4 },
+                position: { x: (id % 6) - 2.5, y: Math.floor(id / 6) + 0.1, z: 4 },
             })),
         );
         await element.graph.setLayout("fixed", { dim: 3 });
@@ -67,18 +103,24 @@ describe("node batches in XR", () => {
         const { graph } = element;
         await drawnFrames(graph.getScene(), 10);
         assert.equal(graph.getScene().activeCamera?.rigCameras.length, 2, "two eyes are drawing");
+        // Each controller points straight ahead, down a row.
+        iwer.device.controllers.left?.position.set(-0.5, 1.1, 0);
+        iwer.device.controllers.right?.position.set(0.5, 1.1, 0);
 
+        const onObjects = await laserOnANode();
         const objects = await wholeFrame();
         graph.setRenderPath("batched");
         const batched = await wholeFrame();
 
-        assert.equal(graph.rowCounts.objectNodes, 0);
-        assert.isAbove(new Set(objects.subarray(0, 40000)).size, 1, "the eyes drew something");
-        let over = 0;
-        for (let i = 0; i < objects.length; i++) {
-            over += Math.abs((objects[i] ?? 0) - (batched[i] ?? 0)) > 1 ? 1 : 0;
-        }
+        assert.equal(await laserOnANode(), onObjects, "the laser stays on the same row");
+        assert.equal(graph.rowCounts.batchedNodes, 24);
+        assert.deepEqual(differing(objects, batched), { left: 0, right: 0 });
 
-        assert.equal(over, 0);
+        // Without the rows the frame changes in each eye, so the comparison above held rows.
+        await element.session.data.clear();
+        await operationQueueOf(graph).waitForCompletion();
+        const ink = differing(batched, await wholeFrame());
+        assert.isAbove(ink.left, 10000, "the left eye drew no rows");
+        assert.isAbove(ink.right, 10000, "the right eye drew no rows");
     });
 });

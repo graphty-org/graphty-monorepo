@@ -4,6 +4,7 @@
  * Each story loads under `"objects"` twice and under `"batched"` once, in one run. Two object
  * loads that differ mean the story is not stable, so comparing it says nothing: it goes in
  * `unstable.json` with its reason, or in `unstable-webgpu.json` when only WebGPU is. The bar is section 7 of design/rendering/row-renderer.md.
+ * A listed story reports as skipped, so a passed count is a count of stories compared.
  *
  * `VITE_PARITY_STORIES` narrows a run to files whose name matches it, and `VITE_PARITY_RENDERER`
  * says which engine draws: `webgl` unless it says `webgpu`.
@@ -112,15 +113,20 @@ describe.each(files)("%s", async (file) => {
         composeStories((await load?.()) as never, ANNOTATIONS as never) as Record<string, Composed>,
     ).filter(([, story]) => story.parameters.chromatic?.disableSnapshot !== true);
 
-    it.skipIf(stories.length > 0)("has no captured story", () => undefined);
-    it.each(stories)("%s", async (name, story) => {
+    if (stories.length === 0) {
+        it.skip("has no captured story", () => undefined);
+    }
+
+    // A story that compares nothing reports as skipped, so "passed" counts only compared stories.
+    it.for(stories)("%s", async ([name, story], { skip }) => {
         const id = `${file} ${name}`;
         if (id in UNSTABLE) {
-            return;
+            skip(UNSTABLE[id]);
         }
 
         const objects = await picture(story, "objects");
         if (objects === null) {
+            skip("no element");
             return;
         }
 

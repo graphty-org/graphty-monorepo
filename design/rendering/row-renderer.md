@@ -467,6 +467,8 @@ Labels
 
 - **Experiments are not the product**: harness shaders, tables filled from real meshes, machine load 15-77, so timings are upper bounds.
 - **Babylon's laser misses in about one page load in six**, on objects too, cause unknown; beam tests count only loads where it hits.
+  Stage 8 found one candidate, untested as the cause: with no `preferredHandedness`, Babylon casts from one controller only, whichever attached
+  first, so a test that aims one controller can miss. `node-batch-xr.test.ts` aims both.
   Hand-tracked pinch, AR and translucent batches were not run.
 - **Heap at a million is 850-920 MB by estimate** against 800 MB, before 20-byte batches and released staging. Holders at 100,000 are scaled
   from 50,000, because the snapshot crashed the renderer.

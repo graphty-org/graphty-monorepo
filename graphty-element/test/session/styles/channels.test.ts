@@ -66,6 +66,8 @@ const DECLARED = [
     "node.labelShiftX",
     "node.labelShiftY",
     "node.labelShiftOf",
+    "node.labelGapOf",
+    "node.labelBox",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -106,6 +108,9 @@ const DECLARED = [
     "node.outerBorderStyle",
     "node.outerBorderOffset",
     "node.outerBorderCount",
+    "node.raisedBorderWidth",
+    "node.raisedBorderLightColor",
+    "node.raisedBorderDarkColor",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -150,6 +155,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -197,6 +203,9 @@ const DECLARED = [
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.gradientCenterX",
+    "node.gradientCenterY",
+    "node.gradientRadius",
     "node.model",
     "node.modelSourceUp",
     "node.modelTurn",
@@ -208,6 +217,10 @@ const DECLARED = [
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -252,6 +265,7 @@ const DECLARED = [
     "edge.arrowHeadSize",
     "edge.arrowHeadWidth",
     "edge.arrowHeadSide",
+    "edge.arrowHeadOutlineWidth",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
     "edge.arrowHeadStack",
@@ -274,6 +288,7 @@ const DECLARED = [
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
     "edge.arrowTailSide",
+    "edge.arrowTailOutlineWidth",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
     "edge.arrowTailStack",
@@ -296,6 +311,7 @@ const DECLARED = [
     "edge.arrowMiddleHeadSize",
     "edge.arrowMiddleHeadWidth",
     "edge.arrowMiddleHeadSide",
+    "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
     "edge.arrowMiddleHeadOpacity",
@@ -304,6 +320,7 @@ const DECLARED = [
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailSide",
+    "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
     "edge.arrowMiddleTailOpacity",
@@ -352,6 +369,8 @@ const DECLARED = [
     "edge.labelShiftX",
     "edge.labelShiftY",
     "edge.labelShiftOf",
+    "edge.labelGapOf",
+    "edge.labelBox",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
@@ -361,6 +380,7 @@ const DECLARED = [
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
     "edge.xlabelLocation",
@@ -392,9 +412,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighty-six node channels and one hundred and fifty-two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 186);
-        assert.strictEqual(channelsFor("edge").length, 152);
+    it("splits into one hundred and ninety-five node channels and one hundred and sixty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 195);
+        assert.strictEqual(channelsFor("edge").length, 163);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -615,6 +635,7 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -622,6 +643,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.shapeLines",
         "node.shapeTexts",
         "node.labelTable",
+        "edge.labelTable",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",
@@ -682,6 +704,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
@@ -805,6 +828,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelShiftX",
         "node.labelShiftY",
         "node.labelShiftOf",
+        "node.labelGapOf",
+        "node.labelBox",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -833,6 +858,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelShiftX",
         "edge.labelShiftY",
         "edge.labelShiftOf",
+        "edge.labelGapOf",
+        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -918,7 +945,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
+    it("are the thirty-six that carry a colour, and the type says the same thirty-six", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -930,6 +957,8 @@ describe("colour channels", () => {
             "node.haloColor",
             "node.borderColor",
             "node.outerBorderColor",
+            "node.raisedBorderLightColor",
+            "node.raisedBorderDarkColor",
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",

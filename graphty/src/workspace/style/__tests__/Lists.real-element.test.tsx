@@ -152,9 +152,20 @@ describe("the app's lists", () => {
             selector: { match: "everything" },
             set: { "node.color": "#d55e00" },
         });
+        // One layer alone edits its rule in the selection editor; the cards' Add a condition list
+        // is what two selected layers share.
+        await session.styles.add({
+            name: "Mine too",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine too, / }));
+        await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
             await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         }
@@ -228,7 +239,7 @@ describe("the app's lists", () => {
             session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
         );
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {

@@ -14,6 +14,7 @@ import {
     VertexBuffer,
 } from "@babylonjs/core";
 
+import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
     EDGE_STATIC_ATTRIBUTES,
     EDGE_STATIC_FLOATS,
@@ -22,7 +23,7 @@ import {
     JOIN_TEMPLATE_POSITIONS,
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
-import { batchUploadFrames } from "./FrameRoster";
+import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { discreteMeshCount } from "./PatternedLineMesh";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
@@ -194,8 +195,8 @@ export class EdgeLineBatch {
     /** The GPU buffer the static values are read from. */
     private staticBuffer: Buffer | null = null;
 
-    /** Whether a static value has been written since the last upload. */
-    private staticDirty = false;
+    /** Which static values have been written since the last upload. */
+    private readonly staticRuns = new DirtyRuns();
 
     /** The thin-instance matrices of a batch that is not a joined line; null for a joined one. */
     private matrices: Float32Array | null;
@@ -230,8 +231,11 @@ export class EdgeLineBatch {
     /** Told by this batch that it has emptied, so whoever holds it can forget it. */
     private readonly retire: () => void;
 
-    /** Whether a slot has been written since the last upload. */
-    private dirty = false;
+    /** Which slots have been written since the last upload. */
+    private readonly slotRuns = new DirtyRuns();
+
+    /** The scene's switch for uploading only what was written; see {@link batchUploadFrames}. */
+    private readonly uploads: RangedUploads;
 
     private gone = false;
 
@@ -254,6 +258,7 @@ export class EdgeLineBatch {
         this.mesh = mesh;
         batchMeshes.add(mesh);
         this.retire = retire;
+        this.uploads = batchUploadFrames.rangedUploads(scene);
         const meta = (mesh.metadata ?? {}) as EdgeLineMeta;
         this.pattern = meta.pattern;
         const widened = meta.joinedLine === true && meta.widened === true;
@@ -346,7 +351,7 @@ export class EdgeLineBatch {
         }
 
         this.statics.set(values, index * EDGE_STATIC_FLOATS);
-        this.staticDirty = true;
+        this.staticRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -526,42 +531,38 @@ export class EdgeLineBatch {
         return out.fromArray(this.slots, index * this.stride + (end === 0 ? 3 : 6));
     }
 
-    /** Upload everything written since the last upload, in one call. */
+    /**
+     * Upload what was written since the last upload: with ranged uploads off, in one call up to the
+     * high-water mark (the arrays double, so uploading all of them would send as much again of slots
+     * nothing draws), and with them on, one call per run of written slots.
+     */
     flush(): void {
         // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
         // of data uploaded in part), so the first frame after one uploads every slot again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
-            this.dirty = true;
-            this.staticDirty = this.statics !== null;
+            this.slotRuns.whole();
+            if (this.statics !== null) {
+                this.staticRuns.whole();
+            }
         }
 
         if (this.gone) {
             return;
         }
 
-        const { expanded } = this;
-        if (this.staticDirty && this.statics !== null) {
-            this.staticDirty = false;
-            if (expanded?.statics) {
-                repeatPerVertex(this.statics, expanded.statics, this.highWater, EDGE_STATIC_FLOATS);
-                this.staticBuffer?.update(expanded.statics);
-            } else {
-                this.staticBuffer?.update(this.statics);
-            }
+        const { expanded, uploads } = this;
+        if (this.staticRuns.dirty && this.statics !== null) {
+            const runs = this.staticRuns.take(uploads.on);
+            this.send(runs, this.statics, expanded?.statics ?? null, this.staticBuffer, EDGE_STATIC_FLOATS);
         }
 
-        const placed = this.dirty;
-        if (this.dirty) {
-            this.dirty = false;
-            if (expanded) {
-                // ponytail: every live piece is copied again when any one moved; copy only the
-                // pieces written since the last upload if a still graph's single moves show up.
-                repeatPerVertex(this.slots, expanded.slots, this.highWater, this.stride);
-                this.buffer?.update(expanded.slots);
-            } else if (this.buffer) {
-                this.buffer.update(this.slots);
+        const placed = this.slotRuns.dirty;
+        if (placed) {
+            const runs = this.slotRuns.take(uploads.on);
+            if (this.buffer) {
+                this.send(runs, this.slots, expanded?.slots ?? null, this.buffer, this.stride);
             } else {
-                this.mesh.thinInstanceBufferUpdated("matrix");
+                sendThinInstanceMatrices(this.mesh, runs);
             }
         }
 
@@ -601,6 +602,48 @@ export class EdgeLineBatch {
         this.buffer = null;
         this.staticBuffer?.dispose();
         this.staticBuffer = null;
+    }
+
+    /**
+     * Send one buffer's rows to the GPU.
+     *
+     * A RUN IS A VIEW STARTING AT ITS OWN FIRST FLOAT, WITH ITS COUNT. Babylon's engines read the
+     * source from the start of the array and apply the offset to the destination only, and without
+     * a count a run at slot 0 would stay behind as `Buffer._data`, which a lost context rebuilds the
+     * buffer from at the run's size.
+     * @param runs - The runs to send, or null for every row up to the high-water mark.
+     * @param rows - One row per slot.
+     * @param repeated - An expanded batch's per-vertex copy of the rows, or null.
+     * @param buffer - The GPU buffer.
+     * @param width - Floats in a row.
+     */
+    private send(
+        runs: readonly number[] | null,
+        rows: Float32Array,
+        repeated: Float32Array | null,
+        buffer: Buffer | null,
+        width: number,
+    ): void {
+        const spread = repeated === null ? 1 : TEMPLATE_VERTICES;
+        const source = repeated ?? rows;
+        if (runs === null) {
+            if (repeated !== null) {
+                repeatPerVertex(rows, repeated, 0, this.highWater, width);
+            }
+
+            buffer?.updateDirectly(source, 0, this.highWater * spread);
+            return;
+        }
+
+        for (let i = 0; i < runs.length; i += 2) {
+            const [at, end] = [runs[i], runs[i + 1]];
+            if (repeated !== null) {
+                repeatPerVertex(rows, repeated, at, end, width);
+            }
+
+            const from = at * spread * width;
+            buffer?.updateDirectly(source.subarray(from, end * spread * width), from, (end - at) * spread);
+        }
     }
 
     /**
@@ -661,7 +704,7 @@ export class EdgeLineBatch {
         }
 
         this.writeMatrix(index);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -709,7 +752,7 @@ export class EdgeLineBatch {
         }
 
         this.writeMatrix(index);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /**
@@ -739,7 +782,7 @@ export class EdgeLineBatch {
 
         this.slots.fill(0, index * this.stride, (index + 1) * this.stride);
         this.matrices?.fill(0, index * FLOATS_PER_MATRIX, (index + 1) * FLOATS_PER_MATRIX);
-        this.dirty = true;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
     }
 
     /** Tell the mesh how many instances to draw. */
@@ -842,24 +885,27 @@ export class EdgeLineBatch {
         const statics =
             this.statics === null ? null : new Float32Array(capacity * TEMPLATE_VERTICES * EDGE_STATIC_FLOATS);
         this.expanded = { slots, statics };
-        this.dirty = true;
-        this.staticDirty = statics !== null;
+        this.slotRuns.whole();
+        if (statics !== null) {
+            this.staticRuns.whole();
+        }
 
         return slots;
     }
 }
 
 /**
- * Copy each of the first `count` rows of `from` into `TEMPLATE_VERTICES` consecutive rows of `to`:
+ * Copy each row of a run of slots from `from` into `TEMPLATE_VERTICES` consecutive rows of `to`:
  * an instanced attribute spelled as a per-vertex one, which the shader reads the same.
  * @param from - One row per slot.
  * @param to - One row per vertex.
- * @param count - Slots to copy.
+ * @param first - The first slot to copy.
+ * @param end - The slot after the last.
  * @param width - Floats in a row.
  */
-function repeatPerVertex(from: Float32Array, to: Float32Array, count: number, width: number): void {
-    let out = 0;
-    for (let slot = 0; slot < count; slot++) {
+function repeatPerVertex(from: Float32Array, to: Float32Array, first: number, end: number, width: number): void {
+    let out = first * TEMPLATE_VERTICES * width;
+    for (let slot = first; slot < end; slot++) {
         const at = slot * width;
         for (let v = 0; v < TEMPLATE_VERTICES; v++) {
             for (let k = 0; k < width; k++) {

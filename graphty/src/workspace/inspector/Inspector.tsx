@@ -6,21 +6,22 @@ import React, { useEffect, useState } from "react";
 import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
-import { SourceGlyph, TypeGlyphIcon } from "../data-place/DataPlace";
+import { SourceGlyph } from "../data-place/DataPlace";
 import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
 import { TimeCard } from "../data-place/TimeCard";
+import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import {
+    columnGlyph,
     loadIndexOf,
     loadName,
     type SourceKind,
     sourceRowOf,
     sourcesWords,
     type TypeGlyph,
-    typeOf,
 } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -158,14 +159,31 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
         if (session === null) {
             return undefined;
         }
+        // While the selection workspace is open a click on its preview selects but never moves the
+        // inspector: that would unmount the editor and close the workspace as Done (spec 3.0, 9).
+        // The inspector follows the selection once the workspace closes.
+        let owed = false;
         const close = (): void => {
+            if (store.get().selectionWorkspace !== null) {
+                owed = true;
+                return;
+            }
             if (store.get().inspected !== null) {
                 store.set({ inspected: null });
+            }
+        };
+        const settle = (): void => {
+            if (owed && store.get().selectionWorkspace === null) {
+                owed = false;
+                if (session.selection.size > 0) {
+                    close();
+                }
             }
         };
         // A click on the node or edge already selected changes no selection, yet the reader asked
         // for it again: its inspector comes back.
         const stops = [
+            store.subscribe(settle),
             // A selection emptied (Escape, Clear selection) shows nothing new: the open row stays,
             // so one Escape does one thing.
             session.on("selection:changed", () => {
@@ -182,6 +200,9 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
             session.on("canvas:element-click", close),
             // A click on a group outline selects the layer that draws it, as a click on its tree row.
             session.on("canvas:group-outline-click", ({ layer }) => {
+                if (store.get().selectionWorkspace !== null) {
+                    return;
+                }
                 const id = session.styles.get(layer)?.row ?? layer;
                 store.set({ inspected: { kind: "layer-row", id } });
             }),
@@ -725,22 +746,6 @@ function sourceHeader(session: GraphSession, row: string): Header {
         source: child?.kind ?? "file",
         ...(child?.kind === "left-out" ? { kind: leftOutOf(loadName(load)) } : {}),
     };
-}
-
-/**
- * The glyph the Data place's row draws for a column: free text as text, not as groups.
- * @param session - the session.
- * @param column - the column.
- * @returns the glyph.
- */
-function columnGlyph(session: GraphSession, column: ReturnType<GraphSession["data"]["attributes"]>[number]): TypeGlyph {
-    if (column.origin === "result") {
-        return "result";
-    }
-    const readable = session.data
-        .readableValues()
-        .find((value) => value.on === column.kind && value.path === column.path);
-    return typeOf(column.measurement, column.type, readable?.kind).glyph;
 }
 
 /**

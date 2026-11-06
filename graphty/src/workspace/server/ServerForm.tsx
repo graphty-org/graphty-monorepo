@@ -1,21 +1,9 @@
 import "./server.css";
 
-import { ControlSection, Popout, PopoutManager, SegmentedControl } from "@graphty/compact-mantine";
+import { Popout, PopoutManager, SegmentedControl } from "@graphty/compact-mantine";
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Checkbox,
-    Loader,
-    NumberInput,
-    PasswordInput,
-    Select,
-    Text,
-    Textarea,
-    TextInput,
-    Tooltip,
-} from "@mantine/core";
+import { Button, Checkbox, Loader, NumberInput, PasswordInput, Select, Text, Textarea, TextInput } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -36,7 +24,7 @@ import {
     withStart,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
-import { failureOf } from "./words";
+import { failureOf, kindName } from "./words";
 
 /** Dropdowns render inside the pop-over, so picking an option is not a click outside it. */
 const IN_PLACE = { withinPortal: false } as const;
@@ -44,7 +32,7 @@ const IN_PLACE = { withinPortal: false } as const;
 /** The params the form draws as its own rows, not as the source's generic rows. */
 const OWN_ROWS = new Set(["mode"]);
 
-/** Params few readers change, drawn in the Advanced section with the source's own advanced ones. */
+/** Params few readers change, drawn after the main rows with the source's own advanced ones. */
 const RARE_PARAMS = new Set(["transport", "database"]);
 
 /**
@@ -119,7 +107,7 @@ export function ExpandFields({
                     }}
                 />
             </Row>
-            <Row label="Limit">
+            <Row label="Expand limit">
                 <NumberInput
                     size="xs"
                     aria-label="Expand limit"
@@ -362,10 +350,12 @@ function SignInRow({
  * @returns the form.
  */
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
-    const { session, element } = useWorkspace();
+    const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
+    // Opened on the source Open network data's card names, else on Neo4j.
     const [form, setForm] = useState<ServerFormState>(() => {
-        const first = kinds.find((each) => each.id === "neo4j") ?? kinds[0];
+        const asked = store.get().serverKind;
+        const first = kinds.find((each) => each.id === (asked ?? "neo4j")) ?? kinds[0];
         return freshForm(first);
     });
     const [preview, setPreview] = useState<SourcePreview | null>(null);
@@ -459,7 +449,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     aria-label="Kind"
                     allowDeselect={false}
                     comboboxProps={IN_PLACE}
-                    data={kinds.map((each) => ({ value: each.id, label: each.descriptor.plainName }))}
+                    data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
                     value={form.kind}
                     onChange={(id) => {
                         const next = kinds.find((each) => each.id === id);
@@ -555,8 +545,8 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                 />
             </Row>
             {entry.features.expand ? (
-                <Row label="Expand">
-                    <div className="sv-pair">
+                <>
+                    <Row label="Expand">
                         <Checkbox
                             size="xs"
                             label="on double-click"
@@ -565,48 +555,25 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                                 change({ expand: event.currentTarget.checked });
                             }}
                         />
-                        <Popout>
-                            <Popout.Trigger>
-                                <Tooltip label="Expand settings">
-                                    <ActionIcon variant="subtle" size="sm" aria-label="Expand settings">
-                                        <GLYPHS.serverOptions size={14} aria-hidden />
-                                    </ActionIcon>
-                                </Tooltip>
-                            </Popout.Trigger>
-                            <Popout.Panel
-                                width={240}
-                                header={{ variant: "title", title: "Expand settings" }}
-                                closeLabel="Close Expand settings"
-                                placement="right"
-                                alignment="start"
-                            >
-                                <Popout.Content>
-                                    <ExpandFields
-                                        value={form.expandWith}
-                                        onChange={(expandWith) => {
-                                            change({ expandWith });
-                                        }}
-                                    />
-                                </Popout.Content>
-                            </Popout.Panel>
-                        </Popout>
-                    </div>
-                </Row>
+                    </Row>
+                    <ExpandFields
+                        value={form.expandWith}
+                        onChange={(expandWith) => {
+                            change({ expandWith });
+                        }}
+                    />
+                </>
             ) : null}
-            {advanced.length === 0 ? null : (
-                <ControlSection label="Advanced" defaultOpened={false}>
-                    {advanced.map((param) => (
-                        <ParamRow
-                            key={param.name}
-                            param={param}
-                            value={form.params[param.name]}
-                            onChange={(value) => {
-                                setParam(param.name, value);
-                            }}
-                        />
-                    ))}
-                </ControlSection>
-            )}
+            {advanced.map((param) => (
+                <ParamRow
+                    key={param.name}
+                    param={param}
+                    value={form.params[param.name]}
+                    onChange={(value) => {
+                        setParam(param.name, value);
+                    }}
+                />
+            ))}
             <div className="sv-actions">
                 {failure === null ? null : <CodeChip fact={failure} />}
                 {/* aria-disabled while busy, not disabled, so the pressed button keeps focus. */}
@@ -648,7 +615,7 @@ function WaitingLoads(): React.JSX.Element | null {
     if (session === null || waiting.length === 0) {
         return null;
     }
-    const names = new Map(serverKinds().map((each) => [each.id, each.descriptor.plainName]));
+    const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
     return (
         <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
             role="list"

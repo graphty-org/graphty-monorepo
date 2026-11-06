@@ -22,6 +22,7 @@ import {
 } from "@graphty/graph-samples";
 import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
+import { designatedWeight } from "../algorithms/input/weight";
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import { sourceDescriptors } from "../catalog/sources";
 import type {
@@ -47,6 +48,7 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
 import {
     chosenLocation,
@@ -88,7 +90,16 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { Draft, draftStyles, fileName, type JoinedTable, keyExpression, LABEL_COLUMNS, readSource } from "./draft";
+import {
+    Draft,
+    draftStyles,
+    fileName,
+    type JoinedTable,
+    keyExpression,
+    LABEL_COLUMNS,
+    LOAD_ROLES,
+    readSource,
+} from "./draft";
 import {
     type DataIssue,
     findIssues,
@@ -106,7 +117,7 @@ import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
-import type { GraphSlice, RunEntry, VisibilityState } from "./project/state";
+import type { GraphRecord, GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { readableValues } from "./readable";
 import { pairKey, planReplace, rejoined } from "./replace";
@@ -150,7 +161,7 @@ import type {
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
-import { STRUCTURE_VALUES } from "./styles/sources";
+import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -273,7 +284,12 @@ interface PageSources {
      * @param target - Nodes or edges
      * @returns The test
      */
-    textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
+    textTest(
+        text: string,
+        mode: SelectionTextMode,
+        target: "node" | "edge",
+        only?: readonly Path[],
+    ): (index: number) => boolean;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -301,6 +317,11 @@ interface PageSources {
      * @returns The count, or undefined.
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
+    /**
+     * Whether the timeline experiment is on; absent reads on.
+     * @returns true when it is
+     */
+    timeline?(): boolean;
     /**
      * The visible masks, for statistics over the visible graph.
      * @returns The node and edge masks, 1 for visible.
@@ -640,6 +661,35 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
     },
 };
 
+/**
+ * The roles a column of each kind can take, facts only, in no particular order (an application
+ * orders and names them): `inPlace`, the roles `data.setRole` gives a column of rows already
+ * loaded; `atLoad`, the roles the rows are made from, which take effect only when the rows are
+ * read again with the column in that role (`data.reloadSource` with a mapping).
+ */
+export const COLUMN_ROLES: Readonly<
+    Record<"node" | "edge", { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] }>
+> = Object.freeze({
+    node: rolesOf("node", "nodes"),
+    edge: rolesOf("edge", "edges"),
+});
+
+/**
+ * One kind's `COLUMN_ROLES`.
+ * @param kind - The kind of column.
+ * @param table - The kind's table, as `LOAD_ROLES` names it.
+ * @returns The roles it takes in place and at load.
+ */
+function rolesOf(
+    kind: "node" | "edge",
+    table: "nodes" | "edges",
+): { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] } {
+    const structural = (role: ColumnRole): boolean => role === "key" || STRUCTURAL_EDGE_ROLES.has(role);
+    const inPlace = (Object.keys(ROLE_FIELDS[kind]) as ColumnRole[]).filter((role) => !structural(role));
+    const atLoad = LOAD_ROLES[table].takes.filter((role) => !inPlace.includes(role));
+    return Object.freeze({ inPlace: Object.freeze(inPlace), atLoad: Object.freeze(atLoad) });
+}
+
 /** The attribute type each value type reports. */
 const TYPE_OF: Readonly<Record<ValueType, AttributeType>> = {
     text: "string",
@@ -697,6 +747,8 @@ export class SessionData implements SessionDataApi {
     private readonly neighborLists: RevisionCache<NeighborList>;
     /** The attribute walk, for the current data revision. */
     private readonly attributeCache: RevisionCache<readonly AttributeDescriptor[]>;
+    /** Whether an edge column of a name exists, for the current data revision. */
+    private readonly edgeColumns: RevisionCache<boolean>;
     /** The descriptors with their declarations and roles laid over, and what they were laid from. */
     private attributeOverlay: {
         readonly described: readonly AttributeDescriptor[];
@@ -784,6 +836,7 @@ export class SessionData implements SessionDataApi {
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
+        this.edgeColumns = new RevisionCache(() => pages.dataRevision());
     }
 
     /**
@@ -1517,6 +1570,7 @@ export class SessionData implements SessionDataApi {
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
+            readDates: () => this.timelineOn,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -1598,6 +1652,7 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
+                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -2159,6 +2214,19 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
+        // By name only: the id, and for a node the label column data.name reads.
+        const labelPath = this.readConfig().knownFields.nodeLabelPath;
+        let names: readonly Path[] | undefined;
+        if (options.matching?.names === true) {
+            // A node's name is its label column; a graph with none names its nodes in its other
+            // columns (a "name" column the table shows), so every searchable value is read, as
+            // without `names`. An edge is named by its id and its ends' ids.
+            if (target === "edge") {
+                names = [];
+            } else if (labelPath !== null) {
+                names = [labelPath];
+            }
+        }
         const { issue } = options;
         if (
             scope === undefined &&
@@ -2178,7 +2246,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey, names]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2194,7 +2262,8 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const text =
+                matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target, names);
             const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
             const matches =
                 flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
@@ -2264,7 +2333,11 @@ export class SessionData implements SessionDataApi {
     ): unknown {
         if (target === "node") {
             const id = snapshot.ids.idOf(index);
-            return key === "id" ? id : this.records?.nodeAttributes(index, id)?.[key];
+            if (key === "id") {
+                return id;
+            }
+            // A structure path (`graphty.degree`) sorts by the snapshot's own value.
+            return structureValuesOf(snapshot, key)?.[index] ?? this.records?.nodeAttributes(index, id)?.[key];
         }
 
         switch (key) {
@@ -3589,15 +3662,46 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The weight the graph was loaded with, and the meaning chosen for it at load.
-     * @returns the weight, or null when the last load read none
+     * The weight runs read, and its meaning: the edge column given the weight role (in the load's
+     * mapping or later with {@link setRole}), else the one the last load read weights from.
+     * @returns the weight, or null when no column has the weight role
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     loadedWeight(): LoadedWeight | null {
-        const attribute = this.lastImport()?.weights.attribute ?? null;
-        return attribute === null
-            ? null
-            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
+        const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        // Whether the designated column is an edge column: the first edge holding it answers, with
+        // no description of every record (a run asks on every start).
+        const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
+            this.edgeColumns.get(name, () => {
+                const { edgeCount } = this.current();
+                for (let index = 0; index < edgeCount; index++) {
+                    const record = this.records?.edgeAttributes(index);
+                    if (record !== undefined && Object.hasOwn(record, name)) {
+                        return true;
+                    }
+                }
+                return false;
+            }),
+        );
+        return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
+    }
+
+    /**
+     * What {@link loadedWeight} answers from, as a key: it moves when the weight runs read does, and
+     * reads no record to say so, so comparing it around a run costs nothing on a large graph.
+     * @returns the key
+     */
+    weightKey(): string {
+        const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        return JSON.stringify([edgeWeightPath, edgeWeightMeaning, this.lastImport()?.weights.attribute ?? null]);
+    }
+
+    /**
+     * Whether the timeline experiment is on; a session built without the switch reads on.
+     * @returns True when it is on.
+     */
+    private get timelineOn(): boolean {
+        return this.pages.timeline?.() !== false;
     }
 
     /**
@@ -3612,7 +3716,11 @@ export class SessionData implements SessionDataApi {
         const snapshot = this.current();
         // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
         const described = this.attributeCache.get("", () =>
-            Object.freeze(describeAttributes(snapshot, this.records).filter((each) => !isSourceFactKey(each.name))),
+            Object.freeze(
+                describeAttributes(snapshot, this.records, this.timelineOn).filter(
+                    (each) => !isSourceFactKey(each.name),
+                ),
+            ),
         );
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
@@ -3655,6 +3763,7 @@ export class SessionData implements SessionDataApi {
             joined,
             parsed,
             snapshot,
+            timeline: this.timelineOn,
         };
         const result =
             declarations.size === 0 &&
@@ -3679,6 +3788,18 @@ export class SessionData implements SessionDataApi {
         return this.statistics().directedness === "directed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
+    }
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    structureValue(id: NodeId, path: Path): number | undefined {
+        const snapshot = this.current();
+        return snapshot.ids.has(id) ? structureValuesOf(snapshot, path)?.[snapshot.ids.indexOf(id)] : undefined;
     }
 
     /**
@@ -3931,6 +4052,10 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
+        if (role === "time" && !this.timelineOn) {
+            throw featureOff("timeline", "data.setRole");
+        }
+
         const { kind, name } = resolveColumn(this.attributes(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
@@ -4346,9 +4471,16 @@ export class SessionData implements SessionDataApi {
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
         const counts = new Map<ColumnScalar, number>();
         let missing = 0;
+        // Degree, in-degree and out-degree are read from the snapshot, not a column.
+        const structure = kind === "node" ? structureValuesOf(snapshot, path) : undefined;
         for (let index = 0; index < total; index++) {
-            const value =
-                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            let value: unknown;
+            if (structure !== undefined) {
+                value = structure[index];
+            } else {
+                value =
+                    path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            }
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 counts.set(value, (counts.get(value) ?? 0) + 1);
             } else {
@@ -4586,6 +4718,8 @@ function unboundFactsOf(
 
 /** What `attributes()` lays over the described columns. */
 interface AttributeOverlay {
+    /** Whether the timeline experiment is on, so a time role measures time. */
+    readonly timeline: boolean;
     readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
     readonly roles: ReadonlyMap<string, AttributeRole[]>;
     readonly uses: ReadonlyMap<string, AttributeUse[]>;
@@ -4608,6 +4742,7 @@ interface ColumnOverlay {
     readonly isJoined: boolean;
     readonly times: number | undefined;
     readonly rows: number;
+    readonly timeline: boolean;
 }
 
 /**
@@ -4628,6 +4763,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
         isJoined: overlay.joined.has(key),
         times: overlay.parsed.get(each),
         rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
+        timeline: overlay.timeline,
     };
     return facts.declared === undefined &&
         facts.played === undefined &&
@@ -4648,7 +4784,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
  * @returns The fields.
  */
 function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
-    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows, timeline } = facts;
     return {
         ...(isJoined ? { origin: "joined" as const } : {}),
         ...(typed === undefined ? {} : typedFields(each, typed)),
@@ -4660,7 +4796,7 @@ function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial
                   measurementSource: "declared" as const,
               }),
         // Designating a column as the time field makes it time.
-        ...(declared === undefined && played?.includes("time") === true
+        ...(timeline && declared === undefined && played?.includes("time") === true
             ? { measurement: "time" as const, measurementSource: "declared" as const }
             : {}),
         ...(played === undefined ? {} : { roles: Object.freeze(played) }),
@@ -5031,7 +5167,7 @@ export function sliceRecords(
     snapshot: () => GraphSnapshot,
     lastImport: () => LoadReport | null,
     fallback: SessionRecordSource | null,
-): SessionRecordSource {
+): ColumnRecords {
     return {
         nodeAttributes: (index, id) => slice().nodes.get(id) ?? fallback?.nodeAttributes(index, id),
         edgeAttributes: (index) => {
@@ -5039,7 +5175,71 @@ export function sliceRecords(
             const record = typeof column === "number" ? slice().edges.get(edgeIdOf(column)) : undefined;
             return record === undefined ? fallback?.edgeAttributes(index) : withoutEndpointKeys(record, lastImport());
         },
+        column: (kind, key) => {
+            const graph = snapshot();
+            const { nodes, edges } = slice();
+            if (kind === "node") {
+                const { ids } = graph;
+                return (row) => {
+                    const id = ids.idOf(row);
+                    return (nodes.get(id) ?? fallback?.nodeAttributes(row, id))?.[key];
+                };
+            }
+
+            const endpoints = lastImport()?.endpoints;
+            const counters = graph.edges.typed(EDGE_ID_COLUMN, "u32")?.data;
+            const endpoint =
+                key === "source" || key === "target" || key === endpoints?.source || key === endpoints?.target;
+            if (counters === undefined || endpoint) {
+                return null;
+            }
+
+            if (edges.size === 0) {
+                return (row) => fallback?.edgeAttributes(row)?.[key];
+            }
+
+            // A walk of the map as the rows ask: rows and records run in the same order almost
+            // always, and printing a counter and hashing it for each row costs more than the sort.
+            // Only a pass from the first row walks: reaching an appended row's record that way
+            // would step over every record before it, so a read starting later looks each one up.
+            let walk: MapIterator<[EdgeId, GraphRecord]> | undefined;
+            let walkRow = 0;
+            const byCounter: (GraphRecord | undefined)[] = [];
+            const recordOf = (row: number): GraphRecord | undefined => {
+                const counter = counters[row];
+                if (row !== walkRow) {
+                    return edges.get(edgeIdOf(counter));
+                }
+
+                walkRow++;
+                walk ??= edges.entries();
+                while (byCounter[counter] === undefined) {
+                    const next = walk.next();
+                    if (next.done === true) {
+                        return undefined;
+                    }
+
+                    byCounter[Number(next.value[0])] = next.value[1];
+                }
+
+                return byCounter[counter];
+            };
+
+            return (row) => (recordOf(row) ?? fallback?.edgeAttributes(row))?.[key];
+        },
     };
+}
+
+/** The records, and a way to read one column of them row after row. */
+export interface ColumnRecords extends SessionRecordSource {
+    /**
+     * A reader of one column over the graph as it stands, for a pass over every row: what each
+     * read would look up again is looked up once.
+     * @param kind - Nodes or edges.
+     * @param key - The record's key.
+     * @returns The reader, or null for a column only the per-row reads answer: an edge's ends.
+     */
+    column(kind: "node" | "edge", key: string): ((row: number) => unknown) | null;
 }
 
 /** The element-assigned edge id column. */
@@ -5190,6 +5390,7 @@ export function headlessDataService(
     });
 
     return {
+        loading: () => ingest.settling,
         apply: (mutation, draft) => {
             ingest.apply(mutation, dispatcher.graph.writer(draft, store));
         },

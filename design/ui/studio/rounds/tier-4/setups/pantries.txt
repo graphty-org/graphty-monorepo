@@ -1,0 +1,4 @@
+# pantries.csv open on its own (12 sites, no deliveries yet), Data place showing
+--click Open a file
+--upload pantries.csv
+--click Data

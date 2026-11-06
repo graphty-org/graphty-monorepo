@@ -62,6 +62,58 @@ export interface EdgePaint {
     readonly style: EdgeStyleConfig;
 }
 
+/** The scene state a node batch depends on that a paint does not hold. */
+export interface BatchView {
+    /** A node's size follows the view (`depthIndependentSize`, a map's `nodeScale: "screen"`). */
+    readonly scaled: boolean;
+    /** 3D `flat` lighting: an outline renderer draws round every node, which has no batch path. */
+    readonly flatOutline: boolean;
+}
+
+/** The shape options a batch draws: everything else about a shape waits for a wider batch. */
+const BATCHABLE_SHAPE_KEYS: ReadonlySet<string> = new Set(["type", "size", "detail"]);
+/** The effects a batch draws: both are in the geometry or the material. */
+const BATCHABLE_EFFECT_KEYS: ReadonlySet<string> = new Set(["wireframe", "flatShaded", "unlit"]);
+/** The style keys a plain row may set. Anything new stays an object row until a batch can draw it. */
+const BATCHABLE_STYLE_KEYS: ReadonlySet<string> = new Set([
+    "shape",
+    "texture",
+    "effect",
+    "visible",
+    "label",
+    "tooltip",
+]);
+
+/**
+ * Whether a node batch can draw a paint. An allow list, so a style option added later stays on the
+ * object path until someone proves a batch draws it (design/rendering/row-renderer.md 3).
+ * @param paint - The paint.
+ * @param view - The scene state it is drawn in.
+ * @returns True when the row can be batched.
+ */
+export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): boolean {
+    const { style } = paint;
+    if (view.scaled || view.flatOutline) {
+        return false;
+    }
+
+    const set = (bag: object | undefined): string[] =>
+        Object.entries(bag ?? {})
+            .filter(([, value]) => value !== undefined)
+            .map(([key]) => key);
+    const color = style.texture?.color;
+    return (
+        set(style).every((key) => BATCHABLE_STYLE_KEYS.has(key)) &&
+        set(style.shape).every((key) => BATCHABLE_SHAPE_KEYS.has(key)) &&
+        set(style.effect).every((key) => BATCHABLE_EFFECT_KEYS.has(key)) &&
+        set(style.texture).every((key) => key === "color") &&
+        // A plain color, or a solid one with no transparency: alpha waits for a wider batch.
+        (typeof color !== "object" || (color.colorType === "solid" && (color.opacity ?? 1) >= 1)) &&
+        style.label?.enabled !== true &&
+        style.tooltip?.enabled !== true
+    );
+}
+
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 
@@ -429,8 +481,8 @@ function neutralFill(opacity: number | undefined): Fill {
 /**
  * A gradient fill through `node.gradientColors`, or else from the node's colour into
  * `node.gradientColor`, placed by `node.gradientStops`; linear, running the way
- * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from the
- * middle. With one colour it is one stop, which `NodeMesh` paints flat.
+ * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from
+ * `node.gradientCenterX` / `node.gradientCenterY` (the middle, when unset) to `node.gradientRadius`. With one colour it is one stop, which `NodeMesh` paints flat.
  * @param from - The node's colour, where the ramp starts when no colour list is painted.
  * @param gradient - The gradient channels, as painted.
  * @param opacity - The node's opacity, when it has one.
@@ -447,8 +499,13 @@ function gradientFill(from: string, gradient: FillChannels, opacity: number | un
         ...(opacity === undefined ? {} : { opacity }),
     };
 
+    const circle = {
+        ...(gradient.centerX === undefined ? {} : { centerX: gradient.centerX }),
+        ...(gradient.centerY === undefined ? {} : { centerY: gradient.centerY }),
+        ...(gradient.radius === undefined ? {} : { radius: gradient.radius }),
+    };
     return gradient.kind === "radial"
-        ? { colorType: "radial-gradient", ...rest }
+        ? { colorType: "radial-gradient", ...rest, ...circle }
         : { colorType: "gradient", direction: gradient.direction ?? 0, ...rest };
 }
 
@@ -468,6 +525,12 @@ interface FillChannels {
     stops?: string;
     /** `node.gradientKind`: linear or radial. */
     kind?: string;
+    /** `node.gradientCenterX`: where a radial gradient's middle is across the node. */
+    centerX?: number;
+    /** `node.gradientCenterY`: where a radial gradient's middle is down the node. */
+    centerY?: number;
+    /** `node.gradientRadius`: how far a radial gradient reaches. */
+    radius?: number;
 }
 
 /** How each fill channel is read into {@link FillChannels}; every other channel is written into the style. */
@@ -492,6 +555,15 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
     },
     "node.gradientKind": (fill, value) => {
         fill.kind = typeof value === "string" ? value : undefined;
+    },
+    "node.gradientCenterX": (fill, value) => {
+        fill.centerX = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientCenterY": (fill, value) => {
+        fill.centerY = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientRadius": (fill, value) => {
+        fill.radius = typeof value === "number" ? value : undefined;
     },
 };
 
@@ -694,38 +766,42 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
 }
 
 /**
- * Take up to `limit` indices out of a pending set, oldest first.
- * @param pending - The set.
- * @param limit - The most to take.
- * @returns The indices taken.
+ * The rows waiting to be drawn, taken oldest first.
+ *
+ * ONE ITERATOR ACROSS THE BATCHES. A Set keeps the entries it deleted as holes until it next
+ * rehashes, and a fresh iterator steps over all of them, so starting one for each batch made
+ * taking a million rows a batch at a time quadratic. A running iterator stays past the holes, and
+ * still reaches rows added after it started.
  */
-function takeFrom(pending: Set<number>, limit: number): readonly number[] {
-    if (pending.size === 0) {
-        return NOTHING;
-    }
+class PendingRows extends Set<number> {
+    private cursor: Iterator<number> | null = null;
 
-    if (pending.size <= limit) {
-        const taken = [...pending];
-        pending.clear();
+    /**
+     * Take up to `limit` rows.
+     * @param limit - The most to take.
+     * @returns The rows taken, which leave the set.
+     */
+    take(limit: number): readonly number[] {
+        if (this.size === 0) {
+            return NOTHING;
+        }
+
+        const taken: number[] = [];
+        this.cursor ??= this.values();
+
+        while (taken.length < limit && this.size > 0) {
+            const next = this.cursor.next();
+
+            if (next.done === true) {
+                this.cursor = this.values();
+            } else {
+                taken.push(next.value);
+                this.delete(next.value);
+            }
+        }
 
         return taken;
     }
-
-    const taken: number[] = [];
-
-    for (const index of pending) {
-        if (taken.length >= limit) {
-            break;
-        }
-
-        taken.push(index);
-    }
-
-    for (const index of taken) {
-        pending.delete(index);
-    }
-
-    return taken;
 }
 
 /**
@@ -841,10 +917,16 @@ export class StylePainter {
     private paint: ElementPaint | null = null;
 
     /** The nodes whose paint the renderer has not applied yet. */
-    private readonly pendingNodes = new Set<number>();
+    private readonly pendingNodes = new PendingRows();
 
     /** The edges whose paint the renderer has not applied yet. */
-    private readonly pendingEdges = new Set<number>();
+    private readonly pendingEdges = new PendingRows();
+
+    /** Whether every pending node came from a pass marked `rowsOnly`. False unless one says so. */
+    private nodesRowsOnly = false;
+
+    /** Whether every pending edge came from a pass marked `rowsOnly`. False unless one says so. */
+    private edgesRowsOnly = false;
 
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
@@ -869,6 +951,8 @@ export class StylePainter {
         this.paint = paint;
         this.pendingNodes.clear();
         this.pendingEdges.clear();
+        this.nodesRowsOnly = false;
+        this.edgesRowsOnly = false;
 
         if (paint !== null) {
             this.stopListening = paint.onPainted(() => {
@@ -906,16 +990,48 @@ export class StylePainter {
         }
 
         const nodes = paint.lastPainted("node");
+        const edges = paint.lastPainted("edge");
+        const rowsOnly = paint.lastPaintRowsOnly();
+
+        if (nodes.length > 0) {
+            this.nodesRowsOnly = rowsOnly && (this.nodesRowsOnly || this.pendingNodes.size === 0);
+        }
+
+        if (edges.length > 0) {
+            this.edgesRowsOnly = rowsOnly && (this.edgesRowsOnly || this.pendingEdges.size === 0);
+        }
 
         for (let at = 0; at < nodes.length; at++) {
             this.pendingNodes.add(nodes[at]);
         }
 
-        const edges = paint.lastPainted("edge");
-
         for (let at = 0; at < edges.length; at++) {
             this.pendingEdges.add(edges[at]);
         }
+    }
+
+    /**
+     * Whether the nodes just drawn came only from a time window's slide, and so can skip the visit
+     * to every edge that ends a repaint. Asked by the frame that drew the last of them.
+     * @returns True when they did, once.
+     */
+    takeNodesRowsOnly(): boolean {
+        const rowsOnly = this.nodesRowsOnly;
+        this.nodesRowsOnly = false;
+
+        return rowsOnly;
+    }
+
+    /**
+     * Whether the edges just drawn came only from a time window's slide; see
+     * {@link StylePainter.takeNodesRowsOnly}.
+     * @returns True when they did, once.
+     */
+    takeEdgesRowsOnly(): boolean {
+        const rowsOnly = this.edgesRowsOnly;
+        this.edgesRowsOnly = false;
+
+        return rowsOnly;
     }
 
     /**
@@ -928,6 +1044,8 @@ export class StylePainter {
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
+            this.nodesRowsOnly &&= target !== "node";
+            this.edgesRowsOnly &&= target !== "edge";
         }
     }
 
@@ -982,7 +1100,7 @@ export class StylePainter {
      * @returns Their dense indices, which leave the set.
      */
     takeNodes(limit = Number.POSITIVE_INFINITY): readonly number[] {
-        return takeFrom(this.pendingNodes, limit);
+        return this.pendingNodes.take(limit);
     }
 
     /**
@@ -991,7 +1109,7 @@ export class StylePainter {
      * @returns Their dense indices, which leave the set.
      */
     takeEdges(limit = Number.POSITIVE_INFINITY): readonly number[] {
-        return takeFrom(this.pendingEdges, limit);
+        return this.pendingEdges.take(limit);
     }
 
     /**
@@ -1003,6 +1121,9 @@ export class StylePainter {
      * @param edges - How many edges it holds.
      */
     invalidate(nodes: number, edges: number): void {
+        this.nodesRowsOnly = false;
+        this.edgesRowsOnly = false;
+
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);
         }

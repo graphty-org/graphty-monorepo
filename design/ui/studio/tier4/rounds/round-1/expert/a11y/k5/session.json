@@ -1,0 +1,29 @@
+{
+ "commit": "79ed770292044d79bb3589e03e7e78a437699606",
+ "toolCommit": "105fc5251dd0c00d3ec3902cdcf02fe1e27aee5a",
+ "uncommittedChanges": false,
+ "buildStamp": "79ed77029204 graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": true,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-10-30T11:55:08.759Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tool/files/pantries.csv",
+  "--click Data",
+  "--click Add source",
+  "--click File...",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tool/files/deliveries.csv",
+  "--click role=button:Join",
+  "--click Add filter",
+  "--click Data source",
+  "--click role=checkbox:pantries.csv"
+ ],
+ "task": null,
+ "followUp": "none"
+}

@@ -42,10 +42,25 @@ describe("a file's label shifts", () => {
         assert.isUndefined(style.shiftOf);
     });
 
+    it("place a Cytoscape.js node label outside its node by its words, and add no layer to do it", async () => {
+        const session = createGraphSession();
+        const doc = {
+            elements: { nodes: [{ data: { id: "a", label: "a" } }], edges: [] },
+            style: [{ selector: "node", style: { label: "data(label)", "text-valign": "top" } }],
+        };
+        await session.data.import({ type: "json", config: { data: JSON.stringify(doc) } }, { styles: "file" });
+        assert.strictEqual(labelOf(session, "a").gapOf, "words");
+        for (const layer of session.styles.list()) {
+            const text = JSON.stringify(layer);
+            assert.strictEqual(text.includes("node.labelGapOf"), text.includes("node.labelLocation"));
+        }
+    });
+
     it("leave a label no file shifts as the element places it", async () => {
         const session = createGraphSession();
         const doc = { nodes: [{ id: "a", x: 0, y: 0, label: "a" }], edges: [], options: { physics: false } };
         await session.data.import({ type: "json", config: { data: JSON.stringify(doc) } }, { styles: "file" });
         assert.isUndefined(labelOf(session, "a").shiftOf);
+        assert.isUndefined(labelOf(session, "a").gapOf);
     });
 });

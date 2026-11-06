@@ -979,6 +979,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         permissions:
+            actions: read # the T4 job's failed steps: a refused runner is the verdict's owner item
             contents: read
             issues: write # the red issue
         steps:

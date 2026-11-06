@@ -436,6 +436,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "width")[0]).toBe(20);
     });
 
+    it("gives a vis.js picture the broken image of the first node naming its URL, as vis-network's cache does", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "image", image: "bad.png", brokenImage: "x.png" },
+                { id: "b", shape: "image", image: "bad.png" },
+                { id: "c", shape: "circularImage", image: "bad.png", brokenImage: "y.png" },
+                { id: "d", shape: "image", image: "other.png" },
+            ],
+            edges: [{ from: "a", to: "d" }],
+        });
+        expect(values(r, "node", "image")).toEqual(["bad.png", "bad.png", "bad.png", "other.png"]);
+        expect(values(r, "node", "imageFallback")).toEqual(["x.png", "x.png", "x.png", null]);
+    });
+
     it("keeps a vis.js picture inside its padding, at its top left corner and faded with its node; turns triangleDown over", async () => {
         const r = await load({
             nodes: [
@@ -692,6 +706,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "labelPaddingX")).toEqual([5, 3, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelPaddingY")).toEqual([5, 2, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelFitSquare")).toEqual([null, null, true, true, null, null, null]);
+        // a database's label hangs from its top by its margin, which the label's padding already holds
+        expect(values(r, "node", "labelPosition")[3]).toBe("inside-top");
+        expect(values(r, "node", "labelOffsetY")[3]).toBeNull();
         // widthConstraint.minimum is the label's least width, inside the margin
         expect(values(r, "node", "width")).toEqual([0, 0, 0, 0, 0, 50, 50]);
     });

@@ -1,0 +1,8 @@
+# pantries.csv with deliveries.csv joined onto it (13 nodes, 18 edges, two sources)
+--click Open a file
+--upload pantries.csv
+--click Data
+--click Add source
+--click File...
+--upload deliveries.csv
+--click role=button:Join

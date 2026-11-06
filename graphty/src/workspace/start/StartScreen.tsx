@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
-import { onSiteConfig } from "../../siteConfig";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
@@ -24,7 +24,6 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -34,7 +33,7 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { NetworkDataDialog } from "./NetworkDataDialog";
+import { NETWORK_DIALOG } from "./NetworkDataDialog";
 import {
     copyOf,
     openDataset,
@@ -42,7 +41,6 @@ import {
     openGenerated,
     openModel,
     openSample,
-    openUrl,
     OWN_COPIES,
     pictureOf,
     samplePicture,
@@ -149,6 +147,8 @@ interface SampleTile {
     readonly field: string;
     readonly size: string;
     readonly sentence: string;
+    /** It waits for the timeline experiment. */
+    readonly timed?: true;
     /**
      * The address of a picture of the graph, when graph-samples publishes one. Asked for when the
      * tile draws: the address depends on the site's dataset address, which loads after this module.
@@ -229,6 +229,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
+                ...(sample.timed === true ? { timed: true as const } : {}),
                 picture: () => samplePicture(sample),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
@@ -279,12 +280,6 @@ function sampleTiles(
 
 /** The tiles, worked out once. */
 const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS);
-
-/** The fields the tiles come from, in the order they first appear. */
-const SAMPLE_FIELDS = [...new Set(SAMPLE_TILES.map((tile) => tile.field))];
-
-/** How many of the tiles are real networks. */
-const DATASET_COUNT = SAMPLE_TILES.filter((tile) => tile.field !== GENERATED).length;
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -507,7 +502,12 @@ function SampleLibrary(): React.JSX.Element {
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
     const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring };
     const query = text.trim().toLowerCase();
-    const tiles = SAMPLE_TILES.filter(
+    // The first paint does not wait for the site's configuration.
+    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
+    const offered = SAMPLE_TILES.filter((tile) => tile.timed !== true || timeline);
+    const fields = [...new Set(offered.map((tile) => tile.field))];
+    const datasetCount = offered.filter((tile) => tile.field !== GENERATED).length;
+    const tiles = offered.filter(
         (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
     );
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
@@ -520,7 +520,7 @@ function SampleLibrary(): React.JSX.Element {
                 Sample library
             </h2>
             <p className="ws-land-intro">
-                {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
+                {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
                 routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
             </p>
             <div className="ws-land-libhead">
@@ -528,7 +528,7 @@ function SampleLibrary(): React.JSX.Element {
                     className="ws-land-search"
                     type="search"
                     aria-label="Search samples"
-                    placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein, small world...`}
+                    placeholder={`Search ${String(offered.length)} samples: karate, airline, protein, small world...`}
                     leftSection={<GLYPHS.quickActions size={15} aria-hidden />}
                     value={text}
                     onChange={(event) => {
@@ -557,7 +557,7 @@ function SampleLibrary(): React.JSX.Element {
                 </fieldset>
             </div>
             <fieldset className="ws-land-facets" aria-label="Field">
-                {["", ...SAMPLE_FIELDS].map((each) => (
+                {["", ...fields].map((each) => (
                     <UnstyledButton
                         key={each}
                         className="ws-land-facet"
@@ -711,7 +711,6 @@ export function StartScreen(): React.JSX.Element {
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    const [network, setNetwork] = useState(false);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -895,7 +894,7 @@ export function StartScreen(): React.JSX.Element {
                                         leftSection={<GLYPHS.data size={16} aria-hidden />}
                                         aria-haspopup="dialog"
                                         onClick={() => {
-                                            setNetwork(true);
+                                            workspace.store.set({ dialog: NETWORK_DIALOG });
                                         }}
                                     >
                                         Open network data
@@ -934,31 +933,6 @@ export function StartScreen(): React.JSX.Element {
             </div>
 
             <PageFoot />
-
-            <NetworkDataDialog
-                opened={network}
-                scheme={scheme}
-                onClose={() => {
-                    setNetwork(false);
-                }}
-                onOpenLink={(url) => {
-                    setNetwork(false);
-                    openUrl(workspace.store, url);
-                }}
-                onOpenFiles={(files) => {
-                    setNetwork(false);
-                    openFiles(workspace, files);
-                }}
-                onOpenServer={() => {
-                    setNetwork(false);
-                    openServerForm(workspace.store);
-                }}
-                onOpenFile={() => {
-                    setNetwork(false);
-                    openDoor?.run();
-                }}
-                openFileKey={openDoor?.command.keys?.[0]}
-            />
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

@@ -57,6 +57,7 @@ import {
     type Xyz,
 } from "./meshes/edgeRoute";
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
+import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { readColor } from "./meshes/readColor";
@@ -255,7 +256,7 @@ function taperOf(style: EdgeStyleConfig | null): number {
 
 /**
  * What a style asks the line to be drawn with beyond its plain look, as the key the line was
- * built for: a surface, a taper, or nothing.
+ * built for: a surface, a widened line (a taper or a fade), or nothing.
  * @param style - The resolved style.
  * @returns `"surface:<id>"`, `"taper"` or `"plain"`.
  */
@@ -265,7 +266,17 @@ function flavorOf(style: EdgeStyleConfig | null): string {
         return `surface:${surface}`;
     }
 
-    return taperOf(style) === 1 ? "plain" : "taper";
+    return widensLine(style) ? "taper" : "plain";
+}
+
+/**
+ * Whether a style's line is drawn from a widened batch without a surface: one whose slots carry a
+ * taper or the whole edge's length, which a fade reads.
+ * @param style - The resolved style.
+ * @returns True for a taper or a fade.
+ */
+function widensLine(style: EdgeStyleConfig | null): boolean {
+    return taperOf(style) !== 1 || EdgeMesh.fadeOf(style) !== undefined;
 }
 
 /**
@@ -558,7 +569,7 @@ export class Edge {
      */
     private lineWanted = "plain";
 
-    /** What the line was built with: the flavor asked for, or `"plain"` while a surface cannot draw. */
+    /** What the line was built with: the flavor asked for, or a lesser one while a surface cannot draw. */
     private lineBuilt = "plain";
 
     /**
@@ -942,8 +953,8 @@ export class Edge {
         // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
         // the search writes into them.
         this.ray = new Ray(
-            this.srcNode.mesh.position.clone(),
-            this.dstNode.mesh.position.subtract(this.srcNode.mesh.position),
+            this.srcNode.drawnPosition.clone(),
+            this.dstNode.drawnPosition.subtract(this.srcNode.drawnPosition),
         );
 
         this.meshKey = paint.meshKey;
@@ -972,6 +983,7 @@ export class Edge {
                 side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
                 image: style.arrowHead?.image,
+                outline: style.arrowHead?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -989,6 +1001,7 @@ export class Edge {
                 side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
                 image: style.arrowTail?.image,
+                outline: style.arrowTail?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -1075,8 +1088,8 @@ export class Edge {
         // render ceiling for edges that are not going to move. It used to sit below a timing call
         // and a lookup into the layout engine, neither of which the early exit needs: the
         // engine's answer is only read further down, for an edge that IS moving.
-        const srcPos = this.srcNode.mesh.position;
-        const dstPos = this.dstNode.mesh.position;
+        const srcPos = this.srcNode.drawnPosition;
+        const dstPos = this.dstNode.drawnPosition;
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
@@ -1577,6 +1590,7 @@ export class Edge {
                 side: style.arrowHead?.side,
                 opacity: style.arrowHead?.opacity,
                 image: style.arrowHead?.image,
+                outline: style.arrowHead?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -1598,6 +1612,7 @@ export class Edge {
                 side: style.arrowTail?.side,
                 opacity: style.arrowTail?.opacity,
                 image: style.arrowTail?.image,
+                outline: style.arrowTail?.outlineWidth,
             },
             this.context.getScene(),
         );
@@ -2016,7 +2031,10 @@ export class Edge {
 
         this.lineWanted = flavorOf(style);
         this.lineBatch = options.width > 0 ? this.shadedLineBatch(meshKey, style, options) : null;
-        this.lineBuilt = this.lineBatch === null ? "plain" : this.lineWanted;
+        // A surface that cannot draw yet leaves a taper's or a fade's batch here, or nothing; which
+        // of them was built is what wakes the edge once the surface can.
+        const built = shaded(this.lineBatch) === null ? "taper" : this.lineWanted;
+        this.lineBuilt = this.lineBatch === null ? "plain" : built;
         this.lineBatch ??= EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             options,
@@ -2073,7 +2091,7 @@ export class Edge {
         if (surface !== null) {
             const drawing = EdgeShaderDrawing.of(scene, this.context.getSession?.());
             const is2D = EdgeMesh.drawsFlat(scene);
-            const opacity = style.line?.opacity ?? 1;
+            const opacity = EdgeMesh.opacityOf(style);
             const batch = drawing?.surfaceBatch(
                 this,
                 surface,
@@ -2084,6 +2102,8 @@ export class Edge {
                     worldWidth: is2D,
                     color: options.color,
                     opacity,
+                    fade: EdgeMesh.fadeOf(style),
+                    opaque: EdgeMesh.drawsOpaque(style),
                 },
             );
             if (batch) {
@@ -2092,7 +2112,7 @@ export class Edge {
         }
 
         const loop = this.srcNode === this.dstNode;
-        if (taperOf(style) === 1 || EdgeMesh.drawsAsPattern(style, loop)) {
+        if (!widensLine(style) || EdgeMesh.drawsAsPattern(style, loop)) {
             return null;
         }
 
@@ -2820,8 +2840,8 @@ export class Edge {
             return null;
         }
         return {
-            src: this.srcNode.mesh.position,
-            dst: this.dstNode.mesh.position,
+            src: this.srcNode.drawnPosition,
+            dst: this.dstNode.drawnPosition,
             forces: {
                 model,
                 springLength: line?.supportSpringLength ?? SUPPORT_DEFAULTS.springLength,
@@ -2899,20 +2919,26 @@ export class Edge {
      * @returns The distance.
      */
     private static boxReachOf(node: Node, direction: Vector3): number {
-        return node.surfaceIsBox
+        return node.surfaceIsBox || node.drawnInBatch
             ? surfaceReach(direction, node.drawnHalfExtents, null)
-            : boxReach(node.mesh, direction);
+            : boxReach(node.drawnPickMesh, direction);
     }
 
     /**
-     * How far a node's surface and border are from its center in a direction.
+     * How far a node's surface and border are from its center in a direction: on a flat shape, its own outline
+     * ({@link Node.reachOutline}), so a line ends on a star's point and not out at its box's corner.
      * @param node - The node.
      * @param dir - The unit direction.
      * @returns The distance.
      */
     private static reachOf(node: Node, dir: Xyz): number {
         return (
-            surfaceReach(dir, node.drawnHalfExtents, node.roundRadius, node.shapeType === "ellipse") + node.borderReach
+            surfaceReach(
+                dir,
+                node.drawnHalfExtents,
+                node.roundRadius,
+                node.shapeType === "ellipse" || (node.reachOutline ?? false),
+            ) + node.borderReach
         );
     }
 
@@ -3661,8 +3687,8 @@ export class Edge {
      * @returns The line's ends, stopping short of the arrow head.
      */
     private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
-        const fallbackSrc = this.srcNode.mesh.position;
-        const fallbackDst = this.dstNode.mesh.position;
+        const fallbackSrc = this.srcNode.drawnPosition;
+        const fallbackDst = this.dstNode.drawnPosition;
 
         // Hide arrow if nodes are too close or at same position
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
@@ -3829,6 +3855,7 @@ export class Edge {
                     side: arrow?.side,
                     opacity: arrow?.opacity,
                     image: arrow?.image,
+                    outline: arrow?.outlineWidth,
                 },
                 this.context.getScene(),
             );
@@ -3855,6 +3882,7 @@ export class Edge {
                               size: part.size ?? arrow.size,
                               width: part.width,
                               side: part.side,
+                              outlineWidth: part.outline ?? arrow.outlineWidth,
                           },
                           `${suffix}-${String(i)}`,
                       );
@@ -3941,8 +3969,12 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
-        const srcMesh = this.srcNode.mesh;
-        const dstMesh = this.dstNode.mesh;
+        if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch) {
+            return this.interceptPointsFromRows();
+        }
+
+        const srcMesh = this.srcNode.drawnPickMesh;
+        const dstMesh = this.dstNode.drawnPickMesh;
 
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
@@ -4022,7 +4054,7 @@ export class Edge {
                 }
 
                 return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.mesh.position, toward.mesh.position)
+                    ? this.leaveNode(node, node.drawnPickMesh.position, toward.drawnPickMesh.position)
                     : null;
             };
 
@@ -4053,6 +4085,77 @@ export class Edge {
             srcPoint,
             dstPoint,
             newEndPoint,
+        };
+    }
+
+    /**
+     * {@link getInterceptPoints} with a batch drawing either end: the mirror's answer, reading no batched row's mesh.
+     * An end only a ray reaches is met by the same ray, through its row, or its own mesh on an object row.
+     * @returns The points.
+     */
+    private interceptPointsFromRows(): InterceptPoint {
+        const { srcNode, dstNode, ray } = this;
+        const input = this.trimInput;
+        for (const node of [srcNode, dstNode]) {
+            if (!node.drawnInBatch) {
+                node.drawnWorldMatrix(true);
+            }
+        }
+
+        const srcWorld = srcNode.drawnWorldPosition;
+        const dstWorld = dstNode.drawnWorldPosition;
+        const worldSpan = Vector3.Distance(srcWorld, dstWorld);
+        const span = Math.hypot(input.dst.x - input.src.x, input.dst.y - input.src.y, input.dst.z - input.src.z);
+        const reach = (end: TrimEnd, node: Node, from: Vector3, to: Vector3): number => {
+            if (end.measured !== TRIM_NO_HIT || worldSpan === 0) {
+                return end.measured;
+            }
+
+            ray.origin.copyFrom(from);
+            to.subtractToRef(from, ray.direction);
+            const hit = node.drawnRayHit(ray);
+            return hit === null ? TRIM_NO_HIT : (Vector3.Distance(to, hit) / worldSpan) * span;
+        };
+        const { src, dst, lineEnd } = trimEnds({
+            ...input,
+            source: { ...input.source, measured: reach(input.source, srcNode, dstWorld, srcWorld) },
+            target: { ...input.target, measured: reach(input.target, dstNode, srcWorld, dstWorld) },
+        });
+        const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
+        return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
+    }
+
+    /**
+     * What {@link getInterceptPoints} works from, as numbers, for its mirror (`meshes/edgeTrim.ts`).
+     * An end only a ray reaches carries `TRIM_NO_HIT`, for the caller to measure: a shape that is not a
+     * box, and a round end across from a non-round one, which the ray meets on its facets.
+     * @returns The numbers.
+     * @internal
+     */
+    get trimInput(): EdgeTrimInput {
+        const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
+            const leaves = node.surfaceIsBox || node.shapeType === "none";
+            const closed =
+                leaves || (node.roundRadius !== null && other.roundRadius !== null) || node.surfaceIsClosedForm;
+            return {
+                radius: node.roundRadius,
+                half: node.drawnHalfExtents,
+                flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
+                border: node.borderReach,
+                gap,
+                measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
+                leaves,
+                group: node.isDrawnAsGroup,
+            };
+        };
+        // a line a unit long loses what the arrow head takes from any line
+        const tip = new Vector3(1, 0, 0);
+        return {
+            src: this.srcNode.drawnPosition,
+            dst: this.dstNode.drawnPosition,
+            source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
+            target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
+            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
         };
     }
 
@@ -4124,7 +4227,7 @@ export class Edge {
      * @returns The node mesh's scale; 1 when it has none.
      */
     private static capScale(node: Node): number {
-        const scale = node.mesh.scaling.x;
+        const scale = node.drawnScale;
         return Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 

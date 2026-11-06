@@ -211,6 +211,50 @@ describe("server sources on the real element", () => {
         await page.viewport(1366, 900);
     });
 
+    it("opens Network data... from an open project, and each card opens the form on its own kind", async () => {
+        await openDataPlace();
+        for (const [card, kind] of [
+            ["Web API", "Web API"],
+            ["NDEx", "NDEx"],
+        ] as const) {
+            await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+            const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+            // The address box has a label the reader can see.
+            assert.isNotNull(within(dialog).getByText("Web address"));
+            await userEvent.click(within(dialog).getByRole("button", { name: new RegExp(`^${card}`) }));
+            const form = await screen.findByRole("form", { name: "Server" });
+            await waitFor(() => {
+                assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).value, kind);
+            });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("form", { name: "Server" }));
+            });
+        }
+    });
+
+    it("adds a graph file at a web address to the open project from Network data...", async () => {
+        const { session } = await openDataPlace();
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        const address = within(dialog).getByRole("textbox", { name: /Web address/ });
+        await userEvent.type(address, `${new URL("/samples/karate.gml", location.href).href}{Enter}`);
+        // The project stays open and the file is taken in as its source, not opened as a new project.
+        await waitFor(() => {
+            assert.deepEqual(
+                session.data.sources().map((source) => source.name),
+                ["karate.gml"],
+            );
+            assert.lengthOf(session.data.nodes(), 34);
+        });
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
+        });
+        assert.strictEqual(document.querySelector("graphty-element")?.session, session);
+    });
+
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
@@ -364,12 +408,14 @@ describe("server sources on the real element", () => {
         assert.isFalse(testButton.disabled);
         assert.isFalse(loadButton.disabled);
 
-        // Rarely used rows wait in Advanced.
-        assert.isNull(within(form).queryByRole("textbox", { name: "Database" }));
+        // Rarely used rows are drawn in the form too: nothing folds or opens from it.
+        assert.isNotNull(within(form).queryByRole("textbox", { name: "Database" }));
+        assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
+        assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
+        assert.isNotNull(within(form).getByLabelText("Expand limit"));
         await pick(form, "Example", "Hetionet");
         await pick(form, "Example", "Neo4j demo: movies");
         assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
-        await userEvent.click(within(form).getByRole("button", { name: /Advanced/ }));
         assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
         assert.equal(
             within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,
@@ -384,7 +430,7 @@ describe("server sources on the real element", () => {
         const busy = vi
             .spyOn(globalThis, "fetch")
             .mockImplementation((input, init) =>
-                String(input instanceof Request ? input.url : input).startsWith(BUSY_ENDPOINT)
+                new URL(input instanceof Request ? input.url : input, location.href).origin === BUSY_ENDPOINT
                     ? Promise.resolve(new Response("", { status: 429, headers: { "retry-after": "0" } }))
                     : realFetch(input, init),
             );

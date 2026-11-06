@@ -55,6 +55,15 @@ describe("layoutLabelTable", () => {
         assert.deepEqual(out.texts[0], { x: 9, y: 12.375, text: "a" });
     });
 
+    it("keeps a hidden cell's room and draws nothing in it (html-td-style-invis)", () => {
+        const shown = layoutLabelTable(table([[cell("a", { fill: "#ff0000" }), cell("b")]]), measure);
+        const out = layoutLabelTable(table([[cell("a", { fill: "#ff0000", hidden: true }), cell("b")]]), measure);
+        assert.deepEqual([out.width, out.height], [shown.width, shown.height]);
+        assert.deepEqual(out.texts, [shown.texts[1]]);
+        assert.deepEqual(out.frames, [shown.frames[1]]);
+        assert.deepEqual(out.fills, []);
+    });
+
     it("takes the table's BORDER as its cells' border unless CELLBORDER says otherwise (html-table-border-3)", () => {
         const out = layoutLabelTable(table([[cell("a"), cell("b")]], { border: 3, cellBorder: 3 }), measure);
         assert.deepEqual([out.width, out.height], [44, 32.75]);

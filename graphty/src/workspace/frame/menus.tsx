@@ -8,7 +8,7 @@ import { MenuItemDescription, MenuShortcut, TargetTooltip } from "@graphty/compa
 import { Menu, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { Fragment } from "react";
 
-import { START_SAMPLES } from "../../data/sampleManifest";
+import { offeredSamples } from "../../data/sampleManifest";
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
@@ -128,7 +128,7 @@ export function SampleItems(): React.JSX.Element {
     const loaded = workspace.session?.data.source()?.config?.url;
     return (
         <>
-            {START_SAMPLES.map((sample) => {
+            {offeredSamples().map((sample) => {
                 const open = loaded === sample.url;
                 return (
                     <Menu.Item

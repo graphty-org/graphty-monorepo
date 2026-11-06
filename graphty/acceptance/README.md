@@ -71,6 +71,25 @@ while those are busy waits for them, and its report says how long.
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.
 
+## The selection workspace's acceptance test
+
+`selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
+the whole app. It is separate from the dry run and runs against any served build with the
+`selection-workspace` feature on:
+
+```bash
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url "https://<host>:<port>/?features=selection-workspace"
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
+node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
+```
+
+It drives real clicks, drags and keys over a pairwise matrix of card kinds, verbs, starts, card shapes,
+entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
+then ticks, popovers closing on an outside click, order after a delete). What a selection should hold is
+worked out from the graph and the runs' results, and compared with the title bar, the cards, the table,
+the drawing and what is saved. It prints a table of results, exits 1 when a scenario failed, and keeps a
+failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
+
 ## Adding a route
 
 Add an object to the `routes` list in `routes.mjs`. A feature added to the app adds a route, and a

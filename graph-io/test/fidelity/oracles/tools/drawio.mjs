@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Re-creates the yEd GraphML stand-in oracles: draw.io 32.4.1's own SVG of each yEd GraphML sample.
-// yEd itself cannot make them: its license (yEd Software License Agreement 1.2, section 1) says
-// "The Software may not be used as part of an automated process", and yEd has no SVG export
-// outside its UI by design. draw.io is what stands in.
+// Re-creates the yEd GraphML stand-in oracles: draw.io 32.4.1's own SVG of a yEd GraphML sample. Nearly every such
+// oracle is now the real program's own drawing (TOOLS.md, "yEd's oracles"): this script skips those, whatever ids it
+// is given, so today it draws only `yed-graphml-specimen-images-charts`, a file yEd refuses to open.
 //
 // Two of draw.io's own steps, unmodified, in headless Chromium on draw.io's export page
 // (src/main/webapp/export3.html, the page the draw.io desktop CLI `drawio -x -f svg` drives):
@@ -21,8 +20,7 @@
 //   node drawio.mjs [sample-id ...]      (no ids: every sample below and every specimen sheet)
 //
 // Specimen sheets (graph-io/test/fidelity/specimens/yed-graphml/ and yed-live-graphml/) are named by their
-// sample id, `<format>-<sheet id>`; their oracles stand in for yEd and yEd Live until the owner exports each
-// sheet from the real program by hand (File > Export > SVG at 1200 x 900).
+// sample id, `<format>-<sheet id>`.
 //
 // DRAWIO_WEBAPP: draw.io 32.4.1's src/main/webapp (default <main checkout>/tmp/style-fidelity/
 // tools/drawio/app/drawio/src/main/webapp). Fonts: Chromium runs with the repository's pinned fonts
@@ -37,6 +35,8 @@ import { fileURLToPath } from "node:url";
 import { isolatedGitEnv } from "../../../../../tools/isolated-git-env.mjs";
 import { gunzipSync } from "node:zlib";
 import process from "node:process";
+
+import { isYedDrawing } from "./own-drawing.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../../..");
@@ -93,7 +93,9 @@ const SPECIMEN_IDS = Object.keys(SPECIMEN_FORMATS).flatMap((f) =>
         .map((n) => `${f}-${n.slice(0, -".graphml".length)}`)
         .sort(),
 );
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : [...Object.keys(SAMPLES), ...SPECIMEN_IDS];
+const ids = (process.argv.slice(2).length ? process.argv.slice(2) : [...Object.keys(SAMPLES), ...SPECIMEN_IDS]).filter(
+    (id) => !isYedDrawing(join(here, ".."), id),
+);
 const version = readFileSync(join(web, "../../../VERSION"), "utf8").trim();
 const { chromium } = createRequire(join(repo, "graphty-element/package.json"))("playwright");
 const browser = await chromium.launch({
@@ -203,8 +205,8 @@ try {
             standIn: true,
             ...(program ? { standInFor: program } : {}),
             standInReason: program
-                ? `${program}, whose format this specimen sheet is written in, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process' (yEd Live's terms are treated the same), and neither has an SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the sheet (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own; it stands in until the owner exports the sheet from ${program} by hand (File > Export > SVG, 1200 x 900).`
-                : "yEd, which wrote this file, may not be automated: the yEd Software License Agreement 1.2 says 'The Software may not be used as part of an automated process', and yEd has no SVG export outside its UI. This is draw.io's drawing of draw.io's own import of the file (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.",
+                ? `${program} refuses this specimen sheet, so it has no drawing of its own to compare with (TOOLS.md, "yEd's oracles"). This is draw.io's drawing of draw.io's own import of the sheet (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.`
+                : "yEd refuses this file, so it has no drawing of its own to compare with (TOOLS.md, \"yEd's oracles\"). This is draw.io's drawing of draw.io's own import of the file (mxGraphMlCodec), which re-maps yEd shapes, label models, arrows and fonts to draw.io's own.",
             canvas: {
                 requested: "fit within 1200 x 900 px (draw.io's --width 1200 --height 900: one scale, aspect kept)",
                 widthPx: size ? +size[1] : null,

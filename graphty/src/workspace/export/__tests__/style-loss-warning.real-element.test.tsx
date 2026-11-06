@@ -1,7 +1,7 @@
 /**
- * Exporting a styled graph on the REAL graphty-element: a format that cannot hold the styles
- * stops at a warning before any file is written and saves only after "Save anyway"; a format
- * that keeps them saves at once, and its file opens again with the same layers. Every file is
+ * Exporting a styled graph on the REAL graphty-element: a format that keeps some styles and loses
+ * others stops at a warning before any file is written and saves only after "Save anyway"; a
+ * format that holds no styles (Format says so) and a format that keeps them save at once, and its file opens again with the same layers. Every file is
  * caught where the page hands it to the browser (the object URL and the anchor's click).
  */
 
@@ -118,7 +118,7 @@ afterEach(() => {
 });
 
 describe("Export warns before the graph's styles are lost", () => {
-    it("stops a CSV export at the warning, and saves GraphML with its layers at once", async () => {
+    it("saves a CSV export at once, as Format says it holds no styles, and GraphML with its layers", async () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
@@ -137,17 +137,14 @@ describe("Export warns before the graph's styles are lost", () => {
         }
         const exports = vi.spyOn(element, "exportGraph");
 
-        // CSV cannot hold the colors: Export stops at the warning and nothing is written.
+        // CSV holds no styles, as Format says under its box ("No styles"): Export saves at once,
+        // with no warning to answer first (tier 4 round 1: every CSV export stopped on one).
         const dialog = await openData();
         await chooseCsvNodes(dialog);
+        within(dialog).getByText("No styles");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        const warning = await within(dialog).findByRole("alertdialog", {});
-        assert.match(warning.textContent, /Node fill color not written/);
-        assert.match(warning.textContent, /Reopened: no styles/);
-        assert.lengthOf(saved, 0, "no file before the reader chooses");
-
-        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST);
+        assert.isNull(within(dialog).queryByRole("alertdialog"));
         assert.deepEqual(
             saved.map(({ name }) => name),
             ["untitled_nodes.csv"],
@@ -156,7 +153,7 @@ describe("Export warns before the graph's styles are lost", () => {
         // GraphML keeps the layers: the menu says so, and Export saves without a warning.
         const again = await openData();
         await userEvent.click(within(again).getByLabelText("Format"));
-        await userEvent.click(await screen.findByRole("option", { name: /^GraphML.*\(keeps style layers\)$/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "GraphML" }));
         await waitFor(() => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<graphml");
         });
@@ -176,11 +173,16 @@ describe("Export warns before the graph's styles are lost", () => {
         back.dispose();
 
         // Every export the dialog made, previews and saves, asked for the styles, but the project
-        // file's (Data opens on Graphty JSON), which holds them already and takes no options.
+        // file's, which holds them already and takes no options, and CSV's, which holds no styles
+        // and writes the same file either way (R14).
         const written = exports.mock.calls.filter(([format]) => format !== "graphty");
         assert.isAbove(written.length, 3);
-        for (const [, options] of written) {
-            assert.strictEqual(options?.styles, true);
+        for (const [format, options] of written) {
+            if (format === "csv") {
+                assert.notProperty(options ?? {}, "styles");
+            } else {
+                assert.strictEqual(options?.styles, true);
+            }
         }
     });
 

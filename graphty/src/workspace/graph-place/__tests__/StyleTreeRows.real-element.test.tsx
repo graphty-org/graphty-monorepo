@@ -150,6 +150,22 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         assert.isNull(within(await row("Nobody")).queryByRole("img", { name: /Painted over/ }));
     });
 
+    it("counts each row over the nodes the filter leaves drawn, as Which nodes does", async () => {
+        const { session } = await openScene();
+        await session.visibility.set({ kind: "member", of: { nodes: [2, 3, 4] } });
+        await session.styles.settled();
+        // Cover selects all 4 nodes and Key people 2 of them; the filter leaves 3, Key people's 1 among them.
+        // Cover paints over Key people, whose row draws the painted-over mark in its count's place,
+        // so its count is read from the row's name, which says it either way.
+        const rowOf = (name: string): HTMLElement =>
+            within(tree()).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
+        await waitFor(() => {
+            assert.equal(rowOf("Cover").querySelector(".ws-row-count")?.textContent, "3");
+            assert.match(rowOf("Cover").getAttribute("aria-label") ?? "", /, 3 nodes(,|$)/);
+            assert.match(rowOf("Key people").getAttribute("aria-label") ?? "", /, 1 node(,|$)/);
+        });
+    });
+
     it("groups the row menu, with an icon on every item, Hide and Lock by their keys, and no Unpin on an unpinned row", async () => {
         const { session, key } = await openScene();
         const menu = await rowMenu("Key people");

@@ -257,6 +257,11 @@ export interface ElementPaint {
      */
     lastPainted(target: SelectorTarget): ArrayLike<number>;
     /**
+     * Whether the last pass was asked for with `rowsOnly`. Read as {@link ElementPaint.lastPainted} is.
+     * @returns True when what it painted is all that changed.
+     */
+    lastPaintRowsOnly(): boolean;
+    /**
      * Be told what a pass painted, at the end of that pass and before any other can begin.
      *
      * THE ONLY SAFE MOMENT TO READ {@link ElementPaint.lastPainted}, and reading it anywhere else
@@ -394,8 +399,13 @@ export interface RepaintEngine extends ElementPaint {
      *
      * What a removal from the middle of the rows costs the picture: the elements after it move
      * down, and moving their paint is a copy per column rather than every layer evaluated over
-     * every element again. Only right when no layer's paint of one element depends on another
-     * element, which the caller decides.
+     * every element again. The record of what each layer was applied to moves with them, so a
+     * layer can still take its paint back.
+     *
+     * A layer that encodes is settled against the rows as they stand first, and when any of them
+     * settles differently (a domain, a list of categories, a set of cut points) every element is
+     * painted, because the same value now paints differently. Beyond that, an element's paint
+     * must depend on no other element unless the caller names it in `dirty`.
      * @param stack - The stack to paint from, bottom first.
      * @param moved - The freeze's remaps, old index to new, or null for a kind it did not renumber.
      * @param kept - How many elements of each kind, from index zero up, were painted before it.
@@ -415,6 +425,27 @@ export interface RepaintEngine extends ElementPaint {
         context: RepaintContext,
         still: () => boolean,
     ): Promise<RepaintReport>;
+}
+
+/**
+ * Everything a layer's paint closures took from the whole column, as one comparable string: two
+ * preparations with the same facts paint the same value the same. A template's `|count` and
+ * `|rank` read the column too and are not here, so the caller keeps those off a narrowed pass.
+ * @param layer - The prepared layer.
+ * @returns The facts.
+ */
+function settledFacts(layer: PreparedLayer): string {
+    return JSON.stringify(
+        layer.channels.map(({ binding }) => [
+            binding.domain,
+            binding.categories,
+            binding.lumped,
+            binding.steps,
+            binding.groups,
+            binding.palette,
+            binding.range,
+        ]),
+    );
 }
 
 /** A renumbering per kind of element: old index to new, INVALID_INDEX for one dropped. */
@@ -445,6 +476,24 @@ const NO_PREPARED_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
 
 /** How long the pass may hold the thread before it hands it back, in milliseconds. */
 const SLICE_MS = 8;
+
+/**
+ * The share of the time the thread was away that the next slice may take, when that is more than
+ * {@link SLICE_MS}. A slice hands the thread back so frames keep drawing, and a frame that takes
+ * 4 s (50,000 nodes on software rendering) then gave the pass 8 ms in every 4 s: a repaint of 300 ms
+ * of work took two and a half minutes to reach the screen (#5816). The same quarter as a repaint's
+ * share of a slow frame (`STYLE_FRAME_SHARE` in UpdateManager.ts).
+ */
+const SLICE_SHARE = 0.25;
+
+/**
+ * How long a pass's next slice may hold the thread.
+ * @param awayMs - How long the thread was away after the last slice handed it back.
+ * @returns The slice, in milliseconds: {@link SLICE_MS} on a page that answers at once.
+ */
+export function sliceAfter(awayMs: number): number {
+    return Math.max(SLICE_MS, awayMs * SLICE_SHARE);
+}
 
 /** Rows a store holds before its first growth. */
 const INITIAL_CAPACITY = 1024;
@@ -1124,6 +1173,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     /** Who is told what a pass painted, in the order they asked. */
     const painted = new Set<() => void>();
 
+    /** Whether the pass announcing was asked for with `rowsOnly`. */
+    let rowsOnly = false;
+
     /**
      * Tell everyone what this pass painted, while its dirty set is still its own.
      *
@@ -1576,6 +1628,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * A macrotask rather than a microtask, for the reason the visibility pass gives: a microtask
      * lets progress fire while starving the event loop, so the bar moves, the frame never paints
      * and the Cancel button's handler does not run until the work it was meant to stop is done.
+     * The next slice grows with how long the thread was away; see {@link SLICE_SHARE}.
      * @param context - The signal to stop on.
      * @param deadline - When this slice runs out.
      * @returns The next slice's deadline.
@@ -1586,6 +1639,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             return deadline;
         }
 
+        const left = now();
         await new Promise<void>((resume) => {
             setTimeout(resume, 0);
         });
@@ -1594,7 +1648,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
-        return now() + SLICE_MS;
+        const back = now();
+        return back + sliceAfter(back - left);
     };
 
     /**
@@ -1955,6 +2010,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);
         context.report({ phase: "painting", completed: total, total });
+        rowsOnly = context.rowsOnly === true;
         announcePainted();
 
         return { nodes: node.painted, edges: edge.painted };
@@ -2026,9 +2082,54 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                         }
                     }
                 },
-                addedOnTop(request) ? request.fromIndex : null,
+                // A pass already handed the stack with the new layers in it has painted them: going
+                // over that paint would apply them twice, and a list like `node.shaders` keeps both.
+                addedOnTop(request) && !request.stack.slice(request.fromIndex).some((entry) => appliedTo.has(entry))
+                    ? request.fromIndex
+                    : null,
             ),
         );
+
+    /**
+     * Whether a layer that encodes now paints a value differently from what is on screen, read
+     * off everything a paint closure takes from the column.
+     * @param entry - The layer.
+     * @returns True when every element has to be painted again.
+     */
+    const settledDifferently = (entry: CompiledLayer): boolean => {
+        if (entry.layer.encode === undefined || !entry.layer.enabled) {
+            return false;
+        }
+
+        const before = lastPreparedFrom.get(entry);
+        return before === undefined || settledFacts(before) !== settledFacts(prepareLayer(entry));
+    };
+
+    /**
+     * Carry the record of what each layer was applied to through a renumbering.
+     * @param stack - The layers whose records are carried. A hidden layer's stays behind: none of
+     *     its paint is on screen to take back, so all a stale record costs is a needless repaint.
+     * @param moved - The freeze's remaps.
+     */
+    const followApplied = (stack: readonly CompiledLayer[], moved: ElementRemaps): void => {
+        for (const entry of stack) {
+            const remap = moved[entry.layer.target];
+            const record = appliedTo.get(entry);
+            if (remap === null || record === undefined) {
+                continue;
+            }
+
+            const store = stores[entry.layer.target];
+            const carried = new Uint8Array(store.capacity);
+            for (let from = 0; from < Math.min(record.length, remap.length); from++) {
+                if (record[from] === 1 && remap[from] < store.count) {
+                    carried[remap[from]] = 1;
+                }
+            }
+
+            appliedTo.set(entry, carried);
+        }
+    };
 
     /** Put every element of both kinds in the dirty set. */
     const markEverything = (): void => {
@@ -2110,6 +2211,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         ): Promise<RepaintReport> {
             return exclusively(async () => {
                 if (!still()) {
+                    appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
                     return runPass(stack, context, markEverything, null);
                 }
 
@@ -2117,10 +2219,16 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
                     edge: follow(stores.edge, moved.edge, kept.edge, sources.edgeCount()),
                 };
+                followApplied(stack, moved);
                 return runPass(
                     stack,
                     context,
                     () => {
+                        if (stack.some(settledDifferently)) {
+                            markEverything();
+                            return;
+                        }
+
                         for (const store of [stores.node, stores.edge]) {
                             for (const indices of [holes[store.target], dirty[store.target]]) {
                                 for (let at = 0; at < indices.length; at++) {
@@ -2219,6 +2327,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         meshCount(target: SelectorTarget): number {
             return stores[target].meshes.size;
+        },
+
+        lastPaintRowsOnly(): boolean {
+            return rowsOnly;
         },
 
         lastPainted(target: SelectorTarget): ArrayLike<number> {

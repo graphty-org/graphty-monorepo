@@ -33,6 +33,7 @@ import {
     Frustum,
     type InstancedMesh,
     type Mesh,
+    type Plane,
     RawTexture,
     type Scene,
 } from "@babylonjs/core";
@@ -116,10 +117,11 @@ export interface NodeShaderLook {
     readonly glow: { readonly color: string; readonly strength: number } | null;
 }
 
-/** What the drawing needs from a node: its id, its mesh and a way to be drawn again. */
+/** What the drawing needs from a node: its id, whether it is in view and a way to be drawn again. */
 export interface ShadedNode {
     readonly id: string | number;
-    readonly mesh: AbstractMesh;
+    /** Whether it is inside the view. */
+    isDrawnInFrustum(planes: Plane[]): boolean;
     /** Draw the node again from the paint it holds, because a shader it names became drawable. */
     refreshShaderPaint(): void;
     /** Its selected, hovered and pinned states now, as the state bits; read when it first draws a shader. */
@@ -1581,7 +1583,7 @@ export class NodeShaderDrawing {
             }
 
             planes ??= Frustum.GetPlanes(camera.getTransformationMatrix());
-            if (entry.node.mesh.isInFrustum(planes)) {
+            if (entry.node.isDrawnInFrustum(planes)) {
                 return true;
             }
         }

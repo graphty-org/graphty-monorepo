@@ -5,8 +5,8 @@ graphty-element, small and in the right package, and say what the element's API 
 read this file first every session and update it as I decide and learn.
 
 Words: "the app" is the graphty app; "the element" is graphty-element; "the studio worktree" is
-`.worktrees/design-studio-tier3` (branch `design/studio-tier3`). "Frozen build" is a copy of
-`graphty/dist` under `.study-builds/`, named on the first line of `tier3/criteria.md`.
+`.worktrees/design-studio-tier4` (branch `design/studio-tier4`). "Frozen build" is a copy of
+`graphty/dist` under `.study-builds/`, named on the first line of `tier4/criteria.md`.
 
 Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
 Summarized 2026-10-17 from 44 KB. Every dated entry of today's dry-run fixes (table, Analyze run,
@@ -17,157 +17,161 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars
-   (`tier3/rounds/round-1/insights.md`). What it taught me, most important first:
-   a. No new severity 3. Bar 5 fails only on two backlog items: the node's own Fill "+" that makes
-   a one-node layer, and the folder chain icon that paints every cluster one color (0 sessions
-   reached it, so its severity is unknown). Next build work starts with these two.
-   b. Newcomers look for node color in the Graph inspector first; with nothing picked it shows only
-   canvas settings. A pointer from there to the layer list (app words, no element change) is
-   the cheapest fix for the most common wrong turn.
-   c. A new style line starts at the value every node already has (Fill "+" = 6366F1), so adding
-   one looks broken. Start it at a visibly different value; the choice is the app's.
-   d. Checking which nodes a layer paints is done by eye: nothing names or reports a pointed-at
-   node. Hover facts belong to the element (neutral `{ code, params }`), words to the app.
-   e. Keyboard: F6 stop draws no focus ring (WCAG 2.4.7) and focus is lost a second time on the
-   way to a styled graph; both have repros under `repro/r1-s18/`. Fix in compact-mantine or the
-   app shell, never per control.
-   f. One color table drives both the grade and the spoken name; "gold" for FFD700 made the only F.
-   Color words are a shared table: fix it in compact-mantine `colorWord`, with the pink E68FAC
-   case (item 3) in the same test.
-   g. Color entry is hex first and does not say it takes color words. Say so in the placeholder.
-   h. The round is at its ceiling: one model plays every persona, so passes are weak evidence;
-   a failure is strong. Weigh repros over session counts.
-1. (2026-10-21) Screenshot audit of round 1 on the frozen build 758b8e8081, every bar 6 screen
-   at 1200 x 900 and 900 x 700 (`tier3/rounds/round-1/expert/engineer.md`, screenshots under
-   `expert/engineer/`). Worst: at 900 x 700 the private-window notice is wider than the 363 px
-   canvas and its first words, Save and close are clipped (compact-mantine `.cm-toast-message`
-   nowrap, no max width); a saved project reopened in a smaller window draws its graph off-center,
-   partly under the toolbar (camera restored, not fitted; element likely, not traced). Then the
-   key covering top-left nodes, grey filled vs white outlined value fields side by side (the app's
-   `variant="outlined"` overrides), two unrelated attribute pickers, two chip shapes, the find
-   results squeezing the layer list to 1.5 rows, help text at 9 px and 12 px, "Layer / 1" broken
-   across lines, the bracketed "«Layer»" token. Bar 10 found no cut text at either size.
-   0a. (2026-10-21) Tool facts from the last week, in full in `git show 0664a753fd:design/ui/studio/notes/engineer.md`
-   (Top of mind 0 to 0y-0v): bars.mjs --tier 3 walks bar 6 (`BAR6` in measure.mjs) and writes
-   spoken.json; the gate keys walks by folder name and refuses MISS lines; `--start` with `--sr`
-   refuses every click; real bar 8 failures on the frozen build (badge 2.17:1, target sizes,
-   scroll regions); undo across a replacing load and empty layers with conditions re-walked fine;
-   open: drawing jumps right on the first key after a find pick, "Which nodes" on an empty layer
-   leaves the list closed.
+Refreshed 2026-11-03 after tier 5 round 1 closed; prior Top of mind (audit mechanisms, tool fixes,
+void-round lesson): `git show 296294ddad:design/ui/studio/notes/engineer.md`.
 
-2. Older Top-of-mind entries, in full: 2026-10-20 0s-0u (renamed channel in a saved document, replace keeps
-   hand-picked edge layers, their re-walk; `git show 4a008f063f:design/ui/studio/notes/engineer.md`); 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
-   and 0; still open from them: Tree folder "Select layers" box, discard note wrap, run fields
-   in a rule); 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
-   `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
-3. NOT SEEN on 2026-10-20 (build f261bbb157, t46a-header-escape 04-05; keep checking): Escape on a focused sortable table header
-   with a selection clears the selection and keeps focus on the header; decided.md says it moves
-   focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
-   floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
-   never sees it, and `useCommandKeys`'s tooltip re-read runs Clear selection. Fix idea:
-   `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
-   Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
-   Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
-4. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
-   Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
-   `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
-   reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
-   default label size; Kelly's palette for 10 to 19 groups.
-6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
-   the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
-   `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
-   `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
-   (`workspace` for studio notes, not `design`).
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-    BoundValue for one layer and for several (owner 2026-10-16).
-11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
-    `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-    run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
-    in the same stack (`writeRank` in `StylePainter.ts`).
-12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
-    `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
-    (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
-    option click can fail on `cm-pointer-still` (list opened under a still pointer): use
-    `--key ArrowUp --key Enter`. Compare drawings with PIL `ImageChops.difference(...).getbbox()`
-    on the canvas crop `(300,120,1195,835)` at 1440 x 900.
+- (2026-11-03) TIER 5 ROUND 1 CLOSED, studio stopped at the 1-round cap with bars 1, 3, 4, 8, 9
+  failing (`tier5/rounds/round-1/insights.md`, 30 valid sessions on build 1e123d7d33). Next round
+  starts with my fixes, each re-walked by its repro.
+- (2026-11-03) SEV 3, app: a filter step picked from a run's results binds a different run (picker
+  offers the 112-node run, card counts over a new whole-graph run). Fix where a run is named: the
+  element gives each run's facts including scope, the app words them and binds by that identity.
+  Trace first whether the binding defect is the app's or how the element identifies a run result.
+- (2026-11-03) SEV 3, app: speech from a hidden panel (`WhichPicker.tsx` useAnnounceChange
+  under an open workspace). Fixed after the freeze; re-walk only. Rule: speak only from the
+  surface that is showing.
+- (2026-11-03) By position box: add direction (top/bottom) and unit (number/percent); the error
+  built from `card.top ?? 10` claims a limit an untouched step does not apply -- derive the
+  sentence from what is applied, never from a default.
+- (2026-11-03) Empty Fill color box: give it a visible cue and stop the picker committing and
+  closing on the first click when empty. If that click is the shared color input's, fix it in
+  compact-mantine, not the app. Swatches are Figma-locked: do not add colors.
+- (2026-11-03) "Is exactly" on an empty text step reverts to Contains (`TextCard` sends
+  `{...card, match}`; the empty card is dropped downstream). Keep the match on an empty card.
+- (2026-11-03) Clear then Escape (and probably Clear then Done) deletes a REOPENED card:
+  `SelectionEditor.tsx:812` and `close("done")` call `onEmptyCancel()` without the
+  `openedNew` check. Gate on openedNew; test both paths.
+- (2026-11-03) Bar 9 editor elements: a just-added Or group opens at "B 0" with the picker open and
+  a full-drawn untouched range; "Condition..." / "Or..." never say "and" / "or else". Words are the
+  content designer's; I build the first state and wire whatever words are decided.
+- (2026-11-03) Workspace header deep in Tab order (Done 11-34 keys away, no F6 stop): make it an
+  F6 region per interaction-patterns before adding anything bespoke.
+- (2026-11-03) Bar 7 smaller fixes: value picker jumps over its field and Done (decided 734); Clear
+  renames to "a selection" (631-632); two-step card rests as one row with no caret; bare reference
+  id (694); card name stale after Or or a second step.
+- (2026-11-03) Lesson: one session can fail a bar (T75 A was n=1); a held bar is weak evidence.
+  Repro every finding myself before building, and cite the frozen source line, as the skeptics did.
+- (2026-11-03) Lesson: rate against decided rules and task blockage, not looks; both skeptics cut
+  my 900x700 rating and the "is exactly" and Clear-Escape items to 2 because no one met them or
+  the screen announced them. Still fix data-loss paths: Undo cannot restore the card.
+- (2026-11-03) Study design, not code: T73's key disagrees with its words; fixtures pre-colored in
+  the asked color inflate "drowned color" findings. Do not build for either.
+- (2026-11-03) Still open from the audit: reference picker is a second picker build (one shared
+  searchable combobox), matches strip `min-width: 0`, element's selection `truncated` unread,
+  width rule below 1280 needs decided.md first, `leakCheck` false positive in `tool/real.mjs`.
+
+## Working facts and open defects
+
+Summarized again 2026-10-29 (27 KB): full copy `git show b14af76f0e:design/ui/studio/notes/engineer.md`. Earlier summary 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
+audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
+
+0. (2026-10-29) The weight runs read is `data.loadedWeight()`, which now follows the weight ROLE
+   (`knownFields.edgeWeightPath`) when it names an edge column the load did not read weights from;
+   null when the role is taken away; else the loaded column. `Algorithm.weightReading` asks the
+   session for it and passes the load's own column as `stored` to `resolveRunWeight`, because the
+   store's weights are filled only at load: a designated column that is not the stored one must be
+   read as a column (`input: weight`), and a role taken away must read unweighted (`input: null`).
+   Tests: `test/session/loaded-weight.test.ts`, `test/browser/runs-loaded-weight.test.ts`.
+1. (2026-10-29) A date column is a `date` card field when the element's descriptor says
+   `measurement: "time"` (typed date or the designated time field); its card writes the element's
+   `range` leaf with `as: "time"` (ms bounds, both ends kept). Card bounds: Before X = start(X) - 1,
+   After X = end(X), Between = start(A) .. end(B) - 1, where a 4-digit year spans the year and a
+   day spans the day (`spanOf` in `style/cards.ts`). A bare number under 4 digits is NOT a date: the
+   session parser reads "2" as 2 ms, which wrote a card on the first keystroke.
+2. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
+   with a line is NOT a refused row: GraphML `<data>` and GEXF `<attvalue>` readers drop only the
+   value and keep the node or edge. Those now carry `params: { skipped: "value" }` (graph-io
+   `SKIPPED_VALUE`), and the element's `refused-row` issue skips them (`loadFactsOf` in
+   `session/issues.ts`). Yeast from its address: 331 / 361, no chip. Before trusting any issue
+   count, compare it to `report.counts.skippedNodes/skippedEdges`.
+3. When a load has no issue the app does not open the table dock (`drawFirst` in `start/open.ts`):
+   an old route that opened with the table diverges at that step after an issue fix. Expected.
+4. graphty-element tests resolve graph-io through its `dist`; `npm run build` in graph-io writes
+   only `dist/src` (tsc) and breaks resolution: build it with `pnpm exec nx run graph-io:build`.
+5. graph-io's `test/styles/no-styles-baseline.json` hashes each conformance fixture's import
+   report; any new issue field changes those hashes. Update only the lines the change explains.
+6. STILL OPEN (2026-10-20): Escape on a focused sortable table header clears the selection instead
+   of moving focus to the Table button (floating-ui dismiss stops Escape before `leaveGrid`).
+   Fix idea: `onKeyDownCapture` for `leaveGrid`.
+7. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls pink E68FAC "red".
+8. Open owner questions live in `owner-decisions.md` ("For the owner").
+9. Shared worktree: stage only my files; never `git stash`; commit headers <= 100 characters,
+   scope from commitlint's list (`workspace` for studio notes).
+10. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
+    output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
+11. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
+    (low-priority), then `real.mjs --replay <old walk> <new folder> --keep`, `--step`, `--end`.
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
+    default or a renamed or removed member goes "for the owner". A new element member needs
+    `doors.ts`, `test/cost-coverage/method-classes.ts` and `npm run api:report`.
+13. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
+    `data.histogram` takes data columns only; a bound label size wins over a label style's size.
+14. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
+    will not match; step N lands in screenshot N+1; always `--end`.
 
 ## Decisions and reasons
 
-- (2026-10-21) **A screenshot audit runs as `bars.mjs --tier 3 --size <WxH> --dist <frozen>`,
-  one size per run, into the auditor's own folder.** Its walks are real.mjs sessions that reach
-  every bar 6 screen with no MISS and leave a screenshot per step; hand-driving 36 screens twice
-  would cost hours and miss states. The first size of a run is the light theme; the round's own
-  bars run gives the dark theme at 900 x 700 for free.
+- 2026-11-03: Rated the 900 x 700 workspace collapse 2, not 3. Reason: the spec and decided.md set
+  check widths only at 1440 x 900 and 1280 x 800, no task runs smaller, and the step pane keeps its
+  width; both skeptics held my earlier 3 at 2. A width rule below 1280 needs a decided.md entry first.
 
-- (2026-10-21) **Bar 6's list lives in `measure.mjs` (`BAR6`), read by both bars.mjs and the gate.**
-  The gate must not trust a bars run's own idea of what it should have walked; one list both sides
-  import cannot drift. Names are the walk's screen names, not the criteria's sentences.
-- (2026-10-21) **The gate tells walks apart by folder name** (keys/keyboard, detour, else success).
-  session.json holds no task or walk kind; the dry runs already name folders that way. Stricter
-  than preflight 4 in one place: a walk on an earlier build "on routes no fix touched" does not
-  count; it must be re-walked on the frozen build or one with the same app code.
-- (2026-10-21) **spoken.json is read in `measure`, not with `--sr`.** `--sr` is the screen-reader
-  participant's mode and refuses pointer steps; the walk clicks.
-- (2026-10-21) **A phrase echo needs one word that is not common, and fails even when each word is
-  kept.** All-common runs ("of the") would fail every prompt; kept words are kept one at a time.
-- (2026-10-21) **Bar 4's limit is a constant, not `2 * --key-steps`.** The criteria fix the number;
-  a flag let a documented default of 6 hold a median of 12.
-- (2026-10-20) **A replacing load remaps hand-picked edge layers in the import command, not in the
-  app or in the store.** The command already sweeps file layers in the same step
-  (`applyFileStyles`), so the remap undoes with the load; the app holding old ids and rewriting
-  them would be a workaround, and the store knows nothing of layers. Only edges: node ids survive
-  a reload. An edge the new file lacks keeps its old id (matches nothing), never guessed.
-- (2026-10-20) **A renamed channel is read in the style document reader, not in the project file
-  reader.** `planTemplate` is where every saved style document (a project's member, a style file
-  applied by a consumer) becomes layers, so one place covers both; `projectFile.ts` would have left
-  `applyTemplate` callers broken. Only `set` and `encode` keys name channels in a layer. Where a
-  layer names both the old and new name, the new one wins. Not in `channelDescriptor`: the old
-  name stays out of the channel set, the catalog and new documents.
-- (2026-10-19) **Escape clears the selection only on the selection's own inspector.** A layer,
-  run or attribute's inspector is about that row; clearing a find selection from there had no
-  Undo and nothing said Escape would do it (decided.md "Escape in the inspector").
-- (2026-10-19) **A tooltip never takes Escape's job.** It is a hint opened by focus, not by the
-  reader; Escape closes it and still does what it does on that control.
-- (2026-10-19) **A redrawn line restores focus by the control's name, else its field.** The name
-  survives a redraw for buttons (bind, remove); a box's name changes with its state, and the
-  field is where a box's focus belongs anyway. By position failed the Undo of Stop varying.
-- (2026-10-19) **A discard note is spoken by a live region that is always mounted and shown by a
-  copy hidden from assistive tech.** A region that appears with its words is not reliably read;
-  showing the region itself would read the words twice or need its own layout slot.
+- 2026-11-03: The warm-pool self-test holds its slot (queue, no quit on a queue) instead of the
+  pool's try mode. Reason: in try mode the verdict followed machine load (8 studio browsers for 152
+  of 167 s, no warm browser ready in 120 s, the next start cold); the check is about the takeover,
+  and try mode's slot policy is covered by `with-browser.test.mjs`'s try-mode test. Real warm
+  browsers keep try mode, so they never stand between a start and a slot.
+- 2026-11-02: An edit in the selection editor is handed on one painted frame after its input
+  (`afterPaint` in `SelectionEditor.tsx`: `requestAnimationFrame` then `setTimeout`, the handover
+  inside `flushSync` so no queued input runs between it and the host's write). The edit waits as
+  the editor's own rule (`waiting`), so the outline shows it and a second edit before the handover
+  builds on it, never on the rule before it (a stale second tick would drop the first). Opening
+  draws the workspace from local state (`opening`) and names it in the store only after the paint,
+  because the panels that follow the store (`RowStyle`'s `agreement`, the style tree's counts) cost
+  the opening ~0.6 s before its first frame. The preview, the strip, the store's editing
+  selection and the canvas framing wait for `warm` (the workspace's first frame painted); Done,
+  Cancel and Escape go through `closeAfterPaint`. Why: decided.md "Dry run pass 1", an edit that
+  blocks shows that it is working first; app-only, no element change (the element is not slow to
+  answer; the app called it before painting).
+- 2026-10-29: The Time role no longer changes how a column is drawn. `timeValue(session, value,
+date)` lost its kind and column arguments: a text or number time field shows its raw values, and a
+  date column is written to the day whatever the timeline's unit (a date column's unit is ms anyway).
+  `typeOf` reads measurement "time" on a type other than "time" as the type's own measurement. Why:
+  setting the Time on a text column of ISO days drew dates and a calendar glyph in Fields while the
+  header said Aa and the caption A to Z (decided.md, "A column's kind is drawn one way everywhere").
+  The element's sort was never by date for a text column: ISO days sort the same as text.
+  Evidence: re-walk `design/ui/studio/tmp/r1-dry1-U4/T62A-w2-inspector/02.png` (2015-03-02, Aa + Time
+  chip), `T62A-w3-fields/07.png` (Aa in the Time list), `10.png` and `11.png` (after Type > date:
+  calendar glyph, dates, "Sorted by opened, newest first"), `T62B-w2-detours/05.png`.
+- 2026-10-29: A Sources row's name and join ratio sit in `.dp-source-label` (`flex: 1 1 0; width: 0`),
+  and the row button lost its `min-width: 0`. Why: with `min-width: 0` the button shrank below its
+  icon and count chips, so the chips spilled under the issue chip after it ("3611" for 331 / 361).
+  The button now keeps room for its chips; the label counts as no width when the row is sized, so
+  the name gives way (keeps its tooltip). `min-width: 4em` on the name alone was not enough: a
+  nowrap name's min-content still counted in the button's min-content and pushed the chips off the
+  panel. Known ceiling: at 240 px with 4-digit counts ("1,001", "1,000") plus an issue chip the
+  row's resting "..." slot runs about 9 px past the row's background; still drawn, not clipped.
+  Re-walk (cold, `design/ui/studio/tmp/r1-dry1-U1/cold/`): deliveries reads 13 / 18 beside its
+  issue chip (T61A/12.png), flows 12 / 14 (T61B/13.png); the name shrinks to "d.." / "f...".
+  Yeast now loads with no issue, so its row has no chip to cover anything.
+- 2026-10-29: A date condition is the existing `range` leaf with `as: "time"`, not a new leaf, and
+  the app reads "is a date" from the attribute descriptor's `measurement`, not a new
+  `ReadableValueKind`. Why: adding "date" to `readableValues()` kinds changes what an existing API
+  returns (breaking); the descriptor already says it. In the element the designated field reads the
+  timeline's parsed instants (so the filter and the timeline agree); other columns, and every
+  style-layer and set rule (their resolve context has no instants), read raw values by the shared
+  `readTimeValue` (`session/time/parse.ts`), which `session.time.parse` now calls too.
+- 2026-10-29: Filters writes a typed card on commit (Enter or leaving the box), the Style picker on
+  each change; the date card hands each parseable keystroke to `onChange` either way, so both count
+  while typing.
 
-- (2026-10-19) **Select all means the whole drawing: every visible node and the edges among
-  them**, through `{ scope: "visible" }`. A node a filter hides is not one the reader can see
-  selected. Two-way door: a node-only variant would need a new element target.
-- (2026-10-19) **A tooltip and its control's name are one string in code**, so they cannot
-  drift; the longer words win ("Stop varying node size by data: use one value for all"), and
-  tests match the name by its start.
-- (2026-10-19) **Check what the study tool reads before changing a name.** Its candidate list
-  used `aria-label || innerText`, so an `aria-labelledby` group read as all its text ("Shape
-  Shape Size"); the app was right and the fix was the tool's.
-- (2026-10-19) **A pressed switch over nothing says so; a default-on switch over nothing stays
-  quiet.** Only the reader's press is a request, so only it shows the empty key's line.
-- (2026-10-19) **A key row no element shows is no row, whatever hides it.** "covered by X" kept a
-  value the reader cannot find on the canvas; the Style panel already names the covering layer.
-- (2026-10-19) **A layer's kind is the union of its looks and its conditions.** A condition is
-  the reader building that half as surely as a look is.
-- Entries dated before 2026-10-19, in full: `git show 3892643e51:design/ui/studio/notes/engineer.md`.
+- 2026-10-29: A dropped value is marked in graph-io, not guessed in the element. Why: the element
+  saw only "error, line 179, element gal1RGexp"; nothing said whether the node survived, and
+  checking ids against the graph fails when the issue names a key, not a node. A flag on the issue
+  is the smallest fact, additive (`params` was already optional), and serves every consumer.
+
+- Decisions dated 2026-10-19 to 10-21 (screenshot audit bars, Escape and tooltips, focus after a
+  redraw, select all, layer kinds, replacing loads, renamed channels): in full in
+  `git show d3302b379c:design/ui/studio/notes/engineer.md` (trimmed 2026-10-29 for size).
 
 ## Thinking
 
@@ -184,105 +188,95 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Tried: worked / did not work
 
-- (2026-10-21) Worked: `bars.mjs --size 1200x900` then `--size 900x700` in one background command
-  (about 25 minutes for both, one browser at a time), reading screenshots as each walk finished.
-  Did not catch: bar 10's cut-text check misses text clipped by an ancestor (the notice inside the
-  canvas column), since it compares a box's own scrollWidth with its clientWidth; only looking
-  found it. A check of each visible box's rectangle against its clipping ancestor would.
+- (2026-11-03) Worked: reusing the void round's walk scripts (`tmp/engineer-audit/walk.sh`,
+  `big.sh`) unchanged for the rerun; the build and the canvas points (1200x900: 620,790; 900x700:
+  480,575) were the same, and every step matched with no miss. Run them one after another from one
+  script (`tmp/engineer-audit-r1/all.sh`) while a round runs: one browser per agent, and the start
+  queues behind the round's sessions anyway. While waiting, arm a background `until` on the next
+  log line and read the finished sessions' screenshots; the hook refuses a waiting loop in the
+  foreground (and any command whose text looks like one).
+- (2026-11-03) Worked: tracing each finding to a line before writing it (a CSS rule, a constant, a
+  field nothing reads) turned three "to trace" owners into exact ones in minutes of grep.
 
-- (2026-10-21) Did not work: starting the bars walk with `--sr` to collect spoken text; every click
-  was refused with exit 2 and the walk's MISS regex did not match the refusal, so it printed "ok".
-  Worked: exit 2 counts as a miss, and `measure` reads focus and live regions itself.
-- (2026-10-21) Worked: `--only <walk> --size 1440x900` runs of one walk while writing it (about 5
-  minutes instead of 30), two in parallel. Did not work: a key row's `textContent` ("Layer 18 of
-  331"); `innerText` keeps the line break.
-- (2026-10-21) Worked: previewing the gate on round 1's plan with a symlinked `pilot` to r1d2's
-  walks (in a throwaway `tier3/rounds/zz-*` folder): it lists each half's missing walks and why.
-- (2026-10-20) Worked: a scratch copy of the failing browser test that logs `node.index`, the
-  snapshot index, `painter.nodePaint(index)` and `node.drawnFill` found the stale row in one run
-  (index 4294967295 while the paint was right). `node.drawnFill` is the drawn color for tests.
+- (2026-11-03) Re-check of the warm-hold fix (90e826175a): it changes only design/ui/studio/tool
+  (real.mjs, README, with-browser.test), no app source and no route, so no walk and no rebuild.
+  Worked: with-browser.test 7 pass (incl. the new "waits in the queue for a slot"), match.test and
+  bar8-9.test 5 pass, `node --check real.mjs`, no leftover flock/sleep/warm processes. Did not
+  work once: the first `node --test with-browser.test.mjs | tail` ran past a 300 s timeout; two
+  reruns (to a file, and through a pipe) finished in 4 s. Mechanism not found; if it recurs, run
+  with `--test-reporter=spec` to a file to see which test it stops in.
+- (2026-11-03) Warm-hold fix, checked on the frozen build: 10 starts at once peaked at 8 studio
+  browsers (count node processes only: `ps -eo comm,args | awk '$1=="node" && /real\.mjs --(serve|warm)/'`;
+  `pgrep -f` also counts the bash gate wrappers and read 20); all 10 GPU, 2 took over warm browsers;
+  a replay of T71B detour-1 matched all 13 steps. Did not work: reusing a gate folder from an
+  earlier run (s10 refused: "already holds a session's screenshots"); use a fresh folder.
+- (2026-11-03) Re-check of the study tool fix (2aa3ff3fad): it changes only design/ui/studio/tool, no app
+  route, so no walk. Worked: with-browser.test (11 pass, incl. BROWSER_SLOT_ALSO), match.test (2),
+  bar8-9.test (3), waits.mjs --self-test, and waits.mjs on round-1/bars/sessions (9 waits over 10 s on
+  the 50k path, longest 33.7 s on Done). Did not work: waits.mjs on rounds/*/pilot reads 0 routes (the
+  pilot folders hold none; routes live under rounds/round-1/bars/sessions). Slip: ran bar8-9.test
+  without with-browser.sh; it starts a browser, so always wrap it as its header says.
+- (2026-11-03) Did not work: a gate test holding only slot1 of a planted "machine" pool: a command
+  not drawn on the GPU defaults to 4 slots and took slot2 at once. Hold 1 to 4. Worked: `exec 7>&9
+9>&-` then `exec` the gate on the second pool keeps both locks and the pid.
 
-- (2026-10-20) Worked, in real.mjs: Shift+T opens the table with focus on the grid's first
-  header; `--wheel x,y,<delta>` on the grid scrolls it to a far row. Did not work: a python
-  heredoc whose text holds the word "w-a-t-c-h" -- the foreground-wait hook refuses the whole
-  Bash call; write the script to a file under `tmp/` and run it.
+- 2026-11-02 did not work: resolving the page's scope before reading the revision in `page()`
+  (as `neighbors` does). The scope resolution cache is itself keyed on the tick, so it served the
+  stale masks too. The defect was below every cache, in the mask that failed to move the tick.
+- 2026-11-02 did not work: a page assertion in the app's `FilterCardKinds` "leaves the history as
+  it was" test passed on the old element too (something else in the app moves the tick on that
+  path), so it proves nothing; the element test is the one that fails. The app test resolves
+  graphty-element through its dist: rebuild `graphty-element:build` to test an element change there.
+- 2026-11-02 worked: before fixing a walk's defect, read the walk's `session.json` `commit` and ask
+  `git merge-base --is-ancestor <fix> <that commit>`. The round 1 pilot's "Nodes 0" for "James" on
+  volunteers.graphml ran on baac78342b, which predates the fix 92a64cffe5 (a graph file's load names
+  `label` as the label column even when the file has none; `query.textTest` now reads every value
+  when no name path is a held column). Nothing had regressed: the test
+  `test/session/page-matching-file-names.test.ts` passes on HEAD and fails with the old line put
+  back, and a fresh walk lists "v02 name James Carter" first for James, Carter and James Carter.
 
-- (2026-10-20) Worked, in real.mjs: selecting every find match is the "kind is family (8)" value
-  row (Enter, or a click on one edge row, selects only that edge and closes the list). Line + is
-  `--click-at` on "Add to edge line"; the hex box takes `--type FF0000 --key Enter`.
-- (2026-10-20) Worked: Node test opening the two study project files straight from
-  `design/ui/studio/tool/files/` with `createGraphSession().project.open` -- it failed with the
-  reader removed (E_UNKNOWN_CHANNEL, no layers) and passes with it. `createGraphSession` takes no
-  `startingRows` option (a repro script passing it compiled only because it was .mjs).
-- (2026-10-20) The frozen-era real.mjs start page is now the landing page: open a project with
-  `--click "Open a file" --upload <file>`, not "Open project or file".
-- (2026-10-19) Worked: when another agent rebuilds `graphty/dist` mid-revert, build the commit
-  under test from `git archive <commit> graphty tsconfig.base.json package.json` with
-  `node_modules`, `graphty-element` and `compact-mantine` symlinked to the worktree and `vite
-build --outDir <private dist>` in the copy's `graphty/`: 30 s, no tsc, nothing shared touched.
-  Did not work: `--expect described=` on a listbox row reached by arrows: the tool reads the
-  focused search field, not the active descendant.
-- (2026-10-19) Worked: a clean build of HEAD for a walk while the worktree holds other agents'
-  uncommitted edits: `git archive HEAD graphty compact-mantine | tar -x` into `tmp/<task>/clean`,
-  symlink every other top-level entry to the worktree, `cp -a` the two packages' `node_modules`
-  (relative pnpm links then resolve inside the copy), `vite build` compact-mantine then graphty
-  there, `REAL_DIST` the copy's dist. Stamp reads HEAD. About a minute.
+- 2026-11-02 did not work: asserting "the frame before the longest pause between frames shows the
+  box ticked" (or "the last frame with the old count") in the 50,000-node test: in the test the
+  tick's work does not block at once, so frames keep coming through the transition and the test
+  passed without the fix. Worked: assert at the moment the work starts (wrap `scope.watchSteps`)
+  that the control has no running animation -- deterministic however long the block is.
+- 2026-11-02 worked: a cache test that wraps the reading and counts answers it has not given
+  before (object identity), from the app side, needs no hook in the element.
 
-- (2026-10-19) Worked: judging a key regression by running the SAME steps on the frozen build
-  (`REAL_DIST=<frozen dir>`) beside the new one; my first walk had a different inspector open and
-  could not tell. Did not work: trusting `graphty/dist` for a whole walk -- another agent rebuilt it
-  mid-walk (stamp b426f1d05 at start, e0482cf5e twenty minutes later); `session.json`'s
-  `buildStamp` per session says which build each screenshot shows.
-- (2026-10-19) Escape swallowed by a focus tooltip: a document-level bubbling listener did NOT
-  work (floating-ui stops the key in React's handler, before the document); handling it in the
-  capture phase directly would pre-empt inner controls (the neighbor list's Escape). Worked: capture
-  phase only notes it, a zero-delay task re-reads it after dispatch.
-- (2026-10-19) Worked: tracing focusin/focusout plus a MutationObserver on `[data-line]` inside a
-  real-element test showed the gap (focusout at 167 ms, the target replaced, focusin on the
-  restored copy at 307 ms). Did not work at first: restoring by the held control's index -- after
-  Stop varying the index pointed Undo at the restored Stop varying button instead of the field.
-- (2026-10-19) A walk on `graphty/dist` showed the old behavior once because another agent
-  rebuilt `graphty/dist` between my build and the walk (the dist then vanished mid-session).
-  Build a private copy for walks: `npx vite build --outDir tmp/<task>/dist` and `REAL_DIST` it.
+- 2026-11-02 did not work: a CPU profile (CDP `Profiler`) of opening, a tick and Done inside the
+  `real-element` test on 50,000 nodes: the force layout and SwiftShader frames swamp it (React's
+  share under 1 s of 100 s), so it cannot say what blocks the real app. What blocks is not needed
+  to fix the sign: deferring everything an input starts by one painted frame covers it whatever it is.
+- 2026-11-02 worked: timing the first animation frame after an input, armed by a capture
+  `pointerdown`/`keydown` listener, both in a test (`firstFrameAfter` in
+  `LargeGraph.real-element.test.tsx`, asserts what that frame drew, never how long) and in the
+  study tool (`ms.firstFrame`, `ms.input`, `ms.glance` in route.jsonl).
 
-- (2026-10-19) DID NOT WORK, and cost another agent its uncommitted notes edit: `open(p, "w").write(f(open(p).read()))` in Python truncates the file BEFORE it reads it (the write target is evaluated first), so the read is empty. Read into a variable first, then open for writing. The lost edit (a condensation of Top of mind) was redone from its transcript.
-- (2026-10-19) Did not work: Tab in Analyze's filter calling `open()` with only `preventDefault`:
-  the card opened but focus sat on Back, because the focus trap's document listener still saw the
-  Tab. Worked: also `stopPropagation`. The first test only checked "focus inside the card" and
-  passed on the broken version; it now asserts Run.
-- 2026-10-19 Tooltip text as the only hint after a click: did not work (Mantine closes the
-  tooltip on click and keeps it shut while the pointer stays); the hint also goes on the button
-  as `aria-description`, and the tooltip shows it again on the next hover. Worked.
+- 2026-11-02 worked: probing a reading at each moment (in the event listener, right after
+  `view.end()`, after `settled()`) in a happy-dom session test found the stale window in one
+  run; a reading only after `settled()` (the earlier fix's test) can never see it.
+- 2026-11-02 did not work: `git diff <path> | git apply -R` to test without a fix in a shared
+  worktree also reverts other agents' uncommitted hunks; build a patch from `git show HEAD:<file>`
+  with only your own edits and `git apply --cached` it to commit just those.
 
-- (2026-10-19) New layer from selection as `addRow` of one kind with nothing set: DID NOT WORK at
-  first -- the element refused it ("writes no channel"), caught as a notice; the screenshot of the
-  failing test showed "The layer could not be made". Fixed in the element, not the app. Focus on
-  the Style tab after a menu command: a `requestAnimationFrame` after the store write WORKED
-  (the menu's own focus return runs on close, before the awaited add resolves).
-- (2026-10-19) Swapping the tree's checkbox for `Checkbox.Indicator` (no input): did not keep
-  the themed look (the theme styles `Checkbox` only), so kept `Checkbox` inside `aria-hidden`.
-- (2026-10-19) A page-level live region for a list's message. DID NOT WORK: any always-present
-  `role=status` in `document.body` collides with consumers' own `getByRole("status")`. Put the
-  region in the open surface it belongs to, made lazily, words one frame later.
-- (2026-10-19) Reproducing a pilot screenshot on the frozen build BEFORE fixing showed that one of
-  three tooltip findings was misread (the Tab-out "Shape box" tooltip belonged to the next
-  button). WORKED. A rule keyed on an ARIA link silently skips every control that overwrites
-  the link; floating-ui's middleware state (`state.elements`) is the dependable pairing.
+- Entries dated 2026-10-29 and 2026-10-30 (screenshot audit with bars.mjs, names in audit walks,
+  the browser gate check, replay with --keep and --end-on-diverge, background re-walk scripts, the
+  date Autocomplete, the 1,000-node real-element test): `git show 0ec56d2f3b:design/ui/studio/notes/engineer.md`.
+- 2026-11-02 worked: comparing a keyboard path in two `--sr` sessions, the fixed `graphty/dist`
+  and the frozen build, side by side: the `focus:` lines show a focus-return regression that a
+  pointer walk (no focus ring after a click) cannot.
+- Entries dated 2026-10-21 and earlier (bars.mjs sizes, real.mjs keys and starts, builds while
+  other agents rebuild, Escape and focus traces, live regions, disabled-state proofs), in full:
+  `git show 51d0e57509:design/ui/studio/notes/engineer.md`.
 
-- (2026-10-19) An in-page probe that measures label WORDS on screen and compares them with the
-  declutter's own rectangles (they matched to the pixel) settled "is the count lying?" in one run:
-  it was not; the rule was too strict. WORKED. A zoom in perspective scales world-sized labels and
-  their gaps together, so a count can only move with zoom through a rule fixed in pixels.
-  Wheeling out past the fitted view did not zoom further in the probe (zoom3 equals the start).
+- (2026-11-02) Worked: one helper (`amongDrawn` in StylesApi) serves both `counts().visible` and
+  the legend's `selects`, so the key and the rows cannot drift. Did not work: a real-element test
+  whose `waitFor` callback awaited `findByRole` sat with no output for 13 minutes; a synchronous
+  `getByRole` inside `waitFor` is the shape the other tests use.
 
-- (2026-10-19) Worked: proving a disabled-state test fails without the change by reading the
-  old code path, not by swapping files, when the change is a deleted prop: the header's Undo with
-  nothing to undo was exactly the `skipWhileDisabled && disabledReason !== null` branch.
-- 2026-10-18 entries (real.mjs slots, one-size rule, Undo's reason after the press, Select's
-  `onDropdownOpen` order, two-part layers, gml ids, tooltip waits, proving failure by copying HEAD,
-  focusin stack traces, private-index commits, the 3D wheel zoom-out symmetry finding) in full in
-  `git show 393580a87:design/ui/studio/notes/engineer.md`, "Tried: worked / did not work".
-- Entries dated before 2026-10-19, in full: `git show 3892643e51:design/ui/studio/notes/engineer.md`.
+- (2026-11-02) Worked: reproducing a reading bug by loading the study's own fixture shape through
+  `data.import` and `data.prepare(...).load()` in a happy-dom test; a test that builds nodes with
+  `addNodes` skips the load's label default and passed while the app failed.
 
 ## Sources
 
@@ -291,12 +285,12 @@ build --outDir <private dist>` in the copy's `graphty/`: 30 s, no tsc, nothing s
   `rounds/r1/pilot/`), `design/ui/studio/owner-decisions.md`.
 - Full notes before this summary: `git show 54c009f84:design/ui/studio/notes/engineer.md`; before
   the first summary: `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) Re-asked for truthful counts after a restart: already landed in 97d8bff7c (in the frozen build ed4351b258); `TruthfulCounts.real-element` still passes on the branch tip, walks in `design/ui/studio/tmp/r1-dry1-truthful-counts/w1`, `w2`. Check `git log` for a task's title before rebuilding it.
-- (2026-10-18, second re-ask) Truthful counts again: still landed (97d8bff7c, swatch and Color
-  line; 52cb47a85 `builtParts`). The pilot screenshots cited were taken on build 58556989e, older
-  than both. On the tip, whose `graphty/dist` equals the frozen build tier3-r1d3-52cb47a85a byte for
-  byte, `TruthfulCounts.real-element` (2) and `LayerRowAndKey.real-element` (5) pass. `groupMarks`
-  in `StyleTree.tsx` reads the swatch from the layer's `set`/`encode` only, never its selector, so
-  a gained condition (T48B) keeps it as well as a lost one. Check a pilot folder's
-  `session.json` `commit` before treating its screenshots as current.
-- (2026-10-18) Re-asked for the key (column title, 250,000, no stale fold, no repeated "Agencies", no cut entry, Tab and arrows) after a restart: already landed in ed4351b25, the frozen build itself; on the branch tip element `legend-copies`/`legend-reach` (5), app `legendWords` (21) and `LegendCard.real-element` (7) pass; walks `design/ui/studio/tmp/r1-dry1-key/w2`, `w3` show "Size: donations 0 - 250,000" and Group 1-10 whole in a focusable scrolling key.
+- (2026-10-18) Re-asks after a restart (truthful counts, the key) were already landed: check
+  `git log` for a task's title and a pilot folder's `session.json` `commit` before rebuilding.
+  Details: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.
+
+## Older sections
+
+- The dated decision records of 2026-10-29, the round 1 close of 2026-10-30 and the busy-sign
+  re-walk on f6ab091f47 (superseded by the 2026-11-02 re-walk in `tmp/r1-dry2-open-busy-sign/`):
+  `git show 50626246ff:design/ui/studio/notes/engineer.md`.

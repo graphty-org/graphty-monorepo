@@ -76,6 +76,19 @@ describe("DOT styles: HTML font runs", () => {
         expect([align.a, align.b, align.c ?? null]).toEqual(["left", "right", null]);
     });
 
+    it("raises a <SUP> run and lowers a <SUB> run by half their font's height, as a browser draws Graphviz's SVG", async () => {
+        const runs = await nodes(
+            `digraph { a [fontsize=10, label=<a<SUP>bc</SUP>d<SUB><FONT POINT-SIZE="20">e</FONT></SUB>>] }`,
+            "labelRuns",
+        );
+        expect(JSON.parse(String(runs.a))).toEqual([
+            { text: "a" },
+            { text: "bc", shift: -5.85 },
+            { text: "d" },
+            { text: "e", size: 20, shift: 11.7 },
+        ]);
+    });
+
     it("reads an edge label's runs", async () => {
         const runs = await edges(`digraph { a -> b [label=<x<B>y</B>>] }`, "labelRuns");
         expect(JSON.parse(String(runs[0]))).toEqual([{ text: "x" }, { text: "y", weight: "bold" }]);

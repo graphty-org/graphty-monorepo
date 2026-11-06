@@ -23,7 +23,7 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer } from "./CustomLineRenderer";
+import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
@@ -71,6 +71,7 @@ interface ArrowHeadOptions {
     opacity?: number; // Opacity 0-1 (default 1.0)
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
+    outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
 }
 
 /**
@@ -377,7 +378,7 @@ void main() {
             {
                 width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
                 color: options.color,
-                opacity: style.line?.opacity ?? 1,
+                opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
                 patternCount: style.line?.patternCount, // undefined means follow the spacing rule
                 wave: this.waveOf(style),
@@ -424,6 +425,38 @@ void main() {
             line?.bezier === true ||
             [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
+     * The fade a style asks its line to be drawn with. A line that does not blend has none.
+     * @param style - The style.
+     * @returns The fade, or undefined for none.
+     */
+    static fadeOf(style: EdgeStyleConfig | null): EdgeFade | undefined {
+        const { fade, blending } = style?.line ?? {};
+        if (fade?.end === undefined || blending === false) {
+            return undefined;
+        }
+
+        return { start: fade.start ?? 0, end: fade.end, opacity: fade.opacity ?? 0.25 };
+    }
+
+    /**
+     * The opacity a style's line is drawn at: its own, or full strength when it does not blend.
+     * @param style - The style.
+     * @returns The opacity.
+     */
+    static opacityOf(style: EdgeStyleConfig): number {
+        return this.drawsOpaque(style) ? 1 : (style.line?.opacity ?? 1);
+    }
+
+    /**
+     * Whether a style's line is drawn without alpha blending.
+     * @param style - The style.
+     * @returns True for `line.blending` false.
+     */
+    static drawsOpaque(style: EdgeStyleConfig): boolean {
+        return style.line?.blending === false;
     }
 
     /**
@@ -474,6 +507,10 @@ void main() {
         const key = `edge-style-${options.styleId}${widened ? "-w" : ""}`;
         const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache, widened);
         const curve = style.line?.bezier === true;
+        // Only a widened batch knows the whole edge's length, and a band or a gradient's piece,
+        // which is not one, does not fade.
+        const fade = widened ? this.fadeOf(style) : undefined;
+        const opaque = this.drawsOpaque(style);
 
         if (this.drawsAsPattern(style, loop)) {
             return null;
@@ -494,10 +531,12 @@ void main() {
                         {
                             width,
                             color: options.color,
-                            opacity: style.line?.opacity ?? 1,
+                            opacity: this.opacityOf(style),
                             worldWidth: true,
                             widened,
                             minScreenWidth: style.line?.minScreenWidth,
+                            fade,
+                            opaque,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -522,10 +561,11 @@ void main() {
                     Simple2DLineRenderer.createBatchMesh(
                         options.width / 40, // Convert back from scaled width to match 3D line thickness
                         options.color,
-                        style.line?.opacity ?? 1,
+                        this.opacityOf(style),
                         scene,
                         widened,
                         style.line?.minScreenWidth,
+                        { fade, opaque },
                     ),
                 scene,
             );
@@ -574,7 +614,9 @@ void main() {
 
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
-        const breadth = options.breadth ?? 1;
+        // a stem is as wide as its line: `outline`'s scene units over its length
+        const breadth =
+            options.type === "stem" ? Math.round((options.width / 40 / length) * 1000) / 1000 : (options.breadth ?? 1);
         const { side } = options;
         // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
         const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
@@ -613,9 +655,11 @@ void main() {
             "tee",
             "half-open",
             "crow",
+            "open-normal",
+            "open-diamond",
+            "open-dot",
             "sphere-dot",
             ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
-            ...Object.keys(FilledArrowRenderer.OPEN_OUTLINES),
         ];
 
         // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
@@ -632,13 +676,13 @@ void main() {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        // AN OPEN CAP'S FRAME IS AS THICK AS ITS LINE (#4253), as Graphviz and Cytoscape.js stroke one with the edge's
-        // own pen: the line's width in scene units (`width / 40`, see createPatternedLine) over the cap's length, which
-        // a batch's one geometry holds, so it is part of the key. The outline is widened before it is framed, so the
-        // frame stays as thick on every side.
+        // AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz
+        // and Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
+        // createPatternedLine) over the cap's length, which a batch's one geometry holds, so it is part of the key.
+        // Unset, the cap keeps its own thin frame.
         const stroke =
-            arrowType in FilledArrowRenderer.OPEN_OUTLINES
-                ? Math.round((options.width / 40 / length) * 1000) / 1000
+            options.outline !== undefined && options.outline > 0 && arrowType in FilledArrowRenderer.OPEN_OUTLINES
+                ? Math.round((options.outline / 40 / length) * 1000) / 1000
                 : undefined;
         const openKey = stroke === undefined ? widthKey : `${widthKey}|s${String(stroke)}`;
         const open = (): Mesh | null =>
@@ -800,6 +844,12 @@ void main() {
                 return FilledArrowRenderer.createHalfOpen(scene);
             case "crow":
                 return FilledArrowRenderer.createCrow(scene);
+            case "open-normal":
+                return FilledArrowRenderer.createOpenNormal(scene);
+            case "open-diamond":
+                return FilledArrowRenderer.createOpenDiamond(scene);
+            case "open-dot":
+                return FilledArrowRenderer.createOpenCircle(scene);
             default:
                 if (type in FilledArrowRenderer.POLYGON_ARROWS) {
                     return FilledArrowRenderer.createPolygonArrow(type, scene);
@@ -825,9 +875,11 @@ void main() {
                 {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
-                    opacity: style.line?.opacity,
+                    opacity: this.opacityOf(style),
                     widened,
                     minScreenWidth: style.line?.minScreenWidth,
+                    fade: widened ? this.fadeOf(style) : undefined,
+                    opaque: this.drawsOpaque(style),
                 },
                 scene,
             );
@@ -1159,6 +1211,12 @@ void main() {
                     lineStop: 2 / 3,
                 };
 
+            // yEd's cross and open arrows: the line runs on to where the strokes cross, to the arms' middle (its plain
+            // arrow's stops a third back from the tip, its concave arrow's two thirds)
+            case "cross":
+            case "open-vee":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0.5 };
+
             // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
             // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
             // under the vee
@@ -1169,6 +1227,10 @@ void main() {
                     positionOffset: 0,
                     lineStop: EdgeMesh.veeLineStop(cap),
                 };
+
+            // A slash lies across its line, which runs on under it to the end
+            case "slash":
+                return { positioningMode: "tip", needsRotation: false, positionOffset: 0, lineStop: 0 };
 
             // A half arrow's line runs on under it to where its arm meets the line, so no break shows between them
             // (Graphviz's halfopen meets its line at its back, Cytoscape's HALF_TOP near its tip): half-open's arm
@@ -1185,6 +1247,8 @@ void main() {
             case "normal":
             case "tee":
             case "inverted-vee":
+            case "kite":
+            case "deltoid":
             case "crow":
             case "open-normal":
             case "open-diamond":
@@ -1198,6 +1262,7 @@ void main() {
             case "circle-triangle":
             case "open-box":
             case "open-inverted":
+            case "stem":
             case "image":
                 return {
                     positioningMode: "tip",

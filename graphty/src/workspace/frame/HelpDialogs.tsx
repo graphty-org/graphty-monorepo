@@ -64,7 +64,7 @@ function canvasRows(): { label: string; keys: string[] }[] {
  * @returns The dialog, open while the workspace dialog is "shortcuts"
  */
 function ShortcutsDialog(): React.JSX.Element {
-    const { store, registry } = useWorkspace();
+    const { store, registry, session } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === "shortcuts");
     const [current, setCurrent] = useState("all");
     const close = (): void => {
@@ -73,7 +73,9 @@ function ShortcutsDialog(): React.JSX.Element {
     const groups = new Map<string, { label: string; keys: string[] }[]>();
     for (const command of registry.live) {
         const keys = [...(command.keys ?? []), ...(command.rowKeys ?? [])];
-        if (keys.length > 0) {
+        const featureOff =
+            command.feature !== undefined && session?.features.enabled.includes(command.feature) !== true;
+        if (keys.length > 0 && !featureOff) {
             const rows = groups.get(command.group) ?? [];
             rows.push({ label: command.label, keys: keys.map(formatKey) });
             groups.set(command.group, rows);

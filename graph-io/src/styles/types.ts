@@ -129,6 +129,13 @@ export type StyleLabelPosition =
 export type StyleLabelTextAlign = "left" | "center" | "right";
 
 /**
+ * What a node label's box is sized to: its words, its words held against the side it is placed at however large they
+ * are, or its node's width.
+ * @category Styles
+ */
+export type StyleLabelBox = "words" | "words-at-side" | "target-width";
+
+/**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
  * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
  * `labelPaddingY` added on each side, decides the rest.
@@ -171,6 +178,17 @@ export interface NodeStyleValues {
     readonly fillGradientStops: string;
     /** How a gradient fill runs: `linear` across the node (`fillGradientAngle`), or `radial` out from its middle. */
     readonly fillGradientKind: string;
+    /**
+     * Where a radial gradient fill's middle is across the node's box: 0 at its left side, 1 at its right. Unset, 0.5.
+     */
+    readonly fillGradientCenterX: number;
+    /** Where a radial gradient fill's middle is down the node's box: 0 at its top, 1 at its bottom. Unset, 0.5. */
+    readonly fillGradientCenterY: number;
+    /**
+     * How far a radial gradient fill's last stop reaches from its middle, in halves of the node's side; past it the
+     * last color goes on. Unset, 1 (the node's edge).
+     */
+    readonly fillGradientRadius: number;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */
@@ -311,6 +329,15 @@ export interface NodeStyleValues {
      */
     readonly outerBorderCount: number;
     /**
+     * The width of a raised border: strips along the inside of the node's edge, light on its left and top and dark on
+     * its bottom and right (a length; yEd's `use3DEffect` and `rectangle3d`, 1 px); 0 or absent draws none.
+     */
+    readonly raisedBorderWidth: number;
+    /** A raised border's color on the node's left and top. */
+    readonly raisedBorderLightColor: StyleColor;
+    /** A raised border's color on the node's bottom and right. */
+    readonly raisedBorderDarkColor: StyleColor;
+    /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
      */
@@ -358,11 +385,12 @@ export interface NodeStyleValues {
      * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
      * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
      * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
-     * "balign"?, "border"?, "padding"?, "fill"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * "balign"?, "border"?, "padding"?, "fill"?, "rule"?, "hidden"? }`: its text as lines `{ "runs", "align"? }` (runs as in
      * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
      * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
      * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
-     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left. The
+     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left, `hidden`
+     * keeps the cell's room and draws nothing in it (Graphviz's `STYLE="invis"`). The
      * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
      * fit it. `label` holds its words.
      */
@@ -463,6 +491,13 @@ export interface NodeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
+     * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
+     * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
+     * `labelTextAlign` lining the words up in it. Unset, `words`.
+     */
+    readonly labelBox: StyleLabelBox;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -546,6 +581,11 @@ export interface NodeStyleValues {
     readonly stripeDirection: string;
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
+    /**
+     * Keeps only the rim of the bands' box, four fractions "top right bottom left" of its height and width deep: the
+     * band yEd Live draws round a group's panel.
+     */
+    readonly stripeFrame: string;
     /**
      * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
      * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower
@@ -916,6 +956,14 @@ export interface EdgeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /**
+     * The label laid out as a table of cells, as JSON in the form the node's `labelTable` takes (lengths in the units
+     * of `labelSize`). The table is then the label's box: `labelBackground` is its fill, `labelBorderColor` and
+     * `labelBorderWidth` its outline (and `labelBorderColor` its cells' outlines), and `labelPadding` the room from
+     * its outline to the words of a table of one cell, for a reader that does not lay the table out. `label` holds
+     * its words.
+     */
+    readonly labelTable: string;
     /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */

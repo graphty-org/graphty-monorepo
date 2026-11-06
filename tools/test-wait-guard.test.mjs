@@ -55,6 +55,36 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
+test("a real action gets the wait guard on the object each Playwright provider holds, on instances too", () => {
+    // playwright() reads the options object it was handed, so that object is what must change.
+    const [root, project, instance, other] = [{ actionTimeout: 5 }, { hasTouch: true }, {}, {}];
+    withTestGuards({
+        test: {
+            browser: { provider: { name: "playwright", options: root } },
+            projects: [
+                {
+                    test: {
+                        name: "x",
+                        browser: {
+                            provider: { name: "playwright", options: project },
+                            instances: [
+                                { browser: "chromium" },
+                                { browser: "chromium", provider: { name: "playwright", options: instance } },
+                            ],
+                        },
+                    },
+                },
+                { test: { name: "y", browser: { provider: { name: "webdriverio", options: other } } } },
+            ],
+        },
+    });
+    for (const options of [root, project, instance]) {
+        assert.equal(options.actionTimeout, WAIT_GUARD_MS);
+    }
+    assert.equal(project.hasTouch, true);
+    assert.deepEqual(other, {});
+});
+
 test("a bench project is a measurement: no time limit and no guard", () => {
     const config = withTestGuards({
         test: { projects: [{ test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 5 } }] },

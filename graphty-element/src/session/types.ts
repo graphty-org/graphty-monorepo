@@ -110,7 +110,7 @@ import type {
     SourcePreviewOptions,
     SourceRefreshReport,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
@@ -153,7 +153,8 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export interface RecordSort {
     /**
      * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
-     * edge), read literally. Numbers (bigints among them) come before text, text sorts in natural
+     * edge), read literally; on nodes also a structure path (`graphty.degree`, and on a directed
+     * graph `graphty.inDegree` and `graphty.outDegree`). Numbers (bigints among them) come before text, text sorts in natural
      * order ("2" before "10"), and a record without the key comes last in either direction.
      */
     readonly key: string;
@@ -261,7 +262,22 @@ export interface RecordPageOptions {
      * session.data.nodePage({ matching: { text: "jav" }, limit: 30 }); // Javert, ...
      * ```
      */
-    readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+        /**
+         * Look only at what a record is called: a node's id and its name ({@link SessionDataApi.name}'s
+         * label column), an edge's id and its endpoints' ids, never the other columns. What a
+         * picker of nodes by name wants on a graph whose columns hold numbers and codes. A graph
+         * with no label column names its nodes in its other columns, so there every value is read.
+         *
+         * ```ts
+         * session.data.nodePage({ matching: { text: "1", names: true }, limit: 8 }); // n1, n10, ...
+         * ```
+         * @beta
+         */
+        readonly names?: boolean;
+    };
     /**
      * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
      * issue (no issue id is `"any"`).
@@ -1335,6 +1351,17 @@ export interface SessionDataApi {
      * @since 3.35.0
      */
     structureValues(): readonly StructureValue[];
+
+    /**
+     * One node's structure value, as a column of a table reads it.
+     * @param id - The node.
+     * @param path - A path {@link SessionDataApi.structureValues} lists (`graphty.degree`).
+     * @returns The value, or undefined for an unknown node or a path that is no structure value.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     * @example
+     * const degree = session.data.structureValue("Valjean", "graphty.degree");
+     */
+    structureValue(id: NodeId, path: Path): number | undefined;
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *
@@ -1375,7 +1402,8 @@ export interface SessionDataApi {
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded, and `E_FEATURE_OFF` for
+     *     `time` with the `timeline` experiment off.
      * @since 3.30.0
      */
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
@@ -1812,6 +1840,25 @@ export interface DatasetLoadOptions extends ImportOptions {
 }
 
 /**
+ * A column of a {@link LoadDraft} that looks like time.
+ * @experimental timeline
+ * @beta
+ */
+export interface TimeFound extends CodedFact<"time.found"> {
+    /**
+     * `table` is the table's id and `column` the column's name, ready for a load's mapping. `from`
+     * and `to` are the earliest and latest instant a designation reads from it, as epoch
+     * milliseconds.
+     */
+    readonly params: {
+        readonly table: string;
+        readonly column: string;
+        readonly from: number;
+        readonly to: number;
+    };
+}
+
+/**
  * A source read by `data.prepare`, held until `load()` or `dispose()`. After either, every method
  * rejects with `E_DISPOSED`.
  */
@@ -1829,6 +1876,13 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     /** The element's own reading: every table, with every role it found written out. */
     readonly mapping: LoadMappingRead;
+    /**
+     * What the element noticed in the file and applied nowhere: one {@link TimeFound} for each
+     * column that {@link DraftColumn.looksLike} time. Empty with the timeline experiment off.
+     * @experimental timeline
+     * @beta
+     */
+    readonly findings: readonly TimeFound[];
     /**
      * Every table's roles as a load with these choices reads them: the reader's mapping over the
      * element's own reading, in the full form `mapping` has. After a table's `rowsAre` changes,
@@ -1931,7 +1985,10 @@ export interface DraftTable {
     readonly name: string;
     /** How many rows it holds. */
     readonly rowCount: number;
-    /** True when the format sets the roles (every format but CSV). A mapping for it is refused with `E_BAD_COMMAND`. */
+    /**
+     * True when the format sets the roles (every format but CSV). A mapping for it is refused with
+     * `E_BAD_COMMAND`, except one naming only `time` and `timeUnit` with the timeline experiment on.
+     */
     readonly fixed: boolean;
     /** Its columns, in the order the file has them, computed over every row. */
     readonly columns: readonly DraftColumn[];
@@ -1957,6 +2014,15 @@ export interface DraftColumn extends Pick<
 > {
     /** The role the element gives it by itself; absent when it is a plain attribute. */
     readonly suggested?: ColumnRole;
+    /**
+     * Set when the column has no role and its values look like time, with the timeline experiment
+     * on: every sampled value is a strict date, or the name speaks of time and every number fits an
+     * epoch or a calendar year. It applies nothing: a load designates the column only when the
+     * mapping gives it the `time` role. {@link LoadDraft.findings} holds its span.
+     * @experimental timeline
+     * @beta
+     */
+    readonly looksLike?: "time";
 }
 
 /**
@@ -2046,6 +2112,8 @@ export interface TableMapping {
      * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
      * the values decide when the column is designated. Written to
      * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
+     * @experimental timeline
+     * @beta
      */
     readonly timeUnit?: TimeUnit | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */
@@ -2377,7 +2445,28 @@ export interface JoinChoices {
      * keys and one holding the graph's, through which incoming keys are translated first.
      */
     readonly via?: SourceKey;
+    /**
+     * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
+     * (the default) or is `"leave-out"`, left out of the join.
+     * @since 3.33.0
+     */
+    readonly unknownEnds?: "add" | "leave-out";
 }
+
+/**
+ * What a join does with one incoming row ({@link JoinReport.rowFates}):
+ *
+ * - `"joined"`: its values reach the elements it matches, or (for `"edges"`) it becomes an edge
+ *   between two nodes the graph holds.
+ * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
+ * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
+ * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, or (for
+ *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph.
+ *
+ * OPEN UNION: fates may be added in a minor release.
+ * @since 3.33.0
+ */
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
 
 /**
  * A {@link JoinReport} count a reader can choose to ignore (`JoinChoices.ignore`).
@@ -2421,6 +2510,18 @@ export interface JoinReport {
     readonly rowMatches: readonly (readonly (NodeId | EdgeId)[])[];
     /** The nodes (or edges) {@link JoinReport.withoutValue} counts. @since 3.30.0 */
     readonly withoutValueIds: readonly (NodeId | EdgeId)[];
+    /**
+     * For `"edges"`: rows with an end the graph lacks, whether `unknownEnds` adds them or leaves
+     * them out. 0 for values.
+     * @since 3.33.0
+     */
+    readonly unknownEndRows: number;
+    /**
+     * For each incoming row, in table order, what the join does with it, so a preview can show
+     * exactly what Join will do. Empty for `"rows"` and `"replace"`.
+     * @since 3.33.0
+     */
+    readonly rowFates: readonly JoinRowFate[];
 }
 
 /**
@@ -2885,21 +2986,47 @@ export interface SessionEventMap {
     "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
-    /** The time window moved through `session.time`: where it is now and what entered and left. */
+    /**
+     * The time window moved through `session.time`: where it is now and what entered and left.
+     * @experimental timeline
+     * @beta
+     */
     "time:step": TimeStepEvent;
-    /** Playback started, from this window (null when it opens one). */
+    /**
+     * Playback started, from this window (null when it opens one).
+     * @experimental timeline
+     * @beta
+     */
     "time:play": { readonly window: TimeWindow | null };
-    /** Playback stopped at this window. */
+    /**
+     * Playback stopped at this window.
+     * @experimental timeline
+     * @beta
+     */
     "time:pause": { readonly window: TimeWindow | null };
-    /** Playback reached the end of the data; `time:pause` follows. */
+    /**
+     * Playback reached the end of the data; `time:pause` follows.
+     * @experimental timeline
+     * @beta
+     */
     "time:end": { readonly window: TimeWindow | null };
-    /** The designated time field changed through `session.time.setField`. */
+    /**
+     * The designated time field changed through `session.time.setField`.
+     * @experimental timeline
+     * @beta
+     */
     "time:field": { readonly field: TimeField | null };
-    /** The designated time field was indexed, so `time.extent()` and `time.bins()` answer. */
+    /**
+     * The designated time field was indexed, so `time.extent()` and `time.bins()` answer.
+     * @experimental timeline
+     * @beta
+     */
     "time:ready": { readonly field: TimeField | null };
     /**
      * A run the `results: "rerun"` setting re-ran after a window move failed: which run, and the
      * error's code and details.
+     * @experimental timeline
+     * @beta
      */
     "time:rerun-failed": { readonly run: RunId; readonly error: CodedFact };
     /**
@@ -2911,6 +3038,12 @@ export interface SessionEventMap {
      */
     "style:changed": StyleChange;
     /**
+     * A layer was refused for what it says about shaders: published as well as rejected, for a
+     * `styles.add()` nobody awaits, whose refusal otherwise leaves no trace.
+     * @since 3.46.0
+     */
+    "style:refused": StyleRefusal;
+    /**
      * Once per repaint, after the last `style:changed` it published: how many edits it told and
      * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,
      * `styles.counts()`) after a change listens here, so a pass that tells 51 edits -- a grouping
@@ -2919,6 +3052,12 @@ export interface SessionEventMap {
      * @since 3.36.0
      */
     "style:batch-changed": StyleBatchChange;
+    /**
+     * A branches view (`styles.showBranches`) started or ended.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    "style:branches-shown-changed": { readonly shown: boolean };
     /**
      * The element tried to paint something of its own and was refused.
      *
@@ -3029,8 +3168,9 @@ export interface SessionEventMap {
      */
     "render:quality": RenderQualityChange;
     /**
-     * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
-     * event per model and state, never one per node. Mirrored on the element as
+     * A model a style layer names moved on: requested, checked, drawn, refused or failed; or a
+     * picture a node draws (`node.image`) failed, `E_IMAGE_LOAD`. One event per model and state,
+     * never one per node. Mirrored on the element as
      * `graphty-model-change`.
      */
     "model:changed": ModelChange;
@@ -3050,8 +3190,9 @@ export interface SessionEventMap {
 }
 
 /**
- * What happened to one model a style layer names (`node.model`), for `model:changed` and the
- * element's `graphty-model-change`.
+ * What happened to one model a style layer names (`node.model`), or to a node's picture
+ * (`node.image`) that could not be loaded, for `model:changed` and the element's
+ * `graphty-model-change`.
  */
 export interface ModelChange {
     /** What the layer named: the URL or the asset id, exactly as written. */
@@ -3066,7 +3207,7 @@ export interface ModelChange {
      * fetched); `failed` when it could not be drawn. Nodes keep `node.shape` until `drawn`.
      */
     readonly state: ModelState;
-    /** Why it was refused or failed (`E_MODEL_*`), and what is worth knowing (`W_MODEL_*`). */
+    /** Why it was refused or failed (`E_MODEL_*`, `E_IMAGE_LOAD`), and what is worth knowing (`W_MODEL_*`). */
     readonly problems: readonly CodedFact[];
 }
 
@@ -3383,9 +3524,10 @@ export interface SessionHistory {
      * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
      * of undos or redos. Resolves once the picture matches the state.
      * @param step - The step, or null for the state before every step.
+     * @param options - Whether the steps after it can still be redone.
      * @returns What was done.
      */
-    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    restoreTo(step: HistoryStepId | null, options?: HistoryRestoreOptions): Promise<HistoryOutcome>;
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
@@ -3402,6 +3544,16 @@ export interface SessionHistory {
      * @param options - What happens to pending work that has changed nothing yet.
      */
     clear(options?: HistoryClearOptions): void;
+}
+
+/** What `history.restoreTo` leaves to redo. */
+export interface HistoryRestoreOptions {
+    /**
+     * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
+     * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
+     * abandoned (a cancelled edit) leaves nothing to redo.
+     */
+    readonly redo?: "keep" | "drop";
 }
 
 /** How `history.clear` treats work that is still pending. */
@@ -3720,10 +3872,10 @@ export interface LocationColumns {
      * How the location is read: `coords` for coordinates (a pair or one column of them), or the
      * kind of place `location` names (`country`, `region`, `city`; `auto` until the gazetteer that
      * decides it is loaded); null when nothing is read.
-     * @since 3.31.0
+     * @since 3.33.0
      */
     readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
-    /** The column that narrows each place name (a city's country), or null. @since 3.31.0 */
+    /** The column that narrows each place name (a city's country), or null. @since 3.33.0 */
     readonly within: string | null;
     /**
      * The column of each kind of location listed for the nodes: the kinds designated with
@@ -3875,7 +4027,10 @@ export interface GraphSession {
     readonly visibility: VisibilityApi;
     /**
      * The timeline: designate a time field, read its extent and histogram, and move the time
-     * window along it -- set it, step it, seek it, or play it.
+     * window along it -- set it, step it, seek it, or play it. It needs `features="timeline"`, and
+     * refuses with `E_FEATURE_OFF` otherwise.
+     * @experimental timeline
+     * @beta
      */
     readonly time: TimeApi;
     /**

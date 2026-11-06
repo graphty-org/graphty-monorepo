@@ -964,6 +964,18 @@ export interface RunResult {
      */
     summary(): ResultSummary;
     /**
+     * Every group's rank by its group id written as text: 1 for the largest, the same rank the
+     * summary's groups, the legend's swatches and a page's group column carry, for every group and
+     * not only the ones a summary lists. An application names a group by it ("Community 12").
+     *
+     * ```ts
+     * const rank = result.groupRanks()?.get(String(value)); // 12
+     * ```
+     * @returns The ranks, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groupRanks(): ReadonlyMap<string, number> | undefined;
+    /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *
      * Every figure comes from the result's own statistics; nothing is asserted that the run did

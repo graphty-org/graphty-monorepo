@@ -16,8 +16,14 @@ import defaultsDeep from "lodash/defaultsDeep.js";
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle } from "../../src/config";
-import { bootstrapEdgePaint, bootstrapNodePaint, fillDefaults, StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle, type NodeStyleConfig } from "../../src/config";
+import {
+    batchableOf,
+    bootstrapEdgePaint,
+    bootstrapNodePaint,
+    fillDefaults,
+    StylePainter,
+} from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -25,7 +31,7 @@ import {
     type SessionStylesApi,
 } from "../../src/session/styles/index";
 import type { SelectorSource } from "../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
+import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "../../src/session/styles/repaint";
 
 /** One element's columns, keyed by the path a selector or a binding names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -332,6 +338,23 @@ describe("StylePainter channels", () => {
             stops: [0, 0.2, 1],
         });
 
+        // a radial gradient's middle and reach (issue #4515)
+        await held.styles.add({
+            name: "radial circle",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientCenterX": 0.25, "node.gradientCenterY": 0.75, "node.gradientRadius": 1.5 },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+            stops: [0, 0.2, 1],
+            centerX: 0.25,
+            centerY: 0.75,
+            radius: 1.5,
+        });
+
         // stops that are not one per colour are left out, so the colours are evenly spaced
         await held.styles.add({
             name: "linear two stops",
@@ -525,6 +548,24 @@ describe("StylePainter dirty set", () => {
         assert.isTrue(held.painter.hasPending, "while the edges still are");
     });
 
+    it("takes rows queued between two batches, oldest first and each once", async () => {
+        const held = harness();
+        await held.paintAll();
+        held.painter.takeNodes();
+        for (const row of [0, 1, 2]) {
+            held.painter.queue("node", row);
+        }
+
+        assert.deepStrictEqual(held.painter.takeNodes(2), [0, 1]);
+        held.painter.queue("node", 0);
+        held.painter.queue("node", 3);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [2, 0], "a row taken and queued again goes to the back");
+        assert.deepStrictEqual(held.painter.takeNodes(2), [3]);
+        held.painter.queue("node", 1);
+        assert.deepStrictEqual(held.painter.takeNodes(2), [1], "a queue that ran dry takes again");
+        assert.isFalse(held.painter.hasPendingNodes);
+    });
+
     it("queues ONLY the elements one edit touched", async () => {
         const held = harness();
         await held.paintAll();
@@ -550,6 +591,104 @@ describe("StylePainter dirty set", () => {
 
         assert.deepStrictEqual([...painter.takeNodes()].sort(), [0, 1, 2, 3]);
         assert.deepStrictEqual([...painter.takeEdges()].sort(), [0, 1]);
+    });
+});
+
+/**
+ * A painter over a pass that announces whatever it is told to.
+ * @returns The painter and the announcement.
+ */
+function announcing(): {
+    painter: StylePainter;
+    announce(rows: { node?: number[]; edge?: number[] }, rowsOnly: boolean): void;
+} {
+    let last: { rows: { node?: number[]; edge?: number[] }; rowsOnly: boolean } = { rows: {}, rowsOnly: false };
+    const painter = new StylePainter();
+    const paint: Partial<ElementPaint> = {
+        onPainted: () => () => undefined,
+        lastPainted: (target) => last.rows[target] ?? [],
+        lastPaintRowsOnly: () => last.rowsOnly,
+    };
+    painter.bind(paint as ElementPaint);
+
+    return {
+        painter,
+        announce(rows, rowsOnly) {
+            last = { rows, rowsOnly };
+            painter.markPainted();
+        },
+    };
+}
+
+describe("StylePainter rows-only passes", () => {
+    it("says so once, for what a rows-only pass painted", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isTrue(painter.takeEdgesRowsOnly());
+        assert.isFalse(painter.takeNodesRowsOnly(), "asked again");
+        assert.isFalse(painter.takeEdgesRowsOnly(), "asked again");
+    });
+
+    it("says no for a pass that is not rows-only, and with nothing painted", () => {
+        const { painter, announce } = announcing();
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, false);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no when a plain pass is pending beside a rows-only one, in either order", () => {
+        const after = announcing();
+        after.announce({ node: [0], edge: [1] }, true);
+        after.announce({ node: [2], edge: [3] }, false);
+        assert.isFalse(after.painter.takeNodesRowsOnly());
+        assert.isFalse(after.painter.takeEdgesRowsOnly());
+
+        const before = announcing();
+        before.announce({ node: [2], edge: [3] }, false);
+        before.announce({ node: [0], edge: [1] }, true);
+        assert.isFalse(before.painter.takeNodesRowsOnly());
+        assert.isFalse(before.painter.takeEdgesRowsOnly());
+    });
+
+    it("leaves one kind alone when a plain pass paints only the other", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        announce({ edge: [3] }, false);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no for a row queued after a rows-only pass, of that kind only", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("edge", 5);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("node", 5);
+        assert.isFalse(painter.takeNodesRowsOnly());
+    });
+
+    it("says no once every element is put back", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.invalidate(4, 2);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("forgets a rows-only pass when it is bound again", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.bind(null);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
     });
 });
 
@@ -601,5 +740,43 @@ describe("fillDefaults", () => {
 
         assert.strictEqual(filled.kept, 1);
         assert.isUndefined(({} as Record<string, unknown>).polluted);
+    });
+});
+
+describe("batchableOf", () => {
+    const plain = { scaled: false, flatOutline: false };
+    const style = (over: object): NodeStyleConfig =>
+        defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
+
+    it.each<[string, object, boolean]>([
+        ["the default style", {}, true],
+        ["a shape, a size and a detail", { shape: { type: "box", size: 2, detail: 8 } }, true],
+        ["the geometry and material effects", { effect: { wireframe: true, flatShaded: true, unlit: true } }, true],
+        ["a plain color", { texture: { color: "#ff0000" } }, true],
+        ["a solid opaque color", { texture: { color: { colorType: "solid", value: "#ff0000", opacity: 1 } } }, true],
+        ["an option left undefined", { texture: { image: undefined } }, true],
+        ["a label switched off", { label: { enabled: false } }, true],
+        [
+            "a solid color with transparency",
+            { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
+            false,
+        ],
+        ["a gradient", { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } }, false],
+        ["an image", { texture: { image: "a.png" } }, false],
+        ["an icon", { texture: { icon: "star" } }, false],
+        ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a shape option no batch draws", { shape: { width: 2 } }, false],
+        ["a label", { label: { enabled: true } }, false],
+        ["a tooltip", { tooltip: { enabled: true } }, false],
+        ["a style option added later", { laterOption: true }, false],
+    ])("%s", (_name, over, batchable) => {
+        assert.equal(batchableOf({ style: style(over) }, plain), batchable);
+    });
+
+    it.each([
+        ["a size that follows the view", { scaled: true, flatOutline: false }],
+        ["a flat outline", { scaled: false, flatOutline: true }],
+    ])("%s keeps every row an object", (_name, view) => {
+        assert.isFalse(batchableOf({ style: style({}) }, view));
     });
 });

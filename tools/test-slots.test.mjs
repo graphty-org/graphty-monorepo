@@ -6,7 +6,8 @@
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { once } from "node:events";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -21,6 +22,7 @@ import {
     packageName,
     shardCacheDir,
     slotCount,
+    statusLines,
     workerShare,
 } from "./test-slots.mjs";
 import { trackedFiles } from "./tracked-files.mjs";
@@ -242,12 +244,49 @@ describe("test-slots", () => {
     });
 
     it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
-        assert.equal(workerShare({}, 32), 8);
-        assert.equal(workerShare({}, 4), 2);
-        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32), 5);
-        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
+        assert.equal(workerShare({}, 32, 32), 8);
+        assert.equal(workerShare({}, 4, 4), 2);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32, 32), 5);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32, 32), 1);
+        assert.equal(workerShare({}, 32, 1), 1, "a pinned run has one core to use");
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
+    // The real pin, on a stand-in 32-core machine: CI's 4 cores give 2 slots with or without the pin.
+    it("counts the machine's slots under taskset, and a worker share of the one core it has", () => {
+        const child = [
+            `import os from "node:os";`,
+            `import { syncBuiltinESMExports } from "node:module";`,
+            `os.cpus = () => Array(32).fill({});`,
+            `syncBuiltinESMExports();`,
+            `const { slotCount, workerShare } = await import(${JSON.stringify(pathToFileURL(SCRIPT).href)});`,
+            `console.log(JSON.stringify([slotCount({}), workerShare({})]));`,
+        ].join("\n");
+        const run = spawnSync("taskset", ["-c", "0", process.execPath, "--input-type=module", "-e", child], {
+            encoding: "utf8",
+        });
+        assert.equal(run.status, 0, run.stderr);
+        assert.deepEqual(JSON.parse(run.stdout), [slotCount({}, 32), 1]);
+    });
+
+    it("says holds only for a ticket that was granted", async () => {
+        const dir = fresh();
+        const release = await acquire({ ...quiet, dir, slots: 1, label: "granted" });
+        // First in line among the waiters and within any slot count, but not granted yet.
+        const pid = sleeper().pid;
+        writeFileSync(join(dir, "1"), JSON.stringify({ pid, start: null, label: "queued", since: Date.now() }));
+        const lines = statusLines(dir).slice(1);
+        assert.equal(lines.length, 2);
+        assert.match(
+            lines.find((l) => l.includes("queued")),
+            /^waits /,
+        );
+        assert.match(
+            lines.find((l) => l.includes("granted")),
+            /^holds /,
+        );
+        release();
     });
 
     it("gives each gate shard its own Vite cache, and Vite's default outside one", () => {
@@ -333,6 +372,47 @@ describe("test-slots", () => {
         assert.equal(commandWhat(["/usr/bin/pnpm", "exec", "vitest"]), "pnpm");
         assert.equal(packageName(join(ROOT, "layout")), "layout");
         assert.equal(packageName(TMP), TMP.split("/").at(-1));
+    });
+
+    it("--lint queues one holder at a time, in a queue of its own beside the test slots", async () => {
+        const dirs = { GRAPHTY_TEST_SLOTS_DIR: fresh(), GRAPHTY_LINT_SLOTS_DIR: fresh() };
+        const env = { ...process.env, ...dirs, GITHUB_ACTIONS: "", GRAPHTY_TEST_SLOTS: "4", [HELD]: "" };
+        const held = await acquire({
+            ...quiet,
+            dir: dirs.GRAPHTY_LINT_SLOTS_DIR,
+            slots: 1,
+            pid: sleeper().pid,
+            label: "lint",
+        });
+        const child = spawn(process.execPath, [SCRIPT, "--lint", process.execPath, "-e", "console.log('ran')"], {
+            env,
+        });
+        let out = "";
+        child.stdout.on("data", (chunk) => (out += chunk));
+        const waiting = await new Promise((resolve) => {
+            child.stderr.once("data", (chunk) => resolve(String(chunk)));
+        });
+        assert.match(waiting, /waiting for one of 1 machine-wide/);
+        assert.equal(out, "", "the command waits for the holder");
+        held();
+        const [code] = await once(child, "exit");
+        assert.equal(code, 0);
+        assert.equal(out, "ran\n");
+        assert.deepEqual(readdirSync(dirs.GRAPHTY_TEST_SLOTS_DIR), [], "it takes no test slot");
+    });
+
+    it("a command killed by a signal says so and exits as a shell would", () => {
+        const env = { ...process.env, GRAPHTY_TEST_SLOTS_DIR: fresh(), GITHUB_ACTIONS: "", [HELD]: "" };
+        const run = spawnSync(
+            process.execPath,
+            [SCRIPT, process.execPath, "-e", "process.kill(process.pid, 'SIGTERM')"],
+            {
+                env,
+                encoding: "utf8",
+            },
+        );
+        assert.equal(run.status, 143);
+        assert.match(run.stderr, /was killed by SIGTERM \(exit 143\)/);
     });
 
     it("--gpu holds the one GPU slot instead of a test slot, so a run under it takes no test slot", async () => {

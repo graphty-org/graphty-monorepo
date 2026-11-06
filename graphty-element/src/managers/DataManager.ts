@@ -214,7 +214,7 @@ function collectDoomed(nodes: Iterable<Node>, edges: Iterable<Edge>, doomed: Set
         }
     };
     for (const node of nodes) {
-        add(node.mesh);
+        add(node.teardownMesh);
     }
 
     for (const edge of edges) {
@@ -297,6 +297,12 @@ export function laneStoreOf(manager: DataManager): LaneStore {
             return inputCountersOf(manager);
         },
         followRenumbering: (follower) => dataManagerInternals.followRenumbering(manager, follower),
+        get renumberCount() {
+            return dataManagerInternals.renumberCount(manager);
+        },
+        get lastRenumbering() {
+            return dataManagerInternals.lastRenumbering(manager);
+        },
     };
 }
 
@@ -331,6 +337,10 @@ export const dataManagerInternals = {} as {
     flushReleasing(manager: DataManager): void;
     /** Deliver every renumbering freeze of this manager's stores to `follower`; see `laneStoreOf`. */
     followRenumbering(manager: DataManager, follower: FreezeFollower): () => void;
+    /** How many freezes renumbered rows; see `GraphStore.renumberCount`. */
+    renumberCount(manager: DataManager): number;
+    /** The last of them and its remaps; see `GraphStore.lastRenumbering`. */
+    lastRenumbering(manager: DataManager): GraphStore["lastRenumbering"];
     /** Data that placed some nodes and not others; see `GraphStore.partialSeeds`. */
     partialSeeds(manager: DataManager): ReturnType<GraphStore["partialSeeds"]>;
     /**
@@ -382,6 +392,8 @@ export class DataManager implements Manager {
                 manager.renumberFollowers.delete(follower);
             };
         };
+        dataManagerInternals.renumberCount = (manager) => manager.store.renumberCount;
+        dataManagerInternals.lastRenumbering = (manager) => manager.store.lastRenumbering;
         dataManagerInternals.partialSeeds = (manager) => manager.store.partialSeeds();
         dataManagerInternals.lastEdit = (manager) => manager.lastEdit;
         dataManagerInternals.adoptNode = (manager, node) => {
@@ -442,6 +454,34 @@ export class DataManager implements Manager {
     get edgesByIndex(): readonly (Edge | undefined)[] {
         return this.edgeRows;
     }
+
+    /**
+     * Render objects by their store node index, the nodes' {@link edgesByIndex}: built on the first
+     * read after the node set changed or a freeze renumbered it, so O(n) per data change and never
+     * per step of a time window. Sparse, as that one is.
+     * @returns The nodes by row, read-only.
+     * @internal
+     */
+    get nodesByIndex(): readonly (Node | undefined)[] {
+        if (this.nodeRowsVersion !== this.nodeVersion) {
+            this.nodeRows = [];
+            for (const node of this.nodes.values()) {
+                if (node.index !== INVALID_INDEX) {
+                    this.nodeRows[node.index] = node;
+                }
+            }
+
+            this.nodeRowsVersion = this.nodeVersion;
+        }
+
+        return this.nodeRows;
+    }
+
+    /** What {@link nodesByIndex} answers, as of {@link nodeRowsVersion}. */
+    private nodeRows: (Node | undefined)[] = [];
+
+    /** The {@link nodeVersion} {@link nodeRows} was built at. */
+    private nodeRowsVersion = -1;
 
     /** The one graph-format builder and its cached snapshot; replaced only by `clear()`/`dispose()`. */
     private store: GraphStore;
@@ -606,6 +646,16 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The node on a row of the snapshot.
+     * @param row - The row.
+     * @returns The node, or undefined when the row holds none.
+     * @internal
+     */
+    nodeAtRow(row: number): Node | undefined {
+        return this.nodes.get(this.store.builder.idOf(row));
+    }
+
+    /**
      * Whether the next {@link getSnapshot} would freeze a new snapshot.
      * @returns True when the store is not settled.
      */
@@ -731,6 +781,7 @@ export class DataManager implements Manager {
         this.dispatcher = dispatcher;
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
+            loading: () => this.ingest.settling,
             apply: (mutation, draft, after) => {
                 if (mutation.kind === "remove-nodes") {
                     hooks.removing(mutation.ids, []);
@@ -1081,6 +1132,7 @@ export class DataManager implements Manager {
 
         if (element instanceof Node) {
             placeNodeRow(element, row);
+            this.nodeVersion++;
         } else {
             placeEdgeRow(element, row);
             if (row !== INVALID_INDEX) {
@@ -1455,6 +1507,8 @@ export class DataManager implements Manager {
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
             placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
         }
+
+        this.nodeVersion++;
     }
 
     /**

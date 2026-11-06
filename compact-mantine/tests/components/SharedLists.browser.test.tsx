@@ -185,7 +185,10 @@ describe("table rows", () => {
         const arrow = within(header).getByTestId("data-table-sort-glyph");
         expect(menu.querySelector("svg")?.innerHTML).not.toBe(arrow.querySelector("svg")?.innerHTML);
         await userEvent.hover(menu);
-        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Options for hours");
+        const tip = await screen.findByRole("tooltip", {});
+        expect(tip).toHaveTextContent("Options for hours");
+        // The key that opens the menu from the header shows beside its name.
+        expect(tip.querySelector(".cm-tooltip-shortcut")).toHaveTextContent("Alt+Down");
     });
 });
 

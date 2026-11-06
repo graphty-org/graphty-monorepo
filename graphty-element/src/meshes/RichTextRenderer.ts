@@ -53,8 +53,9 @@ export class RichTextRenderer {
         const textAreaX = contentArea.x + this.options.marginLeft + pad;
         let currentY = contentArea.y + this.options.marginTop + pad;
 
-        for (const lineSegments of parsedContent) {
-            const { width, lineBox, baseline, offsets } = measureLine(ctx, lineSegments, this.options);
+        for (const [i, lineSegments] of parsedContent.entries()) {
+            const { width, lineBox, baseline, offsets, over } = measureLine(ctx, lineSegments, this.options);
+            currentY += i === 0 ? over.top : 0;
             const startX = this.calculateLineStartX(textAreaX, textAreaWidth, width);
 
             this.drawLine(ctx, lineSegments, startX, currentY, lineBox, currentY + baseline, offsets);
@@ -76,7 +77,17 @@ export class RichTextRenderer {
         }
     }
 
-    private drawLine(
+    /**
+     * Draws one line of runs from a starting point, each run on its own baseline.
+     * @param ctx - Canvas rendering context
+     * @param lineSegments - The line's runs
+     * @param startX - Where the line starts
+     * @param lineTop - The top of the line's box
+     * @param lineBox - The line box's height
+     * @param lineBaseline - The line's baseline
+     * @param offsets - Each run's shift off the baseline
+     */
+    drawLine(
         ctx: CanvasRenderingContext2D,
         lineSegments: TextSegment[],
         startX: number,

@@ -56,9 +56,11 @@ describe("inputComponentExtensions", () => {
         expect(inputComponentExtensions).not.toHaveProperty("ColorInput");
     });
 
-    it("exports all 16 input components", () => {
+    it("exports all 17 input components", () => {
         const components = Object.keys(inputComponentExtensions);
-        expect(components).toHaveLength(16);
+        expect(components).toHaveLength(17);
+        // An InputBase drawn as a button: a picker's trigger, as the Select.
+        expect(components).toContain("InputBase");
         expect(components).toContain("InputWrapper");
         expect(components).toContain("NativeSelect");
         expect(components).toContain("TextInput");
@@ -96,5 +98,16 @@ describe("Textarea autosize floor", () => {
         expect(vars({}, { autosize: true }).wrapper["--input-height"]).toContain("calc(1 *");
         // What Mantine's Textarea actually hands the styles API while autosizing.
         expect(vars({}, { maxRows: 4 }).wrapper["--input-height"]).toContain("calc(1 *");
+    });
+});
+
+describe("InputBase as a button trigger", () => {
+    it("takes the Select's field classes only when it is a button, never as a text box", () => {
+        const resolve = inputComponentExtensions.InputBase.classNames as unknown as (
+            theme: unknown,
+            props: Record<string, unknown>,
+        ) => Record<string, string>;
+        expect(Object.keys(resolve({}, { component: "button", size: "sm" })).length).toBeGreaterThan(0);
+        expect(resolve({}, { component: "input", size: "sm" })).toEqual({});
     });
 });

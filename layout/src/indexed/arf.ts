@@ -1,6 +1,7 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { kickDir } from "../simulation/forceatlas2.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import { refusal } from "./common.js";
@@ -41,7 +42,7 @@ interface ArfState {
     readonly neighbour: Int32Array;
     readonly rowPtr: ArrayLike<number>;
     readonly colIdx: ArrayLike<number>;
-    readonly dim: number;
+    readonly dim: 2 | 3;
     readonly n: number;
     /** The repulsion, scaling * sqrt(n). */
     readonly rho: number;
@@ -62,7 +63,15 @@ function arfPair(st: ArfState, i: number, j: number): void {
         diff[k] = p[dim * i + k] - p[dim * j + k];
         squares += diff[k] * diff[k];
     }
-    const dist = Math.sqrt(squares) || 0.01;
+    if (squares === 0) {
+        // one point: delta / d is the zero vector, so the repulsion takes the antisymmetric kick of the simulations
+        const kick = kickDir(i, j, st.dim);
+        for (let k = 0; k < dim; k++) {
+            change[dim * i + k] += st.rho * kick[k];
+        }
+        return;
+    }
+    const dist = Math.sqrt(squares);
     const spring = st.neighbour[j] === i + 1 ? st.a : 1;
     for (let k = 0; k < dim; k++) {
         // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
@@ -90,21 +99,62 @@ function arfChange(st: ArfState): void {
 }
 
 /**
- * Move every node by its force times `dt`.
+ * How far the nodes would be from their centroid after a step, as the root of the summed squares. The forces are
+ * antisymmetric, so a step leaves the centroid where it is.
+ * @param st - the run's state
+ * @param dt - the step; 0 measures where the nodes are now
+ * @returns the length of the centred positions
+ */
+function arfSpread(st: ArfState, dt: number): number {
+    const { p, change, dim, n } = st;
+    let squares = 0;
+    for (let k = 0; k < dim; k++) {
+        let centroid = 0;
+        for (let i = 0; i < n; i++) {
+            centroid += p[dim * i + k] / n;
+        }
+        for (let i = 0; i < n; i++) {
+            squares += (p[dim * i + k] + change[dim * i + k] * dt - centroid) ** 2;
+        }
+    }
+    return Math.sqrt(squares);
+}
+
+/**
+ * Whether this tick's Euler step proves the run unstable. The force is a linear spring term plus a repulsion of length
+ * rho per pair. While the summed spring stiffness is under 2 / dt the spring term cannot lengthen the centred
+ * positions, so a stable step grows them by at most the repulsion; more than that is only reachable past the limit.
+ * @param st - the run's state
+ * @param dt - the step
+ * @returns true when the step would grow the layout by more than any stable step can
+ */
+function arfOvershoots(st: ArfState, dt: number): boolean {
+    const repulsion = dt * st.rho * (st.n - 1) * Math.sqrt(st.n);
+    return arfSpread(st, dt) > arfSpread(st, 0) + repulsion;
+}
+
+/**
+ * Move every node by its force times `dt`, or, on a tick that proves the run unstable, by at most twice the radius the
+ * forces settle at: unclamped, such a run grows every tick until it is Infinity. A stable run is never touched.
  * @param st - the run's state
  * @param dt - the step
  * @returns the summed force length
  */
 function arfMove(st: ArfState, dt: number): number {
     const { p, change, dim, n } = st;
+    const maxMove = arfOvershoots(st, dt) ? 2 * Math.max(st.rho, 1) : Number.POSITIVE_INFINITY;
     let error = 0;
     for (let i = 0; i < n; i++) {
         let squares = 0;
         for (let k = 0; k < dim; k++) {
-            p[dim * i + k] += change[dim * i + k] * dt;
             squares += change[dim * i + k] * change[dim * i + k];
         }
-        error += Math.sqrt(squares);
+        const force = Math.sqrt(squares);
+        const step = force * dt > maxMove ? maxMove / force : dt;
+        for (let k = 0; k < dim; k++) {
+            p[dim * i + k] += change[dim * i + k] * step;
+        }
+        error += force;
     }
     return error;
 }
@@ -112,7 +162,10 @@ function arfMove(st: ArfState, dt: number): number {
 /**
  * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
  * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
- * from `center`.
+ * from `center`. Two departures from networkx, both only where it has no answer: nodes on one exact point are kicked
+ * apart (its 0 / 0 leaves them together), and a run whose Euler step diverges, which takes a summed spring stiffness
+ * past 2000, has its ticks held to twice the settled radius (networkx runs on to Infinity). Every other run takes
+ * networkx's steps exactly, however wide its start.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node

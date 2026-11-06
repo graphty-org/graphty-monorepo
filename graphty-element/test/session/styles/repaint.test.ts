@@ -141,6 +141,28 @@ function paintedNodes(harness: Harness): number {
     return harness.changes[harness.changes.length - 1]?.painted?.nodes ?? -1;
 }
 
+describe("a layer a pass already painted (issue #5897)", () => {
+    it("is not applied a second time by the repaint its own add asks for", async () => {
+        const h = makeHarness();
+        await h.paintAll();
+        await h.styles.add({
+            name: "Aura",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }] },
+        });
+        const stack = h.stack();
+        const fromIndex = stack.length - 1;
+
+        // Graph passes read the stack as written, so one can paint a layer before its add's own pass.
+        await h.engine.repaint(
+            { reason: "add", edits: [{ previous: null, next: stack[fromIndex] }], stack, fromIndex },
+            quietContext(),
+        );
+
+        assert.lengthOf(h.engine.styleOf("node", 0)["node.shaders"] ?? [], 1);
+    });
+});
+
 describe("what a repaint paints", () => {
     it("paints every element a layer that selects everything matches", async () => {
         const harness = makeHarness();

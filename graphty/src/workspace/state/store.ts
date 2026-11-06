@@ -15,6 +15,7 @@ import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
+    NodeId,
     NoteTargetInput,
     SourceKey,
 } from "@graphty/graphty-element/session";
@@ -127,6 +128,11 @@ export interface WorkspaceState {
      * list's Show rows outside the table and cleared by the dock; null when none is asked for.
      */
     readonly dockIssue: string | null;
+    /**
+     * Nodes the Nodes tab narrows to once the dock shows it, with a removable chip, set by the
+     * Assistant's Show in table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockNodes: readonly NodeId[] | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
@@ -307,6 +313,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    dockNodes: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,

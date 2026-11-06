@@ -219,9 +219,10 @@ pattern to avoid (research, "Patterns to avoid").
   chip. Never arguments, never JSON (research, recommendation 7).
 - **One chip row per turn at most**: the last result's node chip and edge chip. Earlier results'
   chips are in the expanded steps. A full transcript of tinted chips would compete with the drawing.
-- **Show in table** selects those elements and opens the table dock. A list never squeezes into
-  280 px, and every practitioner in the LinkQ study chose the table (research, "Two routes to
-  checking").
+- **Show in table** selects those elements and opens the table dock on their rows: the Nodes tab
+  lists only those nodes, with a removable chip that names the narrowing ("Assistant result"), and
+  a result of edges alone opens the Edges tab. A list never squeezes into 280 px, and every
+  practitioner in the LinkQ study chose the table (research, "Two routes to checking").
 - **An empty result** is a warning row with what was searched, not a chipless shrug: "No matches for
   degree > 50." (research, recommendation 2).
 
@@ -404,12 +405,16 @@ draft.
 
 ### 5.3 Checking
 
-| Act                   | What happens                                    | Changes the next message's scope |
-| --------------------- | ----------------------------------------------- | -------------------------------- |
-| Hover or focus a chip | a neutral halo on those elements; no undo step  | no                               |
-| Click a chip          | they become the selection                       | yes, and the scope line shows it |
-| Show in table         | they become the selection; the table dock opens | yes                              |
-| Open layer, Open run  | the real editor opens in the inspector          | no                               |
+| Act                   | What happens                                                  | Changes the next message's scope |
+| --------------------- | ------------------------------------------------------------- | -------------------------------- |
+| Hover or focus a chip | a neutral halo on those elements; no undo step                | no                               |
+| Click a chip          | they become the selection                                     | yes, and the scope line shows it |
+| Show in table         | they become the selection; the table dock opens on their rows | yes                              |
+| Open layer, Open run  | the real editor opens in the inspector                        | no                               |
+
+Show in table lists the nodes by their ids, not by the selection, so a row click that moves the
+selection keeps the other rows listed. The chip's x lists every row again and leaves the selection
+as it is. The tab's count reads "7 of 331 nodes" while the chip stands.
 
 Peek exists because selection is not undoable, and a look must not change the question. A chip
 whose elements have left the graph reads "Not in this graph" and is plain text. The chip's count is

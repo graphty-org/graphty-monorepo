@@ -174,7 +174,7 @@ describe("the table dock", () => {
         const name = first.name ?? String(first.group);
         await userEvent.click(within(dock).getByRole("button", { name: `${name} options` }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Show members in table" }));
-        await within(dock).findByText(`${String(first.size)} nodes`);
+        await within(dock).findByText(`${String(first.size)} of 12 nodes`);
         assert.isNotNull(within(dock).getByText(`Louvain: ${name}`));
         await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
         await within(dock).findByText("12 nodes");

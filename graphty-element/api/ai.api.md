@@ -300,6 +300,7 @@ export type AiConversationMessage = {
     };
     readonly agent?: string;
     readonly effects?: readonly AiEffect[];
+    readonly saidWhileHeld?: true;
 };
 
 // @public

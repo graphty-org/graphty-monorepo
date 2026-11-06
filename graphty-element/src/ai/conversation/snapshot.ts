@@ -117,6 +117,13 @@ export type AiConversationMessage =
            * @experimental assistant
            */
           readonly effects?: readonly AiEffect[];
+          /**
+           * Set when `text` was said while earlier calls waited on the reader (an approval or a
+           * question) and the reader has since decided, or the request ended: it describes the wait,
+           * which no longer stands. Absent while the request still waits.
+           * @experimental assistant
+           */
+          readonly saidWhileHeld?: true;
       };
 
 /** A conversation, as an application draws it. */
@@ -204,6 +211,7 @@ function snapshotMessages(
     const helperSources = helperSourcesOf(messages);
     const effects = callEffects(messages);
     const questions = questionsAsked(messages, pending, outcomes);
+    const held = saidWhileHeld(messages, pending);
     return messages.flatMap((message): AiConversationMessage[] => {
         switch (message.role) {
             case "tool":
@@ -211,11 +219,46 @@ function snapshotMessages(
             case "user":
                 return readerEntry(message);
             case "assistant":
-                return assistantEntry(message, outcomes, helperSources, effects, questions);
+                return assistantEntry(message, outcomes, helperSources, effects, questions).map((entry) =>
+                    held.has(message.id) ? { ...entry, saidWhileHeld: true } : entry,
+                );
             default:
                 return [];
         }
     });
+}
+
+/**
+ * The model's words saved while earlier calls had no result yet, their wait since ended: a
+ * request no longer waiting (decided, or claimed and running) or calls answered later.
+ * @param messages - The saved messages.
+ * @param pending - The record's waiting entries.
+ * @returns The ids of those messages.
+ */
+function saidWhileHeld(messages: readonly SavedMessage[], pending: readonly SavedPending[]): Set<string> {
+    const waiting = new Set(pending.filter((entry) => entry.claim === null).map((entry) => entry.messageId));
+    // Each call with no result yet, and the message that made it.
+    const open = new Map<string, string>();
+    const held = new Set<string>();
+    for (const message of messages) {
+        for (const part of message.parts) {
+            if (part.type === "tool-call") {
+                open.set(part.callId, message.id);
+            } else if (part.type === "tool-result") {
+                open.delete(part.callId);
+            }
+        }
+
+        const words =
+            message.role === "assistant" &&
+            message.parts.length > 0 &&
+            message.parts.every((part) => part.type === "text" && part.origin === "model");
+        if (words && [...open.values()].some((id) => !waiting.has(id))) {
+            held.add(message.id);
+        }
+    }
+
+    return held;
 }
 
 /** A call's outcome, as a reader sees it. */

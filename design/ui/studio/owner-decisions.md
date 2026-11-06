@@ -10,16 +10,6 @@ The dry runs spent all 3,000 requests before a session ran. The cap was set for 
 owner, so it is raised to 5,000: about $10 more at about $0.005 a request, inside the $150 monthly LLM
 budget. A second round folder runs the 12 sessions on the same frozen build.
 
-## 2026-11-06 -- Decided by the team: a rule can keep what lies strictly below a value (graphty-element)
-
-- The `threshold` rule leaf gains `below?: number`, "strictly below this value", one cut beside `top`
-  and `above`. `selectorRule(selector, { comparisons: true, below: true })` reads `` x < `n` `` (and
-  `` `n` > x ``) as that leaf, so an application can word a rule such as `data.gal4RGexp < -1` from the
-  element's reading instead of parsing it, or printing it raw.
-- Additive: a new optional field and a new option whose default (false) keeps what `selectorRule`
-  returned before, so a consumer that draws only `top` and `above` never meets a `below` it cannot
-  draw. A rule with no cut at all still keeps nothing.
-
 ## 2026-11-06 -- Decided by the team: a typed answer to a question (graphty-element)
 
 - `answerAiQuestion(id, answer, options?)`, with `AiAnswerOptions { typed?: boolean }`, on the

@@ -313,7 +313,7 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above", "below", "ties"]);
+    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties"]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -322,13 +322,9 @@ function checkThreshold(value: Loose, walker: Walker): void {
 
     // A reserved cut kept opaque on load counts as the leaf's cut.
     const reservedCut = walker.mode === "load" && (value.percentile !== undefined || value.z !== undefined);
-    const cuts = [value.top, value.above, value.below].filter((cut) => cut !== undefined).length;
+    const cuts = [value.top, value.above].filter((cut) => cut !== undefined).length;
     if (cuts !== 1 && !(reservedCut && cuts === 0)) {
-        throw bad('A "threshold" leaf has exactly one cut: top, above or below.', {
-            top: value.top,
-            above: value.above,
-            below: value.below,
-        });
+        throw bad('A "threshold" leaf has exactly one cut: top or above.', { top: value.top, above: value.above });
     }
 
     if (value.top !== undefined && (!Number.isInteger(value.top) || (value.top as number) < 0)) {
@@ -337,10 +333,6 @@ function checkThreshold(value: Loose, walker: Walker): void {
 
     if (value.above !== undefined && !isFiniteNumber(value.above)) {
         throw bad('A "threshold" leaf\'s above is a finite number.', { above: value.above });
-    }
-
-    if (value.below !== undefined && !isFiniteNumber(value.below)) {
-        throw bad('A "threshold" leaf\'s below is a finite number.', { below: value.below });
     }
 
     if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {

@@ -330,18 +330,14 @@ export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
  *     `options.comparisons`, an expression is also read through `>=` and `<=` (a `range` leaf)
  *     and `>` (a `threshold` leaf's `above`) against a number, and through a bare column name,
  *     which a rule reads as that file column: `` donations >= `10000` `` is the range leaf on
- *     `data.donations` from 10000 up. With `options.below` as well, `<` against a number is read
- *     too, as a `threshold` leaf's `below`: `` data.score < `-1` `` is "strictly below -1".
+ *     `data.donations` from 10000 up.
  * @param options - How much to read.
  * @param options.comparisons - Read ordering comparisons and bare column names too. Default false.
- * @param options.below - With `comparisons`, read `<` against a number too, as a `threshold`
- *     leaf's `below`. Default false, so a consumer that draws only `top` and `above` never meets
- *     it. Since 3.38.0.
  * @since 3.26.0
  */
 export function selectorRule(
     selector: Selector,
-    options: { readonly comparisons?: boolean; readonly below?: boolean } = {},
+    options: { readonly comparisons?: boolean } = {},
 ): RuleSelector | undefined {
     switch (selector.match) {
         case "rule":
@@ -359,7 +355,7 @@ export function selectorRule(
                 },
             };
         case "expression": {
-            const where = expressionRule(selector.where, options.comparisons === true, options.below === true);
+            const where = expressionRule(selector.where, options.comparisons === true);
             return where === undefined ? undefined : { match: "rule", where };
         }
         default:

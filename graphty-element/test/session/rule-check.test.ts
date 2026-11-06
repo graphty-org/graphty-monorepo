@@ -98,16 +98,6 @@ describe("selectorRule with comparisons", () => {
         assert.isUndefined(rule("hours"));
     });
 
-    it("reads < against a number as a threshold below it only when asked to", () => {
-        const below = (where: string): unknown =>
-            selectorRule({ match: "expression", where }, { comparisons: true, below: true })?.where;
-
-        assert.deepEqual(below("data.gal4RGexp < `-1`"), { kind: "threshold", path: "data.gal4RGexp", below: -1 });
-        assert.deepEqual(below("`5` > hours"), { kind: "threshold", path: "data.hours", below: 5 });
-        assert.isUndefined(below("name < 'M'"));
-        assert.isUndefined(selectorRule({ match: "expression", where: "data.hours < `5`" }, { below: true }));
-    });
-
     it("reads as before without the option", () => {
         assert.isUndefined(selectorRule({ match: "expression", where: "data.hours >= `20`" }));
         assert.isUndefined(selectorRule({ match: "expression", where: "hours == `20`" }));

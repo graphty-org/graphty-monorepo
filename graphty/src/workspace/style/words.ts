@@ -1039,22 +1039,16 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
 }
 
 /**
- * An attribute's name as the reader knows it, from its literal column key: a column's plain name,
- * or a run's value by the name the key gives it ("Connections", never `results.degree.value`).
+ * An attribute's name as the reader knows it, from its literal column key.
  * @param session - the element's session.
- * @param path - the column key, such as `"data.name"`, `"results.degree.value"`, or `"id"`.
+ * @param path - the column key, such as `"data.name"`, or `"id"`.
  * @returns its plain name, else the key.
  */
 export function attributeName(session: GraphSession, path: string): string {
     if (path === "id") {
         return "Node id";
     }
-    const column = session.data.attributes().find((a) => a.path === path);
-    if (column !== undefined) {
-        return column.plainName;
-    }
-    const value = session.data.readableValues().find((each) => each.runId !== undefined && each.path === path);
-    return value === undefined ? path : readableName(session, value).name;
+    return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
 }
 
 /** The pictures of each glyph-grid property, from graphty-element's catalog. */

@@ -237,23 +237,6 @@ describe("checking what the Assistant says", () => {
         assert.isNull(screen.queryByRole("button", { name: /select$/ }));
     });
 
-    it("a long reply ends at its chips with one scrollbar: nothing in the log overflows the panel", async () => {
-        await page.viewport(1440, 400);
-        await openOn(6);
-        model.turns = [calling("query", FIND), { text: "A long answer line.\n".repeat(60), toolCalls: [] }];
-        await say("Which are even?");
-        const chip = await screen.findByRole("button", { name: "3 nodes, select" });
-        await finished();
-        const box = log();
-        const body = box.closest<HTMLElement>(".ws-panel-body");
-        assert.isNotNull(body);
-        await waitFor(() => {
-            assert.isAtMost(box.scrollHeight - box.scrollTop - box.clientHeight, 1);
-        });
-        assert.isAtMost(body.scrollHeight, body.clientHeight, "the panel itself never scrolls");
-        assert.isAtMost(chip.getBoundingClientRect().bottom, box.getBoundingClientRect().bottom);
-    });
-
     it("Show in table selects them and opens the dock, with the chat still open", async () => {
         const { store, session } = await openOn(4);
         model.turns = [calling("query", FIND), { text: "Two.", toolCalls: [] }];
@@ -273,7 +256,7 @@ describe("checking what the Assistant says", () => {
             { text: "None.", toolCalls: [] },
         ];
         await say("Any none?");
-        await screen.findByText("No matches for group == 'none'.");
+        await screen.findByText("No matches for data.group == 'none'.");
     });
 
     it("a selection of nothing draws no line and leaves the chips; the row is what was found", async () => {
@@ -346,7 +329,7 @@ describe("checking what the Assistant says", () => {
         await say("Color them");
         await screen.findByRole("region", { name: "Conversation" });
         await within(log()).findByText("Colored 3 nodes");
-        assert.lengthOf(screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog), 1);
+        assert.lengthOf(screen.getAllByRole("button", { name: "Undo" }).filter(inLog), 1);
 
         await finished();
         model.asked = 0;
@@ -357,16 +340,16 @@ describe("checking what the Assistant says", () => {
         await say("Size them");
         await within(log()).findByText("Sized 3 nodes");
         await finished();
-        const undos = screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog);
+        const undos = screen.getAllByRole("button", { name: "Undo" }).filter(inLog);
         assert.lengthOf(undos, 1, "only the newest step offers it");
 
         await userEvent.click(undos[0]);
         await within(log()).findByText("Undone");
         assert.strictEqual(session.styles.list().length, layers + 1);
         await waitFor(() => {
-            assert.lengthOf(screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog), 1);
+            assert.lengthOf(screen.getAllByRole("button", { name: "Undo" }).filter(inLog), 1);
         });
-        await userEvent.click(screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog)[0]);
+        await userEvent.click(screen.getAllByRole("button", { name: "Undo" }).filter(inLog)[0]);
         await waitFor(() => {
             assert.lengthOf(within(log()).getAllByText("Undone"), 2);
         });
@@ -530,116 +513,6 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Waiting for you" }));
         });
-    });
-
-    it("Remove and Keep them by Enter leave focus in the composer, and a typed letter lands there", async () => {
-        await openOn(12);
-        model.turns = [
-            calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
-            { text: "Kept.", toolCalls: [] },
-            calling("edit_data", { action: "remove_nodes", ids: ids(12) }),
-            { text: "Gone.", toolCalls: [] },
-        ];
-        await say("Remove them");
-        const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
-        await pressByKey(within(await waiting()).getByRole("button", { name: "Keep them" }));
-        await inComposer(field);
-        await finished();
-        await userEvent.keyboard("{Backspace}Remove them{Enter}");
-        await pressByKey(within(await waiting()).getByRole("button", { name: "Remove" }));
-        await inComposer(field);
-    });
-
-    it("Answer by Enter leaves focus in the composer, where a second Enter sends nothing", async () => {
-        await openOn(3);
-        model.turns = [
-            calling("ask_reader", { question: "Which group?", choices: ["even", "odd"] }),
-            { text: "Odd it is.", toolCalls: [] },
-        ];
-        await say("Pick one");
-        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
-        const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
-        await pressByKey(screen.getByRole("button", { name: "Answer" }));
-        await inComposer(field);
-        await screen.findByText(/Odd it is\./);
-        await finished();
-        const { asked } = model;
-        await userEvent.keyboard("{Backspace}{Enter}");
-        assert.strictEqual(model.asked, asked, "an empty composer sends nothing");
-    });
-
-    it("the turn's Undo by Enter leaves focus in the composer, where a second Enter undoes nothing more", async () => {
-        const { session } = await openOn(3);
-        const layers = session.styles.list().length;
-        model.turns = [calling("style", COLOR), { text: "Red.", toolCalls: [] }];
-        await say("Color them");
-        await within(log()).findByText("Colored 3 nodes");
-        await finished();
-        await pressByKey(screen.getAllByRole("button", { name: /^Undo: / }).filter(inLog)[0]);
-        await within(log()).findByText("Undone");
-        const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
-        await inComposer(field);
-        await userEvent.keyboard("{Backspace}{Enter}");
-        assert.strictEqual(session.styles.list().length, layers);
-        assert.lengthOf(within(log()).getAllByText("Undone"), 1);
-    });
-
-    it("the scope x lasts through closing the panel, until a new selection or a sent message", async () => {
-        const { session } = await openOn(10);
-        await session.selection.apply({ ids: ids(3) });
-        await within(panel()).findByText("Selection");
-        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
-
-        await userEvent.click(await screen.findByRole("textbox", COMPOSER));
-        await userEvent.keyboard("{Control>}i{/Control}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
-        });
-        await userEvent.keyboard("{Control>}i{/Control}");
-        await screen.findByRole("region", { name: "Assistant" });
-        await within(panel()).findByText("Whole graph");
-
-        await session.selection.apply({ ids: ids(2) });
-        await within(panel()).findByText("Selection");
-        await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
-        await say("About the graph");
-        await finished();
-        await within(panel()).findByText("Selection");
-        assert.deepEqual(
-            sent.map((options) => options.scope),
-            ["graph"],
-        );
-    });
-
-    it("the scope x, Use selection and Send again by Enter each leave focus in the composer", async () => {
-        const { session } = await openOn(50);
-        await session.selection.apply({ ids: ids(3) });
-        Object.defineProperty(model, "name", { value: "google" });
-        model.setError(Object.assign(new Error("down"), { statusCode: 503 }));
-        await say("About these");
-        const row = await screen.findByRole("alert");
-        model.clearError();
-        const field = await screen.findByRole<HTMLTextAreaElement>("textbox", COMPOSER);
-
-        await pressByKey(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
-        await inComposer(field);
-        await pressByKey(screen.getByRole("button", { name: "Use selection" }));
-        await within(panel()).findByText("Selection");
-        await inComposer(field);
-        await pressByKey(screen.getByRole("button", { name: "Ask about the whole graph" }));
-        await within(panel()).findByText("Whole graph");
-
-        await pressByKey(within(row).getByRole("button", { name: "Send again" }));
-        await screen.findByText("The reply.");
-        await finished();
-        await inComposer(field);
-        assert.deepEqual(
-            sent.map((options) => options.scope),
-            ["selection", "graph"],
-        );
     });
 
     it("a question answered by typing resolves it, in the choices' words or the reader's own", async () => {
@@ -819,7 +692,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close Assistant" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close" }));
         assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
         model.release();
 
@@ -849,7 +722,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close Assistant" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close" }));
         const counted = store.get().announced;
         model.release();
         const slot = await waitFor(notice);
@@ -868,7 +741,7 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.isTrue(model.held);
         });
-        await userEvent.click(screen.getByRole("button", { name: "Close Assistant" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close" }));
         model.release();
         const slot = await waitFor(notice);
         await within(slot).findByText("The assistant answered");
@@ -880,7 +753,7 @@ describe("checking what the Assistant says", () => {
         fakeSpeech();
         await openOn(3);
         await screen.findByRole("button", { name: "Talk" });
-        await userEvent.click(screen.getByRole("button", { name: "Close Assistant" }));
+        await userEvent.click(screen.getByRole("button", { name: "Close" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "Assistant" }));
         });
@@ -891,7 +764,7 @@ describe("checking what the Assistant says", () => {
     it("F6 entering the panel lands in the composer, whatever had focus there last", async () => {
         await openOn(3);
         const field = await screen.findByRole("textbox", COMPOSER);
-        screen.getByRole("button", { name: "Close Assistant" }).focus();
+        screen.getByRole("button", { name: "Close" }).focus();
         await userEvent.keyboard("{F6}");
         await waitFor(() => {
             assert.notStrictEqual(document.activeElement, field);
@@ -944,34 +817,6 @@ describe("checking what the Assistant says", () => {
  * @returns the log.
  */
 const log = (): HTMLElement => screen.getByRole("region", { name: "Conversation" });
-
-/**
- * The waiting section, once it shows.
- * @returns the section.
- */
-const waiting = (): Promise<HTMLElement> => screen.findByRole("region", { name: "Waiting for you" });
-
-/**
- * Presses a button as a keyboard reader does: focus on it, then Enter.
- * @param button - the button.
- */
-async function pressByKey(button: HTMLElement): Promise<void> {
-    button.focus();
-    await userEvent.keyboard("{Enter}");
-}
-
-/**
- * Focus reaches the composer, and a typed letter lands in it.
- * @param field - the composer.
- */
-async function inComposer(field: HTMLTextAreaElement): Promise<void> {
-    await waitFor(() => {
-        assert.strictEqual(document.activeElement, field);
-    });
-    const before = field.value;
-    await userEvent.keyboard("p");
-    assert.strictEqual(field.value, `${before}p`);
-}
 
 /**
  * The panel.

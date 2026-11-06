@@ -2272,7 +2272,6 @@ export type RuleTree = {
     readonly top?: number;
     readonly ties?: TopTies;
     readonly above?: number;
-    readonly below?: number;
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches

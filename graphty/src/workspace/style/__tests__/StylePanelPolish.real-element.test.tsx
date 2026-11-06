@@ -116,12 +116,12 @@ describe("the Style panel", () => {
         await session.styles.settled();
         await clickRow("Three");
         const row = await screen.findByRole("button", {
-            name: /^Which nodes, 3 of 77 nodes, Picked: 3 nodes$/,
+            name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/,
         });
         assert.notInclude(row.textContent ?? "", "A rule set elsewhere");
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
-        const card = within(region).getByRole("group", { name: "Picked: 3 nodes" });
+        const card = within(region).getByRole("group", { name: "Picked by hand: 3 nodes" });
         assert.include(card.textContent ?? "", ids.join(", "), "the card lists the ids");
         assert.isNotNull(within(region).queryByRole("button", { name: "Add a condition" }));
 

@@ -21,17 +21,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
 import { providerDisclosure } from "../assistant-door/provider";
-import { sessionNamer, whereWords } from "../data-place/filterWords";
 import { formatNumber } from "../settings/numberFormat";
-import { sourceName } from "../style/row";
 import { attributeName, channelWord } from "../style/words";
 
 export const WORDS = {
     "assistant.name": "Assistant",
     "assistant.title.new": "New conversation",
     "assistant.title.tooltip": "Conversations",
-    "assistant.new": "Start new conversation",
-    "assistant.close": "Close Assistant",
+    "assistant.new": "New conversation",
+    "assistant.close": "Close",
     "assistant.intro": "Ask about this graph or change it. It can be wrong.",
     "assistant.setup.line": "Needs a key from an AI provider. Nothing is sent until you add one.",
     "assistant.setup.button": "AI provider...",
@@ -523,11 +521,7 @@ function styleLine(session: GraphSession | null, params: AiEffect["params"]): st
     const count =
         params.edges === undefined ? counted(Number(params.nodes), "node") : counted(Number(params.edges), "edge");
     const source = typeof params.source === "string" ? params.source : undefined;
-    // Named as the key names it: a run's value by its measure ("Connections"), never its path.
-    const named =
-        session === null || source === undefined
-            ? source
-            : (sourceName(session, { by: source }) ?? attributeName(session, source));
+    const named = session === null || source === undefined ? source : attributeName(session, source);
     const by = named === undefined ? "" : ` by ${named}`;
     if (channel.endsWith(".color")) {
         return `Colored ${count}${by}`;
@@ -643,17 +637,12 @@ export function excludedLine(effects: readonly AiEffect[]): string | null {
 }
 
 /**
- * An empty result's row: what was searched for, a rule in words ("No matches for trained is false.").
- * @param session - the session, to word a rule.
+ * An empty result's row.
  * @param searched - what was searched for.
  * @returns the words.
  */
-export function emptyWords(session: GraphSession | null, searched: unknown): string {
-    if (typeof searched !== "string" || searched.trim() === "") {
-        return "No matches.";
-    }
-    return `No matches for ${session === null ? searched : whereWords(searched, sessionNamer(session))}.`;
-}
+export const emptyWords = (searched: unknown): string =>
+    typeof searched === "string" && searched !== "" ? `No matches for ${searched}.` : "No matches.";
 
 /**
  * The row of more change lines.
@@ -663,31 +652,12 @@ export function emptyWords(session: GraphSession | null, searched: unknown): str
 export const moreWords = (count: number): string => `and ${formatNumber(count)} more`;
 
 /**
- * A chip's spoken name: the count, because the peek shows only on the canvas, then what it belongs
- * to (a step, an approval) where another chip may show the same count.
+ * A chip's spoken name: the count, because the peek shows only on the canvas.
  * @param kind - nodes or edges.
  * @param count - how many.
- * @param of - what it belongs to.
  * @returns the name.
  */
-export const chipName = (kind: "node" | "edge", count: number, of?: string): string =>
-    `${counted(count, kind)}, select${of === undefined ? "" : `, ${of}`}`;
-
-/**
- * A turn's Undo's name: the visible word, then the first thing it takes back, so it differs from
- * the top bar's Undo.
- * @param line - the turn's first change line, if any.
- * @returns the name.
- */
-export const turnUndoName = (line: string | undefined): string =>
-    line === undefined ? WORDS["assistant.undo"] : `${WORDS["assistant.undo"]}: ${line}`;
-
-/**
- * The model label's name: the model shown, then what pressing it does.
- * @param model - the model's name.
- * @returns the name.
- */
-export const modelName = (model: string): string => `${model}, ${WORDS["assistant.model.tooltip"]}`;
+export const chipName = (kind: "node" | "edge", count: number): string => `${counted(count, kind)}, select`;
 
 /**
  * The hidden part of the scope line.

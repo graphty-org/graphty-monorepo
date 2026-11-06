@@ -1,9 +1,19 @@
+import type { AiStatus } from "@graphty/graphty-element/ai";
 import {
     AI_PROVIDER_DESCRIPTORS,
     type AiProviderDescriptor,
     type AiProviderId,
 } from "@graphty/graphty-element/catalog";
 import { useMemo, useSyncExternalStore } from "react";
+
+/**
+ * A message in progress. Here, not in the panel's chunk, so the canvas can ask it too.
+ * @param status - the assistant's status.
+ * @returns true while a message runs.
+ */
+export function isRunning(status: AiStatus | null): boolean {
+    return status !== null && status.state !== "ready" && status.state !== "error";
+}
 
 /** The reader's AI provider and model, kept beside the key and for as long. */
 export interface AssistantChoice {

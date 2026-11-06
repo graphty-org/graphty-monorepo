@@ -7,6 +7,8 @@ import type {
 import { useEffect, useState } from "react";
 
 import { type AssistantChoice, providerDescriptor } from "../assistant-door/provider";
+
+export { isRunning } from "../assistant-door/provider";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { linked } from "./connection";
 
@@ -34,15 +36,6 @@ const NOT_LINKED: AssistantView = {
 
 /** What can change the requests that wait. */
 const REQUEST_EVENTS = ["ai-approval-requested", "ai-question-asked", "ai-pending-resolved"] as const;
-
-/**
- * A run in progress.
- * @param status - the assistant's status.
- * @returns true while a message runs.
- */
-export function isRunning(status: AiStatus | null): boolean {
-    return status !== null && status.state !== "ready" && status.state !== "error";
-}
 
 /**
  * Sets up the assistant on each fresh element and follows what it reports.

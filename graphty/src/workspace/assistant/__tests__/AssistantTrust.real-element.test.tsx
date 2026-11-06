@@ -632,7 +632,7 @@ describe("checking what the Assistant says", () => {
         await pressByKey(screen.getByRole("button", { name: "Ask about the whole graph" }));
         await within(panel()).findByText("Whole graph");
 
-        await pressByKey(within(row).getByRole("button", { name: "Send again" }));
+        await pressByKey(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
         await inComposer(field);
@@ -746,7 +746,7 @@ describe("checking what the Assistant says", () => {
         const row = await screen.findByRole("alert");
         model.clearError();
 
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await waitFor(() => {
             assert.deepEqual(
@@ -767,7 +767,7 @@ describe("checking what the Assistant says", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Ask about the whole graph" }));
         await within(panel()).findByText("Whole graph");
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(
@@ -788,7 +788,7 @@ describe("checking what the Assistant says", () => {
 
         await session.selection.apply({ ids: [] });
         await within(panel()).findByText("Whole graph");
-        await userEvent.click(within(row).getByRole("button", { name: "Send again" }));
+        await userEvent.click(within(row.parentElement ?? row).getByRole("button", { name: "Send again" }));
         await screen.findByText("The reply.");
         await finished();
         assert.deepEqual(

@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
+import { isRunning } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
@@ -42,13 +43,13 @@ const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: n
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
- * event that can change them; announces a finished load with its size and a finished run by name;
- * and, when a run finishes, posts the notice its painting calls for.
+ * event that can change them; announces a finished load with its size and a finished run by name,
+ * unless an Assistant message ran it; and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
  * @returns what the canvas draws from.
  */
 function useCanvasReading(session: GraphSession | null): CanvasReading {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const [reading, setReading] = useState<CanvasReading>(NOTHING);
 
     useEffect(() => {
@@ -101,13 +102,16 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 if (change.phase !== "end" || change.cause !== "command") {
                     return;
                 }
+                // A message's runs are its turn's news: its end line says what it computed, its
+                // answer comes after, and a run it takes back was never the reader's.
+                const told = !isRunning(element?.getAiStatus() ?? null);
                 const ended = ENDED[change.run.status];
                 const name = runName(session, change.run);
                 // The event carries the run's record; its result is on the live run.
                 const run = change.run.status === "succeeded" ? session.runs.get(change.run.id) : undefined;
                 // A grouping run says what it made once its layers are in the tree.
                 const grouped = run?.result?.summary().groups !== undefined;
-                if (ended !== undefined && !grouped) {
+                if (told && ended !== undefined && !grouped) {
                     // A path says its ends; a ranking says who ranks first.
                     const said =
                         run === undefined
@@ -121,7 +125,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                         return;
                     }
                     const groups = run === undefined ? null : groupsAnnouncement(session, run, name);
-                    if (groups !== null) {
+                    if (told && groups !== null) {
                         store.set({ announcement: groups });
                     }
                     const notice = runNotice(session, change.run.id);
@@ -137,7 +141,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 off();
             });
         };
-    }, [session, store]);
+    }, [session, store, element]);
 
     return reading;
 }

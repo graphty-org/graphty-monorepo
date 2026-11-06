@@ -192,6 +192,7 @@ async function follow(
 ): Promise<void> {
     const project = store.get().project?.id;
     const here = (): boolean => store.get().project?.id === project;
+    store.set({ assistantFailureDue: true });
     const working = setTimeout(() => {
         if (here()) {
             store.set({ announcement: WORDS["assistant.status.working"] });
@@ -206,6 +207,10 @@ async function follow(
         ended = { code: "AI_NOT_ENABLED", params: {}, success: false };
     }
     clearTimeout(working);
+    // Only a failure the open panel shows stays due for its row; anything else is said another way.
+    if (!here() || ended.success || isAway(store)) {
+        store.set({ assistantFailureDue: false });
+    }
     if (!here() || WAITING.has(ended.code)) {
         return;
     }

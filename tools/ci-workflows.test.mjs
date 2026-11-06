@@ -29,6 +29,7 @@ import { parse as parseYaml } from "yaml";
 
 import {
     ciCommand,
+    fitsCheckout,
     groupEntry,
     GROUPS,
     MATRIX_CAP,
@@ -1284,6 +1285,58 @@ describe("ci.yml", () => {
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
         }
+    });
+});
+
+describe("the test matrix on a commit older than its tools (#5996)", () => {
+    const shard = (command) => ({ shard: "s", package: "p", "test-command": command });
+    const checkout = (files) => {
+        const root = mkdtempSync(join(tmpdir(), "fits-checkout-"));
+        mkdirSync(join(root, "p"));
+        for (const [name, text] of Object.entries(files)) writeFileSync(join(root, "p", name), text);
+        return root;
+    };
+
+    it("finds every shard's project in this commit's configs", () => {
+        assert.deepEqual(
+            SHARDS.filter((s) => !fitsCheckout(s)).map((s) => s.shard),
+            [],
+        );
+    });
+
+    it("leaves out a shard only when its config holds none of the projects it names", () => {
+        const root = checkout({ "vitest.config.ts": 'project("real-element"); // not `large-graph`' });
+        const fits = (command) => fitsCheckout(shard(command), root);
+        assert.equal(fits("vitest run --project=large-graph --shard=1/4"), false);
+        assert.equal(fits("vitest run --project=real-element --project=large-graph"), true);
+        assert.equal(fits("vitest run --project=real-element-features-on"), true);
+        assert.equal(fits("vitest run"), true);
+    });
+
+    it("reads the config a shard names, and keeps a shard whose config it cannot read", () => {
+        const root = checkout({ "vitest.storybook.config.ts": 'name: "storybook"' });
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=storybook"), root),
+            true,
+        );
+        assert.equal(
+            fitsCheckout(shard("vitest run --config vitest.storybook.config.ts --project=other"), root),
+            false,
+        );
+        assert.equal(fitsCheckout(shard("vitest run --project=other"), root), true);
+    });
+
+    it("plans a group without a member the commit does not have", () => {
+        const [name, members] = Object.entries(GROUPS)[0];
+        const shards = SHARDS.filter((s) => s.shard !== members[0]);
+        const entry = plan(
+            SHARDS.map((s) => s.package),
+            undefined,
+            undefined,
+            false,
+            shards,
+        ).find((e) => e.shard === name);
+        assert.ok(!entry.members.includes(members[0]));
     });
 });
 

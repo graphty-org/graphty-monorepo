@@ -85,6 +85,10 @@ async function mounted(
         element.remove();
     });
     await element.updateComplete;
+    // About what the presets draw, not the frame guard: on a software GPU on a loaded machine one long
+    // frame turns the heavy nebula and soap bubble off ("guard.long-frame"), mid-test. frame-guard.test.ts
+    // keeps it on.
+    element.shaderSettings = { ...element.shaderSettings, guard: false };
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(
         (options.nodes ?? NODES).map(({ id, x, y, ...data }) => ({ id, ...data, position: { x, y, z: 0 } })),

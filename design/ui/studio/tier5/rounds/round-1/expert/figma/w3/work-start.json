@@ -1,0 +1,22 @@
+{
+ "runs": [],
+ "layers": [
+  "node-defaults_1 Node defaults",
+  "edge-defaults_1 Edge defaults",
+  "everything_1 Everything",
+  "everything_2 Everything",
+  "layer-1_1 Staff",
+  "layer-1_2 Staff",
+  "pinned_1 Pinned",
+  "selected_1 Selected",
+  "selected_2 Selected",
+  "hovered_1 Hovered"
+ ],
+ "notes": [],
+ "steps": [
+  "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0nv0l11\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0nv0s62\",\"op\":\"keep\",\"rule\":{\"kind\":\"text\",\"reads\":\"data.trained\",\"mode\":\"exact\",\"text\":\"true\",\"caseSensitive\":true}},{\"id\":\"smw0nv2c03\",\"op\":\"keep\",\"rule\":{\"kind\":\"range\",\"attribute\":\"data.hours\",\"min\":10},\"mode\":\"range\"}],\"color\":\"#009E73\"}]}"
+ ],
+ "sources": [
+  "volunteers.graphml"
+ ]
+}

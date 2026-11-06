@@ -195,7 +195,7 @@ export function attachRowPull(material: Material): void {
         material.unfreeze();
     }
 
-    new RowPullPlugin(material); // NOSONAR(typescript:S1848): the base constructor attaches it to the material
+    new RowPullPlugin(material); // NOSONAR(S1848): the base constructor attaches it to the material
     if (frozen) {
         material.freeze();
     }

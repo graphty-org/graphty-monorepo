@@ -1363,6 +1363,8 @@ export class UpdateManager implements Manager {
      * @param deadline - When this frame's paint budget runs out.
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
+        // A rebuilt mesh leaves the scene's mesh count as it was, and a frozen scene draws the old one.
+        this.sceneChanged = true;
         const rows = this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over

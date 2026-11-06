@@ -268,6 +268,52 @@ describe("changed rows on real nodes and edges", () => {
         }
     });
 
+    it("draws the nodes a Ghost step rebuilt on a frozen scene, when no edge moved", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.style.display = "block";
+        element.viewMode = "2d";
+        element.setAttribute("node-time-path", "t");
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await vi.waitFor(() => {
+            assert.isTrue(element.graph.initialized, "the element initialised its graph");
+        });
+        await element.graph.setLayout("random");
+        element.dataSource = "json";
+        element.dataSourceConfig = {
+            data: JSON.stringify({
+                nodes: Array.from({ length: LARGE.nodes }, (_, at) => ({ id: `n${String(at)}`, t: at })),
+                edges: [],
+            }),
+        };
+        await element.waitForSettled();
+        await element.session.time.ready;
+        await drawGhosts(element);
+        await element.session.time.window({ from: 0, to: 100, step: 1 });
+        await element.session.time.seek(2, { commit: false });
+        await drawn(element);
+        await element.session.time.seek(4, { commit: false });
+        await drawn(element);
+
+        const { graph } = element;
+        const scene = graph.getScene();
+        await vi.waitFor(() => {
+            assert.isTrue(scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+        });
+
+        const walk = vi.spyOn(graph.getUpdateManager(), "forceEdgeWalk");
+        const thaw = vi.spyOn(scene, "unfreezeActiveMeshes");
+        const step = await element.session.time.seek(6, { commit: false });
+        await drawn(element);
+
+        assert.isAbove(step.entered.nodes, 0);
+        assert.strictEqual(walk.mock.calls.length, 0, "a step of the rows it moved walks no edge");
+        assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
+    });
+
     it("places the edges of a node a Ghost step resized, and only those, with no walk", async () => {
         const element = await slidingElement(async (mountedElement) => {
             await drawGhosts(mountedElement);

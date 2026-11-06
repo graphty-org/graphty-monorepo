@@ -260,7 +260,7 @@ and each candidate's matrix is multiplied by the root's, so an XR gesture change
   see this, and a batched row has no place in `scene.meshes` to lose.
 - An exact tie between a row and an object mesh goes to the row, whose mesh was built first.
 
-As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"batched"` path. Five things differ from the text above:
+As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"batched"` path. Six things differ from the text above:
 
 - A node read is one pixel, not a window. On WebGL it is synchronous: a stale target is drawn on the spot and read with
   `_readTexturePixelsSync`. On WebGPU the next frame draws it and the read follows asynchronously. `NodeBehavior` drops an asynchronous
@@ -275,6 +275,10 @@ As built (stage 10): `render/NodeIdTarget.ts`, created and disposed with the `"b
 - Against `shapeRayHit`, the target differs at same-depth overlaps and at pixel centers within an eighth of a pixel of a triangle's
   edge, where the rasterizer's rule and the ray test may keep opposite sides. `node-id-target.test.ts` lists both and bounds the second at
   2% of sampled points.
+- A row under 1.5 device pixels in radius is drawn 1.5 px in radius around its center in the target (the batch's largest half-extent
+  sets the measure). Drawn as it is, a row smaller than a pixel covers no pixel center, so hover read nothing over it while the scan
+  named it: at 100,000 nodes in the benchmark (radius 0.32 px) no hover ever came. Hover over such a row may therefore name it, or a
+  neighbor drawn later, up to 1.5 px from its center, where the scan names nothing.
 
 **XR.** Babylon's `WebXRControllerPointerSelection` runs its own `scene.pickWithRay` to end the laser and place the selection dot, so with no
 mesh a beam runs through the row. Row picks reach it through one invisible pickable proxy moved to the row `rowRayHit` finds, admitted by

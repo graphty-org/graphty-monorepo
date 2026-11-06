@@ -100,7 +100,7 @@ async function settled(canvasElement: HTMLElement, element: GraphtyElement): Pro
 // capture renders every story at one 1200 x 900 viewport with a fine pointer. The phone dock switches
 // on the top window's `matchMedia(PHONE_WIDTH)`, the touch rules on `(pointer: coarse)`, and the
 // sheet's Drawer portals into the top document's body, so a narrower frame inside a story reaches
-// none of them. They need a capture viewport per story first.
+// none of them. They need a capture viewport per story first: graphty-org/graphty-monorepo#6018.
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Time dock",
     component: Workspace,

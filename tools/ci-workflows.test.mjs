@@ -37,6 +37,7 @@ import {
     OUTPUTS_LIMIT,
     outputLines,
     parseOnly,
+    LARGE_GRAPH_PARTS,
     plan,
     SHARDS,
     splitLines,
@@ -60,6 +61,7 @@ import {
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
     inputKey,
@@ -206,9 +208,24 @@ describe("the test matrix", () => {
         const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
         const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
         assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
-        const large = SHARDS.find((s) => s.shard === "graphty-large-graph");
-        assert.match(large["test-command"], /--project=large-graph$/);
-        assert.equal(plan(PACKAGES).find((e) => e.shard === large.shard).coverage, undefined);
+        const large = SHARDS.filter((s) => s.shard.startsWith("graphty-large-graph-"));
+        assert.equal(large.length, LARGE_GRAPH_PARTS);
+        large.forEach((s, i) => {
+            assert.match(
+                s["test-command"],
+                new RegExp(`--project=large-graph --shard=${i + 1}/${LARGE_GRAPH_PARTS}$`, "u"),
+            );
+            assert.equal(plan(PACKAGES).find((e) => e.shard === s.shard).coverage, undefined);
+        });
+    });
+
+    // Vitest's --shard hands N parts one file each only when there are N files, and a job has room for one.
+    it("gives every large-graph file a part and a bin of its own", () => {
+        const dir = new URL("../graphty/src/workspace/selection/__tests__/", import.meta.url);
+        const files = readdirSync(dir).filter((f) => /^LargeGraph\..*\.real-element\.test\.tsx$/u.test(f));
+        assert.equal(files.length, LARGE_GRAPH_PARTS);
+        const { overheadMs, scale } = binCost("graphty-large-graph");
+        assert.equal(packBins(files, new Map(), BIN_LIMIT_MS, overheadMs, scale).length, files.length);
     });
 
     // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
